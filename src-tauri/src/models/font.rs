@@ -62,12 +62,14 @@ pub struct QueryOriginalFontPayload {
     pub session_id: ProjectSessionId,
     #[serde(deserialize_with = "deserialize_non_empty_string")]
     pub font_directory: Option<String>,
-    pub font_id: crate::models::font::FontId,
+    pub font_id: FontId,
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(test)]
+    use serde_json::Value;
     use serde_json::json;
 
     #[test]
@@ -75,7 +77,7 @@ mod tests {
         let base = json!({"sessionId": "font-session", "fontId": "insignia15LTaa"});
         assert!(serde_json::from_value::<QueryOriginalFontPayload>(base.clone()).is_err());
         for (root, expected) in [
-            (serde_json::Value::Null, None),
+            (Value::Null, None),
             (json!("  "), None),
             (json!(" G:/core "), Some("G:/core")),
         ] {

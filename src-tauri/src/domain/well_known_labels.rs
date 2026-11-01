@@ -1,7 +1,12 @@
 //! Original Starsector tag, hint and numeric-template catalog.
 use crate::models::CsvTableKey;
+#[cfg(test)]
+use crate::test_support::work_counts;
 use serde::Deserialize;
-use std::{collections::BTreeMap, sync::LazyLock};
+use std::collections::BTreeMap;
+#[cfg(test)]
+use std::path::Path;
+use std::sync::LazyLock;
 
 #[derive(Deserialize)]
 struct LabelAsset {
@@ -69,10 +74,7 @@ impl NumericLabel {
 
 static CATALOGS: LazyLock<BTreeMap<String, WellKnownCatalog>> = LazyLock::new(|| {
     #[cfg(test)]
-    crate::test_support::work_counts::record(
-        "asset-parse",
-        std::path::Path::new("well-known-labels"),
-    );
+    work_counts::record("asset-parse", Path::new("well-known-labels"));
     let asset: LabelAsset =
         serde_json::from_str(include_str!("../../../schemas/well-known-labels.json"))
             .expect("embedded original label catalog must parse");
@@ -102,10 +104,7 @@ static CATALOGS: LazyLock<BTreeMap<String, WellKnownCatalog>> = LazyLock::new(||
         }
     }
     #[cfg(test)]
-    crate::test_support::work_counts::record(
-        "asset-build",
-        std::path::Path::new("well-known-labels"),
-    );
+    work_counts::record("asset-build", Path::new("well-known-labels"));
     catalogs
 });
 
@@ -116,6 +115,8 @@ pub fn well_known_catalog(table: CsvTableKey, column: &str) -> Option<&'static W
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(test)]
+    use std::collections::BTreeSet;
 
     #[test]
     fn original_hint_domains_are_complete_and_separate() {
@@ -129,7 +130,7 @@ mod tests {
                     .values
                     .keys()
                     .map(String::as_str)
-                    .collect::<std::collections::BTreeSet<_>>(),
+                    .collect::<BTreeSet<_>>(),
                 values.split_whitespace().collect()
             );
         }

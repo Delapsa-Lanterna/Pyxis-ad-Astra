@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use std::collections::{BTreeMap, BTreeSet};
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -8,13 +9,13 @@ pub struct PerformanceSample {
     pub category: String,
     pub started_at: f64,
     pub duration: f64,
-    pub fields: BTreeMap<String, serde_json::Value>,
+    pub fields: BTreeMap<String, Value>,
 }
 #[derive(Deserialize)]
 pub struct PerformanceBatch {
     pub samples: Vec<PerformanceSample>,
     pub overwritten: u64,
-    pub environment: serde_json::Value,
+    pub environment: Value,
 }
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -41,7 +42,7 @@ pub enum PerformanceMonitorAction {
 }
 
 #[cfg(windows)]
-pub(crate) fn collect_webview_frames(tree: &serde_json::Value, frames: &mut BTreeSet<String>) {
+pub(crate) fn collect_webview_frames(tree: &Value, frames: &mut BTreeSet<String>) {
     if let Some(id) = tree["frame"]["id"].as_str() {
         frames.insert(id.into());
     }
@@ -53,7 +54,7 @@ pub(crate) fn collect_webview_frames(tree: &serde_json::Value, frames: &mut BTre
 }
 
 #[cfg(windows)]
-pub(crate) fn is_main_webview_event(event: &serde_json::Value, frames: &BTreeSet<String>) -> bool {
+pub(crate) fn is_main_webview_event(event: &Value, frames: &BTreeSet<String>) -> bool {
     event["args"]["beginData"]["frame"]
         .as_str()
         .or_else(|| event["args"]["data"]["frame"].as_str())

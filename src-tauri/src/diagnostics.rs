@@ -3,12 +3,9 @@
 //! Tauri setup in `lib.rs` installs the writer that lands records in the
 //! application log. Without an installed sink, records are dropped — tests
 //! run without Tauri and callers must never depend on delivery.
-
 use crate::models::AppLogLevel;
-use std::sync::{
-    Arc, Mutex,
-    atomic::{AtomicBool, Ordering},
-};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
 
 type Sink = Arc<dyn Fn(AppLogLevel, &str, &str) + Send + Sync>;
 

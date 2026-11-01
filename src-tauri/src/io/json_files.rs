@@ -1,29 +1,28 @@
-use crate::{
-    errors::{AppError, AppResult, JsonRewriteFile},
-    io::read_utf8_no_bom,
-    models::JsonWriteOptions,
-    parsers::{PreserveResult, json_root_tail, parse_starsector_json, preserve_json_text},
-};
+use crate::errors::{AppError, AppResult, JsonRewriteFile};
+use crate::io::{decode_text, read_utf8_no_bom, read_versioned_bytes};
+use crate::models::{FileVersion, JsonWriteOptions};
+use crate::parsers::{PreserveResult, json_root_tail, parse_starsector_json, preserve_json_text};
+#[cfg(test)]
+use crate::test_support::work_counts;
 use serde_json::Value;
-use std::{
-    hash::{Hash, Hasher},
-    path::Path,
-};
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
+use std::path::Path;
 
 pub fn read_json_file(path: &Path) -> AppResult<Value> {
     let text = read_utf8_no_bom(path)?;
     #[cfg(test)]
-    crate::test_support::work_counts::record("parse", path);
+    work_counts::record("parse", path);
     parse_starsector_json(&text).map_err(|error| {
         AppError::context(format!("解析 JSON 文件失败 ({})", path.display()), error).at_path(path)
     })
 }
 
-pub fn read_versioned_json(path: &Path) -> AppResult<(crate::models::FileVersion, Value)> {
-    let (version, bytes) = super::read_versioned_bytes(path)?;
-    let text = super::decode_text(path, &bytes)?;
+pub fn read_versioned_json(path: &Path) -> AppResult<(FileVersion, Value)> {
+    let (version, bytes) = read_versioned_bytes(path)?;
+    let text = decode_text(path, &bytes)?;
     #[cfg(test)]
-    crate::test_support::work_counts::record("parse", path);
+    work_counts::record("parse", path);
     let value = parse_starsector_json(&text).map_err(|error| {
         AppError::context(format!("解析 JSON 文件失败 ({})", path.display()), error).at_path(path)
     })?;
@@ -56,8 +55,8 @@ impl JsonWriteBatch {
         if !self.options.preserve_original_json || !source_path.exists() {
             return Ok(normalized);
         }
-        let (_, bytes) = super::read_versioned_bytes(source_path)?;
-        let source = super::decode_text(source_path, &bytes)?;
+        let (_, bytes) = read_versioned_bytes(source_path)?;
+        let source = decode_text(source_path, &bytes)?;
         match preserve_json_text(&source, value, ordered_json).map_err(|error| {
             AppError::context(
                 format!("解析 JSON 文件失败 ({})", source_path.display()),
@@ -110,7 +109,7 @@ impl JsonWriteBatch {
 }
 
 fn fingerprint(bytes: &[u8]) -> String {
-    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    let mut hasher = DefaultHasher::new();
     bytes.hash(&mut hasher);
     format!("{:016x}", hasher.finish())
 }
@@ -118,15 +117,19 @@ fn fingerprint(bytes: &[u8]) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(test)]
+    use crate::io;
     use crate::models::JsonSourceConfirmation;
     use crate::test_support::TestWorkspace;
+    #[cfg(test)]
+    use crate::test_support::work_counts;
     use std::fs;
 
     #[test]
     fn json_read_attaches_actual_path_to_parser_position() {
         let dir = TestWorkspace::new("json_error_location");
         let path = dir.join("nested.skin");
-        crate::io::write_utf8_no_bom(&path, "{\n\"id\":1,\"id\":2}").unwrap();
+        io::write_utf8_no_bom(&path, "{\n\"id\":1,\"id\":2}").unwrap();
         let error = read_json_file(&path).unwrap_err();
         assert_eq!(error.code(), "json.duplicate_key");
         assert_eq!(
@@ -153,7 +156,7 @@ mod tests {
         let dir = TestWorkspace::new("json_write_batch_confirmation");
         fs::create_dir_all(&dir).unwrap();
         let path = dir.join("demo.json");
-        crate::io::write_utf8_no_bom(&path, "{a:[1,,2], # keep\n b:3}\nEND").unwrap();
+        io::write_utf8_no_bom(&path, "{a:[1,,2], # keep\n b:3}\nEND").unwrap();
         let mut batch = JsonWriteBatch::new(JsonWriteOptions {
             keep_filename: false,
             preserve_original_json: true,
@@ -161,7 +164,7 @@ mod tests {
         });
         let value = serde_json::json!({"a":[1,null,2],"b":4});
         let _ = batch.render(&path, &value, None).unwrap();
-        assert_eq!(crate::test_support::work_counts::count("read", &path), 1);
+        assert_eq!(work_counts::count("read", &path), 1);
         let files = match batch.finish().unwrap_err() {
             AppError::JsonRewriteRequired { files } => files,
             error => panic!("unexpected error: {error}"),
@@ -181,7 +184,7 @@ mod tests {
             }],
         });
         let rendered = confirmed.render(&path, &value, None).unwrap();
-        assert_eq!(crate::test_support::work_counts::count("read", &path), 2);
+        assert_eq!(work_counts::count("read", &path), 2);
         confirmed.finish().unwrap();
         assert_eq!(parse_starsector_json(&rendered).unwrap(), value);
         assert!(rendered.ends_with("\nEND"));
@@ -194,7 +197,7 @@ mod tests {
         fs::create_dir_all(&dir).unwrap();
         let path = dir.join("demo.variant");
         let source = "{\n  hullId: 'demo',\n  weaponGroups: [\n    { mode: 'LINKED', weapons: { A: 'one' } },\n    { mode: 'ALTERNATING', weapons: { B: 'two' } }\n  ],\n  unknown: '007'\n}";
-        crate::io::write_utf8_no_bom(&path, source).unwrap();
+        io::write_utf8_no_bom(&path, source).unwrap();
         let mut value = parse_starsector_json(source).unwrap();
         value["weaponGroups"]
             .as_array_mut()
@@ -220,7 +223,7 @@ mod tests {
         let dir = TestWorkspace::new("json_write_batch_changed_source");
         fs::create_dir_all(&dir).unwrap();
         let path = dir.join("demo.json");
-        crate::io::write_utf8_no_bom(&path, "{a:[1,,2]}").unwrap();
+        io::write_utf8_no_bom(&path, "{a:[1,,2]}").unwrap();
         let value = serde_json::json!({"a":[1,null,3]});
         let mut batch = JsonWriteBatch::new(JsonWriteOptions {
             keep_filename: false,
@@ -232,7 +235,7 @@ mod tests {
             AppError::JsonRewriteRequired { files } => files,
             error => panic!("unexpected error: {error}"),
         };
-        crate::io::write_utf8_no_bom(&path, "{a:[1,,2], b:4}").unwrap();
+        io::write_utf8_no_bom(&path, "{a:[1,,2], b:4}").unwrap();
         let mut retry = JsonWriteBatch::new(JsonWriteOptions {
             keep_filename: false,
             preserve_original_json: true,

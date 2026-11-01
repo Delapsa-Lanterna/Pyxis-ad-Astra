@@ -1,5 +1,8 @@
 use super::{CsvTableKey, JsonWriteOptions, ProjectSessionId};
-use crate::models::WeaponSpecClass;
+use crate::models::{
+    AssociatedSpecWrite as ModelsAssociatedSpecWrite, EntityEditTarget, EntityFileLocation,
+    FileVersion, WeaponSpecClass, project_identity,
+};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 
@@ -55,12 +58,12 @@ impl AssociatedSpecCreateParams {
             | Self::Skill { id } => id,
         }
     }
-    pub fn table(&self) -> super::CsvTableKey {
+    pub fn table(&self) -> CsvTableKey {
         match self {
-            Self::Ship { .. } => super::CsvTableKey::Ships,
-            Self::Weapon { .. } => super::CsvTableKey::Weapons,
-            Self::System { .. } => super::CsvTableKey::ShipSystems,
-            Self::Skill { .. } => super::CsvTableKey::Skills,
+            Self::Ship { .. } => CsvTableKey::Ships,
+            Self::Weapon { .. } => CsvTableKey::Weapons,
+            Self::System { .. } => CsvTableKey::ShipSystems,
+            Self::Skill { .. } => CsvTableKey::Skills,
         }
     }
 }
@@ -88,23 +91,23 @@ pub enum AssociatedSpecChange {
 #[serde(rename_all = "camelCase")]
 pub struct AssociatedSpecWrite {
     pub change: AssociatedSpecChange,
-    pub target: crate::models::EntityEditTarget,
+    pub target: EntityEditTarget,
     pub resolution: Option<AssociatedSpecResolution>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct AssociatedSpecFile {
-    pub location: crate::models::EntityFileLocation,
-    pub version: crate::models::FileVersion,
+    pub location: EntityFileLocation,
+    pub version: FileVersion,
     pub problem: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AssociatedSpecPreparation {
-    pub target: crate::models::EntityEditTarget,
-    pub base_versions: Vec<crate::models::FileVersion>,
+    pub target: EntityEditTarget,
+    pub base_versions: Vec<FileVersion>,
     pub original: Option<AssociatedSpecFile>,
     pub destination: AssociatedSpecFile,
 }
@@ -146,17 +149,17 @@ impl AssociatedSpecChange {
 pub struct CsvSave {
     #[serde(deserialize_with = "super::serde_fields::deserialize_nullable")]
     pub row_order: Option<Vec<CsvRowOrderEntry>>,
-    pub base_versions: Vec<crate::models::FileVersion>,
+    pub base_versions: Vec<FileVersion>,
     pub session_id: ProjectSessionId,
     pub mod_root: String,
     pub table: CsvTableKey,
     pub patches: Vec<CsvRowPatch>,
-    pub associated_specs: Vec<crate::models::AssociatedSpecWrite>,
+    pub associated_specs: Vec<ModelsAssociatedSpecWrite>,
     #[serde(default)]
     pub json_write: JsonWriteOptions,
 }
 
-super::project_identity::impl_session_mod_scope_required!(CsvSave);
+project_identity::impl_session_mod_scope_required!(CsvSave);
 
 #[cfg(test)]
 mod tests {

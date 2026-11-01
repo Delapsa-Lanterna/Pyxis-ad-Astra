@@ -4,21 +4,26 @@ use super::super::definitions::entity_resources::{
 };
 use super::super::resources::SpriteReadBatch;
 use super::super::session::{lock_ready_session, session_handle};
-use crate::{
-    errors::AppResult,
-    models::{
-        DraftResourceEntityKind, ResourceDataUrlBatchEntry, ResourceDataUrlBatchResult, ResourceRef,
-    },
+use crate::domain::json_composition as domain_json_composition;
+use crate::errors::AppResult;
+use crate::models::{
+    DraftResourceEntityKind, EngineRenderAssets, EntityKind, ResourceDataUrlBatchEntry,
+    ResourceDataUrlBatchResult, ResourceOwnerKind, ResourceRef, ResourceSource,
 };
-use std::collections::BTreeMap;
+use crate::services::project::query::json_composition as query_json_composition;
+use crate::services::project::resources::resource_ref;
+use crate::services::project::sources::engine_styles;
+use crate::services::project::sources::engine_styles::ENGINE_STYLES_PATH;
+use crate::services::project::{json_composition, resources};
+use serde_json::Value;
+use std::collections::{BTreeMap, BTreeSet};
+use std::iter;
 use std::path::Path;
 
 pub fn query_engine_render_assets(
     session_id: &str,
-    inline_styles: &[serde_json::Value],
-) -> AppResult<crate::models::EngineRenderAssets> {
-    use super::super::{resources::resource_ref, sources};
-    use crate::models::{EngineRenderAssets, ResourceOwnerKind, ResourceSource};
+    inline_styles: &[Value],
+) -> AppResult<EngineRenderAssets> {
     let handle = session_handle(session_id)?;
     let mut result = EngineRenderAssets {
         styles: BTreeMap::new(),
@@ -26,28 +31,25 @@ pub fn query_engine_render_assets(
         resources: BTreeMap::new(),
     };
     let session = lock_ready_session(&handle)?;
-    let composition =
-        super::super::json_composition(&session, sources::engine_styles::ENGINE_STYLES_PATH)?;
+    let composition = json_composition(&session, ENGINE_STYLES_PATH)?;
     let (local, version) =
-        sources::engine_styles::read_engine_styles(Path::new(&session.manifest.mod_root))?;
-    let effective = crate::domain::json_composition::compose_game_json(
-        &composition,
-        &serde_json::to_value(local)?,
-    )?;
+        engine_styles::read_engine_styles(Path::new(&session.manifest.mod_root))?;
+    let effective =
+        domain_json_composition::compose_game_json(&composition, &serde_json::to_value(local)?)?;
     result.styles = serde_json::from_value(effective)?;
     result.versions = composition
         .layers
         .into_iter()
         .map(|layer| layer.version)
-        .chain(std::iter::once(version))
+        .chain(iter::once(version))
         .collect();
     drop(session);
-    let mut paths = std::collections::BTreeSet::new();
+    let mut paths = BTreeSet::new();
     for style in result.styles.values().chain(inline_styles) {
         for field in ["glowSprite", "glowOutline"] {
             if let Some(path) = style
                 .get(field)
-                .and_then(serde_json::Value::as_str)
+                .and_then(Value::as_str)
                 .filter(|path| !path.is_empty())
             {
                 paths.insert(path.to_string());
@@ -85,7 +87,7 @@ pub fn query_resource_data_urls(
     let mut entries = Vec::with_capacity(resources.len());
     let mut outcomes = BTreeMap::new();
     for resource in resources {
-        let key = super::super::resources::media_resource_key(&resource);
+        let key = resources::media_resource_key(&resource);
         let (data_url, error) = outcomes
             .entry(key)
             .or_insert_with(|| match batch.data_url(&resource) {
@@ -111,7 +113,7 @@ pub fn query_draft_resources(
     session_id: &str,
     kind: DraftResourceEntityKind,
     id: &str,
-    draft: &serde_json::Value,
+    draft: &Value,
 ) -> AppResult<BTreeMap<String, ResourceRef>> {
     let handle = session_handle(session_id)?;
     let session = lock_ready_session(&handle)?;
@@ -124,51 +126,63 @@ pub fn query_draft_resources(
         DraftResourceEntityKind::System => BTreeMap::new(),
     };
     let entity_kind = match kind {
-        DraftResourceEntityKind::Ship => Some(crate::models::EntityKind::Ship),
-        DraftResourceEntityKind::Weapon => Some(crate::models::EntityKind::Weapon),
-        DraftResourceEntityKind::Faction => Some(crate::models::EntityKind::Faction),
-        DraftResourceEntityKind::Projectile => Some(crate::models::EntityKind::Projectile),
+        DraftResourceEntityKind::Ship => Some(EntityKind::Ship),
+        DraftResourceEntityKind::Weapon => Some(EntityKind::Weapon),
+        DraftResourceEntityKind::Faction => Some(EntityKind::Faction),
+        DraftResourceEntityKind::Projectile => Some(EntityKind::Projectile),
         _ => None,
     };
     if let Some(record) = entity_kind
         .and_then(|kind| session.spec_records(kind))
         .and_then(|records| records.get(id))
     {
-        let sources = super::super::json_composition(&session, &record.location.rel_path)?;
-        let effective = crate::domain::json_composition::compose_game_json(&sources, &record.data)?;
+        let sources = json_composition(&session, &record.location.rel_path)?;
+        let effective = domain_json_composition::compose_game_json(&sources, &record.data)?;
         let mut local = record.data.clone();
         for (key, value) in draft.as_object().expect("resource draft object") {
             if effective.get(key) != Some(value) {
                 local[key] = value.clone();
             }
         }
-        super::json_composition::resource_origins(&mut resources, &local, &sources);
+        query_json_composition::resource_origins(&mut resources, &local, &sources);
     }
     Ok(resources)
 }
 
 #[cfg(test)]
 mod tests {
-    use super::super::super::resources::{media_resource_key, sprites::sprite_read_count};
+    #[cfg(test)]
+    use crate::io;
+    #[cfg(test)]
+    use crate::models::EntityKind;
+    #[cfg(test)]
+    use crate::services::project::cache::media;
+    #[cfg(test)]
+    use crate::services::project::performance::PerformanceTrace as PerformancePerformanceTrace;
+    #[cfg(test)]
+    use crate::services::project::{PerformanceTrace, test_support};
+    use base64::Engine as _;
+    #[cfg(test)]
+    use std::fs;
+
+    use super::super::super::resources::media_resource_key;
+    use super::super::super::resources::sprites::sprite_read_count;
     use super::super::super::session::{close_project_session, open_project_session_traced};
     use super::*;
     use crate::models::{ResourceOwnerKind, ResourceRef, ResourceSource};
     use crate::services::project::cache::media::cached_sprite_media_contains;
     use crate::services::project::test_support::project_workspace;
-
     use crate::test_support::TestWorkspace;
+    use base64::engine::general_purpose::STANDARD;
 
     #[test]
     fn media_batch_preserves_successes_and_reports_each_failed_identity() {
         let root = project_workspace("partial_media_batch");
-        std::fs::create_dir_all(root.join("graphics")).unwrap();
-        std::fs::write(root.join("graphics/icon.png"), [1, 2, 3]).unwrap();
-        let manifest = open_project_session_traced(
-            &root,
-            None,
-            &mut crate::services::project::PerformanceTrace::new("media.batch"),
-        )
-        .unwrap();
+        fs::create_dir_all(root.join("graphics")).unwrap();
+        fs::write(root.join("graphics/icon.png"), [1, 2, 3]).unwrap();
+        let manifest =
+            open_project_session_traced(&root, None, &mut PerformanceTrace::new("media.batch"))
+                .unwrap();
         let resources: Vec<_> = (0..10)
             .map(|index| ResourceRef {
                 reference: None,
@@ -205,16 +219,16 @@ mod tests {
         let game = root.join("game");
         let core = game.join("starsector-core");
         for path in [&local, &core] {
-            std::fs::create_dir_all(path.join("data/config")).unwrap();
+            fs::create_dir_all(path.join("data/config")).unwrap();
         }
         let path = local.join("data/config/engine_styles.json");
-        std::fs::write(
+        fs::write(
             core.join("data/config/engine_styles.json"),
             r#"{"A":{"engineColor":[1,2,3],"glowSizeMult":2,"nested":{"a":1}},"B":{"engineColor":[4,5,6]}}"#,
         )
         .unwrap();
-        std::fs::write(&path, r#"{"A":{"engineColor":[7,8,9],"nested":{"b":2}}}"#).unwrap();
-        let mut trace = crate::services::project::PerformanceTrace::new("project.openSession");
+        fs::write(&path, r#"{"A":{"engineColor":[7,8,9],"nested":{"b":2}}}"#).unwrap();
+        let mut trace = PerformanceTrace::new("project.openSession");
         let manifest = open_project_session_traced(&local, Some(&game), &mut trace).unwrap();
         let assets = query_engine_render_assets(
             &manifest.session_id,
@@ -238,9 +252,9 @@ mod tests {
             assets.styles["B"]["engineColor"],
             serde_json::json!([4, 5, 6])
         );
-        assert_eq!(assets.versions[1], crate::io::file_version(&path).unwrap());
-        std::fs::remove_file(&path).unwrap();
-        std::fs::remove_file(core.join("data/config/engine_styles.json")).unwrap();
+        assert_eq!(assets.versions[1], io::file_version(&path).unwrap());
+        fs::remove_file(&path).unwrap();
+        fs::remove_file(core.join("data/config/engine_styles.json")).unwrap();
         let empty = query_engine_render_assets(&manifest.session_id, &[]).unwrap();
         assert!(empty.styles.is_empty());
         assert_eq!(empty.resources.len(), 3);
@@ -250,8 +264,8 @@ mod tests {
                 .values()
                 .all(|resource| resource.source == ResourceSource::Mod)
         );
-        std::fs::create_dir_all(local.join("graphics/fx")).unwrap();
-        std::fs::write(local.join("graphics/fx/engineglow32.png"), [1, 2, 3]).unwrap();
+        fs::create_dir_all(local.join("graphics/fx")).unwrap();
+        fs::write(local.join("graphics/fx/engineglow32.png"), [1, 2, 3]).unwrap();
         assert!(
             query_resource_data_urls(
                 &manifest.session_id,
@@ -262,7 +276,7 @@ mod tests {
                 .data_url
                 .is_some()
         );
-        std::fs::write(&path, "[]").unwrap();
+        fs::write(&path, "[]").unwrap();
         assert_eq!(
             query_engine_render_assets(&manifest.session_id, &[])
                 .unwrap_err()
@@ -275,18 +289,16 @@ mod tests {
     }
 
     fn general_purpose_base64(bytes: &[u8]) -> String {
-        use base64::{Engine as _, engine::general_purpose};
-        general_purpose::STANDARD.encode(bytes)
+        STANDARD.encode(bytes)
     }
 
     #[test]
     fn batch_resource_query_keeps_order_and_uses_empty_for_missing() {
         let root = project_workspace("batch_resource_query");
-        std::fs::create_dir_all(root.join("graphics/ships")).unwrap();
-        std::fs::write(root.join("graphics/ships/ship.png"), [137, 80, 78, 71]).unwrap();
+        fs::create_dir_all(root.join("graphics/ships")).unwrap();
+        fs::write(root.join("graphics/ships/ship.png"), [137, 80, 78, 71]).unwrap();
 
-        let mut trace =
-            crate::services::project::performance::PerformanceTrace::new("project.openSession");
+        let mut trace = PerformancePerformanceTrace::new("project.openSession");
         let manifest = open_project_session_traced(&root, None, &mut trace).unwrap();
         let result = query_resource_data_urls(
             &manifest.session_id,
@@ -328,11 +340,10 @@ mod tests {
     fn batch_resource_query_reads_shared_physical_media_once() {
         let root = project_workspace("batch_resource_query_physical_key");
         let sprite = root.join("graphics/shared/icon.png");
-        std::fs::create_dir_all(sprite.parent().unwrap()).unwrap();
-        std::fs::write(&sprite, [137, 80, 78, 71]).unwrap();
+        fs::create_dir_all(sprite.parent().unwrap()).unwrap();
+        fs::write(&sprite, [137, 80, 78, 71]).unwrap();
 
-        let mut trace =
-            crate::services::project::performance::PerformanceTrace::new("project.openSession");
+        let mut trace = PerformancePerformanceTrace::new("project.openSession");
         let manifest = open_project_session_traced(&root, None, &mut trace).unwrap();
         let before = sprite_read_count(&sprite);
         let result = query_resource_data_urls(
@@ -392,13 +403,12 @@ mod tests {
         let root = project_workspace("batch_resource_query_source_key");
         let mod_sprite = root.join("mods/demo/graphics/shared/icon.png");
         let core_sprite = root.join("starsector-core/graphics/shared/icon.png");
-        std::fs::create_dir_all(mod_sprite.parent().unwrap()).unwrap();
-        std::fs::create_dir_all(core_sprite.parent().unwrap()).unwrap();
-        std::fs::write(&mod_sprite, [1u8, 2, 3]).unwrap();
-        std::fs::write(&core_sprite, [4u8, 5, 6]).unwrap();
+        fs::create_dir_all(mod_sprite.parent().unwrap()).unwrap();
+        fs::create_dir_all(core_sprite.parent().unwrap()).unwrap();
+        fs::write(&mod_sprite, [1u8, 2, 3]).unwrap();
+        fs::write(&core_sprite, [4u8, 5, 6]).unwrap();
 
-        let mut trace =
-            crate::services::project::performance::PerformanceTrace::new("project.openSession");
+        let mut trace = PerformancePerformanceTrace::new("project.openSession");
         let manifest =
             open_project_session_traced(&root.join("mods/demo"), Some(&root), &mut trace).unwrap();
         let result = query_resource_data_urls(
@@ -433,8 +443,7 @@ mod tests {
     fn core_resource_requires_starsector_root() {
         let root = project_workspace("core_resource_without_root");
 
-        let mut trace =
-            crate::services::project::performance::PerformanceTrace::new("project.openSession");
+        let mut trace = PerformancePerformanceTrace::new("project.openSession");
         let manifest = open_project_session_traced(&root, None, &mut trace).unwrap();
         let error = query_resource_data_urls(
             &manifest.session_id,
@@ -464,16 +473,15 @@ mod tests {
     fn mod_resource_uses_core_fallback_from_session_root() {
         let root = project_workspace("mod_resource_core_fallback");
         let mod_root = root.join("mods/demo");
-        std::fs::create_dir_all(&mod_root).unwrap();
-        std::fs::create_dir_all(root.join("starsector-core/graphics/ships")).unwrap();
-        std::fs::write(
+        fs::create_dir_all(&mod_root).unwrap();
+        fs::create_dir_all(root.join("starsector-core/graphics/ships")).unwrap();
+        fs::write(
             root.join("starsector-core/graphics/ships/core_ship.png"),
             [137, 80, 78, 71],
         )
         .unwrap();
 
-        let mut trace =
-            crate::services::project::performance::PerformanceTrace::new("project.openSession");
+        let mut trace = PerformancePerformanceTrace::new("project.openSession");
         let manifest = open_project_session_traced(&mod_root, Some(&root), &mut trace).unwrap();
         let result = query_resource_data_urls(
             &manifest.session_id,
@@ -497,8 +505,7 @@ mod tests {
     fn resource_query_rejects_parent_dir_escape() {
         let root = project_workspace("resource_query_parent_escape");
 
-        let mut trace =
-            crate::services::project::performance::PerformanceTrace::new("project.openSession");
+        let mut trace = PerformancePerformanceTrace::new("project.openSession");
         let manifest = open_project_session_traced(&root, None, &mut trace).unwrap();
         let error = query_resource_data_urls(
             &manifest.session_id,
@@ -528,11 +535,10 @@ mod tests {
     fn resource_query_rejects_mod_link_parent_escape() {
         let (root, outside, _linked) =
             TestWorkspace::directory_link("resource_query_link_escape", "linked").unwrap();
-        let root = root.with_cleanup(crate::services::project::test_support::release_workspace);
-        std::fs::write(outside.join("outside.png"), [137, 80, 78, 71]).unwrap();
+        let root = root.with_cleanup(test_support::release_workspace);
+        fs::write(outside.join("outside.png"), [137, 80, 78, 71]).unwrap();
 
-        let mut trace =
-            crate::services::project::performance::PerformanceTrace::new("project.openSession");
+        let mut trace = PerformancePerformanceTrace::new("project.openSession");
         let manifest = open_project_session_traced(&root, None, &mut trace).unwrap();
         let result = query_resource_data_urls(
             &manifest.session_id,
@@ -555,12 +561,11 @@ mod tests {
     fn media_cache_refreshes_entry_when_file_content_changes() {
         let root = project_workspace("media_cache_refresh");
         let sprite_dir = root.join("graphics/ships");
-        std::fs::create_dir_all(&sprite_dir).unwrap();
+        fs::create_dir_all(&sprite_dir).unwrap();
         let sprite = sprite_dir.join("demo.png");
-        std::fs::write(&sprite, [1u8]).unwrap();
+        fs::write(&sprite, [1u8]).unwrap();
 
-        let mut trace =
-            crate::services::project::performance::PerformanceTrace::new("project.openSession");
+        let mut trace = PerformancePerformanceTrace::new("project.openSession");
         let manifest = open_project_session_traced(&root, None, &mut trace).unwrap();
         let resource = ResourceRef {
             reference: None,
@@ -580,7 +585,7 @@ mod tests {
             .clone()
             .unwrap();
 
-        std::fs::write(&sprite, [7u8, 7, 7]).unwrap();
+        fs::write(&sprite, [7u8, 7, 7]).unwrap();
         let second = query_resource_data_urls(&session_id, vec![resource])
             .unwrap()
             .entries[0]
@@ -609,13 +614,13 @@ mod tests {
     #[test]
     fn media_cache_evicts_oldest_beyond_capacity() {
         let root = project_workspace("media_cache_eviction");
-        let count = super::super::super::cache::media::media_capacity_for_test() + 3;
+        let count = media::media_capacity_for_test() + 3;
         let sprite_dir = root.join("graphics/ships");
-        std::fs::create_dir_all(&sprite_dir).unwrap();
+        fs::create_dir_all(&sprite_dir).unwrap();
         let mut resources = Vec::new();
         for index in 0..count {
             let name = format!("p{index:04}.png");
-            std::fs::write(sprite_dir.join(&name), [index as u8]).unwrap();
+            fs::write(sprite_dir.join(&name), [index as u8]).unwrap();
             resources.push(ResourceRef {
                 reference: None,
                 source: ResourceSource::Mod,
@@ -626,8 +631,7 @@ mod tests {
             });
         }
 
-        let mut trace =
-            crate::services::project::performance::PerformanceTrace::new("project.openSession");
+        let mut trace = PerformancePerformanceTrace::new("project.openSession");
         let manifest = open_project_session_traced(&root, None, &mut trace).unwrap();
         let result = query_resource_data_urls(&manifest.session_id.clone(), resources).unwrap();
 
@@ -678,8 +682,8 @@ mod tests {
     fn closing_session_clears_media_cache() {
         let root = project_workspace("media_cache_close_clears");
         let sprite_dir = root.join("graphics/ships");
-        std::fs::create_dir_all(&sprite_dir).unwrap();
-        std::fs::write(sprite_dir.join("demo.png"), [137, 80, 78, 71]).unwrap();
+        fs::create_dir_all(&sprite_dir).unwrap();
+        fs::write(sprite_dir.join("demo.png"), [137, 80, 78, 71]).unwrap();
         let resource = ResourceRef {
             reference: None,
             source: ResourceSource::Mod,
@@ -689,8 +693,7 @@ mod tests {
             key: "ship".to_string(),
         };
 
-        let mut trace =
-            crate::services::project::performance::PerformanceTrace::new("project.openSession");
+        let mut trace = PerformancePerformanceTrace::new("project.openSession");
         let manifest = open_project_session_traced(&root, None, &mut trace).unwrap();
         let session_id = manifest.session_id.clone();
         query_resource_data_urls(&session_id, vec![resource.clone()]).unwrap();
@@ -718,7 +721,7 @@ mod tests {
     #[test]
     fn draft_weapon_resources_are_derived_from_submitted_snapshot() {
         let root = project_workspace("draft_weapon_resources");
-        let mut trace = crate::services::project::PerformanceTrace::new("project.openSession");
+        let mut trace = PerformanceTrace::new("project.openSession");
         let manifest = open_project_session_traced(&root, None, &mut trace).unwrap();
         let draft = serde_json::json!({"id":"weapon", "turretSprite":"graphics/draft.png"});
         let resources = query_draft_resources(
@@ -742,7 +745,7 @@ mod tests {
     #[test]
     fn projectile_draft_resources_keep_both_sprite_fields_and_owner() {
         let root = project_workspace("projectile_draft_resources");
-        let mut trace = crate::services::project::PerformanceTrace::new("project.openSession");
+        let mut trace = PerformanceTrace::new("project.openSession");
         let manifest = open_project_session_traced(&root, None, &mut trace).unwrap();
         let draft = serde_json::json!({"sprite":"graphics/missile.png", "bulletSprite":"graphics/shot.png"});
         let resources = query_draft_resources(
@@ -760,10 +763,7 @@ mod tests {
             assert_eq!(resources[field].rel_path, path);
             assert_eq!(resources[field].key, field);
             assert_eq!(resources[field].owner_id, "shot");
-            assert_eq!(
-                resources[field].owner_kind,
-                crate::models::EntityKind::Projectile.into()
-            );
+            assert_eq!(resources[field].owner_kind, EntityKind::Projectile.into());
         }
         close_project_session(manifest.session_id.clone()).unwrap();
         assert!(
@@ -781,7 +781,7 @@ mod tests {
     #[test]
     fn config_draft_resources_use_the_current_references_and_owner() {
         let root = project_workspace("config_draft_resources");
-        let mut trace = crate::services::project::PerformanceTrace::new("project.openSession");
+        let mut trace = PerformanceTrace::new("project.openSession");
         let manifest = open_project_session_traced(&root, None, &mut trace).unwrap();
         let faction = query_draft_resources(
             &manifest.session_id,

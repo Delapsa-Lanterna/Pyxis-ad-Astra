@@ -1,18 +1,27 @@
 #![cfg(test)]
-use crate::services::project::test_support::project_workspace;
-use crate::{
-    io::{read_csv_data, read_json_file, write_utf8_no_bom},
-    models::*,
-    services::{project, write_transactions},
-    test_support::TestWorkspace,
+use crate::errors::AppResult;
+use crate::io::{read_csv_data, read_json_file, write_utf8_no_bom};
+use crate::models::{
+    CsvSave, JointEditSnapshot, JsonDocumentOrigin, SaveAction, SpecSave, TextSave,
+    WriteContentTarget, *,
 };
-use serde_json::json;
+use crate::services;
+use crate::services::project::PerformanceTrace;
+#[cfg(test)]
+use crate::services::project::session::csv_writes;
+use crate::services::project::test_support::project_workspace;
+use crate::services::project::write::csv_patch;
+use crate::services::{project, project_save, write_transactions};
+use crate::test_support::TestWorkspace;
+use serde_json::{Value, json};
 use std::collections::BTreeMap;
+use std::fs;
+use std::path::Path;
 
 fn fixture(explicit: bool) -> (TestWorkspace, ProjectManifest) {
     let root = project_workspace("default_ship_description");
-    std::fs::create_dir_all(root.join("data/hulls")).unwrap();
-    std::fs::create_dir_all(root.join("data/strings")).unwrap();
+    fs::create_dir_all(root.join("data/hulls")).unwrap();
+    fs::create_dir_all(root.join("data/strings")).unwrap();
     let mut data = json!({"hullId":"old","hullSize":"FRIGATE","custom":{"keep":1}});
     if explicit {
         data["descriptionId"] = json!("old");
@@ -29,92 +38,79 @@ fn fixture(explicit: bool) -> (TestWorkspace, ProjectManifest) {
     )
     .unwrap();
     write_utf8_no_bom(&root.join("data/strings/descriptions.csv"),"id,type,text1,text2,custom\n#note,SHIP,Comment,,007\nold,SHIP,Original,Second,001\nold,WEAPON,Other type,,002\n").unwrap();
-    let mut trace = project::PerformanceTrace::new("description.rename");
+    let mut trace = PerformanceTrace::new("description.rename");
     let manifest = project::open_project_session_traced(&root, None, &mut trace).unwrap();
     (root, manifest)
 }
 
-fn rename(
-    root: &std::path::Path,
-    manifest: &ProjectManifest,
-    mode: &str,
-) -> crate::errors::AppResult<WriteResult<serde_json::Value>> {
-    let info =
-        crate::services::query_entity_edit_target(&manifest.session_id, EntityKind::Ship, "old")?;
+fn rename(root: &Path, manifest: &ProjectManifest, mode: &str) -> AppResult<WriteResult<Value>> {
+    let info = services::query_entity_edit_target(&manifest.session_id, EntityKind::Ship, "old")?;
     let mut data = read_json_file(&root.join("data/hulls/old.ship"))?;
     data["hullId"] = json!("new");
     match mode {
-        "spec" => crate::services::project_save::execute_save_action(
-            crate::models::SaveAction::SaveEditorSpec(crate::models::SpecSave {
-                session_id: manifest.session_id.clone(),
-                mod_root: manifest.mod_root.clone(),
-                target: info.target,
-                base_versions: info.base_versions,
-                data,
-                json_write: Default::default(),
-                ordered_json: None,
-            }),
-        ),
-        "text" => crate::services::project_save::execute_save_action(
-            crate::models::SaveAction::SaveTextFile(crate::models::TextSave {
-                json_write: Default::default(),
-                session_id: Some(manifest.session_id.clone()),
-                mod_root: manifest.mod_root.clone(),
-                path: root.join("data/hulls/old.ship").to_string_lossy().into(),
-                base_versions: info.base_versions,
-                text: data.to_string(),
-            }),
-        ),
+        "spec" => project_save::execute_save_action(SaveAction::SaveEditorSpec(SpecSave {
+            session_id: manifest.session_id.clone(),
+            mod_root: manifest.mod_root.clone(),
+            target: info.target,
+            base_versions: info.base_versions,
+            data,
+            json_write: Default::default(),
+            ordered_json: None,
+        })),
+        "text" => project_save::execute_save_action(SaveAction::SaveTextFile(TextSave {
+            json_write: Default::default(),
+            session_id: Some(manifest.session_id.clone()),
+            mod_root: manifest.mod_root.clone(),
+            path: root.join("data/hulls/old.ship").to_string_lossy().into(),
+            base_versions: info.base_versions,
+            text: data.to_string(),
+        })),
         "csv" => {
             let EntityLinkedRecord::Csv { row_key, .. } =
                 info.target.linked_record.clone().unwrap()
             else {
                 unreachable!()
             };
-            crate::services::project_save::execute_save_action(
-                crate::models::SaveAction::SaveCsvPatch(crate::models::CsvSave {
-                    row_order: None,
-                    session_id: manifest.session_id.clone(),
-                    mod_root: manifest.mod_root.clone(),
-                    table: CsvTableKey::Ships,
-                    base_versions: info.base_versions,
-                    patches: vec![CsvRowPatch {
-                        row_key,
-                        action: CsvRowPatchAction::Upsert,
-                        row: json!({"id":"new","name":"Old"})
-                            .as_object()
-                            .unwrap()
-                            .clone(),
-                        is_comment: false,
-                        insert_at: None,
-                    }],
-                    associated_specs: vec![
-                        crate::services::project::write::csv_patch::prepared_spec_write(
-                            &manifest.session_id,
-                            CsvTableKey::Ships,
-                            AssociatedSpecChange::Rename {
-                                previous_id: "old".into(),
-                                create: AssociatedSpecCreateParams::Ship {
-                                    id: "new".into(),
-                                    hull_name: "Old".into(),
-                                },
-                            },
-                        )?,
-                    ],
-                    json_write: Default::default(),
-                }),
-            )
+            project_save::execute_save_action(SaveAction::SaveCsvPatch(CsvSave {
+                row_order: None,
+                session_id: manifest.session_id.clone(),
+                mod_root: manifest.mod_root.clone(),
+                table: CsvTableKey::Ships,
+                base_versions: info.base_versions,
+                patches: vec![CsvRowPatch {
+                    row_key,
+                    action: CsvRowPatchAction::Upsert,
+                    row: json!({"id":"new","name":"Old"})
+                        .as_object()
+                        .unwrap()
+                        .clone(),
+                    is_comment: false,
+                    insert_at: None,
+                }],
+                associated_specs: vec![csv_patch::prepared_spec_write(
+                    &manifest.session_id,
+                    CsvTableKey::Ships,
+                    AssociatedSpecChange::Rename {
+                        previous_id: "old".into(),
+                        create: AssociatedSpecCreateParams::Ship {
+                            id: "new".into(),
+                            hull_name: "Old".into(),
+                        },
+                    },
+                )?],
+                json_write: Default::default(),
+            }))
             .map(|receipt| {
                 receipt.with_content(
-                    crate::models::WriteContentTarget::Json {
-                        origin: crate::models::JsonDocumentOrigin::ModInfo,
+                    WriteContentTarget::Json {
+                        origin: JsonDocumentOrigin::ModInfo,
                     },
                     json!(null),
                 )
             })
         }
         "joint" => {
-            let baseline = crate::services::query_joint_edit_request(&JointEditQuery {
+            let baseline = services::query_joint_edit_request(&JointEditQuery {
                 catalog: None,
                 catalog_source: None,
                 root: JointEditRoot {
@@ -128,19 +124,19 @@ fn rename(
                 new_sources: Vec::new(),
             })?;
             let key = baseline.bindings["spec"].clone();
-            let prepared = crate::services::prepare_joint_edit(&JointEditDraft {
+            let prepared = services::prepare_joint_edit(&JointEditDraft {
                 baseline,
                 values: BTreeMap::from([(key, JointValue::Present(data))]),
             })?;
-            crate::services::project_save::execute_typed_save::<crate::models::JointEditSnapshot>(
-                crate::models::SaveAction::SaveJointEdit(Box::new(JointEditSubmission {
+            project_save::execute_typed_save::<JointEditSnapshot>(SaveAction::SaveJointEdit(
+                Box::new(JointEditSubmission {
                     base_versions: prepared.snapshot.base_versions.clone(),
                     snapshot: prepared.snapshot,
                     values: prepared.values,
                     json_write: Default::default(),
                     create_overrides: Vec::new(),
-                })),
-            )
+                }),
+            ))
             .map(|receipt| {
                 let content = receipt.content.as_ref().unwrap();
                 let owner = content.target.clone();
@@ -156,11 +152,11 @@ fn rename(
 fn default_description_command_rename() {
     for mode in ["csv", "spec", "text", "joint"] {
         let (root, manifest) = fixture(false);
-        let shared = std::fs::read(root.join("data/hulls/other.ship")).unwrap();
-        crate::services::project::session::csv_writes::take_render_counts();
+        let shared = fs::read(root.join("data/hulls/other.ship")).unwrap();
+        csv_writes::take_render_counts();
         let receipt = rename(&root, &manifest, mode).unwrap();
         assert_eq!(
-            crate::services::project::session::csv_writes::take_render_counts(),
+            csv_writes::take_render_counts(),
             BTreeMap::from([(CsvTableKey::Ships, 1), (CsvTableKey::Descriptions, 1)]),
             "{mode}"
         );
@@ -176,7 +172,7 @@ fn default_description_command_rename() {
         );
         assert_eq!(rows.rows[2].data["id"], "old");
         assert_eq!(
-            std::fs::read(root.join("data/hulls/other.ship")).unwrap(),
+            fs::read(root.join("data/hulls/other.ship")).unwrap(),
             shared
         );
         assert!(
@@ -225,10 +221,10 @@ fn default_description_command_rename() {
 fn explicit_description_commands() {
     for mode in ["csv", "spec", "text", "joint"] {
         let (root, manifest) = fixture(true);
-        let before = std::fs::read(root.join("data/strings/descriptions.csv")).unwrap();
+        let before = fs::read(root.join("data/strings/descriptions.csv")).unwrap();
         let receipt = rename(&root, &manifest, mode).unwrap();
         assert_eq!(
-            std::fs::read(root.join("data/strings/descriptions.csv")).unwrap(),
+            fs::read(root.join("data/strings/descriptions.csv")).unwrap(),
             before
         );
         assert_eq!(
@@ -247,15 +243,15 @@ fn description_collision_is_atomic() {
         let (root, manifest) = fixture(false);
         project::close_project_session(manifest.session_id).unwrap();
         let path = root.join("data/strings/descriptions.csv");
-        let text = std::fs::read_to_string(&path).unwrap() + "new,SHIP,Occupied,,keep\n";
+        let text = fs::read_to_string(&path).unwrap() + "new,SHIP,Occupied,,keep\n";
         write_utf8_no_bom(&path, &text).unwrap();
-        let mut trace = project::PerformanceTrace::new("description.collision");
+        let mut trace = PerformanceTrace::new("description.collision");
         let manifest = project::open_project_session_traced(&root, None, &mut trace).unwrap();
         let error = rename(&root, &manifest, mode).unwrap_err();
         assert_eq!(error.code(), "ship.description_target_exists");
         assert!(root.join("data/hulls/old.ship").exists());
         assert!(!root.join("data/hulls/new.ship").exists());
-        assert_eq!(std::fs::read_to_string(&path).unwrap(), text);
+        assert_eq!(fs::read_to_string(&path).unwrap(), text);
         assert!(
             write_transactions::query_history(&manifest.session_id, &manifest.mod_root)
                 .unwrap()
@@ -271,36 +267,33 @@ fn description_collision_is_atomic() {
 fn description_version_conflict() {
     let (root, manifest) = fixture(false);
     let info =
-        crate::services::query_entity_edit_target(&manifest.session_id, EntityKind::Ship, "old")
-            .unwrap();
+        services::query_entity_edit_target(&manifest.session_id, EntityKind::Ship, "old").unwrap();
     assert!(
         info.base_versions
             .iter()
             .any(|version| version.path.ends_with("descriptions.csv"))
     );
     let path = root.join("data/strings/descriptions.csv");
-    let text = std::fs::read_to_string(&path)
+    let text = fs::read_to_string(&path)
         .unwrap()
         .replace("Original", "External");
     write_utf8_no_bom(&path, &text).unwrap();
     let mut data = read_json_file(&root.join("data/hulls/old.ship")).unwrap();
     data["hullId"] = json!("new");
-    let error = crate::services::project_save::execute_save_action(
-        crate::models::SaveAction::SaveEditorSpec(crate::models::SpecSave {
-            session_id: manifest.session_id.clone(),
-            mod_root: manifest.mod_root.clone(),
-            target: info.target,
-            base_versions: info.base_versions,
-            data,
-            json_write: Default::default(),
-            ordered_json: None,
-        }),
-    )
+    let error = project_save::execute_save_action(SaveAction::SaveEditorSpec(SpecSave {
+        session_id: manifest.session_id.clone(),
+        mod_root: manifest.mod_root.clone(),
+        target: info.target,
+        base_versions: info.base_versions,
+        data,
+        json_write: Default::default(),
+        ordered_json: None,
+    }))
     .unwrap_err();
     assert_eq!(error.code(), "write.version_conflict");
     assert!(root.join("data/hulls/old.ship").exists());
     assert!(!root.join("data/hulls/new.ship").exists());
-    assert_eq!(std::fs::read_to_string(path).unwrap(), text);
+    assert_eq!(fs::read_to_string(path).unwrap(), text);
     project::close_project_session(manifest.session_id).unwrap();
     root.close().unwrap();
 }
@@ -311,8 +304,8 @@ fn missing_description_stays_missing() {
         let (root, manifest) = fixture(false);
         project::close_project_session(manifest.session_id).unwrap();
         let path = root.join("data/strings/descriptions.csv");
-        std::fs::remove_file(&path).unwrap();
-        let mut trace = project::PerformanceTrace::new("description.absent");
+        fs::remove_file(&path).unwrap();
+        let mut trace = PerformanceTrace::new("description.absent");
         let manifest = project::open_project_session_traced(&root, None, &mut trace).unwrap();
         let receipt = rename(&root, &manifest, mode).unwrap();
         assert!(!path.exists());
@@ -327,13 +320,13 @@ fn core_description_copy_rename() {
     let (root, manifest) = fixture(false);
     project::close_project_session(manifest.session_id).unwrap();
     let path = root.join("data/strings/descriptions.csv");
-    std::fs::remove_file(&path).unwrap();
+    fs::remove_file(&path).unwrap();
     let game = project_workspace("default_description_core");
     let core = game.join("starsector-core/data/strings");
-    std::fs::create_dir_all(&core).unwrap();
+    fs::create_dir_all(&core).unwrap();
     let core_text = "id,type,text1,text5,notes\nold,SHIP,Core description,Fifth,kept\n";
     write_utf8_no_bom(&core.join("descriptions.csv"), core_text).unwrap();
-    let mut trace = project::PerformanceTrace::new("description.core");
+    let mut trace = PerformanceTrace::new("description.core");
     let manifest = project::open_project_session_traced(&root, Some(&game), &mut trace).unwrap();
     let receipt = rename(&root, &manifest, "joint").unwrap();
     let rows = read_csv_data(&path).unwrap();
@@ -341,7 +334,7 @@ fn core_description_copy_rename() {
     assert_eq!(rows.rows[0].data["text1"], "Core description");
     assert_eq!(rows.rows[0].data["text5"], "Fifth");
     assert_eq!(
-        std::fs::read_to_string(core.join("descriptions.csv")).unwrap(),
+        fs::read_to_string(core.join("descriptions.csv")).unwrap(),
         core_text
     );
     let value = receipt.content.unwrap().value;

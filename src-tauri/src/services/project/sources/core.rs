@@ -1,19 +1,23 @@
-use super::documents::LoadedSpecRecord;
-use crate::{
-    errors::{AppError, AppResult},
-    io::{FsRootBoundary, forward_slash_relative_path, validate_walk_entry},
-    models::{
-        CsvTable, DiscoveredField, DiscoveredFieldType, EntityFileLocation, ResourceSource,
-        SkinFile, VariantFile,
-    },
+use super::documents::{LoadedSpecRecord, load_spec_records_from};
+use super::json_documents::{load_skin_files_from, load_variant_files_from};
+use crate::errors::{AppError, AppResult, ErrorLocation};
+use crate::io::{FsRootBoundary, forward_slash_relative_path, validate_walk_entry};
+#[cfg(test)]
+use crate::models;
+use crate::models::{
+    CsvTable, DiscoveredField, DiscoveredFieldType, EntityFileLocation, InvalidatedResourceScope,
+    JsonSourceLayer, ResourceSource, SkinFile, VariantFile,
 };
+use crate::services::project::sources::SourceReader;
+#[cfg(test)]
+use crate::test_support::work_counts;
+use crate::{diagnostics, io};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::{
-    collections::BTreeMap,
-    path::{Path, PathBuf},
-    sync::{Arc, Condvar, LazyLock, Mutex, MutexGuard},
-};
+use std::collections::BTreeMap;
+use std::path::{Path, PathBuf};
+use std::sync::{Arc, Condvar, LazyLock, Mutex, MutexGuard};
+use walkdir::WalkDir;
 
 #[derive(Clone, Copy)]
 pub(in crate::services::project) struct CoreSourceRequirements {
@@ -55,15 +59,11 @@ pub(in crate::services::project) struct CoreSourceData {
     pub variant_files: Arc<Vec<VariantFile>>,
     pub weapon_specs: Arc<BTreeMap<String, LoadedSpecRecord>>,
 }
-use super::{
-    documents::load_spec_records_from,
-    json_documents::{load_skin_files_from, load_variant_files_from},
-};
 
 struct CoreCacheEntry {
     data: CoreCache,
     dirty: bool,
-    sources: super::super::sources::SourceReader,
+    sources: SourceReader,
 }
 
 static CORE_CACHES: LazyLock<Mutex<BTreeMap<String, Arc<Mutex<CoreCacheEntry>>>>> =
@@ -74,18 +74,18 @@ static CORE_FLIGHTS: LazyLock<Mutex<BTreeMap<String, Arc<CoreFlight>>>> =
 #[cfg(test)]
 pub(in crate::services::project) fn release_test_roots(root: &Path) -> Vec<String> {
     let mut errors = Vec::new();
-    let root = crate::models::windows_path_key(&root.to_string_lossy());
+    let root = models::windows_path_key(&root.to_string_lossy());
     match CORE_CACHES.lock() {
-        Ok(mut caches) => caches.retain(|path, _| {
-            !Path::new(&crate::models::windows_path_key(path)).starts_with(&root)
-        }),
+        Ok(mut caches) => {
+            caches.retain(|path, _| !Path::new(&models::windows_path_key(path)).starts_with(&root))
+        }
         Err(error) => errors.push(format!("release test Core cache {root}: {error}")),
     }
     match CORE_FLIGHTS.lock() {
         Ok(flights) => {
             for path in flights
                 .keys()
-                .filter(|path| Path::new(&crate::models::windows_path_key(path)).starts_with(&root))
+                .filter(|path| Path::new(&models::windows_path_key(path)).starts_with(&root))
             {
                 errors.push(format!("unfinished Core read: {path}"));
             }
@@ -105,7 +105,7 @@ struct CoreFlight {
 struct SharedCoreError {
     code: &'static str,
     message: String,
-    location: Option<crate::errors::ErrorLocation>,
+    location: Option<ErrorLocation>,
 }
 
 impl SharedCoreError {
@@ -142,7 +142,7 @@ pub(in crate::services::project) fn invalidate_core_cache(starsector_root: &str)
     // Persist what was built in memory before dropping, so the next open
     // reuses it (the content fingerprint still guards against stale sources).
     if let Err(error) = flush_core_cache(starsector_root) {
-        crate::diagnostics::record(format!("core cache flush failed: {error}"));
+        diagnostics::record(format!("core cache flush failed: {error}"));
     }
     lock_core_caches()?.remove(&cache_key);
     Ok(())
@@ -180,11 +180,11 @@ fn core_cache_handle(starsector_root: &str) -> AppResult<Arc<Mutex<CoreCacheEntr
                 return Ok(cache);
             }
             #[cfg(test)]
-            crate::test_support::work_counts::record("core-create", Path::new(starsector_root));
+            work_counts::record("core-create", Path::new(starsector_root));
             let cache = Arc::new(Mutex::new(CoreCacheEntry {
                 data: CoreCache::empty(),
                 dirty: false,
-                sources: super::super::sources::SourceReader::new(&core_dir(starsector_root)?)?,
+                sources: SourceReader::new(&core_dir(starsector_root)?)?,
             }));
             lock_core_caches()?.insert(cache_key.clone(), cache.clone());
             Ok(cache)
@@ -210,7 +210,7 @@ fn lock_core_cache(handle: &Mutex<CoreCacheEntry>) -> AppResult<MutexGuard<'_, C
 pub(in crate::services::project) fn read_core_json_layer(
     game: &str,
     relative: &str,
-) -> AppResult<Option<crate::models::JsonSourceLayer>> {
+) -> AppResult<Option<JsonSourceLayer>> {
     let handle = core_cache_handle(game)?;
     let mut entry = lock_core_cache(&handle)?;
     let path = entry.sources.path(relative)?;
@@ -218,7 +218,7 @@ pub(in crate::services::project) fn read_core_json_layer(
         return Ok(None);
     }
     let data = entry.sources.json(&path)?;
-    Ok(Some(crate::models::JsonSourceLayer {
+    Ok(Some(JsonSourceLayer {
         source: EntityFileLocation {
             reference: None,
             source: ResourceSource::Core,
@@ -292,7 +292,7 @@ fn get_or_load_core<T, G, S, L>(
 where
     G: Fn(&CoreCache) -> Option<&Arc<T>>,
     S: Fn(&mut CoreCache, Arc<T>),
-    L: FnOnce(&mut super::super::sources::SourceReader) -> AppResult<T>,
+    L: FnOnce(&mut SourceReader) -> AppResult<T>,
 {
     let cache = core_cache_handle(starsector_root)?;
     let mut load = Some(load);
@@ -320,10 +320,7 @@ where
             }
             let mut sources = lock_core_cache(&cache)?.sources.fork_loaded();
             #[cfg(test)]
-            crate::test_support::work_counts::record(
-                "core-product",
-                &Path::new(starsector_root).join(product),
-            );
+            work_counts::record("core-product", &Path::new(starsector_root).join(product));
             let value = Arc::new(load.take().expect("core loader")(&mut sources)?);
             let mut entry = lock_core_cache(&cache)?;
             store(&mut entry.data, value.clone());
@@ -371,7 +368,7 @@ pub(crate) fn load_core_fields(
 }
 
 fn load_core_fields_from(
-    sources: &mut super::super::sources::SourceReader,
+    sources: &mut SourceReader,
 ) -> AppResult<BTreeMap<String, Vec<DiscoveredField>>> {
     let mut result = BTreeMap::new();
     for (key, directory, extension) in [
@@ -474,15 +471,13 @@ pub(crate) fn load_core_graphics(starsector_root: &str) -> AppResult<Vec<String>
     .map(|graphics| (*graphics).clone())
 }
 
-fn load_core_graphics_from(
-    sources: &mut super::super::sources::SourceReader,
-) -> AppResult<Vec<String>> {
+fn load_core_graphics_from(sources: &mut SourceReader) -> AppResult<Vec<String>> {
     let dir = sources.path("graphics")?;
     if !dir.exists() {
         return Ok(vec![]);
     }
     let mut paths = Vec::new();
-    for entry in walkdir::WalkDir::new(&dir) {
+    for entry in WalkDir::new(&dir) {
         let entry = entry.map_err(|error| {
             AppError::message("io.walk_failed", format!("遍历原版图片目录失败: {error}"))
         })?;
@@ -621,7 +616,7 @@ pub(crate) fn load_core_source_data(
 
 pub(in crate::services::project) fn invalidate_core_sources(
     root: &str,
-    sources: &[crate::models::InvalidatedResourceScope],
+    sources: &[InvalidatedResourceScope],
 ) -> AppResult<()> {
     if !sources
         .iter()
@@ -639,8 +634,8 @@ pub(in crate::services::project) fn invalidate_core_sources(
         .filter(|source| source.source == ResourceSource::Core)
     {
         let matches = |path: &str| {
-            crate::io::relative_path_contains(&source.rel_path, path)
-                || crate::io::relative_path_contains(path, &source.rel_path)
+            io::relative_path_contains(&source.rel_path, path)
+                || io::relative_path_contains(path, &source.rel_path)
         };
         data.csv_tables
             .retain(|relative_path, _| !matches(relative_path));
@@ -671,7 +666,7 @@ pub(in crate::services::project) fn invalidate_core_sources(
         Arc::new(Mutex::new(CoreCacheEntry {
             data,
             dirty: true,
-            sources: super::super::sources::SourceReader::new(&core_dir(root)?)?,
+            sources: SourceReader::new(&core_dir(root)?)?,
         })),
     );
     Ok(())
@@ -680,16 +675,21 @@ pub(in crate::services::project) fn invalidate_core_sources(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(test)]
+    use crate::models::InvalidatedResourceScope;
+    #[cfg(test)]
+    use crate::services::project::sources;
     use crate::services::project::test_support::project_workspace;
-    use std::{
-        fs,
-        sync::{
-            Arc, Barrier,
-            atomic::{AtomicUsize, Ordering},
-        },
-        thread,
-        time::Duration,
-    };
+    #[cfg(test)]
+    use crate::test_support::work_counts;
+    #[cfg(test)]
+    use crate::{io, test_support};
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    #[cfg(test)]
+    use std::sync::mpsc;
+    use std::sync::{Arc, Barrier};
+    use std::time::Duration;
+    use std::{fs, thread};
 
     fn read_product(root: &str, product: &str) -> AppResult<()> {
         match product {
@@ -753,32 +753,24 @@ mod tests {
                 worker.join().unwrap();
             }
             read_product(&text, product).unwrap();
+            assert_eq!(work_counts::count("core-create", &root), 1, "{product}");
             assert_eq!(
-                crate::test_support::work_counts::count("core-create", &root),
-                1,
-                "{product}"
-            );
-            assert_eq!(
-                crate::test_support::work_counts::count("core-product", &root.join(product)),
+                work_counts::count("core-product", &root.join(product)),
                 1,
                 "{product}"
             );
             if product == "ships" {
                 load_core_fields(&text).unwrap();
                 let path = root.join("starsector-core/data/hulls/sample.ship");
-                assert_eq!(crate::test_support::work_counts::count("read", &path), 1);
-                assert_eq!(crate::test_support::work_counts::count("parse", &path), 1);
+                assert_eq!(work_counts::count("read", &path), 1);
+                assert_eq!(work_counts::count("parse", &path), 1);
             }
             invalidate_core_cache(&text).unwrap();
             read_product(&text, product).unwrap();
             read_product(&text, product).unwrap();
+            assert_eq!(work_counts::count("core-create", &root), 2, "{product}");
             assert_eq!(
-                crate::test_support::work_counts::count("core-create", &root),
-                2,
-                "{product}"
-            );
-            assert_eq!(
-                crate::test_support::work_counts::count("core-product", &root.join(product)),
+                work_counts::count("core-product", &root.join(product)),
                 2,
                 "{product}"
             );
@@ -806,8 +798,8 @@ mod tests {
             fields.join().unwrap();
             ships.join().unwrap();
         });
-        assert_eq!(crate::test_support::work_counts::count("read", &path), 1);
-        assert_eq!(crate::test_support::work_counts::count("parse", &path), 1);
+        assert_eq!(work_counts::count("read", &path), 1);
+        assert_eq!(work_counts::count("parse", &path), 1);
         invalidate_core_cache(&root.to_string_lossy()).unwrap();
         root.close().unwrap();
     }
@@ -852,8 +844,8 @@ mod tests {
         fs::create_dir_all(root.join("starsector-core/graphics")).unwrap();
         let text = root.to_string_lossy().to_string();
         let worker_root = text.clone();
-        let (started, ready) = std::sync::mpsc::channel();
-        let (release, released) = std::sync::mpsc::channel();
+        let (started, ready) = mpsc::channel();
+        let (release, released) = mpsc::channel();
         let old = thread::spawn(move || {
             get_or_load_core(
                 &worker_root,
@@ -876,7 +868,7 @@ mod tests {
         }
         invalidate_core_sources(
             &text,
-            &[crate::models::InvalidatedResourceScope {
+            &[InvalidatedResourceScope {
                 source: ResourceSource::Core,
                 rel_path: "graphics".to_string(),
             }],
@@ -884,7 +876,7 @@ mod tests {
         .unwrap();
         fs::write(root.join("starsector-core/graphics/new.png"), [1u8]).unwrap();
         let new_root = text.clone();
-        let (completed, completion) = std::sync::mpsc::channel();
+        let (completed, completion) = mpsc::channel();
         let current = thread::spawn(move || {
             completed.send(load_core_graphics(&new_root)).unwrap();
         });
@@ -985,7 +977,7 @@ mod tests {
 
         invalidate_core_sources(
             &root_text,
-            &[crate::models::InvalidatedResourceScope {
+            &[InvalidatedResourceScope {
                 source: ResourceSource::Core,
                 rel_path: "data/hulls/demo.ship".to_string(),
             }],
@@ -1094,20 +1086,19 @@ mod tests {
 
     #[test]
     fn persistent_core_cache_rejects_changed_source_content() {
-        if crate::test_support::isolated_test() {
+        if test_support::isolated_test() {
             return;
         }
         let root = project_workspace("persistent_core_cache");
         let hull_dir = root.join("starsector-core/data/hulls");
         fs::create_dir_all(&hull_dir).unwrap();
-        crate::io::write_utf8_no_bom(
+        io::write_utf8_no_bom(
             &hull_dir.join("demo.ship"),
             r#"{"hullId":"demo","spriteName":"before"}"#,
         )
         .unwrap();
-        super::super::super::sources::configure_persistent_index_cache(&root.outer().join("cache"))
-            .unwrap();
-        crate::io::write_utf8_no_bom(
+        sources::configure_persistent_index_cache(&root.outer().join("cache")).unwrap();
+        io::write_utf8_no_bom(
             &hull_dir.join("ship_data.csv"),
             "name,id\n#disabled,demo\n\"#quoted\",demo\n #space,space\n",
         )
@@ -1146,7 +1137,7 @@ mod tests {
                 .collect::<Vec<_>>(),
             [true, false, false]
         );
-        crate::io::write_utf8_no_bom(
+        io::write_utf8_no_bom(
             &hull_dir.join("demo.ship"),
             r#"{"hullId":"demo","spriteName":"after"}"#,
         )

@@ -1,10 +1,11 @@
 use super::super::super::model::{ProjectSession, SessionCsvRow};
 use super::super::super::session::csv_writes::CsvTableDraft;
-use crate::{
-    errors::{AppError, AppResult},
-    models::{CsvTableKey, EntityKind},
-};
-use serde_json::Value;
+use crate::domain::csv_column_order;
+use crate::errors::{AppError, AppResult};
+use crate::models::{CsvTableKey, EntityKind};
+use crate::services::project::model;
+use crate::services::project::sources::core;
+use serde_json::{Map, Value};
 
 #[derive(Clone)]
 pub(in crate::services::project) struct DescriptionRename {
@@ -44,7 +45,7 @@ pub(in crate::services::project) fn rename_description_row(
         next_row_seq: sequence,
         ..
     } = table;
-    let matches = |data: &serde_json::Map<String, Value>, is_comment: bool, id: &str| {
+    let matches = |data: &Map<String, Value>, is_comment: bool, id: &str| {
         !is_comment
             && data.get("id").and_then(Value::as_str) == Some(id)
             && data.get("type").and_then(Value::as_str) == Some(typ)
@@ -58,9 +59,9 @@ pub(in crate::services::project) fn rename_description_row(
             .starsector_root
             .as_ref()
             .map(|root| {
-                crate::services::project::sources::core::load_core_csv_table(
+                core::load_core_csv_table(
                     root,
-                    super::super::super::model::csv_table_spec(CsvTableKey::Descriptions).rel_path,
+                    model::csv_table_spec(CsvTableKey::Descriptions).rel_path,
                 )
             })
             .transpose()?
@@ -82,9 +83,9 @@ pub(in crate::services::project) fn rename_description_row(
         .starsector_root
         .as_ref()
         .map(|root| {
-            crate::services::project::sources::core::load_core_csv_table(
+            core::load_core_csv_table(
                 root,
-                super::super::super::model::csv_table_spec(CsvTableKey::Descriptions).rel_path,
+                model::csv_table_spec(CsvTableKey::Descriptions).rel_path,
             )
         })
         .transpose()?
@@ -124,10 +125,10 @@ pub(in crate::services::project) fn rename_description_row(
             .filter(|key| !header.contains(key))
             .cloned()
             .collect::<Vec<_>>();
-        crate::domain::csv_column_order::add_ordered_csv_columns(
+        csv_column_order::add_ordered_csv_columns(
             header,
             &added,
-            &crate::domain::csv_column_order::standard_csv_columns(CsvTableKey::Descriptions),
+            &csv_column_order::standard_csv_columns(CsvTableKey::Descriptions),
         );
         rows.push(SessionCsvRow {
             row_key: format!("descriptions:row:{sequence}"),

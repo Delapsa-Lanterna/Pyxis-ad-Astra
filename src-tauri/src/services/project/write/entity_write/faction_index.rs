@@ -1,13 +1,15 @@
 use super::super::super::session::{lock_session, session_handle};
-
-use crate::services::project::query::entity_targets::query_entity_edit_target;
-use crate::{
-    errors::AppResult,
-    io::{FileChangeSetBuilder, FsRootBoundary, acquire_root_write_lock, read_csv_data},
-    models::{EntityKind, EntityLinkedRecord, EntityTargetState, WriteResult},
-    parsers::render_csv_text,
+use crate::errors::AppResult;
+use crate::io::{FileChangeSetBuilder, FsRootBoundary, acquire_root_write_lock, read_csv_data};
+use crate::models::{
+    CsvRow, EntityEditTarget, EntityKind, EntityLinkedRecord, EntityTargetState, WriteResult,
 };
-use serde_json::Value;
+use crate::parsers::render_csv_text;
+use crate::services::project::model::ProjectSession;
+use crate::services::project::query::entity_targets::query_entity_edit_target;
+use crate::services::project::session::csv_tables;
+use crate::{io, parsers};
+use serde_json::{Map, Value};
 use std::path::Path;
 
 pub fn delete_faction_entity(
@@ -50,10 +52,10 @@ pub fn delete_faction_entity(
 }
 
 pub(super) fn stage_faction_index(
-    session: &crate::services::project::model::ProjectSession,
+    session: &ProjectSession,
     boundary: &FsRootBoundary,
     builder: &mut FileChangeSetBuilder,
-    target: &crate::models::EntityEditTarget,
+    target: &EntityEditTarget,
     next_id: &str,
     next_rel: &str,
 ) -> AppResult<()> {
@@ -61,15 +63,14 @@ pub(super) fn stage_faction_index(
         && (target.linked_record.is_some() || target.state == EntityTargetState::Create)
     {
         let index_rel = "data/world/factions/factions.csv";
-        let mut index =
-            super::super::super::session::csv_tables::read_retained_csv(session, index_rel)?;
+        let mut index = csv_tables::read_retained_csv(session, index_rel)?;
         if let Some(EntityLinkedRecord::Index { row_index, .. }) = &target.linked_record {
-            let entries = crate::io::faction_index_entries(boundary, &index)?;
+            let entries = io::faction_index_entries(boundary, &index)?;
             let entry = entries
                 .iter()
                 .find(|entry| entry.row_index == *row_index)
                 .expect("loaded faction index entry");
-            crate::parsers::update_faction_index_row(
+            parsers::update_faction_index_row(
                 &mut index.rows[*row_index].data,
                 entry,
                 next_id,
@@ -90,7 +91,7 @@ pub(super) fn stage_faction_index(
                         .find(|field| field.eq_ignore_ascii_case("id"))
                 })
                 .unwrap_or(&index.header[0]);
-            let mut row = serde_json::Map::new();
+            let mut row = Map::new();
             if field.eq_ignore_ascii_case("id") {
                 row.insert(field.clone(), Value::String(next_id.to_string()));
                 if let Some(file) = index
@@ -103,7 +104,7 @@ pub(super) fn stage_faction_index(
             } else {
                 row.insert(field.clone(), Value::String(next_rel.to_string()));
             }
-            index.rows.push(crate::models::CsvRow {
+            index.rows.push(CsvRow {
                 data: row,
                 is_comment: false,
             });

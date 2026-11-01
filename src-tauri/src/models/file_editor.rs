@@ -1,12 +1,14 @@
 use super::ProjectSessionId;
 use super::serde_fields::deserialize_nullable;
-use crate::models::FileVersion;
+use crate::models::{
+    EntityEditInfo, EntityEditTarget, EntityKind, FileVersion, JsonWriteOptions, project_identity,
+};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EditableFileData {
-    pub entity: Option<crate::models::EntityEditInfo>,
+    pub entity: Option<EntityEditInfo>,
     pub path: String,
     pub text: String,
     pub base_versions: Vec<FileVersion>,
@@ -16,8 +18,8 @@ pub struct EditableFileData {
 #[serde(rename_all = "camelCase")]
 pub struct TextSave {
     #[serde(default)]
-    pub json_write: super::JsonWriteOptions,
-    pub base_versions: Vec<crate::models::FileVersion>,
+    pub json_write: JsonWriteOptions,
+    pub base_versions: Vec<FileVersion>,
     #[serde(deserialize_with = "deserialize_nullable")]
     pub session_id: Option<ProjectSessionId>,
     pub mod_root: String,
@@ -28,7 +30,7 @@ pub struct TextSave {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TextTranscode {
-    pub base_versions: Vec<crate::models::FileVersion>,
+    pub base_versions: Vec<FileVersion>,
     #[serde(deserialize_with = "deserialize_nullable")]
     pub session_id: Option<ProjectSessionId>,
     pub mod_root: String,
@@ -49,19 +51,19 @@ pub struct LoadEditableFilePayload {
 #[serde(rename_all = "camelCase")]
 pub struct TextIdentityIntentPayload {
     pub session_id: ProjectSessionId,
-    pub source: crate::models::EntityEditTarget,
+    pub source: EntityEditTarget,
     pub text: String,
 }
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FollowTextIdentityPayload {
-    pub kind: crate::models::EntityKind,
+    pub kind: EntityKind,
     pub text: String,
     pub next_id: String,
 }
 
-super::project_identity::impl_session_mod_scope_optional!(
+project_identity::impl_session_mod_scope_optional!(
     TextSave,
     LoadEditableFilePayload,
     TextTranscode

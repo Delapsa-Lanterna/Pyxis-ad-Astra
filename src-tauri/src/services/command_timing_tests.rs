@@ -1,16 +1,27 @@
 use super::*;
+use std::sync::MutexGuard;
 use std::sync::atomic::{AtomicBool, Ordering};
-use tauri::Manager;
+use std::task::Waker;
+#[cfg(test)]
+use std::thread;
+use tauri::ipc::{CallbackFn, InvokeBody};
+use tauri::test::{INVOKE_KEY, MockRuntime};
+use tauri::webview::InvokeRequest;
+use tauri::{App, Manager, WebviewWindow, WebviewWindowBuilder, test};
 
 static TEST_LOCK: Mutex<()> = Mutex::new(());
 #[derive(Default)]
 struct Gate {
     entered: AtomicBool,
     released: AtomicBool,
-    waker: Mutex<Option<std::task::Waker>>,
+    waker: Mutex<Option<Waker>>,
 }
 mod commands {
     use super::*;
+    use std::future;
+    use std::task::Poll;
+    use tauri::State;
+
     #[command_macros::command]
     pub fn timing_sync(value: i32) -> i32 {
         value + 1
@@ -29,14 +40,14 @@ mod commands {
         left_value + right_value
     }
     #[command_macros::command]
-    pub async fn timing_async(value: i32, gate: tauri::State<'_, Gate>) -> Result<i32, String> {
-        std::future::poll_fn(|context| {
+    pub async fn timing_async(value: i32, gate: State<'_, Gate>) -> Result<i32, String> {
+        future::poll_fn(|context| {
             *gate.waker.lock().unwrap() = Some(context.waker().clone());
             gate.entered.store(true, Ordering::SeqCst);
             if gate.released.load(Ordering::SeqCst) {
-                std::task::Poll::Ready(())
+                Poll::Ready(())
             } else {
-                std::task::Poll::Pending
+                Poll::Pending
             }
         })
         .await;
@@ -47,7 +58,7 @@ mod commands {
         true
     }
 }
-fn reset() -> std::sync::MutexGuard<'static, ()> {
+fn reset() -> MutexGuard<'static, ()> {
     let lock = TEST_LOCK.lock().unwrap();
     initialize(true);
     state()
@@ -63,8 +74,8 @@ fn records() -> Vec<(String, PerformanceSample)> {
         .cloned()
         .collect()
 }
-fn app() -> tauri::App<tauri::test::MockRuntime> {
-    tauri::test::mock_builder()
+fn app() -> App<MockRuntime> {
+    test::mock_builder()
         .manage(Gate::default())
         .invoke_handler(command_macros::generate_handler![
             commands::timing_sync,
@@ -74,36 +85,33 @@ fn app() -> tauri::App<tauri::test::MockRuntime> {
             commands::timing_async,
             commands::performance_monitor_fixture,
         ])
-        .build(tauri::test::mock_context(tauri::test::noop_assets()))
+        .build(test::mock_context(test::noop_assets()))
         .unwrap()
 }
-fn window(
-    app: &tauri::App<tauri::test::MockRuntime>,
-    name: &str,
-) -> tauri::WebviewWindow<tauri::test::MockRuntime> {
-    tauri::WebviewWindowBuilder::new(app, name, Default::default())
+fn window(app: &App<MockRuntime>, name: &str) -> WebviewWindow<MockRuntime> {
+    WebviewWindowBuilder::new(app, name, Default::default())
         .build()
         .unwrap()
 }
 fn call(
-    window: &tauri::WebviewWindow<tauri::test::MockRuntime>,
+    window: &WebviewWindow<MockRuntime>,
     command: &str,
     request: &str,
     body: Value,
 ) -> Result<Value, Value> {
-    let mut message = tauri::webview::InvokeRequest {
+    let mut message = InvokeRequest {
         cmd: command.into(),
-        callback: tauri::ipc::CallbackFn(0),
-        error: tauri::ipc::CallbackFn(1),
+        callback: CallbackFn(0),
+        error: CallbackFn(1),
         url: "http://tauri.localhost".parse().unwrap(),
-        body: tauri::ipc::InvokeBody::Json(body),
+        body: InvokeBody::Json(body),
         headers: Default::default(),
-        invoke_key: tauri::test::INVOKE_KEY.into(),
+        invoke_key: INVOKE_KEY.into(),
     };
     message
         .headers
         .insert("x-performance-request", request.parse().unwrap());
-    tauri::test::get_ipc_response(window, message).map(|body| body.deserialize().unwrap())
+    test::get_ipc_response(window, message).map(|body| body.deserialize().unwrap())
 }
 #[test]
 fn synchronous_command_identity() {
@@ -166,10 +174,10 @@ fn async_timer_covers_waiting() {
     let app = app();
     let window = window(&app, "child");
     let task =
-        std::thread::spawn(move || call(&window, "timing_async", "child:5", json!({"value": 11})));
+        thread::spawn(move || call(&window, "timing_async", "child:5", json!({"value": 11})));
     let gate = app.state::<Gate>();
     while !gate.entered.load(Ordering::SeqCst) {
-        std::thread::yield_now();
+        thread::yield_now();
     }
     assert!(records().is_empty());
     gate.released.store(true, Ordering::SeqCst);
@@ -186,8 +194,8 @@ fn concurrent_windows_keep_identity() {
     let app = app();
     let a = window(&app, "main");
     let b = window(&app, "child");
-    let left = std::thread::spawn(move || call(&a, "timing_pool", "main:6", json!({"value": 3})));
-    let right = std::thread::spawn(move || call(&b, "timing_pool", "child:6", json!({"value": 7})));
+    let left = thread::spawn(move || call(&a, "timing_pool", "main:6", json!({"value": 3})));
+    let right = thread::spawn(move || call(&b, "timing_pool", "child:6", json!({"value": 7})));
     assert_eq!(left.join().unwrap(), Ok(json!(6)));
     assert_eq!(right.join().unwrap(), Ok(json!(14)));
     let records = records();

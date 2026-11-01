@@ -1,10 +1,15 @@
-use super::super::{
-    model::{ProjectSession, SessionCsvRow},
-    session::csv_tables::{read_table_snapshot, session_table_mut},
-};
-use crate::{
-    errors::AppResult, io::FileChangeSetBuilder, models::CsvTableKey, parsers::render_csv_text,
-};
+use super::super::model::{ProjectSession, SessionCsvRow};
+use super::super::session::csv_tables::{read_table_snapshot, session_table_mut};
+use crate::errors::AppResult;
+use crate::io::FileChangeSetBuilder;
+use crate::models::CsvTableKey;
+use crate::parsers::render_csv_text;
+#[cfg(test)]
+use std::cell::RefCell;
+#[cfg(test)]
+use std::collections::BTreeMap;
+#[cfg(test)]
+use std::mem;
 
 pub(in crate::services::project) struct CsvTableDraft {
     pub table: CsvTableKey,
@@ -20,14 +25,13 @@ pub(in crate::services::project) struct StagedCsvWrite {
 
 #[cfg(test)]
 thread_local! {
-    static RENDER_COUNTS: std::cell::RefCell<std::collections::BTreeMap<CsvTableKey, usize>> =
-        const { std::cell::RefCell::new(std::collections::BTreeMap::new()) };
+    static RENDER_COUNTS: RefCell<BTreeMap<CsvTableKey, usize>> =
+        const { RefCell::new(BTreeMap::new()) };
 }
 
 #[cfg(test)]
-pub(in crate::services::project) fn take_render_counts()
--> std::collections::BTreeMap<CsvTableKey, usize> {
-    RENDER_COUNTS.with(|counts| std::mem::take(&mut *counts.borrow_mut()))
+pub(in crate::services::project) fn take_render_counts() -> BTreeMap<CsvTableKey, usize> {
+    RENDER_COUNTS.with(|counts| mem::take(&mut *counts.borrow_mut()))
 }
 
 impl CsvTableDraft {
@@ -82,17 +86,24 @@ impl StagedCsvWrite {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(test)]
+    use crate::io;
+    use crate::io::{read_utf8_no_bom, write_utf8_no_bom};
+    use crate::services::project::PerformanceTrace;
+    use crate::services::project::session::build_project_session;
+    use crate::services::project::session::csv_tables::ensure_registered_table_rows;
     use crate::services::project::test_support::project_workspace;
-    use crate::{
-        io::{read_utf8_no_bom, write_utf8_no_bom},
-        services::project::{
-            PerformanceTrace, session::build_project_session,
-            session::csv_tables::ensure_registered_table_rows,
-        },
-        test_support::TestWorkspace,
-    };
+    use crate::test_support::TestWorkspace;
     use serde_json::json;
+    #[cfg(test)]
+    use std::collections::BTreeMap;
     use std::fs;
+    #[cfg(windows)]
+    #[cfg(test)]
+    use std::fs::OpenOptions;
+    #[cfg(windows)]
+    #[cfg(test)]
+    use std::os::windows::fs::OpenOptionsExt;
 
     fn fixture() -> (TestWorkspace, ProjectSession) {
         let root = project_workspace("csv_writes");
@@ -155,9 +166,9 @@ mod tests {
             assert_eq!(state.next_row_seq, rows.len() as u64);
             assert_eq!(
                 take_render_counts(),
-                std::collections::BTreeMap::from([(CsvTableKey::Ships, 1)])
+                BTreeMap::from([(CsvTableKey::Ships, 1)])
             );
-            let parsed = crate::io::read_csv_data(&path).unwrap();
+            let parsed = io::read_csv_data(&path).unwrap();
             assert!(!parsed.rows.last().unwrap().is_comment);
             assert_eq!(parsed.rows.last().unwrap().data["name"], "#Literal");
         }
@@ -167,7 +178,6 @@ mod tests {
     #[cfg(windows)]
     #[test]
     fn failed_apply_keeps_formal_table_and_original_file() {
-        use std::os::windows::fs::OpenOptionsExt;
         let (root, session) = fixture();
         let path = root.join("data/hulls/ship_data.csv");
         let before = serde_json::to_value(&session.csv_tables["ships"]).unwrap();
@@ -176,7 +186,7 @@ mod tests {
         draft.rows[1].data.insert("name".into(), "Changed".into());
         let mut builder = FileChangeSetBuilder::new(&root).unwrap();
         let staged = draft.stage(&session, &mut builder).unwrap();
-        let locked = fs::OpenOptions::new()
+        let locked = OpenOptions::new()
             .read(true)
             .share_mode(0)
             .open(&path)

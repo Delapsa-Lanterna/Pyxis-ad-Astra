@@ -1,15 +1,17 @@
+use crate::errors::{AppError, AppResult, ErrorDiagnostic};
+use crate::io::RootWriteLock;
+use crate::models::{
+    CommittedSessionUpdate, CommittedWriteEvent, EntityIdentityChange, FileVersion,
+    ReferenceSources, SaveDelivery, WriteResult, windows_path_key,
+};
+use crate::services::{project, windows};
 #[cfg(test)]
 use crate::test_support::TestWorkspace;
-use crate::{
-    errors::{AppError, AppResult, ErrorDiagnostic},
-    models::{EntityIdentityChange, FileVersion, SaveDelivery, WriteResult, windows_path_key},
-};
+use crate::{diagnostics, io};
 use serde::Serialize;
-use std::{
-    collections::{BTreeMap, VecDeque},
-    path::Path,
-    sync::{Arc, Condvar, LazyLock, Mutex},
-};
+use std::collections::{BTreeMap, VecDeque};
+use std::path::Path;
+use std::sync::{Arc, Condvar, LazyLock, Mutex, MutexGuard};
 use tauri::ipc::Channel;
 
 #[derive(Default)]
@@ -43,20 +45,20 @@ struct SaveWindow {
 }
 impl SaveWindow {
     fn belongs_to(&self, root: &str) -> bool {
-        self.root.as_ref().is_none_or(|owned| {
-            crate::models::windows_path_key(owned) == crate::models::windows_path_key(root)
-        })
+        self.root
+            .as_ref()
+            .is_none_or(|owned| windows_path_key(owned) == windows_path_key(root))
     }
 }
 #[derive(Default)]
 struct ProjectSaves {
-    references: crate::models::ReferenceSources,
+    references: ReferenceSources,
     windows: BTreeMap<String, SaveWindow>,
     roots: BTreeMap<String, VecDeque<QueuedSave>>,
 }
 impl ProjectSaves {
     fn registered_root(&self, root: &str) -> String {
-        let requested = crate::models::windows_path_key(root);
+        let requested = windows_path_key(root);
         self.roots
             .iter()
             .find(|(key, queue)| {
@@ -130,7 +132,7 @@ impl ProjectSaves {
                 mod_root: root.to_string(),
                 waiting,
             }) {
-                crate::diagnostics::record(format!("save queue status: {error}"));
+                diagnostics::record(format!("save queue status: {error}"));
             }
         }
     }
@@ -147,30 +149,30 @@ impl ProjectSaves {
                 session_id: work.session_id.clone(),
                 diagnostic: diagnostic.clone(),
             }) {
-                crate::diagnostics::record(format!("save blocked status: {error}"));
+                diagnostics::record(format!("save blocked status: {error}"));
             }
         }
         SAVES.1.notify_all();
     }
 }
 static SAVES: LazyLock<(Mutex<ProjectSaves>, Condvar)> = LazyLock::new(Default::default);
-fn saves() -> AppResult<std::sync::MutexGuard<'static, ProjectSaves>> {
+fn saves() -> AppResult<MutexGuard<'static, ProjectSaves>> {
     SAVES
         .0
         .lock()
         .map_err(|_| AppError::message("write.queue_poisoned", "保存队列不可用"))
 }
 fn wait_changed(
-    guard: std::sync::MutexGuard<'static, ProjectSaves>,
-) -> AppResult<std::sync::MutexGuard<'static, ProjectSaves>> {
+    guard: MutexGuard<'static, ProjectSaves>,
+) -> AppResult<MutexGuard<'static, ProjectSaves>> {
     SAVES
         .1
         .wait(guard)
         .map_err(|_| AppError::message("write.queue_poisoned", "保存队列不可用"))
 }
 fn root_key(root: &str) -> AppResult<String> {
-    Ok(crate::models::windows_path_key(
-        &crate::io::canonical_path(Path::new(root), "save root")?.to_string_lossy(),
+    Ok(windows_path_key(
+        &io::canonical_path(Path::new(root), "save root")?.to_string_lossy(),
     ))
 }
 fn work(id: &str) -> AppResult<Arc<SaveWork>> {
@@ -219,7 +221,7 @@ pub fn enqueue(
     root: &str,
     session_id: Option<&str>,
 ) -> AppResult<Arc<SaveWork>> {
-    if !crate::services::windows::accepts_save(label, session_id)? {
+    if !windows::accepts_save(label, session_id)? {
         return Err(AppError::message(
             "write.scope_closing",
             "所属窗口或项目正在关闭",
@@ -229,7 +231,7 @@ pub fn enqueue(
         id: request_id,
         owner: label.to_string(),
         root: root_key(root)?,
-        submitted_root: crate::models::windows_path_key(root),
+        submitted_root: windows_path_key(root),
         session_id: session_id.map(str::to_string),
     });
     let mut saves = saves()?;
@@ -272,14 +274,14 @@ pub fn execute_queued<T: Serialize>(
         (progress.identities.clone(), progress.versions.clone())
     };
     let recovery = work.clone();
-    let result = crate::io::with_write_retry(
+    let result = io::with_write_retry(
         Path::new(event_root),
         move |error| wait_retry(&recovery, error),
         || loop {
             match action(&identities, &versions) {
                 Err(AppError::SaveSourcesMissing { paths }) => {
                     confirm_sources(&work, paths.clone())?;
-                    crate::io::accept_source_recreation(&work.root, paths)?;
+                    io::accept_source_recreation(&work.root, paths)?;
                 }
                 result => break result,
             }
@@ -310,7 +312,7 @@ pub fn execute_queued<T: Serialize>(
             entry.progress.versions.push(version.clone());
         }
     }
-    let event = serde_json::to_value(crate::models::CommittedWriteEvent {
+    let event = serde_json::to_value(CommittedWriteEvent {
         origin_window_label: &work.owner,
         mod_root: event_root,
         session_id,
@@ -326,7 +328,7 @@ pub fn execute_queued<T: Serialize>(
             request_id: work.id.clone(),
             event: event.clone(),
         }) {
-            crate::diagnostics::record(format!("save result delivery: {error}"));
+            diagnostics::record(format!("save result delivery: {error}"));
         }
     }
     saves.finish(&work.root);
@@ -334,12 +336,12 @@ pub fn execute_queued<T: Serialize>(
 }
 
 pub fn publish_references(
-    snapshot: crate::models::ReferenceSources,
-    updates: Vec<crate::models::CommittedSessionUpdate>,
+    snapshot: ReferenceSources,
+    updates: Vec<CommittedSessionUpdate>,
 ) -> AppResult<()> {
     let mut result = WriteResult::<()>::from_changes(Vec::new());
     result.session_updates = updates;
-    let event = serde_json::to_value(crate::models::CommittedWriteEvent {
+    let event = serde_json::to_value(CommittedWriteEvent {
         origin_window_label: "main",
         mod_root: "",
         session_id: None,
@@ -356,7 +358,7 @@ pub fn publish_references(
             snapshot: snapshot.clone(),
             event: Some(event.clone()),
         }) {
-            crate::diagnostics::record(format!("reference result delivery: {error}"));
+            diagnostics::record(format!("reference result delivery: {error}"));
         }
     }
     Ok(())
@@ -381,13 +383,11 @@ pub fn prepare_versions(
     captured: &mut [FileVersion],
     versions: &[FileVersion],
     identities: &[EntityIdentityChange],
-) -> AppResult<crate::io::RootWriteLock> {
-    let lease = crate::io::acquire_root_write_lock(Path::new(root))?;
+) -> AppResult<RootWriteLock> {
+    let lease = io::acquire_root_write_lock(Path::new(root))?;
     for identity in identities {
         for version in captured.iter_mut() {
-            if crate::models::windows_path_key(&version.path)
-                == crate::models::windows_path_key(&identity.before.write.path)
-            {
+            if windows_path_key(&version.path) == windows_path_key(&identity.before.write.path) {
                 version.path = identity.after.write.path.clone();
             }
         }
@@ -407,7 +407,7 @@ pub fn prepare_versions(
             && !path
                 .try_exists()
                 .map_err(|error| AppError::from(error).at_path(path))?
-            && !crate::io::source_recreation_allowed(root, &version.path)
+            && !io::source_recreation_allowed(root, &version.path)
         {
             missing.push(version.path.clone());
         }
@@ -415,7 +415,7 @@ pub fn prepare_versions(
     if !missing.is_empty() {
         return Err(AppError::SaveSourcesMissing { paths: missing });
     }
-    crate::io::verify_versions(root, captured)?;
+    io::verify_versions(root, captured)?;
     Ok(lease)
 }
 
@@ -559,25 +559,45 @@ fn execute<T: Serialize>(
 }
 
 pub fn release_project_session(session_id: String) -> AppResult<()> {
-    let revision = super::project::reference_revision();
-    super::project::close_project_session(session_id.clone())?;
-    if revision != super::project::reference_revision() {
-        let delivery = super::project::reference_sources().and_then(|snapshot| {
-            publish_references(snapshot, super::project::reference_updates()?)
-        });
+    let revision = project::reference_revision();
+    project::close_project_session(session_id.clone())?;
+    if revision != project::reference_revision() {
+        let delivery = project::reference_sources()
+            .and_then(|snapshot| publish_references(snapshot, project::reference_updates()?));
         if let Err(error) = delivery {
-            crate::diagnostics::record(format!("reference close delivery: {error}"));
+            diagnostics::record(format!("reference close delivery: {error}"));
         }
     }
-    super::windows::release_session(&session_id)
+    windows::release_session(&session_id)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(test)]
+    use crate::models::*;
+    #[cfg(test)]
+    use crate::models::{EntityKind, JointEditSnapshot, SaveAction, TextSave};
+    #[cfg(test)]
+    use crate::services::project::PerformanceTrace;
     use crate::services::project::test_support::project_workspace;
+    #[cfg(test)]
+    use crate::services::{file_editor, file_history, project, project_save, write_transactions};
+    #[cfg(test)]
+    use crate::{io, services};
     use serde_json::Value;
-    use std::{sync::mpsc, time::Duration};
+    #[cfg(test)]
+    use std::cell::Cell;
+    #[cfg(test)]
+    use std::collections::BTreeSet;
+    use std::fs;
+    use std::io::ErrorKind;
+    use std::sync::mpsc;
+    use std::sync::mpsc::Receiver;
+    use std::time::Duration;
+    #[cfg(test)]
+    use std::{slice, thread};
+    use tauri::Error;
     use tauri::ipc::InvokeResponseBody;
 
     static TEST_QUEUE: Mutex<()> = Mutex::new(());
@@ -587,21 +607,21 @@ mod tests {
         let _serial = TEST_QUEUE.lock().unwrap();
         for remove_root in [false, true] {
             let root = project_workspace("release_removed_project");
-            std::fs::write(root.join("notes.txt"), "before").unwrap();
-            let manifest = crate::services::project::open_project_session_traced(
+            fs::write(root.join("notes.txt"), "before").unwrap();
+            let manifest = project::open_project_session_traced(
                 &root,
                 None,
-                &mut crate::services::project::PerformanceTrace::new("release.removed"),
+                &mut PerformanceTrace::new("release.removed"),
             )
             .unwrap();
-            let sibling = crate::services::project::open_project_session_traced(
+            let sibling = project::open_project_session_traced(
                 &root,
                 None,
-                &mut crate::services::project::PerformanceTrace::new("release.same-root"),
+                &mut PerformanceTrace::new("release.same-root"),
             )
             .unwrap();
-            let transaction = crate::services::write_transactions::begin(
-                &crate::models::TextSave {
+            let transaction = write_transactions::begin(
+                &TextSave {
                     json_write: Default::default(),
                     session_id: Some(manifest.session_id.clone()),
                     mod_root: manifest.mod_root.clone(),
@@ -612,7 +632,7 @@ mod tests {
                 &[],
             )
             .unwrap();
-            let result = crate::services::file_editor::save_text_file(
+            let result = file_editor::save_text_file(
                 &manifest.mod_root,
                 &root.join("notes.txt").to_string_lossy(),
                 "after".into(),
@@ -621,11 +641,11 @@ mod tests {
             let saved = transaction.commit(result, "saved").unwrap();
             assert_eq!(saved.history.undo_stack.len(), 1);
             if remove_root {
-                std::fs::remove_dir_all(root.as_ref()).unwrap();
+                fs::remove_dir_all(root.as_ref()).unwrap();
             }
             release_project_session(manifest.session_id.clone()).unwrap();
             assert_eq!(
-                crate::services::file_history::query(&manifest.mod_root)
+                file_history::query(&manifest.mod_root)
                     .unwrap()
                     .undo_stack
                     .len(),
@@ -633,30 +653,27 @@ mod tests {
             );
             release_project_session(sibling.session_id).unwrap();
             assert!(
-                !crate::services::project::registered_session_ids()
+                !project::registered_session_ids()
                     .unwrap()
                     .contains(&manifest.session_id)
             );
             assert!(
-                crate::services::file_history::query(&manifest.mod_root)
+                file_history::query(&manifest.mod_root)
                     .unwrap()
                     .undo_stack
                     .is_empty()
             );
             assert_eq!(
-                crate::services::query_entity_list(
-                    &manifest.session_id,
-                    crate::models::EntityKind::Ship
-                )
-                .unwrap_err()
-                .code(),
+                services::query_entity_list(&manifest.session_id, EntityKind::Ship)
+                    .unwrap_err()
+                    .code(),
                 "session.unknown"
             );
             root.close().unwrap();
         }
     }
 
-    fn window(label: &str) -> mpsc::Receiver<Value> {
+    fn window(label: &str) -> Receiver<Value> {
         let (send, receive) = mpsc::channel();
         register(
             label,
@@ -666,7 +683,7 @@ mod tests {
                     panic!("save delivery is JSON")
                 };
                 send.send(serde_json::from_str(&json).unwrap())
-                    .map_err(|_| tauri::Error::Io(std::io::ErrorKind::BrokenPipe.into()))?;
+                    .map_err(|_| Error::Io(ErrorKind::BrokenPipe.into()))?;
                 Ok(())
             }),
         )
@@ -674,11 +691,7 @@ mod tests {
         receive
     }
 
-    fn delivery_for_request(
-        receive: &mpsc::Receiver<Value>,
-        kind: &str,
-        request_id: &str,
-    ) -> Value {
+    fn delivery_for_request(receive: &Receiver<Value>, kind: &str, request_id: &str) -> Value {
         loop {
             let delivery = receive.recv_timeout(Duration::from_secs(5)).unwrap();
             if delivery["kind"] == kind && delivery["requestId"] == request_id {
@@ -724,11 +737,11 @@ mod tests {
         let _serial = TEST_QUEUE.lock().unwrap();
         let (fixture, outside, link) = TestWorkspace::junction("save_replaced_root", "linked");
         let project = fixture.join("project");
-        std::fs::create_dir(&project).unwrap();
+        fs::create_dir(&project).unwrap();
         let text = project.to_string_lossy().to_string();
         let queued = enqueue("replaced-root", "replaced-root".into(), &text, None).unwrap();
-        std::fs::remove_dir(&project).unwrap();
-        std::fs::rename(link, &project).unwrap();
+        fs::remove_dir(&project).unwrap();
+        fs::rename(link, &project).unwrap();
         let error = execute_queued::<()>(queued, &text, None, "save", |_, _| {
             panic!("replacement root is rejected before writing")
         })
@@ -736,7 +749,7 @@ mod tests {
         assert_eq!(error.code(), "path.link_rejected");
         wait_projects(&[text]).unwrap();
         assert!(!outside.join("saved.txt").exists());
-        std::fs::remove_dir(project).unwrap();
+        fs::remove_dir(project).unwrap();
         fixture.close().unwrap();
     }
 
@@ -747,14 +760,14 @@ mod tests {
             let root = project_workspace("save_missing_root");
             let text = root.to_string_lossy().to_string();
             if remove_before_enqueue {
-                std::fs::remove_dir_all(&root).unwrap();
+                fs::remove_dir_all(&root).unwrap();
             }
             let first = enqueue("detached", "failed".into(), &text, None).unwrap();
             let second = enqueue("detached", "next".into(), &text, None).unwrap();
             if !remove_before_enqueue {
-                std::fs::remove_dir_all(&root).unwrap();
+                fs::remove_dir_all(&root).unwrap();
             }
-            let calls = std::cell::Cell::new(0);
+            let calls = Cell::new(0);
             assert!(
                 execute_queued(first, &text, None, "save", |_, _| {
                     calls.set(calls.get() + 1);
@@ -763,12 +776,12 @@ mod tests {
                 .is_err()
             );
             assert_eq!(calls.get(), 0);
-            std::fs::create_dir(&root).unwrap();
+            fs::create_dir(&root).unwrap();
             execute_queued(second, &text, None, "save", |_, _| {
                 Ok(WriteResult::<()>::from_changes(Vec::new()))
             })
             .unwrap();
-            std::fs::remove_dir_all(&root).unwrap();
+            fs::remove_dir_all(&root).unwrap();
             wait_projects(&[text]).unwrap();
             assert_project_idle(&root.to_string_lossy());
         }
@@ -783,7 +796,7 @@ mod tests {
         let second = enqueue("ordered", "later".into(), &text, None).unwrap();
         let (send, receive) = mpsc::channel();
         let next_root = text.clone();
-        let worker = std::thread::spawn(move || {
+        let worker = thread::spawn(move || {
             execute_queued(second, &next_root, None, "save", |_, _| {
                 send.send(()).unwrap();
                 Ok(WriteResult::<()>::from_changes(Vec::new()))
@@ -811,10 +824,10 @@ mod tests {
         let queued = enqueue("recovery-owner", "recover".into(), &text, None).unwrap();
         let following = enqueue("recovery-owner", "following".into(), &text, None).unwrap();
         let next_root = text.clone();
-        let worker = std::thread::spawn(move || {
+        let worker = thread::spawn(move || {
             execute_queued(queued, &next_root, None, "save", |_, _| {
-                crate::io::retry_write(&next_root, || {
-                    std::fs::read_to_string(Path::new(&next_root).join("available.txt"))?;
+                io::retry_write(&next_root, || {
+                    fs::read_to_string(Path::new(&next_root).join("available.txt"))?;
                     Ok(())
                 })?;
                 Ok(WriteResult::<()>::from_changes(Vec::new()))
@@ -822,12 +835,12 @@ mod tests {
             .unwrap()
         });
         delivery_for_request(&receiver, "blocked", "recover");
-        assert!(wait_projects(std::slice::from_ref(&text)).is_err());
+        assert!(wait_projects(slice::from_ref(&text)).is_err());
         save_empty("other", "independent", &other.to_string_lossy());
         assert_project_idle(&other.to_string_lossy());
         assert_eq!(saves().unwrap().roots[&following.root].len(), 2);
         release_window("recovery-owner").unwrap();
-        std::fs::write(root.join("available.txt"), "ready").unwrap();
+        fs::write(root.join("available.txt"), "ready").unwrap();
         retry("recover").unwrap();
         worker.join().unwrap();
         execute_queued(following, &text, None, "save", |_, _| {
@@ -846,9 +859,9 @@ mod tests {
         for reappeared in [false, true] {
             let root = project_workspace("missing_source_answer");
             let path = root.join("notes.txt");
-            std::fs::write(&path, "before").unwrap();
-            let captured = crate::io::file_version(&path).unwrap();
-            std::fs::remove_file(&path).unwrap();
+            fs::write(&path, "before").unwrap();
+            let captured = io::file_version(&path).unwrap();
+            fs::remove_file(&path).unwrap();
             let owner = if reappeared {
                 "reappeared"
             } else {
@@ -856,7 +869,7 @@ mod tests {
             };
             let receive = window(owner);
             let next_root = root.to_string_lossy().to_string();
-            let worker = std::thread::spawn(move || {
+            let worker = thread::spawn(move || {
                 execute(
                     owner,
                     owner.into(),
@@ -867,7 +880,7 @@ mod tests {
                         let mut expected = vec![captured.clone()];
                         let _lease =
                             prepare_versions(&next_root, &mut expected, versions, identities)?;
-                        std::fs::write(&expected[0].path, "saved")?;
+                        fs::write(&expected[0].path, "saved")?;
                         Ok(WriteResult::<()>::from_changes(Vec::new()))
                     },
                 )
@@ -877,7 +890,7 @@ mod tests {
             let delivery = delivery_for_request(&receive, "missing", owner);
             let paths: Vec<String> = serde_json::from_value(delivery["paths"].clone()).unwrap();
             if reappeared {
-                std::fs::write(&path, "external").unwrap();
+                fs::write(&path, "external").unwrap();
             }
             resolve_sources(owner, owner, &paths, reappeared).unwrap();
             assert_eq!(
@@ -889,7 +902,7 @@ mod tests {
                 }
             );
             if reappeared {
-                assert_eq!(std::fs::read_to_string(&path).unwrap(), "external");
+                assert_eq!(fs::read_to_string(&path).unwrap(), "external");
             } else {
                 assert!(!path.exists());
             }
@@ -906,7 +919,7 @@ mod tests {
         let text = root.to_string_lossy().to_string();
         let source = window("confirmation-source");
         let next_root = text.clone();
-        let worker = std::thread::spawn(move || {
+        let worker = thread::spawn(move || {
             execute(
                 "confirmation-source",
                 "confirmation".into(),
@@ -914,7 +927,7 @@ mod tests {
                 None,
                 "save",
                 |_, _| {
-                    if !crate::io::source_recreation_allowed(
+                    if !io::source_recreation_allowed(
                         &next_root,
                         &Path::new(&next_root).join("notes.txt").to_string_lossy(),
                     ) {
@@ -964,9 +977,9 @@ mod tests {
         let first = enqueue("abandon-owner", "blocked".into(), &text, None).unwrap();
         let following = enqueue("abandon-owner", "following".into(), &text, None).unwrap();
         let next_root = text.clone();
-        let worker = std::thread::spawn(move || {
+        let worker = thread::spawn(move || {
             execute_queued(first, &next_root, None, "save", |_, _| {
-                crate::io::retry_write(&next_root, || {
+                io::retry_write(&next_root, || {
                     Err::<(), _>(AppError::message("io.unexpected", "restore unavailable"))
                 })?;
                 Ok(WriteResult::<()>::from_changes(Vec::new()))
@@ -975,7 +988,7 @@ mod tests {
             .code()
         });
         delivery_for_request(&receive, "blocked", "blocked");
-        abandon(std::slice::from_ref(&text)).unwrap();
+        abandon(slice::from_ref(&text)).unwrap();
         assert_eq!(worker.join().unwrap(), "write.recovery_abandoned");
         assert_eq!(
             execute_queued(following, &text, None, "save", |_, _| Ok(
@@ -992,33 +1005,32 @@ mod tests {
     }
     #[test]
     fn one_multifile_save_delivers_one_event_and_one_history_entry_to_each_window() {
-        use crate::models::*;
         let _serial = TEST_QUEUE.lock().unwrap();
         let root = project_workspace("save_queue_multifile");
-        std::fs::create_dir_all(root.join("data/hulls")).unwrap();
-        std::fs::create_dir_all(root.join("data/variants")).unwrap();
-        std::fs::write(
+        fs::create_dir_all(root.join("data/hulls")).unwrap();
+        fs::create_dir_all(root.join("data/variants")).unwrap();
+        fs::write(
             root.join("data/hulls/ship_data.csv"),
             "id,name,hitpoints\ndemo,Demo,100\n",
         )
         .unwrap();
-        std::fs::write(
+        fs::write(
             root.join("data/hulls/demo.ship"),
             r#"{"hullId":"demo","hullName":"Demo","width":10}"#,
         )
         .unwrap();
-        std::fs::write(
+        fs::write(
             root.join("data/variants/demo.variant"),
             r#"{"variantId":"demo","hullId":"demo","fluxVents":1}"#,
         )
         .unwrap();
-        let manifest = crate::services::project::open_project_session_traced(
+        let manifest = project::open_project_session_traced(
             &root,
             None,
-            &mut crate::services::project::PerformanceTrace::new("save.queue.test"),
+            &mut PerformanceTrace::new("save.queue.test"),
         )
         .unwrap();
-        let snapshot = crate::services::query_joint_edit_request(&JointEditQuery {
+        let snapshot = services::query_joint_edit_request(&JointEditQuery {
             root: JointEditRoot {
                 session_id: manifest.session_id.clone(),
                 mod_root: manifest.mod_root.clone(),
@@ -1064,9 +1076,9 @@ mod tests {
         let first = window("multifile-first");
         let second = window("multifile-second");
         let broken = root.join("data/variants/broken.variant");
-        std::fs::write(&broken, "{").unwrap();
+        fs::write(&broken, "{").unwrap();
         let scope = manifest.clone();
-        let worker = std::thread::spawn(move || {
+        let worker = thread::spawn(move || {
             execute(
                 "multifile-first",
                 "multifile".into(),
@@ -1074,11 +1086,9 @@ mod tests {
                 Some(&scope.session_id),
                 "save",
                 |_, _| {
-                    crate::services::project_save::execute_typed_save::<
-                        crate::models::JointEditSnapshot,
-                    >(crate::models::SaveAction::SaveJointEdit(Box::new(
-                        payload.clone(),
-                    )))
+                    project_save::execute_typed_save::<JointEditSnapshot>(
+                        SaveAction::SaveJointEdit(Box::new(payload.clone())),
+                    )
                 },
             )
             .unwrap()
@@ -1087,18 +1097,15 @@ mod tests {
             delivery_for_request(receiver, "blocked", "multifile");
         }
         assert_eq!(
-            crate::services::write_transactions::query_history(
-                &manifest.session_id,
-                &manifest.mod_root
-            )
-            .unwrap()
-            .undo_stack
-            .len(),
+            write_transactions::query_history(&manifest.session_id, &manifest.mod_root)
+                .unwrap()
+                .undo_stack
+                .len(),
             1
         );
         let unrelated = project_workspace("save_unrelated_delivery");
         save_empty("unrelated-owner", "unrelated", &unrelated.to_string_lossy());
-        std::fs::remove_file(broken).unwrap();
+        fs::remove_file(broken).unwrap();
         retry("multifile").unwrap();
         let result = worker.join().unwrap();
         assert_eq!(result.changes.len(), 3);
@@ -1106,7 +1113,7 @@ mod tests {
             .changes
             .iter()
             .map(|change| &change.after_path)
-            .collect::<std::collections::BTreeSet<_>>();
+            .collect::<BTreeSet<_>>();
         assert_eq!(paths.len(), 3);
         assert_eq!(result.history.undo_stack.len(), 1);
         let a = delivery_for_request(&first, "saved", "multifile");
@@ -1117,7 +1124,7 @@ mod tests {
         release_window("multifile-first").unwrap();
         release_window("multifile-second").unwrap();
         unrelated.close().unwrap();
-        crate::services::project::close_project_session(manifest.session_id).unwrap();
+        project::close_project_session(manifest.session_id).unwrap();
         root.close().unwrap();
     }
 }

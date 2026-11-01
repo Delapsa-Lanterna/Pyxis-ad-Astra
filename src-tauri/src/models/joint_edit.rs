@@ -2,6 +2,7 @@ use super::{
     CsvTableKey, EntityEditTarget, EntityFileLocation, EntityKind, FileVersion, JointEditRoot,
     JsonWriteOptions, ResourceRef, SessionModScope,
 };
+use crate::models::{JsonComposition, ResourceSource};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::BTreeMap;
@@ -14,7 +15,7 @@ pub struct JointEditQuery {
     pub values: Option<BTreeMap<String, JointValue>>,
     pub new_sources: Vec<JointSourceCreate>,
     pub catalog: Option<JointVariantCatalogKind>,
-    pub catalog_source: Option<super::ResourceSource>,
+    pub catalog_source: Option<ResourceSource>,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
@@ -140,7 +141,7 @@ pub enum JointValue {
 #[serde(rename_all = "camelCase")]
 pub struct JointEditRecord {
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub composition: Option<super::JsonComposition>,
+    pub composition: Option<JsonComposition>,
     pub key: String,
     pub target: JointRecordTarget,
     pub source: Option<EntityFileLocation>,

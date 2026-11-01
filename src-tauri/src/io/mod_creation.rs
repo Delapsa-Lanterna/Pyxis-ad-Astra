@@ -1,12 +1,8 @@
-use crate::{
-    errors::{AppError, AppResult},
-    io::{FsRootBoundary, read_json_file, validate_walk_entry, write_utf8_no_bom},
-};
+use crate::errors::{AppError, AppResult};
+use crate::io::{FsRootBoundary, read_json_file, validate_walk_entry, write_utf8_no_bom};
 use serde_json::Value;
-use std::{
-    fs,
-    path::{Path, PathBuf},
-};
+use std::fs;
+use std::path::{Path, PathBuf};
 
 const TEMPLATE_DIRECTORIES: &[&str] = &[
     "data/hulls",
@@ -111,15 +107,17 @@ fn mod_id(info: &Value) -> Option<&str> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::services::project::test_support::project_workspace;
-    use crate::{
-        domain::mod_creation::{
-            ValidatedNewModTemplate, render_initial_mod_info, validate_new_mod_template,
-        },
-        io::{read_json_file, read_text_bytes_no_bom, write_utf8_no_bom},
-        models::NewModTemplate,
-        services::project::{PerformanceTrace, open_project_session_traced},
+    use crate::domain::mod_creation::{
+        ValidatedNewModTemplate, render_initial_mod_info, validate_new_mod_template,
     };
+    #[cfg(test)]
+    use crate::io;
+    use crate::io::{read_json_file, read_text_bytes_no_bom, write_utf8_no_bom};
+    use crate::models::NewModTemplate;
+    #[cfg(test)]
+    use crate::services::project;
+    use crate::services::project::test_support::project_workspace;
+    use crate::services::project::{PerformanceTrace, open_project_session_traced};
     use std::fs;
 
     #[test]
@@ -146,7 +144,7 @@ mod tests {
                 "{relative_directory}"
             );
         }
-        let _ = crate::services::project::close_project_session(manifest.session_id);
+        let _ = project::close_project_session(manifest.session_id);
         parent.close().unwrap();
     }
 
@@ -162,7 +160,7 @@ mod tests {
         let error = create_new_mod(&parent, &template.id, &mod_info_text)
             .unwrap_err()
             .to_string();
-        let kept = crate::io::read_utf8_no_bom(&target.join("keep.txt")).unwrap();
+        let kept = io::read_utf8_no_bom(&target.join("keep.txt")).unwrap();
 
         assert!(error.contains("已存在"));
         assert_eq!(kept, "keep");

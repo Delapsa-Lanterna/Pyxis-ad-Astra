@@ -22,6 +22,7 @@ pub struct JsonSourceConfirmation {
 mod tests {
     use super::*;
     use serde_json::json;
+
     #[test]
     fn json_write_options_keep_missing_field_defaults() {
         for value in [

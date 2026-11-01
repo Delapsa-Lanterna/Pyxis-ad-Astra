@@ -1,5 +1,6 @@
 use crate::errors::{AppError, AppResult};
-use std::{path::Path, process::Command};
+use std::path::Path;
+use std::process::Command;
 
 pub fn open_path(path: &Path) -> AppResult<()> {
     if cfg!(target_os = "windows") {

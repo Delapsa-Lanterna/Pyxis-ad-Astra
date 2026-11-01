@@ -1,7 +1,5 @@
-use crate::{
-    errors::{AppError, AppResult},
-    io::FsRootBoundary,
-};
+use crate::errors::{AppError, AppResult};
+use crate::io::FsRootBoundary;
 use std::path::{Path, PathBuf};
 
 /// Tests the expected game directories at the supplied root.

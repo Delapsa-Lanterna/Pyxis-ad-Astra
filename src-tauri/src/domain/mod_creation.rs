@@ -1,7 +1,5 @@
-use crate::{
-    errors::{AppError, AppResult},
-    models::NewModTemplate,
-};
+use crate::errors::{AppError, AppResult};
+use crate::models::NewModTemplate;
 use serde_json::{Value, json};
 
 const MAX_MOD_ID_LENGTH: usize = 64;

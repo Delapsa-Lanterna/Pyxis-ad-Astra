@@ -1,22 +1,17 @@
-use crate::{
-    app_data_dir,
-    errors::{AppError, AppResult},
-    io::{
-        FsRootBoundary, ensure_file_appendable, path_belongs_to_root, read_utf8_no_bom,
-        validate_safe_absolute_path, write_utf8_no_bom,
-    },
-    models::{AppSettings, LOG_FILE},
-    services::workspace_persistence,
+use crate::errors::{AppError, AppResult};
+use crate::io::{
+    FsRootBoundary, ensure_file_appendable, path_belongs_to_root, read_utf8_no_bom,
+    validate_safe_absolute_path, write_utf8_no_bom,
 };
-use std::{
-    fs,
-    path::{Path, PathBuf},
-    sync::{
-        LazyLock, Mutex,
-        atomic::{AtomicBool, AtomicU64, Ordering},
-    },
-};
-use tauri::Emitter;
+use crate::models::{AppSettings, CacheLimits, LOG_FILE, SettingsSnapshot};
+use crate::services::workspace_persistence;
+use crate::{app_data_dir, diagnostics, parsers};
+use serde_json::Value;
+use std::fs;
+use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::{LazyLock, Mutex, MutexGuard};
+use tauri::{AppHandle, Emitter, Result};
 
 const SETTINGS_FILE: &str = "settings.json";
 mod system_fonts;
@@ -24,11 +19,10 @@ pub use system_fonts::query_system_fonts;
 static ALLOW_CORE_EDITING: AtomicBool = AtomicBool::new(false);
 static SETTINGS_REVISION: AtomicU64 = AtomicU64::new(0);
 static SETTINGS_WRITE_LOCK: Mutex<()> = Mutex::new(());
-static SETTINGS_SNAPSHOT: LazyLock<Mutex<Option<crate::models::SettingsSnapshot>>> =
+static SETTINGS_SNAPSHOT: LazyLock<Mutex<Option<SettingsSnapshot>>> =
     LazyLock::new(|| Mutex::new(None));
 
-fn snapshot_state()
--> AppResult<std::sync::MutexGuard<'static, Option<crate::models::SettingsSnapshot>>> {
+fn snapshot_state() -> AppResult<MutexGuard<'static, Option<SettingsSnapshot>>> {
     SETTINGS_SNAPSHOT.lock().map_err(|_| {
         AppError::message(
             "settings.snapshot_poisoned",
@@ -44,9 +38,9 @@ pub fn starsector_root() -> AppResult<Option<String>> {
 }
 
 pub fn read_settings(
-    app: &tauri::AppHandle,
+    app: &AppHandle,
     apply_runtime: impl FnOnce(&AppSettings) -> AppResult<bool>,
-) -> AppResult<crate::models::SettingsSnapshot> {
+) -> AppResult<SettingsSnapshot> {
     read_settings_with(
         || {
             Ok(load_settings_report(&app_data_dir::data_directory(
@@ -61,8 +55,8 @@ pub fn read_settings(
 fn read_settings_with(
     load: impl FnOnce() -> AppResult<(AppSettings, Vec<String>)>,
     apply_runtime: impl FnOnce(&AppSettings) -> AppResult<bool>,
-    notify: impl FnOnce(&crate::models::SettingsSnapshot) -> tauri::Result<()>,
-) -> AppResult<crate::models::SettingsSnapshot> {
+    notify: impl FnOnce(&SettingsSnapshot) -> Result<()>,
+) -> AppResult<SettingsSnapshot> {
     let _guard = SETTINGS_WRITE_LOCK
         .lock()
         .map_err(|_| AppError::message("settings.lock_poisoned", "settings write lock poisoned"))?;
@@ -72,14 +66,14 @@ fn read_settings_with(
     let (value, diagnostics) = load()?;
     let snapshot = commit_snapshot(value, apply_runtime, notify)?;
     drop(_guard);
-    diagnostics.into_iter().for_each(crate::diagnostics::record);
+    diagnostics.into_iter().for_each(diagnostics::record);
     Ok(snapshot)
 }
 fn commit_settings(
-    app: &tauri::AppHandle,
+    app: &AppHandle,
     value: AppSettings,
     apply_runtime: impl FnOnce(&AppSettings) -> AppResult<bool>,
-) -> AppResult<crate::models::SettingsSnapshot> {
+) -> AppResult<SettingsSnapshot> {
     commit_snapshot(value, apply_runtime, |snapshot| {
         app.emit("app-settings-changed", snapshot)
     })
@@ -88,27 +82,27 @@ fn commit_settings(
 fn commit_snapshot(
     value: AppSettings,
     apply_runtime: impl FnOnce(&AppSettings) -> AppResult<bool>,
-    notify: impl FnOnce(&crate::models::SettingsSnapshot) -> tauri::Result<()>,
-) -> AppResult<crate::models::SettingsSnapshot> {
+    notify: impl FnOnce(&SettingsSnapshot) -> Result<()>,
+) -> AppResult<SettingsSnapshot> {
     ALLOW_CORE_EDITING.store(value.allow_core_editing, Ordering::Release);
     let performance_monitor_active = apply_runtime(&value)?;
-    let snapshot = crate::models::SettingsSnapshot {
+    let snapshot = SettingsSnapshot {
         performance_monitor_active,
         revision: SETTINGS_REVISION.fetch_add(1, Ordering::Relaxed) + 1,
         value,
     };
     *snapshot_state()? = Some(snapshot.clone());
     if let Err(error) = notify(&snapshot) {
-        crate::diagnostics::record(format!("settings notification failed: {error}"));
+        diagnostics::record(format!("settings notification failed: {error}"));
     }
     Ok(snapshot)
 }
 pub fn save_settings_snapshot(
-    app: &tauri::AppHandle,
+    app: &AppHandle,
     window: &str,
     mut settings: AppSettings,
     apply_runtime: impl FnOnce(&AppSettings) -> AppResult<bool>,
-) -> AppResult<crate::models::SettingsSnapshot> {
+) -> AppResult<SettingsSnapshot> {
     if window != "main" {
         return Err(AppError::message(
             "settings.owner_mismatch",
@@ -152,8 +146,8 @@ fn load_settings_report(app_data_dir: &Path) -> (AppSettings, Vec<String>) {
         return (AppSettings::default(), Vec::new());
     }
     let mut diagnostics = Vec::new();
-    let source = read_utf8_no_bom(&path)
-        .and_then(|text| crate::parsers::parse_persisted_json::<serde_json::Value>(&text));
+    let source =
+        read_utf8_no_bom(&path).and_then(|text| parsers::parse_persisted_json::<Value>(&text));
     let mut settings = match source {
         Ok(source) => decode_settings(source.clone()).unwrap_or_else(|_| {
             let defaults =
@@ -181,10 +175,10 @@ fn load_settings_report(app_data_dir: &Path) -> (AppSettings, Vec<String>) {
 }
 
 fn recover_settings_fields(
-    source: &serde_json::Value,
-    defaults: &serde_json::Value,
+    source: &Value,
+    defaults: &Value,
     pointer: &str,
-    accepted: &mut serde_json::Value,
+    accepted: &mut Value,
     diagnostics: &mut Vec<String>,
 ) {
     if let Some(fields) = defaults.as_object()
@@ -211,7 +205,7 @@ fn recover_settings_fields(
     }
 }
 
-fn decode_settings(value: serde_json::Value) -> AppResult<AppSettings> {
+fn decode_settings(value: Value) -> AppResult<AppSettings> {
     if !value.is_object() {
         return Err(AppError::message(
             "settings.object_required",
@@ -269,7 +263,7 @@ fn validate_settings(settings: &AppSettings) -> AppResult<()> {
         .cache_limits
         .queries
         .keys()
-        .ne(crate::models::CacheLimits::default().queries.keys())
+        .ne(CacheLimits::default().queries.keys())
     {
         return Err(AppError::message(
             "settings.limit_invalid",
@@ -434,12 +428,30 @@ pub fn settings_path(app_data_dir: &Path) -> PathBuf {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+    #[cfg(test)]
+    use crate::models::{AccentPreset, AppLogLevel, AppSettings, AppTheme, EditMode};
+    #[cfg(test)]
+    use crate::services::app_settings::{load_settings, save_settings};
+    #[cfg(test)]
+    use crate::test_support;
+    use crate::test_support::TestWorkspace;
+    #[cfg(test)]
+    use crate::test_support::work_counts;
+    use serde_json::Value;
+    #[cfg(test)]
+    use std::sync::Barrier;
+    #[cfg(test)]
+    use std::sync::atomic::AtomicUsize;
+    #[cfg(test)]
+    use std::thread;
+
     #[test]
     fn settings_snapshot_initializes_once_for_concurrent_and_repeated_reads() {
-        if crate::test_support::isolated_test() {
+        if test_support::isolated_test() {
             return;
         }
-        use std::sync::{Barrier, atomic::AtomicUsize};
+
         let dir = TestWorkspace::new("settings_snapshot_work");
         save_settings(&dir, &AppSettings::default()).unwrap();
         let loads = AtomicUsize::new(0);
@@ -463,7 +475,7 @@ mod tests {
             .unwrap()
         };
         let barrier = Barrier::new(8);
-        let snapshots = std::thread::scope(|scope| {
+        let snapshots = thread::scope(|scope| {
             let workers: Vec<_> = (0..8)
                 .map(|_| {
                     scope.spawn(|| {
@@ -486,15 +498,11 @@ mod tests {
         assert_eq!(loads.load(Ordering::Relaxed), 1);
         assert_eq!(applies.load(Ordering::Relaxed), 1);
         assert_eq!(notifications.load(Ordering::Relaxed), 1);
-        assert_eq!(
-            crate::test_support::work_counts::count("read", &settings_path(&dir)),
-            1
-        );
+        assert_eq!(work_counts::count("read", &settings_path(&dir)), 1);
         dir.close().unwrap();
     }
     #[test]
     fn all_log_levels_roundtrip_through_saved_settings() {
-        use crate::models::AppLogLevel;
         let dir = TestWorkspace::new("log_level_settings");
         for level in [
             AppLogLevel::Debug,
@@ -502,18 +510,15 @@ mod tests {
             AppLogLevel::Warning,
             AppLogLevel::Error,
         ] {
-            let settings = crate::models::AppSettings {
+            let settings = AppSettings {
                 log_level: level,
                 ..Default::default()
             };
-            super::save_settings(&dir, &settings).unwrap();
-            assert_eq!(super::load_settings(&dir).unwrap().log_level, level);
+            save_settings(&dir, &settings).unwrap();
+            assert_eq!(load_settings(&dir).unwrap().log_level, level);
         }
         dir.close().unwrap();
     }
-    use super::*;
-
-    use crate::test_support::TestWorkspace;
 
     #[test]
     fn toast_durations_roundtrip_and_validate_each_level() {
@@ -603,14 +608,14 @@ mod tests {
             immersive_font_directory: Some(
                 dir.join("font_directory").to_string_lossy().into_owned(),
             ),
-            theme: Some(crate::models::AppTheme::Dark),
-            accent: crate::models::AccentPreset::Custom,
+            theme: Some(AppTheme::Dark),
+            accent: AccentPreset::Custom,
             custom_accent: "#16a34a".into(),
             file_history_limit: 42,
             edit_history_limit: 350,
             log_rotation_size_mib: 12,
             log_backup_count: 4,
-            edit_mode: crate::models::EditMode::Plain,
+            edit_mode: EditMode::Plain,
             expand_field_descriptions: true,
             ..AppSettings::default()
         };
@@ -696,7 +701,7 @@ mod tests {
         app_data.close().unwrap();
     }
 
-    fn setting_paths(value: &serde_json::Value, pointer: &str) -> Vec<String> {
+    fn setting_paths(value: &Value, pointer: &str) -> Vec<String> {
         let mut paths = vec![pointer.to_string()];
         if let Some(fields) = value.as_object() {
             for (name, child) in fields {
@@ -813,7 +818,7 @@ mod tests {
         let wire = serde_json::json!({"logDirectory": dir.join("unavailable").to_string_lossy(), "theme": "dark"});
         write_utf8_no_bom(&settings_path(&dir), &wire.to_string()).unwrap();
         let (settings, diagnostics) = load_settings_report(&dir);
-        assert_eq!(settings.theme, Some(crate::models::AppTheme::Dark));
+        assert_eq!(settings.theme, Some(AppTheme::Dark));
         assert_eq!(settings.log_directory, None);
         assert!(
             diagnostics

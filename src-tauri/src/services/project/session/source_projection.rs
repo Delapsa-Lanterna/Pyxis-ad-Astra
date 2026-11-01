@@ -1,14 +1,21 @@
-use super::super::{model::ProjectSession, sources::SourceReader};
+use super::super::model::ProjectSession;
+use super::super::sources::SourceReader;
 use crate::errors::AppResult;
+use crate::io;
+use crate::models::{CsvTableKey, ResourceSource};
+use crate::services::project::model;
 use serde_json::Value;
-use std::{collections::BTreeSet, path::Path};
+use std::collections::BTreeSet;
+use std::collections::btree_map::Entry;
+use std::fs;
+use std::path::Path;
 
 pub(in crate::services::project) fn sources_from_projection(
     session: &ProjectSession,
 ) -> AppResult<SourceReader> {
     let mut sources = SourceReader::for_projection(Path::new(&session.manifest.mod_root))?;
     for (key, table) in &session.csv_tables {
-        let Some(table_key) = crate::models::CsvTableKey::from_key(key) else {
+        let Some(table_key) = CsvTableKey::from_key(key) else {
             continue;
         };
         let path = &table.path;
@@ -30,7 +37,7 @@ pub(in crate::services::project) fn retain_projection_sources(
     let mut retain = |path: &str, value: &Value| {
         if changed
             .iter()
-            .any(|changed| crate::io::relative_path_contains(changed, path))
+            .any(|changed| io::relative_path_contains(changed, path))
         {
             return;
         }
@@ -48,7 +55,7 @@ pub(in crate::services::project) fn retain_projection_sources(
     ] {
         for record in records
             .values()
-            .filter(|record| record.location.source == crate::models::ResourceSource::Mod)
+            .filter(|record| record.location.source == ResourceSource::Mod)
         {
             retain(&record.location.rel_path, &record.data);
         }
@@ -69,7 +76,7 @@ pub(in crate::services::project) fn capture_project_versions(
         sources.path("data/world/factions/factions.csv")?,
         sources.path("data/missions/mission_list.csv")?,
     ];
-    for table in super::super::model::csv_table_specs() {
+    for table in model::csv_table_specs() {
         paths.push(sources.path(table.rel_path)?);
     }
     for directory in [
@@ -99,15 +106,15 @@ pub(in crate::services::project) fn capture_project_versions(
     }
     for path in paths {
         let key = sources.key(&path);
-        if let std::collections::btree_map::Entry::Vacant(entry) = sources.versions.entry(key) {
-            entry.insert(crate::io::file_version(&path)?);
+        if let Entry::Vacant(entry) = sources.versions.entry(key) {
+            entry.insert(io::file_version(&path)?);
         }
     }
     let missions = sources.path("data/missions")?;
     if missions.is_dir() {
-        for entry in std::fs::read_dir(&missions)? {
+        for entry in fs::read_dir(&missions)? {
             let path = entry?.path();
-            crate::io::validate_walk_entry(&path, "mission directory")?;
+            io::validate_walk_entry(&path, "mission directory")?;
             if path.is_dir() {
                 let key = sources.key(&path);
                 sources
@@ -136,10 +143,8 @@ pub(in crate::services::project) fn capture_projection_versions(
             if directory.is_dir() {
                 for file in sources.files(&format!("data/missions/{mission}"))? {
                     let key = sources.key(&file);
-                    if let std::collections::btree_map::Entry::Vacant(entry) =
-                        sources.versions.entry(key)
-                    {
-                        entry.insert(crate::io::file_version(&file)?);
+                    if let Entry::Vacant(entry) = sources.versions.entry(key) {
+                        entry.insert(io::file_version(&file)?);
                     }
                 }
                 directories.insert(directory);

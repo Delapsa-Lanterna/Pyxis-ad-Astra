@@ -1,28 +1,48 @@
-use crate::{
-    app_data_dir, errors::AppResult, io::write_utf8_no_bom, models::performance_monitor::*,
-    parsers::parse_starsector_json,
-};
+use crate::app_data_dir;
+use crate::errors::{AppError, AppResult};
+use crate::io::write_utf8_no_bom;
+use crate::models::performance_monitor::*;
+use crate::parsers::parse_starsector_json;
 use serde_json::{Value, json};
+use std::collections::{BTreeMap, BTreeSet, VecDeque};
+use std::env::consts::{ARCH, OS};
+use std::fs;
 #[cfg(windows)]
-use std::sync::LazyLock;
-use std::{
-    collections::{BTreeMap, VecDeque},
-    path::PathBuf,
-    sync::{Mutex, OnceLock},
-    time::{SystemTime, UNIX_EPOCH},
-};
+use std::fs::File;
+#[cfg(windows)]
+use std::io::Write;
+#[cfg(windows)]
+use std::mem::MaybeUninit;
+use std::path::PathBuf;
+use std::sync::mpsc::{Receiver, Sender};
+use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
+#[cfg(windows)]
+use std::sync::{LazyLock, mpsc};
+use std::thread::JoinHandle;
+#[cfg(windows)]
+use std::time::Duration;
+use std::time::{Instant, SystemTime, UNIX_EPOCH};
+#[cfg(windows)]
+use std::{mem, thread};
 #[cfg(windows)]
 use tauri::Manager;
+use tauri::ipc::{CommandArg, CommandItem, InvokeError};
+use tauri::{AppHandle, Runtime, WebviewWindow};
+#[cfg(windows)]
+use webview2_com::{
+    CallDevToolsProtocolMethodCompletedHandler, CoTaskMemPWSTR,
+    DevToolsProtocolEventReceivedEventHandler,
+};
+use webview2_com::{Microsoft, Result as WebviewResult};
 
 static ENABLED: OnceLock<bool> = OnceLock::new();
 static RECORDS: OnceLock<Mutex<Monitor>> = OnceLock::new();
 static TRACE: LazyLock<Mutex<Trace>> = LazyLock::new(|| Mutex::new(Trace::default()));
 #[cfg(windows)]
-static TRACE_CHANNEL: LazyLock<Mutex<Option<std::sync::mpsc::Sender<TraceMessage>>>> =
+static TRACE_CHANNEL: LazyLock<Mutex<Option<Sender<TraceMessage>>>> =
     LazyLock::new(|| Mutex::new(None));
 #[cfg(windows)]
-static TRACE_WRITER: LazyLock<Mutex<Option<std::thread::JoinHandle<()>>>> =
-    LazyLock::new(|| Mutex::new(None));
+static TRACE_WRITER: LazyLock<Mutex<Option<JoinHandle<()>>>> = LazyLock::new(|| Mutex::new(None));
 #[derive(Default)]
 struct Monitor {
     records: VecDeque<(String, PerformanceSample)>,
@@ -55,7 +75,7 @@ pub fn now() -> f64 {
         .as_secs_f64()
         * 1000.0
 }
-fn state() -> std::sync::MutexGuard<'static, Monitor> {
+fn state() -> MutexGuard<'static, Monitor> {
     RECORDS
         .get()
         .expect("monitor initialized")
@@ -101,8 +121,8 @@ pub fn deliver(window: &str, batch: PerformanceBatch) {
     }
 }
 pub fn report(
-    app: tauri::AppHandle,
-    window: tauri::WebviewWindow,
+    app: AppHandle,
+    window: WebviewWindow,
     action: PerformanceMonitorAction,
     trace_seconds: Option<u8>,
 ) -> AppResult<PerformanceMonitorStatus> {
@@ -132,7 +152,7 @@ pub fn report(
         PerformanceMonitorAction::Export => {
             let trace = TRACE.lock().expect("trace state lock");
             if matches!(trace.state.as_str(), "starting" | "recording" | "finishing") {
-                return Err(crate::errors::AppError::message(
+                return Err(AppError::message(
                     "performance_monitor.trace_active",
                     "stop the active trace before export",
                 ));
@@ -140,13 +160,13 @@ pub fn report(
             let trace_path = (!trace.path.as_os_str().is_empty()).then(|| trace.path.clone());
             drop(trace);
             let directory = app_data_dir::data_directory(app)?.join("performance-monitor");
-            std::fs::create_dir_all(&directory)?;
+            fs::create_dir_all(&directory)?;
             let timestamp = now() as u64;
             let path = directory.join(format!("{timestamp}.json"));
             write_utf8_no_bom(&path, &serde_json::to_string(&monitor.export())?)?;
             monitor.path = path.to_string_lossy().into_owned();
             if let Some(trace_path) = trace_path {
-                std::fs::copy(
+                fs::copy(
                     trace_path,
                     directory.join(format!("{timestamp}-webview-trace.json")),
                 )?;
@@ -205,12 +225,11 @@ enum TraceMessage {
     Abort,
 }
 #[cfg(windows)]
-type WebView = webview2_com::Microsoft::Web::WebView2::Win32::ICoreWebView2;
+type WebView = Microsoft::Web::WebView2::Win32::ICoreWebView2;
 #[cfg(windows)]
-type ProtocolReceiver =
-    webview2_com::Microsoft::Web::WebView2::Win32::ICoreWebView2DevToolsProtocolEventReceiver;
+type ProtocolReceiver = Microsoft::Web::WebView2::Win32::ICoreWebView2DevToolsProtocolEventReceiver;
 #[cfg(windows)]
-type TraceTokens = std::sync::Arc<Mutex<Option<(i64, i64)>>>;
+type TraceTokens = Arc<Mutex<Option<(i64, i64)>>>;
 #[cfg(windows)]
 type TraceCompletion = (
     WebView,
@@ -221,21 +240,19 @@ type TraceCompletion = (
 );
 
 #[cfg(windows)]
-fn trace_start(app: tauri::AppHandle, window: tauri::WebviewWindow, seconds: u8) -> AppResult<()> {
-    use std::sync::Arc;
-    use webview2_com::{CallDevToolsProtocolMethodCompletedHandler, CoTaskMemPWSTR};
+fn trace_start(app: AppHandle, window: WebviewWindow, seconds: u8) -> AppResult<()> {
     if window.label() != "main" || !(1..=60).contains(&seconds) {
-        return Err(crate::errors::AppError::message(
+        return Err(AppError::message(
             "performance_monitor.trace_target",
             "trace requires the main window and a duration from 1 to 60 seconds",
         ));
     }
     let directory = app_data_dir::data_directory(app.clone())?.join("performance-monitor");
-    std::fs::create_dir_all(&directory)?;
+    fs::create_dir_all(&directory)?;
     let generation = {
         let mut trace = TRACE.lock().expect("trace state lock");
         if matches!(trace.state.as_str(), "starting" | "recording" | "finishing") {
-            return Err(crate::errors::AppError::message(
+            return Err(AppError::message(
                 "performance_monitor.trace_active",
                 "a trace is already active",
             ));
@@ -255,12 +272,12 @@ fn trace_start(app: tauri::AppHandle, window: tauri::WebviewWindow, seconds: u8)
     if let Some(writer) = TRACE_WRITER.lock().expect("trace writer lock").take() {
         let _ = writer.join();
     }
-    let (sender, receiver) = std::sync::mpsc::channel();
+    let (sender, receiver) = mpsc::channel();
     *TRACE_CHANNEL.lock().expect("trace channel lock") = Some(sender.clone());
-    let frames = Arc::new(Mutex::new(std::collections::BTreeSet::new()));
+    let frames = Arc::new(Mutex::new(BTreeSet::new()));
     let writer_frames = frames.clone();
     let writer_partial = partial.clone();
-    *TRACE_WRITER.lock().expect("trace writer lock") = Some(std::thread::spawn(move || {
+    *TRACE_WRITER.lock().expect("trace writer lock") = Some(thread::spawn(move || {
         write_trace(generation, writer_partial, ready, writer_frames, receiver)
     }));
     let timer_app = app.clone();
@@ -367,10 +384,8 @@ fn trace_start(app: tauri::AppHandle, window: tauri::WebviewWindow, seconds: u8)
                                 }
                             };
                             if active {
-                                std::thread::spawn(move || {
-                                    std::thread::sleep(std::time::Duration::from_secs(
-                                        seconds.into(),
-                                    ));
+                                thread::spawn(move || {
+                                    thread::sleep(Duration::from_secs(seconds.into()));
                                     if let Some(window) = confirmed_app.get_webview_window("main") {
                                         let _ = trace_stop_generation(window, generation);
                                     }
@@ -416,10 +431,9 @@ fn trace_start(app: tauri::AppHandle, window: tauri::WebviewWindow, seconds: u8)
 #[cfg(windows)]
 fn listen_trace(
     receiver: &ProtocolReceiver,
-    sender: std::sync::mpsc::Sender<TraceMessage>,
+    sender: Sender<TraceMessage>,
     completion: Option<TraceCompletion>,
-) -> webview2_com::Result<i64> {
-    use webview2_com::{CoTaskMemPWSTR, DevToolsProtocolEventReceivedEventHandler};
+) -> WebviewResult<i64> {
     let handler = DevToolsProtocolEventReceivedEventHandler::create(Box::new(move |_, args| {
         if let Some((core, data, complete, tokens, generation)) = &completion {
             if let Some(tokens) = tokens.lock().expect("trace event token lock").take() {
@@ -432,7 +446,7 @@ fn listen_trace(
             }
             let _ = sender.send(TraceMessage::Complete);
         } else if let Some(args) = args {
-            let mut output = std::mem::MaybeUninit::uninit();
+            let mut output = MaybeUninit::uninit();
             if unsafe { args.ParameterObjectAsJson(output.as_mut_ptr()) }.is_ok() {
                 let payload = CoTaskMemPWSTR::from(unsafe { output.assume_init() });
                 let _ = sender.send(TraceMessage::Data(payload.to_string()));
@@ -448,18 +462,17 @@ fn listen_trace(
 }
 
 #[cfg(windows)]
-fn trace_stop(window: tauri::WebviewWindow) -> AppResult<()> {
+fn trace_stop(window: WebviewWindow) -> AppResult<()> {
     trace_stop_inner(window, None)
 }
 #[cfg(windows)]
-fn trace_stop_generation(window: tauri::WebviewWindow, generation: u64) -> AppResult<()> {
+fn trace_stop_generation(window: WebviewWindow, generation: u64) -> AppResult<()> {
     trace_stop_inner(window, Some(generation))
 }
 #[cfg(windows)]
-fn trace_stop_inner(window: tauri::WebviewWindow, generation: Option<u64>) -> AppResult<()> {
-    use webview2_com::{CallDevToolsProtocolMethodCompletedHandler, CoTaskMemPWSTR};
+fn trace_stop_inner(window: WebviewWindow, generation: Option<u64>) -> AppResult<()> {
     if window.label() != "main" {
-        return Err(crate::errors::AppError::message(
+        return Err(AppError::message(
             "performance_monitor.trace_target",
             "trace control requires the main window",
         ));
@@ -508,18 +521,14 @@ fn trace_stop_inner(window: tauri::WebviewWindow, generation: Option<u64>) -> Ap
 }
 
 #[cfg(not(windows))]
-fn trace_start(
-    _app: tauri::AppHandle,
-    _window: tauri::WebviewWindow,
-    _seconds: u8,
-) -> AppResult<()> {
-    Err(crate::errors::AppError::message(
+fn trace_start(_app: AppHandle, _window: WebviewWindow, _seconds: u8) -> AppResult<()> {
+    Err(AppError::message(
         "performance_monitor.trace_unavailable",
         "WebView trace is available only on Windows",
     ))
 }
 #[cfg(not(windows))]
-fn trace_stop(_window: tauri::WebviewWindow) -> AppResult<()> {
+fn trace_stop(_window: WebviewWindow) -> AppResult<()> {
     Ok(())
 }
 
@@ -546,7 +555,6 @@ fn trace_failed_with_core(generation: u64, core: &WebView, error: String) {
         trace.tokens.take()
     };
     if let Some(tokens) = tokens {
-        use webview2_com::CoTaskMemPWSTR;
         for (name, token) in [
             ("Tracing.dataCollected", tokens.0),
             ("Tracing.tracingComplete", tokens.1),
@@ -569,12 +577,11 @@ fn write_trace(
     generation: u64,
     partial: PathBuf,
     ready: PathBuf,
-    frames: std::sync::Arc<Mutex<std::collections::BTreeSet<String>>>,
-    receiver: std::sync::mpsc::Receiver<TraceMessage>,
+    frames: Arc<Mutex<BTreeSet<String>>>,
+    receiver: Receiver<TraceMessage>,
 ) {
-    use std::io::Write;
     let result = (|| -> AppResult<bool> {
-        let mut file = std::fs::File::create(&partial)?;
+        let mut file = File::create(&partial)?;
         file.write_all(br#"{"traceEvents":["#)?;
         let mut first = true;
         while let Ok(message) = receiver.recv() {
@@ -594,26 +601,23 @@ fn write_trace(
                 }
                 TraceMessage::Complete => break,
                 TraceMessage::Failed(error) => {
-                    return Err(crate::errors::AppError::message(
-                        "performance_monitor.trace_failed",
-                        error,
-                    ));
+                    return Err(AppError::message("performance_monitor.trace_failed", error));
                 }
                 TraceMessage::Abort => {
                     drop(file);
-                    let _ = std::fs::remove_file(&partial);
+                    let _ = fs::remove_file(&partial);
                     return Ok(false);
                 }
             }
         }
         file.write_all(b"]}")?;
         file.sync_all()?;
-        std::fs::rename(&partial, &ready)?;
+        fs::rename(&partial, &ready)?;
         Ok(true)
     })();
     match result {
         Err(error) => {
-            let _ = std::fs::remove_file(&partial);
+            let _ = fs::remove_file(&partial);
             trace_failed(generation, error.to_string());
             return;
         }
@@ -622,15 +626,15 @@ fn write_trace(
     }
     let mut trace = TRACE.lock().expect("trace state lock");
     if trace.generation != generation {
-        let _ = std::fs::remove_file(ready);
+        let _ = fs::remove_file(ready);
         return;
     }
-    let old = std::mem::replace(&mut trace.path, ready);
+    let old = mem::replace(&mut trace.path, ready);
     trace.partial = PathBuf::new();
     trace.state = "ready".into();
     trace.error.clear();
     if !old.as_os_str().is_empty() {
-        let _ = std::fs::remove_file(old);
+        let _ = fs::remove_file(old);
     }
 }
 #[cfg(windows)]
@@ -641,7 +645,7 @@ fn trace_failed(generation: u64, error: String) {
     }
     trace.state = "failed".into();
     trace.error = error.clone();
-    let _ = std::fs::remove_file(&trace.partial);
+    let _ = fs::remove_file(&trace.partial);
     trace.partial = PathBuf::new();
     if let Some(sender) = TRACE_CHANNEL.lock().expect("trace channel lock").take() {
         let _ = sender.send(TraceMessage::Failed(error));
@@ -650,14 +654,14 @@ fn trace_failed(generation: u64, error: String) {
 fn trace_reset() -> AppResult<()> {
     let mut trace = TRACE.lock().expect("trace state lock");
     if matches!(trace.state.as_str(), "starting" | "recording" | "finishing") {
-        return Err(crate::errors::AppError::message(
+        return Err(AppError::message(
             "performance_monitor.trace_active",
             "stop the active trace before reset",
         ));
     }
     for path in [&trace.path, &trace.partial] {
         if !path.as_os_str().is_empty() {
-            let _ = std::fs::remove_file(path);
+            let _ = fs::remove_file(path);
         }
     }
     let generation = trace.generation + 1;
@@ -685,14 +689,14 @@ pub fn shutdown() {
     let mut trace = TRACE.lock().expect("trace state lock");
     for path in [&trace.path, &trace.partial] {
         if !path.as_os_str().is_empty() {
-            let _ = std::fs::remove_file(path);
+            let _ = fs::remove_file(path);
         }
     }
     *trace = Trace::default();
 }
 impl Monitor {
     fn export(&self) -> Value {
-        let threads: std::collections::BTreeSet<_> = self
+        let threads: BTreeSet<_> = self
             .records
             .iter()
             .map(|(window, _)| window)
@@ -757,8 +761,8 @@ impl Monitor {
             "startedAt": self.started_at,
             "overwritten": self.overwritten,
             "version": env!("CARGO_PKG_VERSION"),
-            "platform": std::env::consts::OS,
-            "architecture": std::env::consts::ARCH
+            "platform": OS,
+            "architecture": ARCH
         })
     }
 }
@@ -771,14 +775,14 @@ mod tests;
 #[path = "command_timing_tests.rs"]
 mod command_tests;
 
-pub struct CommandTiming(Option<(std::time::Instant, String, PerformanceSample)>);
+pub struct CommandTiming(Option<(Instant, String, PerformanceSample)>);
 impl CommandTiming {
     fn start(active: bool, command: &str, window: &str, request: Option<&str>) -> Self {
         if !active || command.starts_with("performance_monitor_") || command.contains("app_log") {
             return Self(None);
         }
         Self(Some((
-            std::time::Instant::now(),
+            Instant::now(),
             window.into(),
             PerformanceSample {
                 name: command.into(),
@@ -793,10 +797,8 @@ impl CommandTiming {
         )))
     }
 }
-impl<'de, R: tauri::Runtime> tauri::ipc::CommandArg<'de, R> for CommandTiming {
-    fn from_command(
-        command: tauri::ipc::CommandItem<'de, R>,
-    ) -> Result<Self, tauri::ipc::InvokeError> {
+impl<'de, R: Runtime> CommandArg<'de, R> for CommandTiming {
+    fn from_command(command: CommandItem<'de, R>) -> Result<Self, InvokeError> {
         Ok(Self::start(
             enabled(),
             command.message.command(),

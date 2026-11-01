@@ -12,9 +12,8 @@
 //!
 //! Known divergence: Java hex float literals (`0x1.5p3`) do not parse in
 //! Rust; that shape does not occur in mod files.
-
 use crate::errors::{AppError, AppResult};
-use serde_json::{Map, Value};
+use serde_json::{Map, Number, Value};
 
 /// Parses Starsector JSON text; the root must be an object, errors carry
 /// line/column, and text after the root `}` is ignored like the game.
@@ -379,9 +378,7 @@ fn string_to_value(word: &str) -> Option<Value> {
     }
     if word.contains(['.', 'e', 'E']) {
         return match word.parse::<f64>() {
-            Ok(value) if value.is_finite() => {
-                Some(Value::Number(serde_json::Number::from_f64(value)?))
-            }
+            Ok(value) if value.is_finite() => Some(Value::Number(Number::from_f64(value)?)),
             Ok(_) => None,
             Err(_) => Some(Value::String(word.to_string())),
         };

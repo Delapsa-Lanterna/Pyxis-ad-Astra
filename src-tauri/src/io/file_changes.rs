@@ -1,17 +1,20 @@
-use crate::{
-    errors::{AppError, AppResult},
-    io::{FsRootBoundary, validate_safe_relative_path, validate_walk_entry, write_utf8_no_bom},
-    models::{FileChangeKind, FileChangeRecord, FileChangeReplayDirection, FileSnapshot},
+use crate::errors::{AppError, AppResult};
+#[cfg(test)]
+use crate::io::csv_files;
+use crate::io::{
+    FsRootBoundary, validate_safe_relative_path, validate_walk_entry, write_utf8_no_bom,
 };
-use base64::{Engine as _, engine::general_purpose};
-use std::{
-    borrow::Cow,
-    cell::RefCell,
-    collections::BTreeMap,
-    fs,
-    path::Path,
-    sync::{Arc, Condvar, LazyLock, Mutex, Weak},
-};
+use crate::models::{FileChangeKind, FileChangeRecord, FileChangeReplayDirection, FileSnapshot};
+use crate::{io, models};
+use base64::Engine as _;
+use base64::engine::general_purpose::STANDARD;
+use std::borrow::Cow;
+use std::cell::RefCell;
+use std::collections::BTreeMap;
+use std::fs;
+use std::io::{Error, ErrorKind};
+use std::path::Path;
+use std::sync::{Arc, Condvar, LazyLock, Mutex, Weak};
 use walkdir::WalkDir;
 
 static ROOT_WRITE_COORDINATORS: LazyLock<Mutex<BTreeMap<String, Weak<RootWriteCoordinator>>>> =
@@ -39,16 +42,16 @@ fn active_write_lease(root: &str) -> Option<Arc<RootWriteLease>> {
     if let Some(lease) = ACTIVE_WRITES.with(|active| {
         active
             .borrow()
-            .get(&crate::models::windows_path_key(root))
+            .get(&models::windows_path_key(root))
             .and_then(Weak::upgrade)
     }) {
         return Some(lease);
     }
-    let path = crate::io::canonical_path(Path::new(root), "active save root").ok()?;
+    let path = io::canonical_path(Path::new(root), "active save root").ok()?;
     ACTIVE_WRITES.with(|active| {
         active
             .borrow()
-            .get(&crate::models::windows_path_key(&path.to_string_lossy()))
+            .get(&models::windows_path_key(&path.to_string_lossy()))
             .and_then(Weak::upgrade)
     })
 }
@@ -110,7 +113,7 @@ pub fn accept_source_recreation(root: &str, paths: Vec<String>) -> AppResult<()>
     let paths = paths
         .into_iter()
         .map(|path| {
-            crate::io::canonical_path(Path::new(&path), "confirmed save source")
+            io::canonical_path(Path::new(&path), "confirmed save source")
                 .map(|path| path.to_string_lossy().into_owned())
         })
         .collect::<AppResult<Vec<_>>>()?;
@@ -133,7 +136,7 @@ pub fn source_recreation_allowed(root: &str, path: &str) -> bool {
     if sources.is_empty() {
         return false;
     }
-    let Ok(path) = crate::io::canonical_path(Path::new(path), "recreated save source") else {
+    let Ok(path) = io::canonical_path(Path::new(path), "recreated save source") else {
         return false;
     };
     sources
@@ -150,12 +153,12 @@ fn acquire_root_write_lock_with_retry(
         .to_string_lossy()
         .to_string();
     #[cfg(windows)]
-    let canonical_root = crate::models::windows_path_key(&canonical_root);
+    let canonical_root = models::windows_path_key(&canonical_root);
     // Nested synchronous services share the transaction's lease.
     if let Some(lease) = ACTIVE_WRITES.with(|active| {
         active
             .borrow()
-            .get(&crate::models::windows_path_key(&canonical_root))
+            .get(&models::windows_path_key(&canonical_root))
             .and_then(Weak::upgrade)
     }) {
         return Ok(RootWriteLock { _lease: lease });
@@ -198,7 +201,7 @@ fn acquire_root_write_lock_with_retry(
         let mut active = active.borrow_mut();
         active.retain(|_, lease| lease.strong_count() > 0);
         active.insert(
-            crate::models::windows_path_key(&canonical_root),
+            models::windows_path_key(&canonical_root),
             Arc::downgrade(&lease),
         );
     });
@@ -355,7 +358,7 @@ pub fn build_file_change(
     after_text: Option<String>,
     after_data_base64: Option<String>,
 ) -> AppResult<FileChangeRecord> {
-    let canonical = super::canonical_path(path, "file change")?;
+    let canonical = io::canonical_path(path, "file change")?;
     let path = canonical.as_path();
     if path.exists() {
         validate_walk_entry(path, "file change")?;
@@ -367,7 +370,7 @@ pub fn build_file_change(
         (None, None)
     };
     if let Some(data) = &after_data_base64 {
-        general_purpose::STANDARD.decode(data).map_err(|e| {
+        STANDARD.decode(data).map_err(|e| {
             AppError::context(format!("解码文件数据失败 ({})", path.display()), e.into())
         })?;
     }
@@ -387,7 +390,7 @@ pub fn build_file_change(
 }
 
 pub fn build_directory_delete_change(path: &Path) -> AppResult<FileChangeRecord> {
-    let canonical = super::canonical_path(path, "directory change")?;
+    let canonical = io::canonical_path(path, "directory change")?;
     let path = canonical.as_path();
     if path.exists() {
         validate_walk_entry(path, "directory change")?;
@@ -417,7 +420,7 @@ pub fn build_directory_replace_change(
     path: &Path,
     after_files: Vec<FileSnapshot>,
 ) -> AppResult<FileChangeRecord> {
-    let canonical = super::canonical_path(path, "directory change")?;
+    let canonical = io::canonical_path(path, "directory change")?;
     let path = canonical.as_path();
     if path.exists() {
         validate_walk_entry(path, "directory change")?;
@@ -508,7 +511,7 @@ fn apply_transaction_changes(
             {
                 return Err(AppError::context(
                     "保存来源在写入前消失",
-                    std::io::Error::from(std::io::ErrorKind::NotFound).into(),
+                    Error::from(ErrorKind::NotFound).into(),
                 )
                 .at_path(&change.before_path));
             }
@@ -646,7 +649,7 @@ fn apply_file_change(change: &FileChangeRecord) -> AppResult<()> {
         if let Some(text) = &change.after_text {
             write_utf8_no_bom(path, text)?;
         } else if let Some(data) = &change.after_data_base64 {
-            let bytes = general_purpose::STANDARD.decode(data).map_err(|e| {
+            let bytes = STANDARD.decode(data).map_err(|e| {
                 AppError::context(format!("解码文件数据失败 ({})", path.display()), e.into())
             })?;
             fs::write(path, &bytes)?;
@@ -778,13 +781,10 @@ fn snapshot_file(path: &Path, rel_path: String) -> AppResult<FileSnapshot> {
 fn snapshot_file_content(path: &Path) -> AppResult<(Option<String>, Option<String>)> {
     let bytes = fs::read(path).map_err(|error| AppError::from(error).at_path(path))?;
     #[cfg(test)]
-    super::csv_files::record_csv_disk_read(path);
+    csv_files::record_csv_disk_read(path);
     match String::from_utf8(bytes) {
         Ok(text) => Ok((Some(text), None)),
-        Err(error) => Ok((
-            None,
-            Some(general_purpose::STANDARD.encode(error.into_bytes())),
-        )),
+        Err(error) => Ok((None, Some(STANDARD.encode(error.into_bytes())))),
     }
 }
 
@@ -799,7 +799,7 @@ fn restore_snapshot_file(path: &Path, file: &FileSnapshot) -> AppResult<()> {
             "directory snapshot missing file data",
         )
     })?;
-    let bytes = general_purpose::STANDARD.decode(data).map_err(|e| {
+    let bytes = STANDARD.decode(data).map_err(|e| {
         AppError::context(format!("解码文件数据失败 ({})", path.display()), e.into())
     })?;
     fs::write(path, bytes)?;
@@ -817,10 +817,40 @@ thread_local! {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(windows)]
+    #[cfg(test)]
+    use crate::io::file_changes::resolve_change_paths;
     use crate::io::read_utf8_no_bom;
+    #[cfg(test)]
+    use crate::models::{EntityKind, SaveAction, SpecSave};
+    #[cfg(test)]
+    use crate::services;
+    #[cfg(test)]
+    use crate::services::project::PerformanceTrace;
     use crate::services::project::test_support::project_workspace;
+    #[cfg(test)]
+    use crate::services::{project, project_save, write_transactions};
+    #[cfg(windows)]
+    #[cfg(test)]
+    use crate::test_support;
     use crate::test_support::TestWorkspace;
-    use std::{fs, sync::mpsc, thread, time::Duration};
+    #[cfg(test)]
+    use base64::engine::general_purpose::STANDARD;
+    #[cfg(windows)]
+    #[cfg(test)]
+    use std::fs::OpenOptions;
+    #[cfg(test)]
+    use std::io::{Error, ErrorKind};
+    #[cfg(windows)]
+    #[cfg(test)]
+    use std::os::windows::fs::OpenOptionsExt;
+    #[cfg(test)]
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::mpsc;
+    use std::time::Duration;
+    #[cfg(test)]
+    use std::time::Instant;
+    use std::{fs, thread};
 
     #[test]
     fn failed_file_step_restores_all_previous_bytes_and_partial_output() {
@@ -838,19 +868,17 @@ mod tests {
                 *step.borrow_mut() = Some(Box::new(move |index, change| {
                     if index == failed {
                         fs::write(&change.after_path, "partial")?;
-                        return Err(AppError::from(std::io::Error::from(
-                            std::io::ErrorKind::WriteZero,
-                        )));
+                        return Err(AppError::from(Error::from(ErrorKind::WriteZero)));
                     }
                     Ok(())
                 }))
             });
-            let retries = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+            let retries = Arc::new(AtomicUsize::new(0));
             let count = retries.clone();
             let result = with_write_retry(
                 &root,
                 move |_| {
-                    count.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                    count.fetch_add(1, Ordering::SeqCst);
                     Ok(())
                 },
                 || {
@@ -863,7 +891,7 @@ mod tests {
             );
             FILE_STEP.with(|step| *step.borrow_mut() = None);
             assert!(result.is_err());
-            assert_eq!(retries.load(std::sync::atomic::Ordering::SeqCst), 0);
+            assert_eq!(retries.load(Ordering::SeqCst), 0);
             for (index, bytes) in originals.iter().enumerate() {
                 assert_eq!(fs::read(root.join(format!("{index}.txt"))).unwrap(), *bytes);
             }
@@ -889,7 +917,7 @@ mod tests {
         });
         let restore_root = root.clone();
         let restore_held = held.clone();
-        let recovered = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let recovered = Arc::new(AtomicUsize::new(0));
         let calls = recovered.clone();
         let result = with_write_retry(
             &root,
@@ -902,7 +930,7 @@ mod tests {
                 );
                 assert!(!restore_root.exists());
                 fs::rename(&restore_held, &restore_root)?;
-                calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                calls.fetch_add(1, Ordering::SeqCst);
                 Ok(())
             },
             || {
@@ -914,7 +942,7 @@ mod tests {
         );
         FILE_STEP.with(|step| *step.borrow_mut() = None);
         assert!(result.is_err());
-        assert_eq!(recovered.load(std::sync::atomic::Ordering::SeqCst), 1);
+        assert_eq!(recovered.load(Ordering::SeqCst), 1);
         assert_eq!(fs::read_to_string(root.join("first.txt")).unwrap(), "first");
         assert_eq!(
             fs::read_to_string(root.join("second.txt")).unwrap(),
@@ -934,27 +962,21 @@ mod tests {
         let original_csv = "id,name,custom\r\noriginal,Original,001\r\nother,Other,002\r\n";
         fs::write(&spec, original_spec).unwrap();
         fs::write(&csv, original_csv).unwrap();
-        let manifest = crate::services::project::open_project_session_traced(
+        let manifest = project::open_project_session_traced(
             &root,
             None,
-            &mut crate::services::project::PerformanceTrace::new("restore.business"),
+            &mut PerformanceTrace::new("restore.business"),
         )
         .unwrap();
-        let info = crate::services::query_entity_edit_target(
-            &manifest.session_id,
-            crate::models::EntityKind::Ship,
-            "original",
-        )
-        .unwrap();
-        let intent = crate::services::query_entity_identity_intent(
-            &manifest.session_id,
-            &info.target,
-            "saved",
-        )
-        .unwrap();
+        let info =
+            services::query_entity_edit_target(&manifest.session_id, EntityKind::Ship, "original")
+                .unwrap();
+        let intent =
+            services::query_entity_identity_intent(&manifest.session_id, &info.target, "saved")
+                .unwrap();
         let mut versions = info.base_versions;
         versions.push(intent.destination_version);
-        let action = crate::models::SaveAction::SaveEditorSpec(crate::models::SpecSave {
+        let action = SaveAction::SaveEditorSpec(SpecSave {
             session_id: manifest.session_id.clone(),
             mod_root: manifest.mod_root.clone(),
             target: info.target,
@@ -975,7 +997,7 @@ mod tests {
         let failed = with_write_retry(
             &root,
             |_| panic!("original files are available"),
-            || crate::services::project_save::execute_save_action(action.clone()),
+            || project_save::execute_save_action(action.clone()),
         );
         FILE_STEP.with(|step| *step.borrow_mut() = None);
         assert!(failed.is_err());
@@ -983,26 +1005,19 @@ mod tests {
         assert_eq!(fs::read(&csv).unwrap(), original_csv.as_bytes());
         assert!(!root.join("data/hulls/saved.ship").exists());
         assert!(
-            crate::services::write_transactions::query_history(
-                &manifest.session_id,
-                &manifest.mod_root
-            )
-            .unwrap()
-            .undo_stack
-            .is_empty()
+            write_transactions::query_history(&manifest.session_id, &manifest.mod_root)
+                .unwrap()
+                .undo_stack
+                .is_empty()
         );
         assert!(
-            crate::services::query_entity(
-                &manifest.session_id,
-                crate::models::EntityKind::Ship,
-                "original"
-            )
-            .unwrap()
-            .is_some()
+            services::query_entity(&manifest.session_id, EntityKind::Ship, "original")
+                .unwrap()
+                .is_some()
         );
-        let saved = crate::services::project_save::execute_save_action(action).unwrap();
+        let saved = project_save::execute_save_action(action).unwrap();
         assert_eq!(saved.history.undo_stack.len(), 1);
-        crate::services::project::close_project_session(manifest.session_id).unwrap();
+        project::close_project_session(manifest.session_id).unwrap();
         root.close().unwrap();
     }
 
@@ -1164,10 +1179,10 @@ mod tests {
         fs::write(root.join("Original.spec"), "before").unwrap();
         let mut change =
             build_text_change(&root.join("Original.spec"), Some("after".into())).unwrap();
-        let short_root = crate::test_support::short_path(&root);
+        let short_root = test_support::short_path(&root);
         change.before_path = short_root.join("Original.spec").to_string_lossy().into();
         change.after_path = short_root.join("original.spec").to_string_lossy().into();
-        let changes = super::resolve_change_paths(
+        let changes = resolve_change_paths(
             &root.to_string_lossy(),
             vec![change],
             FileChangeReplayDirection::Redo,
@@ -1202,7 +1217,7 @@ mod tests {
                 .file_name(),
             "original.spec"
         );
-        let undo = super::resolve_change_paths(
+        let undo = resolve_change_paths(
             &short_root.to_string_lossy(),
             changes,
             FileChangeReplayDirection::Undo,
@@ -1244,7 +1259,7 @@ mod tests {
                 let _lease = acquire_root_write_lock(&worker_root).unwrap();
                 sent.send(index).unwrap();
             }));
-            let start = std::time::Instant::now();
+            let start = Instant::now();
             while held._lease.coordinator.tickets.lock().unwrap().0 < index + 1 {
                 assert!(start.elapsed() < Duration::from_secs(3));
                 thread::yield_now();
@@ -1284,7 +1299,6 @@ mod tests {
     #[cfg(windows)]
     #[test]
     fn later_snapshot_failure_keeps_all_earlier_targets_unchanged() {
-        use std::os::windows::fs::OpenOptionsExt;
         let root = project_workspace("snapshot_preflight");
         let first = root.join("first.txt");
         let second = root.join("second.txt");
@@ -1294,7 +1308,7 @@ mod tests {
             build_text_change(&first, Some("first after".to_string())).unwrap(),
             build_text_change(&second, Some("second after".to_string())).unwrap(),
         ];
-        let locked = fs::OpenOptions::new()
+        let locked = OpenOptions::new()
             .read(true)
             .share_mode(0)
             .open(&second)
@@ -1395,12 +1409,7 @@ mod tests {
     fn binary_file_change_can_create_undo_and_redo() {
         let root = project_workspace("binary_file_create_history");
         let path = root.join("graphics/ships/demo.png");
-        let change = build_file_change(
-            &path,
-            None,
-            Some(general_purpose::STANDARD.encode([1, 2, 3])),
-        )
-        .unwrap();
+        let change = build_file_change(&path, None, Some(STANDARD.encode([1, 2, 3]))).unwrap();
 
         apply_file_change_set(
             &root.to_string_lossy(),
@@ -1435,12 +1444,7 @@ mod tests {
         let path = root.join("graphics/ships/demo.png");
         fs::create_dir_all(path.parent().unwrap()).unwrap();
         fs::write(&path, [9, 8, 7]).unwrap();
-        let change = build_file_change(
-            &path,
-            None,
-            Some(general_purpose::STANDARD.encode([1, 2, 3])),
-        )
-        .unwrap();
+        let change = build_file_change(&path, None, Some(STANDARD.encode([1, 2, 3]))).unwrap();
 
         apply_file_change_set(
             &root.to_string_lossy(),

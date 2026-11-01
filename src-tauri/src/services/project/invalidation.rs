@@ -1,25 +1,28 @@
-use crate::{
-    errors::AppResult,
-    io::relative_path_contains,
-    io::{FsRootBoundary, parse_csv_text},
-    models::{
-        CsvTableKey, EntityKind, FileChangeKind, FileChangeRecord, InvalidatedEntityRef,
-        InvalidatedQueryKind, InvalidatedQueryScope, InvalidatedResourceScope, ProjectInvalidation,
-        ResourceSource, push_unique_all,
-    },
-    parsers::parse_starsector_json,
+use super::definitions::{entity_definitions, table_definitions};
+use super::model::ProjectSession;
+use crate::errors::{AppError, AppResult};
+use crate::io::{FsRootBoundary, parse_csv_text, relative_path_contains};
+use crate::models;
+use crate::models::{
+    CsvTableKey, EntityKind, FileChangeKind, FileChangeRecord, InvalidatedEntityRef,
+    InvalidatedQueryKind, InvalidatedQueryScope, InvalidatedResourceScope, ProjectInvalidation,
+    ResourceSource, push_unique_all,
 };
+use crate::parsers::parse_starsector_json;
+use crate::services::project::definitions::config_sources::CONFIG_OPTION_SOURCES;
+use crate::services::project::model::{
+    MISSION_LIST_REL_PATH, MISSION_LIST_TABLE_KEY, SessionCsvRow,
+};
+use crate::services::project::session::csv_tables;
+use crate::services::project::session::source_projection::{
+    capture_projection_versions, retain_projection_sources, sources_from_projection,
+};
+use crate::services::project::sources::{SourceReader, core};
+use crate::services::project::{model, versions};
 use serde_json::{Map, Value};
-use std::{
-    collections::{BTreeMap, BTreeSet},
-    path::Path,
-    sync::Arc,
-};
-
-use super::{
-    definitions::{entity_definitions, table_definitions},
-    model::ProjectSession,
-};
+use std::collections::{BTreeMap, BTreeSet};
+use std::path::Path;
+use std::sync::Arc;
 
 pub(crate) fn invalidate_session_changes(
     session: &mut ProjectSession,
@@ -27,18 +30,19 @@ pub(crate) fn invalidate_session_changes(
 ) -> AppResult<ProjectInvalidation> {
     let boundary = FsRootBoundary::new(Path::new(&session.manifest.mod_root), "mod root")?;
     let files = changed_project_files(changes, &boundary)?;
-    let mut sources = super::session::source_projection::sources_from_projection(session)?;
+    let mut sources = sources_from_projection(session)?;
     sources.accept_changes(changes)?;
     let invalidation = invalidate_files(session, files, false, sources)?;
     session.loaded_edit_targets.retain(|target| {
         !changes.iter().any(|change| {
             (!change.after_exists || change.before_path != change.after_path)
-                && (crate::models::windows_path_key(&target.write.path)
-                    == crate::models::windows_path_key(&change.before_path)
+                && (models::windows_path_key(&target.write.path)
+                    == models::windows_path_key(&change.before_path)
                     || (matches!(change.kind, FileChangeKind::Directory)
-                        && crate::models::windows_path_key(&target.write.path).starts_with(
-                            &format!("{}/", crate::models::windows_path_key(&change.before_path)),
-                        )))
+                        && models::windows_path_key(&target.write.path).starts_with(&format!(
+                            "{}/",
+                            models::windows_path_key(&change.before_path)
+                        ))))
         })
     });
     Ok(invalidation)
@@ -48,7 +52,7 @@ fn invalidate_files(
     session: &mut ProjectSession,
     files: Vec<ChangedProjectFile>,
     preserve_rows: bool,
-    mut sources: super::sources::SourceReader,
+    mut sources: SourceReader,
 ) -> AppResult<ProjectInvalidation> {
     let impacts = files
         .iter()
@@ -68,7 +72,7 @@ fn invalidate_files(
         );
     }
     if !affected_kinds.is_empty() {
-        super::session::source_projection::retain_projection_sources(
+        retain_projection_sources(
             &mut sources,
             session,
             &files
@@ -108,8 +112,7 @@ fn invalidate_files(
             .map(|table| {
                 let state = &session.csv_tables[table.as_str()];
                 let csv = sources.csv(&sources.path(&state.path)?)?;
-                super::session::csv_tables::table_snapshot_from_csv(state, *table, csv)
-                    .map(|rows| (*table, rows))
+                csv_tables::table_snapshot_from_csv(state, *table, csv).map(|rows| (*table, rows))
             })
             .collect::<AppResult<Vec<_>>>()?
     } else {
@@ -134,7 +137,7 @@ fn invalidate_files(
                         .iter()
                         .filter(|row| {
                             !row.is_comment
-                                && super::model::string_from_row(
+                                && model::string_from_row(
                                     &row.data,
                                     definition.spec.entity_id_field,
                                 )
@@ -157,7 +160,7 @@ fn invalidate_files(
         })
         .collect::<Vec<_>>();
     let tables = tables.into_iter().collect::<Vec<_>>();
-    super::session::source_projection::capture_projection_versions(
+    capture_projection_versions(
         &mut sources,
         &files
             .iter()
@@ -218,11 +221,11 @@ fn invalidate_files(
     }
     if files
         .iter()
-        .any(|file| relative_path_contains(&file.path, super::model::MISSION_LIST_REL_PATH))
+        .any(|file| relative_path_contains(&file.path, MISSION_LIST_REL_PATH))
     {
         let table = session
             .csv_tables
-            .get_mut(super::model::MISSION_LIST_TABLE_KEY)
+            .get_mut(MISSION_LIST_TABLE_KEY)
             .map(Arc::make_mut)
             .expect("registered mission table");
         table.rows = None;
@@ -240,7 +243,7 @@ fn invalidate_files(
             csv.rows
                 .iter()
                 .enumerate()
-                .map(|(index, row)| super::model::SessionCsvRow {
+                .map(|(index, row)| SessionCsvRow {
                     row_key: format!("faction-index:row:{index}"),
                     data: row.data.clone(),
                     is_comment: row.is_comment,
@@ -559,7 +562,7 @@ fn snapshot_csv_rows(
         if row.is_comment {
             continue;
         }
-        let Some(id) = super::model::string_from_row(&row.data, id_field) else {
+        let Some(id) = model::string_from_row(&row.data, id_field) else {
             continue;
         };
         rows.entry(id).or_insert_with(Vec::new).push(row.data);
@@ -653,7 +656,7 @@ fn query_scopes_for_invalidation(
         }
     }
     for resource in resources {
-        for &(source, path, _) in super::definitions::config_sources::CONFIG_OPTION_SOURCES {
+        for &(source, path, _) in CONFIG_OPTION_SOURCES {
             if relative_path_contains(&resource.rel_path, path) {
                 push_source_option_query_scope(&mut scopes, source.into());
             }
@@ -727,21 +730,16 @@ pub(super) fn refresh_sources(
     for source in sources {
         let boundary = match source.source {
             ResourceSource::Reference => {
-                return Err(crate::errors::AppError::message(
+                return Err(AppError::message(
                     "reference.refresh_owner",
                     "请在来源 Mod 中刷新引用内容",
                 ));
             }
             ResourceSource::Mod => mod_root.clone(),
             ResourceSource::Core => FsRootBoundary::new(
-                &super::sources::core::core_dir(
-                    session.manifest.starsector_root.as_deref().ok_or_else(|| {
-                        crate::errors::AppError::message(
-                            "resource.core_root_required",
-                            "Core root required",
-                        )
-                    })?,
-                )?,
+                &core::core_dir(session.manifest.starsector_root.as_deref().ok_or_else(|| {
+                    AppError::message("resource.core_root_required", "Core root required")
+                })?)?,
                 "core root",
             )?,
         };
@@ -754,7 +752,7 @@ pub(super) fn refresh_sources(
                 .find(|(_, table)| table.path == source.rel_path)
                 && !path
                     .try_exists()
-                    .map_err(|error| crate::errors::AppError::from(error).at_path(&path))?
+                    .map_err(|error| AppError::from(error).at_path(&path))?
                 && table.rows.is_some()
             {
                 if let Some(table_key) = CsvTableKey::from_key(key) {
@@ -775,14 +773,14 @@ pub(super) fn refresh_sources(
         }
     }
     if let Some(root) = session.manifest.starsector_root.as_deref() {
-        super::sources::core::invalidate_core_sources(root, sources)?;
+        core::invalidate_core_sources(root, sources)?;
     }
     let core_projectiles = if sources.iter().any(|source| {
         source.source == ResourceSource::Core
             && (relative_path_contains(&source.rel_path, "data/weapons/proj")
                 || relative_path_contains("data/weapons/proj", &source.rel_path))
     }) {
-        let core = super::sources::core::load_core_projectile_specs(
+        let core = core::load_core_projectile_specs(
             session
                 .manifest
                 .starsector_root
@@ -801,12 +799,7 @@ pub(super) fn refresh_sources(
     } else {
         None
     };
-    let mut result = invalidate_files(
-        session,
-        files,
-        true,
-        super::session::source_projection::sources_from_projection(session)?,
-    )?;
+    let mut result = invalidate_files(session, files, true, sources_from_projection(session)?)?;
     if let Some(records) = core_projectiles {
         session.manifest.entity_summaries.projectiles = records.len();
         session.projectile_specs = records.into();
@@ -819,25 +812,38 @@ pub(super) fn refresh_sources(
     result.resources = sources.to_vec();
     result.query_scopes =
         query_scopes_for_invalidation(&result.tables, &result.entities, &result.resources)?;
-    session.manifest.base_versions =
-        vec![super::versions::version_for_path(session, "mod_info.json")];
+    session.manifest.base_versions = vec![versions::version_for_path(session, "mod_info.json")];
     Ok(result)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::io::write_utf8_no_bom;
+    use crate::models::{CsvTableKey, FileChangeKind, FileChangeRecord, FileSnapshot};
+    #[cfg(test)]
+    use crate::services::project::definitions::config_sources::CONFIG_OPTION_SOURCES;
+    #[cfg(test)]
+    use crate::services::project::model::{MISSION_LIST_REL_PATH, MISSION_LIST_TABLE_KEY};
+    use crate::services::project::performance::PerformanceTrace;
+    #[cfg(test)]
+    use crate::services::project::session::csv_tables;
+    #[cfg(test)]
+    use crate::services::project::sources::json_documents::take_load_counts;
     use crate::services::project::test_support::project_workspace;
+    #[cfg(test)]
+    use crate::services::project::{PerformanceTrace as ProjectPerformanceTrace, session};
+    use std::fs;
+    use std::path::PathBuf;
 
     #[test]
     fn mission_index_changes_refresh_cached_lists_and_counts() {
         let root = project_workspace("mission_cached_index");
-        let path = root.join(super::super::model::MISSION_LIST_REL_PATH);
-        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
-        crate::io::write_utf8_no_bom(&path, "mission\r\nfirst\r\n").unwrap();
-        let mut trace = super::super::PerformanceTrace::new("project.openSession");
-        let mut session =
-            super::super::session::build_project_session(&root, None, &mut trace).unwrap();
+        let path = root.join(MISSION_LIST_REL_PATH);
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        write_utf8_no_bom(&path, "mission\r\nfirst\r\n").unwrap();
+        let mut trace = ProjectPerformanceTrace::new("project.openSession");
+        let mut session = session::build_project_session(&root, None, &mut trace).unwrap();
         let definition = entity_definitions::entity_definition(EntityKind::Mission).unwrap();
         for (before, after, ids) in [
             (
@@ -857,12 +863,8 @@ mod tests {
             ),
         ] {
             (definition.prepare)(&mut session).unwrap();
-            assert!(
-                session.csv_tables[super::super::model::MISSION_LIST_TABLE_KEY]
-                    .rows
-                    .is_some()
-            );
-            crate::io::write_utf8_no_bom(&path, after).unwrap();
+            assert!(session.csv_tables[MISSION_LIST_TABLE_KEY].rows.is_some());
+            write_utf8_no_bom(&path, after).unwrap();
             invalidate_session_changes(
                 &mut session,
                 &[file_change(path.clone(), Some(before), Some(after))],
@@ -879,7 +881,7 @@ mod tests {
             );
             assert_eq!(session.manifest.entity_summaries.missions, listed.len());
         }
-        crate::io::write_utf8_no_bom(&path, "mission\r\nexternal\r\n").unwrap();
+        write_utf8_no_bom(&path, "mission\r\nexternal\r\n").unwrap();
         refresh_sources(
             &mut session,
             &[InvalidatedResourceScope {
@@ -891,7 +893,7 @@ mod tests {
         (definition.prepare)(&mut session).unwrap();
         assert_eq!((definition.list)(&mut session).unwrap()[0].id, "external");
         assert_eq!(session.manifest.entity_summaries.missions, 1);
-        crate::io::write_utf8_no_bom(&path, "mission\r\nfirst\r\n").unwrap();
+        write_utf8_no_bom(&path, "mission\r\nfirst\r\n").unwrap();
         invalidate_session_changes(
             &mut session,
             &[file_change(
@@ -908,7 +910,7 @@ mod tests {
 
     #[test]
     fn config_source_invalidation() {
-        for &(source, path, _) in super::super::definitions::config_sources::CONFIG_OPTION_SOURCES {
+        for &(source, path, _) in CONFIG_OPTION_SOURCES {
             for origin in [ResourceSource::Mod, ResourceSource::Core] {
                 for changed in [path, "data/config"] {
                     let scopes = query_scopes_for_invalidation(
@@ -947,24 +949,22 @@ mod tests {
 
     #[test]
     fn family_refresh_counts_and_diagnostics_follow_independent_owners() {
-        use super::super::sources::json_documents::take_load_counts;
         let root = project_workspace("family_projection_counts");
-        std::fs::create_dir_all(root.join("data/variants")).unwrap();
-        std::fs::create_dir_all(root.join("data/hulls/skins")).unwrap();
+        fs::create_dir_all(root.join("data/variants")).unwrap();
+        fs::create_dir_all(root.join("data/hulls/skins")).unwrap();
         let variant = r#"{"variantId":"variant","hullId":"hull"}"#;
         let skin = r#"{"skinHullId":"skin","baseHullId":"hull"}"#;
         for name in ["a", "b"] {
-            std::fs::write(root.join(format!("data/variants/{name}.variant")), variant).unwrap();
-            std::fs::write(root.join(format!("data/hulls/skins/{name}.skin")), skin).unwrap();
+            fs::write(root.join(format!("data/variants/{name}.variant")), variant).unwrap();
+            fs::write(root.join(format!("data/hulls/skins/{name}.skin")), skin).unwrap();
         }
-        let mut trace = super::super::PerformanceTrace::new("project.openSession");
-        let mut session =
-            super::super::session::build_project_session(&root, None, &mut trace).unwrap();
+        let mut trace = ProjectPerformanceTrace::new("project.openSession");
+        let mut session = session::build_project_session(&root, None, &mut trace).unwrap();
         take_load_counts();
         assert_eq!(session.manifest.warnings.len(), 2);
         assert!(session.manifest.warnings[0].message.contains("variantId"));
         assert!(session.manifest.warnings[1].message.contains("skinHullId"));
-        std::fs::remove_file(root.join("data/variants/b.variant")).unwrap();
+        fs::remove_file(root.join("data/variants/b.variant")).unwrap();
         invalidate_session_changes(
             &mut session,
             &[file_change(
@@ -978,7 +978,7 @@ mod tests {
         assert!(session.variant_warnings.is_empty());
         assert_eq!(session.skin_warnings.len(), 1);
         assert_eq!(session.manifest.warnings.len(), 1);
-        std::fs::remove_file(root.join("data/hulls/skins/b.skin")).unwrap();
+        fs::remove_file(root.join("data/hulls/skins/b.skin")).unwrap();
         invalidate_session_changes(
             &mut session,
             &[file_change(
@@ -1009,16 +1009,15 @@ mod tests {
     #[test]
     fn failed_projection_keeps_all_previous_family_state() {
         let root = project_workspace("atomic_family_projection");
-        std::fs::create_dir_all(root.join("data/variants")).unwrap();
-        std::fs::create_dir_all(root.join("data/hulls/skins")).unwrap();
+        fs::create_dir_all(root.join("data/variants")).unwrap();
+        fs::create_dir_all(root.join("data/hulls/skins")).unwrap();
         let before = r#"{"variantId":"old","hullId":"hull"}"#;
         let after = r#"{"variantId":"new","hullId":"hull"}"#;
-        std::fs::write(root.join("data/variants/a.variant"), before).unwrap();
-        let mut trace = super::super::PerformanceTrace::new("project.openSession");
-        let mut session =
-            super::super::session::build_project_session(&root, None, &mut trace).unwrap();
-        std::fs::write(root.join("data/variants/a.variant"), after).unwrap();
-        std::fs::write(root.join("data/hulls/skins/b.skin"), "{").unwrap();
+        fs::write(root.join("data/variants/a.variant"), before).unwrap();
+        let mut trace = ProjectPerformanceTrace::new("project.openSession");
+        let mut session = session::build_project_session(&root, None, &mut trace).unwrap();
+        fs::write(root.join("data/variants/a.variant"), after).unwrap();
+        fs::write(root.join("data/hulls/skins/b.skin"), "{").unwrap();
         assert!(
             invalidate_session_changes(
                 &mut session,
@@ -1065,12 +1064,6 @@ mod tests {
             }
         }
     }
-    use crate::{
-        io::write_utf8_no_bom,
-        models::{CsvTableKey, FileChangeKind, FileChangeRecord, FileSnapshot},
-        services::project::performance::PerformanceTrace,
-    };
-    use std::{fs, path::PathBuf};
 
     #[test]
     fn invalidating_variant_path_refreshes_session_variant_index() {
@@ -1082,8 +1075,7 @@ mod tests {
         )
         .unwrap();
         let mut trace = PerformanceTrace::new("project.openSession");
-        let mut session =
-            super::super::session::build_project_session(&root, None, &mut trace).unwrap();
+        let mut session = session::build_project_session(&root, None, &mut trace).unwrap();
         write_utf8_no_bom(
             &root.join("data/variants/demo.variant"),
             r#"{"variantId":"new","hullId":"hull"}"#,
@@ -1144,13 +1136,8 @@ mod tests {
         )
         .unwrap();
         let mut trace = PerformanceTrace::new("project.openSession");
-        let mut session =
-            super::super::session::build_project_session(&root, None, &mut trace).unwrap();
-        super::super::session::csv_tables::ensure_registered_table_rows(
-            &mut session,
-            CsvTableKey::Ships,
-        )
-        .unwrap();
+        let mut session = session::build_project_session(&root, None, &mut trace).unwrap();
+        csv_tables::ensure_registered_table_rows(&mut session, CsvTableKey::Ships).unwrap();
         write_utf8_no_bom(
             &root.join("data/world/factions/demo.faction"),
             r#"{"id":"demo","displayName":"Demo","knownShips":{"tags":["demo_new_bp"]}}"#,
@@ -1201,8 +1188,7 @@ mod tests {
         let after = "id,name\r\nalpha,New\r\nbeta,Unchanged\r\n";
         write_utf8_no_bom(&root.join("data/hulls/ship_data.csv"), after).unwrap();
         let mut trace = PerformanceTrace::new("project.openSession");
-        let mut session =
-            super::super::session::build_project_session(&root, None, &mut trace).unwrap();
+        let mut session = session::build_project_session(&root, None, &mut trace).unwrap();
 
         let invalidation = invalidate_session_changes(
             &mut session,
@@ -1244,8 +1230,7 @@ mod tests {
         let old = r#"{"variantId":"old","hullId":"hull"}"#;
         write_utf8_no_bom(&root.join("data/variants/old.variant"), old).unwrap();
         let mut trace = PerformanceTrace::new("project.openSession");
-        let mut session =
-            super::super::session::build_project_session(&root, None, &mut trace).unwrap();
+        let mut session = session::build_project_session(&root, None, &mut trace).unwrap();
         fs::remove_dir_all(root.join("data/variants")).unwrap();
 
         let invalidation = invalidate_session_changes(
@@ -1456,8 +1441,7 @@ mod tests {
         )
         .unwrap();
         let mut trace = PerformanceTrace::new("project.openSession");
-        let mut session =
-            super::super::session::build_project_session(&root, None, &mut trace).unwrap();
+        let mut session = session::build_project_session(&root, None, &mut trace).unwrap();
 
         invalidate_session_changes(
             &mut session,

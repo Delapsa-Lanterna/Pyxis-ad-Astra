@@ -1,13 +1,18 @@
-use crate::{
-    errors::{AppError, AppResult},
-    models::{
-        EntityIdentityChange, EntityKind, FileChangeReplayDirection, SaveAction, SaveRequest,
-        WriteResult,
-    },
-    services,
+use crate::errors::{AppError, AppResult};
+use crate::models::{
+    CommittedSessionUpdate, EntityIdentityChange, EntityKind, FileChangeReplayDirection,
+    IndexedConfigKind, SaveAction, SaveEdit, SaveRequest, WriteContent, WriteResult,
 };
+use crate::services::{
+    config_entity, file_editor, json_file, misc_config, project, project_sync, write_transactions,
+};
+use crate::{diagnostics, services};
 use serde::Serialize;
+#[cfg(test)]
+use serde::de::DeserializeOwned;
 use serde_json::Value;
+use std::sync::Arc;
+use tauri::async_runtime;
 
 pub async fn submit_project_save(
     owner: String,
@@ -15,7 +20,7 @@ pub async fn submit_project_save(
 ) -> AppResult<WriteResult<Value>> {
     let (root, session_id, reason) = match &request.action {
         SaveAction::RefreshProjectSources(input) => (
-            services::project::current_projection(&input.session_id)?
+            project::current_projection(&input.session_id)?
                 .manifest
                 .mod_root,
             Some(input.session_id.clone()),
@@ -37,38 +42,31 @@ pub async fn submit_project_save(
             )
         }
     };
-    let work = services::project_sync::enqueue(&owner, request.id, &root, session_id.as_deref())?;
-    tauri::async_runtime::spawn_blocking(move || {
-        let result = services::project_sync::execute_queued(
+    let work = project_sync::enqueue(&owner, request.id, &root, session_id.as_deref())?;
+    async_runtime::spawn_blocking(move || {
+        let result = project_sync::execute_queued(
             work.clone(),
             &root,
             session_id.as_deref(),
             reason,
             |identities, versions| {
                 let mut action = request.action.clone();
-                let _lease = services::project_sync::prepare_versions(
-                    &root,
-                    action.versions(),
-                    versions,
-                    identities,
-                )?;
+                let _lease =
+                    project_sync::prepare_versions(&root, action.versions(), versions, identities)?;
                 prepare_save_action(&mut action, &request.edits, identities)?;
                 execute_save_action(action)
             },
         )?;
         // Reference delivery must preserve the outcome of the completed file transaction.
-        if let Err(error) = services::project::reference_sources_changed(session_id.as_deref())
-            .and_then(|snapshot| {
+        if let Err(error) =
+            project::reference_sources_changed(session_id.as_deref()).and_then(|snapshot| {
                 if let Some(snapshot) = snapshot {
-                    services::project_sync::publish_references(
-                        snapshot,
-                        services::project::reference_updates()?,
-                    )?;
+                    project_sync::publish_references(snapshot, project::reference_updates()?)?;
                 }
                 Ok(())
             })
         {
-            crate::diagnostics::record(format!("reference refresh delivery: {error}"));
+            diagnostics::record(format!("reference refresh delivery: {error}"));
         }
         Ok(result)
     })
@@ -78,27 +76,25 @@ pub async fn submit_project_save(
 
 fn prepare_save_action(
     action: &mut SaveAction,
-    edits: &[crate::models::SaveEdit],
+    edits: &[SaveEdit],
     identities: &[EntityIdentityChange],
 ) -> AppResult<()> {
     match action {
         SaveAction::SaveEditorSpec(input) => services::prepare_spec_save(input, edits, identities),
-        SaveAction::SaveTextFile(input) => {
-            services::file_editor::prepare_text_save(input, identities)
-        }
+        SaveAction::SaveTextFile(input) => file_editor::prepare_text_save(input, identities),
         SaveAction::SaveCsvPatch(input) => services::prepare_csv_save(input, edits),
         SaveAction::SaveJointEdit(input) => services::prepare_joint_save(input, edits, identities),
-        SaveAction::SaveModInfo(input) => services::config_entity::prepare_mod_save(input, edits),
+        SaveAction::SaveModInfo(input) => config_entity::prepare_mod_save(input, edits),
         SaveAction::SaveIndexedConfigEntity(input) => {
-            services::config_entity::prepare_indexed_request(input, edits, identities)
+            config_entity::prepare_indexed_request(input, edits, identities)
         }
         SaveAction::SaveVariantEntity(input) => {
-            services::json_file::prepare_file_save(input, edits, identities, EntityKind::Variant)
+            json_file::prepare_file_save(input, edits, identities, EntityKind::Variant)
         }
         SaveAction::SaveSkinEntity(input) => {
-            services::json_file::prepare_file_save(input, edits, identities, EntityKind::Skin)
+            json_file::prepare_file_save(input, edits, identities, EntityKind::Skin)
         }
-        SaveAction::SaveMiscConfig(input) => services::misc_config::prepare_misc_save(input, edits),
+        SaveAction::SaveMiscConfig(input) => misc_config::prepare_misc_save(input, edits),
         _ => Ok(()),
     }
 }
@@ -108,7 +104,7 @@ pub(crate) fn execute_save_action(mut action: SaveAction) -> AppResult<WriteResu
         SaveAction::ApplyFileChangeSet(_) | SaveAction::RefreshProjectSources(_) => None,
         file_action => {
             let versions = file_action.versions().to_vec();
-            Some(services::write_transactions::begin(
+            Some(write_transactions::begin(
                 file_action
                     .scope()
                     .expect("file action owns its project scope"),
@@ -121,7 +117,7 @@ pub(crate) fn execute_save_action(mut action: SaveAction) -> AppResult<WriteResu
             (services::write_spec_request(input)?, "保存编辑器规格")
         }
         SaveAction::SaveTextFile(input) => (
-            services::file_editor::save_project_text_file(
+            file_editor::save_project_text_file(
                 input.session_id.as_deref(),
                 &input.mod_root,
                 &input.path,
@@ -132,7 +128,7 @@ pub(crate) fn execute_save_action(mut action: SaveAction) -> AppResult<WriteResu
             "保存文本",
         ),
         SaveAction::TranscodeFileToUtf8(input) => (
-            json_result(services::file_editor::transcode_file_to_utf8(
+            json_result(file_editor::transcode_file_to_utf8(
                 &input.mod_root,
                 &input.path,
                 &input.encoding,
@@ -144,7 +140,7 @@ pub(crate) fn execute_save_action(mut action: SaveAction) -> AppResult<WriteResu
             (json_result(services::save_joint_edit(&input)?)?, "联合保存")
         }
         SaveAction::SaveModInfo(input) => (
-            services::config_entity::save_mod_info(
+            config_entity::save_mod_info(
                 &input.mod_root,
                 input.data,
                 input.json_write,
@@ -153,77 +149,61 @@ pub(crate) fn execute_save_action(mut action: SaveAction) -> AppResult<WriteResu
             "保存 Mod 信息",
         ),
         SaveAction::SaveIndexedConfigEntity(input) => {
-            let label = if input.kind == crate::models::IndexedConfigKind::Faction {
+            let label = if input.kind == IndexedConfigKind::Faction {
                 "保存势力"
             } else {
                 "保存配置实体"
             };
-            (
-                services::config_entity::write_indexed_request(input)?,
-                label,
-            )
+            (config_entity::write_indexed_request(input)?, label)
         }
         SaveAction::CreateIndexedConfigEntity(input) => {
-            let label = if input.kind == crate::models::IndexedConfigKind::Faction {
+            let label = if input.kind == IndexedConfigKind::Faction {
                 "创建势力"
             } else {
                 "创建配置实体"
             };
-            (
-                services::config_entity::create_indexed_request(input)?,
-                label,
-            )
+            (config_entity::create_indexed_request(input)?, label)
         }
         SaveAction::DeleteIndexedConfigEntity(input) => {
-            let label = if input.kind == crate::models::IndexedConfigKind::Faction {
+            let label = if input.kind == IndexedConfigKind::Faction {
                 "删除势力"
             } else {
                 "删除配置实体"
             };
-            (
-                services::config_entity::delete_indexed_request(input)?,
-                label,
-            )
+            (config_entity::delete_indexed_request(input)?, label)
         }
-        SaveAction::SaveVariantEntity(input) => (
-            services::json_file::write_variant_request(input)?,
-            "保存装配",
-        ),
+        SaveAction::SaveVariantEntity(input) => {
+            (json_file::write_variant_request(input)?, "保存装配")
+        }
         SaveAction::CreateVariantEntity(input) => (
-            services::json_file::create_entity_request(input, EntityKind::Variant)?,
+            json_file::create_entity_request(input, EntityKind::Variant)?,
             "创建装配",
         ),
         SaveAction::DeleteVariantEntity(input) => (
-            json_result(services::json_file::delete_entity_request(
+            json_result(json_file::delete_entity_request(
                 input,
                 EntityKind::Variant,
             )?)?,
             "删除装配",
         ),
-        SaveAction::SaveSkinEntity(input) => {
-            (services::json_file::write_skin_request(input)?, "保存皮肤")
-        }
+        SaveAction::SaveSkinEntity(input) => (json_file::write_skin_request(input)?, "保存皮肤"),
         SaveAction::CreateSkinEntity(input) => (
-            services::json_file::create_entity_request(input, EntityKind::Skin)?,
+            json_file::create_entity_request(input, EntityKind::Skin)?,
             "创建皮肤",
         ),
         SaveAction::DeleteSkinEntity(input) => (
-            json_result(services::json_file::delete_entity_request(
-                input,
-                EntityKind::Skin,
-            )?)?,
+            json_result(json_file::delete_entity_request(input, EntityKind::Skin)?)?,
             "删除皮肤",
         ),
         SaveAction::RecreateJsonSources(input) => (
             json_result(services::restore_source_request(input)?)?,
             "重新创建 JSON 来源",
         ),
-        SaveAction::SaveMiscConfig(input) => (
-            services::misc_config::write_misc_request(input)?,
-            "保存杂项配置",
-        ),
+        SaveAction::SaveMiscConfig(input) => {
+            (misc_config::write_misc_request(input)?, "保存杂项配置")
+        }
         SaveAction::DeleteMiscConfig(input) => (
-            json_result(services::misc_config::delete_misc_config(
+            json_result(misc_config::delete_misc_config(
                 &input.mod_root,
                 input.kind,
                 &input.base_versions,
@@ -231,7 +211,7 @@ pub(crate) fn execute_save_action(mut action: SaveAction) -> AppResult<WriteResu
             "删除杂项配置",
         ),
         SaveAction::ApplyFileChangeSet(input) => {
-            return json_result(services::write_transactions::replay(
+            return json_result(write_transactions::replay(
                 &input.session_id,
                 &input.mod_root,
                 input.direction,
@@ -240,17 +220,14 @@ pub(crate) fn execute_save_action(mut action: SaveAction) -> AppResult<WriteResu
             )?);
         }
         SaveAction::RefreshProjectSources(input) => {
-            let projection =
-                services::project::refresh_project_sources(&input.session_id, input.sources)?;
+            let projection = project::refresh_project_sources(&input.session_id, input.sources)?;
             let mut result = WriteResult::from_changes(Vec::new());
             result.invalidation = projection.invalidation.clone();
-            result
-                .session_updates
-                .push(crate::models::CommittedSessionUpdate {
-                    session_id: input.session_id,
-                    mod_root: projection.manifest.mod_root.clone(),
-                    projection: std::sync::Arc::new(projection),
-                });
+            result.session_updates.push(CommittedSessionUpdate {
+                session_id: input.session_id,
+                mod_root: projection.manifest.mod_root.clone(),
+                projection: Arc::new(projection),
+            });
             return json_result(result);
         }
     };
@@ -269,7 +246,7 @@ fn json_result<T: Serialize>(result: WriteResult<T>) -> AppResult<WriteResult<Va
         content: result
             .content
             .map(|content| {
-                serde_json::to_value(content.value).map(|value| crate::models::WriteContent {
+                serde_json::to_value(content.value).map(|value| WriteContent {
                     target: content.target,
                     value,
                 })
@@ -281,9 +258,7 @@ fn json_result<T: Serialize>(result: WriteResult<T>) -> AppResult<WriteResult<Va
 }
 
 #[cfg(test)]
-pub fn execute_typed_save<T: serde::de::DeserializeOwned>(
-    action: crate::models::SaveAction,
-) -> AppResult<WriteResult<T>> {
+pub fn execute_typed_save<T: DeserializeOwned>(action: SaveAction) -> AppResult<WriteResult<T>> {
     let result = execute_save_action(action)?;
     Ok(serde_json::from_value(serde_json::to_value(result)?)?)
 }
@@ -291,9 +266,25 @@ pub fn execute_typed_save<T: serde::de::DeserializeOwned>(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(test)]
+    use crate::io;
     use crate::models::*;
+    #[cfg(test)]
+    use crate::services::project::PerformanceTrace;
     use crate::services::project::test_support::project_workspace;
-    use std::{path::Path, sync::mpsc, time::Duration};
+    #[cfg(test)]
+    use crate::services::{project, project_sync};
+    #[cfg(test)]
+    use std::collections::BTreeSet;
+    use std::path::Path;
+    use std::sync::mpsc;
+    use std::time::Duration;
+    #[cfg(test)]
+    use std::{fs, thread};
+    #[cfg(test)]
+    use tauri::async_runtime;
+    #[cfg(test)]
+    use tauri::ipc::{Channel, InvokeResponseBody};
 
     #[test]
     fn ordinary_save_recreates_captured_text_spec_json_and_complete_csv() {
@@ -317,7 +308,7 @@ mod tests {
                 "data/world/factions",
                 "data/missions/a",
             ] {
-                std::fs::create_dir_all(root.join(directory)).unwrap();
+                fs::create_dir_all(root.join(directory)).unwrap();
             }
             for (relative, text) in [
                 ("notes.txt", "original"),
@@ -354,12 +345,12 @@ mod tests {
                     "id,name,custom\na,Original,001\nb,Other,002\n#note,Comment,003\n",
                 ),
             ] {
-                std::fs::write(root.join(relative), text).unwrap();
+                fs::write(root.join(relative), text).unwrap();
             }
-            let manifest = services::project::open_project_session_traced(
+            let manifest = project::open_project_session_traced(
                 &root,
                 None,
-                &mut services::project::PerformanceTrace::new("missing.save"),
+                &mut PerformanceTrace::new("missing.save"),
             )
             .unwrap();
             let (action, relative) = match kind {
@@ -370,9 +361,7 @@ mod tests {
                         mod_root: manifest.mod_root.clone(),
                         path: root.join("notes.txt").to_string_lossy().into(),
                         text: "Captured text".into(),
-                        base_versions: vec![
-                            crate::io::file_version(&root.join("notes.txt")).unwrap(),
-                        ],
+                        base_versions: vec![io::file_version(&root.join("notes.txt")).unwrap()],
                     }),
                     "notes.txt",
                 ),
@@ -522,9 +511,9 @@ mod tests {
                 }
                 _ => unreachable!(),
             };
-            std::fs::remove_file(root.join(relative)).unwrap();
+            fs::remove_file(root.join(relative)).unwrap();
             if kind != "text" {
-                services::project::refresh_project_sources(
+                project::refresh_project_sources(
                     &manifest.session_id,
                     vec![InvalidatedResourceScope {
                         source: ResourceSource::Mod,
@@ -535,11 +524,11 @@ mod tests {
             }
             let owner = format!("missing-{kind}");
             let (send, receive) = mpsc::channel();
-            services::project_sync::register(
+            project_sync::register(
                 &owner,
                 Some(manifest.mod_root.clone()),
-                tauri::ipc::Channel::new(move |body| {
-                    let tauri::ipc::InvokeResponseBody::Json(text) = body else {
+                Channel::new(move |body| {
+                    let InvokeResponseBody::Json(text) = body else {
                         unreachable!()
                     };
                     send.send(serde_json::from_str::<Value>(&text).unwrap())
@@ -574,11 +563,9 @@ mod tests {
             };
             let label = owner.clone();
             let (completed, completion) = mpsc::channel();
-            let worker = std::thread::spawn(move || {
+            let worker = thread::spawn(move || {
                 completed
-                    .send(tauri::async_runtime::block_on(submit_project_save(
-                        label, request,
-                    )))
+                    .send(async_runtime::block_on(submit_project_save(label, request)))
                     .unwrap();
             });
             loop {
@@ -587,7 +574,7 @@ mod tests {
                     let paths: Vec<String> =
                         serde_json::from_value(delivery["paths"].clone()).unwrap();
                     assert!(paths.iter().any(|path| Path::new(path).ends_with(relative)));
-                    services::project_sync::resolve_sources(&owner, &owner, &paths, true).unwrap();
+                    project_sync::resolve_sources(&owner, &owner, &paths, true).unwrap();
                     break;
                 }
             }
@@ -607,7 +594,7 @@ mod tests {
                     .changes
                     .iter()
                     .map(|change| &change.after_path)
-                    .collect::<std::collections::BTreeSet<_>>()
+                    .collect::<BTreeSet<_>>()
                     .len(),
                 result.changes.len(),
                 "{kind}"
@@ -615,36 +602,36 @@ mod tests {
             assert!(root.join(relative).is_file(), "{kind}");
             if kind == "text" {
                 assert_eq!(
-                    std::fs::read_to_string(root.join(relative)).unwrap(),
+                    fs::read_to_string(root.join(relative)).unwrap(),
                     "Captured text"
                 );
             }
             if kind == "spec" {
                 assert_eq!(
-                    crate::io::read_json_file(&root.join(relative)).unwrap()["width"],
+                    io::read_json_file(&root.join(relative)).unwrap()["width"],
                     20
                 );
             }
             if kind == "variant" {
                 assert_eq!(
-                    crate::io::read_json_file(&root.join(relative)).unwrap()["fluxVents"],
+                    io::read_json_file(&root.join(relative)).unwrap()["fluxVents"],
                     2
                 );
             }
             if kind == "skin" {
                 assert_eq!(
-                    crate::io::read_json_file(&root.join(relative)).unwrap()["hullName"],
+                    io::read_json_file(&root.join(relative)).unwrap()["hullName"],
                     "Captured"
                 );
             }
             if kind == "mod-info" {
                 assert_eq!(
-                    crate::io::read_json_file(&root.join(relative)).unwrap()["name"],
+                    io::read_json_file(&root.join(relative)).unwrap()["name"],
                     "Captured"
                 );
             }
             if kind == "csv" {
-                let table = crate::io::read_csv_data(&root.join(relative)).unwrap();
+                let table = io::read_csv_data(&root.join(relative)).unwrap();
                 assert_eq!(table.rows.len(), 3);
                 assert_eq!(table.rows[0].data["name"], "Captured");
                 assert_eq!(table.rows[1].data["custom"], "002");
@@ -652,35 +639,34 @@ mod tests {
             }
             if kind == "faction" {
                 assert_eq!(
-                    crate::io::read_json_file(&root.join(relative)).unwrap()["displayName"],
+                    io::read_json_file(&root.join(relative)).unwrap()["displayName"],
                     "Captured"
                 );
             }
             if kind.starts_with("mission-") {
                 assert_eq!(
-                    crate::io::read_json_file(&root.join("data/missions/a/descriptor.json"))
-                        .unwrap()["title"],
+                    io::read_json_file(&root.join("data/missions/a/descriptor.json")).unwrap()["title"],
                     "Captured"
                 );
                 assert_eq!(
-                    std::fs::read_to_string(root.join("data/missions/a/mission_text.txt")).unwrap(),
+                    fs::read_to_string(root.join("data/missions/a/mission_text.txt")).unwrap(),
                     "Captured text"
                 );
                 assert_eq!(
-                    std::fs::read_to_string(root.join("data/missions/a/extra.js")).unwrap(),
+                    fs::read_to_string(root.join("data/missions/a/extra.js")).unwrap(),
                     "untouched"
                 );
                 assert_eq!(
-                    crate::io::read_csv_data(&root.join("data/missions/mission_list.csv"))
+                    io::read_csv_data(&root.join("data/missions/mission_list.csv"))
                         .unwrap()
                         .rows[1]
                         .data["custom"],
                     "002"
                 );
             }
-            services::project_sync::wait_projects(&[manifest.mod_root]).unwrap();
-            services::project_sync::release_window(&owner).unwrap();
-            services::project::close_project_session(manifest.session_id).unwrap();
+            project_sync::wait_projects(&[manifest.mod_root]).unwrap();
+            project_sync::release_window(&owner).unwrap();
+            project::close_project_session(manifest.session_id).unwrap();
             root.close().unwrap();
         }
     }

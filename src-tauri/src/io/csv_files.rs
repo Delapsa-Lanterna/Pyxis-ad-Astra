@@ -1,11 +1,17 @@
-use crate::{errors::AppResult, models::CsvTable};
-use std::path::Path;
-
 use super::read_text_bytes_no_bom;
+use crate::errors::AppResult;
+use crate::io::{file_version, read_versioned_bytes};
+use crate::models::{CsvTable, FileVersion};
+use crate::parsers;
+#[cfg(test)]
+use crate::test_support::work_counts;
+#[cfg(test)]
+use std::cell::Cell;
+use std::path::Path;
 
 #[cfg(test)]
 thread_local! {
-    static CSV_WORK: std::cell::Cell<(usize, usize, usize)> = const { std::cell::Cell::new((0, 0, 0)) };
+    static CSV_WORK: Cell<(usize, usize, usize)> = const { Cell::new((0, 0, 0)) };
 }
 
 #[cfg(test)]
@@ -23,7 +29,7 @@ pub(crate) fn record_csv_row_copies(count: usize) {
 
 #[cfg(test)]
 pub(crate) fn record_csv_disk_read(path: &Path) {
-    crate::test_support::work_counts::record("read", path);
+    work_counts::record("read", path);
     if !path
         .extension()
         .and_then(|extension| extension.to_str())
@@ -51,7 +57,7 @@ pub fn read_csv_data(path: &Path) -> AppResult<CsvTable> {
         let (reads, parses, copies) = work.get();
         work.set((reads, parses + 1, copies));
     });
-    crate::parsers::parse_csv_bytes(&path.to_string_lossy(), &bytes)
+    parsers::parse_csv_bytes(&path.to_string_lossy(), &bytes)
 }
 
 pub fn parse_csv_text(path_label: &str, text: &str) -> AppResult<CsvTable> {
@@ -60,7 +66,7 @@ pub fn parse_csv_text(path_label: &str, text: &str) -> AppResult<CsvTable> {
         let (reads, parses, copies) = work.get();
         work.set((reads, parses + 1, copies));
     });
-    crate::parsers::parse_csv_bytes(path_label, text.as_bytes())
+    parsers::parse_csv_bytes(path_label, text.as_bytes())
 }
 
 pub fn parse_csv_data(path_label: &str, bytes: &[u8]) -> AppResult<CsvTable> {
@@ -69,17 +75,17 @@ pub fn parse_csv_data(path_label: &str, bytes: &[u8]) -> AppResult<CsvTable> {
         let (reads, parses, copies) = work.get();
         work.set((reads, parses + 1, copies));
     });
-    crate::parsers::parse_csv_bytes(
+    parsers::parse_csv_bytes(
         path_label,
         bytes.strip_prefix(&[0xef, 0xbb, 0xbf]).unwrap_or(bytes),
     )
 }
 
-pub fn read_versioned_csv(path: &Path) -> AppResult<(crate::models::FileVersion, CsvTable)> {
+pub fn read_versioned_csv(path: &Path) -> AppResult<(FileVersion, CsvTable)> {
     if !path.exists() {
-        return Ok((super::file_version(path)?, read_csv_data(path)?));
+        return Ok((file_version(path)?, read_csv_data(path)?));
     }
-    let (version, bytes) = super::read_versioned_bytes(path)?;
+    let (version, bytes) = read_versioned_bytes(path)?;
     let table = parse_csv_data(&version.path, &bytes)?;
     Ok((version, table))
 }
@@ -87,10 +93,12 @@ pub fn read_versioned_csv(path: &Path) -> AppResult<(crate::models::FileVersion,
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(test)]
+    use crate::test_support::TestWorkspace;
 
     #[test]
     fn read_csv_data_returns_an_empty_table_for_missing_files() {
-        let root = crate::test_support::TestWorkspace::new("missing_csv");
+        let root = TestWorkspace::new("missing_csv");
         let table = read_csv_data(&root.join("missing/table.csv")).expect("empty table");
         assert!(table.header.is_empty());
         assert!(table.rows.is_empty());

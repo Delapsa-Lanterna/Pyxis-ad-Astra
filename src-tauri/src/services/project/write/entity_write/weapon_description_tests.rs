@@ -1,18 +1,27 @@
 #![cfg(test)]
-use crate::services::project::test_support::project_workspace;
-use crate::{
-    io::{read_csv_data, read_json_file, write_utf8_no_bom},
-    models::*,
-    services::{project, write_transactions},
-    test_support::TestWorkspace,
+use crate::errors::AppResult;
+use crate::io::{read_csv_data, read_json_file, write_utf8_no_bom};
+use crate::models::{
+    CsvSave, JointEditSnapshot, JsonDocumentOrigin, SaveAction, SpecSave, TextSave,
+    WriteContentTarget, *,
 };
-use serde_json::json;
-use std::{collections::BTreeMap, path::Path};
+use crate::services;
+use crate::services::project::PerformanceTrace;
+#[cfg(test)]
+use crate::services::project::session::csv_writes;
+use crate::services::project::test_support::project_workspace;
+use crate::services::project::write::csv_patch;
+use crate::services::{project, project_save, write_transactions};
+use crate::test_support::TestWorkspace;
+use serde_json::{Value, json};
+use std::collections::BTreeMap;
+use std::fs;
+use std::path::Path;
 
 fn fixture(collision: bool) -> (TestWorkspace, ProjectManifest) {
     let root = project_workspace("weapon_description");
-    std::fs::create_dir_all(root.join("data/weapons")).unwrap();
-    std::fs::create_dir_all(root.join("data/strings")).unwrap();
+    fs::create_dir_all(root.join("data/weapons")).unwrap();
+    fs::create_dir_all(root.join("data/strings")).unwrap();
     write_utf8_no_bom(
         &root.join("data/weapons/old.wpn"),
         &json!({"id":"old","specClass":"projectile","turretOffsets":[0,0],"hardpointOffsets":[0,0],"descriptionId":"unused","custom":{"keep":1}})
@@ -26,92 +35,79 @@ fn fixture(collision: bool) -> (TestWorkspace, ProjectManifest) {
     .unwrap();
     let text = "id,type,text1,text2,custom\n#note,WEAPON,Comment,,007\nold,WEAPON,Original,Second,001\nold,SHIP,Other type,,002\n".to_string() + if collision {"new,WEAPON,Occupied,,keep\n"} else {""};
     write_utf8_no_bom(&root.join("data/strings/descriptions.csv"), &text).unwrap();
-    let mut trace = project::PerformanceTrace::new("weapon.description");
+    let mut trace = PerformanceTrace::new("weapon.description");
     let manifest = project::open_project_session_traced(&root, None, &mut trace).unwrap();
     (root, manifest)
 }
 
-fn rename(
-    root: &Path,
-    manifest: &ProjectManifest,
-    mode: &str,
-) -> crate::errors::AppResult<WriteResult<serde_json::Value>> {
-    let info =
-        crate::services::query_entity_edit_target(&manifest.session_id, EntityKind::Weapon, "old")?;
+fn rename(root: &Path, manifest: &ProjectManifest, mode: &str) -> AppResult<WriteResult<Value>> {
+    let info = services::query_entity_edit_target(&manifest.session_id, EntityKind::Weapon, "old")?;
     let mut data = read_json_file(&root.join("data/weapons/old.wpn"))?;
     data["id"] = json!("new");
     match mode {
-        "spec" => crate::services::project_save::execute_save_action(
-            crate::models::SaveAction::SaveEditorSpec(crate::models::SpecSave {
-                session_id: manifest.session_id.clone(),
-                mod_root: manifest.mod_root.clone(),
-                target: info.target,
-                base_versions: info.base_versions,
-                data,
-                json_write: Default::default(),
-                ordered_json: None,
-            }),
-        ),
-        "text" => crate::services::project_save::execute_save_action(
-            crate::models::SaveAction::SaveTextFile(crate::models::TextSave {
-                json_write: Default::default(),
-                session_id: Some(manifest.session_id.clone()),
-                mod_root: manifest.mod_root.clone(),
-                path: root.join("data/weapons/old.wpn").to_string_lossy().into(),
-                base_versions: info.base_versions,
-                text: data.to_string(),
-            }),
-        ),
+        "spec" => project_save::execute_save_action(SaveAction::SaveEditorSpec(SpecSave {
+            session_id: manifest.session_id.clone(),
+            mod_root: manifest.mod_root.clone(),
+            target: info.target,
+            base_versions: info.base_versions,
+            data,
+            json_write: Default::default(),
+            ordered_json: None,
+        })),
+        "text" => project_save::execute_save_action(SaveAction::SaveTextFile(TextSave {
+            json_write: Default::default(),
+            session_id: Some(manifest.session_id.clone()),
+            mod_root: manifest.mod_root.clone(),
+            path: root.join("data/weapons/old.wpn").to_string_lossy().into(),
+            base_versions: info.base_versions,
+            text: data.to_string(),
+        })),
         "csv" => {
             let EntityLinkedRecord::Csv { row_key, .. } =
                 info.target.linked_record.clone().unwrap()
             else {
                 unreachable!()
             };
-            crate::services::project_save::execute_save_action(
-                crate::models::SaveAction::SaveCsvPatch(crate::models::CsvSave {
-                    row_order: None,
-                    session_id: manifest.session_id.clone(),
-                    mod_root: manifest.mod_root.clone(),
-                    table: CsvTableKey::Weapons,
-                    base_versions: info.base_versions,
-                    patches: vec![CsvRowPatch {
-                        row_key,
-                        action: CsvRowPatchAction::Upsert,
-                        row: json!({"id":"new","name":"Old"})
-                            .as_object()
-                            .unwrap()
-                            .clone(),
-                        is_comment: false,
-                        insert_at: None,
-                    }],
-                    associated_specs: vec![
-                        crate::services::project::write::csv_patch::prepared_spec_write(
-                            &manifest.session_id,
-                            CsvTableKey::Weapons,
-                            AssociatedSpecChange::Rename {
-                                previous_id: "old".into(),
-                                create: AssociatedSpecCreateParams::Weapon {
-                                    id: "new".into(),
-                                    spec_class: WeaponSpecClass::Projectile,
-                                },
-                            },
-                        )?,
-                    ],
-                    json_write: Default::default(),
-                }),
-            )
+            project_save::execute_save_action(SaveAction::SaveCsvPatch(CsvSave {
+                row_order: None,
+                session_id: manifest.session_id.clone(),
+                mod_root: manifest.mod_root.clone(),
+                table: CsvTableKey::Weapons,
+                base_versions: info.base_versions,
+                patches: vec![CsvRowPatch {
+                    row_key,
+                    action: CsvRowPatchAction::Upsert,
+                    row: json!({"id":"new","name":"Old"})
+                        .as_object()
+                        .unwrap()
+                        .clone(),
+                    is_comment: false,
+                    insert_at: None,
+                }],
+                associated_specs: vec![csv_patch::prepared_spec_write(
+                    &manifest.session_id,
+                    CsvTableKey::Weapons,
+                    AssociatedSpecChange::Rename {
+                        previous_id: "old".into(),
+                        create: AssociatedSpecCreateParams::Weapon {
+                            id: "new".into(),
+                            spec_class: WeaponSpecClass::Projectile,
+                        },
+                    },
+                )?],
+                json_write: Default::default(),
+            }))
             .map(|receipt| {
                 receipt.with_content(
-                    crate::models::WriteContentTarget::Json {
-                        origin: crate::models::JsonDocumentOrigin::ModInfo,
+                    WriteContentTarget::Json {
+                        origin: JsonDocumentOrigin::ModInfo,
                     },
                     json!(null),
                 )
             })
         }
         "joint" => {
-            let baseline = crate::services::query_joint_edit_request(&JointEditQuery {
+            let baseline = services::query_joint_edit_request(&JointEditQuery {
                 catalog: None,
                 catalog_source: None,
                 root: JointEditRoot {
@@ -131,19 +127,19 @@ fn rename(
                 .find(|record| record.key == baseline.bindings["description"])
                 .unwrap();
             assert!(matches!(&description.value,JointValue::Present(value) if value["id"]=="old"));
-            let prepared = crate::services::prepare_joint_edit(&JointEditDraft {
+            let prepared = services::prepare_joint_edit(&JointEditDraft {
                 baseline,
                 values: BTreeMap::from([(key, JointValue::Present(data))]),
             })?;
-            crate::services::project_save::execute_typed_save::<crate::models::JointEditSnapshot>(
-                crate::models::SaveAction::SaveJointEdit(Box::new(JointEditSubmission {
+            project_save::execute_typed_save::<JointEditSnapshot>(SaveAction::SaveJointEdit(
+                Box::new(JointEditSubmission {
                     base_versions: prepared.snapshot.base_versions.clone(),
                     snapshot: prepared.snapshot,
                     values: prepared.values,
                     json_write: Default::default(),
                     create_overrides: Vec::new(),
-                })),
-            )
+                }),
+            ))
             .map(|receipt| {
                 let content = receipt.content.as_ref().unwrap();
                 let owner = content.target.clone();
@@ -159,10 +155,10 @@ fn rename(
 fn weapon_description_replay() {
     for mode in ["csv", "spec", "text", "joint"] {
         let (root, manifest) = fixture(false);
-        crate::services::project::session::csv_writes::take_render_counts();
+        csv_writes::take_render_counts();
         let receipt = rename(&root, &manifest, mode).unwrap();
         assert_eq!(
-            crate::services::project::session::csv_writes::take_render_counts(),
+            csv_writes::take_render_counts(),
             BTreeMap::from([(CsvTableKey::Weapons, 1), (CsvTableKey::Descriptions, 1)]),
             "{mode}"
         );
@@ -221,12 +217,12 @@ fn weapon_description_collision() {
     for mode in ["csv", "spec", "text", "joint"] {
         let (root, manifest) = fixture(true);
         let path = root.join("data/strings/descriptions.csv");
-        let before = std::fs::read(&path).unwrap();
+        let before = fs::read(&path).unwrap();
         let error = rename(&root, &manifest, mode).unwrap_err();
         assert_eq!(error.code(), "weapon.description_target_exists");
         assert!(root.join("data/weapons/old.wpn").exists());
         assert!(!root.join("data/weapons/new.wpn").exists());
-        assert_eq!(std::fs::read(&path).unwrap(), before);
+        assert_eq!(fs::read(&path).unwrap(), before);
         assert!(
             write_transactions::query_history(&manifest.session_id, &manifest.mod_root)
                 .unwrap()

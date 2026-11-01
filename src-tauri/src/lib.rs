@@ -1,3 +1,12 @@
+use crate::models::CloseScope;
+#[cfg(windows)]
+use crate::services::windows::auxiliary;
+use crate::services::{app_lifecycle, app_log, performance_monitor, project_sync, windows};
+use models::AppLogEntry;
+use std::sync::Arc;
+use tauri::ipc::Invoke;
+use tauri::{Builder, Emitter, Manager, RunEvent, WindowEvent, async_runtime};
+
 mod app_data_dir;
 mod commands;
 mod diagnostics;
@@ -11,11 +20,8 @@ mod services;
 #[cfg(test)]
 pub(crate) mod test_support;
 
-use models::AppLogEntry;
-use tauri::{Emitter, Manager};
-
 pub fn run() {
-    tauri::Builder::default()
+    Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
             if let Some(window) = app.get_webview_window("main") {
                 let _ = window.unminimize();
@@ -25,44 +31,42 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_clipboard_manager::init())
         .on_window_event(|window, event| {
-            if matches!(event, tauri::WindowEvent::Destroyed) {
+            if matches!(event, WindowEvent::Destroyed) {
                 diagnostics::debug("window.destroyed", || format!("window={}", window.label()));
             }
-            if matches!(event, tauri::WindowEvent::CloseRequested { .. }) {
+            if matches!(event, WindowEvent::CloseRequested { .. }) {
                 diagnostics::debug("window.close_requested", || {
                     format!("window={}", window.label())
                 });
             }
-            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+            if let WindowEvent::CloseRequested { api, .. } = event {
                 api.prevent_close();
                 let app = window.app_handle().clone();
                 let owner = window.label().to_owned();
-                tauri::async_runtime::spawn_blocking(move || {
-                    if let Err(error) = services::app_lifecycle::request_close(
-                        &app,
-                        &owner,
-                        models::CloseScope::Window,
-                    ) {
+                async_runtime::spawn_blocking(move || {
+                    if let Err(error) =
+                        app_lifecycle::request_close(&app, &owner, CloseScope::Window)
+                    {
                         diagnostics::record(format!("native close request: {error}"));
                     }
                 });
             }
-            if matches!(event, tauri::WindowEvent::Destroyed)
-                && let Err(error) = services::windows::release_window(window.label())
+            if matches!(event, WindowEvent::Destroyed)
+                && let Err(error) = windows::release_window(window.label())
             {
                 diagnostics::record(format!("release window registration: {error}"));
             }
-            if matches!(event, tauri::WindowEvent::Destroyed)
-                && let Err(error) = services::project_sync::release_window(window.label())
+            if matches!(event, WindowEvent::Destroyed)
+                && let Err(error) = project_sync::release_window(window.label())
             {
                 diagnostics::record(format!("release save delivery: {error}"));
             }
-            if matches!(event, tauri::WindowEvent::Destroyed)
-                && let Err(error) = services::app_lifecycle::destroyed(window.label())
+            if matches!(event, WindowEvent::Destroyed)
+                && let Err(error) = app_lifecycle::destroyed(window.label())
             {
                 diagnostics::record(format!("close lifecycle release: {error}"));
             }
-            if matches!(event, tauri::WindowEvent::Destroyed)
+            if matches!(event, WindowEvent::Destroyed)
                 && let Err(error) = window.app_handle().emit(
                     "managed-window-released",
                     serde_json::json!({"label": window.label()}),
@@ -73,10 +77,10 @@ pub fn run() {
         })
         .setup(|app| {
             #[cfg(windows)]
-            services::windows::auxiliary::install(&app.config().identifier)?;
-            services::app_log::start_native_writer(app.handle().clone());
-            diagnostics::install(std::sync::Arc::new(move |level, code, message| {
-                let _ = services::app_log::append_app_log(AppLogEntry {
+            auxiliary::install(&app.config().identifier)?;
+            app_log::start_native_writer(app.handle().clone());
+            diagnostics::install(Arc::new(move |level, code, message| {
+                let _ = app_log::append_app_log(AppLogEntry {
                     level,
                     code: Some(code.to_string()),
                     message: Some(message.to_string()),
@@ -88,7 +92,7 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler({
-            let handler: Box<dyn Fn(tauri::ipc::Invoke) -> bool + Send + Sync> =
+            let handler: Box<dyn Fn(Invoke) -> bool + Send + Sync> =
                 Box::new(command_macros::generate_handler![
                     commands::performance_monitor_batch,
                     commands::performance_monitor_report,
@@ -176,10 +180,10 @@ pub fn run() {
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
         .run(|app, event| {
-            if matches!(event, tauri::RunEvent::Exit) {
-                services::performance_monitor::shutdown();
+            if matches!(event, RunEvent::Exit) {
+                performance_monitor::shutdown();
                 diagnostics::info("app.exited", concat!("version=", env!("CARGO_PKG_VERSION")));
-                let _ = services::app_log::flush_native_logs(app.clone());
+                let _ = app_log::flush_native_logs(app.clone());
             }
         });
 }

@@ -1,7 +1,9 @@
+use crate::models::{EntityFileLocation, FileVersion};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use std::path::Path;
 
-pub fn file_content_id(data: &Value, field: &str, path: &std::path::Path) -> String {
+pub fn file_content_id(data: &Value, field: &str, path: &Path) -> String {
     data.get(field)
         .and_then(Value::as_str)
         .filter(|id| !id.is_empty())
@@ -25,8 +27,8 @@ pub struct JsonComposition {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct JsonSourceLayer {
-    pub source: super::EntityFileLocation,
-    pub version: super::FileVersion,
+    pub source: EntityFileLocation,
+    pub version: FileVersion,
     pub data: Value,
     pub replace: bool,
 }

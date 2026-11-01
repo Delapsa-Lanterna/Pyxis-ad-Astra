@@ -1,10 +1,11 @@
-use crate::{
-    errors::{AppError, AppResult},
-    io::paths::validate_walk_entry,
-    models::decode_starsector_text,
-};
+use crate::errors::{AppError, AppResult};
+#[cfg(test)]
+use crate::io::csv_files;
+use crate::io::paths::validate_walk_entry;
+use crate::models::decode_starsector_text;
+use std::fs;
 use std::fs::OpenOptions;
-use std::{fs, path::Path};
+use std::path::Path;
 
 const UTF8_BOM: &[u8] = &[0xef, 0xbb, 0xbf];
 
@@ -50,7 +51,7 @@ pub fn read_text_bytes_no_bom(path: &Path) -> AppResult<Vec<u8>> {
         .at_path(path)
     })?;
     #[cfg(test)]
-    super::csv_files::record_csv_disk_read(path);
+    csv_files::record_csv_disk_read(path);
     Ok(strip_utf8_bom(bytes))
 }
 
@@ -76,7 +77,6 @@ pub fn write_utf8_no_bom(path: &Path, text: &str) -> AppResult<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-
     use crate::test_support::TestWorkspace;
 
     #[test]

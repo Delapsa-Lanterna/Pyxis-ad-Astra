@@ -1,46 +1,47 @@
-use super::super::{
-    model::{
-        EntityProjection, MISSION_LIST_REL_PATH, MISSION_LIST_TABLE_KEY, ProjectSession,
-        SessionCsvRow, string_from_row,
-    },
-    resources::resource_ref,
-    session::csv_tables::{
-        ensure_registered_table_rows, ensure_session_table_rows, loaded_csv_rows,
-        loaded_registered_csv_rows,
-    },
+use super::super::model::{
+    EntityProjection, MISSION_LIST_REL_PATH, MISSION_LIST_TABLE_KEY, ProjectSession, SessionCsvRow,
+    string_from_row,
 };
-use super::{
-    entity_resources::{
-        faction_resource_refs, mission_resource_refs, projectile_resource_refs, ship_resource_refs,
-        skin_entity_resource_refs, system_resource_refs, variant_resource_refs,
-        weapon_resource_refs,
-    },
-    factions,
-    table_definitions::csv_table_icon_resource_ref,
+use super::super::resources::resource_ref;
+use super::super::session::csv_tables::{
+    ensure_registered_table_rows, ensure_session_table_rows, loaded_csv_rows,
+    loaded_registered_csv_rows,
 };
+use super::entity_resources::{
+    faction_resource_refs, mission_resource_refs, projectile_resource_refs, ship_resource_refs,
+    skin_entity_resource_refs, system_resource_refs, variant_resource_refs, weapon_resource_refs,
+};
+use super::factions;
+use super::table_definitions::csv_table_icon_resource_ref;
+use crate::domain::entity_definitions::{
+    EntitySpecDefinition, FACTION_SPEC_DEFINITION, PROJECTILE_SPEC_DEFINITION,
+    SHIP_SPEC_DEFINITION, SKILL_SPEC_DEFINITION, SKIN_SPEC_DEFINITION, SYSTEM_SPEC_DEFINITION,
+    VARIANT_SPEC_DEFINITION, WEAPON_SPEC_DEFINITION,
+    associated_spec_definition as domain_associated_spec_definition,
+    associated_spec_tables as domain_associated_spec_tables,
+};
+use crate::domain::entity_identity;
+use crate::domain::entity_identity::path_is_or_in_dir;
+use crate::errors::{AppError, AppResult};
+use crate::io;
+use crate::io::{read_json_file, relative_path_contains};
+use crate::models::{
+    CsvTableKey, EntityKind, EntitySummaries, GameScanWarning, InvalidatedQueryKind,
+    ResourceOwnerKind, ResourceRef, ResourceSource, SkinFile, VariantFile,
+};
+use crate::services::project::definitions::projectiles;
+use crate::services::project::session::source_projection::capture_projection_versions;
+
 use crate::services::project::sources::core::load_core_variant_files;
+use crate::services::project::sources::documents::LoadedSpecRecord;
 use crate::services::project::sources::json_documents::{
     load_skin_files_from, load_variant_files_from,
 };
-use crate::{
-    domain::entity_definitions::{
-        EntitySpecDefinition, FACTION_SPEC_DEFINITION, PROJECTILE_SPEC_DEFINITION,
-        SHIP_SPEC_DEFINITION, SKILL_SPEC_DEFINITION, SKIN_SPEC_DEFINITION, SYSTEM_SPEC_DEFINITION,
-        VARIANT_SPEC_DEFINITION, WEAPON_SPEC_DEFINITION,
-        associated_spec_definition as domain_associated_spec_definition,
-        associated_spec_tables as domain_associated_spec_tables,
-    },
-    domain::entity_identity::path_is_or_in_dir,
-    errors::{AppError, AppResult},
-    io::read_json_file,
-    io::relative_path_contains,
-    models::{
-        CsvTableKey, EntityKind, InvalidatedQueryKind, ResourceOwnerKind, ResourceRef,
-        ResourceSource, SkinFile, VariantFile,
-    },
-};
+use crate::services::project::sources::{SourceReader, core, documents};
 use serde_json::{Map, Value};
-use std::{collections::BTreeMap, path::Path};
+use std::collections::{BTreeMap, HashMap};
+use std::path::Path;
+use std::sync::Arc;
 
 type EntityListLoader = fn(&mut ProjectSession) -> AppResult<Vec<EntityProjection>>;
 type EntityCoreListLoader = fn(&ProjectSession) -> AppResult<Vec<EntityProjection>>;
@@ -57,8 +58,7 @@ pub(in crate::services::project) struct ProjectEntityDefinition {
     pub list: EntityListLoader,
     pub core_list: Option<EntityCoreListLoader>,
     pub resources: fn(&ProjectSession, &str, &Value) -> BTreeMap<String, ResourceRef>,
-    pub refresh:
-        fn(&ProjectSession, &mut super::super::sources::SourceReader) -> AppResult<EntityRefresh>,
+    pub refresh: fn(&ProjectSession, &mut SourceReader) -> AppResult<EntityRefresh>,
 }
 
 pub(in crate::services::project) fn entity_definition(
@@ -707,13 +707,12 @@ fn build_mission_entity(session: &mut ProjectSession, id: &str) -> AppResult<Opt
     else {
         return Ok(None);
     };
-    let clean = crate::domain::entity_identity::validate_entity_id(id, "无效战役 ID")?;
+    let clean = entity_identity::validate_entity_id(id, "无效战役 ID")?;
     let dir = Path::new(&session.manifest.mod_root)
         .join("data/missions")
         .join(clean);
     let descriptor_path = dir.join("descriptor.json");
-    let mut sources =
-        super::super::sources::SourceReader::new(Path::new(&session.manifest.mod_root))?;
+    let mut sources = SourceReader::new(Path::new(&session.manifest.mod_root))?;
     let descriptor = if descriptor_path.exists() {
         sources.json(&descriptor_path)?
     } else {
@@ -721,8 +720,8 @@ fn build_mission_entity(session: &mut ProjectSession, id: &str) -> AppResult<Opt
     };
     let text_path = dir.join("mission_text.txt");
     let text = if text_path.exists() {
-        let (version, bytes) = crate::io::read_versioned_bytes(&text_path)?;
-        let text = crate::io::decode_text(&text_path, &bytes)?;
+        let (version, bytes) = io::read_versioned_bytes(&text_path)?;
+        let text = io::decode_text(&text_path, &bytes)?;
         sources.versions.insert(sources.key(&text_path), version);
         text
     } else {
@@ -736,16 +735,13 @@ fn build_mission_entity(session: &mut ProjectSession, id: &str) -> AppResult<Opt
         "relPath".to_string(),
         Value::String(format!("data/missions/{clean}")),
     );
-    super::super::session::source_projection::capture_projection_versions(
-        &mut sources,
-        &[&format!("data/missions/{clean}")],
-    )?;
-    std::sync::Arc::make_mut(&mut session.source_versions).extend(sources.versions);
+    capture_projection_versions(&mut sources, &[&format!("data/missions/{clean}")])?;
+    Arc::make_mut(&mut session.source_versions).extend(sources.versions);
     Ok(Some(Value::Object(data)))
 }
 
 fn mission_icon_resource_ref(session: &ProjectSession, id: &str) -> AppResult<Option<ResourceRef>> {
-    let clean = crate::domain::entity_identity::validate_entity_id(id, "无效战役 ID")?;
+    let clean = entity_identity::validate_entity_id(id, "无效战役 ID")?;
     let descriptor_path = Path::new(&session.manifest.mod_root)
         .join("data/missions")
         .join(clean)
@@ -769,25 +765,25 @@ fn mission_icon_resource_ref(session: &ProjectSession, id: &str) -> AppResult<Op
 pub(in crate::services::project) enum EntityRefresh {
     Specs {
         kind: EntityKind,
-        records: BTreeMap<String, crate::services::project::sources::documents::LoadedSpecRecord>,
+        records: BTreeMap<String, LoadedSpecRecord>,
     },
     Variant {
         files: Vec<VariantFile>,
-        warnings: Vec<crate::models::GameScanWarning>,
+        warnings: Vec<GameScanWarning>,
     },
     Skin {
         files: Vec<SkinFile>,
-        warnings: Vec<crate::models::GameScanWarning>,
+        warnings: Vec<GameScanWarning>,
     },
     Faction {
-        files: BTreeMap<String, crate::services::project::sources::documents::LoadedSpecRecord>,
-        tags: std::collections::HashMap<String, String>,
+        files: BTreeMap<String, LoadedSpecRecord>,
+        tags: HashMap<String, String>,
     },
     Mission(usize),
 }
 
 impl EntityRefresh {
-    pub fn update_summary(&self, summary: &mut crate::models::EntitySummaries) {
+    pub fn update_summary(&self, summary: &mut EntitySummaries) {
         match self {
             Self::Specs { kind, records } => match kind {
                 EntityKind::Ship => summary.ships = records.len(),
@@ -837,11 +833,11 @@ fn refresh_spec_records(
     directory: &str,
     extension: &str,
     id_field: &str,
-    sources: &mut super::super::sources::SourceReader,
+    sources: &mut SourceReader,
 ) -> AppResult<EntityRefresh> {
     Ok(EntityRefresh::Specs {
         kind,
-        records: super::super::sources::documents::load_spec_records_from(
+        records: documents::load_spec_records_from(
             sources,
             directory,
             extension,
@@ -850,10 +846,7 @@ fn refresh_spec_records(
         )?,
     })
 }
-fn refresh_ship(
-    session: &ProjectSession,
-    sources: &mut super::super::sources::SourceReader,
-) -> AppResult<EntityRefresh> {
+fn refresh_ship(session: &ProjectSession, sources: &mut SourceReader) -> AppResult<EntityRefresh> {
     refresh_spec_records(
         session,
         EntityKind::Ship,
@@ -865,7 +858,7 @@ fn refresh_ship(
 }
 fn refresh_weapon(
     session: &ProjectSession,
-    sources: &mut super::super::sources::SourceReader,
+    sources: &mut SourceReader,
 ) -> AppResult<EntityRefresh> {
     refresh_spec_records(
         session,
@@ -878,15 +871,15 @@ fn refresh_weapon(
 }
 fn refresh_projectile(
     session: &ProjectSession,
-    sources: &mut super::super::sources::SourceReader,
+    sources: &mut SourceReader,
 ) -> AppResult<EntityRefresh> {
     let core = session
         .manifest
         .starsector_root
         .as_deref()
-        .map(super::super::sources::core::load_core_projectile_specs)
+        .map(core::load_core_projectile_specs)
         .transpose()?;
-    let records = super::projectiles::load_projectile_specs_from(sources, core.as_deref())?;
+    let records = projectiles::load_projectile_specs_from(sources, core.as_deref())?;
     Ok(EntityRefresh::Specs {
         kind: EntityKind::Projectile,
         records,
@@ -894,7 +887,7 @@ fn refresh_projectile(
 }
 fn refresh_system(
     session: &ProjectSession,
-    sources: &mut super::super::sources::SourceReader,
+    sources: &mut SourceReader,
 ) -> AppResult<EntityRefresh> {
     refresh_spec_records(
         session,
@@ -905,10 +898,7 @@ fn refresh_system(
         sources,
     )
 }
-fn refresh_skill(
-    session: &ProjectSession,
-    sources: &mut super::super::sources::SourceReader,
-) -> AppResult<EntityRefresh> {
+fn refresh_skill(session: &ProjectSession, sources: &mut SourceReader) -> AppResult<EntityRefresh> {
     refresh_spec_records(
         session,
         EntityKind::Skill,
@@ -920,7 +910,7 @@ fn refresh_skill(
 }
 fn refresh_faction(
     _session: &ProjectSession,
-    sources: &mut super::super::sources::SourceReader,
+    sources: &mut SourceReader,
 ) -> AppResult<EntityRefresh> {
     let files = factions::load_faction_files_from(sources)?;
     let tags = factions::faction_blueprint_tags(&files);
@@ -928,7 +918,7 @@ fn refresh_faction(
 }
 fn refresh_mission(
     _session: &ProjectSession,
-    sources: &mut super::super::sources::SourceReader,
+    sources: &mut SourceReader,
 ) -> AppResult<EntityRefresh> {
     Ok(EntityRefresh::Mission(
         sources.count(&sources.path(MISSION_LIST_REL_PATH)?, "mission")?,
@@ -936,15 +926,12 @@ fn refresh_mission(
 }
 fn refresh_variant(
     _session: &ProjectSession,
-    sources: &mut super::super::sources::SourceReader,
+    sources: &mut SourceReader,
 ) -> AppResult<EntityRefresh> {
     let (files, warnings) = load_variant_files_from(sources)?;
     Ok(EntityRefresh::Variant { files, warnings })
 }
-fn refresh_skin(
-    _session: &ProjectSession,
-    sources: &mut super::super::sources::SourceReader,
-) -> AppResult<EntityRefresh> {
+fn refresh_skin(_session: &ProjectSession, sources: &mut SourceReader) -> AppResult<EntityRefresh> {
     let (files, warnings) = load_skin_files_from(sources)?;
     Ok(EntityRefresh::Skin { files, warnings })
 }

@@ -1,26 +1,25 @@
 use super::super::model::{ProjectSession, ReferenceView, SessionCsvRow};
-use super::csv_tables as csv;
-use super::registry;
+use super::{csv_tables as csv, registry};
+use crate::errors::{AppError, AppResult};
+use crate::io;
+use crate::models::*;
 use crate::services::project::sources::documents::LoadedSpecRecord;
+use serde_json::Value;
+use std::collections::BTreeMap;
+use std::path::Path;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, LazyLock, Mutex, MutexGuard};
+
 #[cfg(test)]
 #[path = "references_tests.rs"]
 mod tests;
-use crate::{
-    errors::{AppError, AppResult},
-    models::*,
-};
-use std::{
-    collections::BTreeMap,
-    path::Path,
-    sync::{Arc, LazyLock, Mutex},
-};
 
 static REFERENCES: LazyLock<Mutex<ReferenceSources>> = LazyLock::new(Default::default);
-static REVISION: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+static REVISION: AtomicU64 = AtomicU64::new(0);
 pub(crate) fn reference_revision() -> u64 {
-    REVISION.load(std::sync::atomic::Ordering::Acquire)
+    REVISION.load(Ordering::Acquire)
 }
-fn state() -> AppResult<std::sync::MutexGuard<'static, ReferenceSources>> {
+fn state() -> AppResult<MutexGuard<'static, ReferenceSources>> {
     REFERENCES
         .lock()
         .map_err(|_| AppError::message("reference.lock_poisoned", "引用来源状态不可用"))
@@ -34,7 +33,7 @@ pub(crate) fn set_reference_order(order: Vec<String>) -> AppResult<()> {
     if current.order != order {
         current.order = order;
         current.revision += 1;
-        REVISION.store(current.revision, std::sync::atomic::Ordering::Release);
+        REVISION.store(current.revision, Ordering::Release);
     }
     Ok(())
 }
@@ -87,7 +86,7 @@ pub(crate) fn set_reference_sources(ids: Vec<String>) -> AppResult<ReferenceSour
     if state.sources != sources {
         state.sources = sources;
         state.revision += 1;
-        REVISION.store(state.revision, std::sync::atomic::Ordering::Release);
+        REVISION.store(state.revision, Ordering::Release);
     }
     Ok(state.clone())
 }
@@ -122,7 +121,7 @@ pub(crate) fn reference_sources_changed(
         .sources
         .retain(|source| registered.contains_key(&source.session_id));
     state.revision += 1;
-    REVISION.store(state.revision, std::sync::atomic::Ordering::Release);
+    REVISION.store(state.revision, Ordering::Release);
     Ok(Some(state.clone()))
 }
 
@@ -272,7 +271,7 @@ impl ProjectSession {
         kind: EntityKind,
         id: &str,
         source: &EntityFileLocation,
-    ) -> AppResult<(FileVersion, serde_json::Value)> {
+    ) -> AppResult<(FileVersion, Value)> {
         if let Some(identity) = source.reference.as_deref() {
             let view = self
                 .references
@@ -287,7 +286,7 @@ impl ProjectSession {
                 record.data,
             ));
         }
-        crate::io::read_versioned_json(Path::new(&source.path))
+        io::read_versioned_json(Path::new(&source.path))
     }
     pub fn spec_records(&self, kind: EntityKind) -> Option<&BTreeMap<String, LoadedSpecRecord>> {
         match kind {

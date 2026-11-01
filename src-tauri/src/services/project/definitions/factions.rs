@@ -1,9 +1,9 @@
+use crate::errors::AppResult;
+use crate::io::{FsRootBoundary, forward_slash_path};
+use crate::models::{EntityFileLocation, ResourceSource};
 use crate::services::project::sources::documents::LoadedSpecRecord;
-use crate::{
-    errors::AppResult,
-    io::{FsRootBoundary, forward_slash_path},
-    models::{EntityFileLocation, ResourceSource},
-};
+use crate::services::project::sources::{SourceReader, documents};
+use crate::{io, models};
 use serde_json::Value;
 use std::collections::{BTreeMap, HashMap};
 #[cfg(test)]
@@ -36,31 +36,30 @@ pub(in crate::services::project) fn faction_blueprint_tags(
 pub(in crate::services::project) fn load_faction_files(
     mod_root: &Path,
 ) -> AppResult<BTreeMap<String, LoadedSpecRecord>> {
-    load_faction_files_from(&mut super::super::sources::SourceReader::new(mod_root)?)
+    load_faction_files_from(&mut SourceReader::new(mod_root)?)
 }
 pub(in crate::services::project) fn load_faction_files_from(
-    sources: &mut super::super::sources::SourceReader,
+    sources: &mut SourceReader,
 ) -> AppResult<BTreeMap<String, LoadedSpecRecord>> {
     let mod_root = sources.root().to_path_buf();
     let boundary = FsRootBoundary::new(&mod_root, "faction root")?;
     let table = sources.csv(&sources.path("data/world/factions/factions.csv")?)?;
-    let mut defs = super::super::sources::documents::load_spec_records_from(
+    let mut defs = documents::load_spec_records_from(
         sources,
         "data/world/factions",
         "faction",
         "id",
         ResourceSource::Mod,
     )?;
-    for entry in crate::io::faction_index_entries(&boundary, &table)? {
+    for entry in io::faction_index_entries(&boundary, &table)? {
         if !entry.path.exists() {
-            sources.versions.insert(
-                sources.key(&entry.path),
-                crate::io::file_version(&entry.path)?,
-            );
+            sources
+                .versions
+                .insert(sources.key(&entry.path), io::file_version(&entry.path)?);
             continue;
         }
         let data = sources.json(&entry.path)?;
-        let id = crate::models::file_content_id(&data, "id", &entry.path);
+        let id = models::file_content_id(&data, "id", &entry.path);
         let rel_path = forward_slash_path(
             entry
                 .path

@@ -1,3 +1,19 @@
+use crate::errors::{AppError, AppResult};
+use crate::io::{FsRootBoundary, forward_slash_relative_path};
+use crate::models::{CsvTable, FileChangeRecord, FileVersion};
+use crate::parsers::{parse_persisted_json, parse_starsector_json};
+#[cfg(test)]
+use crate::test_support::work_counts;
+use crate::{diagnostics, io, models};
+use serde::{Deserialize, Serialize};
+use serde_json::Value;
+use std::collections::btree_map::Entry;
+use std::collections::{BTreeMap, BTreeSet};
+use std::fs;
+use std::path::{Path, PathBuf};
+use std::sync::{LazyLock, Mutex};
+use walkdir::WalkDir;
+
 pub(super) mod core;
 pub(super) mod documents;
 pub(super) mod engine_styles;
@@ -7,20 +23,6 @@ pub(super) mod roots;
 mod tests;
 
 pub(crate) use roots::resolve_core_root;
-
-use crate::{
-    errors::{AppError, AppResult},
-    io::{FsRootBoundary, forward_slash_relative_path},
-    models::{CsvTable, FileVersion},
-    parsers::{parse_persisted_json, parse_starsector_json},
-};
-use serde::{Deserialize, Serialize};
-use serde_json::Value;
-use std::{
-    collections::{BTreeMap, BTreeSet},
-    path::{Path, PathBuf},
-    sync::{LazyLock, Mutex},
-};
 
 static CACHE_ROOT: LazyLock<Mutex<Option<PathBuf>>> = LazyLock::new(|| Mutex::new(None));
 
@@ -64,7 +66,7 @@ impl SourceReader {
     pub fn new(root: &Path) -> AppResult<Self> {
         let boundary = FsRootBoundary::new(root, "source root")?;
         let records = cache_path(&boundary)?
-            .and_then(|path| crate::io::read_utf8_no_bom(&path).ok())
+            .and_then(|path| io::read_utf8_no_bom(&path).ok())
             .and_then(|text| parse_persisted_json::<Snapshot>(&text).ok())
             .filter(|snapshot| {
                 snapshot.format == 1 && snapshot.root == boundary.root().to_string_lossy()
@@ -153,7 +155,7 @@ impl SourceReader {
                 _ => unreachable!("JSON source"),
             });
         }
-        let (version, bytes) = crate::io::read_authorized_bytes(path)?;
+        let (version, bytes) = io::read_authorized_bytes(path)?;
         let parsed = match self
             .records
             .get(&key)
@@ -168,9 +170,9 @@ impl SourceReader {
             }
             _ => {
                 self.dirty = true;
-                let text = crate::io::decode_text(path, &bytes)?;
+                let text = io::decode_text(path, &bytes)?;
                 #[cfg(test)]
-                crate::test_support::work_counts::record("parse", path);
+                work_counts::record("parse", path);
                 parse_starsector_json(&text).map_err(|error| {
                     AppError::context(format!("解析 JSON 文件失败 ({})", path.display()), error)
                         .at_path(path)
@@ -195,7 +197,7 @@ impl SourceReader {
         if let Some(table) = self.tables.get(&key) {
             return Ok(table.clone());
         }
-        let (version, table) = crate::io::read_versioned_csv(path)?;
+        let (version, table) = io::read_versioned_csv(path)?;
         self.versions.insert(key.clone(), version);
         self.tables.insert(key, table.clone());
         Ok(table)
@@ -219,7 +221,7 @@ impl SourceReader {
                 .count());
         }
         if !path.exists() {
-            self.versions.insert(key, crate::io::file_version(path)?);
+            self.versions.insert(key, io::file_version(path)?);
             return Ok(0);
         }
         if self.loaded.contains(&key)
@@ -227,7 +229,7 @@ impl SourceReader {
         {
             return Ok(*count);
         }
-        let (version, bytes) = crate::io::read_versioned_bytes(path)?;
+        let (version, bytes) = io::read_versioned_bytes(path)?;
         let (header, count) = match self
             .records
             .get(&key)
@@ -242,7 +244,7 @@ impl SourceReader {
             }
             _ => {
                 self.dirty = true;
-                let table = crate::io::parse_csv_data(&version.path, &bytes)?;
+                let table = io::parse_csv_data(&version.path, &bytes)?;
                 let count = table
                     .rows
                     .iter()
@@ -304,12 +306,12 @@ impl SourceReader {
                 ));
             }
             #[cfg(test)]
-            crate::test_support::work_counts::record("walk", &dir);
-            for entry in walkdir::WalkDir::new(&dir) {
+            work_counts::record("walk", &dir);
+            for entry in WalkDir::new(&dir) {
                 let entry = entry.map_err(|error| {
                     AppError::message("io.walk_failed", error.to_string()).at_path(&dir)
                 })?;
-                crate::io::validate_walk_entry(entry.path(), "source directory")?;
+                io::validate_walk_entry(entry.path(), "source directory")?;
                 if entry.file_type().is_file() {
                     paths.push(entry.into_path());
                 }
@@ -341,13 +343,13 @@ impl SourceReader {
                         version
                             .fingerprint
                             .as_ref()
-                            .map(|hash| (crate::io::forward_slash_path(relative), hash.clone()))
+                            .map(|hash| (io::forward_slash_path(relative), hash.clone()))
                     })
             })
             .collect();
         Ok(FileVersion {
             path: directory.to_string_lossy().to_string(),
-            fingerprint: Some(crate::io::directory_fingerprint(files)?),
+            fingerprint: Some(io::directory_fingerprint(files)?),
         })
     }
     pub fn flush(&self) {
@@ -358,14 +360,14 @@ impl SourceReader {
             let Some(path) = cache_path(&self.boundary)? else {
                 return Ok(());
             };
-            std::fs::create_dir_all(path.parent().expect("source cache directory"))?;
+            fs::create_dir_all(path.parent().expect("source cache directory"))?;
             #[derive(Serialize)]
             struct Borrowed<'a> {
                 format: u32,
                 root: &'a Path,
                 records: &'a BTreeMap<String, SourceRecord>,
             }
-            crate::io::write_utf8_no_bom(
+            io::write_utf8_no_bom(
                 &path,
                 &serde_json::to_string(&Borrowed {
                     format: 1,
@@ -375,7 +377,7 @@ impl SourceReader {
             )
         })();
         if let Err(error) = result {
-            crate::diagnostics::record(format!("source cache save failed: {error}"));
+            diagnostics::record(format!("source cache save failed: {error}"));
         }
     }
     pub fn reused(&self) -> bool {
@@ -401,16 +403,14 @@ impl SourceReader {
             if path.is_dir() {
                 for file in self.files(relative)? {
                     let key = self.key(&file);
-                    if let std::collections::btree_map::Entry::Vacant(entry) =
-                        self.versions.entry(key)
-                    {
-                        entry.insert(crate::io::file_version(&file)?);
+                    if let Entry::Vacant(entry) = self.versions.entry(key) {
+                        entry.insert(io::file_version(&file)?);
                     }
                 }
                 directories.insert(path.clone());
             } else if !self.versions.contains_key(*relative) {
                 self.versions
-                    .insert(relative.to_string(), crate::io::file_version(&path)?);
+                    .insert(relative.to_string(), io::file_version(&path)?);
             }
         }
         for directory in directories {
@@ -420,9 +420,9 @@ impl SourceReader {
         Ok(())
     }
 
-    pub fn accept_changes(&mut self, changes: &[crate::models::FileChangeRecord]) -> AppResult<()> {
+    pub fn accept_changes(&mut self, changes: &[FileChangeRecord]) -> AppResult<()> {
         for change in changes {
-            let version = crate::io::version_after_change(change)?;
+            let version = io::version_after_change(change)?;
             let Some(relative) = self
                 .boundary
                 .resolve_changed_path_to_relative(&version.path, "committed source")?
@@ -467,10 +467,8 @@ fn cache_path(boundary: &FsRootBoundary) -> AppResult<Option<PathBuf>> {
     Ok(cache.as_ref().map(|cache| {
         cache.join(format!(
             "{}.json",
-            crate::io::fingerprint(
-                crate::models::windows_path_key(&root.to_string_lossy()).as_bytes()
-            )
-            .replace(':', "-")
+            io::fingerprint(models::windows_path_key(&root.to_string_lossy()).as_bytes())
+                .replace(':', "-")
         ))
     }))
 }

@@ -1,17 +1,19 @@
-use crate::{
-    app_data_dir,
-    errors::{AppError, AppResult},
-    io::write_utf8_no_bom,
-    models::{AppLogEntry, AppLogLevel, AppLogStatus, AppSettings, LOG_FILE},
-};
-use std::{
-    collections::BTreeMap,
-    fs::{self, OpenOptions},
-    io::Write,
-    path::{Path, PathBuf},
-    sync::{LazyLock, Mutex},
-};
-use tauri::Emitter;
+use crate::errors::{AppError, AppResult};
+use crate::io::write_utf8_no_bom;
+use crate::models::{AppLogEntry, AppLogLevel, AppLogStatus, AppSettings, LOG_FILE};
+use crate::{app_data_dir, diagnostics};
+use chrono::{SecondsFormat, Utc};
+use std::cmp::Reverse;
+use std::collections::BTreeMap;
+use std::fs::OpenOptions;
+use std::io::{ErrorKind, Write};
+use std::path::{Path, PathBuf};
+#[cfg(test)]
+use std::slice;
+use std::sync::{LazyLock, Mutex, MutexGuard};
+use std::time::Duration;
+use std::{fs, mem, thread};
+use tauri::{AppHandle, Emitter};
 
 static LOG_WRITE_LOCK: Mutex<()> = Mutex::new(());
 static NATIVE_DRAIN: Mutex<()> = Mutex::new(());
@@ -58,7 +60,7 @@ impl LogRuntime {
     }
 }
 
-fn runtime() -> AppResult<std::sync::MutexGuard<'static, LogRuntime>> {
+fn runtime() -> AppResult<MutexGuard<'static, LogRuntime>> {
     LOG_RUNTIME
         .lock()
         .map_err(|_| AppError::message("log.runtime_poisoned", "log runtime unavailable"))
@@ -66,7 +68,7 @@ fn runtime() -> AppResult<std::sync::MutexGuard<'static, LogRuntime>> {
 
 pub fn configure_runtime(settings: &AppSettings) -> AppResult<()> {
     let mut state = runtime()?;
-    crate::diagnostics::enable_debug(
+    diagnostics::enable_debug(
         settings.log_level == AppLogLevel::Debug && state.last_error.is_none(),
     );
     state.settings = Some(settings.clone());
@@ -77,12 +79,7 @@ pub fn configure_runtime(settings: &AppSettings) -> AppResult<()> {
     Ok(())
 }
 
-pub fn stop_app_log(
-    app: &tauri::AppHandle,
-    owner: &str,
-    message: String,
-    dropped: u64,
-) -> AppResult<()> {
+pub fn stop_app_log(app: &AppHandle, owner: &str, message: String, dropped: u64) -> AppResult<()> {
     let mut state = runtime()?;
     let count = state.losses.entry(owner.to_string()).or_default();
     *count = (*count).max(dropped);
@@ -90,7 +87,7 @@ pub fn stop_app_log(
         return Ok(());
     }
     state.last_error = Some(message.clone());
-    crate::diagnostics::enable_debug(false);
+    diagnostics::enable_debug(false);
     let pending = stop_native();
     *state.losses.entry("native".to_string()).or_default() += pending;
     drop(state);
@@ -110,16 +107,16 @@ pub fn append_app_log(mut entry: AppLogEntry) -> AppResult<()> {
     fields.insert("sequence".to_string(), state.sequence.to_string());
     fields.insert(
         "timestamp".to_string(),
-        chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true),
+        Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true),
     );
     state.entries.push(entry);
     Ok(())
 }
 
-pub fn start_native_writer(app: tauri::AppHandle) {
-    std::thread::spawn(move || {
+pub fn start_native_writer(app: AppHandle) {
+    thread::spawn(move || {
         loop {
-            std::thread::sleep(std::time::Duration::from_millis(100));
+            thread::sleep(Duration::from_millis(100));
             if flush_native_logs(app.clone()).is_err() {
                 break;
             }
@@ -127,11 +124,11 @@ pub fn start_native_writer(app: tauri::AppHandle) {
     });
 }
 
-pub fn flush_native_logs(app: tauri::AppHandle) -> AppResult<()> {
+pub fn flush_native_logs(app: AppHandle) -> AppResult<()> {
     let _drain = NATIVE_DRAIN
         .lock()
         .expect("native drain does not execute callbacks");
-    let entries = std::mem::take(
+    let entries = mem::take(
         &mut NATIVE_QUEUE
             .lock()
             .expect("native queue lock is scoped to data changes")
@@ -153,17 +150,13 @@ fn stop_native() -> u64 {
     pending
 }
 
-pub fn append_app_logs(
-    app: tauri::AppHandle,
-    owner: &str,
-    entries: Vec<AppLogEntry>,
-) -> AppResult<()> {
+pub fn append_app_logs(app: AppHandle, owner: &str, entries: Vec<AppLogEntry>) -> AppResult<()> {
     let mut state = runtime()?;
     append_with_runtime(app, owner, entries, &mut state)
 }
 
 fn append_with_runtime(
-    app: tauri::AppHandle,
+    app: AppHandle,
     owner: &str,
     entries: Vec<AppLogEntry>,
     state: &mut LogRuntime,
@@ -184,7 +177,7 @@ fn append_with_runtime(
             .last_error
             .clone()
             .expect("failed write retains its diagnostic");
-        crate::diagnostics::enable_debug(false);
+        diagnostics::enable_debug(false);
         let pending = stop_native();
         *state.losses.entry("native".to_string()).or_default() += pending;
         app.emit("app-log-stopped", message)
@@ -202,7 +195,7 @@ fn configured_log_directory(app_data: &Path, settings: &AppSettings) -> PathBuf 
         .unwrap_or_else(|| app_data.to_path_buf())
 }
 
-pub fn app_log_status(app: tauri::AppHandle) -> AppResult<AppLogStatus> {
+pub fn app_log_status(app: AppHandle) -> AppResult<AppLogStatus> {
     let state = runtime()?;
     let settings = state.settings.clone().unwrap_or_default();
     let directory = configured_log_directory(&app_data_dir::data_directory(app)?, &settings);
@@ -226,7 +219,7 @@ pub fn app_log_status(app: tauri::AppHandle) -> AppResult<AppLogStatus> {
     Ok(status)
 }
 
-pub fn clear_app_log_file(app: tauri::AppHandle) -> AppResult<AppLogStatus> {
+pub fn clear_app_log_file(app: AppHandle) -> AppResult<AppLogStatus> {
     let _ = flush_native_logs(app.clone());
     let status = app_log_status(app.clone())?;
     clear_log_file(
@@ -239,7 +232,7 @@ pub fn clear_app_log_file(app: tauri::AppHandle) -> AppResult<AppLogStatus> {
 
 #[cfg(test)]
 pub fn append_log(directory: &Path, entry: &AppLogEntry, settings: &AppSettings) -> AppResult<()> {
-    append_logs(directory, std::slice::from_ref(entry), settings)
+    append_logs(directory, slice::from_ref(entry), settings)
 }
 
 fn append_logs(directory: &Path, entries: &[AppLogEntry], settings: &AppSettings) -> AppResult<()> {
@@ -271,7 +264,7 @@ pub fn log_status(directory: &Path) -> AppResult<AppLogStatus> {
     let path = log_path(directory);
     let size_bytes = match fs::metadata(&path) {
         Ok(metadata) => metadata.len(),
-        Err(cause) if cause.kind() == std::io::ErrorKind::NotFound => 0,
+        Err(cause) if cause.kind() == ErrorKind::NotFound => 0,
         Err(cause) => {
             return Err(
                 AppError::context("读取日志文件状态失败".to_string(), cause.into()).at_path(&path),
@@ -313,7 +306,7 @@ fn render_log_entry(entry: &AppLogEntry) -> String {
         .as_ref()
         .and_then(|fields| fields.get("timestamp"))
         .cloned()
-        .unwrap_or_else(|| chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true));
+        .unwrap_or_else(|| Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true));
     let mut line = format!(
         "[{}] [{}]",
         sanitize_log_value(&timestamp),
@@ -350,7 +343,7 @@ fn sanitize_log_value(value: &str) -> String {
     value.replace(['\r', '\n', '\t'], " ").trim().to_string()
 }
 
-fn lock_log() -> AppResult<std::sync::MutexGuard<'static, ()>> {
+fn lock_log() -> AppResult<MutexGuard<'static, ()>> {
     LOG_WRITE_LOCK
         .lock()
         .map_err(|_| AppError::message("log.lock_poisoned", "log write lock poisoned"))
@@ -360,7 +353,7 @@ fn rotate_log_file(log_directory: &Path, settings: &AppSettings) -> AppResult<()
     let path = log_path(log_directory);
     let metadata = match fs::metadata(&path) {
         Ok(metadata) => metadata,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+        Err(error) if error.kind() == ErrorKind::NotFound => return Ok(()),
         Err(error) => {
             return Err(
                 AppError::context("读取日志大小失败".to_string(), error.into()).at_path(&path),
@@ -392,7 +385,7 @@ fn rotate_log_file(log_directory: &Path, settings: &AppSettings) -> AppResult<()
         }
     }
     // Descending moves preserve every retained generation before its source is replaced.
-    backups.sort_by_key(|(index, _)| std::cmp::Reverse(*index));
+    backups.sort_by_key(|(index, _)| Reverse(*index));
     for (index, source) in backups {
         if index >= settings.log_backup_count {
             fs::remove_file(&source).map_err(|error| {
@@ -423,13 +416,22 @@ fn rotate_log_file(log_directory: &Path, settings: &AppSettings) -> AppResult<()
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(test)]
+    use crate::io;
     use crate::io::read_utf8_no_bom;
+    use crate::models::AppLogLevel;
     use crate::test_support::TestWorkspace;
+    #[cfg(test)]
+    use serde_json::Value;
     use std::collections::BTreeMap;
+    #[cfg(test)]
+    use std::thread;
+    #[cfg(test)]
+    use std::time::Instant;
 
     fn entry(message: &str) -> AppLogEntry {
         AppLogEntry {
-            level: crate::models::AppLogLevel::Info,
+            level: AppLogLevel::Info,
             code: None,
             message: Some(message.to_string()),
             path: None,
@@ -443,7 +445,7 @@ mod tests {
     fn measure_log_batch_writes() {
         fn single(directory: &Path, item: &AppLogEntry, settings: &AppSettings) {
             let _guard = lock_log().unwrap();
-            crate::io::ensure_file_appendable(&log_path(directory)).unwrap();
+            io::ensure_file_appendable(&log_path(directory)).unwrap();
             rotate_log_file(directory, settings).unwrap();
             OpenOptions::new()
                 .create(true)
@@ -453,7 +455,7 @@ mod tests {
                 .write_all(render_log_entry(item).as_bytes())
                 .unwrap();
         }
-        fn summary(mut values: Vec<f64>) -> serde_json::Value {
+        fn summary(mut values: Vec<f64>) -> Value {
             values.sort_by(f64::total_cmp);
             let n = values.len();
             serde_json::json!({ "n": n, "min": values[0], "max": values[n-1], "mean": values.iter().sum::<f64>() / n as f64,
@@ -467,7 +469,7 @@ mod tests {
         for round in 0..30 {
             for mode in if round % 2 == 0 { [0, 1] } else { [1, 0] } {
                 clear_log_file(&dir).unwrap();
-                let start = std::time::Instant::now();
+                let start = Instant::now();
                 if mode == 0 {
                     for item in &entries {
                         single(&dir, item, &settings);
@@ -666,7 +668,7 @@ mod tests {
             ..AppSettings::default()
         };
         write_utf8_no_bom(&log_path(&dir), &"x".repeat(1024 * 1024)).unwrap();
-        std::thread::scope(|scope| {
+        thread::scope(|scope| {
             for index in 0..8 {
                 let dir = &dir;
                 let settings = &settings;
@@ -701,7 +703,7 @@ mod tests {
         append_log(
             &dir,
             &AppLogEntry {
-                level: crate::models::AppLogLevel::Warning,
+                level: AppLogLevel::Warning,
                 code: Some("test.code".to_string()),
                 message: Some("测试 warning".to_string()),
                 path: Some("D:/test/file.csv".to_string()),
@@ -730,7 +732,7 @@ mod tests {
         append_log(
             &dir,
             &AppLogEntry {
-                level: crate::models::AppLogLevel::Info,
+                level: AppLogLevel::Info,
                 code: Some("test.fields".to_string()),
                 message: Some("with fields".to_string()),
                 path: None,
@@ -750,11 +752,11 @@ mod tests {
     fn append_log_rotates_file_at_size_cap() {
         let dir = TestWorkspace::new("log_rotate");
         let filler = "x".repeat(5 * 1024 * 1024);
-        crate::io::write_utf8_no_bom(&log_path(&dir), &filler).unwrap();
+        io::write_utf8_no_bom(&log_path(&dir), &filler).unwrap();
         append_log(
             &dir,
             &AppLogEntry {
-                level: crate::models::AppLogLevel::Info,
+                level: AppLogLevel::Info,
                 code: None,
                 message: Some("after rotation".to_string()),
                 path: None,
@@ -779,7 +781,7 @@ mod tests {
         append_log(
             &dir,
             &AppLogEntry {
-                level: crate::models::AppLogLevel::Info,
+                level: AppLogLevel::Info,
                 code: None,
                 message: Some("hello".to_string()),
                 path: None,

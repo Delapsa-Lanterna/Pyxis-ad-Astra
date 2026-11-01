@@ -1,16 +1,18 @@
 use proc_macro::TokenStream;
+use proc_macro2::TokenStream as ProcMacro2TokenStream;
 use quote::{format_ident, quote};
-use syn::{FnArg, ItemFn, Pat, Path, Token, parse_macro_input, punctuated::Punctuated};
+use syn::{Attribute, Error, FnArg, ItemFn, LitStr, Pat, Path, Result, Token, parse_macro_input};
+use syn::punctuated::Punctuated;
 
 #[proc_macro_attribute]
 pub fn command(attributes: TokenStream, item: TokenStream) -> TokenStream {
     let function = parse_macro_input!(item as ItemFn);
-    let options: proc_macro2::TokenStream = attributes.into();
-    let attribute: syn::Attribute = syn::parse_quote!(#[tauri::command(#options)]);
+    let options: ProcMacro2TokenStream = attributes.into();
+    let attribute: Attribute = syn::parse_quote!(#[tauri::command(#options)]);
     let mut external_name = None;
     if let Err(error) = attribute.parse_nested_meta(|meta| {
         if meta.input.peek(Token![=]) {
-            let value: syn::LitStr = meta.value()?.parse()?;
+            let value: LitStr = meta.value()?.parse()?;
             if meta.path.is_ident("rename") {
                 external_name = Some(value);
             }
@@ -28,17 +30,17 @@ pub fn command(attributes: TokenStream, item: TokenStream) -> TokenStream {
         .map(|argument| match argument {
             FnArg::Typed(argument) => match argument.pat.as_ref() {
                 Pat::Ident(pattern) => Ok(pattern.ident.clone()),
-                _ => Err(syn::Error::new_spanned(
+                _ => Err(Error::new_spanned(
                     argument,
                     "command arguments require names",
                 )),
             },
-            _ => Err(syn::Error::new_spanned(
+            _ => Err(Error::new_spanned(
                 argument,
                 "commands are free functions",
             )),
         })
-        .collect::<syn::Result<Vec<_>>>();
+        .collect::<Result<Vec<_>>>();
     let arguments = match arguments {
         Ok(arguments) => arguments,
         Err(error) => return error.into_compile_error().into(),

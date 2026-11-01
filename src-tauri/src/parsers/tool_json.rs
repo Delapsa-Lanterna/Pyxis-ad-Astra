@@ -19,10 +19,12 @@ pub fn parse_persisted_json<T: DeserializeOwned>(text: &str) -> AppResult<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(test)]
+    use serde_json::Value;
 
     #[test]
     fn serde_error_columns_use_editor_utf16_units() {
-        let error = parse_persisted_json::<serde_json::Value>("{\"🚀\":}").unwrap_err();
+        let error = parse_persisted_json::<Value>("{\"🚀\":}").unwrap_err();
         assert_eq!(error.location().unwrap().line, Some(1));
         assert_eq!(error.location().unwrap().column, Some(7));
     }

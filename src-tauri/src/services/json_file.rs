@@ -1,15 +1,16 @@
-use crate::models::{JsonFileDelete, JsonFileSave};
-use crate::{
-    errors::AppError,
-    models::{EntityKind, WriteResult},
+use crate::domain::json_composition;
+use crate::errors::AppError;
+use crate::models::{
+    EntityIdentityChange, EntityKind, JsonFileDelete, JsonFileSave, SaveEdit, WriteResult,
 };
+use crate::services::{
+    JsonEntityFileInput, config_entity, create_json_entity_file, delete_json_entity_file, project,
+    save_json_entity_file, spec_entity_definition,
+};
+use crate::{io, models, services};
 use serde_json::Value;
 use std::path::Path;
 
-use crate::services::{
-    JsonEntityFileInput, create_json_entity_file, delete_json_entity_file, save_json_entity_file,
-    spec_entity_definition,
-};
 pub(crate) fn json_file_save_context(
     session_id: &str,
     kind: EntityKind,
@@ -17,10 +18,10 @@ pub(crate) fn json_file_save_context(
     next_id: &str,
     source_rel_path: Option<&str>,
 ) -> Result<bool, AppError> {
-    let target_exists = crate::services::query_entity(session_id, kind, next_id)?.is_some();
+    let target_exists = services::query_entity(session_id, kind, next_id)?.is_some();
     if let Some(source_rel_path) = source_rel_path {
         let source_id = previous_id.unwrap_or(next_id);
-        let info = crate::services::query_entity_edit_target(session_id, kind, source_id)?;
+        let info = services::query_entity_edit_target(session_id, kind, source_id)?;
         let indexed_rel_path = info.target.write.rel_path;
         if indexed_rel_path != source_rel_path {
             return Err(AppError::message(
@@ -34,19 +35,19 @@ pub(crate) fn json_file_save_context(
 
 pub(crate) fn prepare_file_save(
     payload: &mut JsonFileSave,
-    edits: &[crate::models::SaveEdit],
-    identities: &[crate::models::EntityIdentityChange],
+    edits: &[SaveEdit],
+    identities: &[EntityIdentityChange],
     kind: EntityKind,
 ) -> Result<(), AppError> {
     if payload
         .base_versions
         .iter()
-        .any(|version| crate::io::source_recreation_allowed(&payload.mod_root, &version.path))
+        .any(|version| io::source_recreation_allowed(&payload.mod_root, &version.path))
     {
         return Ok(());
     }
     let id_field = spec_entity_definition(kind)?.id_field;
-    let current = crate::services::config_entity::prepare_json_entity_save(
+    let current = config_entity::prepare_json_entity_save(
         &payload.session_id,
         kind,
         payload.previous_id.as_ref().unwrap_or(&payload.next_id),
@@ -57,7 +58,7 @@ pub(crate) fn prepare_file_save(
     payload.base_versions = current.base_versions;
     payload.rel_path = Some(current.target.write.rel_path);
     payload.data = current.data;
-    payload.next_id = crate::models::file_content_id(
+    payload.next_id = models::file_content_id(
         &payload.data,
         id_field,
         Path::new(payload.rel_path.as_ref().expect("entity path")),
@@ -71,16 +72,16 @@ pub(crate) fn create_entity_request(
     kind: EntityKind,
 ) -> Result<WriteResult<Value>, AppError> {
     if kind == EntityKind::Skin {
-        crate::services::validate_skin_engine_changes(&payload.session_id, &payload.data)?;
+        services::validate_skin_engine_changes(&payload.session_id, &payload.data)?;
     }
-    crate::services::require_entity_version_scope(
+    services::require_entity_version_scope(
         &payload.session_id,
         kind,
         &payload.next_id,
         &payload.base_versions,
     )?;
     let target_exists =
-        crate::services::query_entity(&payload.session_id, kind, &payload.next_id)?.is_some();
+        services::query_entity(&payload.session_id, kind, &payload.next_id)?.is_some();
     let result = create_json_entity_file(
         &payload.mod_root,
         kind,
@@ -95,7 +96,7 @@ pub(crate) fn delete_entity_request(
     payload: JsonFileDelete,
     kind: EntityKind,
 ) -> Result<WriteResult, AppError> {
-    crate::services::require_entity_version_scope(
+    services::require_entity_version_scope(
         &payload.session_id,
         kind,
         &payload.entity_id,
@@ -118,7 +119,7 @@ pub(crate) fn delete_entity_request(
 }
 
 pub fn write_variant_request(payload: JsonFileSave) -> Result<WriteResult<Value>, AppError> {
-    crate::services::require_entity_version_scope(
+    services::require_entity_version_scope(
         &payload.session_id,
         EntityKind::Variant,
         payload.previous_id.as_deref().unwrap_or(&payload.next_id),
@@ -131,7 +132,7 @@ pub fn write_variant_request(payload: JsonFileSave) -> Result<WriteResult<Value>
         &payload.next_id,
         payload.rel_path.as_deref(),
     )?;
-    let result = crate::services::save_variant_entity(
+    let result = services::save_variant_entity(
         &payload.session_id,
         payload.previous_id.as_deref(),
         &payload.next_id,
@@ -143,16 +144,15 @@ pub fn write_variant_request(payload: JsonFileSave) -> Result<WriteResult<Value>
 }
 
 pub fn write_skin_request(payload: JsonFileSave) -> Result<WriteResult<Value>, AppError> {
-    let composition = crate::services::project::composition_for_session(
+    let composition = project::composition_for_session(
         &payload.session_id,
         payload.rel_path.as_deref().expect("skin source path"),
     )?;
-    let effective =
-        crate::domain::json_composition::compose_game_json(&composition, &payload.data)?;
+    let effective = json_composition::compose_game_json(&composition, &payload.data)?;
     if effective.get("baseHullId").is_some() {
-        crate::services::validate_skin_engine_changes(&payload.session_id, &effective)?;
+        services::validate_skin_engine_changes(&payload.session_id, &effective)?;
     }
-    crate::services::require_entity_version_scope(
+    services::require_entity_version_scope(
         &payload.session_id,
         EntityKind::Skin,
         payload.previous_id.as_deref().unwrap_or(&payload.next_id),

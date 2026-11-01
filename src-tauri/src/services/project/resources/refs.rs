@@ -1,12 +1,19 @@
 use super::super::model::{ProjectSession, string_field, string_from_row};
 use super::super::session::csv_tables::loaded_registered_csv_rows;
 use crate::errors::{AppError, AppResult};
-use crate::models::{CsvTableKey, ResourceOwnerKind, ResourceRef, ResourceSource, SkinFile};
+use crate::models;
+use crate::models::{
+    CsvTableKey, EntityKind, ReferenceSource, ResourceOwnerKind, ResourceRef, ResourceSource,
+    SkinFile,
+};
+use crate::services::project::model;
+use crate::services::project::session::references::reference_revision;
+
 use crate::services::project::sources::core::{
     load_core_csv_table, load_core_ship_files, load_core_skin_files,
 };
 use crate::services::project::sources::documents::LoadedSpecRecord;
-use serde_json::json;
+use serde_json::{Value, json};
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 
@@ -15,13 +22,13 @@ pub(in crate::services::project) fn media_resource_key(resource: &ResourceRef) -
         resource.source.as_str(),
         normalized_media_rel_path(&resource.rel_path),
         resource.reference,
-        super::super::session::references::reference_revision(),
+        reference_revision(),
     ])
     .to_string()
 }
 
 fn normalized_media_rel_path(path: &str) -> String {
-    crate::models::windows_path_case(path.replace('\\', "/").trim().trim_end_matches('/'))
+    models::windows_path_case(path.replace('\\', "/").trim().trim_end_matches('/'))
 }
 
 pub(in crate::services::project) struct HullReferenceResolver<'a> {
@@ -29,7 +36,7 @@ pub(in crate::services::project) struct HullReferenceResolver<'a> {
     core_ships: Option<Arc<BTreeMap<String, LoadedSpecRecord>>>,
     core_skins: Option<Arc<Vec<SkinFile>>>,
     core_names: Option<BTreeMap<String, String>>,
-    resolved_reference: Option<crate::models::ReferenceSource>,
+    resolved_reference: Option<ReferenceSource>,
 }
 
 impl<'a> HullReferenceResolver<'a> {
@@ -66,8 +73,7 @@ impl<'a> HullReferenceResolver<'a> {
                     .iter()
                     .filter(|row| !row.is_comment)
                     .find(|row| {
-                        row.data.get("id").and_then(serde_json::Value::as_str)
-                            == Some(current.as_str())
+                        row.data.get("id").and_then(Value::as_str) == Some(current.as_str())
                     })
                     .and_then(|row| string_from_row(&row.data, "name"))
             {
@@ -85,8 +91,8 @@ impl<'a> HullReferenceResolver<'a> {
             };
             let external = if source != ResourceSource::Core {
                 self.session.references.iter().find_map(|view| {
-                    view.spec(crate::models::EntityKind::Skin, &current)
-                        .or_else(|| view.spec(crate::models::EntityKind::Ship, &current))
+                    view.spec(EntityKind::Skin, &current)
+                        .or_else(|| view.spec(EntityKind::Ship, &current))
                         .map(|record| (view, record))
                 })
             } else {
@@ -100,9 +106,7 @@ impl<'a> HullReferenceResolver<'a> {
                     && let Some(name) = view
                         .table(CsvTableKey::Ships)?
                         .iter()
-                        .find(|row| {
-                            row.data.get("id").and_then(serde_json::Value::as_str) == Some(&current)
-                        })
+                        .find(|row| row.data.get("id").and_then(Value::as_str) == Some(&current))
                         .and_then(|row| string_from_row(&row.data, "name"))
                 {
                     return Ok(Some((name, ResourceSource::Reference, owner)));
@@ -119,8 +123,7 @@ impl<'a> HullReferenceResolver<'a> {
                     if self.core_names.is_none() {
                         let table = load_core_csv_table(
                             root,
-                            crate::services::project::model::csv_table_spec(CsvTableKey::Ships)
-                                .rel_path,
+                            model::csv_table_spec(CsvTableKey::Ships).rel_path,
                         )?;
                         self.core_names = Some(
                             table
@@ -212,6 +215,8 @@ pub(in crate::services::project) fn resource_ref(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(test)]
+    use crate::models::CsvTableKey;
     use crate::services::project::definitions::table_definitions;
     use serde_json::{Map, Value};
 
@@ -298,7 +303,7 @@ mod tests {
 
         let resource = table_definitions::csv_table_icon_resource_ref(
             ResourceSource::Mod,
-            crate::models::CsvTableKey::Skills,
+            CsvTableKey::Skills,
             &row,
         );
 

@@ -1,20 +1,16 @@
-use crate::{
-    errors::{AppError, AppResult},
-    models::ProjectSessionId,
-};
-use std::{
-    collections::BTreeMap,
-    sync::{Arc, LazyLock, Mutex},
-};
-
 use super::super::model::ProjectSession;
+use crate::errors::{AppError, AppResult};
+use crate::models::ProjectSessionId;
+use crate::services::project::model::ReferenceView;
+use std::collections::BTreeMap;
+use std::sync::{Arc, LazyLock, Mutex, MutexGuard};
 
 #[derive(Clone)]
 pub(in crate::services::project) struct RegisteredSession {
     pub session_id: String,
     pub root: String,
     pub handle: Arc<Mutex<ProjectSession>>,
-    pub reference: Option<Arc<super::super::model::ReferenceView>>,
+    pub reference: Option<Arc<ReferenceView>>,
 }
 
 static PROJECT_SESSIONS: LazyLock<Mutex<BTreeMap<ProjectSessionId, RegisteredSession>>> =
@@ -28,7 +24,7 @@ pub(in crate::services::project) fn sessions()
 /// Lock the session registry; poison maps to the shared AppError form. The
 /// registry lock is only ever held for map insert/remove/get plus Arc clones.
 pub(in crate::services::project) fn lock_registry()
--> AppResult<std::sync::MutexGuard<'static, BTreeMap<ProjectSessionId, RegisteredSession>>> {
+-> AppResult<MutexGuard<'static, BTreeMap<ProjectSessionId, RegisteredSession>>> {
     sessions()
         .lock()
         .map_err(|_| AppError::message("session.lock_poisoned", "project session lock poisoned"))
@@ -49,7 +45,7 @@ pub(crate) fn session_handle(session_id: &str) -> AppResult<RegisteredSession> {
 /// Lock a session handle, mapping poisoning to the shared AppError form.
 pub(crate) fn lock_session(
     handle: &RegisteredSession,
-) -> AppResult<std::sync::MutexGuard<'_, ProjectSession>> {
+) -> AppResult<MutexGuard<'_, ProjectSession>> {
     handle
         .handle
         .lock()
@@ -58,7 +54,7 @@ pub(crate) fn lock_session(
 
 pub(super) fn lock_projected_session(
     handle: &RegisteredSession,
-) -> AppResult<std::sync::MutexGuard<'_, ProjectSession>> {
+) -> AppResult<MutexGuard<'_, ProjectSession>> {
     let session = lock_session(handle)?;
     if session.projection_pending {
         return Err(AppError::message(

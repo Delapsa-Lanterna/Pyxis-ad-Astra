@@ -1,4 +1,5 @@
 use super::serde_fields::deserialize_non_empty_string;
+use crate::errors::ErrorLocation;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -48,7 +49,7 @@ pub struct GameScanWarning {
     pub path: String,
     pub message: String,
     pub code: String,
-    pub location: Option<crate::errors::ErrorLocation>,
+    pub location: Option<ErrorLocation>,
     #[serde(default)]
     pub edit_target: Option<GameWarningEditTarget>,
 }

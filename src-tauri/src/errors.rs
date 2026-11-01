@@ -1,4 +1,12 @@
+use crate::models::EntityEditTarget;
+use base64::DecodeError;
+use csv::Error as CsvError;
+use serde::ser::SerializeStruct;
 use serde::{Deserialize, Serialize, Serializer};
+use serde_json::Error as SerdeJsonError;
+use std::io::Error;
+use std::path::Path;
+use tauri::Error as TauriError;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
@@ -41,21 +49,19 @@ pub enum AppError {
         source: Box<AppError>,
     },
     #[error("{0}")]
-    Io(#[from] std::io::Error),
+    Io(#[from] Error),
     #[error("{0}")]
-    Csv(#[from] csv::Error),
+    Csv(#[from] CsvError),
     #[error("{0}")]
-    Json(#[from] serde_json::Error),
+    Json(#[from] SerdeJsonError),
     #[error("{0}")]
-    Base64(#[from] base64::DecodeError),
+    Base64(#[from] DecodeError),
     #[error("{0}")]
-    Tauri(#[from] tauri::Error),
+    Tauri(#[from] TauriError),
     #[error("JSON 格式保留需要确认")]
     JsonRewriteRequired { files: Vec<JsonRewriteFile> },
     #[error("实体目标已存在")]
-    EntityTargetExists {
-        target: Box<crate::models::EntityEditTarget>,
-    },
+    EntityTargetExists { target: Box<EntityEditTarget> },
     #[error("保存来源缺失，需要确认重建")]
     SaveSourcesMissing { paths: Vec<String> },
 }
@@ -101,7 +107,7 @@ impl AppError {
         }
     }
 
-    pub fn at_path(self, path: impl AsRef<std::path::Path>) -> Self {
+    pub fn at_path(self, path: impl AsRef<Path>) -> Self {
         let mut location = self.location().cloned().unwrap_or(ErrorLocation {
             path: None,
             line: None,
@@ -142,7 +148,7 @@ impl AppError {
         }
     }
 
-    fn conflicting_target(&self) -> Option<&crate::models::EntityEditTarget> {
+    fn conflicting_target(&self) -> Option<&EntityEditTarget> {
         match self {
             Self::EntityTargetExists { target } => Some(target),
             Self::Context { source, .. } | Self::Located { source, .. } => {
@@ -158,7 +164,6 @@ impl Serialize for AppError {
     where
         S: Serializer,
     {
-        use serde::ser::SerializeStruct;
         let mut state = serializer.serialize_struct("AppError", 4)?;
         state.serialize_field("code", self.code())?;
         state.serialize_field("message", &self.to_string())?;
@@ -178,8 +183,16 @@ impl Serialize for AppError {
 
 #[cfg(test)]
 mod tests {
+    #[cfg(test)]
+    use crate::models::EntityEditTarget;
+    #[cfg(test)]
+    use csv::Error as CsvError;
+    #[cfg(test)]
+    use serde_json::Value;
+    #[cfg(test)]
+    use std::io::{Error, ErrorKind};
+
     use super::*;
-    use std::io;
 
     #[test]
     fn message_error_keeps_its_stable_code() {
@@ -198,17 +211,13 @@ mod tests {
 
     #[test]
     fn foreign_errors_map_to_fixed_fallback_codes() {
-        let io_error = AppError::from(io::Error::new(io::ErrorKind::NotFound, "gone"));
+        let io_error = AppError::from(Error::new(ErrorKind::NotFound, "gone"));
         assert_eq!(io_error.code(), "io.unexpected");
 
-        let csv_error = AppError::from(csv::Error::from(io::Error::new(
-            io::ErrorKind::InvalidData,
-            "bad",
-        )));
+        let csv_error = AppError::from(CsvError::from(Error::new(ErrorKind::InvalidData, "bad")));
         assert_eq!(csv_error.code(), "parse.csv");
 
-        let json_error =
-            AppError::from(serde_json::from_slice::<serde_json::Value>(b"{").unwrap_err());
+        let json_error = AppError::from(serde_json::from_slice::<Value>(b"{").unwrap_err());
         assert_eq!(json_error.code(), "parse.json");
     }
 
@@ -223,7 +232,7 @@ mod tests {
 
     #[test]
     fn wrapped_identity_conflicts_keep_the_authoritative_target_payload() {
-        let target: crate::models::EntityEditTarget = serde_json::from_value(serde_json::json!({
+        let target: EntityEditTarget = serde_json::from_value(serde_json::json!({
             "kind":"ship", "id":"Alpha", "state":"existing", "linkedRecord":null,
             "source":{"source":"mod","root":"D:/Mod","path":"D:/Mod/nested/custom.ship","relPath":"nested/custom.ship"},
             "write":{"source":"mod","root":"D:/Mod","path":"D:/Mod/nested/custom.ship","relPath":"nested/custom.ship"}

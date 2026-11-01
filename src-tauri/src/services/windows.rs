@@ -1,28 +1,32 @@
-use crate::{
-    errors::{AppError, AppResult},
-    models::{
-        ManagedWindowContext, ManagedWindowInput, ManagedWindowRequest, ManagedWindowStatus,
-        WindowBootstrap, WindowIdentity, WindowRequestReceipt, WindowRequestStatus,
-    },
+use crate::errors::{AppError, AppResult, ErrorDiagnostic};
+use crate::io::FsRootBoundary;
+use crate::models;
+use crate::models::{
+    CloseScope, EditWriteTarget, ManagedWindowContext, ManagedWindowInput, ManagedWindowRequest,
+    ManagedWindowStatus, WindowBootstrap, WindowIdentity, WindowRequestReceipt,
+    WindowRequestStatus,
 };
-use std::{
-    collections::BTreeMap,
-    sync::{Condvar, LazyLock, Mutex},
-};
-use tauri::{Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
+use crate::services::project;
+use serde_json::Value;
+use std::collections::BTreeMap;
+use std::path::Path;
+use std::slice;
+use std::sync::{Condvar, LazyLock, Mutex, MutexGuard};
+use tauri::{AppHandle, Emitter, Manager, Theme, WebviewUrl, WebviewWindowBuilder};
 
 #[cfg(windows)]
 pub mod auxiliary {
     use crate::errors::{AppError, AppResult};
-    use std::io;
-    use windows_sys::Win32::{
-        Foundation::{HWND, LPARAM, LRESULT, WPARAM},
-        System::Threading::GetCurrentThreadId,
-        UI::{
-            Shell::{DefSubclassProc, RemoveWindowSubclass, SetWindowSubclass},
-            WindowsAndMessaging::*,
-        },
-    };
+    #[cfg(test)]
+    use std::{mem, ptr};
+    #[cfg(test)]
+    use windows_sys::Win32::System::LibraryLoader::GetModuleHandleW;
+
+    use std::io::Error;
+    use windows_sys::Win32::Foundation::{HWND, LPARAM, LRESULT, WPARAM};
+    use windows_sys::Win32::System::Threading::GetCurrentThreadId;
+    use windows_sys::Win32::UI::Shell::{DefSubclassProc, RemoveWindowSubclass, SetWindowSubclass};
+    use windows_sys::Win32::UI::WindowsAndMessaging::*;
 
     struct Installation {
         single_class: String,
@@ -47,7 +51,7 @@ pub mod auxiliary {
         if complete == 0 {
             return Err(AppError::context(
                 "enumerate GUI windows",
-                io::Error::last_os_error().into(),
+                Error::last_os_error().into(),
             ));
         }
         Ok(())
@@ -60,7 +64,7 @@ pub mod auxiliary {
         if length == 0 {
             state.result = Err(AppError::context(
                 "read window class",
-                io::Error::last_os_error().into(),
+                Error::last_os_error().into(),
             ));
             return 0;
         }
@@ -97,9 +101,8 @@ pub mod auxiliary {
 
     #[test]
     fn auxiliary_close_keeps_runtime() {
-        use windows_sys::Win32::System::LibraryLoader::GetModuleHandleW;
         unsafe {
-            let instance = GetModuleHandleW(std::ptr::null());
+            let instance = GetModuleHandleW(ptr::null());
             let mut windows = Vec::new();
             for name in [
                 "Tao Thread Event Target",
@@ -111,7 +114,7 @@ pub mod auxiliary {
                     hInstance: instance,
                     lpfnWndProc: Some(DefWindowProcW),
                     lpszClassName: class.as_ptr(),
-                    ..std::mem::zeroed()
+                    ..mem::zeroed()
                 };
                 assert_ne!(RegisterClassW(&definition), 0);
                 let window = CreateWindowExW(
@@ -123,10 +126,10 @@ pub mod auxiliary {
                     0,
                     0,
                     0,
-                    std::ptr::null_mut(),
-                    std::ptr::null_mut(),
+                    ptr::null_mut(),
+                    ptr::null_mut(),
                     instance,
-                    std::ptr::null(),
+                    ptr::null(),
                 );
                 assert!(!window.is_null());
                 windows.push((window, class));
@@ -157,18 +160,18 @@ pub mod auxiliary {
 struct WindowRegistry {
     request_sequence: u64,
     requests: BTreeMap<u64, PendingWindowRequest>,
-    edit_targets: BTreeMap<String, Vec<crate::models::EditWriteTarget>>,
+    edit_targets: BTreeMap<String, Vec<EditWriteTarget>>,
     sequence: u64,
     identities: BTreeMap<WindowIdentity, String>,
     instances: BTreeMap<String, WindowInstance>,
     reservations: BTreeMap<WindowIdentity, String>,
-    closing: BTreeMap<u64, (String, crate::models::CloseScope, Vec<String>)>,
+    closing: BTreeMap<u64, (String, CloseScope, Vec<String>)>,
 }
 
 struct PendingWindowRequest {
     owner: Option<String>,
     label: String,
-    result: Option<Result<WindowRequestReceipt, crate::errors::ErrorDiagnostic>>,
+    result: Option<Result<WindowRequestReceipt, ErrorDiagnostic>>,
 }
 
 pub(crate) struct OpenedWindow {
@@ -190,7 +193,7 @@ struct WindowInstance {
 }
 
 impl WindowRegistry {
-    fn edit_target_owners(&self, targets: &[crate::models::EditWriteTarget]) -> Vec<String> {
+    fn edit_target_owners(&self, targets: &[EditWriteTarget]) -> Vec<String> {
         self.edit_targets
             .iter()
             .filter(|(_, registered)| {
@@ -378,12 +381,7 @@ impl WindowRegistry {
         self.complete(id, WindowRequestStatus::Accepted);
         Ok(true)
     }
-    fn fail(
-        &mut self,
-        label: &str,
-        id: u64,
-        diagnostic: crate::errors::ErrorDiagnostic,
-    ) -> AppResult<()> {
+    fn fail(&mut self, label: &str, id: u64, diagnostic: ErrorDiagnostic) -> AppResult<()> {
         if !self.instances.contains_key(label) {
             return Err(AppError::message("window.released", "窗口已释放"));
         }
@@ -472,7 +470,7 @@ impl WindowRegistry {
 
 static REGISTRY: LazyLock<(Mutex<WindowRegistry>, Condvar)> =
     LazyLock::new(|| (Mutex::new(WindowRegistry::default()), Condvar::new()));
-fn registry() -> AppResult<std::sync::MutexGuard<'static, WindowRegistry>> {
+fn registry() -> AppResult<MutexGuard<'static, WindowRegistry>> {
     REGISTRY
         .0
         .lock()
@@ -480,7 +478,7 @@ fn registry() -> AppResult<std::sync::MutexGuard<'static, WindowRegistry>> {
 }
 
 pub(crate) fn register_window_request(
-    app: &tauri::AppHandle,
+    app: &AppHandle,
     owner: &str,
     request: ManagedWindowRequest,
 ) -> AppResult<OpenedWindow> {
@@ -492,7 +490,7 @@ pub(crate) fn register_window_request(
     }
     authorize_identity(&request.identity)?;
     let native_theme =
-        matches!(&request.identity, WindowIdentity::Immersive { .. }).then_some(tauri::Theme::Dark);
+        matches!(&request.identity, WindowIdentity::Immersive { .. }).then_some(Theme::Dark);
     let key = request.identity.comparison_key();
     let (opened, create, notify) = {
         let mut state = registry()?;
@@ -500,12 +498,12 @@ pub(crate) fn register_window_request(
             .closing
             .values()
             .any(|(_, scope, labels)| match scope {
-                crate::models::CloseScope::Application => true,
-                crate::models::CloseScope::Sessions { session_ids } => request
+                CloseScope::Application => true,
+                CloseScope::Sessions { session_ids } => request
                     .identity
                     .session_id()
                     .is_some_and(|id| session_ids.iter().any(|session| session == id)),
-                crate::models::CloseScope::Window => state
+                CloseScope::Window => state
                     .identities
                     .get(&key)
                     .is_some_and(|label| labels.contains(label)),
@@ -608,7 +606,7 @@ pub(crate) fn register_window_request(
 pub fn current_window_bootstrap(label: &str) -> AppResult<WindowBootstrap> {
     if label == "main" {
         return Ok(WindowBootstrap::Main {
-            windows_path_case_map: crate::models::windows_path_case_map(),
+            windows_path_case_map: models::windows_path_case_map(),
         });
     }
     let mut state = registry()?;
@@ -637,26 +635,22 @@ pub fn current_window_bootstrap(label: &str) -> AppResult<WindowBootstrap> {
     let restoring = state.instances[label].accepted_input.is_some();
     drop(state);
     let mod_name = match context.identity.session_id() {
-        Some(session) => super::project::current_projection(session)?
+        Some(session) => project::current_projection(session)?
             .manifest
             .mod_info
-            .and_then(|info| {
-                info.get("name")
-                    .and_then(serde_json::Value::as_str)
-                    .map(str::to_owned)
-            }),
+            .and_then(|info| info.get("name").and_then(Value::as_str).map(str::to_owned)),
         None => None,
     }
     .unwrap_or_else(|| {
         context
             .identity
             .mod_root()
-            .and_then(|root| std::path::Path::new(root).file_name())
+            .and_then(|root| Path::new(root).file_name())
             .map(|name| name.to_string_lossy().into_owned())
             .unwrap_or_else(|| "未关联 Mod".into())
     });
     Ok(WindowBootstrap::Managed {
-        windows_path_case_map: crate::models::windows_path_case_map(),
+        windows_path_case_map: models::windows_path_case_map(),
         context: Box::new(context),
         restoring,
         mod_name,
@@ -677,11 +671,11 @@ pub(crate) fn accepts_save(label: &str, source_session: Option<&str>) -> AppResu
         .closing
         .values()
         .any(|(_, scope, labels)| match scope {
-            crate::models::CloseScope::Application => true,
-            crate::models::CloseScope::Sessions { session_ids } => {
+            CloseScope::Application => true,
+            CloseScope::Sessions { session_ids } => {
                 session.is_some_and(|session| session_ids.iter().any(|id| id == session))
             }
-            crate::models::CloseScope::Window => labels.iter().any(|closed| closed == label),
+            CloseScope::Window => labels.iter().any(|closed| closed == label),
         }))
 }
 pub fn current_window_request(label: &str) -> AppResult<Option<ManagedWindowContext>> {
@@ -697,7 +691,7 @@ pub fn fail_window_request(
     label: &str,
     id: u64,
     receiver_generation: u64,
-    diagnostic: crate::errors::ErrorDiagnostic,
+    diagnostic: ErrorDiagnostic,
 ) -> AppResult<()> {
     let mut state = registry()?;
     if state
@@ -710,10 +704,7 @@ pub fn fail_window_request(
     REGISTRY.1.notify_all();
     Ok(())
 }
-pub fn fail_window_startup(
-    label: &str,
-    diagnostic: crate::errors::ErrorDiagnostic,
-) -> AppResult<()> {
+pub fn fail_window_startup(label: &str, diagnostic: ErrorDiagnostic) -> AppResult<()> {
     let mut state = registry()?;
     let pending: Vec<_> = state
         .requests
@@ -727,10 +718,7 @@ pub fn fail_window_startup(
     REGISTRY.1.notify_all();
     Ok(())
 }
-pub fn await_window_request(
-    owner: &str,
-    id: u64,
-) -> Result<WindowRequestReceipt, crate::errors::ErrorDiagnostic> {
+pub fn await_window_request(owner: &str, id: u64) -> Result<WindowRequestReceipt, ErrorDiagnostic> {
     let mut state = registry().map_err(|error| error.diagnostic())?;
     let request = state.requests.get(&id).ok_or_else(|| {
         AppError::message("window.request_missing", "窗口请求已结束").diagnostic()
@@ -784,14 +772,11 @@ pub fn update_status(label: &str, status: ManagedWindowStatus) -> AppResult<()> 
     Ok(())
 }
 
-pub fn update_edit_targets(
-    label: &str,
-    targets: Vec<crate::models::EditWriteTarget>,
-) -> AppResult<()> {
+pub fn update_edit_targets(label: &str, targets: Vec<EditWriteTarget>) -> AppResult<()> {
     for target in &targets {
-        super::project::ensure_project_session_mod_root(&target.session_id, &target.mod_root)?;
-        crate::io::FsRootBoundary::new(std::path::Path::new(&target.mod_root), "edit target root")?
-            .resolve_absolute(std::path::Path::new(&target.path), "edit target")?;
+        project::ensure_project_session_mod_root(&target.session_id, &target.mod_root)?;
+        FsRootBoundary::new(Path::new(&target.mod_root), "edit target root")?
+            .resolve_absolute(Path::new(&target.path), "edit target")?;
     }
     let mut state = registry()?;
     if label != "main" && !state.instances.contains_key(label) {
@@ -805,40 +790,34 @@ pub fn update_edit_targets(
     Ok(())
 }
 
-pub fn query_edit_target_owners(
-    targets: &[crate::models::EditWriteTarget],
-) -> AppResult<Vec<String>> {
+pub fn query_edit_target_owners(targets: &[EditWriteTarget]) -> AppResult<Vec<String>> {
     for target in targets {
-        super::project::ensure_project_session_mod_root(&target.session_id, &target.mod_root)?;
+        project::ensure_project_session_mod_root(&target.session_id, &target.mod_root)?;
     }
     let state = registry()?;
     Ok(state.edit_target_owners(targets))
 }
 
-fn edit_targets_overlap(
-    left: &crate::models::EditWriteTarget,
-    right: &crate::models::EditWriteTarget,
-) -> bool {
+fn edit_targets_overlap(left: &EditWriteTarget, right: &EditWriteTarget) -> bool {
     if left.session_id != right.session_id
-        || crate::models::windows_path_key(&left.mod_root)
-            != crate::models::windows_path_key(&right.mod_root)
+        || models::windows_path_key(&left.mod_root) != models::windows_path_key(&right.mod_root)
     {
         return false;
     }
-    let left = crate::models::windows_path_key(&left.path);
-    let right = crate::models::windows_path_key(&right.path);
+    let left = models::windows_path_key(&left.path);
+    let right = models::windows_path_key(&right.path);
     left == right
         || left.starts_with(&format!("{right}/"))
         || right.starts_with(&format!("{left}/"))
 }
 
 pub fn reserve_edit_targets(
-    app: &tauri::AppHandle,
+    app: &AppHandle,
     label: &str,
-    targets: &[crate::models::EditWriteTarget],
+    targets: &[EditWriteTarget],
 ) -> AppResult<()> {
     for target in targets {
-        super::project::ensure_project_session_mod_root(&target.session_id, &target.mod_root)?;
+        project::ensure_project_session_mod_root(&target.session_id, &target.mod_root)?;
     }
     let identities = targets
         .iter()
@@ -859,7 +838,7 @@ pub fn reserve_edit_targets(
     Ok(())
 }
 
-pub fn focus_edit_target_owner(app: &tauri::AppHandle, label: &str) -> AppResult<bool> {
+pub fn focus_edit_target_owner(app: &AppHandle, label: &str) -> AppResult<bool> {
     if !registry()?.edit_targets.contains_key(label) {
         return Ok(false);
     }
@@ -868,7 +847,7 @@ pub fn focus_edit_target_owner(app: &tauri::AppHandle, label: &str) -> AppResult
 }
 
 pub fn reserve_targets(
-    app: &tauri::AppHandle,
+    app: &AppHandle,
     label: &str,
     identities: Vec<WindowIdentity>,
 ) -> AppResult<Vec<String>> {
@@ -895,7 +874,7 @@ pub fn reserve_targets(
 pub(crate) fn hold_close(
     id: u64,
     owner: &str,
-    scope: &crate::models::CloseScope,
+    scope: &CloseScope,
     parent: Option<u64>,
 ) -> AppResult<Result<Vec<String>, u64>> {
     let mut state = registry()?;
@@ -903,16 +882,16 @@ pub(crate) fn hold_close(
         .instances
         .iter()
         .filter(|(label, instance)| match scope {
-            crate::models::CloseScope::Window => label.as_str() == owner,
-            crate::models::CloseScope::Sessions { session_ids } => instance
+            CloseScope::Window => label.as_str() == owner,
+            CloseScope::Sessions { session_ids } => instance
                 .identity
                 .session_id()
                 .is_some_and(|id| session_ids.iter().any(|session| session == id)),
-            crate::models::CloseScope::Application => true,
+            CloseScope::Application => true,
         })
         .map(|(label, _)| label.clone())
         .collect();
-    if *scope != crate::models::CloseScope::Window {
+    if *scope != CloseScope::Window {
         labels.insert(0, "main".into());
     }
     if let Some((blocking, _)) = state.closing.iter().find(|(id, (_, other, occupied))| {
@@ -964,7 +943,7 @@ pub fn release_targets(label: &str) -> AppResult<()> {
 }
 
 pub fn retarget_window(
-    app: &tauri::AppHandle,
+    app: &AppHandle,
     label: &str,
     identity: WindowIdentity,
     title: &str,
@@ -981,7 +960,7 @@ pub fn retarget_window(
     }
     {
         let mut state = registry()?;
-        if let Some(conflict) = state.conflict(label, std::slice::from_ref(&identity)) {
+        if let Some(conflict) = state.conflict(label, slice::from_ref(&identity)) {
             drop(state);
             focus_window(app, &conflict)?;
             return Err(AppError::message(
@@ -1006,7 +985,7 @@ pub fn retarget_window(
     Ok(())
 }
 
-fn focus_window(app: &tauri::AppHandle, label: &str) -> AppResult<()> {
+fn focus_window(app: &AppHandle, label: &str) -> AppResult<()> {
     if let Some(window) = app.get_webview_window(label) {
         window.show()?;
         window.unminimize()?;
@@ -1017,7 +996,7 @@ fn focus_window(app: &tauri::AppHandle, label: &str) -> AppResult<()> {
 
 fn authorize_identity(identity: &WindowIdentity) -> AppResult<()> {
     if let Some(session) = identity.session_id() {
-        super::project::ensure_project_session_mod_root(
+        project::ensure_project_session_mod_root(
             session,
             identity.mod_root().expect("session identity owns a root"),
         )?;
@@ -1026,7 +1005,7 @@ fn authorize_identity(identity: &WindowIdentity) -> AppResult<()> {
 }
 
 pub fn focus_managed_window(
-    app: &tauri::AppHandle,
+    app: &AppHandle,
     caller: &str,
     identity: &WindowIdentity,
 ) -> AppResult<bool> {
@@ -1049,20 +1028,38 @@ pub(crate) fn session_has_windows(session: &str) -> AppResult<bool> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(test)]
+    use crate::io::FsRootBoundary;
+    #[cfg(test)]
+    use crate::models::{EditWriteTarget, FileWindowLocation, JointEditKind};
+    use crate::models::{SpecEditorKind, WeaponFirePreviewSource};
+    #[cfg(test)]
+    use crate::services::project;
+    #[cfg(test)]
+    use crate::services::project::PerformanceTrace;
     use crate::services::project::test_support::project_workspace;
+    #[cfg(test)]
+    use crate::services::windows::WindowRegistry;
+    #[cfg(test)]
+    use crate::{io, models, test_support};
+    use serde_json::Map;
+    #[cfg(test)]
+    use std::path::Path;
+    #[cfg(test)]
+    use std::{fs, slice};
 
     #[test]
     fn editor_bootstrap_delivers_the_owning_mod_name() {
         let root = project_workspace("window_mod_name");
-        crate::io::write_utf8_no_bom(
+        io::write_utf8_no_bom(
             &root.join("mod_info.json"),
             r#"{"id":"fixture","name":"Named Mod"}"#,
         )
         .unwrap();
-        let manifest = super::super::project::open_project_session_traced(
+        let manifest = project::open_project_session_traced(
             &root,
             None,
-            &mut super::super::project::PerformanceTrace::new("fixture"),
+            &mut PerformanceTrace::new("fixture"),
         )
         .unwrap();
         let identities = [
@@ -1070,7 +1067,7 @@ mod tests {
                 WindowIdentity::Immersive {
                     session_id: manifest.session_id.clone(),
                     mod_root: manifest.mod_root.clone(),
-                    kind: crate::models::JointEditKind::Ship,
+                    kind: JointEditKind::Ship,
                     id: "fixture".into(),
                 },
                 ManagedWindowInput::ImmersiveEditor { row_key: None },
@@ -1082,7 +1079,7 @@ mod tests {
                     path: root.join("mod_info.json").to_string_lossy().into(),
                 },
                 ManagedWindowInput::FileEditor {
-                    location: crate::models::FileWindowLocation {
+                    location: FileWindowLocation {
                         context_label: None,
                         context_severity: None,
                         message: None,
@@ -1104,7 +1101,7 @@ mod tests {
             assert_eq!(mod_name, "Named Mod");
             release_window(&label).unwrap();
         }
-        super::super::project::close_project_session(manifest.session_id).unwrap();
+        project::close_project_session(manifest.session_id).unwrap();
         root.close().unwrap();
     }
 
@@ -1112,9 +1109,9 @@ mod tests {
     fn io_paths_share_focus_reservations_and_target_owners() {
         let root = project_workspace("window_expanded_identity");
         let path = root.join("Long filename.spec");
-        std::fs::write(&path, "{}").unwrap();
-        let identity = |root: &std::path::Path, path: &std::path::Path| {
-            let boundary = crate::io::FsRootBoundary::new(root, "window fixture").unwrap();
+        fs::write(&path, "{}").unwrap();
+        let identity = |root: &Path, path: &Path| {
+            let boundary = FsRootBoundary::new(root, "window fixture").unwrap();
             WindowIdentity::File {
                 session_id: "s".into(),
                 mod_root: boundary.root().to_string_lossy().into(),
@@ -1127,8 +1124,8 @@ mod tests {
         };
         let original = identity(&root, &path);
         let alias = identity(
-            &crate::test_support::short_path(&root),
-            &crate::test_support::short_path(&path),
+            &test_support::short_path(&root),
+            &test_support::short_path(&path),
         );
         assert_eq!(original, alias);
         let WindowIdentity::File {
@@ -1139,7 +1136,7 @@ mod tests {
         else {
             unreachable!()
         };
-        let target = crate::models::EditWriteTarget {
+        let target = EditWriteTarget {
             session_id: session_id.clone(),
             mod_root: mod_root.clone(),
             path: path.clone(),
@@ -1149,14 +1146,14 @@ mod tests {
         assert_eq!(state.focus_target("main", &alias), Some(label.clone()));
         state.instances.get_mut(&label).unwrap().status.dirty = true;
         assert_eq!(
-            state.reserve("main", std::slice::from_ref(&alias)),
+            state.reserve("main", slice::from_ref(&alias)),
             Err(label.clone())
         );
         state
             .edit_targets
             .insert(label.clone(), vec![target.clone()]);
         assert_eq!(
-            state.edit_target_owners(std::slice::from_ref(&target)),
+            state.edit_target_owners(slice::from_ref(&target)),
             vec![label.clone()]
         );
         state.release(&label);
@@ -1166,8 +1163,8 @@ mod tests {
 
     #[test]
     fn edit_target_registration_respects_complete_scope_and_window_release() {
-        let mut state = super::WindowRegistry::default();
-        let target = crate::models::EditWriteTarget {
+        let mut state = WindowRegistry::default();
+        let target = EditWriteTarget {
             session_id: "s".into(),
             mod_root: "D:/Mod".into(),
             path: "D:/Mod/data/ships.csv".into(),
@@ -1177,18 +1174,18 @@ mod tests {
             .insert("main".into(), vec![target.clone()]);
         state.edit_targets.insert(
             "managed-1".into(),
-            vec![crate::models::EditWriteTarget {
+            vec![EditWriteTarget {
                 path: "d:\\MOD\\data".into(),
                 ..target.clone()
             }],
         );
         assert_eq!(
-            state.edit_target_owners(std::slice::from_ref(&target)),
+            state.edit_target_owners(slice::from_ref(&target)),
             vec!["main", "managed-1"]
         );
         assert!(
             state
-                .edit_target_owners(&[crate::models::EditWriteTarget {
+                .edit_target_owners(&[EditWriteTarget {
                     session_id: "other".into(),
                     ..target.clone()
                 }])
@@ -1211,7 +1208,7 @@ mod tests {
     fn identity(id: &str, root: &str, session: &str) -> WindowIdentity {
         WindowIdentity::Spec {
             session_id: session.into(),
-            kind: crate::models::SpecEditorKind::Weapon,
+            kind: SpecEditorKind::Weapon,
             mod_root: root.into(),
             id: id.into(),
         }
@@ -1221,7 +1218,7 @@ mod tests {
         let mut state = WindowRegistry::default();
         let target = WindowIdentity::Immersive {
             session_id: "s".into(),
-            kind: crate::models::JointEditKind::Ship,
+            kind: JointEditKind::Ship,
             mod_root: "D:/Mod".into(),
             id: "Alpha".into(),
         };
@@ -1234,7 +1231,7 @@ mod tests {
         );
         let normalized = WindowIdentity::Immersive {
             session_id: "s".into(),
-            kind: crate::models::JointEditKind::Ship,
+            kind: JointEditKind::Ship,
             mod_root: r"\\?\d:\mod\".into(),
             id: "Alpha".into(),
         };
@@ -1268,13 +1265,10 @@ mod tests {
     #[test]
     fn comparison_keeps_entity_and_session_case_and_normalizes_paths() {
         assert_eq!(
-            crate::models::windows_path_key(r"\\?\UNC\Server\Share\Mod\"),
+            models::windows_path_key(r"\\?\UNC\Server\Share\Mod\"),
             "//server/share/mod"
         );
-        assert_eq!(
-            crate::models::windows_path_key("D:/Mod//nested/"),
-            "d:/mod/nested"
-        );
+        assert_eq!(models::windows_path_key("D:/Mod//nested/"), "d:/mod/nested");
         assert_ne!(
             identity("Demo", "D:/Mod", "s").comparison_key(),
             identity("demo", "D:/Mod", "s").comparison_key()
@@ -1327,11 +1321,11 @@ mod tests {
         state.instances.get_mut(&occupied).unwrap().status.dirty = true;
         let next = identity("next", "D:/Mod", "s");
         assert_eq!(
-            state.reserve(&old, std::slice::from_ref(&next)),
+            state.reserve(&old, slice::from_ref(&next)),
             Err(occupied.clone())
         );
         state.release(&occupied);
-        state.reserve(&old, std::slice::from_ref(&next)).unwrap();
+        state.reserve(&old, slice::from_ref(&next)).unwrap();
         state.retarget(&old, next.clone());
         assert_eq!(state.identities[&next.comparison_key()], old);
         state.release(&old);
@@ -1341,8 +1335,8 @@ mod tests {
 
     fn preview_input(value: &str) -> ManagedWindowInput {
         ManagedWindowInput::WeaponFirePreview {
-            source: crate::models::WeaponFirePreviewSource::Draft {
-                weapon: serde_json::Map::from_iter([
+            source: WeaponFirePreviewSource::Draft {
+                weapon: Map::from_iter([
                     ("id".into(), serde_json::json!("w")),
                     ("description".into(), serde_json::json!(value)),
                 ]),
@@ -1468,7 +1462,7 @@ mod tests {
                 ["weapon"]["description"],
             text
         );
-        let location = crate::models::FileWindowLocation {
+        let location = FileWindowLocation {
             context_label: Some("诊断".into()),
             context_severity: Some("error".into()),
             message: Some(text.clone()),
@@ -1487,7 +1481,7 @@ mod tests {
         let identity = WindowIdentity::Immersive {
             session_id: "s".into(),
             mod_root: "M:/mod".into(),
-            kind: crate::models::JointEditKind::Wing,
+            kind: JointEditKind::Wing,
             id: "wing".into(),
         };
         assert!(!ManagedWindowInput::ImmersiveEditor { row_key: None }.matches(&identity));
@@ -1511,7 +1505,7 @@ mod tests {
         let identity = WindowIdentity::Immersive {
             session_id: "s".into(),
             mod_root: "M:/mod".into(),
-            kind: crate::models::JointEditKind::Wing,
+            kind: JointEditKind::Wing,
             id: "old".into(),
         };
         let input = ManagedWindowInput::ImmersiveEditor {
@@ -1525,7 +1519,7 @@ mod tests {
         let next = WindowIdentity::Immersive {
             session_id: "s".into(),
             mod_root: "M:/mod".into(),
-            kind: crate::models::JointEditKind::Wing,
+            kind: JointEditKind::Wing,
             id: "next".into(),
         };
         state.retarget(&label, next);

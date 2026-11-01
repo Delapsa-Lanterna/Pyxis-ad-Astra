@@ -1,6 +1,6 @@
 use super::super::model::{ProjectSession, WEAPON_SPRITE_FIELDS, string_field};
 use super::super::resources::{HullReferenceResolver, resource_ref};
-use crate::models::{ResourceOwnerKind, ResourceRef, ResourceSource};
+use crate::models::{EntityKind, ResourceOwnerKind, ResourceRef, ResourceSource};
 use serde_json::Value;
 use std::collections::BTreeMap;
 
@@ -62,7 +62,7 @@ pub(in crate::services::project) fn projectile_resource_refs(
                     resource_ref(
                         ResourceSource::Mod,
                         &sprite,
-                        crate::models::EntityKind::Projectile.into(),
+                        EntityKind::Projectile.into(),
                         id,
                         field,
                     ),
@@ -240,7 +240,10 @@ pub(in crate::services::project) fn mission_resource_refs(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(test)]
+    use crate::models::EntityKind;
     use serde_json::json;
+
     #[test]
     fn effects_select_declared_textures_and_keep_business_identity() {
         for (name, suffix) in [
@@ -272,7 +275,7 @@ mod tests {
         );
         assert_eq!(
             refs["coreTexture"].owner_kind,
-            crate::models::EntityKind::Projectile.into()
+            EntityKind::Projectile.into()
         );
         assert_eq!(refs["fringeTexture"].source, ResourceSource::Mod);
         let refs = projectile_resource_refs("plasma", &json!({"spawnType":"PLASMA"}));

@@ -1,18 +1,42 @@
+use super::cache;
+use super::definitions::{factions, projectiles, table_definitions};
+use super::model::{
+    MISSION_LIST_REL_PATH, MISSION_LIST_TABLE_KEY, ProjectSession, SessionCsvTable, SpecBundle,
+};
+use super::performance::PerformanceTrace;
 #[cfg(test)]
 use super::test_support::project_workspace;
+use crate::errors::{AppError, AppResult};
+use crate::io::FsRootBoundary;
+use crate::models::{
+    EntitySummaries, FileChangeRecord, InvalidatedResourceScope, ProjectInvalidation,
+    ProjectManifest, ProjectSessionInvalidationResult, ResourceSource, TableSummary,
+};
+use crate::services::file_history;
+use crate::services::project::definitions::entity_definitions;
+use crate::services::project::model::{ProjectContent, SessionCsvRow};
+use crate::services::project::sources::json_documents::{
+    load_skin_files_from, load_variant_files_from,
+};
+use crate::services::project::sources::{SourceReader, core, documents};
+use crate::services::project::{invalidation, model, versions};
+use crate::{diagnostics, io, models};
+use std::collections::BTreeMap;
+use std::path::Path;
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::{Arc, Mutex, RwLock, RwLockWriteGuard};
+
 mod access;
 pub(in crate::services::project) mod csv_tables;
 pub(in crate::services::project) mod csv_writes;
 pub(super) mod references;
 mod registry;
 pub(in crate::services::project) mod source_projection;
-use crate::services::project::sources::json_documents::{
-    load_skin_files_from, load_variant_files_from,
-};
+
 pub(crate) use access::lock_ready_session;
 pub(super) use registry::{RegisteredSession, lock_registry};
 pub(crate) use registry::{lock_session, session_handle};
-use std::sync::{RwLock, RwLockWriteGuard, atomic::AtomicBool};
+
 static OPENINGS: RwLock<()> = RwLock::new(());
 static OPENINGS_HELD: AtomicBool = AtomicBool::new(false);
 pub struct SessionOpeningPause {
@@ -39,27 +63,6 @@ pub fn hold_session_openings() -> AppResult<SessionOpeningPause> {
 pub fn registered_session_ids() -> AppResult<Vec<String>> {
     Ok(lock_registry()?.keys().cloned().collect())
 }
-use super::cache;
-use super::model::{
-    MISSION_LIST_REL_PATH, MISSION_LIST_TABLE_KEY, ProjectSession, SessionCsvTable, SpecBundle,
-};
-use super::{
-    definitions::{factions, projectiles, table_definitions},
-    performance::PerformanceTrace,
-    sources,
-};
-use crate::{
-    errors::{AppError, AppResult},
-    io::FsRootBoundary,
-    models::{EntitySummaries, ProjectManifest, TableSummary},
-    models::{FileChangeRecord, ProjectInvalidation, ProjectSessionInvalidationResult},
-};
-use std::{
-    collections::BTreeMap,
-    path::Path,
-    sync::atomic::{AtomicU64, Ordering},
-    sync::{Arc, Mutex},
-};
 
 pub fn close_project_session(session_id: String) -> AppResult<()> {
     let removed = lock_registry()?.remove(&session_id);
@@ -69,7 +72,7 @@ pub fn close_project_session(session_id: String) -> AppResult<()> {
             .values()
             .any(|registered| registered.root == root);
         if !same_root {
-            crate::services::file_history::release_history(&root)?;
+            file_history::release_history(&root)?;
         }
     }
     cache::clear_sprite_media_for_session(&session_id);
@@ -98,12 +101,11 @@ pub fn invalidate_project_session(
     let handle = session_handle(session_id)?;
     let mut session = lock_session(&handle)?;
     let mut invalidation = ProjectInvalidation::default();
-    invalidation.merge(super::invalidation::invalidate_session_changes(
+    invalidation.merge(invalidation::invalidate_session_changes(
         &mut session,
         &changes,
     )?);
-    session.manifest.base_versions =
-        vec![super::versions::version_for_path(&session, "mod_info.json")];
+    session.manifest.base_versions = vec![versions::version_for_path(&session, "mod_info.json")];
     session.projection_pending = false;
     Ok(ProjectSessionInvalidationResult {
         manifest: session.manifest.clone(),
@@ -112,7 +114,7 @@ pub fn invalidate_project_session(
 }
 
 pub fn invalidate_core_cache(starsector_root: &str) -> AppResult<()> {
-    crate::services::project::sources::core::invalidate_core_cache(starsector_root)
+    core::invalidate_core_cache(starsector_root)
 }
 
 pub(crate) fn affected_session_ids(
@@ -120,12 +122,12 @@ pub(crate) fn affected_session_ids(
 ) -> AppResult<Vec<(String, String)>> {
     let mut affected = Vec::new();
     for (session_id, registered) in lock_registry()?.iter() {
-        let root_key = crate::models::windows_path_key(&registered.root);
+        let root_key = models::windows_path_key(&registered.root);
         if changes.iter().any(|change| {
             [&change.before_path, &change.after_path]
                 .iter()
                 .any(|path| {
-                    let key = crate::models::windows_path_key(path);
+                    let key = models::windows_path_key(path);
                     key == root_key || key.starts_with(&format!("{root_key}/"))
                 })
         }) {
@@ -186,9 +188,9 @@ pub(crate) fn open_project_session_traced(
     // Open concentrated cold loads of core assets; persist them once here so
     // the dump never runs inside a query.
     if let Some(root) = &manifest.starsector_root
-        && let Err(error) = crate::services::project::sources::core::flush_core_cache(root)
+        && let Err(error) = core::flush_core_cache(root)
     {
-        crate::diagnostics::record(format!("core cache flush failed: {error}"));
+        diagnostics::record(format!("core cache flush failed: {error}"));
     }
     Ok(manifest)
 }
@@ -200,9 +202,9 @@ pub(super) fn build_project_session(
 ) -> AppResult<ProjectSession> {
     let mod_root_boundary = FsRootBoundary::new(mod_root, "mod root")?;
     let mod_root = mod_root_boundary.root();
-    let _lease = crate::io::acquire_root_write_lock(mod_root)?;
+    let _lease = io::acquire_root_write_lock(mod_root)?;
     let source_timer = trace.timer();
-    let mut sources = super::sources::SourceReader::new(mod_root)?;
+    let mut sources = SourceReader::new(mod_root)?;
     let session_id = new_session_id();
     let starsector_root = starsector_root_override.map(Path::to_path_buf);
     let starsector_root = starsector_root
@@ -233,7 +235,7 @@ pub(super) fn build_project_session(
                 csv.rows
                     .into_iter()
                     .enumerate()
-                    .map(|(index, row)| super::model::SessionCsvRow {
+                    .map(|(index, row)| SessionCsvRow {
                         row_key: format!("{key}:row:{index}"),
                         data: row.data,
                         is_comment: row.is_comment,
@@ -244,7 +246,7 @@ pub(super) fn build_project_session(
             state.next_row_seq = state.rows.as_ref().expect("loaded rows").len() as u64;
         }
     }
-    let super::model::ProjectContent {
+    let ProjectContent {
         mod_info,
         faction_files,
         faction_blueprint_tags,
@@ -252,7 +254,7 @@ pub(super) fn build_project_session(
         spec_bundle,
         table_entity_summaries,
     } = content;
-    let table_summaries = super::definitions::table_definitions::csv_table_definitions()
+    let table_summaries = table_definitions::csv_table_definitions()
         .iter()
         .map(|definition| {
             let table = csv_tables
@@ -294,7 +296,7 @@ pub(super) fn build_project_session(
         mod_root: mod_root.to_string_lossy().to_string(),
         starsector_root: starsector_root.map(|path| path.to_string_lossy().to_string()),
         core_available,
-        associated_spec_tables: super::definitions::entity_definitions::associated_spec_tables(),
+        associated_spec_tables: entity_definitions::associated_spec_tables(),
         mod_info,
         table_summaries,
         table_entity_summaries,
@@ -332,10 +334,10 @@ pub(super) fn build_project_session(
 }
 
 fn load_project_content(
-    sources: &mut super::sources::SourceReader,
+    sources: &mut SourceReader,
     starsector_root: Option<&Path>,
     trace: &mut PerformanceTrace,
-) -> AppResult<super::model::ProjectContent> {
+) -> AppResult<ProjectContent> {
     let timer = trace.timer();
     let mod_root = sources.root().to_path_buf();
     let info_path = sources.path("mod_info.json")?;
@@ -378,7 +380,7 @@ fn load_project_content(
     };
     let table_entity_summaries =
         table_definitions::build_table_entity_summaries_from(sources, &entity_summaries)?;
-    let content = super::model::ProjectContent {
+    let content = ProjectContent {
         mod_info,
         faction_files,
         faction_blueprint_tags,
@@ -390,28 +392,27 @@ fn load_project_content(
 }
 
 pub(super) fn build_registered_session_csv_tables() -> BTreeMap<String, SessionCsvTable> {
-    let mut tables: BTreeMap<String, SessionCsvTable> =
-        super::definitions::table_definitions::csv_table_definitions()
-            .iter()
-            .map(|definition| {
-                (
-                    definition.spec.key.as_str().to_string(),
-                    SessionCsvTable {
-                        row_index: None,
-                        header: Vec::new(),
-                        path: definition.spec.rel_path.to_string(),
-                        rows: None,
-                        next_row_seq: 0,
-                        saved_text: None,
-                    },
-                )
-            })
-            .collect();
+    let mut tables: BTreeMap<String, SessionCsvTable> = table_definitions::csv_table_definitions()
+        .iter()
+        .map(|definition| {
+            (
+                definition.spec.key.as_str().to_string(),
+                SessionCsvTable {
+                    row_index: None,
+                    header: Vec::new(),
+                    path: definition.spec.rel_path.to_string(),
+                    rows: None,
+                    next_row_seq: 0,
+                    saved_text: None,
+                },
+            )
+        })
+        .collect();
     tables.insert(
         MISSION_LIST_TABLE_KEY.to_string(),
         SessionCsvTable {
             row_index: None,
-            header: super::model::mission_list_default_header(),
+            header: model::mission_list_default_header(),
             path: MISSION_LIST_REL_PATH.to_string(),
             rows: None,
             next_row_seq: 0,
@@ -439,29 +440,29 @@ pub(super) fn new_session_id() -> String {
 }
 
 pub(super) fn load_spec_bundle(
-    sources: &mut super::sources::SourceReader,
+    sources: &mut SourceReader,
     starsector_root: Option<&Path>,
     trace: &mut PerformanceTrace,
 ) -> AppResult<SpecBundle> {
     let total_timer = trace.timer();
     let timer = trace.timer();
-    let ship_files = sources::documents::load_spec_records_from(
+    let ship_files = documents::load_spec_records_from(
         sources,
         "data/hulls",
         "ship",
         "hullId",
-        crate::models::ResourceSource::Mod,
+        ResourceSource::Mod,
     )?;
     trace.record_stage("spec.ship_files", timer, || {
         vec![("files", ship_files.len().to_string())]
     });
     let timer = trace.timer();
-    let weapon_specs = sources::documents::load_spec_records_from(
+    let weapon_specs = documents::load_spec_records_from(
         sources,
         "data/weapons",
         "wpn",
         "id",
-        crate::models::ResourceSource::Mod,
+        ResourceSource::Mod,
     )?;
     trace.record_stage("spec.weapon_specs", timer, || {
         vec![("files", weapon_specs.len().to_string())]
@@ -484,11 +485,7 @@ pub(super) fn load_spec_bundle(
     });
     let timer = trace.timer();
     let core_projectiles = starsector_root
-        .map(|root| {
-            crate::services::project::sources::core::load_core_projectile_specs(
-                &root.to_string_lossy(),
-            )
-        })
+        .map(|root| core::load_core_projectile_specs(&root.to_string_lossy()))
         .transpose()?;
     let projectile_specs =
         projectiles::load_projectile_specs_from(sources, core_projectiles.as_deref())?;
@@ -496,23 +493,23 @@ pub(super) fn load_spec_bundle(
         vec![("files", projectile_specs.len().to_string())]
     });
     let timer = trace.timer();
-    let system_files = sources::documents::load_spec_records_from(
+    let system_files = documents::load_spec_records_from(
         sources,
         "data/shipsystems",
         "system",
         "id",
-        crate::models::ResourceSource::Mod,
+        ResourceSource::Mod,
     )?;
     trace.record_stage("spec.system_files", timer, || {
         vec![("files", system_files.len().to_string())]
     });
     let timer = trace.timer();
-    let skill_files = sources::documents::load_spec_records_from(
+    let skill_files = documents::load_spec_records_from(
         sources,
         "data/characters/skills",
         "skill",
         "id",
-        crate::models::ResourceSource::Mod,
+        ResourceSource::Mod,
     )?;
     trace.record_stage("spec.skill_files", timer, || {
         vec![("files", skill_files.len().to_string())]
@@ -546,7 +543,25 @@ pub(super) fn load_spec_bundle(
 mod tests {
     use super::*;
     use crate::io::write_utf8_no_bom;
+    #[cfg(test)]
+    use crate::models::{CsvRowPatch, CsvRowPatchAction, CsvSearchField, CsvTableKey};
+    #[cfg(test)]
+    use crate::services::project::query::csv_window::query_csv_table_window;
+    #[cfg(test)]
+    use crate::services::project::sources;
+    #[cfg(test)]
+    use crate::services::project::sources::json_documents::take_load_counts;
     use crate::services::project::test_support::project_workspace;
+    #[cfg(test)]
+    use crate::services::project::write::csv_patch::save_csv_patch;
+    #[cfg(test)]
+    use crate::test_support;
+    #[cfg(test)]
+    use serde_json::{Map, Value};
+    #[cfg(test)]
+    use std::sync::{Arc, Barrier};
+    #[cfg(test)]
+    use std::{fs, thread};
 
     #[test]
     fn opened_sessions_remain_registered_until_explicit_close() {
@@ -575,7 +590,7 @@ mod tests {
     #[test]
     fn open_project_session_rejects_variant_missing_required_ids() {
         let root = project_workspace("variant_missing_ids");
-        std::fs::create_dir_all(root.join("data/variants")).unwrap();
+        fs::create_dir_all(root.join("data/variants")).unwrap();
         write_utf8_no_bom(
             &root.join("data/variants/bad.variant"),
             r#"{"variantId":"bad"}"#,
@@ -609,7 +624,7 @@ mod tests {
     #[test]
     fn open_project_session_rejects_corrupted_mission_list() {
         let root = project_workspace("mission_list_corrupted");
-        std::fs::create_dir_all(root.join("data/missions")).unwrap();
+        fs::create_dir_all(root.join("data/missions")).unwrap();
         // Long rows are tolerated now; a real defect must still fail session open.
         write_utf8_no_bom(
             &root.join("data/missions/mission_list.csv"),
@@ -664,7 +679,7 @@ mod tests {
     #[test]
     fn open_project_session_manifest_summaries_only_include_public_csv_tables() {
         let root = project_workspace("manifest_public_csv_tables");
-        std::fs::create_dir_all(root.join("data/missions")).unwrap();
+        fs::create_dir_all(root.join("data/missions")).unwrap();
         write_utf8_no_bom(
             &root.join("data/missions/mission_list.csv"),
             "mission\r\ndemo\r\n",
@@ -688,8 +703,8 @@ mod tests {
     #[test]
     fn open_project_session_manifest_counts_valid_table_entities() {
         let root = project_workspace("manifest_table_entity_counts");
-        std::fs::create_dir_all(root.join("data/hulls")).unwrap();
-        std::fs::create_dir_all(root.join("data/campaign")).unwrap();
+        fs::create_dir_all(root.join("data/hulls")).unwrap();
+        fs::create_dir_all(root.join("data/campaign")).unwrap();
         write_utf8_no_bom(
             &root.join("data/hulls/wing_data.csv"),
             "id,variant\r\nwing_a,var_a\r\n,\r\n#comment,\r\nwing_b,var_b\r\n",
@@ -704,26 +719,17 @@ mod tests {
         let mut trace = PerformanceTrace::new("project.openSession");
         let loaded = open_project_session_traced(&root, None, &mut trace).unwrap();
 
-        assert_eq!(
-            loaded.table_entity_summaries[&crate::models::CsvTableKey::Wings],
-            2
-        );
-        assert_eq!(
-            loaded.table_entity_summaries[&crate::models::CsvTableKey::SimOpponents],
-            2
-        );
-        assert_eq!(
-            loaded.table_summaries[&crate::models::CsvTableKey::Wings].total_rows,
-            None
-        );
+        assert_eq!(loaded.table_entity_summaries[&CsvTableKey::Wings], 2);
+        assert_eq!(loaded.table_entity_summaries[&CsvTableKey::SimOpponents], 2);
+        assert_eq!(loaded.table_summaries[&CsvTableKey::Wings].total_rows, None);
         root.close().unwrap();
     }
 
     #[test]
     fn open_project_session_warns_and_keeps_first_duplicate_variant_id() {
         let root = project_workspace("variant_duplicate_id");
-        std::fs::create_dir_all(root.join("data/variants/a")).unwrap();
-        std::fs::create_dir_all(root.join("data/variants/b")).unwrap();
+        fs::create_dir_all(root.join("data/variants/a")).unwrap();
+        fs::create_dir_all(root.join("data/variants/b")).unwrap();
         write_utf8_no_bom(
             &root.join("data/variants/a/one.variant"),
             r#"{"variantId":"dup","hullId":"hull_a"}"#,
@@ -752,7 +758,7 @@ mod tests {
     #[test]
     fn open_project_session_accepts_partial_skin() {
         let root = project_workspace("skin_missing_ids");
-        std::fs::create_dir_all(root.join("data/hulls/skins")).unwrap();
+        fs::create_dir_all(root.join("data/hulls/skins")).unwrap();
         write_utf8_no_bom(
             &root.join("data/hulls/skins/bad.skin"),
             r#"{"skinHullId":"bad"}"#,
@@ -769,8 +775,8 @@ mod tests {
     #[test]
     fn open_project_session_warns_and_keeps_first_duplicate_skin_hull_id() {
         let root = project_workspace("skin_duplicate_id");
-        std::fs::create_dir_all(root.join("data/hulls/skins/a")).unwrap();
-        std::fs::create_dir_all(root.join("data/hulls/skins/b")).unwrap();
+        fs::create_dir_all(root.join("data/hulls/skins/a")).unwrap();
+        fs::create_dir_all(root.join("data/hulls/skins/b")).unwrap();
         write_utf8_no_bom(
             &root.join("data/hulls/skins/a/one.skin"),
             r#"{"skinHullId":"dup","baseHullId":"hull_a"}"#,
@@ -798,32 +804,31 @@ mod tests {
 
     #[test]
     fn persistent_project_index_reuses_matching_sources_and_rebuilds_changed_sources() {
-        if crate::test_support::isolated_test() {
+        if test_support::isolated_test() {
             return;
         }
-        use super::sources::json_documents::take_load_counts;
+
         let root = project_workspace("persistent_project_index");
-        std::fs::create_dir_all(root.join("data/variants")).unwrap();
+        fs::create_dir_all(root.join("data/variants")).unwrap();
         write_utf8_no_bom(
             &root.join("data/variants/demo.variant"),
             r#"{"variantId":"before","hullId":"hull"}"#,
         )
         .unwrap();
-        std::fs::write(
+        fs::write(
             root.join("data/variants/duplicate.variant"),
             r#"{"variantId":"before","hullId":"hull"}"#,
         )
         .unwrap();
-        std::fs::create_dir_all(root.join("data/hulls/skins")).unwrap();
+        fs::create_dir_all(root.join("data/hulls/skins")).unwrap();
         for name in ["first", "second"] {
-            std::fs::write(
+            fs::write(
                 root.join(format!("data/hulls/skins/{name}.skin")),
                 r#"{"skinHullId":"skin","baseHullId":"hull"}"#,
             )
             .unwrap();
         }
-        super::super::sources::configure_persistent_index_cache(&root.outer().join("cache"))
-            .unwrap();
+        sources::configure_persistent_index_cache(&root.outer().join("cache")).unwrap();
 
         let mut initial_trace = PerformanceTrace::new("project.openSession");
         take_load_counts();
@@ -872,13 +877,6 @@ mod tests {
 
     #[test]
     fn concurrent_threads_on_separate_sessions_run_without_blocking_or_corruption() {
-        use crate::models::{CsvRowPatch, CsvRowPatchAction, CsvSearchField, CsvTableKey};
-
-        use crate::services::project::query::csv_window::query_csv_table_window;
-        use crate::services::project::write::csv_patch::save_csv_patch;
-        use serde_json::{Map, Value};
-        use std::sync::{Arc, Barrier};
-
         const THREADS: usize = 4;
         const ROUNDS: usize = 4;
         const SESSIONS: usize = 2;
@@ -887,7 +885,7 @@ mod tests {
         let roots: Vec<_> = (0..SESSIONS)
             .map(|index| {
                 let root = project_workspace(&format!("session_concurrency_{index}"));
-                std::fs::create_dir_all(root.join("data/hulls")).unwrap();
+                fs::create_dir_all(root.join("data/hulls")).unwrap();
                 write_utf8_no_bom(
                     &root.join("data/hulls/ship_data.csv"),
                     "id,name\r\nbase_ship,Base Ship\r\n",
@@ -911,7 +909,7 @@ mod tests {
         for thread_index in 0..THREADS {
             let barrier = barrier.clone();
             let session_id = session_ids[thread_index % SESSIONS].clone();
-            handles.push(std::thread::spawn(move || {
+            handles.push(thread::spawn(move || {
                 barrier.wait();
                 for round in 0..ROUNDS {
                     let window = query_csv_table_window(
@@ -975,13 +973,13 @@ mod tests {
 /// Refreshes authorized sources while retaining session and CSV row identities.
 pub fn refresh_project_sources(
     session_id: &str,
-    sources: Vec<crate::models::InvalidatedResourceScope>,
+    sources: Vec<InvalidatedResourceScope>,
 ) -> AppResult<ProjectSessionInvalidationResult> {
     let handle = session_handle(session_id)?;
     let root = lock_ready_session(&handle)?.manifest.mod_root.clone();
-    let _lease = crate::io::acquire_root_write_lock(Path::new(&root))?;
+    let _lease = io::acquire_root_write_lock(Path::new(&root))?;
     let mut session = lock_ready_session(&handle)?;
-    let invalidation = super::invalidation::refresh_sources(&mut session, &sources)?;
+    let invalidation = invalidation::refresh_sources(&mut session, &sources)?;
     Ok(ProjectSessionInvalidationResult {
         manifest: session.manifest.clone(),
         invalidation,
@@ -991,14 +989,21 @@ pub fn refresh_project_sources(
 #[cfg(test)]
 mod source_refresh_tests {
     use super::*;
+    #[cfg(test)]
+    use crate::models::{CsvSearchField, EntityKind};
     use crate::models::{CsvTableKey, InvalidatedResourceScope, ResourceSource};
+    #[cfg(test)]
+    use crate::{io, services};
+    #[cfg(test)]
+    use std::fs;
+
     #[test]
     fn missing_unloaded_csv_reports_its_unavailable_recovery_source() {
         let root = project_workspace("missing_unloaded_csv");
-        std::fs::create_dir_all(root.join("data/hulls")).unwrap();
+        fs::create_dir_all(root.join("data/hulls")).unwrap();
         let path = root.join("data/hulls/ship_data.csv");
         let original = "id,name\na,Original\nb,Other\n";
-        std::fs::write(&path, original).unwrap();
+        fs::write(&path, original).unwrap();
         let manifest = open_project_session_traced(
             &root,
             None,
@@ -1007,16 +1012,16 @@ mod source_refresh_tests {
         .unwrap();
         invalidate_project_session(
             &manifest.session_id,
-            vec![crate::io::build_text_change(&path, Some(original.into())).unwrap()],
+            vec![io::build_text_change(&path, Some(original.into())).unwrap()],
         )
         .unwrap();
-        std::fs::remove_file(&path).unwrap();
-        let error = crate::services::query_csv_table_index(
+        fs::remove_file(&path).unwrap();
+        let error = services::query_csv_table_index(
             &manifest.session_id,
             CsvTableKey::Ships,
             1,
             None,
-            crate::models::CsvSearchField::IdName,
+            CsvSearchField::IdName,
         )
         .unwrap_err();
         assert_eq!(error.code(), "write.recovery_content_missing");
@@ -1035,11 +1040,10 @@ mod source_refresh_tests {
     #[test]
     fn refresh_keeps_rows_and_rejects_escape() {
         let root = project_workspace("source_refresh");
-        std::fs::create_dir_all(root.join("data/hulls")).unwrap();
+        fs::create_dir_all(root.join("data/hulls")).unwrap();
         let csv = root.join("data/hulls/ship_data.csv");
-        crate::io::write_utf8_no_bom(&csv, "id,name\nship,Before\n").unwrap();
-        crate::io::write_utf8_no_bom(&root.join("data/hulls/ship.ship"), r#"{"hullId":"ship"}"#)
-            .unwrap();
+        io::write_utf8_no_bom(&csv, "id,name\nship,Before\n").unwrap();
+        io::write_utf8_no_bom(&root.join("data/hulls/ship.ship"), r#"{"hullId":"ship"}"#).unwrap();
         let manifest =
             open_project_session_traced(&root, None, &mut PerformanceTrace::new("test")).unwrap();
         let handle = session_handle(&manifest.session_id).unwrap();
@@ -1054,20 +1058,17 @@ mod source_refresh_tests {
             .unwrap()[0]
             .row_key
             .clone();
-        crate::io::write_utf8_no_bom(&csv, "id,name\nship,After\nadded,New\n").unwrap();
+        io::write_utf8_no_bom(&csv, "id,name\nship,After\nadded,New\n").unwrap();
         let source = InvalidatedResourceScope {
             source: ResourceSource::Mod,
             rel_path: "data/hulls".into(),
         };
-        crate::io::write_utf8_no_bom(&root.join("data/hulls/added.ship"), r#"{"hullId":"added"}"#)
+        io::write_utf8_no_bom(&root.join("data/hulls/added.ship"), r#"{"hullId":"added"}"#)
             .unwrap();
         refresh_project_sources(&manifest.session_id, vec![source]).unwrap();
-        let added = crate::services::query_entity_edit_target(
-            &manifest.session_id,
-            crate::models::EntityKind::Ship,
-            "added",
-        )
-        .unwrap();
+        let added =
+            services::query_entity_edit_target(&manifest.session_id, EntityKind::Ship, "added")
+                .unwrap();
         assert!(
             added
                 .base_versions

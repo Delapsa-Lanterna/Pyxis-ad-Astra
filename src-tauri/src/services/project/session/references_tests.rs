@@ -1,11 +1,21 @@
 use super::*;
-use crate::{
-    io::write_utf8_no_bom,
-    services::project::{query, session},
-    test_support::TestWorkspace,
-};
-use serde_json::json;
-use std::{fs, path::Path};
+use crate::io::write_utf8_no_bom;
+use crate::services::project::query::{entities, source_options};
+#[cfg(test)]
+use crate::services::project::query::{hull_references, joint_edit, resources};
+#[cfg(test)]
+use crate::services::project::test_support as project_test_support;
+use crate::services::project::{PerformanceTrace, session};
+use crate::test_support::TestWorkspace;
+#[cfg(test)]
+use crate::{io, test_support};
+#[cfg(test)]
+use serde_json::Value;
+use serde_json::{Map, json};
+use std::fs;
+use std::path::Path;
+#[cfg(test)]
+use std::thread;
 
 fn content(root: &Path, label: &str, ids: &[&str], byte: u8) {
     for directory in [
@@ -61,13 +71,13 @@ fn content(root: &Path, label: &str, ids: &[&str], byte: u8) {
         &format!("id,variant\n{label}_wing,module\n"),
     )
     .unwrap();
-    write_utf8_no_bom(&root.join("data/config/settings.json"), &json!({"designTypeColors":ids.iter().map(|id|(id.to_string(),json!([byte,0,0,255]))).collect::<serde_json::Map<_,_>>()}).to_string()).unwrap();
+    write_utf8_no_bom(&root.join("data/config/settings.json"), &json!({"designTypeColors":ids.iter().map(|id|(id.to_string(),json!([byte,0,0,255]))).collect::<Map<_,_>>()}).to_string()).unwrap();
     fs::write(root.join("graphics/shared.png"), [byte]).unwrap();
     fs::write(root.join(format!("graphics/{label}.png")), [byte]).unwrap();
 }
 
 fn open(root: &Path, game: Option<&Path>) -> ProjectManifest {
-    let mut trace = crate::services::project::PerformanceTrace::new("project.openSession");
+    let mut trace = PerformanceTrace::new("project.openSession");
     session::open_project_session_traced(root, game, &mut trace).unwrap()
 }
 fn owner(groups: &[SourceOptionGroup], value: &str) -> ResourceSource {
@@ -78,7 +88,7 @@ fn owner(groups: &[SourceOptionGroup], value: &str) -> ResourceSource {
         .origin
 }
 fn options(manifest: &ProjectManifest, source: &str) -> Vec<SourceOptionGroup> {
-    query::source_options::query_csv_source_options(&manifest.session_id, source).unwrap()
+    source_options::query_csv_source_options(&manifest.session_id, source).unwrap()
 }
 fn option_resource<'a>(groups: &'a [SourceOptionGroup], value: &str) -> &'a ResourceRef {
     groups
@@ -91,7 +101,7 @@ fn option_resource<'a>(groups: &'a [SourceOptionGroup], value: &str) -> &'a Reso
         .unwrap()
 }
 fn entity(manifest: &ProjectManifest, kind: EntityKind, id: &str) -> EntityData {
-    query::entities::query_entity(&manifest.session_id, kind, id)
+    entities::query_entity(&manifest.session_id, kind, id)
         .unwrap()
         .unwrap()
 }
@@ -121,10 +131,10 @@ fn refresh(manifest: &ProjectManifest, relative: &str) {
 
 #[test]
 fn reference_priority_content_and_lifecycle() {
-    if crate::test_support::isolated_test() {
+    if test_support::isolated_test() {
         return;
     }
-    let root = crate::services::project::test_support::project_workspace("reference_priority");
+    let root = project_test_support::project_workspace("reference_priority");
     let game = root.join("game");
     let core = game.join("starsector-core");
     let b_root = root.join("b");
@@ -144,8 +154,7 @@ fn reference_priority_content_and_lifecycle() {
         "s_fixture",
     ];
     let hull_path = root.join("c/data/hulls/hull.ship");
-    let mut hull: serde_json::Value =
-        serde_json::from_str(&fs::read_to_string(&hull_path).unwrap()).unwrap();
+    let mut hull: Value = serde_json::from_str(&fs::read_to_string(&hull_path).unwrap()).unwrap();
     hull["builtInMods"] = json!([plugin_ids[0]]);
     write_utf8_no_bom(&hull_path, &hull.to_string()).unwrap();
     fs::create_dir_all(b_root.join("data/hullmods")).unwrap();
@@ -160,7 +169,7 @@ fn reference_priority_content_and_lifecycle() {
         ),
     )
     .unwrap();
-    let mut variant: serde_json::Value = serde_json::from_str(
+    let mut variant: Value = serde_json::from_str(
         &fs::read_to_string(b_root.join("data/variants/module.variant")).unwrap(),
     )
     .unwrap();
@@ -178,7 +187,7 @@ fn reference_priority_content_and_lifecycle() {
     let mut csv = fs::read_to_string(b_root.join("data/weapons/weapon_data.csv")).unwrap();
     csv.push_str("split_fixture,Split,ENERGY,SMALL,1\n");
     fs::write(b_root.join("data/weapons/weapon_data.csv"), csv).unwrap();
-    let mut split: serde_json::Value =
+    let mut split: Value =
         serde_json::from_str(&fs::read_to_string(root.join("c/data/weapons/shared.wpn")).unwrap())
             .unwrap();
     split["id"] = json!("split_fixture");
@@ -211,7 +220,7 @@ fn reference_priority_content_and_lifecycle() {
     let image = option_resource(&groups, "shared").clone();
     assert_eq!(image.reference.as_ref().unwrap().mod_root, b.mod_root);
     assert!(
-        query::resources::query_resource_data_urls(&a.session_id, vec![image.clone()])
+        resources::query_resource_data_urls(&a.session_id, vec![image.clone()])
             .unwrap()
             .entries[0]
             .data_url
@@ -228,12 +237,9 @@ fn reference_priority_content_and_lifecycle() {
         entity(&a, EntityKind::Projectile, "shot").data["tag"],
         "beta"
     );
-    let images = query::source_options::query_image_source_options(
-        &a.session_id,
-        &["graphics".into()],
-        None,
-    )
-    .unwrap();
+    let images =
+        source_options::query_image_source_options(&a.session_id, &["graphics".into()], None)
+            .unwrap();
     assert!(images.iter().any(|group| {
         group
             .reference
@@ -248,7 +254,7 @@ fn reference_priority_content_and_lifecycle() {
         kind: JointEditKind::Weapon,
         id: "shared".into(),
     };
-    let graph = query::joint_edit::query_joint_edit(&target).unwrap();
+    let graph = joint_edit::query_joint_edit(&target).unwrap();
     assert_eq!(
         graph.reference_settings.values["designTypeColors"]["shared"],
         json!([2, 0, 0, 255])
@@ -260,8 +266,8 @@ fn reference_priority_content_and_lifecycle() {
     ] {
         assert_eq!(&entity_source(&entity(&a, kind, id)).session_id, expected);
     }
-    let hulls = query::hull_references::query_hull_references(&a.session_id, &["beta_skin".into()])
-        .unwrap();
+    let hulls =
+        hull_references::query_hull_references(&a.session_id, &["beta_skin".into()]).unwrap();
     assert_eq!(resource_source(&hulls.sprites["beta_skin"]), c.session_id);
     let fields = options(&a, "csv:ships.id");
     assert_eq!(
@@ -278,7 +284,7 @@ fn reference_priority_content_and_lifecycle() {
             .any(|slot| slot.id == "GUN" && slot.origin == ResourceSource::Reference)
     );
     for kind in [JointEditKind::Variant, JointEditKind::Wing] {
-        let related = query::joint_edit::query_joint_edit(&JointEditRoot {
+        let related = joint_edit::query_joint_edit(&JointEditRoot {
             kind,
             id: if kind == JointEditKind::Variant {
                 "module"
@@ -301,8 +307,7 @@ fn reference_priority_content_and_lifecycle() {
                 .is_some_and(|reference| reference.session_id == b.session_id)))
     );
     let catalog =
-        query::joint_edit::query_variant_catalog(&target, JointVariantCatalogKind::Weapons, None)
-            .unwrap();
+        joint_edit::query_variant_catalog(&target, JointVariantCatalogKind::Weapons, None).unwrap();
     let split = catalog
         .catalog
         .entries
@@ -311,7 +316,7 @@ fn reference_priority_content_and_lifecycle() {
         .unwrap();
     assert_eq!(resource_source(&split.resource_refs["icon"]), c.session_id);
     assert!(
-        query::resources::query_resource_data_urls(
+        resources::query_resource_data_urls(
             &a.session_id,
             vec![split.resource_refs["icon"].clone()]
         )
@@ -322,7 +327,7 @@ fn reference_priority_content_and_lifecycle() {
             .unwrap()
             .ends_with("Aw==")
     );
-    let installed = query::joint_edit::query_joint_edit(&JointEditRoot {
+    let installed = joint_edit::query_joint_edit(&JointEditRoot {
         kind: JointEditKind::Variant,
         id: "module".into(),
         ..target.clone()
@@ -337,7 +342,7 @@ fn reference_priority_content_and_lifecycle() {
     for icon in icons {
         assert_eq!(resource_source(icon), b.session_id);
         assert!(
-            query::resources::query_resource_data_urls(&a.session_id, vec![icon.clone()])
+            resources::query_resource_data_urls(&a.session_id, vec![icon.clone()])
                 .unwrap()
                 .entries[0]
                 .data_url
@@ -351,7 +356,7 @@ fn reference_priority_content_and_lifecycle() {
         (JointEditKind::Skin, "beta_skin"),
         (JointEditKind::Wing, "alpha_wing"),
     ] {
-        let snapshot = query::joint_edit::query_joint_edit(&JointEditRoot {
+        let snapshot = joint_edit::query_joint_edit(&JointEditRoot {
             kind,
             id: id.into(),
             ..target.clone()
@@ -415,7 +420,7 @@ fn reference_priority_content_and_lifecycle() {
     session::close_project_session(reopened.session_id).unwrap();
     set_reference_sources(Vec::new()).unwrap();
     assert_eq!(
-        query::resources::query_resource_data_urls(&a.session_id, vec![image])
+        resources::query_resource_data_urls(&a.session_id, vec![image])
             .unwrap()
             .entries[0]
             .error
@@ -446,11 +451,10 @@ fn reference_priority_content_and_lifecycle() {
 
 #[test]
 fn mutual_references_share_views_and_refresh_official_content() {
-    if crate::test_support::isolated_test() {
+    if test_support::isolated_test() {
         return;
     }
-    let root: TestWorkspace =
-        crate::services::project::test_support::project_workspace("reference_mutual");
+    let root: TestWorkspace = project_test_support::project_workspace("reference_mutual");
     content(&root.join("a"), "alpha", &["alpha_only"], 1);
     content(&root.join("b"), "beta", &["shared"], 2);
     let a = open(&root.join("a"), None);
@@ -460,8 +464,8 @@ fn mutual_references_share_views_and_refresh_official_content() {
         .into_iter()
         .map(|manifest| {
             let id = manifest.session_id.clone();
-            std::thread::spawn(move || {
-                query::source_options::query_csv_source_options(&id, "csv:weapons.id").unwrap()
+            thread::spawn(move || {
+                source_options::query_csv_source_options(&id, "csv:weapons.id").unwrap()
             })
         })
         .collect::<Vec<_>>();
@@ -478,7 +482,7 @@ fn mutual_references_share_views_and_refresh_official_content() {
         kind: JointEditKind::Weapon,
         id: "shared".into(),
     };
-    let frozen = query::joint_edit::query_joint_edit(&target).unwrap();
+    let frozen = joint_edit::query_joint_edit(&target).unwrap();
     let spec = frozen
         .records
         .iter()
@@ -487,7 +491,7 @@ fn mutual_references_share_views_and_refresh_official_content() {
     assert_eq!(spec.value, JointValue::Present(weapon.data["spec"].clone()));
     assert_ne!(
         spec.source_version.as_ref().unwrap(),
-        &crate::io::file_version(&root.join("b/data/weapons/shared.wpn")).unwrap()
+        &io::file_version(&root.join("b/data/weapons/shared.wpn")).unwrap()
     );
     refresh(&b, "data/weapons/shared.wpn");
     reference_sources_changed(Some(&b.session_id)).unwrap();

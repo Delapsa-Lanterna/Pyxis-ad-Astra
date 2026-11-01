@@ -1,8 +1,8 @@
-use crate::{
-    errors::{AppError, AppResult},
-    models::{CsvRow, CsvTable},
-};
+use crate::errors::{AppError, AppResult};
+use crate::models;
+use crate::models::{CsvRow, CsvTable};
 use serde_json::{Map, Value};
+use std::mem;
 
 /// Parses Starsector CSV-like bytes with the game's CSVParser semantics:
 /// tolerant of short/long rows, preserving empty and `#` lines; errors carry
@@ -92,7 +92,7 @@ pub fn value_to_cell(value: &Value) -> AppResult<String> {
 // Decodes bytes to chars; the CP1252 smart-quote mapping owner lives in
 // models and is shared with text reading.
 fn decode_csv_chars(path_label: &str, bytes: &[u8]) -> AppResult<Vec<char>> {
-    crate::models::decode_starsector_text(bytes)
+    models::decode_starsector_text(bytes)
         .map(|text| text.chars().collect())
         .map_err(|offset| {
             AppError::message(
@@ -216,7 +216,7 @@ fn parse_csv_chars(path_label: &str, text: &[char]) -> AppResult<CsvTable> {
                 if col_index < header.len() {
                     row.insert(
                         header[col_index].clone(),
-                        Value::String(std::mem::take(&mut cell)),
+                        Value::String(mem::take(&mut cell)),
                     );
                 }
                 if c == ',' {
@@ -230,7 +230,7 @@ fn parse_csv_chars(path_label: &str, text: &[char]) -> AppResult<CsvTable> {
                         });
                     } else {
                         rows.push(CsvRow {
-                            data: std::mem::take(&mut row),
+                            data: mem::take(&mut row),
                             is_comment,
                         });
                     }
@@ -252,7 +252,7 @@ fn parse_csv_chars(path_label: &str, text: &[char]) -> AppResult<CsvTable> {
         if col_index < header.len() {
             row.insert(
                 header[col_index].clone(),
-                Value::String(std::mem::take(&mut cell)),
+                Value::String(mem::take(&mut cell)),
             );
         }
         rows.push(CsvRow {

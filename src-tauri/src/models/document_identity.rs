@@ -46,7 +46,10 @@ impl From<&EntityEditTarget> for JsonDocumentOrigin {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(test)]
+    use serde_json::Value;
     use serde_json::json;
+
     #[test]
     fn json_origins_keep_kinds_nullable_paths_and_target_conversion() {
         let mut values = vec![json!({"kind":"modInfo"})];
@@ -59,7 +62,7 @@ mod tests {
         ] {
             values.push(json!({"kind":"miscConfig","file":file}));
         }
-        for path in [serde_json::Value::Null, json!("data/variants/item.variant")] {
+        for path in [Value::Null, json!("data/variants/item.variant")] {
             values.push(
                 json!({"kind":"entity","target":{"kind":"variant","id":"item","relPath":path}}),
             );

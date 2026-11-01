@@ -1,5 +1,8 @@
-use crate::{errors::AppResult, parsers::parse_starsector_json};
+use crate::errors::{AppError, AppResult};
+use crate::parsers::parse_starsector_json;
 use serde_json::Value;
+use std::cmp::Reverse;
+use std::collections::BTreeSet;
 use std::ops::Range;
 
 #[derive(Debug)]
@@ -10,18 +13,16 @@ pub enum PreserveResult {
 
 pub fn replace_root_string(source: &str, field: &str, replacement: &str) -> AppResult<String> {
     parse_starsector_json(source)?;
-    let node = Scanner::new(source).parse_root().ok_or_else(|| {
-        crate::errors::AppError::message("text.identity_range", "无法定位身份字段文本范围")
-    })?;
+    let node = Scanner::new(source)
+        .parse_root()
+        .ok_or_else(|| AppError::message("text.identity_range", "无法定位身份字段文本范围"))?;
     let NodeKind::Object(members) = node.kind else {
         unreachable!("parsed root is an object")
     };
     let member = members
         .iter()
         .find(|member| member.key == field)
-        .ok_or_else(|| {
-            crate::errors::AppError::message("spec.id_missing", format!("缺少身份字段: {field}"))
-        })?;
+        .ok_or_else(|| AppError::message("spec.id_missing", format!("缺少身份字段: {field}")))?;
     let mut text = source.to_string();
     text.replace_range(
         member.value.span.clone(),
@@ -33,6 +34,7 @@ pub fn replace_root_string(source: &str, field: &str, replacement: &str) -> AppR
 #[cfg(test)]
 mod identity_tests {
     use super::*;
+
     #[test]
     fn root_identity_replacement_keeps_other_text_ranges() {
         let source =
@@ -331,7 +333,7 @@ pub fn preserve_json_text(
     {
         return Ok(PreserveResult::NeedsRewrite("无法安全定位全部字段"));
     }
-    edits.sort_by_key(|edit| std::cmp::Reverse(edit.span.start));
+    edits.sort_by_key(|edit| Reverse(edit.span.start));
     let mut output = source.to_string();
     let mut previous_start = source.len();
     for edit in edits {
@@ -408,7 +410,7 @@ fn collect_edits(
     }
     match (&node.kind, old, next) {
         (NodeKind::Object(members), Value::Object(before), Value::Object(after)) => {
-            let mut seen = std::collections::BTreeSet::new();
+            let mut seen = BTreeSet::new();
             for (index, member) in members.iter().enumerate() {
                 if !seen.insert(member.key.as_str()) {
                     return None;
@@ -807,7 +809,7 @@ fn render_node(
         order_source,
         &mut edits,
     )?;
-    edits.sort_by_key(|edit| std::cmp::Reverse(edit.span.start));
+    edits.sort_by_key(|edit| Reverse(edit.span.start));
     let mut rendered = source[node.span.clone()].to_string();
     for edit in edits {
         rendered.replace_range(

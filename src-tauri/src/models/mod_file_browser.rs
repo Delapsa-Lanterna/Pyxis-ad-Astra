@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+
 #[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub enum ModFileKind {

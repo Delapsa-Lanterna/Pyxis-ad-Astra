@@ -183,6 +183,7 @@ pub struct SettingsSnapshot {
 mod tests {
     use super::{AppSettings, AppTheme};
     use serde_json::json;
+
     #[test]
     fn cache_limits_defaults_and_wire_budget_names() {
         let wire = serde_json::to_value(AppSettings::default()).unwrap();

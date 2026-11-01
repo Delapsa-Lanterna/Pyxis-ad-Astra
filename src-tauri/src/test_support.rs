@@ -1,12 +1,24 @@
+#[cfg(windows)]
+use std::ffi::OsString;
+use std::io::{Error, ErrorKind, Result as IoResult};
+use std::ops::Deref;
+#[cfg(unix)]
+use std::os::unix::fs as unix_fs;
+#[cfg(windows)]
+use std::os::windows::ffi::{OsStrExt, OsStringExt};
+#[cfg(windows)]
+use std::os::windows::fs as windows_fs;
+#[cfg(windows)]
+use std::os::windows::fs::MetadataExt;
+use std::path::{MAIN_SEPARATOR, MAIN_SEPARATOR_STR, Path, PathBuf};
+use std::process::Command;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::{env, fs, process, thread};
+#[cfg(windows)]
+use windows_sys::Win32;
+
 pub(crate) mod work_counts;
-use std::{
-    fs,
-    path::{Path, PathBuf},
-    sync::{
-        Arc,
-        atomic::{AtomicBool, AtomicU64, Ordering},
-    },
-};
 
 static WORKSPACE_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 type WorkspaceCleanup = fn(&Path) -> Vec<String>;
@@ -31,22 +43,19 @@ impl TestWorkspace {
         &self.path
     }
     pub fn new(label: &str) -> Self {
-        let parent = std::env::var_os("PYXIS_TEST_ROOT")
+        let parent = env::var_os("PYXIS_TEST_ROOT")
             .map(PathBuf::from)
-            .unwrap_or_else(std::env::temp_dir);
+            .unwrap_or_else(env::temp_dir);
         loop {
             let sequence = WORKSPACE_SEQUENCE.fetch_add(1, Ordering::Relaxed);
-            let root = parent.join(format!(
-                "pyxis_test_{}_{sequence}_{label}",
-                std::process::id()
-            ));
+            let root = parent.join(format!("pyxis_test_{}_{sequence}_{label}", process::id()));
             match fs::create_dir(&root) {
                 Ok(()) => {
                     let path = root.join("root");
                     let workspace = Self {
                         owned: Arc::new(WorkspaceFiles {
                             root,
-                            test: std::thread::current().name().unwrap_or(label).to_string(),
+                            test: thread::current().name().unwrap_or(label).to_string(),
                             cleanup: None,
                             finished: AtomicBool::new(false),
                             failed: AtomicBool::new(false),
@@ -56,7 +65,7 @@ impl TestWorkspace {
                     fs::create_dir(&workspace.path).expect("create owned test root");
                     return workspace;
                 }
-                Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
+                Err(error) if error.kind() == ErrorKind::AlreadyExists => continue,
                 Err(error) => panic!("create test workspace {}: {error}", root.display()),
             }
         }
@@ -82,8 +91,8 @@ impl TestWorkspace {
     /// Keeps deliberately invalid input intact under Windows verbatim paths.
     pub fn literal_path(&self, suffix: &str) -> PathBuf {
         let mut path = self.path.as_os_str().to_os_string();
-        path.push(std::path::MAIN_SEPARATOR.to_string());
-        path.push(suffix.replace('/', std::path::MAIN_SEPARATOR_STR));
+        path.push(MAIN_SEPARATOR.to_string());
+        path.push(suffix.replace('/', MAIN_SEPARATOR_STR));
         PathBuf::from(path)
     }
 
@@ -96,7 +105,7 @@ impl TestWorkspace {
         }
     }
 
-    pub fn directory_link(name: &str, relative: &str) -> std::io::Result<(Self, PathBuf, PathBuf)> {
+    pub fn directory_link(name: &str, relative: &str) -> IoResult<(Self, PathBuf, PathBuf)> {
         let workspace = Self::new(name);
         let outside = workspace.outer().join("outside");
         fs::create_dir(&outside)?;
@@ -106,7 +115,7 @@ impl TestWorkspace {
         Ok((workspace, outside, link))
     }
 
-    pub fn file_link(name: &str, relative: &str) -> std::io::Result<(Self, PathBuf, PathBuf)> {
+    pub fn file_link(name: &str, relative: &str) -> IoResult<(Self, PathBuf, PathBuf)> {
         let workspace = Self::new(name);
         let outside = workspace.outer().join("outside.wpn");
         fs::write(&outside, b"")?;
@@ -122,19 +131,19 @@ impl TestWorkspace {
     }
 
     #[cfg(windows)]
-    fn try_junction(name: &str, relative: &str) -> std::io::Result<(Self, PathBuf, PathBuf)> {
+    fn try_junction(name: &str, relative: &str) -> IoResult<(Self, PathBuf, PathBuf)> {
         let workspace = Self::new(name);
         let outside = workspace.outer().join("outside");
         fs::create_dir(&outside)?;
         let link = workspace.join(relative);
         fs::create_dir_all(link.parent().expect("junction has an owned parent"))?;
-        let output = std::process::Command::new("cmd")
+        let output = Command::new("cmd")
             .args(["/c", "mklink", "/J"])
             .arg(link.to_string_lossy().replace('/', "\\"))
             .arg(outside.to_string_lossy().replace('/', "\\"))
             .output()?;
         if !output.status.success() {
-            return Err(std::io::Error::other(format!(
+            return Err(Error::other(format!(
                 "junction {}: {} {}",
                 link.display(),
                 String::from_utf8_lossy(&output.stdout),
@@ -145,7 +154,7 @@ impl TestWorkspace {
     }
 }
 
-impl std::ops::Deref for TestWorkspace {
+impl Deref for TestWorkspace {
     type Target = Path;
     fn deref(&self) -> &Path {
         &self.path
@@ -160,7 +169,7 @@ impl AsRef<Path> for TestWorkspace {
 
 impl Drop for TestWorkspace {
     fn drop(&mut self) {
-        if std::thread::panicking() {
+        if thread::panicking() {
             self.owned.failed.store(true, Ordering::Relaxed);
         }
     }
@@ -176,7 +185,7 @@ impl WorkspaceFiles {
             .map(|release| release(&self.root))
             .unwrap_or_default();
         let retained = (failed || self.failed.load(Ordering::Relaxed))
-            && std::env::var_os("PYXIS_KEEP_FAILED").is_some();
+            && env::var_os("PYXIS_KEEP_FAILED").is_some();
         if retained {
             eprintln!(
                 "TEST_WORKSPACE_RETAINED test={} path={}",
@@ -189,10 +198,10 @@ impl WorkspaceFiles {
         if !errors.is_empty() || retained || failed || self.failed.load(Ordering::Relaxed) {
             let report = serde_json::json!({"test":self.test,"path":self.root,"retained":retained,"errors":errors});
             eprintln!("TEST_WORKSPACE_RESULT {report}");
-            if let Some(directory) = std::env::var_os("PYXIS_TEST_REPORTS") {
+            if let Some(directory) = env::var_os("PYXIS_TEST_REPORTS") {
                 let sequence = WORKSPACE_SEQUENCE.fetch_add(1, Ordering::Relaxed);
-                let path = PathBuf::from(directory)
-                    .join(format!("{}-{sequence}.json", std::process::id()));
+                let path =
+                    PathBuf::from(directory).join(format!("{}-{sequence}.json", process::id()));
                 if let Err(error) = fs::write(&path, report.to_string()) {
                     eprintln!("TEST_WORKSPACE_REPORT_ERROR {}: {error}", path.display());
                 }
@@ -204,7 +213,7 @@ impl WorkspaceFiles {
 
 impl Drop for WorkspaceFiles {
     fn drop(&mut self) {
-        self.finish(std::thread::panicking());
+        self.finish(thread::panicking());
     }
 }
 
@@ -246,7 +255,7 @@ fn collect_test_entries(
 ) {
     let metadata = match fs::symlink_metadata(path) {
         Ok(metadata) => metadata,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return,
+        Err(error) if error.kind() == ErrorKind::NotFound => return,
         Err(error) => {
             errors.push(format!("inspect {}: {error}", path.display()));
             return;
@@ -254,7 +263,6 @@ fn collect_test_entries(
     };
     #[cfg(windows)]
     let (linked, directory) = {
-        use std::os::windows::fs::MetadataExt;
         (
             metadata.file_attributes() & 0x400 != 0,
             metadata.file_attributes() & 0x10 != 0,
@@ -285,14 +293,14 @@ fn collect_test_entries(
 }
 
 pub(crate) fn isolated_test() -> bool {
-    let name = std::thread::current()
+    let name = thread::current()
         .name()
         .expect("named test thread")
         .to_string();
-    if std::env::var("PYXIS_ISOLATED_TEST").as_deref() == Ok(&name) {
+    if env::var("PYXIS_ISOLATED_TEST").as_deref() == Ok(&name) {
         return false;
     }
-    let output = std::process::Command::new(std::env::current_exe().unwrap())
+    let output = Command::new(env::current_exe().unwrap())
         .args(["--exact", &name, "--nocapture"])
         .env("PYXIS_ISOLATED_TEST", &name)
         .output()
@@ -312,8 +320,7 @@ pub(crate) fn short_path(path: &Path) -> PathBuf {
 }
 
 #[cfg(windows)]
-fn try_short_path(path: &Path) -> std::io::Result<PathBuf> {
-    use std::os::windows::ffi::{OsStrExt, OsStringExt};
+fn try_short_path(path: &Path) -> IoResult<PathBuf> {
     let input = path
         .as_os_str()
         .encode_wide()
@@ -321,52 +328,52 @@ fn try_short_path(path: &Path) -> std::io::Result<PathBuf> {
         .collect::<Vec<_>>();
     let mut output = vec![0; 32768];
     let length = unsafe {
-        windows_sys::Win32::Storage::FileSystem::GetShortPathNameW(
+        Win32::Storage::FileSystem::GetShortPathNameW(
             input.as_ptr(),
             output.as_mut_ptr(),
             output.len() as u32,
         )
     };
     if length == 0 || length as usize >= output.len() {
-        return Err(std::io::Error::last_os_error());
+        return Err(Error::last_os_error());
     }
-    let short = PathBuf::from(std::ffi::OsString::from_wide(&output[..length as usize]));
+    let short = PathBuf::from(OsString::from_wide(&output[..length as usize]));
     assert_eq!(short.canonicalize().unwrap(), path.canonicalize().unwrap());
     Ok(short)
 }
 
 #[cfg(windows)]
-fn create_dir_link(target: &Path, link: &Path) -> std::io::Result<()> {
-    std::os::windows::fs::symlink_dir(target, link)
+fn create_dir_link(target: &Path, link: &Path) -> IoResult<()> {
+    windows_fs::symlink_dir(target, link)
 }
 
 #[cfg(unix)]
-fn create_dir_link(target: &Path, link: &Path) -> std::io::Result<()> {
-    std::os::unix::fs::symlink(target, link)
+fn create_dir_link(target: &Path, link: &Path) -> IoResult<()> {
+    unix_fs::symlink(target, link)
 }
 
 #[cfg(not(any(windows, unix)))]
-fn create_dir_link(_target: &Path, _link: &Path) -> std::io::Result<()> {
-    Err(std::io::Error::new(
-        std::io::ErrorKind::Unsupported,
+fn create_dir_link(_target: &Path, _link: &Path) -> IoResult<()> {
+    Err(Error::new(
+        ErrorKind::Unsupported,
         "directory links are unsupported on this platform",
     ))
 }
 
 #[cfg(windows)]
-fn create_file_link(target: &Path, link: &Path) -> std::io::Result<()> {
-    std::os::windows::fs::symlink_file(target, link)
+fn create_file_link(target: &Path, link: &Path) -> IoResult<()> {
+    windows_fs::symlink_file(target, link)
 }
 
 #[cfg(unix)]
-fn create_file_link(target: &Path, link: &Path) -> std::io::Result<()> {
-    std::os::unix::fs::symlink(target, link)
+fn create_file_link(target: &Path, link: &Path) -> IoResult<()> {
+    unix_fs::symlink(target, link)
 }
 
 #[cfg(not(any(windows, unix)))]
-fn create_file_link(_target: &Path, _link: &Path) -> std::io::Result<()> {
-    Err(std::io::Error::new(
-        std::io::ErrorKind::Unsupported,
+fn create_file_link(_target: &Path, _link: &Path) -> IoResult<()> {
+    Err(Error::new(
+        ErrorKind::Unsupported,
         "file links are unsupported on this platform",
     ))
 }

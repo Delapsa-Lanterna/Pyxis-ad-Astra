@@ -1,18 +1,29 @@
+use super::super::model::{SessionCsvRow, csv_table_spec};
 #[cfg(test)]
 use super::super::query::joint_edit::query_joint_edit;
 use super::super::session::csv_writes::CsvTableDraft;
 use super::super::session::{lock_ready_session, session_handle};
-use super::super::{
-    model::{SessionCsvRow, csv_table_spec},
-    write::entity_write::content::stage_entity_content,
+use super::super::write::entity_write::content::stage_entity_content;
+use crate::domain::{
+    csv_column_order, entity_construction, entity_definitions, joint_hull, save_edits,
+    variant_modules,
 };
-use crate::{
-    errors::{AppError, AppResult},
-    io::{FileChangeSetBuilder, JsonWriteBatch, read_csv_data},
-    models::*,
+use crate::errors::{AppError, AppResult};
+use crate::io::{FileChangeSetBuilder, JsonWriteBatch, read_csv_data};
+use crate::models::{
+    EntityIdentityChange, EntityKind, EntityLinkedRecord, JointEditKind, JointEditQuery,
+    JointEditSubmission, JointRecordTarget, JointValue, SaveEdit, WriteContentTarget, *,
 };
+use crate::services::project::definitions::entity_resources;
+use crate::services::project::query::joint_edit;
+use crate::services::project::sources::core;
+use crate::services::project::write::entity_write::descriptions;
+use crate::services::query_joint_edit_request;
+use crate::{io, parsers};
 use serde_json::Value;
-use std::{collections::BTreeMap, path::Path};
+use std::collections::{BTreeMap, BTreeSet};
+use std::path::Path;
+use std::slice;
 
 /// Consumes the current snapshot prepared under the project's root lease.
 /// Source credentials are rechecked before staging, while the graph is reused.
@@ -26,10 +37,10 @@ pub fn save_joint_edit(payload: &JointEditSubmission) -> AppResult<WriteResult<J
         .map(|version| (windows_path_key(&version.path), version))
         .collect::<BTreeMap<_, _>>();
     for expected in source_versions.into_values() {
-        let actual = crate::io::file_version(Path::new(&expected.path))
+        let actual = io::file_version(Path::new(&expected.path))
             .map_err(|error| error.at_path(&expected.path))?;
         if actual != *expected
-            && !crate::io::source_recreation_allowed(&current.root.mod_root, &expected.path)
+            && !io::source_recreation_allowed(&current.root.mod_root, &expected.path)
         {
             return Err(
                 AppError::message("write.version_conflict", "联合保存来源内容已变化")
@@ -82,8 +93,7 @@ pub fn save_joint_edit(payload: &JointEditSubmission) -> AppResult<WriteResult<J
         if let JointValue::Present(data) = &mut value {
             let mut changed = false;
             for (previous, next) in &renames {
-                changed |=
-                    crate::domain::variant_modules::rename_module_reference(data, previous, next);
+                changed |= variant_modules::rename_module_reference(data, previous, next);
             }
             if changed {
                 values.insert(record.key.clone(), value);
@@ -127,10 +137,7 @@ pub fn save_joint_edit(payload: &JointEditSubmission) -> AppResult<WriteResult<J
         }
         if value == &record.value
             && !create_override
-            && !crate::io::source_recreation_allowed(
-                &current.root.mod_root,
-                &record.target.write().path,
-            )
+            && !io::source_recreation_allowed(&current.root.mod_root, &record.target.write().path)
         {
             continue;
         }
@@ -157,8 +164,7 @@ pub fn save_joint_edit(payload: &JointEditSubmission) -> AppResult<WriteResult<J
                             )?,
                         }
                     };
-                    let mut content =
-                        crate::domain::entity_construction::create_associated_spec(&params);
+                    let mut content = entity_construction::create_associated_spec(&params);
                     let edited = data.as_object().ok_or_else(|| {
                         AppError::message("joint.value_shape", "规格内容必须为对象")
                     })?;
@@ -171,9 +177,8 @@ pub fn save_joint_edit(payload: &JointEditSubmission) -> AppResult<WriteResult<J
                     data.clone()
                 };
                 let data = &constructed;
-                let definition =
-                    crate::domain::entity_definitions::entity_spec_definition(target.kind)
-                        .expect("joint spec has format");
+                let definition = entity_definitions::entity_spec_definition(target.kind)
+                    .expect("joint spec has format");
                 if let Some(id) = data
                     .get(definition.id_field)
                     .and_then(Value::as_str)
@@ -182,7 +187,7 @@ pub fn save_joint_edit(payload: &JointEditSubmission) -> AppResult<WriteResult<J
                     let relative = if target.state == EntityTargetState::Create {
                         definition.default_rel_path(id)
                     } else {
-                        crate::io::forward_slash_path(
+                        io::forward_slash_path(
                             &Path::new(&target.write.rel_path)
                                 .with_file_name(format!("{id}{}", definition.extension)),
                         )
@@ -236,16 +241,10 @@ pub fn save_joint_edit(payload: &JointEditSubmission) -> AppResult<WriteResult<J
                 if let JointValue::Present(data) = &next.value {
                     next.resource_refs = match staged.identity.after.kind {
                         EntityKind::Ship => {
-                            super::super::definitions::entity_resources::ship_resource_refs(
-                                &staged.identity.after.id,
-                                data,
-                            )
+                            entity_resources::ship_resource_refs(&staged.identity.after.id, data)
                         }
                         EntityKind::Weapon => {
-                            super::super::definitions::entity_resources::weapon_resource_refs(
-                                &staged.identity.after.id,
-                                data,
-                            )
+                            entity_resources::weapon_resource_refs(&staged.identity.after.id, data)
                         }
                         _ => next.resource_refs.clone(),
                     };
@@ -315,19 +314,17 @@ pub fn save_joint_edit(payload: &JointEditSubmission) -> AppResult<WriteResult<J
                             .collect::<Vec<_>>();
                         if !added.is_empty() {
                             let standard = if let Some(root) = &session.manifest.starsector_root {
-                                let core = super::super::sources::core::core_dir(root)?
-                                    .join(csv_table_spec(*table).rel_path);
+                                let core =
+                                    core::core_dir(root)?.join(csv_table_spec(*table).rel_path);
                                 if core.exists() {
                                     read_csv_data(&core)?.header
                                 } else {
-                                    crate::domain::csv_column_order::standard_csv_columns(*table)
+                                    csv_column_order::standard_csv_columns(*table)
                                 }
                             } else {
-                                crate::domain::csv_column_order::standard_csv_columns(*table)
+                                csv_column_order::standard_csv_columns(*table)
                             };
-                            crate::domain::csv_column_order::add_ordered_csv_columns(
-                                header, &added, &standard,
-                            );
+                            csv_column_order::add_ordered_csv_columns(header, &added, &standard);
                         }
                         for identity_change in &identities {
                             if let Some(EntityLinkedRecord::Csv {
@@ -401,7 +398,7 @@ pub fn save_joint_edit(payload: &JointEditSubmission) -> AppResult<WriteResult<J
     if !description_renames.is_empty() {
         if let Some(table) = tables.get_mut(&CsvTableKey::Descriptions) {
             for rename in &description_renames {
-                super::entity_write::descriptions::rename_description_row(
+                descriptions::rename_description_row(
                     &session,
                     table,
                     &rename.previous_id,
@@ -409,10 +406,9 @@ pub fn save_joint_edit(payload: &JointEditSubmission) -> AppResult<WriteResult<J
                     rename.description_type,
                 )?;
             }
-        } else if let Some(csv) = super::entity_write::descriptions::prepare_description_renames(
-            &session,
-            &description_renames,
-        )? {
+        } else if let Some(csv) =
+            descriptions::prepare_description_renames(&session, &description_renames)?
+        {
             tables.insert(csv.table, csv);
         }
     }
@@ -424,8 +420,7 @@ pub fn save_joint_edit(payload: &JointEditSubmission) -> AppResult<WriteResult<J
                 .iter_mut()
                 .filter(|row| row.is_comment && !row.data.is_empty())
             {
-                let value =
-                    crate::parsers::value_to_cell(row.data.get(first).unwrap_or(&Value::Null))?;
+                let value = parsers::value_to_cell(row.data.get(first).unwrap_or(&Value::Null))?;
                 if !value.starts_with('#') {
                     row.data
                         .insert(first.clone(), Value::String(format!("#{value}")));
@@ -436,9 +431,8 @@ pub fn save_joint_edit(payload: &JointEditSubmission) -> AppResult<WriteResult<J
     }
     json.finish()?;
     for identity in &mut identities {
-        if let Some(table) =
-            crate::domain::entity_definitions::entity_spec_definition(identity.after.kind)
-                .and_then(|definition| definition.csv_table)
+        if let Some(table) = entity_definitions::entity_spec_definition(identity.after.kind)
+            .and_then(|definition| definition.csv_table)
             && let Some(rows) = staged_tables.get(&table).map(|csv| &csv.draft.rows)
             && let Some(row) = rows.iter().find(|row| {
                 !row.is_comment
@@ -525,7 +519,7 @@ pub fn save_joint_edit(payload: &JointEditSubmission) -> AppResult<WriteResult<J
     }
     let changed_versions = changes
         .iter()
-        .map(crate::io::version_after_change)
+        .map(io::version_after_change)
         .collect::<AppResult<Vec<_>>>()?;
     let versions = changed_versions
         .iter()
@@ -622,12 +616,11 @@ pub fn save_joint_edit(payload: &JointEditSubmission) -> AppResult<WriteResult<J
         saved.hull = if changed {
             None
         } else {
-            crate::domain::joint_hull::project_joint_hull(&saved.records, key)?
+            joint_hull::project_joint_hull(&saved.records, key)?
         };
     }
     if matches!(saved.root.kind, JointEditKind::Ship | JointEditKind::Skin) {
-        saved.hull =
-            crate::domain::joint_hull::project_ship_hull(&saved.records, &saved.bindings["spec"])?;
+        saved.hull = joint_hull::project_ship_hull(&saved.records, &saved.bindings["spec"])?;
     }
     if saved.root.kind == JointEditKind::Variant {
         saved.variants.clear();
@@ -645,14 +638,13 @@ pub fn save_joint_edit(payload: &JointEditSubmission) -> AppResult<WriteResult<J
                         }
                         _ => false,
                     })
-                && let Some(hull) =
-                    crate::domain::joint_hull::project_joint_hull(&saved.records, &record.key)?
+                && let Some(hull) = joint_hull::project_joint_hull(&saved.records, &record.key)?
             {
                 saved.variants.insert(record.key.clone(), hull);
             }
         }
     }
-    let owner = crate::models::WriteContentTarget::Joint {
+    let owner = WriteContentTarget::Joint {
         root: saved.root.clone(),
     };
     let mut result = WriteResult::from_content(changes, owner, saved);
@@ -665,35 +657,25 @@ pub fn save_joint_edit(payload: &JointEditSubmission) -> AppResult<WriteResult<J
 mod tests;
 
 pub fn prepare_joint_save(
-    payload: &mut crate::models::JointEditSubmission,
-    edits: &[crate::models::SaveEdit],
-    identities: &[crate::models::EntityIdentityChange],
+    payload: &mut JointEditSubmission,
+    edits: &[SaveEdit],
+    identities: &[EntityIdentityChange],
 ) -> Result<(), AppError> {
-    use crate::models::{JointValue, SaveEdit};
     for identity in identities {
         if identity.before.id == payload.snapshot.root.id
             && matches!(
                 (payload.snapshot.root.kind, identity.before.kind),
-                (
-                    crate::models::JointEditKind::Ship,
-                    crate::models::EntityKind::Ship
-                ) | (
-                    crate::models::JointEditKind::Skin,
-                    crate::models::EntityKind::Skin
-                ) | (
-                    crate::models::JointEditKind::Weapon,
-                    crate::models::EntityKind::Weapon
-                ) | (
-                    crate::models::JointEditKind::Variant,
-                    crate::models::EntityKind::Variant
-                )
+                (JointEditKind::Ship, EntityKind::Ship)
+                    | (JointEditKind::Skin, EntityKind::Skin)
+                    | (JointEditKind::Weapon, EntityKind::Weapon)
+                    | (JointEditKind::Variant, EntityKind::Variant)
             )
         {
             payload.snapshot.root.id = identity.after.id.clone();
         }
     }
-    let retained = super::super::query::joint_edit::retained_joint_sources(&payload.snapshot)?;
-    let current = crate::services::query_joint_edit_request(&crate::models::JointEditQuery {
+    let retained = joint_edit::retained_joint_sources(&payload.snapshot)?;
+    let current = query_joint_edit_request(&JointEditQuery {
         root: payload.snapshot.root.clone(),
         row_key: None,
         values: Some(retained),
@@ -702,7 +684,6 @@ pub fn prepare_joint_save(
         catalog_source: None,
     })?;
     let resolve_key = |key: &String| -> Result<String, AppError> {
-        use crate::models::{EntityLinkedRecord, JointRecordTarget};
         let mut target = payload
             .snapshot
             .records
@@ -778,7 +759,7 @@ pub fn prepare_joint_save(
                 )
             })
     };
-    let mut values = std::collections::BTreeMap::new();
+    let mut values = BTreeMap::new();
     let overrides = payload
         .create_overrides
         .iter()
@@ -795,7 +776,7 @@ pub fn prepare_joint_save(
                 .first()
                 .expect("joint edits identify their source record"),
         })
-        .collect::<std::collections::BTreeSet<_>>();
+        .collect::<BTreeSet<_>>();
     for previous in keys {
         let key = resolve_key(previous)?;
         let record = current
@@ -806,11 +787,7 @@ pub fn prepare_joint_save(
         let value = values
             .entry(key)
             .or_insert(serde_json::to_value(&record.value)?);
-        crate::domain::save_edits::apply_save_edits_at(
-            value,
-            edits,
-            std::slice::from_ref(previous),
-        );
+        save_edits::apply_save_edits_at(value, edits, slice::from_ref(previous));
     }
     payload.values = values
         .into_iter()

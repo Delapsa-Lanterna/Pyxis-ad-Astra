@@ -1,4 +1,5 @@
 use super::{JsonWriteOptions, ProjectSessionId};
+use crate::models::{EntityEditTarget, FileVersion, project_identity};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -28,10 +29,10 @@ pub struct LoadImportedEditorSpecPayload {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SpecSave {
-    pub base_versions: Vec<crate::models::FileVersion>,
+    pub base_versions: Vec<FileVersion>,
     pub session_id: ProjectSessionId,
     pub mod_root: String,
-    pub target: crate::models::EntityEditTarget,
+    pub target: EntityEditTarget,
     pub data: Value,
     #[serde(default)]
     pub json_write: JsonWriteOptions,
@@ -39,11 +40,13 @@ pub struct SpecSave {
     pub ordered_json: Option<String>,
 }
 
-super::project_identity::impl_session_mod_scope_required!(SpecSave);
+project_identity::impl_session_mod_scope_required!(SpecSave);
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(test)]
+    use crate::models::EntityKind;
     use serde_json::json;
 
     #[test]
@@ -59,7 +62,7 @@ mod tests {
     fn spec_save_requests_keep_loaded_target_and_default_json_options() {
         let value = json!({"baseVersions":[],"sessionId":"session","modRoot":"M:/mod","target":{"kind":"ship","id":"demo","source":null,"write":{"source":"mod","root":"M:/mod","relPath":"data/hulls/demo.ship","path":"M:/mod/data/hulls/demo.ship"},"state":"create","linkedRecord":null},"data":{"hullId":"demo"}});
         let payload: SpecSave = serde_json::from_value(value).unwrap();
-        assert_eq!(payload.target.kind, crate::models::EntityKind::Ship);
+        assert_eq!(payload.target.kind, EntityKind::Ship);
         assert_eq!(payload.target.id, "demo");
         assert!(!payload.json_write.preserve_original_json);
         assert!(payload.ordered_json.is_none());

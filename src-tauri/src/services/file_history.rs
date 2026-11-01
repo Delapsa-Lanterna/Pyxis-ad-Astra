@@ -1,17 +1,15 @@
+use crate::errors::{AppError, AppResult};
+use crate::io;
+use crate::models::{
+    AppSettings, EntityIdentityChange, FileChangeKind, FileChangeRecord, FileChangeReplayDirection,
+    FileHistoryEntrySummary, FileHistorySnapshot, FileSnapshot, windows_path_key,
+};
 #[cfg(test)]
 use crate::test_support::TestWorkspace;
-use crate::{
-    errors::{AppError, AppResult},
-    models::{
-        FileChangeRecord, FileChangeReplayDirection, FileHistoryEntrySummary, FileHistorySnapshot,
-        windows_path_key,
-    },
-};
-use std::{
-    collections::BTreeMap,
-    path::Path,
-    sync::{LazyLock, Mutex},
-};
+use chrono::Utc;
+use std::collections::{BTreeMap, BTreeSet};
+use std::path::Path;
+use std::sync::{LazyLock, Mutex, MutexGuard};
 
 #[derive(Default)]
 struct HistoryState {
@@ -22,7 +20,7 @@ struct HistoryState {
 
 #[derive(Clone)]
 pub(crate) struct HistoryEntry {
-    pub(crate) identity_changes: Vec<crate::models::EntityIdentityChange>,
+    pub(crate) identity_changes: Vec<EntityIdentityChange>,
     pub(crate) summary: FileHistoryEntrySummary,
     pub(crate) changes: Vec<FileChangeRecord>,
 }
@@ -30,7 +28,7 @@ pub(crate) struct HistoryEntry {
 static HISTORIES: LazyLock<Mutex<BTreeMap<String, HistoryState>>> =
     LazyLock::new(|| Mutex::new(BTreeMap::new()));
 static HISTORY_LIMIT: LazyLock<Mutex<usize>> =
-    LazyLock::new(|| Mutex::new(crate::models::AppSettings::default().file_history_limit as usize));
+    LazyLock::new(|| Mutex::new(AppSettings::default().file_history_limit as usize));
 
 pub fn release_history(root: &str) -> AppResult<()> {
     let root = windows_path_key(root);
@@ -76,7 +74,7 @@ fn history_limit() -> AppResult<usize> {
         .map(|limit| *limit)
         .map_err(|_| history_error())
 }
-fn lock_histories() -> AppResult<std::sync::MutexGuard<'static, BTreeMap<String, HistoryState>>> {
+fn lock_histories() -> AppResult<MutexGuard<'static, BTreeMap<String, HistoryState>>> {
     HISTORIES.lock().map_err(|_| history_error())
 }
 fn history_error() -> AppError {
@@ -86,7 +84,7 @@ fn history_error() -> AppError {
 pub(crate) fn record(
     root: &str,
     changes: &[FileChangeRecord],
-    identities: &[crate::models::EntityIdentityChange],
+    identities: &[EntityIdentityChange],
     label: &str,
 ) -> AppResult<FileHistorySnapshot> {
     let mut histories = lock_histories()?;
@@ -98,11 +96,11 @@ pub(crate) fn record(
             summary: FileHistoryEntrySummary {
                 id: history.revision,
                 label: label.to_string(),
-                timestamp: chrono::Utc::now().timestamp_millis(),
+                timestamp: Utc::now().timestamp_millis(),
                 paths: changes
                     .iter()
                     .flat_map(|change| [change.before_path.clone(), change.after_path.clone()])
-                    .collect::<std::collections::BTreeSet<_>>()
+                    .collect::<BTreeSet<_>>()
                     .into_iter()
                     .collect(),
             },
@@ -179,27 +177,25 @@ fn history_changes(changes: &[FileChangeRecord]) -> Vec<FileChangeRecord> {
     let mut normalized = Vec::new();
     for change in changes {
         if changes.iter().any(|parent| {
-            matches!(parent.kind, crate::models::FileChangeKind::Directory)
+            matches!(parent.kind, FileChangeKind::Directory)
                 && parent.after_path != change.after_path
                 && Path::new(&change.after_path).starts_with(&parent.after_path)
         }) {
             continue;
         }
         let mut combined = change.clone();
-        if matches!(combined.kind, crate::models::FileChangeKind::Directory)
-            && combined.after_exists
-        {
+        if matches!(combined.kind, FileChangeKind::Directory) && combined.after_exists {
             for child in changes {
-                if matches!(child.kind, crate::models::FileChangeKind::File)
+                if matches!(child.kind, FileChangeKind::File)
                     && let Ok(relative) =
                         Path::new(&child.after_path).strip_prefix(&combined.after_path)
                 {
-                    let relative = crate::io::forward_slash_path(relative);
+                    let relative = io::forward_slash_path(relative);
                     combined
                         .after_files
                         .retain(|file| file.rel_path != relative);
                     if child.after_exists {
-                        combined.after_files.push(crate::models::FileSnapshot {
+                        combined.after_files.push(FileSnapshot {
                             rel_path: relative,
                             text: child.after_text.clone(),
                             data_base64: child.after_data_base64.clone(),
@@ -223,6 +219,14 @@ fn history_conflict() -> AppError {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::io;
+    #[cfg(test)]
+    use crate::models;
+    #[cfg(windows)]
+    #[cfg(test)]
+    use std::fs;
+    #[cfg(test)]
+    use std::slice;
 
     #[test]
     fn history_identity_is_shared_by_every_entry_point() {
@@ -235,14 +239,13 @@ mod tests {
         let aliases = [
             root.clone(),
             root.replace('\\', "/"),
-            crate::models::windows_path_key(&root),
+            models::windows_path_key(&root),
             root.to_uppercase(),
         ];
         let change =
-            crate::io::build_text_change(&directory.join("entry.txt"), Some("saved".into()))
-                .unwrap();
+            io::build_text_change(&directory.join("entry.txt"), Some("saved".into())).unwrap();
         for alias in aliases {
-            let saved = record(&root, std::slice::from_ref(&change), &[], "entry").unwrap();
+            let saved = record(&root, slice::from_ref(&change), &[], "entry").unwrap();
             let queried = query(&alias).unwrap();
             assert_eq!(queried.undo_stack.len(), 1);
             assert_eq!(queried.revision, saved.revision);
@@ -266,7 +269,7 @@ mod tests {
             assert_eq!(query(&root).unwrap().undo_stack.len(), 1);
             clear(&alias).unwrap();
             assert!(query(&root).unwrap().undo_stack.is_empty());
-            record(&alias, std::slice::from_ref(&change), &[], "entry").unwrap();
+            record(&alias, slice::from_ref(&change), &[], "entry").unwrap();
             release_history(&root).unwrap();
             let released = query(&alias).unwrap();
             assert_eq!(released.revision, 0);
@@ -281,10 +284,9 @@ mod tests {
         let work = TestWorkspace::new("windows_unicode_history");
         let roots = [work.join("İ"), work.join("i\u{307}")];
         for (index, root) in roots.iter().enumerate() {
-            std::fs::create_dir(root).unwrap();
+            fs::create_dir(root).unwrap();
             let change =
-                crate::io::build_text_change(&root.join("entry.txt"), Some(index.to_string()))
-                    .unwrap();
+                io::build_text_change(&root.join("entry.txt"), Some(index.to_string())).unwrap();
             record(&root.to_string_lossy(), &[change], &[], &index.to_string()).unwrap();
         }
         for (index, root) in roots.iter().enumerate() {
@@ -307,8 +309,7 @@ mod tests {
         let directory = TestWorkspace::new("history_owner");
         let root = directory.to_string_lossy().to_lowercase();
         let change =
-            crate::io::build_text_change(&directory.join("entry.txt"), Some("saved".into()))
-                .unwrap();
+            io::build_text_change(&directory.join("entry.txt"), Some("saved".into())).unwrap();
         let saved = record(&root, &[change], &[], "save entry").unwrap();
         assert_eq!(saved.undo_stack.len(), 1);
         assert_eq!(saved.undo_stack[0].label, "save entry");
@@ -348,8 +349,7 @@ mod tests {
         let directory = TestWorkspace::new("history_owner_stale");
         let root = directory.to_string_lossy().to_lowercase();
         let change =
-            crate::io::build_text_change(&directory.join("entry.txt"), Some("saved".into()))
-                .unwrap();
+            io::build_text_change(&directory.join("entry.txt"), Some("saved".into())).unwrap();
         let saved = record(&root, &[change], &[], "save entry").unwrap();
         for (id, revision) in [
             (saved.undo_stack[0].id + 1, saved.revision),

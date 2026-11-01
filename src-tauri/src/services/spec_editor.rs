@@ -1,14 +1,17 @@
 use crate::domain::entity_definitions::{EntitySpecDefinition, editor_spec_definition};
 #[cfg(test)]
-use crate::{
-    domain::entity_identity::validate_entity_id,
-    models::{JsonWriteOptions, WriteResult},
-};
-use crate::{
-    errors::{AppError, AppResult},
-    io::{read_json_file, validate_safe_absolute_path, validate_walk_entry},
-    models::SpecEditorKind,
-};
+use crate::domain::entity_identity::validate_entity_id;
+use crate::errors::{AppError, AppResult};
+use crate::io::{read_json_file, validate_safe_absolute_path, validate_walk_entry};
+use crate::models::SpecEditorKind;
+#[cfg(test)]
+use crate::models::{JsonWriteOptions, SaveAction, SpecSave, WriteResult};
+#[cfg(test)]
+use crate::services;
+#[cfg(test)]
+use crate::services::project::PerformanceTrace;
+#[cfg(test)]
+use crate::services::{project, project_save};
 use serde_json::Value;
 use std::path::Path;
 
@@ -33,31 +36,22 @@ pub fn save_editor_spec_with_json_options(
 ) -> AppResult<WriteResult<Value>> {
     let definition = editor_spec_definition(kind)?;
     validate_entity_id(id, definition.invalid_id_message)?;
-    let mut trace = crate::services::project::PerformanceTrace::new("project.openSession");
-    let manifest = crate::services::project::open_project_session_traced(
-        Path::new(mod_root),
-        None,
-        &mut trace,
-    )?;
+    let mut trace = PerformanceTrace::new("project.openSession");
+    let manifest = project::open_project_session_traced(Path::new(mod_root), None, &mut trace)?;
     let result = (|| {
-        let info = crate::services::query_entity_edit_target(
-            &manifest.session_id,
-            definition.entity_kind,
-            id,
-        )?;
-        crate::services::project_save::execute_save_action(
-            crate::models::SaveAction::SaveEditorSpec(crate::models::SpecSave {
-                session_id: manifest.session_id.clone(),
-                mod_root: manifest.mod_root.clone(),
-                target: info.target,
-                base_versions: info.base_versions,
-                data,
-                json_write: options,
-                ordered_json: ordered_json.map(str::to_string),
-            }),
-        )
+        let info =
+            services::query_entity_edit_target(&manifest.session_id, definition.entity_kind, id)?;
+        project_save::execute_save_action(SaveAction::SaveEditorSpec(SpecSave {
+            session_id: manifest.session_id.clone(),
+            mod_root: manifest.mod_root.clone(),
+            target: info.target,
+            base_versions: info.base_versions,
+            data,
+            json_write: options,
+            ordered_json: ordered_json.map(str::to_string),
+        }))
     })();
-    crate::services::project::close_project_session(manifest.session_id)?;
+    project::close_project_session(manifest.session_id)?;
     result
 }
 
@@ -90,48 +84,55 @@ fn validate_imported_editor_spec_path(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(test)]
+    use crate::domain::entity_construction;
     use crate::io::{read_utf8_no_bom, write_utf8_no_bom};
+    #[cfg(test)]
+    use crate::models::{
+        AssociatedSpecCreateParams, EntityKind, SaveAction, SpecSave, WeaponSpecClass,
+    };
+    #[cfg(test)]
+    use crate::services;
+    #[cfg(test)]
+    use crate::services::project::PerformanceTrace;
     use crate::services::project::test_support::project_workspace;
+    #[cfg(test)]
+    use crate::services::{project, project_save, write_transactions};
     use crate::test_support::TestWorkspace;
-    use std::{fs, path::PathBuf};
+    use std::fs;
+    use std::path::PathBuf;
 
     #[test]
     fn empty_weapon_editor_mounts_preserve_file_and_history_until_corrected() {
-        use crate::models::{AssociatedSpecCreateParams, EntityKind, WeaponSpecClass};
         for spec_class in [WeaponSpecClass::Projectile, WeaponSpecClass::Beam] {
             let root = project_workspace("weapon_editor_required_points");
             fs::create_dir_all(root.join("data/weapons")).unwrap();
             let path = root.join("data/weapons/fixture.wpn");
-            let mut valid = crate::domain::entity_construction::create_associated_spec(
-                &AssociatedSpecCreateParams::Weapon {
+            let mut valid =
+                entity_construction::create_associated_spec(&AssociatedSpecCreateParams::Weapon {
                     id: "fixture".into(),
                     spec_class,
-                },
-            );
+                });
             write_utf8_no_bom(&path, &valid.to_string()).unwrap();
             let original = read_utf8_no_bom(&path).unwrap();
-            let mut trace = crate::services::project::PerformanceTrace::new("project.openSession");
-            let manifest =
-                crate::services::project::open_project_session_traced(&root, None, &mut trace)
-                    .unwrap();
-            let info = crate::services::query_entity_edit_target(
+            let mut trace = PerformanceTrace::new("project.openSession");
+            let manifest = project::open_project_session_traced(&root, None, &mut trace).unwrap();
+            let info = services::query_entity_edit_target(
                 &manifest.session_id,
                 EntityKind::Weapon,
                 "fixture",
             )
             .unwrap();
             let save = |data| {
-                crate::services::project_save::execute_save_action(
-                    crate::models::SaveAction::SaveEditorSpec(crate::models::SpecSave {
-                        session_id: manifest.session_id.clone(),
-                        mod_root: manifest.mod_root.clone(),
-                        target: info.target.clone(),
-                        base_versions: info.base_versions.clone(),
-                        data,
-                        json_write: Default::default(),
-                        ordered_json: None,
-                    }),
-                )
+                project_save::execute_save_action(SaveAction::SaveEditorSpec(SpecSave {
+                    session_id: manifest.session_id.clone(),
+                    mod_root: manifest.mod_root.clone(),
+                    target: info.target.clone(),
+                    base_versions: info.base_versions.clone(),
+                    data,
+                    json_write: Default::default(),
+                    ordered_json: None,
+                }))
             };
             for (field, code) in [
                 ("turretOffsets", "spec.weapon_turret_barrel_required"),
@@ -143,13 +144,10 @@ mod tests {
                 assert_eq!(error.code(), code);
                 assert_eq!(read_utf8_no_bom(&path).unwrap(), original);
                 assert!(
-                    crate::services::write_transactions::query_history(
-                        &manifest.session_id,
-                        &manifest.mod_root
-                    )
-                    .unwrap()
-                    .undo_stack
-                    .is_empty()
+                    write_transactions::query_history(&manifest.session_id, &manifest.mod_root)
+                        .unwrap()
+                        .undo_stack
+                        .is_empty()
                 );
             }
             valid["turretOffsets"] = serde_json::json!([4, 5]);
@@ -157,7 +155,7 @@ mod tests {
             assert_eq!(read_json_file(&path).unwrap(), valid);
             assert_eq!(saved.content.map(|content| content.value), Some(valid));
             assert_eq!(saved.history.undo_stack.len(), 1);
-            crate::services::project::close_project_session(manifest.session_id).unwrap();
+            project::close_project_session(manifest.session_id).unwrap();
             root.close().unwrap();
         }
     }

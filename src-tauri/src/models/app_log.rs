@@ -61,8 +61,7 @@ pub const LOG_FILE: &str = "pyxis-ad-astra.log";
 
 #[cfg(test)]
 mod tests {
-    use super::AppLogEntry;
-    use super::AppLogLevel;
+    use super::{AppLogEntry, AppLogLevel};
     use serde_json::json;
 
     #[test]

@@ -1,12 +1,16 @@
-use crate::{
-    errors::{AppError, AppResult},
-    models::{
-        CsvTableKey, EntityKind, JointEditRecord, JointFieldBinding, JointHullProjection,
-        JointModuleBinding, JointRecordTarget, JointValue,
-    },
+use crate::domain::{joint_hull, json_composition, variant_modules};
+use crate::errors::{AppError, AppResult};
+use crate::models::{
+    CsvTableKey, EntityKind, JointEditRecord, JointFieldBinding, JointHullProjection,
+    JointModuleBinding, JointRecordTarget, JointValue,
 };
+#[cfg(test)]
+use crate::test_support::work_counts;
 use serde_json::Value;
+use std::borrow::Cow;
 use std::collections::{BTreeMap, BTreeSet};
+#[cfg(test)]
+use std::path::Path;
 use std::sync::LazyLock;
 
 pub fn project_joint_hull(
@@ -37,16 +41,14 @@ pub fn project_ship_hull(
     project_hull(records, root_key, &target.id)
 }
 
-fn effective_records(
-    records: &[JointEditRecord],
-) -> AppResult<std::borrow::Cow<'_, [JointEditRecord]>> {
+fn effective_records(records: &[JointEditRecord]) -> AppResult<Cow<'_, [JointEditRecord]>> {
     if records.iter().all(|record| {
         record
             .composition
             .as_ref()
             .is_none_or(|sources| sources.layers.is_empty())
     }) {
-        return Ok(std::borrow::Cow::Borrowed(records));
+        return Ok(Cow::Borrowed(records));
     }
     records
         .iter()
@@ -55,14 +57,13 @@ fn effective_records(
             if let (Some(sources), JointValue::Present(value)) =
                 (&record.composition, &record.value)
             {
-                record.value = JointValue::Present(
-                    crate::domain::json_composition::compose_game_json(sources, value)?,
-                );
+                record.value =
+                    JointValue::Present(json_composition::compose_game_json(sources, value)?);
             }
             Ok(record)
         })
         .collect::<AppResult<Vec<_>>>()
-        .map(std::borrow::Cow::Owned)
+        .map(Cow::Owned)
 }
 
 fn project_hull(
@@ -143,7 +144,7 @@ fn project_hull(
             });
         }
     }
-    for (path, paths) in crate::domain::joint_hull::skin_hull_fields() {
+    for (path, paths) in joint_hull::skin_hull_fields() {
         let inputs = fields.entry(path.clone()).or_insert_with(|| {
             vec![JointFieldBinding {
                 record_key: csv.key.clone(),
@@ -326,7 +327,7 @@ fn project_hull(
         built_in_wings: wings,
         modules: value(variant)
             .map(|data| {
-                crate::domain::variant_modules::module_entries(data.get("modules"))
+                variant_modules::module_entries(data.get("modules"))
                     .into_iter()
                     .map(|(slot_id, id)| JointModuleBinding {
                         slot_id,
@@ -425,16 +426,12 @@ fn add_weapons(weapons: &mut BTreeMap<String, String>, data: &Value) {
     }
 }
 
-pub fn skin_hull_fields() -> &'static std::collections::BTreeMap<String, Vec<String>> {
-    static FIELDS: LazyLock<std::collections::BTreeMap<String, Vec<String>>> =
-        LazyLock::new(|| {
-            #[cfg(test)]
-            crate::test_support::work_counts::record(
-                "asset-parse",
-                std::path::Path::new("skin-hull-fields"),
-            );
-            serde_json::from_str(include_str!("../../../schemas/skin-hull-fields.json"))
-                .expect("embedded skin hull fields must parse")
-        });
+pub fn skin_hull_fields() -> &'static BTreeMap<String, Vec<String>> {
+    static FIELDS: LazyLock<BTreeMap<String, Vec<String>>> = LazyLock::new(|| {
+        #[cfg(test)]
+        work_counts::record("asset-parse", Path::new("skin-hull-fields"));
+        serde_json::from_str(include_str!("../../../schemas/skin-hull-fields.json"))
+            .expect("embedded skin hull fields must parse")
+    });
     &FIELDS
 }

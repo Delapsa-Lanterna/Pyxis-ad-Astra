@@ -1,4 +1,8 @@
-use crate::models::{FileVersion, JsonWriteOptions, MiscConfigKind, ProjectSessionId};
+use crate::errors::ErrorDiagnostic;
+use crate::models::{
+    FileVersion, JsonComposition, JsonWriteOptions, MiscConfigKind, ProjectSessionId,
+    project_identity,
+};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -29,12 +33,12 @@ pub struct MiscConfigEntry {
     pub path: String,
     pub rel_path: String,
     pub state: MiscConfigState,
-    pub error: Option<crate::errors::ErrorDiagnostic>,
+    pub error: Option<ErrorDiagnostic>,
 }
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MiscConfigFile {
-    pub composition: super::JsonComposition,
+    pub composition: JsonComposition,
     pub kind: MiscConfigKind,
     pub path: String,
     pub rel_path: String,
@@ -60,7 +64,7 @@ pub struct MiscConfigDelete {
     pub mod_root: String,
     pub base_versions: Vec<FileVersion>,
 }
-super::project_identity::impl_session_mod_scope_required!(
+project_identity::impl_session_mod_scope_required!(
     MiscConfigScope,
     MiscConfigRead,
     MiscConfigWrite,

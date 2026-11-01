@@ -1,20 +1,26 @@
-use crate::{
-    domain::entity_definitions::{EntitySpecDefinition, entity_spec_definition},
-    domain::entity_identity::validate_entity_id,
-    errors::{AppError, AppResult},
-    io::{
-        FileChangeSetBuilder, FsRootBoundary, JsonWriteBatch, acquire_root_write_lock,
-        read_json_file,
-    },
-    models::{EntityKind, JsonWriteOptions, WriteResult},
-};
-use serde_json::Value;
-use std::path::Path;
-
 use super::super::super::session::{lock_session, session_handle};
 use super::content::save_entity_spec;
+use crate::domain::entity_definitions::{EntitySpecDefinition, entity_spec_definition};
+use crate::domain::entity_identity::validate_entity_id;
+use crate::domain::schema;
+use crate::errors::{AppError, AppResult};
+use crate::io::{
+    FileChangeSetBuilder, FsRootBoundary, JsonWriteBatch, acquire_root_write_lock, read_json_file,
+};
+use crate::models::{
+    EntityEditTarget, EntityFileLocation, EntityIdentityChange, EntityKind, EntityTargetState,
+    JsonWriteOptions, ResourceSource, WriteContentTarget, WriteResult,
+};
+use crate::services::project;
+use crate::services::project::query::entity_targets;
+use crate::services::project::sources::{core, json_documents};
+use crate::{io, models, parsers};
+use serde_json::Value;
+use std::collections::BTreeSet;
+use std::path::Path;
+
 pub fn validate_skin_engine_changes(session_id: &str, data: &Value) -> AppResult<()> {
-    crate::domain::schema::validate_document(crate::parsers::bundled_schema("skin"), data)?;
+    schema::validate_document(parsers::bundled_schema("skin"), data)?;
     if data
         .get("engineSlotChanges")
         .and_then(Value::as_object)
@@ -28,19 +34,19 @@ pub fn validate_skin_engine_changes(session_id: &str, data: &Value) -> AppResult
         .manifest
         .starsector_root
         .as_deref()
-        .map(super::super::super::sources::core::load_core_ship_files)
+        .map(core::load_core_ship_files)
         .transpose()?;
     let core_skins = session
         .manifest
         .starsector_root
         .as_deref()
-        .map(super::super::super::sources::core::load_core_skin_files)
+        .map(core::load_core_skin_files)
         .transpose()?;
     let mut id = data["baseHullId"]
         .as_str()
         .ok_or_else(|| AppError::message("config.missing_field", "缺少 baseHullId"))?;
     let mut layers = vec![data];
-    let mut seen = std::collections::BTreeSet::new();
+    let mut seen = BTreeSet::new();
     loop {
         if !seen.insert(id) {
             return Err(AppError::message("skin.base_cycle", "循环船体皮肤引用"));
@@ -69,7 +75,7 @@ pub fn validate_skin_engine_changes(session_id: &str, data: &Value) -> AppResult
         })?;
     let mut count = hull.data["engineSlots"].as_array().map_or(0, Vec::len);
     for layer in layers.into_iter().rev() {
-        let removed: std::collections::BTreeSet<_> = layer["removeEngineSlots"]
+        let removed: BTreeSet<_> = layer["removeEngineSlots"]
             .as_array()
             .into_iter()
             .flatten()
@@ -116,7 +122,7 @@ pub fn save_variant_entity(
             "装配数据 variantId 与保存目标不一致",
         ));
     }
-    let info = super::super::super::query::entity_targets::query_entity_edit_target(
+    let info = entity_targets::query_entity_edit_target(
         session_id,
         EntityKind::Variant,
         previous_id.unwrap_or(next_id),
@@ -128,12 +134,12 @@ pub fn save_variant_entity(
         .as_ref()
         .expect("variant save returns data")
         .value;
-    let refreshed = crate::services::project::sources::json_documents::build_variant_file(
+    let refreshed = json_documents::build_variant_file(
         Path::new(&after.write.root),
         &after.write.rel_path,
         content,
     )?;
-    let owner = crate::models::WriteContentTarget::Json {
+    let owner = WriteContentTarget::Json {
         origin: after.into(),
     };
     Ok(result.with_content(owner, serde_json::to_value(refreshed)?))
@@ -164,7 +170,7 @@ pub fn save_json_entity_file(
     } = input;
     let definition = spec_entity_definition(kind)?;
     let next_id = validate_entity_id(next_id, definition.invalid_id_message)?.to_string();
-    let content_id = crate::models::file_content_id(
+    let content_id = models::file_content_id(
         &data,
         definition.id_field,
         Path::new(source_rel_path.unwrap_or(&next_id)),
@@ -191,7 +197,7 @@ pub fn save_json_entity_file(
         let source_id = previous_id.as_deref().unwrap_or(&next_id);
         require_spec_file_target(mod_root, definition, kind, source_id, source)?;
         if renamed && !json_write.keep_filename {
-            crate::io::forward_slash_path(
+            io::forward_slash_path(
                 &Path::new(source).with_file_name(format!("{next_id}{}", definition.extension)),
             )
         } else {
@@ -210,7 +216,7 @@ pub fn save_json_entity_file(
     let source_path = source_rel_path.map(|source| mod_root.join(source));
     let same_file = source_path
         .as_ref()
-        .is_some_and(|source| crate::io::same_physical_path(source, &target));
+        .is_some_and(|source| io::same_physical_path(source, &target));
     if (renamed || source_rel_path.is_none())
         && ((target.exists() && !same_file) || target_exists_in_index)
     {
@@ -233,7 +239,7 @@ pub fn save_json_entity_file(
     let unchanged = preserve_original_json
         && source_rel_path == next_rel_path
         && source_path.exists()
-        && crate::io::read_utf8_no_bom(&source_path)? == rendered;
+        && io::read_utf8_no_bom(&source_path)? == rendered;
     let changes = if unchanged {
         Vec::new()
     } else {
@@ -248,16 +254,16 @@ pub fn save_json_entity_file(
 
     let result: WriteResult = WriteResult::new(changes, Vec::new(), None);
     let source_id = previous_id.as_deref().unwrap_or(&next_id);
-    let before_location = crate::models::EntityFileLocation {
+    let before_location = EntityFileLocation {
         reference: None,
-        source: crate::models::ResourceSource::Mod,
+        source: ResourceSource::Mod,
         root: boundary.root().to_string_lossy().to_string(),
         rel_path: source_rel_path.to_string(),
         path: source_path.to_string_lossy().to_string(),
     };
-    let next_location = crate::models::EntityFileLocation {
+    let next_location = EntityFileLocation {
         reference: None,
-        source: crate::models::ResourceSource::Mod,
+        source: ResourceSource::Mod,
         root: boundary.root().to_string_lossy().to_string(),
         rel_path: next_rel_path.clone(),
         path: boundary
@@ -266,33 +272,33 @@ pub fn save_json_entity_file(
             .to_string_lossy()
             .to_string(),
     };
-    let before = crate::models::EntityEditTarget {
+    let before = EntityEditTarget {
         kind,
         id: source_id.to_string(),
         source: existing.then(|| before_location.clone()),
         write: before_location,
         state: if existing {
-            crate::models::EntityTargetState::Existing
+            EntityTargetState::Existing
         } else {
-            crate::models::EntityTargetState::Create
+            EntityTargetState::Create
         },
         linked_record: None,
     };
-    let after = crate::models::EntityEditTarget {
+    let after = EntityEditTarget {
         kind,
         id: next_id,
         source: Some(next_location.clone()),
         write: next_location,
-        state: crate::models::EntityTargetState::Existing,
+        state: EntityTargetState::Existing,
         linked_record: None,
     };
-    let owner = crate::models::WriteContentTarget::Json {
+    let owner = WriteContentTarget::Json {
         origin: (&after).into(),
     };
     let mut result = result.with_content(owner, refreshed);
     result
         .identity_changes
-        .push(crate::models::EntityIdentityChange { before, after });
+        .push(EntityIdentityChange { before, after });
     Ok(result)
 }
 
@@ -358,10 +364,7 @@ fn require_spec_file_target(
     let boundary = FsRootBoundary::new(mod_root, "mod root")?;
     let source = boundary.resolve_relative(rel_path, "实体源路径")?;
     if !source.exists()
-        && crate::io::source_recreation_allowed(
-            &mod_root.to_string_lossy(),
-            &source.to_string_lossy(),
-        )
+        && io::source_recreation_allowed(&mod_root.to_string_lossy(), &source.to_string_lossy())
     {
         return Ok(());
     }
@@ -387,8 +390,8 @@ fn build_spec_file(
     rel_path: &str,
     data: &Value,
 ) -> AppResult<(String, Value)> {
-    crate::domain::schema::validate_partial_document(
-        crate::parsers::bundled_schema(if kind == EntityKind::Variant {
+    schema::validate_partial_document(
+        parsers::bundled_schema(if kind == EntityKind::Variant {
             "variant"
         } else {
             "skin"
@@ -397,12 +400,12 @@ fn build_spec_file(
     )?;
     match kind {
         EntityKind::Variant => {
-            let file = crate::services::project::build_variant_file(mod_root, rel_path, data)?;
+            let file = project::build_variant_file(mod_root, rel_path, data)?;
             let entity_id = file.variant_id.clone();
             Ok((entity_id, serde_json::to_value(file)?))
         }
         EntityKind::Skin => {
-            let file = crate::services::project::build_skin_file(mod_root, rel_path, data)?;
+            let file = project::build_skin_file(mod_root, rel_path, data)?;
             let entity_id = file.skin_hull_id.clone();
             Ok((entity_id, serde_json::to_value(file)?))
         }

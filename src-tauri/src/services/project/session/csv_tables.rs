@@ -1,15 +1,20 @@
-use crate::{
-    errors::{AppError, AppResult},
-    io::read_versioned_csv,
-    models::{CsvTable, CsvTableKey},
-};
-use std::{path::Path, sync::Arc};
-
 use super::super::model::{
     MISSION_LIST_TABLE_KEY, ProjectSession, SessionCsvRow, SessionCsvTable,
     mission_list_default_header,
 };
 use super::super::sources::core::load_core_csv_table;
+use crate::domain::csv_column_order;
+use crate::errors::{AppError, AppResult};
+use crate::io;
+use crate::io::read_versioned_csv;
+#[cfg(test)]
+use crate::io::{csv_files, faction_index};
+use crate::models::{CsvRow, CsvTable, CsvTableKey};
+use crate::services::project::model;
+use serde_json::{Map, Value};
+use std::collections::{BTreeMap, VecDeque};
+use std::path::Path;
+use std::sync::Arc;
 
 pub(in crate::services::project) fn read_table_snapshot(
     session: &ProjectSession,
@@ -29,7 +34,7 @@ pub(in crate::services::project) fn read_table_snapshot(
                 .as_ref()
                 .expect("retained CSV has complete rows");
             #[cfg(test)]
-            crate::io::csv_files::record_csv_row_copies(rows.len());
+            csv_files::record_csv_row_copies(rows.len());
             return Ok((
                 retained.header.clone(),
                 rows.as_ref().clone(),
@@ -53,19 +58,19 @@ pub(crate) fn read_retained_csv(session: &ProjectSession, relative: &str) -> App
     {
         #[cfg(test)]
         if relative == "data/world/factions/factions.csv" {
-            crate::io::faction_index::record_faction_index_read();
+            faction_index::record_faction_index_read();
         }
-        return crate::io::read_csv_data(&path);
+        return io::read_csv_data(&path);
     }
     if let Some(state) = missing_table_source(session, relative, &path)? {
         let rows = state.rows.as_ref().expect("retained CSV has complete rows");
         #[cfg(test)]
-        crate::io::csv_files::record_csv_row_copies(rows.len());
+        csv_files::record_csv_row_copies(rows.len());
         return Ok(CsvTable {
             header: state.header.clone(),
             rows: rows
                 .iter()
-                .map(|row| crate::models::CsvRow {
+                .map(|row| CsvRow {
                     data: row.data.clone(),
                     is_comment: row.is_comment,
                 })
@@ -73,7 +78,7 @@ pub(crate) fn read_retained_csv(session: &ProjectSession, relative: &str) -> App
             path: path.to_string_lossy().into(),
         });
     }
-    crate::io::read_csv_data(&path)
+    io::read_csv_data(&path)
 }
 
 fn missing_table_source<'a>(
@@ -106,8 +111,8 @@ pub(in crate::services::project) fn table_snapshot_from_csv(
     table: CsvTableKey,
     csv: CsvTable,
 ) -> AppResult<(Vec<String>, Vec<SessionCsvRow>, u64)> {
-    let identity = super::super::model::csv_table_spec(table).entity_id_field;
-    let key = |data: &serde_json::Map<String, serde_json::Value>, comment: bool| {
+    let identity = model::csv_table_spec(table).entity_id_field;
+    let key = |data: &Map<String, Value>, comment: bool| {
         serde_json::to_string(&(
             comment,
             data.get(identity),
@@ -123,7 +128,7 @@ pub(in crate::services::project) fn table_snapshot_from_csv(
             },
         ))
     };
-    let mut known = std::collections::BTreeMap::<String, std::collections::VecDeque<String>>::new();
+    let mut known = BTreeMap::<String, VecDeque<String>>::new();
     for row in state.rows.as_deref().map(Vec::as_slice).unwrap_or(&[]) {
         known
             .entry(key(&row.data, row.is_comment)?)
@@ -137,7 +142,7 @@ pub(in crate::services::project) fn table_snapshot_from_csv(
         .map(|row| {
             let matched = known
                 .get_mut(&key(&row.data, row.is_comment)?)
-                .and_then(std::collections::VecDeque::pop_front);
+                .and_then(VecDeque::pop_front);
             let row_key = matched.unwrap_or_else(|| {
                 let key = format!("{}:row:{next_seq}", table.as_str());
                 next_seq += 1;
@@ -223,16 +228,13 @@ pub(crate) fn ensure_session_table_rows(
             csv.header = mission_list_default_header();
         } else if let Some(table_key) = CsvTableKey::from_key(table) {
             csv.header = match &session.manifest.starsector_root {
-                Some(root) => load_core_csv_table(
-                    root,
-                    crate::services::project::model::csv_table_spec(table_key).rel_path,
-                )?
-                .map(|core| core.header.clone())
-                .unwrap_or_default(),
+                Some(root) => load_core_csv_table(root, model::csv_table_spec(table_key).rel_path)?
+                    .map(|core| core.header.clone())
+                    .unwrap_or_default(),
                 None => Vec::new(),
             };
             if csv.header.is_empty() {
-                csv.header = crate::domain::csv_column_order::standard_csv_columns(table_key);
+                csv.header = csv_column_order::standard_csv_columns(table_key);
             }
         }
     }
@@ -272,16 +274,14 @@ pub(crate) fn ensure_registered_table_rows(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(test)]
+    use crate::io::csv_files;
+    use crate::io::write_utf8_no_bom;
+    use crate::models::{EntitySummaries, ProjectManifest};
     use crate::services::project::test_support::project_workspace;
-    use crate::{
-        io::write_utf8_no_bom,
-        models::{EntitySummaries, ProjectManifest},
-    };
     use serde_json::{Map, Value};
-    use std::{
-        collections::{BTreeMap, HashMap},
-        fs,
-    };
+    use std::collections::{BTreeMap, HashMap};
+    use std::fs;
 
     #[test]
     fn ensure_session_table_rows_rejects_unknown_table() {
@@ -412,7 +412,7 @@ mod tests {
 
         let expected = session.csv_tables[CsvTableKey::Ships.as_str()].clone();
         fs::remove_file(root.join(&expected.path)).unwrap();
-        crate::io::csv_files::take_csv_work();
+        csv_files::take_csv_work();
         let (header, rows, sequence) = read_table_snapshot(&session, CsvTableKey::Ships).unwrap();
         let retained = read_retained_csv(&session, &expected.path).unwrap();
         assert_eq!(header, expected.header);
@@ -430,10 +430,7 @@ mod tests {
             assert_eq!(restored.data, saved.data);
             assert_eq!(restored.is_comment, saved.is_comment);
         }
-        assert_eq!(
-            crate::io::csv_files::take_csv_work(),
-            (0, 0, 2 * rows.len())
-        );
+        assert_eq!(csv_files::take_csv_work(), (0, 0, 2 * rows.len()));
 
         session
             .csv_tables

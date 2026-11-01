@@ -1,22 +1,21 @@
 use super::super::cache::media;
 use super::super::session::{lock_ready_session, lock_registry, session_handle};
 use super::refs::media_resource_key;
-use crate::models::{ResourceRef, ResourceSource};
-use crate::{
-    errors::{AppError, AppResult},
-    io::FsRootBoundary,
-};
-use base64::{Engine as _, engine::general_purpose};
+use crate::errors::{AppError, AppResult};
+use crate::io::FsRootBoundary;
+use crate::models::{ReferenceSource, ResourceRef, ResourceSource};
+use crate::services::project::session::references::reference_revision;
+
+use base64::Engine as _;
+use base64::engine::general_purpose::STANDARD;
 #[cfg(test)]
 use serde_json::Value;
 use std::collections::BTreeMap;
+use std::fs;
+use std::path::{Component, Path, PathBuf};
 #[cfg(test)]
 use std::sync::{LazyLock, Mutex};
-use std::{
-    fs,
-    path::{Component, Path, PathBuf},
-    time::SystemTime,
-};
+use std::time::SystemTime;
 
 struct LoadedSpriteMedia {
     resolved_path: PathBuf,
@@ -55,7 +54,7 @@ pub(in crate::services::project) struct SpriteReadBatch {
     revision: u64,
     mod_root: SpriteRoot,
     core_root: Option<SpriteRoot>,
-    references: Vec<(crate::models::ReferenceSource, SpriteRoot)>,
+    references: Vec<(ReferenceSource, SpriteRoot)>,
     loaded: BTreeMap<String, Option<String>>,
 }
 
@@ -91,7 +90,7 @@ impl SpriteReadBatch {
         resource: &ResourceRef,
     ) -> AppResult<Option<String>> {
         let resource_key = media_resource_key(resource);
-        if self.revision != super::super::session::references::reference_revision() {
+        if self.revision != reference_revision() {
             return Err(AppError::message(
                 "reference.changed",
                 "引用来源已变化，请重新读取",
@@ -259,10 +258,7 @@ fn read_sprite_media(path: &Path) -> AppResult<Option<LoadedSpriteMedia>> {
         resolved_path: path.to_path_buf(),
         modified: metadata.modified().unwrap_or(SystemTime::UNIX_EPOCH),
         length: metadata.len(),
-        data_url: format!(
-            "data:{mime};base64,{}",
-            general_purpose::STANDARD.encode(bytes)
-        ),
+        data_url: format!("data:{mime};base64,{}", STANDARD.encode(bytes)),
     }))
 }
 
@@ -273,13 +269,13 @@ static SPRITE_READ_COUNTS: LazyLock<Mutex<BTreeMap<PathBuf, usize>>> =
 #[cfg(test)]
 fn record_sprite_read(path: &Path) {
     let mut counts = SPRITE_READ_COUNTS.lock().unwrap();
-    let key = std::fs::canonicalize(path).unwrap();
+    let key = fs::canonicalize(path).unwrap();
     *counts.entry(key).or_default() += 1;
 }
 
 #[cfg(test)]
 pub(in crate::services::project) fn sprite_read_count(path: &Path) -> usize {
-    let key = std::fs::canonicalize(path).unwrap();
+    let key = fs::canonicalize(path).unwrap();
     SPRITE_READ_COUNTS
         .lock()
         .unwrap()
@@ -311,14 +307,24 @@ fn path_escapes_resource_root(path: &Path) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(test)]
+    use crate::models::ResourceOwnerKind;
+    use crate::services::project::model::WEAPON_SPRITE_FIELDS;
+    #[cfg(test)]
+    use crate::services::project::resources::refs;
+
     use crate::services::project::test_support::project_workspace;
+    #[cfg(test)]
+    use crate::services::project::{
+        PerformanceTrace, close_project_session, open_project_session_traced, session,
+    };
     use crate::test_support::TestWorkspace;
     use std::fs;
 
     pub(super) fn batch_at(mod_root: &Path, core: Option<&Path>) -> SpriteReadBatch {
         SpriteReadBatch {
             session_id: "sprite-test".into(),
-            revision: super::super::super::session::references::reference_revision(),
+            revision: reference_revision(),
             references: Vec::new(),
             mod_root: SpriteRoot::new(mod_root.to_path_buf()),
             core_root: core.map(|path| SpriteRoot::new(path.to_path_buf())),
@@ -427,17 +433,13 @@ mod tests {
 
     #[test]
     fn cached_batch_prepares_no_roots_and_closed_batch_keeps_no_media() {
-        use crate::models::ResourceOwnerKind;
-        use crate::services::project::{
-            PerformanceTrace, close_project_session, open_project_session_traced,
-        };
         let root = project_workspace("sprite_batch_cache_lifetime");
         fs::write(root.join("cached.png"), [1]).unwrap();
         fs::write(root.join("late.png"), [2]).unwrap();
         let manifest =
             open_project_session_traced(&root, None, &mut PerformanceTrace::new("sprite.test"))
                 .unwrap();
-        let resource = super::super::refs::resource_ref(
+        let resource = refs::resource_ref(
             ResourceSource::Mod,
             "cached.png",
             ResourceOwnerKind::Ship,
@@ -451,9 +453,7 @@ mod tests {
         assert!(cached.mod_root.boundary.is_none());
         assert!(cached.core_root.is_none());
         let handle = session_handle(&manifest.session_id).unwrap();
-        super::super::super::session::lock_session(&handle)
-            .unwrap()
-            .projection_pending = true;
+        session::lock_session(&handle).unwrap().projection_pending = true;
         assert!(SpriteReadBatch::new(&manifest.session_id).is_err());
         close_project_session(manifest.session_id.clone()).unwrap();
         assert!(SpriteReadBatch::new(&manifest.session_id).is_err());
@@ -493,7 +493,7 @@ mod tests {
         let mut sprites = BTreeMap::new();
         for (id, value) in weapon_specs {
             let mut weapon_sprites = BTreeMap::new();
-            for field in crate::services::project::model::WEAPON_SPRITE_FIELDS {
+            for field in WEAPON_SPRITE_FIELDS {
                 if let Some(sprite) = value.get(field).and_then(Value::as_str)
                     && let Ok(Some(data_url)) = load_sprite_data_url(mod_root, core_dir, sprite)
                 {

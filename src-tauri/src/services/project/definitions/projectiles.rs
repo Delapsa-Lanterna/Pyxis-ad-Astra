@@ -1,5 +1,7 @@
+use crate::errors::AppResult;
+use crate::models::ResourceSource;
 use crate::services::project::sources::documents::LoadedSpecRecord;
-use crate::{errors::AppResult, models::ResourceSource};
+use crate::services::project::sources::{SourceReader, documents};
 use std::collections::BTreeMap;
 #[cfg(test)]
 use std::path::Path;
@@ -11,17 +13,14 @@ pub(in crate::services::project) fn load_projectile_specs(
     mod_root: &Path,
     core_projectiles: Option<&BTreeMap<String, LoadedSpecRecord>>,
 ) -> AppResult<BTreeMap<String, LoadedSpecRecord>> {
-    load_projectile_specs_from(
-        &mut super::super::sources::SourceReader::new(mod_root)?,
-        core_projectiles,
-    )
+    load_projectile_specs_from(&mut SourceReader::new(mod_root)?, core_projectiles)
 }
 pub(in crate::services::project) fn load_projectile_specs_from(
-    sources: &mut super::super::sources::SourceReader,
+    sources: &mut SourceReader,
     core_projectiles: Option<&BTreeMap<String, LoadedSpecRecord>>,
 ) -> AppResult<BTreeMap<String, LoadedSpecRecord>> {
     let mut result = BTreeMap::new();
-    result.extend(super::super::sources::documents::load_spec_records_from(
+    result.extend(documents::load_spec_records_from(
         sources,
         "data/weapons/proj",
         "proj",
@@ -40,6 +39,8 @@ pub(in crate::services::project) fn load_projectile_specs_from(
 mod tests {
     use super::*;
     use crate::io::write_utf8_no_bom;
+    #[cfg(test)]
+    use crate::services::project::sources::documents;
     use crate::services::project::test_support::project_workspace;
     use std::fs;
 
@@ -54,7 +55,7 @@ mod tests {
         write_utf8_no_bom(&core_proj.join("same.proj"), r#"{"id":"same","damage":1}"#).unwrap();
         write_utf8_no_bom(&core_proj.join("core_only.proj"), r#"{"id":"core_only"}"#).unwrap();
 
-        let core_projectiles = crate::services::project::sources::documents::load_spec_records(
+        let core_projectiles = documents::load_spec_records(
             &root.join("core/starsector-core"),
             "data/weapons/proj",
             "proj",

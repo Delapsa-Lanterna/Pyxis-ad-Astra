@@ -1,11 +1,18 @@
 use super::entity_targets::describe_entity_target;
-use crate::{
-    errors::{AppError, AppResult},
-    io::{FsRootBoundary, read_versioned_bytes},
-    models::*,
-};
+use crate::domain::entity_definitions;
+use crate::errors::{AppError, AppResult};
+use crate::io::{FsRootBoundary, read_versioned_bytes};
+use crate::models::*;
+use crate::services::project::session::{lock_ready_session, session_handle};
+
+use crate::services::project::sources::{SourceReader, core, documents};
+#[cfg(test)]
+use crate::test_support::work_counts;
+use crate::{io, models, parsers};
 use serde_json::Value;
-use std::{collections::BTreeMap, path::Path};
+use std::collections::BTreeMap;
+use std::path::Path;
+use std::{iter, slice};
 
 type FileReads = BTreeMap<String, (FileVersion, Result<Value, String>)>;
 #[cfg(test)]
@@ -20,16 +27,16 @@ fn read_file(location: &EntityFileLocation, reads: &mut FileReads) -> AppResult<
     let path = boundary.resolve_relative_target(&location.rel_path, "associated file")?;
     let (version, value) = if path.exists() {
         let (version, bytes) = read_versioned_bytes(&path)?;
-        let value = crate::io::decode_text(&path, &bytes)
+        let value = io::decode_text(&path, &bytes)
             .and_then(|text| {
                 #[cfg(test)]
-                crate::test_support::work_counts::record("parse", &path);
-                crate::parsers::parse_starsector_json(&text)
+                work_counts::record("parse", &path);
+                parsers::parse_starsector_json(&text)
             })
             .map_err(|error| error.to_string());
         (version, value)
     } else {
-        (crate::io::file_version(&path)?, Err("文件不存在".into()))
+        (io::file_version(&path)?, Err("文件不存在".into()))
     };
     reads.insert(windows_path_key(&location.path), (version, value));
     Ok(())
@@ -46,8 +53,7 @@ fn file(
     let problem = match value {
         Ok(value)
             if value.is_object()
-                && crate::models::file_content_id(value, field, Path::new(&location.path))
-                    == id =>
+                && models::file_content_id(value, field, Path::new(&location.path)) == id =>
         {
             None
         }
@@ -66,9 +72,9 @@ pub fn prepare_csv_associated_specs(
     table: CsvTableKey,
     changes: &[AssociatedSpecChange],
 ) -> AppResult<Vec<AssociatedSpecPreparation>> {
-    let handle = super::super::session::session_handle(session_id)?;
-    let mut session = super::super::session::lock_ready_session(&handle)?;
-    let definition = crate::domain::entity_definitions::associated_spec_definition(table)
+    let handle = session_handle(session_id)?;
+    let mut session = lock_ready_session(&handle)?;
+    let definition = entity_definitions::associated_spec_definition(table)
         .ok_or_else(|| AppError::message("table.no_associated_spec", "该表没有关联规格"))?;
     let root = session.manifest.mod_root.clone();
     let mut reads = FileReads::new();
@@ -79,7 +85,7 @@ pub fn prepare_csv_associated_specs(
         .values()
         .map(|record| (windows_path_key(&record.location.path), record.id.clone()))
         .collect();
-    let mut sources = super::super::sources::SourceReader::for_projection(Path::new(&root))?;
+    let mut sources = SourceReader::for_projection(Path::new(&root))?;
     for path in sources.files(definition.dir)?.into_iter().filter(|path| {
         path.extension().and_then(|ext| ext.to_str()) == Some(definition.extension_without_dot())
     }) {
@@ -99,7 +105,7 @@ pub fn prepare_csv_associated_specs(
                 .as_ref()
                 .ok()
                 .filter(|value| value.is_object())
-                .map(|value| crate::models::file_content_id(value, definition.id_field, &path))
+                .map(|value| models::file_content_id(value, definition.id_field, &path))
         };
         if let Some(id) = id {
             local.insert(id, location);
@@ -123,9 +129,9 @@ pub fn prepare_csv_associated_specs(
             .starsector_root
             .as_ref()
             .map(|game| {
-                let root = super::super::sources::core::core_dir(game)?;
-                let mut reader = super::super::sources::SourceReader::new(&root)?;
-                let records = super::super::sources::documents::load_spec_records_from(
+                let root = core::core_dir(game)?;
+                let mut reader = SourceReader::new(&root)?;
+                let records = documents::load_spec_records_from(
                     &mut reader,
                     definition.dir,
                     definition.extension_without_dot(),
@@ -181,7 +187,7 @@ pub fn prepare_csv_associated_specs(
             };
             let relative = if let Some(source) = &original {
                 if source.location.source == ResourceSource::Mod {
-                    crate::io::forward_slash_path(
+                    io::forward_slash_path(
                         &Path::new(&source.location.rel_path).with_file_name(format!(
                             "{}{}",
                             change.id(),
@@ -210,7 +216,7 @@ pub fn prepare_csv_associated_specs(
             for file in original
                 .iter()
                 .filter(|file| file.location.source == ResourceSource::Mod)
-                .chain(std::iter::once(&destination))
+                .chain(iter::once(&destination))
             {
                 base_versions.retain(|version| {
                     windows_path_key(&version.path) != windows_path_key(&file.version.path)
@@ -230,13 +236,13 @@ pub fn prepare_csv_associated_specs(
 pub(in crate::services::project) fn verify_file(file: &AssociatedSpecFile) -> AppResult<()> {
     let boundary = FsRootBoundary::new(Path::new(&file.location.root), "associated source")?;
     let path = boundary.resolve_relative_target(&file.location.rel_path, "associated file")?;
-    if !crate::io::same_physical_path(&path, Path::new(&file.location.path))
-        || !crate::io::same_physical_path(&path, Path::new(&file.version.path))
+    if !io::same_physical_path(&path, Path::new(&file.location.path))
+        || !io::same_physical_path(&path, Path::new(&file.version.path))
     {
         return Err(AppError::message(
             "spec.target_changed",
             "关联文件路径已变化",
         ));
     }
-    crate::io::verify_versions(&file.location.root, std::slice::from_ref(&file.version))
+    io::verify_versions(&file.location.root, slice::from_ref(&file.version))
 }

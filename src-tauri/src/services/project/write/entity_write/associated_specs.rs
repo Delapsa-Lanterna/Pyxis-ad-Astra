@@ -1,26 +1,35 @@
-use crate::{
-    domain::entity_construction::{create_associated_spec, validate_weapon_spec_class},
-    errors::{AppError, AppResult},
-    io::{FileChangeSetBuilder, JsonWriteBatch, read_json_file},
-    models::{
-        AssociatedSpecChange, AssociatedSpecCreateParams, AssociatedSpecMode,
-        AssociatedSpecResolution, CsvTableKey,
-    },
-    services::project::definitions::entity_definitions::associated_spec_definition,
+use crate::domain::entity_construction::{create_associated_spec, validate_weapon_spec_class};
+use crate::domain::entity_identity;
+use crate::errors::{AppError, AppResult};
+use crate::io::{FileChangeSetBuilder, JsonWriteBatch, read_json_file};
+use crate::models::{
+    AssociatedSpecChange, AssociatedSpecCreateParams, AssociatedSpecMode, AssociatedSpecResolution,
+    CsvTableKey, EntityEditTarget, EntityIdentityChange, EntityKind, EntityTargetState,
+    ResourceSource,
 };
+use crate::services::project::definitions::entity_definitions::associated_spec_definition;
+use crate::services::project::model::ProjectSession;
+use crate::services::project::query::csv_associated_specs;
+use crate::services::project::sources::core;
+use crate::services::project::sources::documents::LoadedSpecRecord;
+use crate::services::project::write::entity_write::descriptions;
+use crate::services::project::write::entity_write::descriptions::DescriptionRename;
+use crate::{io, models, parsers};
 use serde_json::Value;
 use std::path::Path;
+use std::sync::Arc;
+
 pub(in crate::services::project) struct StagedAssociatedSpec {
-    pub identity: crate::models::EntityIdentityChange,
-    pub description_rename: Option<super::descriptions::DescriptionRename>,
-    pub read_record: Option<super::super::super::sources::documents::LoadedSpecRecord>,
+    pub identity: EntityIdentityChange,
+    pub description_rename: Option<DescriptionRename>,
+    pub read_record: Option<LoadedSpecRecord>,
 }
 pub(in crate::services::project) fn stage_associated_spec(
-    session: &super::super::super::model::ProjectSession,
+    session: &ProjectSession,
     builder: &mut FileChangeSetBuilder,
     table: CsvTableKey,
     change: &AssociatedSpecChange,
-    target: &crate::models::EntityEditTarget,
+    target: &EntityEditTarget,
     resolution: Option<&AssociatedSpecResolution>,
     json: &mut JsonWriteBatch,
 ) -> AppResult<StagedAssociatedSpec> {
@@ -31,7 +40,7 @@ pub(in crate::services::project) fn stage_associated_spec(
         )
     })?;
     let id = change.id();
-    let id = crate::domain::entity_identity::validate_entity_id(id, definition.invalid_id_message)?;
+    let id = entity_identity::validate_entity_id(id, definition.invalid_id_message)?;
     if target.kind != definition.entity_kind {
         return Err(AppError::message(
             "table.associated_spec_kind_mismatch",
@@ -52,7 +61,7 @@ pub(in crate::services::project) fn stage_associated_spec(
                 AppError::message("spec.preparation_required", "请重新准备关联文件后保存")
             })?;
             definition.validate_rel_path(&rel_path, "关联规格目标路径无效")?;
-            if !crate::io::same_physical_path(
+            if !io::same_physical_path(
                 Path::new(&resolution.destination.location.root),
                 builder.root(),
             ) {
@@ -61,20 +70,20 @@ pub(in crate::services::project) fn stage_associated_spec(
                     "关联目标不属于当前 Mod",
                 ));
             }
-            super::super::super::query::csv_associated_specs::verify_file(&resolution.destination)?;
+            csv_associated_specs::verify_file(&resolution.destination)?;
             let original = resolution.original.as_ref();
             if let Some(original) = original {
-                let core_source = original.location.source == crate::models::ResourceSource::Core
+                let core_source = original.location.source == ResourceSource::Core
                     && session
                         .manifest
                         .starsector_root
                         .as_ref()
-                        .map(|game| super::super::super::sources::core::core_dir(game))
+                        .map(|game| core::core_dir(game))
                         .transpose()?
                         .is_some_and(|root| {
-                            crate::io::same_physical_path(&root, Path::new(&original.location.root))
+                            io::same_physical_path(&root, Path::new(&original.location.root))
                         });
-                if original.location.source != crate::models::ResourceSource::Mod
+                if original.location.source != ResourceSource::Mod
                     && !core_source
                     && target.source.as_ref() != Some(&original.location)
                 {
@@ -83,26 +92,23 @@ pub(in crate::services::project) fn stage_associated_spec(
                         "关联原文件来源已变化",
                     ));
                 }
-                if original.location.source == crate::models::ResourceSource::Mod {
+                if original.location.source == ResourceSource::Mod {
                     definition
                         .validate_rel_path(&original.location.rel_path, "关联原文件路径无效")?;
-                    if !crate::io::same_physical_path(
-                        Path::new(&original.location.root),
-                        builder.root(),
-                    ) {
+                    if !io::same_physical_path(Path::new(&original.location.root), builder.root()) {
                         return Err(AppError::message(
                             "path.outside_root",
                             "原文件不属于当前 Mod",
                         ));
                     }
                 }
-                super::super::super::query::csv_associated_specs::verify_file(original)?;
+                csv_associated_specs::verify_file(original)?;
             }
             let usable = original
                 .filter(|file| file.version.fingerprint.is_some() && file.problem.is_none());
             if let Some(original) = usable.filter(|_| resolution.mode == AssociatedSpecMode::Read) {
                 let value = read_json_file(Path::new(&original.location.path))?;
-                if crate::models::file_content_id(
+                if models::file_content_id(
                     &value,
                     definition.id_field,
                     Path::new(&original.location.path),
@@ -118,7 +124,7 @@ pub(in crate::services::project) fn stage_associated_spec(
             if resolution.mode == AssociatedSpecMode::Read {
                 let value = read_json_file(&builder.root().join(&rel_path))?;
                 if !value.is_object()
-                    || crate::models::file_content_id(
+                    || models::file_content_id(
                         &value,
                         definition.id_field,
                         &builder.root().join(&rel_path),
@@ -129,7 +135,7 @@ pub(in crate::services::project) fn stage_associated_spec(
                         "关联目标 ID 不匹配",
                     ));
                 }
-                read_record = Some(super::super::super::sources::documents::LoadedSpecRecord {
+                read_record = Some(LoadedSpecRecord {
                     id: id.to_string(),
                     location: resolution.destination.location.clone(),
                     data: value,
@@ -147,7 +153,7 @@ pub(in crate::services::project) fn stage_associated_spec(
                     description_rename = rename;
                     text
                 } else {
-                    description_rename = super::descriptions::description_rename(
+                    description_rename = descriptions::description_rename(
                         target.kind,
                         &target.id,
                         id,
@@ -157,10 +163,10 @@ pub(in crate::services::project) fn stage_associated_spec(
                 };
                 // Separate destination replacement and source removal retain both snapshots for replay.
                 if let Some(original) = usable.filter(|file| {
-                    file.location.source == crate::models::ResourceSource::Mod
+                    file.location.source == ResourceSource::Mod
                         && file.location.rel_path != rel_path
                         && (resolution.destination.version.fingerprint.is_none()
-                            || crate::io::same_physical_path(
+                            || io::same_physical_path(
                                 Path::new(&file.location.path),
                                 &builder.root().join(&rel_path),
                             ))
@@ -172,10 +178,9 @@ pub(in crate::services::project) fn stage_associated_spec(
                 }
             }
             if let Some(original) = original.filter(|file| {
-                file.location.source == crate::models::ResourceSource::Mod
-                    && file.version.fingerprint.is_some()
+                file.location.source == ResourceSource::Mod && file.version.fingerprint.is_some()
             }) && !moved
-                && !crate::io::same_physical_path(
+                && !io::same_physical_path(
                     Path::new(&original.location.path),
                     &builder.root().join(&rel_path),
                 )
@@ -193,15 +198,14 @@ pub(in crate::services::project) fn stage_associated_spec(
         .to_string_lossy()
         .to_string();
     next.state = if matches!(change, AssociatedSpecChange::Delete { .. }) {
-        crate::models::EntityTargetState::Create
+        EntityTargetState::Create
     } else {
-        crate::models::EntityTargetState::Existing
+        EntityTargetState::Existing
     };
-    next.source =
-        (next.state == crate::models::EntityTargetState::Existing).then(|| next.write.clone());
+    next.source = (next.state == EntityTargetState::Existing).then(|| next.write.clone());
 
     Ok(StagedAssociatedSpec {
-        identity: crate::models::EntityIdentityChange {
+        identity: EntityIdentityChange {
             before: target.clone(),
             after: next,
         },
@@ -211,31 +215,27 @@ pub(in crate::services::project) fn stage_associated_spec(
 }
 
 pub(in crate::services::project) fn accept_read_record(
-    session: &mut super::super::super::model::ProjectSession,
-    kind: crate::models::EntityKind,
-    record: super::super::super::sources::documents::LoadedSpecRecord,
+    session: &mut ProjectSession,
+    kind: EntityKind,
+    record: LoadedSpecRecord,
 ) {
     let records = match kind {
-        crate::models::EntityKind::Ship => &mut session.ship_files,
-        crate::models::EntityKind::Weapon => &mut session.weapon_specs,
-        crate::models::EntityKind::System => &mut session.system_files,
-        crate::models::EntityKind::Skill => &mut session.skill_files,
+        EntityKind::Ship => &mut session.ship_files,
+        EntityKind::Weapon => &mut session.weapon_specs,
+        EntityKind::System => &mut session.system_files,
+        EntityKind::Skill => &mut session.skill_files,
         _ => unreachable!("associated spec kind"),
     };
-    std::sync::Arc::make_mut(records).insert(record.id.clone(), record);
+    Arc::make_mut(records).insert(record.id.clone(), record);
     match kind {
-        crate::models::EntityKind::Ship => {
-            session.manifest.entity_summaries.ships = session.ship_files.len()
-        }
-        crate::models::EntityKind::Weapon => {
+        EntityKind::Ship => session.manifest.entity_summaries.ships = session.ship_files.len(),
+        EntityKind::Weapon => {
             session.manifest.entity_summaries.weapons = session.weapon_specs.len()
         }
-        crate::models::EntityKind::System => {
+        EntityKind::System => {
             session.manifest.entity_summaries.systems = session.system_files.len()
         }
-        crate::models::EntityKind::Skill => {
-            session.manifest.entity_summaries.skills = session.skill_files.len()
-        }
+        EntityKind::Skill => session.manifest.entity_summaries.skills = session.skill_files.len(),
         _ => unreachable!("associated spec kind"),
     }
 }
@@ -260,9 +260,9 @@ fn rewrite_associated_spec_id(
     previous_id: &str,
     new_id: &str,
     json: &mut JsonWriteBatch,
-) -> AppResult<(String, Option<super::descriptions::DescriptionRename>)> {
+) -> AppResult<(String, Option<DescriptionRename>)> {
     let mut value = read_json_file(path)?;
-    let description_rename = super::descriptions::description_rename(
+    let description_rename = descriptions::description_rename(
         associated_spec_definition(table)
             .expect("associated format")
             .entity_kind,
@@ -270,7 +270,7 @@ fn rewrite_associated_spec_id(
         new_id,
         &value,
     );
-    if crate::models::file_content_id(&value, id_field, path) != previous_id {
+    if models::file_content_id(&value, id_field, path) != previous_id {
         return Err(AppError::message(
             "spec.path_id_mismatch",
             format!("关联规格源 ID 已变化: {}", path.display()),
@@ -284,7 +284,7 @@ fn rewrite_associated_spec_id(
     };
     object.insert(id_field.to_string(), Value::String(new_id.to_string()));
     if table == CsvTableKey::Weapons {
-        validate_weapon_spec_class(&value, path, crate::parsers::bundled_schema("spec-weapon"))?;
+        validate_weapon_spec_class(&value, path, parsers::bundled_schema("spec-weapon"))?;
     }
     Ok((json.render(path, &value, None)?, description_rename))
 }

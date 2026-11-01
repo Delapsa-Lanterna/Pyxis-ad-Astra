@@ -1,13 +1,16 @@
-use crate::{
-    errors::{AppError, AppResult, ErrorLocation},
-    io::forward_slash_relative_path,
-    models::{GameScanWarning, GameWarningEditTarget, SkinFile, VariantFile},
-};
+use crate::errors::{AppError, AppResult, ErrorLocation};
+use crate::io::forward_slash_relative_path;
+use crate::models;
+use crate::models::{GameScanWarning, GameWarningEditTarget, SkinFile, VariantFile};
+use crate::services::project::sources::SourceReader;
 use serde_json::Value;
+#[cfg(test)]
+use std::cell::Cell;
+use std::collections::HashMap;
 use std::path::Path;
 
 #[cfg(test)]
-thread_local! { static LOAD_COUNTS: std::cell::Cell<(usize, usize)> = const { std::cell::Cell::new((0, 0)) }; }
+thread_local! { static LOAD_COUNTS: Cell<(usize, usize)> = const { Cell::new((0, 0)) }; }
 #[cfg(test)]
 pub(in crate::services::project) fn take_load_counts() -> (usize, usize) {
     LOAD_COUNTS.with(|counts| counts.replace((0, 0)))
@@ -17,10 +20,10 @@ pub(in crate::services::project) fn take_load_counts() -> (usize, usize) {
 pub(crate) fn load_variant_files(
     mod_root: &Path,
 ) -> AppResult<(Vec<VariantFile>, Vec<GameScanWarning>)> {
-    load_variant_files_from(&mut super::super::sources::SourceReader::new(mod_root)?)
+    load_variant_files_from(&mut SourceReader::new(mod_root)?)
 }
 pub(in crate::services::project) fn load_variant_files_from(
-    sources: &mut super::super::sources::SourceReader,
+    sources: &mut SourceReader,
 ) -> AppResult<(Vec<VariantFile>, Vec<GameScanWarning>)> {
     let mod_root = sources.root().to_path_buf();
     #[cfg(test)]
@@ -28,7 +31,7 @@ pub(in crate::services::project) fn load_variant_files_from(
         let (variant, skin) = counts.get();
         counts.set((variant + 1, skin));
     });
-    let mut seen = std::collections::HashMap::new();
+    let mut seen = HashMap::new();
     let mut files = Vec::new();
     let mut warnings = Vec::new();
     for (path, data) in sources.walk("data/variants", "variant")? {
@@ -68,7 +71,7 @@ pub(in crate::services::project) fn load_variant_files_from(
 }
 
 pub(in crate::services::project) fn load_skin_files_from(
-    sources: &mut super::super::sources::SourceReader,
+    sources: &mut SourceReader,
 ) -> AppResult<(Vec<SkinFile>, Vec<GameScanWarning>)> {
     let mod_root = sources.root().to_path_buf();
     #[cfg(test)]
@@ -76,7 +79,7 @@ pub(in crate::services::project) fn load_skin_files_from(
         let (variant, skin) = counts.get();
         counts.set((variant, skin + 1));
     });
-    let mut seen = std::collections::HashMap::new();
+    let mut seen = HashMap::new();
     let mut files = Vec::new();
     let mut warnings = Vec::new();
     for (path, data) in sources.walk("data/hulls/skins", "skin")? {
@@ -133,7 +136,7 @@ pub fn build_variant_file(mod_root: &Path, rel_path: &str, data: &Value) -> AppR
 }
 
 pub fn build_skin_file(mod_root: &Path, rel_path: &str, data: &Value) -> AppResult<SkinFile> {
-    let skin_hull_id = crate::models::file_content_id(data, "skinHullId", Path::new(rel_path));
+    let skin_hull_id = models::file_content_id(data, "skinHullId", Path::new(rel_path));
     let base_hull_id = data
         .get("baseHullId")
         .and_then(Value::as_str)
@@ -178,13 +181,17 @@ fn object_len(value: Option<&Value>) -> usize {
 mod tests {
     use super::*;
     use crate::io::write_utf8_no_bom;
+    #[cfg(test)]
+    use crate::services::project::sources::SourceReader;
     use crate::services::project::test_support::project_workspace;
+    #[cfg(test)]
+    use std::fs;
 
     #[test]
     fn duplicate_variant_ids_keep_first_and_warn() {
         let root = project_workspace("core_kite_duplicate");
         let core_root = root.join("starsector-core");
-        std::fs::create_dir_all(core_root.join("data/variants/kite")).unwrap();
+        fs::create_dir_all(core_root.join("data/variants/kite")).unwrap();
         write_utf8_no_bom(
             &core_root.join("data/variants/kite/kite_Interceptor.variant"),
             r#"{"variantId":"kite_hegemony_Interceptor","hullId":"kite_hegemony"}"#,
@@ -246,7 +253,7 @@ mod tests {
     #[test]
     fn duplicate_variant_ids_do_not_fail_mod_loading() {
         let root = project_workspace("mod_kite_duplicate");
-        std::fs::create_dir_all(root.join("data/variants/kite")).unwrap();
+        fs::create_dir_all(root.join("data/variants/kite")).unwrap();
         write_utf8_no_bom(
             &root.join("data/variants/kite/kite_Interceptor.variant"),
             r#"{"variantId":"kite_hegemony_Interceptor","hullId":"kite_hegemony"}"#,
@@ -285,13 +292,13 @@ mod tests {
                 r#"{"skinHullId":"fixture","baseHullId":"hull"}"#,
             ),
         ] {
-            std::fs::create_dir_all(root.join(directory)).unwrap();
+            fs::create_dir_all(root.join(directory)).unwrap();
             for name in ["first", "second"] {
                 write_utf8_no_bom(&root.join(format!("{directory}/{name}.{extension}")), text)
                     .unwrap();
             }
         }
-        let mut sources = super::super::super::sources::SourceReader::new(&root).unwrap();
+        let mut sources = SourceReader::new(&root).unwrap();
         let (_, variants) = load_variant_files_from(&mut sources).unwrap();
         let (_, skins) = load_skin_files_from(&mut sources).unwrap();
         for warnings in [variants, skins] {

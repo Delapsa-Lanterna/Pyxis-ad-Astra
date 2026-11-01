@@ -1,21 +1,23 @@
 use super::super::session::{lock_session, session_handle};
-
-use crate::{
-    errors::{AppError, AppResult},
-    io::{
-        FsRootBoundary, acquire_root_write_lock, decode_text, file_version, read_versioned_bytes,
-        read_versioned_csv, read_versioned_json,
-    },
-    models::{EntityKind, JsonDocumentOrigin, JsonRecoveryPlan, JsonRecoveryRequest},
+use crate::domain::misc_config;
+use crate::errors::{AppError, AppResult};
+use crate::io::{
+    FsRootBoundary, acquire_root_write_lock, decode_text, file_version, read_versioned_bytes,
+    read_versioned_csv, read_versioned_json,
 };
+use crate::models::{
+    EntityEditTarget, EntityKind, JsonDocumentOrigin, JsonRecoveryPlan, JsonRecoveryRequest,
+    JsonSourceIdentity,
+};
+use crate::services::project;
+use crate::services::project::definitions::entity_definitions;
+use crate::{io, parsers};
 use serde_json::Value;
-use std::{collections::BTreeMap, path::Path};
+use std::collections::BTreeMap;
+use std::path::Path;
 
 pub fn prepare_json_source_recovery(request: JsonRecoveryRequest) -> AppResult<JsonRecoveryPlan> {
-    crate::services::project::ensure_project_session_mod_root(
-        &request.session_id,
-        &request.mod_root,
-    )?;
+    project::ensure_project_session_mod_root(&request.session_id, &request.mod_root)?;
     let _lease = acquire_root_write_lock(Path::new(&request.mod_root))?;
     let boundary = FsRootBoundary::new(Path::new(&request.mod_root), "JSON recovery root")?;
     let original = match &request.origin {
@@ -28,9 +30,7 @@ pub fn prepare_json_source_recovery(request: JsonRecoveryRequest) -> AppResult<J
         None => vec![(
             "file",
             match request.origin {
-                JsonDocumentOrigin::MiscConfig { file } => {
-                    crate::domain::misc_config::misc_config_path(file)
-                }
+                JsonDocumentOrigin::MiscConfig { file } => misc_config::misc_config_path(file),
                 _ => "mod_info.json",
             }
             .to_string(),
@@ -85,12 +85,10 @@ pub fn prepare_json_source_recovery(request: JsonRecoveryRequest) -> AppResult<J
         } else if json {
             let (version, value) = read_versioned_json(&path)?;
             if let JsonDocumentOrigin::MiscConfig { file } = request.origin {
-                crate::domain::misc_config::validate_misc_config(
+                misc_config::validate_misc_config(
                     file,
                     &value,
-                    &crate::parsers::bundled_schema(
-                        crate::domain::misc_config::misc_config_schema_id(file),
-                    )["root"],
+                    &parsers::bundled_schema(misc_config::misc_config_schema_id(file))["root"],
                 )
                 .map_err(|error| error.at_path(&path))?;
             }
@@ -107,9 +105,7 @@ pub fn prepare_json_source_recovery(request: JsonRecoveryRequest) -> AppResult<J
         if target.kind == EntityKind::Mission {
             let directory = boundary
                 .resolve_relative_target(&target.write.rel_path, "mission recovery directory")?;
-            versions.push(crate::io::directory_version_from_files(
-                &directory, &versions,
-            )?);
+            versions.push(io::directory_version_from_files(&directory, &versions)?);
         }
         let index_path = match target.kind {
             EntityKind::Faction => Some("data/world/factions/factions.csv"),
@@ -118,11 +114,9 @@ pub fn prepare_json_source_recovery(request: JsonRecoveryRequest) -> AppResult<J
         };
         if let (Some(index_path), Some(table)) = (index_path, index.as_ref()) {
             let linked = if target.kind == EntityKind::Faction {
-                crate::io::faction_index_entries(&boundary, table)?
+                io::faction_index_entries(&boundary, table)?
                     .iter()
-                    .any(|entry| {
-                        crate::io::same_physical_path(&entry.path, Path::new(&target.write.path))
-                    })
+                    .any(|entry| io::same_physical_path(&entry.path, Path::new(&target.write.path)))
             } else {
                 table.rows.iter().any(|row| {
                     !row.is_comment
@@ -143,8 +137,7 @@ pub fn prepare_json_source_recovery(request: JsonRecoveryRequest) -> AppResult<J
         } else {
             current.get("file").unwrap_or(&Value::Null)
         };
-        let definition =
-            super::super::definitions::entity_definitions::entity_definition(target.kind)?;
+        let definition = entity_definitions::entity_definition(target.kind)?;
         (definition.resources)(&session, &target.id, data)
     } else {
         BTreeMap::new()
@@ -160,8 +153,8 @@ pub fn prepare_json_source_recovery(request: JsonRecoveryRequest) -> AppResult<J
 
 pub(crate) fn json_recovery_origin(
     session_id: &str,
-    identity: &crate::models::JsonSourceIdentity,
-) -> AppResult<crate::models::EntityEditTarget> {
+    identity: &JsonSourceIdentity,
+) -> AppResult<EntityEditTarget> {
     let handle = session_handle(session_id)?;
     let session = lock_session(&handle)?;
     session

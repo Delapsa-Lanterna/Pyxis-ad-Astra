@@ -1,16 +1,17 @@
 use super::super::definitions::entity_definitions::entity_definition;
 use super::super::session::{lock_ready_session, session_handle};
-use crate::{
-    errors::AppResult,
-    models::{EntityData, EntityKind},
-};
+use crate::domain::json_composition as domain_json_composition;
+use crate::errors::AppResult;
+use crate::models::{EntityData, EntityKind, ResourceSource};
+use crate::services::project::json_composition;
+use crate::services::project::query::{entity_targets, json_composition as query_json_composition};
 
 pub fn query_entity(session_id: &str, kind: EntityKind, id: &str) -> AppResult<Option<EntityData>> {
     let handle = session_handle(session_id)?;
     let mut session = lock_ready_session(&handle)?;
     let definition = entity_definition(kind)?;
     (definition.prepare)(&mut session)?;
-    let info = super::entity_targets::describe_entity_target(&mut session, kind, id)?;
+    let info = entity_targets::describe_entity_target(&mut session, kind, id)?;
     let data = if let Some(source) = &info.target.source
         && let Some(reference) = source.reference.as_deref()
     {
@@ -37,9 +38,9 @@ pub fn query_entity(session_id: &str, kind: EntityKind, id: &str) -> AppResult<O
                     .target
                     .source
                     .as_ref()
-                    .is_some_and(|source| source.source == crate::models::ResourceSource::Mod)
+                    .is_some_and(|source| source.source == ResourceSource::Mod)
         })
-        .map(|_| super::super::json_composition(&session, &info.target.write.rel_path))
+        .map(|_| json_composition(&session, &info.target.write.rel_path))
         .transpose()?;
     let content = if matches!(kind, EntityKind::Weapon | EntityKind::Skill) {
         &data["spec"]
@@ -48,7 +49,7 @@ pub fn query_entity(session_id: &str, kind: EntityKind, id: &str) -> AppResult<O
     };
     let effective = composition
         .as_ref()
-        .map(|composition| crate::domain::json_composition::compose_game_json(composition, content))
+        .map(|composition| domain_json_composition::compose_game_json(composition, content))
         .transpose()?;
     let mut resource_data = data.clone();
     if let Some(effective) = &effective {
@@ -65,9 +66,9 @@ pub fn query_entity(session_id: &str, kind: EntityKind, id: &str) -> AppResult<O
     {
         session.reference_resource(source, &mut resource_refs);
     }
-    super::entity_targets::remember_edit_target(&mut session, &info.target);
+    entity_targets::remember_edit_target(&mut session, &info.target);
     if let Some(composition) = &composition {
-        super::json_composition::resource_origins(&mut resource_refs, content, composition);
+        query_json_composition::resource_origins(&mut resource_refs, content, composition);
     }
     Ok(Some(EntityData {
         composition,
@@ -86,7 +87,7 @@ pub fn query_entity_list(session_id: &str, kind: EntityKind) -> AppResult<Vec<En
     let definition = entity_definition(kind)?;
     (definition.prepare)(&mut session)?;
     let projections = (definition.list)(&mut session)?;
-    let targets = super::entity_targets::prepare_entity_targets(&mut session, kind)?;
+    let targets = entity_targets::prepare_entity_targets(&mut session, kind)?;
     let records: Vec<EntityData> = projections
         .into_iter()
         .map(|projection| {
@@ -107,7 +108,7 @@ pub fn query_entity_list(session_id: &str, kind: EntityKind) -> AppResult<Vec<En
             kind,
             EntityKind::Variant | EntityKind::Skin | EntityKind::Faction | EntityKind::Mission
         ) {
-            super::entity_targets::remember_edit_target(&mut session, &record.target);
+            entity_targets::remember_edit_target(&mut session, &record.target);
         }
     }
     Ok(records)
@@ -119,15 +120,31 @@ mod tests {
     use super::super::super::model::MISSION_LIST_TABLE_KEY;
     use super::super::super::session::{close_project_session, open_project_session_traced};
     use super::*;
+    #[cfg(test)]
+    use crate::io::faction_index;
     use crate::io::write_utf8_no_bom;
+    #[cfg(test)]
+    use crate::models::{EntityLinkedRecord, EntitySummaries, ProjectManifest};
+    #[cfg(test)]
+    use crate::services::project::PerformanceTrace;
+    #[cfg(test)]
+    use crate::services::project::model::{ProjectSession, SessionCsvTable};
+    #[cfg(test)]
+    use crate::services::project::performance::PerformanceTrace as PerformancePerformanceTrace;
     use crate::services::project::test_support::project_workspace;
     use serde_json::{Map, Value};
     use std::collections::BTreeMap;
+    #[cfg(test)]
+    use std::collections::HashMap;
+    #[cfg(test)]
+    use std::fs;
+    #[cfg(test)]
+    use std::sync::Arc;
 
     #[test]
     fn faction_list_prepares_one_index_and_matches_loaded_nested_targets() {
         let root = project_workspace("faction_list_target_projection");
-        std::fs::create_dir_all(root.join("data/world/factions/nested")).unwrap();
+        fs::create_dir_all(root.join("data/world/factions/nested")).unwrap();
         write_utf8_no_bom(&root.join("data/world/factions/factions.csv"),
             "faction,file,custom\r\nalias,data/world/factions/nested/one.faction,kept\r\ntwo,data/world/factions/two.faction,other\r\n").unwrap();
         write_utf8_no_bom(
@@ -140,11 +157,11 @@ mod tests {
             r#"{"id":"two","displayName":"Two"}"#,
         )
         .unwrap();
-        let mut trace = crate::services::project::PerformanceTrace::new("project.openSession");
+        let mut trace = PerformanceTrace::new("project.openSession");
         let manifest = open_project_session_traced(&root, None, &mut trace).unwrap();
-        crate::io::faction_index::take_faction_index_reads();
+        faction_index::take_faction_index_reads();
         let list = query_entity_list(&manifest.session_id, EntityKind::Faction).unwrap();
-        assert_eq!(crate::io::faction_index::take_faction_index_reads(), 1);
+        assert_eq!(faction_index::take_faction_index_reads(), 1);
         assert_eq!(list.len(), 2);
         for record in &list {
             let detail = query_entity(&manifest.session_id, EntityKind::Faction, &record.id)
@@ -159,7 +176,7 @@ mod tests {
         );
         assert!(matches!(
             &list[0].target.linked_record,
-            Some(crate::models::EntityLinkedRecord::Index { row_index: 0, .. })
+            Some(EntityLinkedRecord::Index { row_index: 0, .. })
         ));
         close_project_session(manifest.session_id).unwrap();
         root.close().unwrap();
@@ -168,7 +185,7 @@ mod tests {
     #[test]
     fn mission_entity_query_returns_index_descriptor_text_and_icon_ref() {
         let root = project_workspace("mission_entity_query");
-        std::fs::create_dir_all(root.join("data/missions/demo")).unwrap();
+        fs::create_dir_all(root.join("data/missions/demo")).unwrap();
         write_utf8_no_bom(
             &root.join("data/missions/mission_list.csv"),
             "mission,name\r\ndemo,Demo Mission\r\n",
@@ -185,8 +202,7 @@ mod tests {
         )
         .unwrap();
 
-        let mut trace =
-            crate::services::project::performance::PerformanceTrace::new("project.openSession");
+        let mut trace = PerformancePerformanceTrace::new("project.openSession");
         let manifest = open_project_session_traced(&root, None, &mut trace).unwrap();
         let list = query_entity_list(&manifest.session_id, EntityKind::Mission).unwrap();
         let entity = query_entity(&manifest.session_id, EntityKind::Mission, "demo")
@@ -212,15 +228,14 @@ mod tests {
     #[test]
     fn mission_entity_query_returns_none_for_unregistered_mission() {
         let root = project_workspace("mission_entity_missing");
-        std::fs::create_dir_all(root.join("data/missions/demo")).unwrap();
+        fs::create_dir_all(root.join("data/missions/demo")).unwrap();
         write_utf8_no_bom(
             &root.join("data/missions/mission_list.csv"),
             "mission,name\r\ndemo,Demo Mission\r\n",
         )
         .unwrap();
 
-        let mut trace =
-            crate::services::project::performance::PerformanceTrace::new("project.openSession");
+        let mut trace = PerformancePerformanceTrace::new("project.openSession");
         let manifest = open_project_session_traced(&root, None, &mut trace).unwrap();
         let entity = query_entity(&manifest.session_id, EntityKind::Mission, "missing").unwrap();
 
@@ -232,7 +247,7 @@ mod tests {
     #[test]
     fn mission_list_icon_descriptor_errors_are_not_hidden() {
         let root = project_workspace("mission_list_icon_descriptor_error");
-        std::fs::create_dir_all(root.join("data/missions/demo")).unwrap();
+        fs::create_dir_all(root.join("data/missions/demo")).unwrap();
         write_utf8_no_bom(
             &root.join("data/missions/mission_list.csv"),
             "mission,name\r\ndemo,Demo Mission\r\n",
@@ -240,8 +255,7 @@ mod tests {
         .unwrap();
         write_utf8_no_bom(&root.join("data/missions/demo/descriptor.json"), "{").unwrap();
 
-        let mut trace =
-            crate::services::project::performance::PerformanceTrace::new("project.openSession");
+        let mut trace = PerformancePerformanceTrace::new("project.openSession");
         let manifest = open_project_session_traced(&root, None, &mut trace).unwrap();
         let error = query_entity_list(&manifest.session_id, EntityKind::Mission)
             .unwrap_err()
@@ -257,7 +271,7 @@ mod tests {
         let mut csv_tables = BTreeMap::new();
         csv_tables.insert(
             MISSION_LIST_TABLE_KEY.to_string(),
-            super::super::super::model::SessionCsvTable {
+            SessionCsvTable {
                 row_index: None,
                 header: vec!["mission".to_string()],
                 path: "data/missions/mission_list.csv".to_string(),
@@ -266,13 +280,13 @@ mod tests {
                 saved_text: None,
             },
         );
-        let session = super::super::super::model::ProjectSession {
+        let session = ProjectSession {
             reference_revision: 0,
             references: Vec::new(),
             loaded_edit_targets: Vec::new(),
             projection_pending: false,
             source_versions: Default::default(),
-            manifest: crate::models::ProjectManifest {
+            manifest: ProjectManifest {
                 base_versions: Vec::new(),
                 session_id: "test".to_string(),
                 mod_root: "mod".to_string(),
@@ -282,14 +296,14 @@ mod tests {
                 mod_info: Some(Value::Object(Map::new())),
                 table_summaries: BTreeMap::new(),
                 table_entity_summaries: BTreeMap::new(),
-                entity_summaries: crate::models::EntitySummaries::default(),
+                entity_summaries: EntitySummaries::default(),
                 warnings: Vec::new(),
             },
             faction_files: Default::default(),
-            faction_blueprint_tags: std::collections::HashMap::new(),
+            faction_blueprint_tags: HashMap::new(),
             csv_tables: csv_tables
                 .into_iter()
-                .map(|(key, table)| (key, std::sync::Arc::new(table)))
+                .map(|(key, table)| (key, Arc::new(table)))
                 .collect(),
             ship_files: Default::default(),
             variant_files: Default::default(),
@@ -310,15 +324,14 @@ mod tests {
     #[test]
     fn mission_entity_list_registers_only_rows_with_a_mission_id() {
         let root = project_workspace("mission_entity_rows_with_mission_id");
-        std::fs::create_dir_all(root.join("data/missions")).unwrap();
+        fs::create_dir_all(root.join("data/missions")).unwrap();
         write_utf8_no_bom(
             &root.join("data/missions/mission_list.csv"),
             "mission,name\r\n,Auxiliary row\r\ndemo,Demo Mission\r\n#comment,\r\n",
         )
         .unwrap();
 
-        let mut trace =
-            crate::services::project::performance::PerformanceTrace::new("project.openSession");
+        let mut trace = PerformancePerformanceTrace::new("project.openSession");
         let manifest = open_project_session_traced(&root, None, &mut trace).unwrap();
         let entities = query_entity_list(&manifest.session_id, EntityKind::Mission).unwrap();
 
@@ -331,7 +344,7 @@ mod tests {
     #[test]
     fn weapon_entity_query_returns_spec_and_csv_row() {
         let root = project_workspace("weapon_entity_query");
-        std::fs::create_dir_all(root.join("data/weapons")).unwrap();
+        fs::create_dir_all(root.join("data/weapons")).unwrap();
         write_utf8_no_bom(
             &root.join("data/weapons/weapon_data.csv"),
             "id,type,range,beam speed\r\ndemo_weapon,ENERGY,700,1200\r\n",
@@ -343,8 +356,7 @@ mod tests {
         )
         .unwrap();
 
-        let mut trace =
-            crate::services::project::performance::PerformanceTrace::new("project.openSession");
+        let mut trace = PerformancePerformanceTrace::new("project.openSession");
         let manifest = open_project_session_traced(&root, None, &mut trace).unwrap();
         let entity = query_entity(&manifest.session_id, EntityKind::Weapon, "demo_weapon")
             .unwrap()
@@ -366,15 +378,14 @@ mod tests {
     #[test]
     fn weapon_entity_query_uses_csv_registration_without_spec() {
         let root = project_workspace("weapon_entity_csv_only");
-        std::fs::create_dir_all(root.join("data/weapons")).unwrap();
+        fs::create_dir_all(root.join("data/weapons")).unwrap();
         write_utf8_no_bom(
             &root.join("data/weapons/weapon_data.csv"),
             "id,type,range,beam speed\r\ndemo_weapon,ENERGY,700,1200\r\n",
         )
         .unwrap();
 
-        let mut trace =
-            crate::services::project::performance::PerformanceTrace::new("project.openSession");
+        let mut trace = PerformancePerformanceTrace::new("project.openSession");
         let manifest = open_project_session_traced(&root, None, &mut trace).unwrap();
         let entity = query_entity(&manifest.session_id, EntityKind::Weapon, "demo_weapon")
             .unwrap()
@@ -389,7 +400,7 @@ mod tests {
     #[test]
     fn weapon_entity_list_includes_local_spec_files() {
         let root = project_workspace("weapon_entity_list_csv_boundary");
-        std::fs::create_dir_all(root.join("data/weapons")).unwrap();
+        fs::create_dir_all(root.join("data/weapons")).unwrap();
         write_utf8_no_bom(
             &root.join("data/weapons/weapon_data.csv"),
             "id,type,range\r\ncsv_weapon,ENERGY,700\r\n",
@@ -401,8 +412,7 @@ mod tests {
         )
         .unwrap();
 
-        let mut trace =
-            crate::services::project::performance::PerformanceTrace::new("project.openSession");
+        let mut trace = PerformancePerformanceTrace::new("project.openSession");
         let manifest = open_project_session_traced(&root, None, &mut trace).unwrap();
         let entities = query_entity_list(&manifest.session_id, EntityKind::Weapon).unwrap();
 
@@ -417,15 +427,14 @@ mod tests {
     #[test]
     fn weapon_entity_list_registers_only_rows_with_an_id() {
         let root = project_workspace("weapon_entity_rows_with_id");
-        std::fs::create_dir_all(root.join("data/weapons")).unwrap();
+        fs::create_dir_all(root.join("data/weapons")).unwrap();
         write_utf8_no_bom(
             &root.join("data/weapons/weapon_data.csv"),
             "id,type,number\r\n,ENERGY,69\r\ndemo_weapon,ENERGY,70\r\n#comment,,\r\n",
         )
         .unwrap();
 
-        let mut trace =
-            crate::services::project::performance::PerformanceTrace::new("project.openSession");
+        let mut trace = PerformancePerformanceTrace::new("project.openSession");
         let manifest = open_project_session_traced(&root, None, &mut trace).unwrap();
         let entities = query_entity_list(&manifest.session_id, EntityKind::Weapon).unwrap();
 
@@ -438,7 +447,7 @@ mod tests {
     #[test]
     fn weapon_entity_query_reads_local_spec_without_csv_row() {
         let root = project_workspace("weapon_entity_unregistered_spec");
-        std::fs::create_dir_all(root.join("data/weapons")).unwrap();
+        fs::create_dir_all(root.join("data/weapons")).unwrap();
         write_utf8_no_bom(
             &root.join("data/weapons/weapon_data.csv"),
             "id,type,range,beam speed\r\n",
@@ -450,8 +459,7 @@ mod tests {
         )
         .unwrap();
 
-        let mut trace =
-            crate::services::project::performance::PerformanceTrace::new("project.openSession");
+        let mut trace = PerformancePerformanceTrace::new("project.openSession");
         let manifest = open_project_session_traced(&root, None, &mut trace).unwrap();
         let entity = query_entity(&manifest.session_id, EntityKind::Weapon, "demo_weapon").unwrap();
 
@@ -463,7 +471,7 @@ mod tests {
     #[test]
     fn skill_entity_list_includes_local_spec_files() {
         let root = project_workspace("skill_entity_list_csv_boundary");
-        std::fs::create_dir_all(root.join("data/characters/skills")).unwrap();
+        fs::create_dir_all(root.join("data/characters/skills")).unwrap();
         write_utf8_no_bom(
             &root.join("data/characters/skills/skill_data.csv"),
             "id,name,icon\r\nskill_one,Skill One,graphics/icons/skill_one.png\r\n#comment,,\r\n,,\r\n",
@@ -480,8 +488,7 @@ mod tests {
         )
         .unwrap();
 
-        let mut trace =
-            crate::services::project::performance::PerformanceTrace::new("project.openSession");
+        let mut trace = PerformancePerformanceTrace::new("project.openSession");
         let manifest = open_project_session_traced(&root, None, &mut trace).unwrap();
         let entities = query_entity_list(&manifest.session_id, EntityKind::Skill).unwrap();
 
@@ -503,15 +510,14 @@ mod tests {
     #[test]
     fn skill_entity_query_uses_empty_spec_for_registered_skill_without_file() {
         let root = project_workspace("skill_entity_csv_only");
-        std::fs::create_dir_all(root.join("data/characters/skills")).unwrap();
+        fs::create_dir_all(root.join("data/characters/skills")).unwrap();
         write_utf8_no_bom(
             &root.join("data/characters/skills/skill_data.csv"),
             "id,name\r\nskill_one,Skill One\r\n",
         )
         .unwrap();
 
-        let mut trace =
-            crate::services::project::performance::PerformanceTrace::new("project.openSession");
+        let mut trace = PerformancePerformanceTrace::new("project.openSession");
         let manifest = open_project_session_traced(&root, None, &mut trace).unwrap();
         let entity = query_entity(&manifest.session_id, EntityKind::Skill, "skill_one")
             .unwrap()
@@ -527,7 +533,7 @@ mod tests {
     #[test]
     fn skill_entity_query_reads_local_spec_without_csv_row() {
         let root = project_workspace("skill_entity_unregistered");
-        std::fs::create_dir_all(root.join("data/characters/skills")).unwrap();
+        fs::create_dir_all(root.join("data/characters/skills")).unwrap();
         write_utf8_no_bom(
             &root.join("data/characters/skills/skill_data.csv"),
             "id,name\r\nskill_one,Skill One\r\n",
@@ -539,8 +545,7 @@ mod tests {
         )
         .unwrap();
 
-        let mut trace =
-            crate::services::project::performance::PerformanceTrace::new("project.openSession");
+        let mut trace = PerformancePerformanceTrace::new("project.openSession");
         let manifest = open_project_session_traced(&root, None, &mut trace).unwrap();
         let entity = query_entity(&manifest.session_id, EntityKind::Skill, "missing").unwrap();
 
@@ -552,15 +557,14 @@ mod tests {
     #[test]
     fn skill_entity_list_registers_only_rows_with_an_id() {
         let root = project_workspace("skill_entity_rows_with_id");
-        std::fs::create_dir_all(root.join("data/characters/skills")).unwrap();
+        fs::create_dir_all(root.join("data/characters/skills")).unwrap();
         write_utf8_no_bom(
             &root.join("data/characters/skills/skill_data.csv"),
             "id,name\r\n,Auxiliary row\r\nskill_one,Skill One\r\n#comment,\r\n",
         )
         .unwrap();
 
-        let mut trace =
-            crate::services::project::performance::PerformanceTrace::new("project.openSession");
+        let mut trace = PerformancePerformanceTrace::new("project.openSession");
         let manifest = open_project_session_traced(&root, None, &mut trace).unwrap();
         let entities = query_entity_list(&manifest.session_id, EntityKind::Skill).unwrap();
 

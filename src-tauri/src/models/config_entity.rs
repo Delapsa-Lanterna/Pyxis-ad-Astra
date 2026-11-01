@@ -1,7 +1,9 @@
 use super::serde_fields::deserialize_nullable;
 use super::{JsonWriteOptions, ProjectSessionId};
+use crate::models::{CsvRow, EntityKind, FileVersion, project_identity};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
+use std::path::PathBuf;
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
@@ -10,7 +12,7 @@ pub enum IndexedConfigKind {
     Mission,
 }
 
-impl From<IndexedConfigKind> for crate::models::EntityKind {
+impl From<IndexedConfigKind> for EntityKind {
     fn from(kind: IndexedConfigKind) -> Self {
         match kind {
             IndexedConfigKind::Faction => Self::Faction,
@@ -28,7 +30,7 @@ pub struct IndexedConfigEntityRefresh {
     pub entity_id: String,
     pub index_path: String,
     pub index_header: Vec<String>,
-    pub index_rows: Vec<crate::models::CsvRow>,
+    pub index_rows: Vec<CsvRow>,
     pub entity_data: Value,
 }
 
@@ -43,7 +45,7 @@ pub struct FactionIndexRow {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ModInfoSave {
-    pub base_versions: Vec<crate::models::FileVersion>,
+    pub base_versions: Vec<FileVersion>,
     pub session_id: ProjectSessionId,
     pub mod_root: String,
     pub data: Value,
@@ -56,7 +58,7 @@ pub struct ModInfoSave {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct IndexedConfigSave {
-    pub base_versions: Vec<crate::models::FileVersion>,
+    pub base_versions: Vec<FileVersion>,
     pub session_id: ProjectSessionId,
     pub mod_root: String,
     pub kind: IndexedConfigKind,
@@ -74,7 +76,7 @@ pub struct IndexedConfigSave {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct IndexedConfigDelete {
-    pub base_versions: Vec<crate::models::FileVersion>,
+    pub base_versions: Vec<FileVersion>,
     pub session_id: ProjectSessionId,
     pub mod_root: String,
     pub kind: IndexedConfigKind,
@@ -82,7 +84,7 @@ pub struct IndexedConfigDelete {
     pub delete_target: bool,
 }
 
-super::project_identity::impl_session_mod_scope_required!(
+project_identity::impl_session_mod_scope_required!(
     ModInfoSave,
     IndexedConfigSave,
     IndexedConfigDelete
@@ -156,7 +158,7 @@ mod tests {
 
 #[derive(Debug)]
 pub struct FactionIndexEntry {
-    pub path: std::path::PathBuf,
+    pub path: PathBuf,
     pub row_index: usize,
     pub id_column: String,
     pub file_column: Option<String>,

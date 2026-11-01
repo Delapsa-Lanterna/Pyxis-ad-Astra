@@ -1,12 +1,13 @@
 use super::serde_fields::deserialize_nullable;
 use super::{JsonWriteOptions, ProjectSessionId};
+use crate::models::{FileVersion, project_identity};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct JsonFileSave {
-    pub base_versions: Vec<crate::models::FileVersion>,
+    pub base_versions: Vec<FileVersion>,
     pub session_id: ProjectSessionId,
     pub mod_root: String,
     #[serde(deserialize_with = "deserialize_nullable")]
@@ -24,14 +25,14 @@ pub struct JsonFileSave {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct JsonFileDelete {
-    pub base_versions: Vec<crate::models::FileVersion>,
+    pub base_versions: Vec<FileVersion>,
     pub session_id: ProjectSessionId,
     pub mod_root: String,
     pub entity_id: String,
     pub rel_path: String,
 }
 
-super::project_identity::impl_session_mod_scope_required!(JsonFileSave, JsonFileDelete);
+project_identity::impl_session_mod_scope_required!(JsonFileSave, JsonFileDelete);
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]

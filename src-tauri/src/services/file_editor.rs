@@ -1,14 +1,20 @@
-use crate::models::TextSave;
-use crate::{
-    errors::{AppError, AppResult},
-    io::{
-        FsRootBoundary, RootWriteLock, acquire_root_write_lock, build_text_change,
-        read_text_bytes_no_bom, read_utf8_no_bom,
-    },
-    models::{EditableFileData, FileChangeReplayDirection, WriteResult},
+use crate::domain::entity_definitions;
+use crate::errors::{AppError, AppResult};
+use crate::io::{
+    FsRootBoundary, RootWriteLock, acquire_root_write_lock, build_text_change,
+    read_text_bytes_no_bom, read_utf8_no_bom,
 };
+use crate::models::{
+    EditableFileData, EntityEditTarget, EntityIdentityChange, EntityIdentityIntent, EntityKind,
+    FileChangeReplayDirection, FileVersion, JsonWriteOptions, TextSave, WriteContentTarget,
+    WriteResult,
+};
+use crate::services::project;
+use crate::{io, models, parsers, services};
+use encoding_rs::Encoding;
 use serde_json::Value;
 use std::path::Path;
+use std::str;
 
 pub fn save_text_file(mod_root: &str, path: &str, text: String) -> AppResult<WriteResult> {
     let write_lock = acquire_root_write_lock(Path::new(mod_root))?;
@@ -21,11 +27,11 @@ pub fn load_project_editable_file(
     path: String,
 ) -> AppResult<EditableFileData> {
     if let Some(session_id) = session_id {
-        crate::services::project::ensure_project_session_mod_root(session_id, mod_root)?;
+        project::ensure_project_session_mod_root(session_id, mod_root)?;
     }
     let mut loaded = load_editable_file(mod_root, path)?;
     if let Some(session_id) = session_id {
-        loaded.entity = crate::services::query_file_entity_target(session_id, &loaded.path)?;
+        loaded.entity = services::query_file_entity_target(session_id, &loaded.path)?;
         if let Some(entity) = &loaded.entity {
             loaded.base_versions = entity.base_versions.clone();
         }
@@ -38,25 +44,25 @@ pub fn save_project_text_file(
     mod_root: &str,
     path: &str,
     text: String,
-    versions: &[crate::models::FileVersion],
-    options: crate::models::JsonWriteOptions,
+    versions: &[FileVersion],
+    options: JsonWriteOptions,
 ) -> AppResult<WriteResult<Value>> {
     let path = FsRootBoundary::new(Path::new(mod_root), "mod root")?
         .resolve_absolute(Path::new(path), "file path")?;
     let path = path.to_string_lossy();
     if let Some(session_id) = session_id
-        && let Some(info) = crate::services::query_file_entity_target(session_id, &path)?
+        && let Some(info) = services::query_file_entity_target(session_id, &path)?
     {
-        crate::services::require_entity_version_scope(
+        services::require_entity_version_scope(
             session_id,
             info.target.kind,
             &info.target.id,
             versions,
         )?;
-        crate::services::save_entity_text(session_id, &info.target, text, options)
+        services::save_entity_text(session_id, &info.target, text, options)
     } else {
         Ok(save_text_file(mod_root, &path, text.clone())?.with_content(
-            crate::models::WriteContentTarget::Text {
+            WriteContentTarget::Text {
                 path: path.to_string(),
             },
             serde_json::json!({"text":text}),
@@ -66,26 +72,23 @@ pub fn save_project_text_file(
 
 pub fn query_text_identity_intent(
     session_id: &str,
-    source: &crate::models::EntityEditTarget,
+    source: &EntityEditTarget,
     text: &str,
-) -> AppResult<crate::models::EntityIdentityIntent> {
-    let content = crate::parsers::parse_starsector_json(text).map_err(|error| {
+) -> AppResult<EntityIdentityIntent> {
+    let content = parsers::parse_starsector_json(text).map_err(|error| {
         AppError::context(format!("解析 JSON 文件失败 ({})", source.write.path), error)
             .at_path(&source.write.path)
     })?;
-    let definition = crate::domain::entity_definitions::entity_spec_definition(source.kind)
+    let definition = entity_definitions::entity_spec_definition(source.kind)
         .expect("recognized file has spec definition");
-    let next = crate::models::file_content_id(
-        &content,
-        definition.id_field,
-        Path::new(&source.write.path),
-    );
-    crate::services::query_entity_identity_intent(session_id, source, &next)
+    let next =
+        models::file_content_id(&content, definition.id_field, Path::new(&source.write.path));
+    services::query_entity_identity_intent(session_id, source, &next)
 }
 
 pub fn prepare_text_save(
     input: &mut TextSave,
-    identities: &[crate::models::EntityIdentityChange],
+    identities: &[EntityIdentityChange],
 ) -> AppResult<()> {
     let TextSave {
         session_id,
@@ -95,13 +98,11 @@ pub fn prepare_text_save(
         ..
     } = input;
     for identity in identities {
-        if crate::models::windows_path_key(path)
-            == crate::models::windows_path_key(&identity.before.write.path)
-        {
+        if models::windows_path_key(path) == models::windows_path_key(&identity.before.write.path) {
             *path = identity.after.write.path.clone();
         }
     }
-    if crate::io::source_recreation_allowed(mod_root, path) && !Path::new(path).exists() {
+    if io::source_recreation_allowed(mod_root, path) && !Path::new(path).exists() {
         return Ok(());
     }
     let current = load_project_editable_file(session_id.as_deref(), mod_root, path.clone())?;
@@ -109,14 +110,10 @@ pub fn prepare_text_save(
     Ok(())
 }
 
-pub fn follow_text_identity(
-    kind: crate::models::EntityKind,
-    text: &str,
-    next_id: &str,
-) -> AppResult<String> {
-    let definition = crate::domain::entity_definitions::entity_spec_definition(kind)
+pub fn follow_text_identity(kind: EntityKind, text: &str, next_id: &str) -> AppResult<String> {
+    let definition = entity_definitions::entity_spec_definition(kind)
         .expect("recognized file has spec definition");
-    crate::parsers::replace_root_string(text, definition.id_field, next_id)
+    parsers::replace_root_string(text, definition.id_field, next_id)
 }
 
 fn save_text_file_with_lock(
@@ -138,7 +135,7 @@ pub fn load_editable_file(mod_root: &str, path: String) -> AppResult<EditableFil
     let target = Path::new(&path);
     let boundary = FsRootBoundary::new(Path::new(mod_root), "mod root")?;
     let target = boundary.resolve_absolute(target, "file path")?;
-    let base_versions = vec![crate::io::file_version(&target)?];
+    let base_versions = vec![io::file_version(&target)?];
     read_utf8_no_bom(&target).map(|text| EditableFileData {
         entity: None,
         path: target.display().to_string(),
@@ -161,13 +158,13 @@ pub fn transcode_file_to_utf8(
     let boundary = FsRootBoundary::new(Path::new(mod_root), "mod root")?;
     let target = boundary.resolve_absolute(target, "file path")?;
     let bytes = read_text_bytes_no_bom(&target)?;
-    if std::str::from_utf8(&bytes).is_ok() {
+    if str::from_utf8(&bytes).is_ok() {
         return Err(AppError::message(
             "text.transcode_not_needed",
             format!("{} is already valid UTF-8", target.display()),
         ));
     }
-    let encoding = encoding_rs::Encoding::for_label(encoding.as_bytes()).ok_or_else(|| {
+    let encoding = Encoding::for_label(encoding.as_bytes()).ok_or_else(|| {
         AppError::message(
             "text.transcode_encoding_unknown",
             format!("unknown source encoding: {encoding}"),
@@ -193,6 +190,8 @@ mod tests {
     use crate::io::write_utf8_no_bom;
     use crate::services::project::test_support::project_workspace;
     use crate::test_support::TestWorkspace;
+    #[cfg(test)]
+    use encoding_rs::GB18030;
     use std::fs;
 
     #[test]
@@ -223,7 +222,7 @@ mod tests {
             "{}".to_string(),
         )
         .unwrap();
-        let saved = std::fs::read_to_string(&target).unwrap();
+        let saved = fs::read_to_string(&target).unwrap();
 
         assert_eq!(saved, "{}");
         assert_eq!(result.changes.len(), 1);
@@ -326,7 +325,7 @@ mod tests {
     fn transcodes_legacy_encoding_to_utf8() {
         let root = project_workspace("transcode_legacy_to_utf8");
         let target = root.join("notes.txt");
-        let (encoded, _, _) = encoding_rs::GB18030.encode("舰船注释");
+        let (encoded, _, _) = GB18030.encode("舰船注释");
         fs::write(&target, encoded).unwrap();
 
         let result = transcode_file_to_utf8(

@@ -1,10 +1,9 @@
 use super::overview::scan_game_overview;
+use crate::errors::AppResult;
+use crate::io::FsRootBoundary;
+use crate::models::{GameScanWarning, OpenDirectoryKind, OpenDirectoryResult};
 use crate::services::project::{infer_starsector_root, is_game_root, is_mod_root};
-use crate::{
-    errors::AppResult,
-    io::FsRootBoundary,
-    models::{GameScanWarning, OpenDirectoryKind, OpenDirectoryResult},
-};
+use std::mem;
 use std::path::{Path, PathBuf};
 
 /// Detection failures (path boundary violations) are errors; an unrecognized
@@ -61,7 +60,7 @@ fn detected_mod_directory(
         starsector_root: starsector_root.map(|p| p.to_string_lossy().to_string()),
         mod_root: Some(mod_root.to_string_lossy().to_string()),
         overview,
-        warnings: std::mem::take(&mut warnings),
+        warnings: mem::take(&mut warnings),
     })
 }
 

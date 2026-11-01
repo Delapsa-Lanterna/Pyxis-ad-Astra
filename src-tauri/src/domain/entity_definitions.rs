@@ -1,8 +1,7 @@
-use crate::{
-    domain::entity_identity::path_is_or_in_dir,
-    errors::{AppError, AppResult},
-    models::{CsvTableKey, EntityKind, SpecEditorKind},
-};
+use crate::domain::entity_identity;
+use crate::domain::entity_identity::path_is_or_in_dir;
+use crate::errors::{AppError, AppResult};
+use crate::models::{CsvTableKey, EntityKind, SpecEditorKind};
 
 #[derive(Clone, Copy)]
 pub struct EntitySpecDefinition {
@@ -31,7 +30,7 @@ impl EntitySpecDefinition {
     }
 
     pub fn validate_rel_path(self, rel_path: &str, message: &str) -> AppResult<()> {
-        crate::domain::entity_identity::validate_entity_file_rel_path(
+        entity_identity::validate_entity_file_rel_path(
             rel_path,
             self.dir,
             self.extension_without_dot(),

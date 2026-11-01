@@ -1,10 +1,16 @@
 use super::FsRootBoundary;
-use crate::{errors::AppResult, models::FactionIndexEntry, parsers::parse_faction_index};
+use crate::errors::AppResult;
+#[cfg(test)]
+use crate::io::read_csv_data;
+use crate::models::{CsvTable, FactionIndexEntry};
+use crate::parsers::parse_faction_index;
+#[cfg(test)]
+use std::cell::Cell;
 #[cfg(test)]
 use std::path::Path;
 
 #[cfg(test)]
-thread_local! { static INDEX_READS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) }; }
+thread_local! { static INDEX_READS: Cell<usize> = const { Cell::new(0) }; }
 
 #[cfg(test)]
 pub(crate) fn take_faction_index_reads() -> usize {
@@ -21,7 +27,7 @@ pub fn read_faction_index(root: &Path) -> AppResult<Vec<FactionIndexEntry>> {
     #[cfg(test)]
     INDEX_READS.with(|count| count.set(count.get() + 1));
     let boundary = FsRootBoundary::new(root, "faction root")?;
-    let table = super::read_csv_data(
+    let table = read_csv_data(
         &boundary.resolve_relative("data/world/factions/factions.csv", "faction index")?,
     )?;
     faction_index_entries(&boundary, &table)
@@ -29,7 +35,7 @@ pub fn read_faction_index(root: &Path) -> AppResult<Vec<FactionIndexEntry>> {
 
 pub fn faction_index_entries(
     boundary: &FsRootBoundary,
-    table: &crate::models::CsvTable,
+    table: &CsvTable,
 ) -> AppResult<Vec<FactionIndexEntry>> {
     parse_faction_index(table)?
         .into_iter()

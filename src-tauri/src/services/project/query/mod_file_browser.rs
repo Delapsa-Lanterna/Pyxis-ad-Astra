@@ -1,15 +1,19 @@
 use super::super::session::{lock_ready_session, session_handle};
-
-use crate::{
-    errors::{AppError, AppResult},
-    io::{FsRootBoundary, forward_slash_path, read_text_bytes_no_bom},
-    models::{
-        ModDirectory, ModFileEntry, ModFileKind, ModFileSearch, ModTextFileTarget,
-        decode_starsector_text,
-    },
+use crate::errors::{AppError, AppResult};
+use crate::io::{FsRootBoundary, forward_slash_path, read_text_bytes_no_bom};
+use crate::models::{
+    ModDirectory, ModFileEntry, ModFileKind, ModFileSearch, ModTextFileTarget,
+    decode_starsector_text,
 };
-use std::{collections::BTreeMap, fs, path::Path};
+use chrono::{DateTime, Utc};
+use std::collections::BTreeMap;
+use std::fs;
+use std::fs::Metadata;
+#[cfg(windows)]
+use std::os::windows::fs::MetadataExt;
+use std::path::Path;
 use walkdir::WalkDir;
+
 fn session_boundary(session_id: &str) -> AppResult<FsRootBoundary> {
     let handle = session_handle(session_id)?;
     let session = lock_ready_session(&handle)?;
@@ -74,7 +78,7 @@ fn describe_entry(boundary: &FsRootBoundary, target: &Path) -> AppResult<ModFile
         modified_at: metadata
             .modified()
             .ok()
-            .map(|time| chrono::DateTime::<chrono::Utc>::from(time).timestamp_millis()),
+            .map(|time| DateTime::<Utc>::from(time).timestamp_millis()),
     })
 }
 pub fn query_mod_file_search(session_id: &str, query: &str) -> AppResult<ModFileSearch> {
@@ -126,12 +130,11 @@ fn search_files(boundary: &FsRootBoundary, query: &str) -> AppResult<ModFileSear
     })
 }
 #[cfg(windows)]
-fn is_reparse_point(metadata: &fs::Metadata) -> bool {
-    use std::os::windows::fs::MetadataExt;
+fn is_reparse_point(metadata: &Metadata) -> bool {
     metadata.file_attributes() & 0x400 != 0
 }
 #[cfg(not(windows))]
-fn is_reparse_point(_metadata: &fs::Metadata) -> bool {
+fn is_reparse_point(_metadata: &Metadata) -> bool {
     false
 }
 pub fn query_mod_text_file_target(
@@ -196,8 +199,17 @@ fn binary_content(bytes: &[u8]) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(test)]
+    use crate::services::file_editor;
+    #[cfg(test)]
+    use crate::services::project::performance::PerformanceTrace;
+    #[cfg(test)]
+    use crate::services::project::session;
     use crate::services::project::test_support::project_workspace;
     use crate::test_support::TestWorkspace;
+    #[cfg(test)]
+    use encoding_rs::GB18030;
+
     #[test]
     fn lists_direct_children_hidden_files_and_empty_directories() {
         let root = project_workspace("mod_file_browser_list");
@@ -253,7 +265,7 @@ mod tests {
             assert!(!is_text_file(&path).unwrap());
         }
         let path = root.join("gbk.txt");
-        let (encoded, _, _) = encoding_rs::GB18030.encode("中文");
+        let (encoded, _, _) = GB18030.encode("中文");
         fs::write(&path, encoded).unwrap();
         let error = is_text_file(&path).unwrap_err();
         assert_eq!(error.code(), "text.invalid_utf8");
@@ -312,11 +324,8 @@ mod tests {
         let root = project_workspace("mod_browser_session");
         fs::write(root.join("README"), "中文").unwrap();
         fs::write(root.join("archive.jar"), b"PK\x03\x04").unwrap();
-        let mut trace =
-            super::super::super::performance::PerformanceTrace::new("project.openSession");
-        let manifest =
-            super::super::super::session::open_project_session_traced(&root, None, &mut trace)
-                .unwrap();
+        let mut trace = PerformanceTrace::new("project.openSession");
+        let manifest = session::open_project_session_traced(&root, None, &mut trace).unwrap();
         let entries = query_mod_directory(&manifest.session_id, None).unwrap();
         assert_eq!(entries.entries.len(), 2);
         let target = query_mod_text_file_target(&manifest.session_id, "README")
@@ -327,7 +336,7 @@ mod tests {
             target.mod_root,
             forward_slash_path(FsRootBoundary::new(&root, "mod root").unwrap().root())
         );
-        let loaded = crate::services::file_editor::load_project_editable_file(
+        let loaded = file_editor::load_project_editable_file(
             Some(&target.session_id),
             &target.mod_root,
             target.path.clone(),
@@ -341,7 +350,7 @@ mod tests {
         );
         assert!(query_mod_text_file_target(&manifest.session_id, "../external.txt").is_err());
         assert!(query_mod_directory(&manifest.session_id, Some("../external")).is_err());
-        super::super::super::session::close_project_session(manifest.session_id.clone()).unwrap();
+        session::close_project_session(manifest.session_id.clone()).unwrap();
         assert_eq!(
             query_mod_directory(&manifest.session_id, None)
                 .unwrap_err()

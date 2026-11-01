@@ -1,25 +1,24 @@
+use super::super::definitions::table_definitions::csv_table_row_resource_ref;
+use super::super::model::SessionCsvRow;
+use super::super::session::csv_tables::{
+    ensure_registered_table_rows, loaded_registered_csv_rows, registered_session_table,
+};
 use super::super::session::{lock_ready_session, session_handle};
-use super::super::{
-    definitions::table_definitions::csv_table_row_resource_ref,
-    model::SessionCsvRow,
-    session::csv_tables::{
-        ensure_registered_table_rows, loaded_registered_csv_rows, registered_session_table,
-    },
+use crate::errors::{AppError, AppResult};
+#[cfg(test)]
+use crate::io::csv_files;
+use crate::models::{
+    CsvRowPreview, CsvRowRecord, CsvSearchField, CsvTable, CsvTableIndex, CsvTableKey,
+    CsvTableRowsRead,
 };
-use crate::{
-    errors::{AppError, AppResult},
-    models::{
-        CsvRowPreview, CsvRowRecord, CsvSearchField, CsvTableIndex, CsvTableKey, CsvTableRowsRead,
-    },
-};
+use crate::services::project::session::csv_tables;
+use crate::services::project::{model, versions};
+use serde_json::Value;
 
-pub(crate) fn read_project_csv(
-    session_id: &str,
-    relative: &str,
-) -> AppResult<crate::models::CsvTable> {
+pub(crate) fn read_project_csv(session_id: &str, relative: &str) -> AppResult<CsvTable> {
     let handle = session_handle(session_id)?;
     let session = lock_ready_session(&handle)?;
-    super::super::session::csv_tables::read_retained_csv(&session, relative)
+    csv_tables::read_retained_csv(&session, relative)
 }
 
 pub fn query_csv_table_index(
@@ -59,12 +58,9 @@ pub fn query_csv_table_index(
             }
         }
     }
-    let base_versions = vec![super::super::versions::version_for_path(
-        &session,
-        &table_data.path,
-    )];
+    let base_versions = vec![versions::version_for_path(&session, &table_data.path)];
     #[cfg(test)]
-    crate::io::csv_files::record_csv_row_copies(rows.len());
+    csv_files::record_csv_row_copies(rows.len());
     Ok(CsvTableIndex {
         base_versions,
         table,
@@ -83,7 +79,7 @@ pub fn query_csv_table_rows(
     let handle = session_handle(session_id)?;
     let mut session = lock_ready_session(&handle)?;
     ensure_registered_table_rows(&mut session, table)?;
-    let state = super::super::session::csv_tables::session_table_mut(&mut session, table.as_str())?;
+    let state = csv_tables::session_table_mut(&mut session, table.as_str())?;
     let rows = state.rows.as_ref().expect("CSV rows have been loaded");
     let positions = state.row_index.get_or_insert_with(|| {
         rows.iter()
@@ -108,12 +104,12 @@ pub fn query_csv_table_rows(
             })
         })
         .collect::<AppResult<Vec<_>>>()?;
-    let base_versions = vec![super::super::versions::version_for_path(
+    let base_versions = vec![versions::version_for_path(
         &session,
         &registered_session_table(&session, table)?.path,
     )];
     #[cfg(test)]
-    crate::io::csv_files::record_csv_row_copies(rows.len());
+    csv_files::record_csv_row_copies(rows.len());
     Ok(CsvTableRowsRead {
         base_versions,
         table,
@@ -162,11 +158,11 @@ fn csv_row_matches(
     if search.is_empty() {
         return true;
     }
-    let id_field = super::super::model::csv_table_spec(table).entity_id_field;
+    let id_field = model::csv_table_spec(table).entity_id_field;
     let matches = |key: &str| {
         row.data
             .get(key)
-            .and_then(serde_json::Value::as_str)
+            .and_then(Value::as_str)
             .is_some_and(|value| value.to_lowercase().contains(search))
     };
     match field {
@@ -180,22 +176,33 @@ fn csv_row_matches(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(test)]
+    use crate::models::{CsvSave, CsvTableRowsPayload, ResourceOwnerKind, SaveAction};
     use crate::services::project::test_support::project_workspace;
+    #[cfg(test)]
+    use crate::services::project::{
+        PerformanceTrace, close_project_session, open_project_session_traced,
+    };
+    #[cfg(test)]
+    use crate::services::project_save;
+    #[cfg(test)]
+    use crate::{commands, io};
     use serde_json::json;
+    #[cfg(test)]
+    use std::fs;
 
     #[test]
     fn index_and_keyed_batches_preserve_identity_and_refresh_the_lookup_after_a_write() {
         let root = project_workspace("csv_keyed_batches");
-        std::fs::create_dir_all(root.join("data/hulls")).unwrap();
-        crate::io::write_utf8_no_bom(
+        fs::create_dir_all(root.join("data/hulls")).unwrap();
+        io::write_utf8_no_bom(
             &root.join("data/hulls/ship_data.csv"),
             "id,name\na,Alpha\n#comment,Comment\n,,\nb,Beta\n",
         )
         .unwrap();
-        crate::io::write_utf8_no_bom(&root.join("data/hulls/a.ship"), r#"{"hullId":"a"}"#).unwrap();
-        let mut trace = super::super::super::PerformanceTrace::new("project.openSession");
-        let manifest =
-            super::super::super::open_project_session_traced(&root, None, &mut trace).unwrap();
+        io::write_utf8_no_bom(&root.join("data/hulls/a.ship"), r#"{"hullId":"a"}"#).unwrap();
+        let mut trace = PerformanceTrace::new("project.openSession");
+        let manifest = open_project_session_traced(&root, None, &mut trace).unwrap();
         let index = query_csv_table_index(
             &manifest.session_id,
             CsvTableKey::Ships,
@@ -234,25 +241,23 @@ mod tests {
         assert_eq!(batch.rows[0].data["id"], "b");
         assert!(batch.rows[1].is_comment);
         assert_eq!(batch.rows[2].data["id"], "");
-        let saved = crate::services::project_save::execute_save_action(
-            crate::models::SaveAction::SaveCsvPatch(crate::models::CsvSave {
-                session_id: manifest.session_id.clone(),
-                mod_root: manifest.mod_root.clone(),
-                table: CsvTableKey::Ships,
-                base_versions: index.base_versions.clone(),
-                patches: vec![],
-                associated_specs: vec![],
-                json_write: Default::default(),
-                row_order: Some(index.row_keys.iter().rev().cloned().collect()),
-            }),
-        )
+        let saved = project_save::execute_save_action(SaveAction::SaveCsvPatch(CsvSave {
+            session_id: manifest.session_id.clone(),
+            mod_root: manifest.mod_root.clone(),
+            table: CsvTableKey::Ships,
+            base_versions: index.base_versions.clone(),
+            patches: vec![],
+            associated_specs: vec![],
+            json_write: Default::default(),
+            row_order: Some(index.row_keys.iter().rev().cloned().collect()),
+        }))
         .unwrap();
         assert_eq!(saved.changes.len(), 1);
         let batch =
             query_csv_table_rows(&manifest.session_id, CsvTableKey::Ships, requested).unwrap();
         assert_eq!(batch.rows[0].data["id"], "b");
         assert!(batch.rows[1].is_comment);
-        let too_many = crate::commands::query_csv_table_rows(crate::models::CsvTableRowsPayload {
+        let too_many = commands::query_csv_table_rows(CsvTableRowsPayload {
             session_id: manifest.session_id.clone(),
             table: CsvTableKey::Ships,
             row_keys: vec![index.row_keys[0].clone(); 161],
@@ -266,7 +271,7 @@ mod tests {
             )
             .is_err()
         );
-        super::super::super::close_project_session(manifest.session_id).unwrap();
+        close_project_session(manifest.session_id).unwrap();
         root.close().unwrap();
     }
 
@@ -309,33 +314,32 @@ mod tests {
     #[test]
     fn sim_opponent_preview_resolves_its_variant_hull_sprite() {
         let root = project_workspace("sim_opponent_preview");
-        std::fs::create_dir_all(root.join("data/hulls")).unwrap();
-        std::fs::create_dir_all(root.join("data/variants")).unwrap();
-        std::fs::create_dir_all(root.join("data/campaign")).unwrap();
-        crate::io::write_utf8_no_bom(
+        fs::create_dir_all(root.join("data/hulls")).unwrap();
+        fs::create_dir_all(root.join("data/variants")).unwrap();
+        fs::create_dir_all(root.join("data/campaign")).unwrap();
+        io::write_utf8_no_bom(
             &root.join("data/hulls/ship_data.csv"),
             "id,name\nship_a,Ship A\n",
         )
         .unwrap();
-        crate::io::write_utf8_no_bom(
+        io::write_utf8_no_bom(
             &root.join("data/hulls/ship_a.ship"),
             r#"{"hullId":"ship_a","spriteName":"graphics/ships/ship_a.png"}"#,
         )
         .unwrap();
-        crate::io::write_utf8_no_bom(
+        io::write_utf8_no_bom(
             &root.join("data/variants/variant_a.variant"),
             r#"{"variantId":"variant_a","hullId":"ship_a"}"#,
         )
         .unwrap();
-        crate::io::write_utf8_no_bom(
+        io::write_utf8_no_bom(
             &root.join("data/campaign/sim_opponents.csv"),
             "variant id\nvariant_a\n",
         )
         .unwrap();
 
-        let mut trace = super::super::super::PerformanceTrace::new("project.openSession");
-        let manifest =
-            super::super::super::open_project_session_traced(&root, None, &mut trace).unwrap();
+        let mut trace = PerformanceTrace::new("project.openSession");
+        let manifest = open_project_session_traced(&root, None, &mut trace).unwrap();
         let index = query_csv_table_index(
             &manifest.session_id,
             CsvTableKey::SimOpponents,
@@ -353,10 +357,10 @@ mod tests {
 
         let resource = preview.resource_ref.expect("sim opponent preview");
         assert_eq!(resource.rel_path, "graphics/ships/ship_a.png");
-        assert_eq!(resource.owner_kind, crate::models::ResourceOwnerKind::Ship);
+        assert_eq!(resource.owner_kind, ResourceOwnerKind::Ship);
         assert_eq!(resource.owner_id, "ship_a");
         assert_eq!(resource.key, "thumbnail");
-        super::super::super::close_project_session(manifest.session_id).unwrap();
+        close_project_session(manifest.session_id).unwrap();
         root.close().unwrap();
     }
 
@@ -401,12 +405,11 @@ mod tests {
     #[test]
     fn window_search_normalizes_text_and_returns_exact_counts() {
         let root = project_workspace("csv_search_fields");
-        std::fs::create_dir_all(root.join("data/hulls")).unwrap();
-        crate::io::write_utf8_no_bom(&root.join("data/hulls/ship_data.csv"),
+        fs::create_dir_all(root.join("data/hulls")).unwrap();
+        io::write_utf8_no_bom(&root.join("data/hulls/ship_data.csv"),
             "id,name,tags,description\r\nAlpha,银河,demo_bp,description\r\nBeta,Alpha,rare,description\r\n#Alpha,注释,disabled,description\r\n").unwrap();
-        let mut trace = super::super::super::PerformanceTrace::new("project.openSession");
-        let manifest =
-            super::super::super::open_project_session_traced(&root, None, &mut trace).unwrap();
+        let mut trace = PerformanceTrace::new("project.openSession");
+        let manifest = open_project_session_traced(&root, None, &mut trace).unwrap();
         for (field, search, count) in [
             (CsvSearchField::IdName, "  ALPHA  ", 3),
             (CsvSearchField::Id, "alpha", 2),
@@ -429,7 +432,7 @@ mod tests {
             assert_eq!(window.row_keys.len(), count);
             assert_eq!(window.rows.len(), count);
         }
-        super::super::super::close_project_session(manifest.session_id).unwrap();
+        close_project_session(manifest.session_id).unwrap();
         root.close().unwrap();
     }
 }

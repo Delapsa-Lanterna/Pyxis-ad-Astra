@@ -1,4 +1,9 @@
 use super::{ProjectSessionId, ResourceOwnerKind, ResourceRef, ResourceSource};
+use crate::errors::ErrorDiagnostic;
+use crate::models::{
+    DraftResourceEntityKind as ModelsDraftResourceEntityKind, FileVersion, ReferenceSource,
+    project_identity,
+};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::BTreeMap;
@@ -7,7 +12,7 @@ use std::collections::BTreeMap;
 #[serde(rename_all = "camelCase")]
 pub struct EngineRenderAssets {
     pub styles: BTreeMap<String, Value>,
-    pub versions: Vec<super::FileVersion>,
+    pub versions: Vec<FileVersion>,
     pub resources: BTreeMap<String, ResourceRef>,
 }
 
@@ -15,7 +20,7 @@ pub struct EngineRenderAssets {
 #[serde(rename_all = "camelCase")]
 pub struct ResourceDataUrlBatchEntry {
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub reference: Option<super::ReferenceSource>,
+    pub reference: Option<ReferenceSource>,
     pub key: String,
     pub source: ResourceSource,
     pub rel_path: String,
@@ -23,7 +28,7 @@ pub struct ResourceDataUrlBatchEntry {
     pub owner_id: String,
     pub data_url: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub error: Option<crate::errors::ErrorDiagnostic>,
+    pub error: Option<ErrorDiagnostic>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -53,7 +58,7 @@ pub enum HullReferenceKind {
 #[serde(rename_all = "camelCase")]
 pub struct HullReferenceGroup {
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub reference: Option<super::ReferenceSource>,
+    pub reference: Option<ReferenceSource>,
     pub origin: ResourceSource,
     pub kind: HullReferenceKind,
     pub options: Vec<HullReferenceOption>,
@@ -86,7 +91,7 @@ pub struct HullWeaponSlot {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct DraftResourcesPayload {
-    pub kind: crate::models::DraftResourceEntityKind,
+    pub kind: ModelsDraftResourceEntityKind,
     pub session_id: ProjectSessionId,
     pub id: String,
     pub draft: Value,
@@ -114,7 +119,7 @@ pub struct HullReferencesPayload {
     pub reference_ids: Vec<String>,
 }
 
-super::project_identity::impl_session_mod_scope_required!(ResolveModRelativePathPayload);
+project_identity::impl_session_mod_scope_required!(ResolveModRelativePathPayload);
 
 #[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]

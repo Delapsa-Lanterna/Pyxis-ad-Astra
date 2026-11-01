@@ -1,18 +1,18 @@
-use super::super::{
-    model::{
-        ABILITIES_SPEC, COMMODITIES_SPEC, CsvTableSpec, DESCRIPTIONS_SPEC, HULLMODS_SPEC,
-        INDUSTRIES_SPEC, MARKET_CONDITIONS_SPEC, ProjectSession, SHIP_SYSTEMS_SPEC, SHIPS_SPEC,
-        SIM_OPPONENTS_SPEC, SKILLS_SPEC, SPECIAL_ITEMS_SPEC, SUBMARKETS_SPEC, WEAPONS_SPEC,
-        WINGS_SPEC, csv_table_spec, string_field, string_from_row, weapon_sprite_path,
-    },
-    resources::{HullReferenceResolver, resource_ref},
-    sources::core::load_core_variant_files,
+use super::super::model::{
+    ABILITIES_SPEC, COMMODITIES_SPEC, CsvTableSpec, DESCRIPTIONS_SPEC, HULLMODS_SPEC,
+    INDUSTRIES_SPEC, MARKET_CONDITIONS_SPEC, ProjectSession, SHIP_SYSTEMS_SPEC, SHIPS_SPEC,
+    SIM_OPPONENTS_SPEC, SKILLS_SPEC, SPECIAL_ITEMS_SPEC, SUBMARKETS_SPEC, WEAPONS_SPEC, WINGS_SPEC,
+    csv_table_spec, string_field, string_from_row, weapon_sprite_path,
 };
+use super::super::resources::{HullReferenceResolver, resource_ref};
+use super::super::sources::core::load_core_variant_files;
+use crate::errors::AppResult;
+use crate::models::{
+    CsvTableKey, EntityKind, EntitySummaries, ResourceOwnerKind, ResourceRef, ResourceSource,
+    VariantFile,
+};
+use crate::services::project::sources::SourceReader;
 use crate::services::project::sources::core::CoreSourceData;
-use crate::{
-    errors::AppResult,
-    models::{CsvTableKey, EntitySummaries, ResourceOwnerKind, ResourceRef, ResourceSource},
-};
 use serde_json::{Map, Value};
 use std::collections::BTreeMap;
 
@@ -97,7 +97,7 @@ pub(in crate::services::project) fn csv_table_entity_summary(
 }
 
 pub(in crate::services::project) fn build_table_entity_summaries_from(
-    sources: &mut super::super::sources::SourceReader,
+    sources: &mut SourceReader,
     entity_summaries: &EntitySummaries,
 ) -> AppResult<BTreeMap<CsvTableKey, usize>> {
     csv_table_definitions()
@@ -448,9 +448,7 @@ fn weapon_source_resource(
     session: &ProjectSession,
 ) -> AppResult<Option<ResourceRef>> {
     let record = match source {
-        ResourceSource::Reference => {
-            session.reference_spec(crate::models::EntityKind::Weapon, value)
-        }
+        ResourceSource::Reference => session.reference_spec(EntityKind::Weapon, value),
         ResourceSource::Core => core_data
             .and_then(|data| data.weapon_specs.get(value))
             .cloned(),
@@ -459,7 +457,7 @@ fn weapon_source_resource(
             .get(value)
             .filter(|record| record.location.source == ResourceSource::Mod)
             .cloned()
-            .or_else(|| session.reference_spec(crate::models::EntityKind::Weapon, value))
+            .or_else(|| session.reference_spec(EntityKind::Weapon, value))
             .or_else(|| session.weapon_specs.get(value).cloned())
             .or_else(|| {
                 core_data
@@ -519,7 +517,7 @@ fn source_variant<'a>(
     variant_id: &str,
     core_data: Option<&'a CoreSourceData>,
     session: &'a ProjectSession,
-) -> Option<&'a crate::models::VariantFile> {
+) -> Option<&'a VariantFile> {
     match source {
         ResourceSource::Reference => session
             .references

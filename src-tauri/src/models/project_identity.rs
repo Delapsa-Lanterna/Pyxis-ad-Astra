@@ -1,9 +1,12 @@
+use crate::models::{
+    EntityEditTarget as ModelsEntityEditTarget, ProjectSessionId as ModelsProjectSessionId,
+};
 use serde::{Deserialize, Serialize};
 
 pub type ProjectSessionId = String;
 
 pub trait SessionModScope {
-    fn session_id(&self) -> Option<&crate::models::ProjectSessionId>;
+    fn session_id(&self) -> Option<&ModelsProjectSessionId>;
     fn mod_root(&self) -> &str;
 }
 
@@ -271,7 +274,7 @@ pub(crate) use impl_session_mod_scope_required;
 #[serde(rename_all = "camelCase")]
 pub struct EntityIdentityIntentPayload {
     pub session_id: ProjectSessionId,
-    pub source: crate::models::EntityEditTarget,
+    pub source: ModelsEntityEditTarget,
     pub next_id: String,
 }
 

@@ -1,17 +1,19 @@
+use super::super::definitions::entity_definitions::entity_definition;
+use super::super::model::{MISSION_LIST_TABLE_KEY, ProjectSession, string_from_row};
+use super::super::session::csv_tables::{ensure_registered_table_rows, ensure_session_table_rows};
 use super::super::session::{lock_ready_session, session_handle};
-use super::super::{
-    definitions::entity_definitions::entity_definition,
-    model::{MISSION_LIST_TABLE_KEY, ProjectSession, string_from_row},
-    session::csv_tables::{ensure_registered_table_rows, ensure_session_table_rows},
-    versions::version_for_path,
+use super::super::versions::version_for_path;
+use crate::domain::{entity_definitions, entity_identity, variant_modules};
+use crate::errors::{AppError, AppResult};
+use crate::io;
+use crate::io::FsRootBoundary;
+use crate::models::{
+    CsvTableKey, EntityEditInfo, EntityEditTarget, EntityFileLocation, EntityIdentityIntent,
+    EntityKind, EntityLinkedRecord, EntityTargetState, FileVersion, ResourceSource,
+    windows_path_key,
 };
-use crate::{
-    errors::AppResult,
-    models::{
-        EntityEditInfo, EntityEditTarget, EntityFileLocation, EntityKind, EntityLinkedRecord,
-        EntityTargetState, ResourceSource, windows_path_key,
-    },
-};
+use crate::services::project::session::csv_tables;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
 pub fn query_entity_edit_target(
@@ -40,15 +42,15 @@ pub fn require_entity_version_scope(
     session_id: &str,
     kind: EntityKind,
     id: &str,
-    supplied: &[crate::models::FileVersion],
+    supplied: &[FileVersion],
 ) -> AppResult<()> {
     let info = query_entity_edit_target(session_id, kind, id)?;
     for required in info.base_versions {
-        if !supplied.iter().any(|version| {
-            crate::models::windows_path_key(&version.path)
-                == crate::models::windows_path_key(&required.path)
-        }) {
-            return Err(crate::errors::AppError::message(
+        if !supplied
+            .iter()
+            .any(|version| windows_path_key(&version.path) == windows_path_key(&required.path))
+        {
+            return Err(AppError::message(
                 "write.version_scope_missing",
                 format!("保存缺少读取版本凭据: {}", required.path),
             ));
@@ -59,18 +61,18 @@ pub fn require_entity_version_scope(
 
 pub fn require_csv_version_scope(
     session_id: &str,
-    table: crate::models::CsvTableKey,
-    supplied: &[crate::models::FileVersion],
+    table: CsvTableKey,
+    supplied: &[FileVersion],
 ) -> AppResult<()> {
     let handle = session_handle(session_id)?;
     let session = lock_ready_session(&handle)?;
-    let state = super::super::session::csv_tables::registered_session_table(&session, table)?;
+    let state = csv_tables::registered_session_table(&session, table)?;
     let required = version_for_path(&session, &state.path);
-    if !supplied.iter().any(|version| {
-        crate::models::windows_path_key(&version.path)
-            == crate::models::windows_path_key(&required.path)
-    }) {
-        return Err(crate::errors::AppError::message(
+    if !supplied
+        .iter()
+        .any(|version| windows_path_key(&version.path) == windows_path_key(&required.path))
+    {
+        return Err(AppError::message(
             "write.version_scope_missing",
             format!("CSV 保存缺少读取版本凭据: {}", required.path),
         ));
@@ -81,7 +83,7 @@ pub fn require_csv_version_scope(
 pub fn query_file_entity_target(session_id: &str, path: &str) -> AppResult<Option<EntityEditInfo>> {
     let handle = session_handle(session_id)?;
     let mut session = lock_ready_session(&handle)?;
-    let key = crate::models::windows_path_key(path);
+    let key = windows_path_key(path);
     let mut found = None;
     for (kind, records) in [
         (EntityKind::Ship, &session.ship_files),
@@ -93,7 +95,7 @@ pub fn query_file_entity_target(session_id: &str, path: &str) -> AppResult<Optio
     ] {
         if let Some(record) = records.values().find(|record| {
             record.location.source == ResourceSource::Mod
-                && crate::models::windows_path_key(&record.location.path) == key
+                && windows_path_key(&record.location.path) == key
         }) {
             found = Some((kind, record.id.clone()));
             break;
@@ -103,13 +105,13 @@ pub fn query_file_entity_target(session_id: &str, path: &str) -> AppResult<Optio
         found = session
             .variant_files
             .iter()
-            .find(|file| crate::models::windows_path_key(&file.path) == key)
+            .find(|file| windows_path_key(&file.path) == key)
             .map(|file| (EntityKind::Variant, file.variant_id.clone()))
             .or_else(|| {
                 session
                     .skin_files
                     .iter()
-                    .find(|file| crate::models::windows_path_key(&file.path) == key)
+                    .find(|file| windows_path_key(&file.path) == key)
                     .map(|file| (EntityKind::Skin, file.skin_hull_id.clone()))
             });
     }
@@ -122,19 +124,19 @@ pub fn query_entity_identity_intent(
     session_id: &str,
     source: &EntityEditTarget,
     next_id: &str,
-) -> AppResult<crate::models::EntityIdentityIntent> {
+) -> AppResult<EntityIdentityIntent> {
     let handle = session_handle(session_id)?;
     let mut session = lock_ready_session(&handle)?;
     (entity_definition(source.kind)?.prepare)(&mut session)?;
     let current = describe_entity_target(&mut session, source.kind, &source.id)?;
     if current.target != *source {
-        return Err(crate::errors::AppError::message(
+        return Err(AppError::message(
             "spec.target_changed",
             "实体目标已变化，请载入外部版本",
         ));
     }
-    let definition = crate::domain::entity_definitions::entity_spec_definition(source.kind);
-    let next_id = crate::domain::entity_identity::validate_entity_id(
+    let definition = entity_definitions::entity_spec_definition(source.kind);
+    let next_id = entity_identity::validate_entity_id(
         next_id,
         definition
             .map(|definition| definition.invalid_id_message)
@@ -149,44 +151,42 @@ pub fn query_entity_identity_intent(
     } else if next_id == source.id {
         source.write.rel_path.clone()
     } else {
-        crate::io::forward_slash_path(&Path::new(&source.write.rel_path).with_file_name(format!(
+        io::forward_slash_path(&Path::new(&source.write.rel_path).with_file_name(format!(
             "{next_id}{}",
             definition.expect("spec kind has definition").extension
         )))
     };
-    let boundary = crate::io::FsRootBoundary::new(
-        Path::new(&session.manifest.mod_root),
-        "entity intent root",
-    )?;
+    let boundary =
+        FsRootBoundary::new(Path::new(&session.manifest.mod_root), "entity intent root")?;
     let destination = boundary.resolve_relative_target(&relative, "entity intent target")?;
-    let same_file = crate::io::same_physical_path(Path::new(&source.write.path), &destination);
+    let same_file = io::same_physical_path(Path::new(&source.write.path), &destination);
     let next_target = describe_entity_target(&mut session, source.kind, next_id)?.target;
     if (destination.exists() && (source.state == EntityTargetState::Create || !same_file))
         || (next_id != source.id && next_target.state == EntityTargetState::Existing)
     {
-        return Err(crate::errors::AppError::EntityTargetExists {
+        return Err(AppError::EntityTargetExists {
             target: Box::new(next_target),
         });
     }
     let mut next_write = source.write.clone();
     next_write.rel_path = relative;
     next_write.path = destination.to_string_lossy().to_string();
-    Ok(crate::models::EntityIdentityIntent {
+    Ok(EntityIdentityIntent {
         source: source.clone(),
         next_id: next_id.to_string(),
-        destination_version: crate::io::file_version(&destination)?,
+        destination_version: io::file_version(&destination)?,
         next_write,
     })
 }
 
 pub(in crate::services::project) struct EntityTargetProjection {
     kind: EntityKind,
-    sources: std::collections::BTreeMap<String, EntityFileLocation>,
-    linked: std::collections::BTreeMap<String, EntityLinkedRecord>,
-    index_version: Option<crate::models::FileVersion>,
-    default_description_ids: std::collections::BTreeSet<String>,
-    description_version: Option<crate::models::FileVersion>,
-    parent_versions: std::collections::BTreeMap<String, Vec<crate::models::FileVersion>>,
+    sources: BTreeMap<String, EntityFileLocation>,
+    linked: BTreeMap<String, EntityLinkedRecord>,
+    index_version: Option<FileVersion>,
+    default_description_ids: BTreeSet<String>,
+    description_version: Option<FileVersion>,
+    parent_versions: BTreeMap<String, Vec<FileVersion>>,
 }
 
 pub(in crate::services::project) fn prepare_entity_targets(
@@ -194,12 +194,11 @@ pub(in crate::services::project) fn prepare_entity_targets(
     kind: EntityKind,
 ) -> AppResult<EntityTargetProjection> {
     let root = &session.manifest.mod_root;
-    let mut parent_versions =
-        std::collections::BTreeMap::<String, Vec<crate::models::FileVersion>>::new();
+    let mut parent_versions = BTreeMap::<String, Vec<FileVersion>>::new();
     if kind == EntityKind::Variant {
         for parent in session.variant_files.iter() {
             let content = &parent.data;
-            for (_, id) in crate::domain::variant_modules::module_entries(content.get("modules")) {
+            for (_, id) in variant_modules::module_entries(content.get("modules")) {
                 parent_versions
                     .entry(id)
                     .or_default()
@@ -207,7 +206,7 @@ pub(in crate::services::project) fn prepare_entity_targets(
             }
         }
     }
-    let mut sources = std::collections::BTreeMap::new();
+    let mut sources = BTreeMap::new();
     match kind {
         EntityKind::Variant => {
             for record in session.variant_files.iter() {
@@ -252,15 +251,15 @@ pub(in crate::services::project) fn prepare_entity_targets(
             && let Some(source) = &target.source
             && !Path::new(&source.path)
                 .try_exists()
-                .map_err(|error| crate::errors::AppError::from(error).at_path(&source.path))?
+                .map_err(|error| AppError::from(error).at_path(&source.path))?
         {
             sources
                 .entry(target.id.clone())
                 .or_insert_with(|| source.clone());
         }
     }
-    let definition = crate::domain::entity_definitions::entity_spec_definition(kind);
-    let mut linked = std::collections::BTreeMap::new();
+    let definition = entity_definitions::entity_spec_definition(kind);
+    let mut linked = BTreeMap::new();
     let index_version = if let Some(table) = definition.and_then(|definition| definition.csv_table)
     {
         ensure_registered_table_rows(session, table)?;
@@ -287,11 +286,10 @@ pub(in crate::services::project) fn prepare_entity_targets(
         Some(version_for_path(session, &state.path))
     } else if kind == EntityKind::Faction {
         let index = "data/world/factions/factions.csv";
-        let boundary =
-            crate::io::FsRootBoundary::new(Path::new(&session.manifest.mod_root), "faction root")?;
-        let table = super::super::session::csv_tables::read_retained_csv(session, index)?;
-        let entries = crate::io::faction_index_entries(&boundary, &table)?;
-        let mut paths = std::collections::BTreeMap::new();
+        let boundary = FsRootBoundary::new(Path::new(&session.manifest.mod_root), "faction root")?;
+        let table = csv_tables::read_retained_csv(session, index)?;
+        let entries = io::faction_index_entries(&boundary, &table)?;
+        let mut paths = BTreeMap::new();
         for entry in entries {
             paths
                 .entry(entry.path.to_string_lossy().to_string())
@@ -349,7 +347,7 @@ pub(in crate::services::project) fn prepare_entity_targets(
             .cloned()
             .collect()
     } else {
-        std::collections::BTreeSet::new()
+        BTreeSet::new()
     };
     let description_version = ((kind == EntityKind::Ship || kind == EntityKind::Weapon)
         && Path::new(&session.manifest.mod_root)
@@ -374,7 +372,7 @@ impl EntityTargetProjection {
         id: &str,
     ) -> EntityEditInfo {
         let root = &session.manifest.mod_root;
-        let definition = crate::domain::entity_definitions::entity_spec_definition(self.kind);
+        let definition = entity_definitions::entity_spec_definition(self.kind);
         let source = if self.kind == EntityKind::Mission {
             let relative = format!("data/missions/{id}");
             Path::new(root)
@@ -461,21 +459,33 @@ pub(crate) fn location(root: &str, rel_path: &str) -> EntityFileLocation {
 #[cfg(windows)]
 mod tests {
     use super::*;
+    #[cfg(test)]
+    use crate::models::{JointEditKind, JointEditRoot, JsonFileSave, SaveAction};
     use crate::services::project;
+    #[cfg(test)]
+    use crate::services::project::query::joint_edit;
+    #[cfg(test)]
+    use crate::services::project::{PerformanceTrace, test_support};
+    #[cfg(test)]
+    use crate::services::project_save;
+    #[cfg(test)]
+    use crate::{io, services};
     use serde_json::json;
+    #[cfg(test)]
+    use std::fs;
 
     #[test]
     fn unicode_parent_paths_keep_independent_versions() {
-        let work = project::test_support::project_workspace("unicode_parent_versions");
+        let work = test_support::project_workspace("unicode_parent_versions");
         let directory = work.join("data/variants");
-        std::fs::create_dir_all(&directory).unwrap();
+        fs::create_dir_all(&directory).unwrap();
         for (name, id, modules) in [
             ("child.variant", "child", json!({})),
             ("\u{130}.variant", "first_parent", json!({"slot":"child"})),
             ("i\u{307}.variant", "second_parent", json!({"slot":"child"})),
         ] {
             let data = json!({"variantId":id,"hullId":"hull","modules":modules});
-            std::fs::write(directory.join(name), data.to_string()).unwrap();
+            fs::write(directory.join(name), data.to_string()).unwrap();
         }
         let first = directory.join("\u{130}.variant").canonicalize().unwrap();
         let second = directory.join("i\u{307}.variant").canonicalize().unwrap();
@@ -488,16 +498,15 @@ mod tests {
             windows_path_key(&first.to_string_lossy()),
             windows_path_key(&second.to_string_lossy())
         );
-        std::fs::create_dir_all(work.join("data/hulls")).unwrap();
-        std::fs::write(work.join("data/hulls/hull.ship"), r#"{"hullId":"hull","hullName":"Hull","hullSize":"FRIGATE","width":10,"height":10,"center":[0,0],"weaponSlots":[],"engineSlots":[]}"#).unwrap();
+        fs::create_dir_all(work.join("data/hulls")).unwrap();
+        fs::write(work.join("data/hulls/hull.ship"), r#"{"hullId":"hull","hullName":"Hull","hullSize":"FRIGATE","width":10,"height":10,"center":[0,0],"weaponSlots":[],"engineSlots":[]}"#).unwrap();
         let manifest = project::open_project_session_traced(
             &work,
             None,
-            &mut project::PerformanceTrace::new("unicode.parents"),
+            &mut PerformanceTrace::new("unicode.parents"),
         )
         .unwrap();
-        let files =
-            crate::services::query_entity_list(&manifest.session_id, EntityKind::Variant).unwrap();
+        let files = services::query_entity_list(&manifest.session_id, EntityKind::Variant).unwrap();
         let info =
             query_entity_edit_target(&manifest.session_id, EntityKind::Variant, "child").unwrap();
         let paths = info
@@ -505,10 +514,10 @@ mod tests {
             .iter()
             .map(|version| version.path.clone())
             .collect::<Vec<_>>();
-        let joint = project::query::joint_edit::query_joint_edit(&crate::models::JointEditRoot {
+        let joint = joint_edit::query_joint_edit(&JointEditRoot {
             session_id: manifest.session_id.clone(),
             mod_root: manifest.mod_root.clone(),
-            kind: crate::models::JointEditKind::Variant,
+            kind: JointEditKind::Variant,
             id: "child".into(),
         })
         .unwrap();
@@ -521,13 +530,13 @@ mod tests {
             3
         );
         for parent in [&first, &second] {
-            let original = std::fs::read(parent).unwrap();
-            let mut modified = crate::io::read_json_file(parent).unwrap();
+            let original = fs::read(parent).unwrap();
+            let mut modified = io::read_json_file(parent).unwrap();
             modified["displayName"] = json!("External");
             let external = modified.to_string();
-            std::fs::write(parent, &external).unwrap();
-            let error = crate::services::project_save::execute_save_action(
-                crate::models::SaveAction::SaveVariantEntity(crate::models::JsonFileSave {
+            fs::write(parent, &external).unwrap();
+            let error =
+                project_save::execute_save_action(SaveAction::SaveVariantEntity(JsonFileSave {
                     session_id: manifest.session_id.clone(),
                     mod_root: manifest.mod_root.clone(),
                     previous_id: Some("child".into()),
@@ -537,18 +546,17 @@ mod tests {
                     json_write: Default::default(),
                     ordered_json: None,
                     base_versions: info.base_versions.clone(),
-                }),
-            )
-            .unwrap_err();
+                }))
+                .unwrap_err();
             assert_eq!(error.code(), "write.version_conflict");
-            assert_eq!(std::fs::read_to_string(parent).unwrap(), external);
+            assert_eq!(fs::read_to_string(parent).unwrap(), external);
             assert!(
-                crate::io::read_json_file(&directory.join("child.variant"))
+                io::read_json_file(&directory.join("child.variant"))
                     .unwrap()
                     .get("displayName")
                     .is_none()
             );
-            std::fs::write(parent, original).unwrap();
+            fs::write(parent, original).unwrap();
         }
         project::close_project_session(manifest.session_id).unwrap();
         work.close().unwrap();

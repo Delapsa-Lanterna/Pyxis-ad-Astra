@@ -1,13 +1,15 @@
-use crate::{
-    errors::{AppError, AppResult},
-    models::{AssociatedSpecCreateParams, WeaponSpecClass},
-};
+use crate::domain::schema;
+use crate::errors::{AppError, AppResult};
+use crate::models::{AssociatedSpecCreateParams, WeaponSpecClass};
+#[cfg(test)]
+use crate::test_support::work_counts;
 use serde_json::Value;
-use std::{path::Path, sync::LazyLock};
+use std::path::Path;
+use std::sync::LazyLock;
 
 static SPEC_DEFAULTS: LazyLock<Value> = LazyLock::new(|| {
     #[cfg(test)]
-    crate::test_support::work_counts::record("asset-parse", Path::new("spec-defaults"));
+    work_counts::record("asset-parse", Path::new("spec-defaults"));
     let defaults: Value = serde_json::from_str(include_str!("../../../schemas/spec-defaults.json"))
         .expect("embedded spec defaults must parse");
     assert_eq!(
@@ -43,8 +45,8 @@ pub fn create_associated_spec(params: &AssociatedSpecCreateParams) -> Value {
 
 fn validate_weapon_rule(content: &Value, path: &Path, rule: &'static Value) -> AppResult<()> {
     let key = rule["key"].as_str().expect("bundled weapon field");
-    crate::domain::schema::validate_field(rule, content.get(key).unwrap_or(&Value::Null), key, true)
-        .map_err(|_| {
+    schema::validate_field(rule, content.get(key).unwrap_or(&Value::Null), key, true).map_err(
+        |_| {
             AppError::message(
                 rule["issueCode"]
                     .as_str()
@@ -58,7 +60,8 @@ fn validate_weapon_rule(content: &Value, path: &Path, rule: &'static Value) -> A
                 ),
             )
             .at_path(path)
-        })
+        },
+    )
 }
 pub fn validate_weapon_spec_class(
     content: &Value,
@@ -85,6 +88,7 @@ pub fn validate_weapon_editor_spec(
 mod tests {
     use super::*;
     use serde_json::json;
+
     static WEAPON_SCHEMA: LazyLock<Value> = LazyLock::new(|| {
         serde_json::from_str(include_str!("../../../schemas/spec-weapon.schema.json")).unwrap()
     });

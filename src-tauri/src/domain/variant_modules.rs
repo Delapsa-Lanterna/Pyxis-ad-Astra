@@ -1,4 +1,5 @@
-use serde_json::Value;
+use serde_json::{Map, Value};
+
 pub fn module_entries(value: Option<&Value>) -> Vec<(String, String)> {
     match value {
         Some(Value::Object(items)) => items
@@ -15,7 +16,7 @@ pub fn module_entries(value: Option<&Value>) -> Vec<(String, String)> {
     }
 }
 pub fn rename_module_reference(data: &mut Value, previous: &str, next: &str) -> bool {
-    fn replace(items: &mut serde_json::Map<String, Value>, previous: &str, next: &str) -> bool {
+    fn replace(items: &mut Map<String, Value>, previous: &str, next: &str) -> bool {
         let mut changed = false;
         for value in items.values_mut() {
             if value.as_str() == Some(previous) {

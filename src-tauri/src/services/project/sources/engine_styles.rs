@@ -1,16 +1,20 @@
-use crate::{errors::AppResult, models::FileVersion};
+use crate::errors::AppResult;
+use crate::io;
+use crate::models::FileVersion;
+use crate::services::project::sources::SourceReader;
 use serde_json::Value;
-use std::{collections::BTreeMap, path::Path};
+use std::collections::BTreeMap;
+use std::path::Path;
 
 pub(in crate::services::project) const ENGINE_STYLES_PATH: &str = "data/config/engine_styles.json";
 
 pub(in crate::services::project) fn read_engine_styles(
     root: &Path,
 ) -> AppResult<(BTreeMap<String, Value>, FileVersion)> {
-    let mut sources = super::SourceReader::new(root)?;
+    let mut sources = SourceReader::new(root)?;
     let path = sources.path(ENGINE_STYLES_PATH)?;
     if !path.exists() {
-        return Ok((BTreeMap::new(), crate::io::file_version(&path)?));
+        return Ok((BTreeMap::new(), io::file_version(&path)?));
     }
     let value = sources.json(&path)?;
     let styles = value

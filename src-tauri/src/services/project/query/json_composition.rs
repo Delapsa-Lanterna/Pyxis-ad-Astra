@@ -1,13 +1,20 @@
 use super::super::model::ProjectSession;
-use crate::{
-    errors::AppResult,
-    models::{EntityFileLocation, JsonComposition, JsonSourceLayer, ResourceSource},
+use crate::errors::{AppError, AppResult};
+use crate::io;
+use crate::io::FsRootBoundary;
+use crate::models::{
+    EntityFileLocation, EntityKind, JsonComposition, JsonSourceLayer, ResourceRef, ResourceSource,
 };
+use crate::services::project::session::{lock_ready_session, session_handle};
+
+use crate::services::project::sources::core;
+use serde_json::Value;
+use std::collections::BTreeMap;
 use std::path::Path;
 
 pub(in crate::services::project) fn resource_origins(
-    resources: &mut std::collections::BTreeMap<String, crate::models::ResourceRef>,
-    local: &serde_json::Value,
+    resources: &mut BTreeMap<String, ResourceRef>,
+    local: &Value,
     composition: &JsonComposition,
 ) {
     for (key, resource) in resources {
@@ -31,8 +38,8 @@ pub(in crate::services) fn composition_for_session(
     session_id: &str,
     relative: &str,
 ) -> AppResult<JsonComposition> {
-    let handle = super::super::session::session_handle(session_id)?;
-    let session = super::super::session::lock_ready_session(&handle)?;
+    let handle = session_handle(session_id)?;
+    let session = lock_ready_session(&handle)?;
     json_composition(&session, relative)
 }
 
@@ -42,7 +49,7 @@ pub(in crate::services::project) fn json_composition(
 ) -> AppResult<JsonComposition> {
     let mut layers = Vec::new();
     if let Some(game) = &session.manifest.starsector_root
-        && let Some(layer) = super::super::sources::core::read_core_json_layer(game, relative)?
+        && let Some(layer) = core::read_core_json_layer(game, relative)?
     {
         layers.push(layer);
     }
@@ -64,11 +71,11 @@ pub(in crate::services::project) fn json_composition(
     })
 }
 
-fn replaces(info: Option<&serde_json::Value>, relative: &str) -> bool {
+fn replaces(info: Option<&Value>, relative: &str) -> bool {
     !relative.ends_with("settings.json")
         && info
             .and_then(|value| value.get("replace"))
-            .and_then(serde_json::Value::as_array)
+            .and_then(Value::as_array)
             .is_some_and(|paths| {
                 paths.iter().any(|path| {
                     path.as_str()
@@ -78,19 +85,18 @@ fn replaces(info: Option<&serde_json::Value>, relative: &str) -> bool {
 }
 
 fn source_layer(session: &ProjectSession, relative: &str) -> AppResult<Option<JsonSourceLayer>> {
-    let boundary =
-        crate::io::FsRootBoundary::new(Path::new(&session.manifest.mod_root), "JSON source root")?;
+    let boundary = FsRootBoundary::new(Path::new(&session.manifest.mod_root), "JSON source root")?;
     let path = boundary.resolve_relative(relative, "JSON source")?;
     if !path.is_file() {
         return Ok(None);
     }
     let retained = [
-        crate::models::EntityKind::Faction,
-        crate::models::EntityKind::Ship,
-        crate::models::EntityKind::Weapon,
-        crate::models::EntityKind::Projectile,
-        crate::models::EntityKind::System,
-        crate::models::EntityKind::Skill,
+        EntityKind::Faction,
+        EntityKind::Ship,
+        EntityKind::Weapon,
+        EntityKind::Projectile,
+        EntityKind::System,
+        EntityKind::Skill,
     ]
     .into_iter()
     .filter_map(|kind| session.spec_records(kind))
@@ -102,18 +108,16 @@ fn source_layer(session: &ProjectSession, relative: &str) -> AppResult<Option<Js
             record.data.clone(),
         )
     } else {
-        crate::io::read_versioned_json(&path)?
+        io::read_versioned_json(&path)?
     };
     if session
         .source_versions
         .get(relative)
         .is_some_and(|expected| expected != &version)
     {
-        return Err(crate::errors::AppError::message(
-            "reference.changed",
-            "引用来源已变化，请刷新来源",
-        )
-        .at_path(&path));
+        return Err(
+            AppError::message("reference.changed", "引用来源已变化，请刷新来源").at_path(&path),
+        );
     }
     Ok(Some(JsonSourceLayer {
         source: EntityFileLocation {
@@ -131,14 +135,32 @@ fn source_layer(session: &ProjectSession, relative: &str) -> AppResult<Option<Js
 
 #[cfg(test)]
 mod tests {
-    use crate::{models::*, services::project, services::project_save::execute_save_action};
+    #[cfg(test)]
+    use crate::domain::json_composition;
+    use crate::models::*;
+    #[cfg(test)]
+    use crate::services::misc_config;
+    use crate::services::project;
+    #[cfg(test)]
+    use crate::services::project::query::entities;
+    #[cfg(test)]
+    use crate::services::project::sources::core;
+    #[cfg(test)]
+    use crate::services::project::{PerformanceTrace, test_support};
+    use crate::services::project_save::execute_save_action;
+    #[cfg(test)]
+    use crate::test_support::work_counts::count;
+    #[cfg(test)]
+    use crate::{io, test_support as source_test_support};
     use serde_json::json;
+    #[cfg(test)]
+    use std::{fs, thread};
 
     #[test]
     fn twelve_file_kinds_keep_local_contents_through_save_and_reopen() {
-        let work = project::test_support::project_workspace("composition_twelve_kinds");
+        let work = test_support::project_workspace("composition_twelve_kinds");
         let root = work.join("mods/local");
-        std::fs::create_dir_all(&root).unwrap();
+        fs::create_dir_all(&root).unwrap();
         let specs = [
             (
                 EntityKind::Faction,
@@ -193,11 +215,11 @@ mod tests {
         ];
         for (_, relative, field) in specs {
             let path = root.join(relative);
-            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
-            std::fs::write(&path, "{fixtureValue:1}").unwrap();
+            fs::create_dir_all(path.parent().unwrap()).unwrap();
+            fs::write(&path, "{fixtureValue:1}").unwrap();
             let base = work.join("starsector-core").join(relative);
-            std::fs::create_dir_all(base.parent().unwrap()).unwrap();
-            std::fs::write(
+            fs::create_dir_all(base.parent().unwrap()).unwrap();
+            fs::write(
                 base,
                 json!({field:"base_identity","baseField":"base"}).to_string(),
             )
@@ -205,31 +227,28 @@ mod tests {
         }
         for (_, relative, _) in &configs {
             let path = root.join(relative);
-            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
-            std::fs::write(path, "{}").unwrap();
+            fs::create_dir_all(path.parent().unwrap()).unwrap();
+            fs::write(path, "{}").unwrap();
         }
         let manifest = project::open_project_session_traced(
             &root,
             Some(&work),
-            &mut project::PerformanceTrace::new("composition.open"),
+            &mut PerformanceTrace::new("composition.open"),
         )
         .unwrap();
         for (kind, relative, field) in specs {
-            let entity =
-                project::query::entities::query_entity(&manifest.session_id, kind, "sample")
-                    .unwrap()
-                    .unwrap();
+            let entity = entities::query_entity(&manifest.session_id, kind, "sample")
+                .unwrap()
+                .unwrap();
             let local = if matches!(kind, EntityKind::Weapon | EntityKind::Skill) {
                 &entity.data["spec"]
             } else {
                 &entity.data
             };
             assert!(local.get(field).is_none());
-            let effective = crate::domain::json_composition::compose_game_json(
-                entity.composition.as_ref().unwrap(),
-                local,
-            )
-            .unwrap();
+            let effective =
+                json_composition::compose_game_json(entity.composition.as_ref().unwrap(), local)
+                    .unwrap();
             assert_eq!(effective[field], "base_identity");
             let saved = execute_save_action(SaveAction::SaveEditorSpec(SpecSave {
                 session_id: manifest.session_id.clone(),
@@ -243,12 +262,12 @@ mod tests {
             .unwrap();
             assert_eq!(saved.changes.len(), 1, "{relative}");
             assert_eq!(
-                crate::io::read_json_file(&root.join(relative)).unwrap(),
+                io::read_json_file(&root.join(relative)).unwrap(),
                 json!({"fixtureValue":2})
             );
         }
         for (kind, relative, data) in configs {
-            let file = crate::services::misc_config::query_project_misc_config(MiscConfigRead {
+            let file = misc_config::query_project_misc_config(MiscConfigRead {
                 session_id: manifest.session_id.clone(),
                 mod_root: manifest.mod_root.clone(),
                 kind,
@@ -265,21 +284,18 @@ mod tests {
                 json_write: Default::default(),
             }))
             .unwrap();
-            assert_eq!(
-                crate::io::read_json_file(&root.join(relative)).unwrap(),
-                data
-            );
+            assert_eq!(io::read_json_file(&root.join(relative)).unwrap(), data);
         }
         project::close_project_session(manifest.session_id).unwrap();
         let reopened = project::open_project_session_traced(
             &root,
             Some(&work),
-            &mut project::PerformanceTrace::new("composition.reopen"),
+            &mut PerformanceTrace::new("composition.reopen"),
         )
         .unwrap();
         for (kind, _, _) in specs {
             assert!(
-                project::query::entities::query_entity(&reopened.session_id, kind, "sample")
+                entities::query_entity(&reopened.session_id, kind, "sample")
                     .unwrap()
                     .is_some()
             );
@@ -290,10 +306,10 @@ mod tests {
 
     #[test]
     fn ordered_references_use_saved_contents_and_release_on_disable() {
-        if crate::test_support::isolated_test() {
+        if source_test_support::isolated_test() {
             return;
         }
-        let work = project::test_support::project_workspace("composition_order");
+        let work = test_support::project_workspace("composition_order");
         for (name, data) in [
             (
                 "base",
@@ -303,14 +319,14 @@ mod tests {
             ("later", json!({"knownShips":{"hulls":["C"]}})),
         ] {
             let path = work.join(name).join("data/world/factions/example.faction");
-            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
-            std::fs::write(path, data.to_string()).unwrap();
+            fs::create_dir_all(path.parent().unwrap()).unwrap();
+            fs::write(path, data.to_string()).unwrap();
         }
         let open = |name| {
             project::open_project_session_traced(
                 &work.join(name),
                 None,
-                &mut project::PerformanceTrace::new("composition.order"),
+                &mut PerformanceTrace::new("composition.order"),
             )
             .unwrap()
         };
@@ -329,26 +345,17 @@ mod tests {
             later.session_id.clone(),
         ])
         .unwrap();
-        let entity = project::query::entities::query_entity(
-            &local.session_id,
-            EntityKind::Faction,
-            "example",
-        )
-        .unwrap()
-        .unwrap();
+        let entity = entities::query_entity(&local.session_id, EntityKind::Faction, "example")
+            .unwrap()
+            .unwrap();
         let composition = entity.composition.unwrap();
         assert_eq!(composition.layers.len(), 1);
-        let effective =
-            crate::domain::json_composition::compose_game_json(&composition, &entity.data).unwrap();
+        let effective = json_composition::compose_game_json(&composition, &entity.data).unwrap();
         assert_eq!(effective["id"], "different");
         assert_eq!(effective["knownShips"]["hulls"], json!(["A", "B"]));
-        let own = project::query::entities::query_entity(
-            &base.session_id,
-            EntityKind::Faction,
-            "different",
-        )
-        .unwrap()
-        .unwrap();
+        let own = entities::query_entity(&base.session_id, EntityKind::Faction, "different")
+            .unwrap()
+            .unwrap();
         assert!(own.composition.unwrap().layers.is_empty());
         for (order, expected) in [
             ([&base, &later, &local], json!(["A", "C", "B"])),
@@ -358,31 +365,22 @@ mod tests {
             let ids = order.map(|manifest| manifest.session_id.clone()).to_vec();
             project::set_reference_order(ids.clone()).unwrap();
             project::set_reference_sources(ids).unwrap();
-            let entity = project::query::entities::query_entity(
-                &local.session_id,
-                EntityKind::Faction,
-                "example",
-            )
-            .unwrap()
-            .unwrap();
+            let entity = entities::query_entity(&local.session_id, EntityKind::Faction, "example")
+                .unwrap()
+                .unwrap();
             let composition = entity.composition.unwrap();
             assert_eq!(
                 composition.layers.len(),
                 expected.as_array().unwrap().len() - 1
             );
             let effective =
-                crate::domain::json_composition::compose_game_json(&composition, &entity.data)
-                    .unwrap();
+                json_composition::compose_game_json(&composition, &entity.data).unwrap();
             assert_eq!(effective["knownShips"]["hulls"], expected);
         }
         project::set_reference_sources(Vec::new()).unwrap();
-        let detached = project::query::entities::query_entity(
-            &local.session_id,
-            EntityKind::Faction,
-            "example",
-        )
-        .unwrap()
-        .unwrap();
+        let detached = entities::query_entity(&local.session_id, EntityKind::Faction, "example")
+            .unwrap()
+            .unwrap();
         assert!(detached.composition.unwrap().layers.is_empty());
         for manifest in [base, local, later] {
             project::close_project_session(manifest.session_id).unwrap();
@@ -392,19 +390,17 @@ mod tests {
 
     #[test]
     fn core_composition_reads_once_across_calls_threads_and_invalidation() {
-        use super::super::super::sources::core;
-        use crate::test_support::work_counts::count;
-        let work = project::test_support::project_workspace("composition_read_counts");
+        let work = test_support::project_workspace("composition_read_counts");
         let path = work.join("starsector-core/data/config/settings.json");
-        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
-        std::fs::write(&path, "{sample:1}").unwrap();
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        fs::write(&path, "{sample:1}").unwrap();
         let path = path.canonicalize().unwrap();
         let root = work.to_string_lossy().into_owned();
         for _ in 0..2 {
             core::read_core_json_layer(&root, "data/config/settings.json").unwrap();
         }
         assert_eq!(count("read", &path), 1);
-        std::thread::scope(|scope| {
+        thread::scope(|scope| {
             let tasks = (0..4)
                 .map(|_| {
                     scope.spawn(|| {
@@ -417,7 +413,7 @@ mod tests {
             }
         });
         assert_eq!(count("read", &path), 1);
-        std::fs::write(&path, "{sample:2}").unwrap();
+        fs::write(&path, "{sample:2}").unwrap();
         core::invalidate_core_cache(&root).unwrap();
         let updated = core::read_core_json_layer(&root, "data/config/settings.json")
             .unwrap()
@@ -429,24 +425,23 @@ mod tests {
 
     #[test]
     fn keeping_filename_preserves_merge_path_and_missing_id_after_save() {
-        let work = project::test_support::project_workspace("composition_identity_save");
+        let work = test_support::project_workspace("composition_identity_save");
         let path = work.join("data/hulls/sample.ship");
-        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
-        std::fs::write(&path, "{hullId:'sample',hullName:'Local'}").unwrap();
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        fs::write(&path, "{hullId:'sample',hullName:'Local'}").unwrap();
         let manifest = project::open_project_session_traced(
             &work,
             None,
-            &mut project::PerformanceTrace::new("composition.identity"),
+            &mut PerformanceTrace::new("composition.identity"),
         )
         .unwrap();
         for (id, data) in [
             ("sample", json!({"hullId":"other","hullName":"Changed"})),
             ("other", json!({"hullName":"Partial"})),
         ] {
-            let entity =
-                project::query::entities::query_entity(&manifest.session_id, EntityKind::Ship, id)
-                    .unwrap()
-                    .unwrap();
+            let entity = entities::query_entity(&manifest.session_id, EntityKind::Ship, id)
+                .unwrap()
+                .unwrap();
             execute_save_action(SaveAction::SaveEditorSpec(SpecSave {
                 session_id: manifest.session_id.clone(),
                 mod_root: manifest.mod_root.clone(),
@@ -460,17 +455,13 @@ mod tests {
                 },
             }))
             .unwrap();
-            assert_eq!(crate::io::read_json_file(&path).unwrap(), data);
+            assert_eq!(io::read_json_file(&path).unwrap(), data);
         }
         assert!(!work.join("data/hulls/other.ship").exists());
         assert!(
-            project::query::entities::query_entity(
-                &manifest.session_id,
-                EntityKind::Ship,
-                "sample"
-            )
-            .unwrap()
-            .is_some()
+            entities::query_entity(&manifest.session_id, EntityKind::Ship, "sample")
+                .unwrap()
+                .is_some()
         );
         project::close_project_session(manifest.session_id).unwrap();
         work.close().unwrap();

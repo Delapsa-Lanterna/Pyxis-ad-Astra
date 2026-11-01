@@ -1,16 +1,15 @@
-use crate::{
-    errors::{AppError, AppResult, ErrorDiagnostic},
-    models::{CloseIntent, ClosePhase, CloseResult, CloseScope, CloseStatus},
-    services::{project, project_sync, windows},
+use crate::diagnostics;
+use crate::errors::{AppError, AppResult, ErrorDiagnostic};
+use crate::models::{AppSettings, CloseIntent, ClosePhase, CloseResult, CloseScope, CloseStatus};
+use crate::services::{
+    app_lifecycle, app_log, file_history, performance_monitor, project, project_sync, windows,
 };
-use std::{
-    collections::{BTreeMap, BTreeSet},
-    sync::{
-        Arc, Condvar, LazyLock, Mutex,
-        atomic::{AtomicU64, Ordering},
-    },
-};
-use tauri::{Emitter, Manager};
+use std::collections::{BTreeMap, BTreeSet};
+use std::slice;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, Condvar, LazyLock, Mutex, MutexGuard};
+use tauri::{AppHandle, Emitter, Manager};
+
 #[derive(Default)]
 struct Progress {
     phase: Option<ClosePhase>,
@@ -23,21 +22,20 @@ struct Progress {
     released_sessions: Vec<String>,
 }
 impl Operation {
-    fn state(&self) -> AppResult<std::sync::MutexGuard<'_, Progress>> {
+    fn state(&self) -> AppResult<MutexGuard<'_, Progress>> {
         self.progress.lock().map_err(|_| poisoned())
     }
 }
 
 pub fn close_displaced(
-    app: &tauri::AppHandle,
+    app: &AppHandle,
     owner: &str,
     displaced: Vec<String>,
 ) -> Result<(), AppError> {
     for label in displaced {
-        let result = crate::services::app_lifecycle::close_clean_window(app, &label);
-        if !matches!(result, Ok(ref result) if result.status == crate::models::CloseStatus::Closed)
-        {
-            crate::services::windows::release_targets(owner)?;
+        let result = app_lifecycle::close_clean_window(app, &label);
+        if !matches!(result, Ok(ref result) if result.status == CloseStatus::Closed) {
+            windows::release_targets(owner)?;
             return result.and_then(|_| {
                 Err(AppError::message(
                     "window.target_unsaved",
@@ -49,12 +47,12 @@ pub fn close_displaced(
     Ok(())
 }
 
-pub fn apply_settings_runtime(value: &crate::models::AppSettings) -> Result<bool, AppError> {
-    crate::services::app_log::configure_runtime(value)?;
-    crate::services::project::configure_media_cache(&value.cache_limits.backend_media)?;
-    crate::services::file_history::set_history_limit(value.file_history_limit as usize)?;
-    crate::services::performance_monitor::initialize(value.performance_monitor_enabled);
-    Ok(crate::services::performance_monitor::enabled())
+pub fn apply_settings_runtime(value: &AppSettings) -> Result<bool, AppError> {
+    app_log::configure_runtime(value)?;
+    project::configure_media_cache(&value.cache_limits.backend_media)?;
+    file_history::set_history_limit(value.file_history_limit as usize)?;
+    performance_monitor::initialize(value.performance_monitor_enabled);
+    Ok(performance_monitor::enabled())
 }
 struct Operation {
     only_if_clean: bool,
@@ -128,7 +126,7 @@ pub fn destroyed(label: &str) -> AppResult<()> {
     Ok(())
 }
 fn phase(
-    app: &tauri::AppHandle,
+    app: &AppHandle,
     id: u64,
     operation: &Operation,
     phase: ClosePhase,
@@ -194,7 +192,7 @@ fn phase(
     }
     Ok(!state.cancelled)
 }
-fn destroy(app: &tauri::AppHandle, operation: &Operation, label: &str) -> AppResult<()> {
+fn destroy(app: &AppHandle, operation: &Operation, label: &str) -> AppResult<()> {
     operation.state()?.destroying.insert(label.into());
     if let Some(window) = app.get_webview_window(label) {
         window.destroy()?;
@@ -213,11 +211,7 @@ fn child_windows(operation: &Operation) -> impl Iterator<Item = &String> {
         .iter()
         .filter(|label| label.as_str() != "main")
 }
-pub fn request_close(
-    app: &tauri::AppHandle,
-    owner: &str,
-    scope: CloseScope,
-) -> AppResult<CloseResult> {
+pub fn request_close(app: &AppHandle, owner: &str, scope: CloseScope) -> AppResult<CloseResult> {
     Ok(
         execute_close(app, owner, scope, false).unwrap_or_else(|error| CloseResult {
             status: CloseStatus::Failed,
@@ -226,11 +220,11 @@ pub fn request_close(
         }),
     )
 }
-pub fn close_clean_window(app: &tauri::AppHandle, label: &str) -> AppResult<CloseResult> {
+pub fn close_clean_window(app: &AppHandle, label: &str) -> AppResult<CloseResult> {
     execute_close(app, label, CloseScope::Window, true)
 }
 fn execute_close(
-    app: &tauri::AppHandle,
+    app: &AppHandle,
     owner: &str,
     mut scope: CloseScope,
     only_if_clean: bool,
@@ -333,7 +327,7 @@ fn execute_close(
                 id,
                 &operation,
                 ClosePhase::Confirm,
-                std::slice::from_ref(label),
+                slice::from_ref(label),
             )? {
                 return Ok(());
             }
@@ -344,7 +338,7 @@ fn execute_close(
                 id,
                 &operation,
                 ClosePhase::Flush,
-                std::slice::from_ref(label),
+                slice::from_ref(label),
             )? {
                 return Ok(());
             }
@@ -422,7 +416,7 @@ fn execute_close(
     if let Some(window) = app.get_webview_window(owner)
         && let Err(error) = window.set_focus()
     {
-        crate::diagnostics::record(format!("close focus restore: {error}"));
+        diagnostics::record(format!("close focus restore: {error}"));
     }
     {
         let mut state = operation.state()?;
@@ -436,6 +430,7 @@ fn execute_close(
 #[cfg(test)]
 mod tests {
     use super::*;
+
     #[test]
     fn child_window_stages_include_every_managed_window() {
         let operation = Operation {

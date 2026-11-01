@@ -1,14 +1,19 @@
 use crate::errors::{AppError, AppResult};
+#[cfg(windows)]
+use std::collections::BTreeSet;
+#[cfg(windows)]
+use std::io::Error;
+#[cfg(windows)]
+use std::ptr;
+use windows_sys::Win32;
+use windows_sys::Win32::Graphics::Gdi::LOGFONTW;
+#[cfg(windows)]
+use windows_sys::Win32::Graphics::Gdi::{DEFAULT_CHARSET, EnumFontFamiliesExW, GetDC, ReleaseDC};
 
 /// Returns distinct installed horizontal font families in name order.
 /// Failure to acquire the Windows screen device context preserves the OS error.
 #[cfg(windows)]
 pub fn query_system_fonts() -> AppResult<Vec<String>> {
-    use std::{collections::BTreeSet, ptr};
-    use windows_sys::Win32::Graphics::Gdi::{
-        DEFAULT_CHARSET, EnumFontFamiliesExW, GetDC, LOGFONTW, ReleaseDC,
-    };
-
     let mut families = BTreeSet::<String>::new();
     let filter = LOGFONTW {
         lfCharSet: DEFAULT_CHARSET,
@@ -20,7 +25,7 @@ pub fn query_system_fonts() -> AppResult<Vec<String>> {
         if dc.is_null() {
             return Err(AppError::context(
                 "Enumerating installed font families",
-                std::io::Error::last_os_error().into(),
+                Error::last_os_error().into(),
             ));
         }
         EnumFontFamiliesExW(
@@ -37,12 +42,11 @@ pub fn query_system_fonts() -> AppResult<Vec<String>> {
 
 #[cfg(windows)]
 unsafe extern "system" fn collect_family(
-    font: *const windows_sys::Win32::Graphics::Gdi::LOGFONTW,
-    _metrics: *const windows_sys::Win32::Graphics::Gdi::TEXTMETRICW,
+    font: *const LOGFONTW,
+    _metrics: *const Win32::Graphics::Gdi::TEXTMETRICW,
     _kind: u32,
     data: isize,
 ) -> i32 {
-    use std::collections::BTreeSet;
     // GDI supplies a valid LOGFONTW and our live collection for each callback.
     let face = unsafe { &(*font).lfFaceName };
     let length = face

@@ -1,10 +1,10 @@
-use crate::{
-    errors::AppResult,
-    io::{FsRootBoundary, read_json_file, validate_walk_entry},
-    models::{GameModSummary, GameOverviewData, GameScanWarning, GameWarningEditTarget},
-};
+use crate::errors::{AppResult, ErrorLocation};
+use crate::io::{FsRootBoundary, read_json_file, validate_walk_entry};
+use crate::models::{GameModSummary, GameOverviewData, GameScanWarning, GameWarningEditTarget};
 use serde_json::Value;
-use std::{collections::HashMap, fs, path::Path};
+use std::collections::HashMap;
+use std::fs;
+use std::path::Path;
 
 /// A malformed root is an error; per-Mod problems stay in the overview's
 /// warnings so one broken Mod never hides the rest of the game.
@@ -172,7 +172,7 @@ fn append_duplicate_id_warnings(mods: &[GameModSummary], warnings: &mut Vec<Game
         if counts.get(summary.id.as_str()).copied().unwrap_or_default() > 1 {
             warnings.push(GameScanWarning {
                 code: "scan.mod_id_duplicate".to_string(),
-                location: summary.has_mod_info.then(|| crate::errors::ErrorLocation {
+                location: summary.has_mod_info.then(|| ErrorLocation {
                     path: Some(
                         Path::new(&summary.mod_root)
                             .join("mod_info.json")
@@ -201,7 +201,8 @@ mod tests {
     use super::*;
     use crate::io::write_utf8_no_bom;
     use crate::test_support::TestWorkspace;
-    use std::{fs, path::Path};
+    use std::fs;
+    use std::path::Path;
 
     #[test]
     fn scan_game_overview_reads_mod_summaries_only() {

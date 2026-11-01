@@ -1,8 +1,8 @@
-use crate::{
-    errors::{AppError, AppResult},
-    models::JsonComposition,
-};
+use crate::errors::{AppError, AppResult};
+use crate::models::JsonComposition;
 use serde_json::{Map, Value};
+use std::iter;
+
 /// Mirrors LoadingUtils: supplemental scalar values become strings, and array
 /// clearing retains the sentinel because downstream game consumers receive it.
 pub fn merge_game_json(target: &mut Value, incoming: &Value, excluded: &[String]) -> AppResult<()> {
@@ -69,7 +69,7 @@ pub fn compose_game_json(composition: &JsonComposition, local: &Value) -> AppRes
         .layers
         .iter()
         .map(|layer| &layer.data)
-        .chain(std::iter::once(local));
+        .chain(iter::once(local));
     let mut result = values.next().expect("local JSON source").clone();
     for value in values {
         merge_game_json(&mut result, value, &composition.excluded)?;
@@ -80,6 +80,7 @@ pub fn compose_game_json(composition: &JsonComposition, local: &Value) -> AppRes
 #[cfg(test)]
 mod tests {
     use super::*;
+
     #[test]
     fn shared_game_merge_cases() {
         let cases: Vec<Value> = serde_json::from_str(include_str!(

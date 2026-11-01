@@ -1,7 +1,5 @@
-use crate::{
-    errors::{AppError, AppResult},
-    models::{CsvTable, FactionIndexEntry, FactionIndexRow},
-};
+use crate::errors::{AppError, AppResult};
+use crate::models::{CsvTable, FactionIndexEntry, FactionIndexRow};
 use serde_json::{Map, Value};
 use std::path::Path;
 

@@ -1,11 +1,9 @@
-use crate::{
-    errors::AppError,
-    models::{
-        EntityData, EntityEditInfo, EntityIdentityIntent, EntityIdentityIntentPayload,
-        QueryEntityListPayload, QueryEntityPayload,
-    },
-    services,
+use crate::errors::AppError;
+use crate::models::{
+    EntityData, EntityEditInfo, EntityIdentityIntent, EntityIdentityIntentPayload,
+    QueryEntityListPayload, QueryEntityPayload,
 };
+use crate::services;
 
 #[command_macros::command(async)]
 pub fn query_entity(payload: QueryEntityPayload) -> Result<Option<EntityData>, AppError> {

@@ -1,17 +1,19 @@
 use super::*;
 use crate::domain::joint_hull::hull_field_value;
+use crate::services::project::PerformanceTrace;
+use std::fs;
 
 pub(super) fn skin_fixture() -> (TestWorkspace, JointEditRoot) {
     let (dir, mut root) = fixture();
     project::close_project_session(root.session_id).unwrap();
-    std::fs::create_dir_all(dir.join("data/hulls/skins")).unwrap();
+    fs::create_dir_all(dir.join("data/hulls/skins")).unwrap();
     write_utf8_no_bom(&dir.join("data/hulls/ship_data.csv"),
         "id,name,fleet pts,base value,max speed,supplies/rec,supplies/mo,fighter bays\na,Base,4,800,120,2,1,1\n").unwrap();
     write_utf8_no_bom(&dir.join("data/hulls/skins/parent.skin"),
         r#"{"skinHullId":"parent","baseHullId":"a","fleetPoints":7,"fpMod":99,"baseValue":1001,"baseValueMult":1.25,"maxSpeed":140}"#).unwrap();
     write_utf8_no_bom(&dir.join("data/hulls/skins/child.skin"),
         r#"{"skinHullId":"child","baseHullId":"parent","hullName":"Child","fpMod":-2,"baseValueMult":0.5,"spriteName":"graphics/child.png"}"#).unwrap();
-    let mut trace = project::PerformanceTrace::new("joint.skin");
+    let mut trace = PerformanceTrace::new("joint.skin");
     let manifest = project::open_project_session_traced(&dir, None, &mut trace).unwrap();
     root.session_id = manifest.session_id;
     root.kind = JointEditKind::Skin;

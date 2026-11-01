@@ -1,19 +1,21 @@
-use super::sources::{core::CoreSourceRequirements, documents::LoadedSpecRecord};
+use super::sources::core::CoreSourceRequirements;
+use super::sources::documents::LoadedSpecRecord;
 use crate::models::{
-    CsvTableKey, EntitySummaries, GameScanWarning, ProjectManifest, SkinFile, VariantFile,
+    CsvTableKey, EntityEditTarget, EntityKind, EntitySummaries, FileVersion, GameScanWarning,
+    ProjectManifest, ReferenceSource, ResourceRef, SkinFile, VariantFile,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use std::collections::{BTreeMap, HashMap};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 pub(super) const MISSION_LIST_TABLE_KEY: &str = "missions";
 
 pub(super) struct EntityProjection {
-    pub kind: crate::models::EntityKind,
+    pub kind: EntityKind,
     pub id: String,
     pub data: Value,
-    pub resource_refs: BTreeMap<String, crate::models::ResourceRef>,
+    pub resource_refs: BTreeMap<String, ResourceRef>,
 }
 pub(super) const MISSION_LIST_REL_PATH: &str = "data/missions/mission_list.csv";
 
@@ -279,7 +281,7 @@ pub(super) struct SessionCsvTable {
     pub path: String,
     pub rows: Option<Arc<Vec<SessionCsvRow>>>,
     #[serde(skip)]
-    pub row_index: Option<std::collections::HashMap<String, usize>>,
+    pub row_index: Option<HashMap<String, usize>>,
     /// Sole allocator state for `{table}:row:{seq}` keys; survives refresh of
     /// the table's own save so deletes cannot recycle surviving row identities.
     pub next_row_seq: u64,
@@ -297,9 +299,9 @@ pub(super) struct SessionCsvRow {
 pub(super) struct ProjectSession {
     pub reference_revision: u64,
     pub references: Vec<Arc<ReferenceView>>,
-    pub loaded_edit_targets: Vec<crate::models::EntityEditTarget>,
+    pub loaded_edit_targets: Vec<EntityEditTarget>,
     pub projection_pending: bool,
-    pub source_versions: Arc<BTreeMap<String, crate::models::FileVersion>>,
+    pub source_versions: Arc<BTreeMap<String, FileVersion>>,
     pub manifest: ProjectManifest,
     pub faction_files: Arc<BTreeMap<String, LoadedSpecRecord>>,
     pub faction_blueprint_tags: HashMap<String, String>,
@@ -316,9 +318,9 @@ pub(super) struct ProjectSession {
 }
 
 pub(super) struct ReferenceView {
-    pub identity: crate::models::ReferenceSource,
+    pub identity: ReferenceSource,
     pub session: ProjectSession,
-    pub tables: std::sync::Mutex<BTreeMap<String, Arc<SessionCsvTable>>>,
+    pub tables: Mutex<BTreeMap<String, Arc<SessionCsvTable>>>,
 }
 
 pub(super) fn string_from_row(row: &Map<String, Value>, key: &str) -> Option<String> {

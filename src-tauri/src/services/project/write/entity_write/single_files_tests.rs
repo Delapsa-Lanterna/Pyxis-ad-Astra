@@ -1,13 +1,13 @@
 #![cfg(test)]
 use super::single_files::*;
+use crate::errors::AppError;
+use crate::io;
+use crate::io::{read_json_file, read_utf8_no_bom, write_utf8_no_bom};
+use crate::models::{EntityKind, FileChangeReplayDirection, JsonWriteOptions};
 use crate::services::project::test_support::project_workspace;
-use crate::{
-    errors::AppError,
-    io::{read_json_file, read_utf8_no_bom, write_utf8_no_bom},
-    models::{EntityKind, FileChangeReplayDirection, JsonWriteOptions},
-};
 use serde_json::{Value, json};
-use std::{fs, path::Path};
+use std::fs;
+use std::path::Path;
 
 fn save_input<'a>(rel_path: Option<&'a str>, data: Value) -> JsonEntityFileInput<'a> {
     JsonEntityFileInput {
@@ -159,7 +159,7 @@ fn rename_with_undo_redo(case: &SpecCase) {
         _ => unreachable!(),
     }
 
-    let replay = crate::io::acquire_root_write_lock(&root).unwrap();
+    let replay = io::acquire_root_write_lock(&root).unwrap();
     replay
         .apply_changes(&result.changes, FileChangeReplayDirection::Undo)
         .unwrap();
@@ -204,7 +204,7 @@ fn delete_returns_replayable_changeset(case: &SpecCase) {
             .join(format!("{}/demo.{ext}", case.dir, ext = case.ext))
             .exists()
     );
-    crate::io::acquire_root_write_lock(&root)
+    io::acquire_root_write_lock(&root)
         .unwrap()
         .apply_changes(&result.changes, FileChangeReplayDirection::Undo)
         .unwrap();
@@ -328,7 +328,7 @@ fn spec_edits_preserve_selected_filename_and_rename_with_replay() {
                 .unwrap()
                 .contains("# author")
         );
-        let replay = crate::io::acquire_root_write_lock(&root).unwrap();
+        let replay = io::acquire_root_write_lock(&root).unwrap();
         replay
             .apply_changes(&result.changes, FileChangeReplayDirection::Undo)
             .unwrap();

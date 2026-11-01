@@ -1,11 +1,10 @@
-use crate::{
-    app_data_dir,
-    errors::{AppError, AppResult},
-    services::system_open,
-};
+use crate::app_data_dir;
+use crate::errors::{AppError, AppResult};
+use crate::services::system_open;
 use std::fs;
+use tauri::AppHandle;
 
-pub fn open_config_dir(app_handle: tauri::AppHandle) -> AppResult<()> {
+pub fn open_config_dir(app_handle: AppHandle) -> AppResult<()> {
     let app_data = app_data_dir::data_directory(app_handle)?;
     fs::create_dir_all(&app_data).map_err(|error| {
         AppError::context(

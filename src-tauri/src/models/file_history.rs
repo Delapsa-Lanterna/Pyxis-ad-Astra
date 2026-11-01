@@ -1,4 +1,5 @@
 use super::{FileChangeReplayDirection, ProjectSessionId};
+use crate::models::project_identity;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -35,7 +36,7 @@ pub struct FileHistoryPayload {
     pub mod_root: String,
 }
 
-super::project_identity::impl_session_mod_scope_required!(FileReplay);
+project_identity::impl_session_mod_scope_required!(FileReplay);
 
 #[cfg(test)]
 mod tests {

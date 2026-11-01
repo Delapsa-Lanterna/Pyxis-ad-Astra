@@ -1,36 +1,37 @@
+use super::super::definitions::config_sources::CONFIG_OPTION_SOURCES;
+use super::super::definitions::entity_definitions::entity_definitions;
+use super::super::definitions::table_definitions::{
+    csv_table_source_display_name, csv_table_source_resource_ref,
+};
+use super::super::model::{ProjectSession, string_from_row};
+use super::super::resources::HullReferenceResolver;
+use super::super::session::csv_tables::{
+    ensure_registered_table_rows, loaded_csv_rows, loaded_registered_csv_rows,
+};
 use super::super::session::{lock_ready_session, session_handle};
-use super::super::{
-    definitions::{
-        config_sources::CONFIG_OPTION_SOURCES,
-        entity_definitions::entity_definitions,
-        table_definitions::{csv_table_source_display_name, csv_table_source_resource_ref},
-    },
-    model::{ProjectSession, string_from_row},
-    resources::HullReferenceResolver,
-    session::csv_tables::{
-        ensure_registered_table_rows, loaded_csv_rows, loaded_registered_csv_rows,
-    },
+use crate::domain::well_known_labels::{WellKnownCatalog, well_known_catalog};
+use crate::errors::{AppError, AppResult};
+use crate::io::{FsRootBoundary, forward_slash_relative_path, validate_walk_entry};
+use crate::models::{
+    CsvTableKey, EntityKind, ResourceSource, SkinFile, SourceOption, SourceOptionGroup,
 };
-use crate::services::project::sources::core::CoreSourceData;
+use crate::services::project::definitions::entity_resources;
+use crate::services::project::model;
+use crate::services::project::model::EntityProjection;
 use crate::services::project::sources::core::{
-    load_core_csv_table, load_core_skin_files, load_core_source_data,
+    CoreSourceData, load_core_csv_table, load_core_skin_files, load_core_source_data,
 };
-use crate::{
-    domain::well_known_labels::{WellKnownCatalog, well_known_catalog},
-    errors::{AppError, AppResult},
-    models::{CsvTableKey, EntityKind, ResourceSource, SourceOptionGroup},
-};
+use crate::services::project::sources::{SourceReader, core, engine_styles};
 use serde_json::{Map, Value};
 use std::collections::{BTreeSet, HashMap};
+use std::path::{Path, PathBuf};
+use walkdir::WalkDir;
 
 pub fn query_image_source_options(
     session_id: &str,
     directories: &[String],
     mission_id: Option<&str>,
 ) -> AppResult<Vec<SourceOptionGroup>> {
-    use crate::io::{FsRootBoundary, forward_slash_relative_path, validate_walk_entry};
-    use crate::models::SourceOption;
-    use std::path::Path;
     let handle = session_handle(session_id)?;
     let (mod_root, game_root, references) = {
         let session = lock_ready_session(&handle)?;
@@ -52,11 +53,7 @@ pub fn query_image_source_options(
         )
     }));
     if let Some(root) = game_root {
-        roots.push((
-            ResourceSource::Core,
-            super::super::sources::core::core_dir(&root)?,
-            None,
-        ));
+        roots.push((ResourceSource::Core, core::core_dir(&root)?, None));
     }
     let mut seen = BTreeSet::new();
     let mut groups = Vec::new();
@@ -82,7 +79,7 @@ pub fn query_image_source_options(
             if !path.exists() {
                 continue;
             }
-            for entry in walkdir::WalkDir::new(&path) {
+            for entry in WalkDir::new(&path) {
                 let entry = entry.map_err(|error| {
                     AppError::message("io.walk_failed", error.to_string()).at_path(&path)
                 })?;
@@ -133,11 +130,11 @@ pub fn query_image_source_options(
 #[cfg(test)]
 mod image_tests {
     use super::*;
+    use crate::services::project::PerformanceTrace;
+    use crate::services::project::session::{close_project_session, open_project_session_traced};
+    #[cfg(test)]
+    use crate::services::project::test_support;
     use crate::services::project::test_support::project_workspace;
-    use crate::services::project::{
-        PerformanceTrace,
-        session::{close_project_session, open_project_session_traced},
-    };
     use crate::test_support::TestWorkspace;
     use std::fs;
 
@@ -234,7 +231,7 @@ mod image_tests {
     fn image_directories_reject_linked_children() {
         let (root, outside, _link) =
             TestWorkspace::directory_link("image_catalog_link", "graphics/icons").unwrap();
-        let root = root.with_cleanup(crate::services::project::test_support::release_workspace);
+        let root = root.with_cleanup(test_support::release_workspace);
         fs::write(outside.join("outside.png"), [1]).unwrap();
         let manifest =
             open_project_session_traced(&root, None, &mut PerformanceTrace::new("images.test"))
@@ -318,10 +315,7 @@ fn source_catalog(
     let rows = loaded_csv_rows(csv, table_key)?;
     let starsector_root = context.unwrap_or(session).manifest.starsector_root.clone();
     let core_csv = if let Some(root) = starsector_root.as_ref() {
-        load_core_csv_table(
-            root,
-            crate::services::project::model::csv_table_spec(table).rel_path,
-        )?
+        load_core_csv_table(root, model::csv_table_spec(table).rel_path)?
     } else {
         None
     };
@@ -338,7 +332,7 @@ fn source_catalog(
             .expect("Core rows have a configured root");
         Some(load_core_source_data(
             root,
-            crate::services::project::model::csv_table_spec(table).core_source_requirements,
+            model::csv_table_spec(table).core_source_requirements,
         )?)
     } else {
         None
@@ -418,7 +412,7 @@ fn source_catalog(
     if let Some(catalog) = metadata_catalog.as_ref().and_then(|catalog| catalog.known) {
         for (value, entry) in &catalog.values {
             if seen.insert(value.clone()) {
-                options.push(crate::models::SourceOption {
+                options.push(SourceOption {
                     label: format!("{value} ({})", entry.label),
                     value: value.clone(),
                     description: Some(entry.description.clone()),
@@ -431,7 +425,7 @@ fn source_catalog(
         }
         for pattern in &catalog.patterns {
             let entry = pattern.entry(None);
-            options.push(crate::models::SourceOption {
+            options.push(SourceOption {
                 label: format!("{}* ({})", pattern.prefix, entry.label),
                 value: format!("{}*", pattern.prefix),
                 description: Some(entry.description),
@@ -463,26 +457,23 @@ fn config_source_option_groups(
         return Ok(None);
     };
     let mut roots = vec![(
-        std::path::PathBuf::from(&session.manifest.mod_root),
+        PathBuf::from(&session.manifest.mod_root),
         ResourceSource::Mod,
     )];
     if let Some(game) = &session.manifest.starsector_root {
-        roots.push((
-            super::super::sources::core::core_dir(game)?,
-            ResourceSource::Core,
-        ));
+        roots.push((core::core_dir(game)?, ResourceSource::Core));
     }
     let mut seen = BTreeSet::new();
     let mut groups = Vec::new();
     for (root, origin) in roots {
-        let mut sources = super::super::sources::SourceReader::new(&root)?;
+        let mut sources = SourceReader::new(&root)?;
         let path = sources.path(relative)?;
         if !path.exists() {
             continue;
         }
         let data = if source == "config:engineStyles" {
             Value::Object(
-                super::super::sources::engine_styles::read_engine_styles(&root)?
+                engine_styles::read_engine_styles(&root)?
                     .0
                     .into_iter()
                     .collect(),
@@ -510,7 +501,7 @@ fn config_source_option_groups(
             .filter(|key| {
                 !(source == "config:sounds" && *key == "music") && seen.insert((*key).clone())
             })
-            .map(|key| crate::models::SourceOption {
+            .map(|key| SourceOption {
                 label: key.clone(),
                 value: key.clone(),
                 description: None,
@@ -532,13 +523,13 @@ fn config_source_option_groups(
 }
 
 fn skin_source_options(
-    skins: &[crate::models::SkinFile],
+    skins: &[SkinFile],
     origin: ResourceSource,
     column: &str,
     resolver: &mut HullReferenceResolver<'_>,
     context: SourceOptionResourceContext<'_>,
     seen: &mut BTreeSet<String>,
-) -> AppResult<Vec<crate::models::SourceOption>> {
+) -> AppResult<Vec<SourceOption>> {
     let mut options = Vec::new();
     for skin in skins {
         let values = match column {
@@ -577,7 +568,7 @@ fn skin_source_options(
                     None,
                 )
             };
-            options.push(crate::models::SourceOption {
+            options.push(SourceOption {
                 label,
                 value: value.clone(),
                 origin,
@@ -627,18 +618,17 @@ fn entity_source_option_groups(
                 .projectile_specs
                 .values()
                 .filter(|record| record.location.source == origin)
-                .map(|record| super::super::model::EntityProjection {
+                .map(|record| EntityProjection {
                     kind: EntityKind::Projectile,
                     id: record.id.clone(),
                     data: record.data.clone(),
-                    resource_refs:
-                        super::super::definitions::entity_resources::projectile_resource_refs(
-                            &record.id,
-                            &record.data,
-                        )
-                        .into_iter()
-                        .filter(|(key, _)| key == "sprite" || key == "bulletSprite")
-                        .collect(),
+                    resource_refs: entity_resources::projectile_resource_refs(
+                        &record.id,
+                        &record.data,
+                    )
+                    .into_iter()
+                    .filter(|(key, _)| key == "sprite" || key == "bulletSprite")
+                    .collect(),
                 })
                 .collect()
         } else if origin == ResourceSource::Mod {
@@ -664,9 +654,9 @@ fn entity_source_option_groups(
 fn entity_source_options(
     origin: ResourceSource,
     session: &ProjectSession,
-    entities: Vec<super::super::model::EntityProjection>,
+    entities: Vec<EntityProjection>,
     seen: &mut BTreeSet<String>,
-) -> AppResult<Vec<crate::models::SourceOption>> {
+) -> AppResult<Vec<SourceOption>> {
     let mut options = Vec::new();
     for mut entity in entities {
         if !seen.insert(entity.id.clone()) {
@@ -674,13 +664,9 @@ fn entity_source_options(
         }
         if entity.kind == EntityKind::Variant {
             entity.resource_refs =
-                super::super::definitions::entity_resources::variant_resource_refs(
-                    session,
-                    ResourceSource::Mod,
-                    &entity.data,
-                );
+                entity_resources::variant_resource_refs(session, ResourceSource::Mod, &entity.data);
         }
-        options.push(crate::models::SourceOption {
+        options.push(SourceOption {
             label: entity_source_option_label(origin, session, &entity)?,
             value: entity.id.clone(),
             description: None,
@@ -706,12 +692,12 @@ fn entity_source_options(
 fn entity_source_option_label(
     origin: ResourceSource,
     session: &ProjectSession,
-    entity: &super::super::model::EntityProjection,
+    entity: &EntityProjection,
 ) -> AppResult<String> {
     let display_name = entity
         .data
         .get("displayName")
-        .and_then(serde_json::Value::as_str)
+        .and_then(Value::as_str)
         .unwrap_or_default();
     if entity.kind == EntityKind::Variant {
         let hull_id = entity
@@ -773,11 +759,11 @@ fn source_options_from_rows<'a>(
     rows: impl Iterator<Item = (&'a Map<String, Value>, bool)>,
     column: &str,
     context: SourceOptionRowsContext<'_>,
-) -> AppResult<Vec<crate::models::SourceOption>> {
+) -> AppResult<Vec<SourceOption>> {
     let is_id_column = column == "id";
     let mut options = Vec::new();
     for (row, _) in rows.filter(|(_, is_comment)| !is_comment) {
-        let Some(cell_value) = row.get(column).and_then(serde_json::Value::as_str) else {
+        let Some(cell_value) = row.get(column).and_then(Value::as_str) else {
             continue;
         };
         if cell_value.trim().is_empty() {
@@ -816,7 +802,7 @@ fn source_option_from_row(
     value: &str,
     core_data: Option<&CoreSourceData>,
     context: SourceOptionResourceContext<'_>,
-) -> AppResult<crate::models::SourceOption> {
+) -> AppResult<SourceOption> {
     let resource_ref = if column == "id" {
         csv_table_source_resource_ref(
             resource_source,
@@ -829,7 +815,7 @@ fn source_option_from_row(
     } else {
         None
     };
-    Ok(crate::models::SourceOption {
+    Ok(SourceOption {
         label: source_option_label_for_row(
             resource_source,
             row,
@@ -870,7 +856,7 @@ fn source_option_label_for_row(
         let name = row
             .get("name")
             .or_else(|| row.get("displayName"))
-            .and_then(serde_json::Value::as_str)
+            .and_then(Value::as_str)
             .unwrap_or_default();
         if name.trim().is_empty() || name == value {
             Ok(value.to_string())
@@ -915,7 +901,7 @@ fn source_option_label_for_value(
 fn source_token_metadata_catalog(
     table: CsvTableKey,
     column: &str,
-    session: &mut super::super::model::ProjectSession,
+    session: &mut ProjectSession,
 ) -> AppResult<Option<SourceTokenMetadataCatalog>> {
     if !matches!(column, "tags" | "hints" | "uiTags") {
         return Ok(None);
@@ -957,14 +943,14 @@ impl SourceTokenMetadataCatalog {
 
 fn add_core_blueprint_package_metadata(
     metadata: &mut HashMap<String, SourceTokenMetadata>,
-    session: &super::super::model::ProjectSession,
+    session: &ProjectSession,
 ) -> AppResult<()> {
     let Some(root) = session.manifest.starsector_root.as_ref() else {
         return Ok(());
     };
     let Some(table) = load_core_csv_table(
         root,
-        crate::services::project::model::csv_table_spec(CsvTableKey::SpecialItems).rel_path,
+        model::csv_table_spec(CsvTableKey::SpecialItems).rel_path,
     )?
     else {
         return Ok(());
@@ -977,7 +963,7 @@ fn add_core_blueprint_package_metadata(
 
 fn add_mod_blueprint_package_metadata(
     metadata: &mut HashMap<String, SourceTokenMetadata>,
-    session: &mut super::super::model::ProjectSession,
+    session: &mut ProjectSession,
 ) -> AppResult<()> {
     ensure_registered_table_rows(session, CsvTableKey::SpecialItems)?;
     for row in loaded_registered_csv_rows(session, CsvTableKey::SpecialItems)?
@@ -1019,7 +1005,7 @@ fn row_has_tag(row: &Map<String, Value>, expected: &str) -> bool {
 
 fn add_faction_blueprint_metadata(
     metadata: &mut HashMap<String, SourceTokenMetadata>,
-    session: &super::super::model::ProjectSession,
+    session: &ProjectSession,
 ) {
     for (tag, faction_id) in &session.faction_blueprint_tags {
         if metadata.contains_key(tag) {
@@ -1035,7 +1021,7 @@ fn add_faction_blueprint_metadata(
                     .get(faction_id)
                     .and_then(|v| v.data.get("displayNameLong"))
             })
-            .and_then(serde_json::Value::as_str)
+            .and_then(Value::as_str)
             .unwrap_or(faction_id);
         metadata.insert(
             tag.clone(),
@@ -1049,14 +1035,32 @@ fn add_faction_blueprint_metadata(
 
 #[cfg(test)]
 mod tests {
+    use super::super::super::session::{close_project_session, open_project_session_traced};
+    use super::*;
+    #[cfg(test)]
+    use crate::errors::AppError;
+    use crate::io::write_utf8_no_bom;
+    #[cfg(test)]
+    use crate::models::ResourceSource;
+    #[cfg(test)]
+    use crate::services;
+    #[cfg(test)]
+    use crate::services::project;
+    #[cfg(test)]
+    use crate::services::project::PerformanceTrace;
+    #[cfg(test)]
+    use crate::services::project::performance::PerformanceTrace as PerformancePerformanceTrace;
     use crate::services::project::test_support::project_workspace;
+    #[cfg(test)]
+    use std::fs;
+
     #[test]
     fn projectile_reference_catalog() {
         let root = project_workspace("projectile_catalog");
         let local = root.join("mod");
         let core = root.join("starsector-core");
         for dir in [&local, &core] {
-            std::fs::create_dir_all(dir.join("data/weapons/proj")).unwrap();
+            fs::create_dir_all(dir.join("data/weapons/proj")).unwrap();
         }
         for (dir, id, sprite) in [
             (&local, "shared", "mod.png"),
@@ -1064,23 +1068,21 @@ mod tests {
             (&core, "shared", "overridden.png"),
             (&core, "core_only", "core.png"),
         ] {
-            crate::io::write_utf8_no_bom(
+            write_utf8_no_bom(
                 &dir.join(format!("data/weapons/proj/{id}.proj")),
                 &serde_json::json!({"id":id,"specClass":"missile","sprite":sprite}).to_string(),
             )
             .unwrap();
         }
-        let mut trace = crate::services::project::PerformanceTrace::new("catalog.open");
+        let mut trace = PerformanceTrace::new("catalog.open");
         let manifest =
-            crate::services::project::open_project_session_traced(&local, Some(&root), &mut trace)
-                .unwrap();
+            project::open_project_session_traced(&local, Some(&root), &mut trace).unwrap();
         let groups =
-            crate::services::query_csv_source_options(&manifest.session_id, "csv:projectiles.id")
-                .unwrap();
-        crate::services::project::close_project_session(manifest.session_id).unwrap();
+            services::query_csv_source_options(&manifest.session_id, "csv:projectiles.id").unwrap();
+        project::close_project_session(manifest.session_id).unwrap();
         assert_eq!(groups.len(), 2);
-        assert_eq!(groups[0].origin, crate::models::ResourceSource::Mod);
-        assert_eq!(groups[1].origin, crate::models::ResourceSource::Core);
+        assert_eq!(groups[0].origin, ResourceSource::Mod);
+        assert_eq!(groups[1].origin, ResourceSource::Core);
         assert_eq!(
             groups[0]
                 .options
@@ -1092,13 +1094,10 @@ mod tests {
         assert_eq!(groups[1].options[0].value, "core_only");
         assert_eq!(
             groups[1].options[0].resource_ref.as_ref().unwrap().source,
-            crate::models::ResourceSource::Core
+            ResourceSource::Core
         );
         root.close().unwrap();
     }
-    use super::super::super::session::{close_project_session, open_project_session_traced};
-    use super::*;
-    use crate::io::write_utf8_no_bom;
 
     #[test]
     fn config_catalog_sources() {
@@ -1106,9 +1105,9 @@ mod tests {
         let local = root.join("mod");
         let core = root.join("starsector-core");
         for dir in [&local, &core] {
-            std::fs::create_dir_all(dir.join("data/config")).unwrap();
+            fs::create_dir_all(dir.join("data/config")).unwrap();
         }
-        let mut trace = crate::services::project::PerformanceTrace::new("catalog.open");
+        let mut trace = PerformanceTrace::new("catalog.open");
         let manifest = open_project_session_traced(&local, Some(&root), &mut trace).unwrap();
         for &(source, relative, section) in CONFIG_OPTION_SOURCES {
             assert!(
@@ -1150,11 +1149,11 @@ mod tests {
             if source == "config:sounds" {
                 assert!(all.iter().any(|option| option.value == "plain"));
             }
-            std::fs::remove_file(local.join(relative)).unwrap();
+            fs::remove_file(local.join(relative)).unwrap();
             let groups = query_csv_source_options(&manifest.session_id, source).unwrap();
             assert_eq!(groups.len(), 1);
             assert_eq!(groups[0].origin, ResourceSource::Core);
-            std::fs::remove_file(core.join(relative)).unwrap();
+            fs::remove_file(core.join(relative)).unwrap();
         }
         write_utf8_no_bom(
             &local.join("data/config/settings.json"),
@@ -1180,7 +1179,7 @@ mod tests {
     #[test]
     fn source_options_return_resource_refs_without_data_urls() {
         let root = project_workspace("source_resource_refs");
-        std::fs::create_dir_all(root.join("data/hulls")).unwrap();
+        fs::create_dir_all(root.join("data/hulls")).unwrap();
         write_utf8_no_bom(
             &root.join("data/hulls/ship_data.csv"),
             "id,name\r\nship_a,Ship A\r\n",
@@ -1192,8 +1191,7 @@ mod tests {
         )
         .unwrap();
 
-        let mut trace =
-            crate::services::project::performance::PerformanceTrace::new("project.openSession");
+        let mut trace = PerformancePerformanceTrace::new("project.openSession");
         let manifest = open_project_session_traced(&root, None, &mut trace).unwrap();
         let groups = query_csv_source_options(&manifest.session_id, "csv:ships.id").unwrap();
 
@@ -1217,8 +1215,8 @@ mod tests {
     fn source_options_return_complete_stable_mod_then_core_catalog() {
         let root = project_workspace("source_complete_catalog");
         let mod_root = root.join("mods/demo");
-        std::fs::create_dir_all(mod_root.join("data/campaign")).unwrap();
-        std::fs::create_dir_all(root.join("starsector-core/data/campaign")).unwrap();
+        fs::create_dir_all(mod_root.join("data/campaign")).unwrap();
+        fs::create_dir_all(root.join("starsector-core/data/campaign")).unwrap();
 
         let mut mod_csv = String::from("id,name\r\n");
         for index in 0..501 {
@@ -1235,8 +1233,7 @@ mod tests {
         )
         .unwrap();
 
-        let mut trace =
-            crate::services::project::performance::PerformanceTrace::new("project.openSession");
+        let mut trace = PerformancePerformanceTrace::new("project.openSession");
         let manifest = open_project_session_traced(&mod_root, Some(&root), &mut trace).unwrap();
         let groups = query_csv_source_options(&manifest.session_id, "csv:commodities.id").unwrap();
 
@@ -1293,7 +1290,7 @@ mod tests {
     #[test]
     fn mod_id_source_options_include_csv_metadata_and_resource() {
         let root = project_workspace("current_source_resource_refs");
-        std::fs::create_dir_all(root.join("data/hulls")).unwrap();
+        fs::create_dir_all(root.join("data/hulls")).unwrap();
         write_utf8_no_bom(
             &root.join("data/hulls/ship_data.csv"),
             "id,name\r\nship_a,Ship A\r\n",
@@ -1305,8 +1302,7 @@ mod tests {
         )
         .unwrap();
 
-        let mut trace =
-            crate::services::project::performance::PerformanceTrace::new("project.openSession");
+        let mut trace = PerformancePerformanceTrace::new("project.openSession");
         let manifest = open_project_session_traced(&root, None, &mut trace).unwrap();
         let groups = query_csv_source_options(&manifest.session_id, "csv:ships.id").unwrap();
 
@@ -1332,8 +1328,8 @@ mod tests {
     fn core_id_source_options_include_csv_metadata_and_resource() {
         let root = project_workspace("current_core_source_resource_refs");
         let mod_root = root.join("mods/demo");
-        std::fs::create_dir_all(mod_root.join("data/hulls")).unwrap();
-        std::fs::create_dir_all(root.join("starsector-core/data/hulls")).unwrap();
+        fs::create_dir_all(mod_root.join("data/hulls")).unwrap();
+        fs::create_dir_all(root.join("starsector-core/data/hulls")).unwrap();
         write_utf8_no_bom(&mod_root.join("data/hulls/ship_data.csv"), "id,name\r\n").unwrap();
         write_utf8_no_bom(
             &root.join("starsector-core/data/hulls/ship_data.csv"),
@@ -1346,8 +1342,7 @@ mod tests {
         )
         .unwrap();
 
-        let mut trace =
-            crate::services::project::performance::PerformanceTrace::new("project.openSession");
+        let mut trace = PerformancePerformanceTrace::new("project.openSession");
         let manifest = open_project_session_traced(&mod_root, Some(&root), &mut trace).unwrap();
         let groups = query_csv_source_options(&manifest.session_id, "csv:ships.id").unwrap();
 
@@ -1373,8 +1368,8 @@ mod tests {
     fn ship_source_options_use_hull_name_only_when_csv_name_is_missing() {
         let root = project_workspace("ship_source_name_fallback");
         let mod_root = root.join("mods/demo");
-        std::fs::create_dir_all(mod_root.join("data/hulls")).unwrap();
-        std::fs::create_dir_all(root.join("starsector-core/data/hulls")).unwrap();
+        fs::create_dir_all(mod_root.join("data/hulls")).unwrap();
+        fs::create_dir_all(root.join("starsector-core/data/hulls")).unwrap();
         write_utf8_no_bom(
             &mod_root.join("data/hulls/ship_data.csv"),
             "id,name\r\nmod_ship,\r\n",
@@ -1396,8 +1391,7 @@ mod tests {
         )
         .unwrap();
 
-        let mut trace =
-            crate::services::project::performance::PerformanceTrace::new("project.openSession");
+        let mut trace = PerformancePerformanceTrace::new("project.openSession");
         let manifest = open_project_session_traced(&mod_root, Some(&root), &mut trace).unwrap();
         let groups = query_csv_source_options(&manifest.session_id, "csv:ships.id").unwrap();
 
@@ -1416,8 +1410,8 @@ mod tests {
     #[test]
     fn wing_source_options_support_fighter_ids_and_tags() {
         let root = project_workspace("wing_source_options");
-        std::fs::create_dir_all(root.join("data/hulls")).unwrap();
-        std::fs::create_dir_all(root.join("data/variants/fighters")).unwrap();
+        fs::create_dir_all(root.join("data/hulls")).unwrap();
+        fs::create_dir_all(root.join("data/variants/fighters")).unwrap();
         write_utf8_no_bom(
             &root.join("data/hulls/wing_data.csv"),
             "id,variant,tags\r\ntalon_wing,talon_Interceptor,hegemony\r\n",
@@ -1429,8 +1423,7 @@ mod tests {
         )
         .unwrap();
 
-        let mut trace =
-            crate::services::project::performance::PerformanceTrace::new("project.openSession");
+        let mut trace = PerformancePerformanceTrace::new("project.openSession");
         let manifest = open_project_session_traced(&root, None, &mut trace).unwrap();
         let id_groups = query_csv_source_options(&manifest.session_id, "csv:wings.id").unwrap();
         let tag_groups = query_csv_source_options(&manifest.session_id, "csv:wings.tags").unwrap();
@@ -1451,9 +1444,9 @@ mod tests {
     fn core_wing_source_options_fail_when_skin_index_fails() {
         let root = project_workspace("core_wing_source_ref_skin_error");
         let mod_root = root.join("mods/demo");
-        std::fs::create_dir_all(&mod_root).unwrap();
-        std::fs::create_dir_all(root.join("starsector-core/data/hulls/skins")).unwrap();
-        std::fs::create_dir_all(root.join("starsector-core/data/variants")).unwrap();
+        fs::create_dir_all(&mod_root).unwrap();
+        fs::create_dir_all(root.join("starsector-core/data/hulls/skins")).unwrap();
+        fs::create_dir_all(root.join("starsector-core/data/variants")).unwrap();
         write_utf8_no_bom(
             &root.join("starsector-core/data/hulls/wing_data.csv"),
             "id,variant\r\ncore_wing,core_variant\r\n",
@@ -1466,8 +1459,7 @@ mod tests {
         .unwrap();
         write_utf8_no_bom(&root.join("starsector-core/data/hulls/skins/bad.skin"), "{").unwrap();
 
-        let mut trace =
-            crate::services::project::performance::PerformanceTrace::new("project.openSession");
+        let mut trace = PerformancePerformanceTrace::new("project.openSession");
         let manifest = open_project_session_traced(&mod_root, Some(&root), &mut trace).unwrap();
         let error = query_csv_source_options(&manifest.session_id, "csv:wings.id")
             .unwrap_err()
@@ -1482,9 +1474,9 @@ mod tests {
     fn core_wing_source_options_do_not_use_mod_variants_for_resource_refs() {
         let root = project_workspace("core_wing_source_ref_uses_core_variants_only");
         let mod_root = root.join("mods/demo");
-        std::fs::create_dir_all(mod_root.join("data/variants")).unwrap();
-        std::fs::create_dir_all(root.join("starsector-core/data/hulls")).unwrap();
-        std::fs::create_dir_all(root.join("starsector-core/data/variants")).unwrap();
+        fs::create_dir_all(mod_root.join("data/variants")).unwrap();
+        fs::create_dir_all(root.join("starsector-core/data/hulls")).unwrap();
+        fs::create_dir_all(root.join("starsector-core/data/variants")).unwrap();
         write_utf8_no_bom(
             &mod_root.join("data/variants/shared_variant.variant"),
             r#"{"variantId":"shared_variant","hullId":"core_hull"}"#,
@@ -1501,8 +1493,7 @@ mod tests {
         )
         .unwrap();
 
-        let mut trace =
-            crate::services::project::performance::PerformanceTrace::new("project.openSession");
+        let mut trace = PerformancePerformanceTrace::new("project.openSession");
         let manifest = open_project_session_traced(&mod_root, Some(&root), &mut trace).unwrap();
         let groups = query_csv_source_options(&manifest.session_id, "csv:wings.id").unwrap();
 
@@ -1526,9 +1517,9 @@ mod tests {
     fn variant_id_source_options_combine_mod_and_core_entities() {
         let root = project_workspace("variant_id_source_options");
         let mod_root = root.join("mods/demo");
-        std::fs::create_dir_all(mod_root.join("data/variants")).unwrap();
-        std::fs::create_dir_all(root.join("starsector-core/data/hulls")).unwrap();
-        std::fs::create_dir_all(root.join("starsector-core/data/variants")).unwrap();
+        fs::create_dir_all(mod_root.join("data/variants")).unwrap();
+        fs::create_dir_all(root.join("starsector-core/data/hulls")).unwrap();
+        fs::create_dir_all(root.join("starsector-core/data/variants")).unwrap();
         write_utf8_no_bom(
             &root.join("starsector-core/data/hulls/ship_data.csv"),
             "id,name\r\ncore_hull,Core Hull\r\n",
@@ -1550,8 +1541,7 @@ mod tests {
         )
         .unwrap();
 
-        let mut trace =
-            crate::services::project::performance::PerformanceTrace::new("project.openSession");
+        let mut trace = PerformancePerformanceTrace::new("project.openSession");
         let manifest = open_project_session_traced(&mod_root, Some(&root), &mut trace).unwrap();
         let groups =
             query_csv_source_options(&manifest.session_id, "csv:variants.variantId").unwrap();
@@ -1589,10 +1579,9 @@ mod tests {
     #[test]
     fn unknown_entity_source_still_fails_as_unknown_table() {
         let root = project_workspace("unknown_entity_source");
-        std::fs::create_dir_all(root.join("data/hulls")).unwrap();
+        fs::create_dir_all(root.join("data/hulls")).unwrap();
 
-        let mut trace =
-            crate::services::project::performance::PerformanceTrace::new("project.openSession");
+        let mut trace = PerformancePerformanceTrace::new("project.openSession");
         let manifest = open_project_session_traced(&root, None, &mut trace).unwrap();
         let error =
             query_csv_source_options(&manifest.session_id, "csv:nonexistent.foo").unwrap_err();
@@ -1600,7 +1589,7 @@ mod tests {
         let _ = close_project_session(manifest.session_id);
         assert!(matches!(
             error,
-            crate::errors::AppError::Message {
+            AppError::Message {
                 code: "source.table_unknown",
                 ..
             }
@@ -1612,8 +1601,8 @@ mod tests {
     fn core_weapon_source_options_do_not_use_mod_weapon_specs_for_resource_refs() {
         let root = project_workspace("core_weapon_source_ref_uses_core_specs_only");
         let mod_root = root.join("mods/demo");
-        std::fs::create_dir_all(mod_root.join("data/weapons")).unwrap();
-        std::fs::create_dir_all(root.join("starsector-core/data/weapons")).unwrap();
+        fs::create_dir_all(mod_root.join("data/weapons")).unwrap();
+        fs::create_dir_all(root.join("starsector-core/data/weapons")).unwrap();
         write_utf8_no_bom(
             &mod_root.join("data/weapons/weapon_data.csv"),
             "id,name\r\n",
@@ -1630,8 +1619,7 @@ mod tests {
         )
         .unwrap();
 
-        let mut trace =
-            crate::services::project::performance::PerformanceTrace::new("project.openSession");
+        let mut trace = PerformancePerformanceTrace::new("project.openSession");
         let manifest = open_project_session_traced(&mod_root, Some(&root), &mut trace).unwrap();
         let groups = query_csv_source_options(&manifest.session_id, "csv:weapons.id").unwrap();
 
@@ -1661,15 +1649,14 @@ mod tests {
     #[test]
     fn csv_source_options_reject_missing_source_column() {
         let root = project_workspace("source_missing_column");
-        std::fs::create_dir_all(root.join("data/hulls")).unwrap();
+        fs::create_dir_all(root.join("data/hulls")).unwrap();
         write_utf8_no_bom(
             &root.join("data/hulls/ship_data.csv"),
             "id,name\r\nship_a,Ship A\r\n",
         )
         .unwrap();
 
-        let mut trace =
-            crate::services::project::performance::PerformanceTrace::new("project.openSession");
+        let mut trace = PerformancePerformanceTrace::new("project.openSession");
         let manifest = open_project_session_traced(&root, None, &mut trace).unwrap();
         let error = query_csv_source_options(&manifest.session_id, "csv:ships.missing")
             .unwrap_err()
@@ -1683,15 +1670,14 @@ mod tests {
     #[test]
     fn non_id_csv_source_options_do_not_inherit_row_resources() {
         let root = project_workspace("source_non_id_no_resource");
-        std::fs::create_dir_all(root.join("data/campaign")).unwrap();
+        fs::create_dir_all(root.join("data/campaign")).unwrap();
         write_utf8_no_bom(
             &root.join("data/campaign/commodities.csv"),
             "id,name,tags,icon\r\nore,Ore,bulk,graphics/icons/cargo/ore.png\r\n",
         )
         .unwrap();
 
-        let mut trace =
-            crate::services::project::performance::PerformanceTrace::new("project.openSession");
+        let mut trace = PerformancePerformanceTrace::new("project.openSession");
         let manifest = open_project_session_traced(&root, None, &mut trace).unwrap();
         let groups =
             query_csv_source_options(&manifest.session_id, "csv:commodities.tags").unwrap();
@@ -1709,15 +1695,14 @@ mod tests {
     #[test]
     fn tag_and_hint_source_options_use_separate_known_labels() {
         let root = project_workspace("source_separate_tag_hint_labels");
-        std::fs::create_dir_all(root.join("data/weapons")).unwrap();
+        fs::create_dir_all(root.join("data/weapons")).unwrap();
         write_utf8_no_bom(
             &root.join("data/weapons/weapon_data.csv"),
             "id,name,tags,hints\r\nweapon,Weapon,no_drop,PD\r\n",
         )
         .unwrap();
 
-        let mut trace =
-            crate::services::project::performance::PerformanceTrace::new("project.openSession");
+        let mut trace = PerformancePerformanceTrace::new("project.openSession");
         let manifest = open_project_session_traced(&root, None, &mut trace).unwrap();
         let tag_groups =
             query_csv_source_options(&manifest.session_id, "csv:weapons.tags").unwrap();
@@ -1739,8 +1724,8 @@ mod tests {
     fn tag_source_options_label_blueprint_package_tags_from_core_special_items() {
         let root = project_workspace("source_core_blueprint_package_tag_labels");
         let mod_root = root.join("mods/demo");
-        std::fs::create_dir_all(mod_root.join("data/campaign")).unwrap();
-        std::fs::create_dir_all(root.join("starsector-core/data/campaign")).unwrap();
+        fs::create_dir_all(mod_root.join("data/campaign")).unwrap();
+        fs::create_dir_all(root.join("starsector-core/data/campaign")).unwrap();
         write_utf8_no_bom(
             &mod_root.join("data/campaign/commodities.csv"),
             "id,name,tags\r\ncommodity,Commodity,lowtech_bp\r\n",
@@ -1757,8 +1742,7 @@ mod tests {
         )
         .unwrap();
 
-        let mut trace =
-            crate::services::project::performance::PerformanceTrace::new("project.openSession");
+        let mut trace = PerformancePerformanceTrace::new("project.openSession");
         let manifest = open_project_session_traced(&mod_root, Some(&root), &mut trace).unwrap();
         let groups =
             query_csv_source_options(&manifest.session_id, "csv:commodities.tags").unwrap();
@@ -1780,7 +1764,7 @@ mod tests {
     #[test]
     fn tag_source_options_read_mod_blueprint_package_metadata_from_session_rows() {
         let root = project_workspace("source_mod_blueprint_package_session_rows");
-        std::fs::create_dir_all(root.join("data/campaign")).unwrap();
+        fs::create_dir_all(root.join("data/campaign")).unwrap();
         write_utf8_no_bom(
             &root.join("data/campaign/special_items.csv"),
             "name,id,tags,plugin params,desc\r\n\"#Old Package\",old_package,package_bp,demo_bp,Old description.\r\n#Disabled Package,disabled,package_bp,demo_bp,Disabled description.\r\n",
@@ -1792,8 +1776,7 @@ mod tests {
         )
         .unwrap();
 
-        let mut trace =
-            crate::services::project::performance::PerformanceTrace::new("project.openSession");
+        let mut trace = PerformancePerformanceTrace::new("project.openSession");
         let manifest = open_project_session_traced(&root, None, &mut trace).unwrap();
         query_csv_source_options(&manifest.session_id, "csv:specialItems.tags").unwrap();
         write_utf8_no_bom(
@@ -1815,15 +1798,14 @@ mod tests {
     #[test]
     fn source_options_label_core_tag_and_hint_metadata() {
         let root = project_workspace("source_core_tag_hint_metadata");
-        std::fs::create_dir_all(root.join("data/weapons")).unwrap();
+        fs::create_dir_all(root.join("data/weapons")).unwrap();
         write_utf8_no_bom(
             &root.join("data/weapons/weapon_data.csv"),
             "id,name,tags,hints\r\nweapon,Weapon,codex_unlockable,CONSERVE_5\r\nbeam,Beam,beam999,DIRECT_AIM\r\nbad,Bad,energy123,\"CONSERVE_999, beam999\"\r\n",
         )
         .unwrap();
 
-        let mut trace =
-            crate::services::project::performance::PerformanceTrace::new("project.openSession");
+        let mut trace = PerformancePerformanceTrace::new("project.openSession");
         let manifest = open_project_session_traced(&root, None, &mut trace).unwrap();
         let tag_groups =
             query_csv_source_options(&manifest.session_id, "csv:weapons.tags").unwrap();

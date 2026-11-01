@@ -1,10 +1,23 @@
 use super::*;
+#[cfg(test)]
+use crate::domain::{entity_construction, entity_definitions};
+use crate::io::{read_utf8_no_bom, write_utf8_no_bom};
+#[cfg(test)]
+use crate::services::file_history;
+use crate::services::project::PerformanceTrace;
+#[cfg(test)]
+use crate::services::project::model;
+use crate::services::project::query::csv_window;
 use crate::services::project::test_support::project_workspace;
-use crate::{
-    io::{read_utf8_no_bom, write_utf8_no_bom},
-    services::{project, project_save, write_transactions},
-};
+use crate::services::{project, project_save, write_transactions};
+#[cfg(test)]
+use crate::test_support::work_counts;
+#[cfg(test)]
+use crate::{io, services, test_support};
 use serde_json::json;
+#[cfg(test)]
+use std::fs;
+use std::slice;
 
 fn cases() -> Vec<AssociatedSpecCreateParams> {
     vec![
@@ -37,10 +50,10 @@ fn request(
         _ => unreachable!(),
     };
     let prepared =
-        prepare_csv_associated_specs(&manifest.session_id, table, std::slice::from_ref(&change))
+        prepare_csv_associated_specs(&manifest.session_id, table, slice::from_ref(&change))
             .unwrap()
             .remove(0);
-    let window = crate::services::project::query::csv_window::query_csv_table_window(
+    let window = csv_window::query_csv_table_window(
         &manifest.session_id,
         table,
         0,
@@ -90,7 +103,7 @@ fn request(
 }
 
 fn open(root: &Path) -> ProjectManifest {
-    let mut trace = project::PerformanceTrace::new("associated.spec.fixture");
+    let mut trace = PerformanceTrace::new("associated.spec.fixture");
     project::open_project_session_traced(root, None, &mut trace).unwrap()
 }
 
@@ -102,12 +115,9 @@ fn all_formats_read_and_replace_existing_targets_with_one_reversible_save() {
                 for late in [false, true] {
                     let root = project_workspace("associated_existing_target");
                     let table = params.table();
-                    let definition =
-                        crate::domain::entity_definitions::associated_spec_definition(table)
-                            .unwrap();
-                    let csv_path =
-                        root.join(super::super::super::model::csv_table_spec(table).rel_path);
-                    std::fs::create_dir_all(csv_path.parent().unwrap()).unwrap();
+                    let definition = entity_definitions::associated_spec_definition(table).unwrap();
+                    let csv_path = root.join(model::csv_table_spec(table).rel_path);
+                    fs::create_dir_all(csv_path.parent().unwrap()).unwrap();
                     let csv_before = if rename {
                         "id,name,unknown\nold,Original,001\n"
                     } else {
@@ -118,9 +128,8 @@ fn all_formats_read_and_replace_existing_targets_with_one_reversible_save() {
                         "{}/nested/filename{}",
                         definition.dir, definition.extension
                     ));
-                    std::fs::create_dir_all(old.parent().unwrap()).unwrap();
-                    let mut data =
-                        crate::domain::entity_construction::create_associated_spec(&params);
+                    fs::create_dir_all(old.parent().unwrap()).unwrap();
+                    let mut data = entity_construction::create_associated_spec(&params);
                     data[definition.id_field] = json!("old");
                     data["custom"] = json!({"preserve":[1,2]});
                     let original = serde_json::to_string(&data).unwrap();
@@ -131,8 +140,7 @@ fn all_formats_read_and_replace_existing_targets_with_one_reversible_save() {
                         "{}/nested/next{}",
                         definition.dir, definition.extension
                     ));
-                    let mut existing =
-                        crate::domain::entity_construction::create_associated_spec(&params);
+                    let mut existing = entity_construction::create_associated_spec(&params);
                     existing["custom"] = json!({"destination":true});
                     let target_text = format!(
                         "{}\n# custom formatting\n",
@@ -156,7 +164,7 @@ fn all_formats_read_and_replace_existing_targets_with_one_reversible_save() {
                         }
                     };
                     let input = request(&manifest, change, mode);
-                    assert!(crate::io::same_physical_path(
+                    assert!(io::same_physical_path(
                         Path::new(
                             &input.associated_specs[0]
                                 .resolution
@@ -179,11 +187,11 @@ fn all_formats_read_and_replace_existing_targets_with_one_reversible_save() {
                     if mode == AssociatedSpecMode::Read {
                         assert_eq!(read_utf8_no_bom(&destination).unwrap(), target_text);
                     } else {
-                        let actual = crate::io::read_json_file(&destination).unwrap();
+                        let actual = io::read_json_file(&destination).unwrap();
                         assert_eq!(actual[definition.id_field], "next");
                         assert_eq!(actual.get("custom"), rename.then(|| &data["custom"]));
                     }
-                    let info = crate::services::query_entity_edit_target(
+                    let info = services::query_entity_edit_target(
                         &manifest.session_id,
                         definition.entity_kind,
                         "next",
@@ -227,7 +235,7 @@ fn all_formats_read_and_replace_existing_targets_with_one_reversible_save() {
 #[test]
 fn preparation_shares_actual_reads_and_keeps_invalid_files_as_choices() {
     let root = project_workspace("associated_read_counts");
-    std::fs::create_dir_all(root.join("data/hulls")).unwrap();
+    fs::create_dir_all(root.join("data/hulls")).unwrap();
     write_utf8_no_bom(&root.join("data/hulls/ship_data.csv"), "id,name\nold,Old\n").unwrap();
     let manifest = open(&root);
     let path = root.join("data/hulls/next.ship");
@@ -235,20 +243,17 @@ fn preparation_shares_actual_reads_and_keeps_invalid_files_as_choices() {
     let change = AssociatedSpecChange::Create {
         create: cases().remove(0),
     };
-    let before = crate::test_support::work_counts::count("parse", &path);
-    let walks = crate::test_support::work_counts::count("walk", &root.join("data/hulls"));
+    let before = work_counts::count("parse", &path);
+    let walks = work_counts::count("walk", &root.join("data/hulls"));
     let prepared = prepare_csv_associated_specs(
         &manifest.session_id,
         CsvTableKey::Ships,
         &[change.clone(), change.clone()],
     )
     .unwrap();
+    assert_eq!(work_counts::count("parse", &path) - before, 1);
     assert_eq!(
-        crate::test_support::work_counts::count("parse", &path) - before,
-        1
-    );
-    assert_eq!(
-        crate::test_support::work_counts::count("walk", &root.join("data/hulls")) - walks,
+        work_counts::count("walk", &root.join("data/hulls")) - walks,
         1
     );
     assert!(
@@ -259,7 +264,7 @@ fn preparation_shares_actual_reads_and_keeps_invalid_files_as_choices() {
     let input = request(&manifest, change, AssociatedSpecMode::Overwrite);
     let result = project_save::execute_save_action(SaveAction::SaveCsvPatch(input)).unwrap();
     assert_eq!(result.changes.len(), 2);
-    assert_eq!(crate::io::read_json_file(&path).unwrap()["hullId"], "next");
+    assert_eq!(io::read_json_file(&path).unwrap()["hullId"], "next");
     project::close_project_session(manifest.session_id).unwrap();
     root.close().unwrap();
 }
@@ -268,7 +273,7 @@ fn preparation_shares_actual_reads_and_keeps_invalid_files_as_choices() {
 fn confirmed_versions_reject_replaced_and_deleted_files_before_any_csv_write() {
     for remove in [false, true] {
         let root = project_workspace("associated_version_conflict");
-        std::fs::create_dir_all(root.join("data/hulls")).unwrap();
+        fs::create_dir_all(root.join("data/hulls")).unwrap();
         let csv = root.join("data/hulls/ship_data.csv");
         write_utf8_no_bom(&csv, "id,name\n").unwrap();
         let target = root.join("data/hulls/next.ship");
@@ -279,7 +284,7 @@ fn confirmed_versions_reject_replaced_and_deleted_files_before_any_csv_write() {
         };
         let input = request(&manifest, change, AssociatedSpecMode::Read);
         if remove {
-            std::fs::remove_file(&target).unwrap();
+            fs::remove_file(&target).unwrap();
         } else {
             write_utf8_no_bom(&target, "{hullId:'next',changed:true}").unwrap();
         }
@@ -287,7 +292,7 @@ fn confirmed_versions_reject_replaced_and_deleted_files_before_any_csv_write() {
         assert_eq!(error.code(), "write.version_conflict");
         assert_eq!(read_utf8_no_bom(&csv).unwrap(), "id,name\n");
         assert!(
-            crate::services::file_history::query(&manifest.mod_root)
+            file_history::query(&manifest.mod_root)
                 .unwrap()
                 .undo_stack
                 .is_empty()
@@ -299,7 +304,7 @@ fn confirmed_versions_reject_replaced_and_deleted_files_before_any_csv_write() {
 
 #[test]
 fn inherited_originals_supply_all_formats_without_changing_their_sources() {
-    if crate::test_support::isolated_test() {
+    if test_support::isolated_test() {
         return;
     }
     for params in cases() {
@@ -312,22 +317,20 @@ fn inherited_originals_supply_all_formats_without_changing_their_sources() {
             } else {
                 game.join("starsector-core")
             };
-            std::fs::create_dir_all(game.join("starsector-core")).unwrap();
+            fs::create_dir_all(game.join("starsector-core")).unwrap();
             let definition =
-                crate::domain::entity_definitions::associated_spec_definition(params.table())
-                    .unwrap();
-            let csv_path =
-                local.join(super::super::super::model::csv_table_spec(params.table()).rel_path);
-            std::fs::create_dir_all(csv_path.parent().unwrap()).unwrap();
+                entity_definitions::associated_spec_definition(params.table()).unwrap();
+            let csv_path = local.join(model::csv_table_spec(params.table()).rel_path);
+            fs::create_dir_all(csv_path.parent().unwrap()).unwrap();
             write_utf8_no_bom(&csv_path, "id,name\nold,Original\n").unwrap();
             let source = external.join(definition.default_rel_path("old"));
-            std::fs::create_dir_all(source.parent().unwrap()).unwrap();
-            let mut data = crate::domain::entity_construction::create_associated_spec(&params);
+            fs::create_dir_all(source.parent().unwrap()).unwrap();
+            let mut data = entity_construction::create_associated_spec(&params);
             data[definition.id_field] = json!("old");
             data["custom"] = json!({"inherited":true});
             let text = data.to_string();
             write_utf8_no_bom(&source, &text).unwrap();
-            let mut trace = project::PerformanceTrace::new("inherited.fixture");
+            let mut trace = PerformanceTrace::new("inherited.fixture");
             let manifest =
                 project::open_project_session_traced(&local, Some(&game), &mut trace).unwrap();
             let external_session = if reference {
@@ -341,12 +344,9 @@ fn inherited_originals_supply_all_formats_without_changing_their_sources() {
                 previous_id: "old".into(),
                 create: params.clone(),
             };
-            let parses = crate::test_support::work_counts::count("parse", &source);
+            let parses = work_counts::count("parse", &source);
             let input = request(&manifest, change, AssociatedSpecMode::Overwrite);
-            assert_eq!(
-                crate::test_support::work_counts::count("parse", &source) - parses,
-                1
-            );
+            assert_eq!(work_counts::count("parse", &source) - parses, 1);
             assert_eq!(
                 input.associated_specs[0]
                     .resolution
@@ -366,8 +366,7 @@ fn inherited_originals_supply_all_formats_without_changing_their_sources() {
             project_save::execute_save_action(SaveAction::SaveCsvPatch(input)).unwrap();
             assert_eq!(read_utf8_no_bom(&source).unwrap(), text);
             assert_eq!(
-                crate::io::read_json_file(&local.join(definition.default_rel_path("next")))
-                    .unwrap()["custom"],
+                io::read_json_file(&local.join(definition.default_rel_path("next"))).unwrap()["custom"],
                 data["custom"]
             );
             project::set_reference_sources(Vec::new()).unwrap();
@@ -384,8 +383,8 @@ fn inherited_originals_supply_all_formats_without_changing_their_sources() {
 fn reading_targets_retains_descriptions_and_overwriting_uses_existing_collision_rules() {
     for mode in [AssociatedSpecMode::Read, AssociatedSpecMode::Overwrite] {
         let root = project_workspace("associated_description_choice");
-        std::fs::create_dir_all(root.join("data/hulls")).unwrap();
-        std::fs::create_dir_all(root.join("data/strings")).unwrap();
+        fs::create_dir_all(root.join("data/hulls")).unwrap();
+        fs::create_dir_all(root.join("data/strings")).unwrap();
         let csv = root.join("data/hulls/ship_data.csv");
         write_utf8_no_bom(&csv, "id,name\nold,Original\n").unwrap();
         for id in ["old", "next"] {
@@ -425,7 +424,7 @@ fn reading_targets_retains_descriptions_and_overwriting_uses_existing_collision_
 fn invalid_originals_allow_target_reuse_template_replacement_and_csv_only() {
     for choice in ["read", "overwrite", "csv"] {
         let root = project_workspace("associated_invalid_original");
-        std::fs::create_dir_all(root.join("data/hulls")).unwrap();
+        fs::create_dir_all(root.join("data/hulls")).unwrap();
         let csv = root.join("data/hulls/ship_data.csv");
         write_utf8_no_bom(&csv, "id,name\nold,Original\n").unwrap();
         let manifest = open(&root);
@@ -464,7 +463,7 @@ fn invalid_originals_allow_target_reuse_template_replacement_and_csv_only() {
         assert_eq!(source.exists(), choice == "csv");
         if choice == "overwrite" {
             assert!(
-                crate::io::read_json_file(&destination)
+                io::read_json_file(&destination)
                     .unwrap()
                     .get("custom")
                     .is_none()

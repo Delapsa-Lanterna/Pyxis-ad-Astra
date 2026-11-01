@@ -1,4 +1,9 @@
+use crate::errors::ErrorDiagnostic;
+use crate::models::{JointEditKind, SpecEditorKind};
 use serde::{Deserialize, Serialize};
+use serde_json::{Map, Value};
+use std::sync::LazyLock;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EditWriteTarget {
@@ -15,13 +20,13 @@ pub struct EditWriteTarget {
 pub enum WindowIdentity {
     Immersive {
         session_id: String,
-        kind: super::JointEditKind,
+        kind: JointEditKind,
         mod_root: String,
         id: String,
     },
     Spec {
         session_id: String,
-        kind: super::SpecEditorKind,
+        kind: SpecEditorKind,
         mod_root: String,
         id: String,
     },
@@ -84,7 +89,7 @@ unsafe extern "system" {
     fn RtlUpcaseUnicodeChar(source: u16) -> u16;
 }
 
-static WINDOWS_PATH_CASE: std::sync::LazyLock<Vec<u16>> = std::sync::LazyLock::new(|| {
+static WINDOWS_PATH_CASE: LazyLock<Vec<u16>> = LazyLock::new(|| {
     (0..=u16::MAX)
         .map(|unit| {
             // Windows ordinal ignore-case maps UTF-16 units without Unicode expansion.
@@ -102,7 +107,7 @@ static WINDOWS_PATH_CASE: std::sync::LazyLock<Vec<u16>> = std::sync::LazyLock::n
 });
 
 pub fn windows_path_case_map() -> &'static [(u16, u16)] {
-    static MAPPING: std::sync::LazyLock<Vec<(u16, u16)>> = std::sync::LazyLock::new(|| {
+    static MAPPING: LazyLock<Vec<(u16, u16)>> = LazyLock::new(|| {
         (0..=u16::MAX)
             .filter_map(|unit| {
                 let mapped = WINDOWS_PATH_CASE[usize::from(unit)];
@@ -151,6 +156,14 @@ pub fn windows_path_key(path: &str) -> String {
 #[cfg(all(test, windows))]
 mod windows_path_tests {
     use super::*;
+    #[cfg(test)]
+    #[cfg(test)]
+    use serde_json::Value;
+    #[cfg(test)]
+    use std::ptr;
+    #[cfg(test)]
+    use std::time::Instant;
+
     #[link(name = "kernel32")]
     unsafe extern "system" {
         fn CompareStringOrdinal(
@@ -170,7 +183,7 @@ mod windows_path_tests {
     }
     #[test]
     fn windows_mapping_matches_all_utf16_units_and_collisions() {
-        let started = std::time::Instant::now();
+        let started = Instant::now();
         let mapping = windows_path_case_map();
         let initialization = started.elapsed();
         for unit in 0..=u16::MAX {
@@ -186,10 +199,7 @@ mod windows_path_tests {
                 WINDOWS_PATH_CASE[usize::from(pair[0])] == WINDOWS_PATH_CASE[usize::from(pair[1])]
             );
         }
-        assert!(std::ptr::eq(
-            windows_path_case_map(),
-            windows_path_case_map()
-        ));
+        assert!(ptr::eq(windows_path_case_map(), windows_path_case_map()));
         println!(
             "WINDOWS_PATH_CASE_MAP {}",
             serde_json::to_string(mapping).unwrap()
@@ -201,7 +211,7 @@ mod windows_path_tests {
     }
     #[test]
     fn windows_unicode_keys_preserve_samples_and_identity() {
-        let samples: Vec<serde_json::Value> = serde_json::from_str(include_str!(
+        let samples: Vec<Value> = serde_json::from_str(include_str!(
             "../../../src/test/fixtures/windows-path-cases.json"
         ))
         .unwrap();
@@ -240,9 +250,7 @@ mod windows_path_tests {
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum WeaponFirePreviewSource {
     Saved,
-    Draft {
-        weapon: serde_json::Map<String, serde_json::Value>,
-    },
+    Draft { weapon: Map<String, Value> },
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -282,14 +290,14 @@ impl ManagedWindowInput {
             WindowIdentity::WeaponFirePreview { id, .. },
         ) = (self, identity)
         {
-            weapon.insert("id".into(), serde_json::Value::String(id.clone()));
+            weapon.insert("id".into(), Value::String(id.clone()));
         }
     }
     pub fn matches(&self, identity: &WindowIdentity) -> bool {
         if let (
             Self::ImmersiveEditor { row_key },
             WindowIdentity::Immersive {
-                kind: super::JointEditKind::Wing,
+                kind: JointEditKind::Wing,
                 ..
             },
         ) = (self, identity)
@@ -421,7 +429,7 @@ pub struct CloseResult {
     pub status: CloseStatus,
     pub destroyed_windows: Vec<String>,
     pub released_sessions: Vec<String>,
-    pub diagnostic: Option<crate::errors::ErrorDiagnostic>,
+    pub diagnostic: Option<ErrorDiagnostic>,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Default, PartialEq, Eq)]

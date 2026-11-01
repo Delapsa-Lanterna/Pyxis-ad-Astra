@@ -1,10 +1,22 @@
 #![cfg(test)]
-use crate::services::project::test_support::project_workspace;
-
 use super::query::csv_window::{query_csv_table_index, query_csv_table_rows};
 use super::{PerformanceTrace, close_project_session, open_project_session_traced};
+#[cfg(test)]
+use crate::io;
+#[cfg(test)]
+use crate::io::csv_files;
+#[cfg(test)]
+use crate::models::{CsvSave, SaveAction};
 use crate::models::{CsvSearchField, CsvTableKey, FileVersion};
+use crate::services::project::test_support::project_workspace;
+#[cfg(test)]
+use crate::services::project_save;
+use serde_json::Value;
+#[cfg(test)]
+use std::path::Path;
 use std::time::Instant;
+#[cfg(test)]
+use std::{fs, iter};
 
 struct ReadIndex {
     total: usize,
@@ -13,7 +25,7 @@ struct ReadIndex {
     first_rows: usize,
 }
 
-fn summarize(mut values: Vec<f64>) -> serde_json::Value {
+fn summarize(mut values: Vec<f64>) -> Value {
     values.sort_by(f64::total_cmp);
     serde_json::json!({
         "n": values.len(),
@@ -47,22 +59,22 @@ fn read_index(session: &str) -> ReadIndex {
 fn retained_csv_performance() {
     for count in [50, 300, 2000] {
         let root = project_workspace(&format!("retained_csv_perf_{count}"));
-        std::fs::create_dir_all(root.join("data/hulls")).unwrap();
-        let header = std::iter::once("id".to_string())
+        fs::create_dir_all(root.join("data/hulls")).unwrap();
+        let header = iter::once("id".to_string())
             .chain((1..40).map(|column| format!("field_{column}")))
             .collect::<Vec<_>>()
             .join(",");
         let mut text = header + "\n";
         for row in 0..count {
             text.push_str(
-                &std::iter::once(format!("row_{row}"))
+                &iter::once(format!("row_{row}"))
                     .chain((1..40).map(|_| row.to_string()))
                     .collect::<Vec<_>>()
                     .join(","),
             );
             text.push('\n');
         }
-        crate::io::write_utf8_no_bom(&root.join("data/hulls/ship_data.csv"), &text).unwrap();
+        io::write_utf8_no_bom(&root.join("data/hulls/ship_data.csv"), &text).unwrap();
         let mut cold = Vec::new();
         let mut opening = Vec::new();
         for _ in 0..30 {
@@ -84,7 +96,7 @@ fn retained_csv_performance() {
         let mut rows = Vec::new();
         let mut writes = Vec::new();
         let mut search = Vec::new();
-        crate::io::csv_files::take_csv_work();
+        csv_files::take_csv_work();
         for sample in 0..30 {
             let started = Instant::now();
             let current = read_index(&manifest.session_id);
@@ -114,69 +126,65 @@ fn retained_csv_performance() {
             assert_eq!(found.total_rows, count);
             assert_eq!(found.rows.len(), count.min(10));
         }
-        let query_work = crate::io::csv_files::take_csv_work();
+        let query_work = csv_files::take_csv_work();
         assert_eq!(
             query_work,
             (0, 0, 30 * (count.min(240) + count.min(160) + count.min(10)))
         );
         for _ in 0..30 {
             let started = Instant::now();
-            let result = crate::services::project_save::execute_save_action(
-                crate::models::SaveAction::SaveCsvPatch(crate::models::CsvSave {
-                    session_id: manifest.session_id.clone(),
-                    mod_root: manifest.mod_root.clone(),
-                    table: CsvTableKey::Ships,
-                    base_versions: index.versions.clone(),
-                    patches: vec![],
-                    associated_specs: vec![],
-                    json_write: Default::default(),
-                    row_order: Some(index.keys.iter().rev().cloned().collect()),
-                }),
-            )
+            let result = project_save::execute_save_action(SaveAction::SaveCsvPatch(CsvSave {
+                session_id: manifest.session_id.clone(),
+                mod_root: manifest.mod_root.clone(),
+                table: CsvTableKey::Ships,
+                base_versions: index.versions.clone(),
+                patches: vec![],
+                associated_specs: vec![],
+                json_write: Default::default(),
+                row_order: Some(index.keys.iter().rev().cloned().collect()),
+            }))
             .unwrap();
             writes.push(started.elapsed().as_secs_f64() * 1000.0);
             assert_eq!(result.changes.len(), 1);
             index.keys.reverse();
             index.versions = result.base_versions;
         }
-        let save_work = crate::io::csv_files::take_csv_work();
+        let save_work = csv_files::take_csv_work();
         let mut recovery = Vec::new();
         let file = root.join("data/hulls/ship_data.csv");
         for _ in 0..7 {
-            std::fs::remove_file(&file).unwrap();
+            fs::remove_file(&file).unwrap();
             let started = Instant::now();
-            let result = crate::io::with_write_retry(
+            let result = io::with_write_retry(
                 &root,
                 |_| panic!("retained CSV recovery is complete"),
                 || {
-                    crate::io::accept_source_recreation(
+                    io::accept_source_recreation(
                         &manifest.mod_root,
                         vec![
-                            std::path::Path::new(&manifest.mod_root)
+                            Path::new(&manifest.mod_root)
                                 .join("data/hulls/ship_data.csv")
                                 .to_string_lossy()
                                 .into(),
                         ],
                     )?;
-                    crate::services::project_save::execute_save_action(
-                        crate::models::SaveAction::SaveCsvPatch(crate::models::CsvSave {
-                            session_id: manifest.session_id.clone(),
-                            mod_root: manifest.mod_root.clone(),
-                            table: CsvTableKey::Ships,
-                            base_versions: index.versions.clone(),
-                            patches: vec![],
-                            associated_specs: vec![],
-                            json_write: Default::default(),
-                            row_order: None,
-                        }),
-                    )
+                    project_save::execute_save_action(SaveAction::SaveCsvPatch(CsvSave {
+                        session_id: manifest.session_id.clone(),
+                        mod_root: manifest.mod_root.clone(),
+                        table: CsvTableKey::Ships,
+                        base_versions: index.versions.clone(),
+                        patches: vec![],
+                        associated_specs: vec![],
+                        json_write: Default::default(),
+                        row_order: None,
+                    }))
                 },
             )
             .unwrap();
             recovery.push(started.elapsed().as_secs_f64() * 1000.0);
             index.versions = result.base_versions;
         }
-        let recovery_work = crate::io::csv_files::take_csv_work();
+        let recovery_work = csv_files::take_csv_work();
         assert_eq!(recovery_work.0, 0);
         assert_eq!(recovery_work.1, 7);
         assert_eq!(recovery_work.2, count * 7);

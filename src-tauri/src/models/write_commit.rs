@@ -1,17 +1,22 @@
 use super::collections::push_unique_all;
 use crate::errors::ErrorDiagnostic;
-use crate::models::{FileChangeRecord, FileHistorySnapshot, FileVersion, ProjectInvalidation};
+use crate::models::{
+    CsvTableKey, EntityEditTarget, EntityIdentityChange, FileChangeRecord, FileHistorySnapshot,
+    FileVersion, JointEditRoot, JsonDocumentOrigin, ProjectInvalidation,
+    ProjectSessionInvalidationResult, ReferenceSources,
+};
 #[cfg(test)]
 use crate::test_support::TestWorkspace;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::path::Path;
+use std::sync::Arc;
 
 #[derive(Clone, Serialize)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum SaveDelivery {
     References {
-        snapshot: super::ReferenceSources,
+        snapshot: ReferenceSources,
         event: Option<Value>,
     },
     Missing {
@@ -43,13 +48,8 @@ pub enum SaveDelivery {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum SaveEdit {
-    Set {
-        path: Vec<String>,
-        value: serde_json::Value,
-    },
-    Remove {
-        path: Vec<String>,
-    },
+    Set { path: Vec<String>, value: Value },
+    Remove { path: Vec<String> },
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -63,24 +63,12 @@ pub struct CsvRowKeyMapping {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum WriteContentTarget {
-    Csv {
-        table: super::CsvTableKey,
-    },
-    Spec {
-        target: Box<super::EntityEditTarget>,
-    },
-    Text {
-        path: String,
-    },
-    Json {
-        origin: super::JsonDocumentOrigin,
-    },
-    Joint {
-        root: super::JointEditRoot,
-    },
-    Recovery {
-        origin: super::JsonDocumentOrigin,
-    },
+    Csv { table: CsvTableKey },
+    Spec { target: Box<EntityEditTarget> },
+    Text { path: String },
+    Json { origin: JsonDocumentOrigin },
+    Joint { root: JointEditRoot },
+    Recovery { origin: JsonDocumentOrigin },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -94,7 +82,7 @@ pub struct WriteContent<T> {
 #[serde(rename_all = "camelCase")]
 pub struct WriteResult<T = ()> {
     pub session_updates: Vec<CommittedSessionUpdate>,
-    pub identity_changes: Vec<crate::models::EntityIdentityChange>,
+    pub identity_changes: Vec<EntityIdentityChange>,
     pub changes: Vec<FileChangeRecord>,
     pub invalidation: ProjectInvalidation,
     pub key_map: Vec<CsvRowKeyMapping>,
@@ -169,7 +157,7 @@ impl<T> WriteResult<T> {
 pub struct CommittedSessionUpdate {
     pub session_id: String,
     pub mod_root: String,
-    pub projection: std::sync::Arc<super::ProjectSessionInvalidationResult>,
+    pub projection: Arc<ProjectSessionInvalidationResult>,
 }
 
 fn changed_paths_for_changes(changes: &[FileChangeRecord]) -> Vec<String> {
@@ -202,6 +190,10 @@ fn changed_paths_for_changes(changes: &[FileChangeRecord]) -> Vec<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(test)]
+    use crate::errors::AppError;
+    #[cfg(test)]
+    use crate::io;
     use serde_json::json;
     use std::fs;
 
@@ -221,11 +213,7 @@ mod tests {
             request_id: "request".into(),
             mod_root: "M:/mod".into(),
             session_id: Some("s".into()),
-            diagnostic: crate::errors::AppError::message(
-                "project.scan_failed",
-                "Source unavailable",
-            )
-            .diagnostic(),
+            diagnostic: AppError::message("project.scan_failed", "Source unavailable").diagnostic(),
         };
         assert_eq!(
             serde_json::to_value(blocked).unwrap()["diagnostic"],
@@ -262,10 +250,10 @@ mod tests {
     fn write_result_expands_directory_change_invalidation_paths() {
         let root = TestWorkspace::new("directory_invalidation_paths");
         let dir = root.join("data/variants/nested");
-        std::fs::create_dir_all(&dir).unwrap();
+        fs::create_dir_all(&dir).unwrap();
         fs::write(dir.join("demo.variant"), "{}").unwrap();
 
-        let change = crate::io::build_directory_delete_change(&dir).unwrap();
+        let change = io::build_directory_delete_change(&dir).unwrap();
         let result = WriteResult::from_changes(vec![change]);
 
         assert!(

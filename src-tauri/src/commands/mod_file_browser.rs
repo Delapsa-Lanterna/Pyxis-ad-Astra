@@ -1,8 +1,10 @@
-use crate::{
-    errors::AppError,
-    models::{ModDirectory, ModDirectoryPayload, ModTextFilePayload, ModTextFileTarget},
-    services,
+use crate::errors::AppError;
+use crate::models::{
+    ModDirectory, ModDirectoryPayload, ModFileSearch, ModFileSearchPayload, ModTextFilePayload,
+    ModTextFileTarget,
 };
+use crate::services;
+
 #[command_macros::command(async)]
 pub fn query_mod_directory(payload: ModDirectoryPayload) -> Result<ModDirectory, AppError> {
     services::query_mod_directory(&payload.session_id, payload.directory.as_deref())
@@ -15,8 +17,6 @@ pub fn query_mod_text_file_target(
 }
 
 #[command_macros::command(async)]
-pub fn query_mod_file_search(
-    payload: crate::models::ModFileSearchPayload,
-) -> Result<crate::models::ModFileSearch, AppError> {
+pub fn query_mod_file_search(payload: ModFileSearchPayload) -> Result<ModFileSearch, AppError> {
     services::query_mod_file_search(&payload.session_id, &payload.query)
 }

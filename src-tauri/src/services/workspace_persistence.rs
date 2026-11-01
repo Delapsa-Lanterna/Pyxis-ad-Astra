@@ -1,10 +1,10 @@
-use crate::{
-    app_data_dir,
-    errors::{AppError, AppResult},
-    io::{FsRootBoundary, path_belongs_to_root, read_utf8_no_bom, write_utf8_no_bom},
-    models::PersistedWorkspace,
-};
-use std::{fs, path::Path};
+use crate::errors::{AppError, AppResult};
+use crate::io::{FsRootBoundary, path_belongs_to_root, read_utf8_no_bom, write_utf8_no_bom};
+use crate::models::PersistedWorkspace;
+use crate::{app_data_dir, parsers};
+use std::fs;
+use std::path::Path;
+use tauri::AppHandle;
 
 const WORKSPACE_FILE: &str = "workspace.json";
 
@@ -50,15 +50,12 @@ pub fn reject_mod_or_workspace_directory(app_data_dir: &Path, directory: &Path) 
     Ok(())
 }
 
-pub fn load_app_workspace(app_handle: tauri::AppHandle) -> AppResult<PersistedWorkspace> {
+pub fn load_app_workspace(app_handle: AppHandle) -> AppResult<PersistedWorkspace> {
     let app_data = app_data_dir::data_directory(app_handle)?;
     load_workspace(&app_data)
 }
 
-pub fn save_app_workspace(
-    app_handle: tauri::AppHandle,
-    state: PersistedWorkspace,
-) -> AppResult<()> {
+pub fn save_app_workspace(app_handle: AppHandle, state: PersistedWorkspace) -> AppResult<()> {
     let app_data = app_data_dir::data_directory(app_handle)?;
     save_workspace(&app_data, &state)
 }
@@ -69,7 +66,7 @@ pub fn load_workspace(app_data_dir: &Path) -> AppResult<PersistedWorkspace> {
         return Ok(PersistedWorkspace::default());
     }
     let text = read_utf8_no_bom(&path)?;
-    crate::parsers::parse_persisted_json::<PersistedWorkspace>(&text).map_err(|error| {
+    parsers::parse_persisted_json::<PersistedWorkspace>(&text).map_err(|error| {
         AppError::context(
             format!("解析工作区状态文件失败 ({})", path.display()),
             error,
@@ -94,10 +91,10 @@ pub fn save_workspace(app_data_dir: &Path, state: &PersistedWorkspace) -> AppRes
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{io::write_utf8_no_bom, models::PersistedMod};
-    use std::collections::BTreeMap;
-
+    use crate::io::write_utf8_no_bom;
+    use crate::models::PersistedMod;
     use crate::test_support::TestWorkspace;
+    use std::collections::BTreeMap;
 
     #[test]
     fn load_returns_default_when_file_missing() {

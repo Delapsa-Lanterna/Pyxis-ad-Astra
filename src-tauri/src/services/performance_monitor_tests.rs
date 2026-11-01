@@ -1,6 +1,10 @@
 use super::*;
 #[cfg(test)]
 use crate::test_support::TestWorkspace;
+#[cfg(test)]
+use std::fs;
+#[cfg(test)]
+use std::path::Path;
 
 fn sample(duration: f64) -> PerformanceSample {
     PerformanceSample {
@@ -47,9 +51,8 @@ fn monitor_report_example() {
         row.fields.insert("request".into(), json!("main:1"));
         monitor.push("main".into(), row);
     }
-    let directory =
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("target/performance-monitor");
-    std::fs::create_dir_all(&directory).unwrap();
+    let directory = Path::new(env!("CARGO_MANIFEST_DIR")).join("target/performance-monitor");
+    fs::create_dir_all(&directory).unwrap();
     let path = directory.join("report-example.json");
     write_utf8_no_bom(
         &path,
@@ -100,7 +103,7 @@ fn export_stats_and_payload_filter() {
     let directory = TestWorkspace::new("monitor_export");
     let path = directory.join("trace.json");
     write_utf8_no_bom(&path, &serde_json::to_string(&value).unwrap()).unwrap();
-    let bytes = std::fs::read(&path).unwrap();
+    let bytes = fs::read(&path).unwrap();
     assert!(!bytes.starts_with(&[0xef, 0xbb, 0xbf]));
     assert_eq!(serde_json::from_slice::<Value>(&bytes).unwrap(), value);
     directory.close().unwrap();

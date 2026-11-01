@@ -1,8 +1,6 @@
-use crate::{
-    errors::AppError,
-    models::{OriginalFontResult, QueryOriginalFontPayload},
-    services,
-};
+use crate::errors::AppError;
+use crate::models::{OriginalFontResult, QueryOriginalFontPayload};
+use crate::services;
 
 #[command_macros::command(async)]
 pub fn query_original_font(

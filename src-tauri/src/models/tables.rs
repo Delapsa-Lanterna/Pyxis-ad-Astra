@@ -1,5 +1,6 @@
 use super::serde_fields::deserialize_nullable;
 use super::{CsvTableKey, ProjectSessionId, ResourceRef};
+use crate::models::FileVersion;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 
@@ -37,7 +38,7 @@ pub struct CsvRowRecord {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct CsvTableIndex {
-    pub base_versions: Vec<crate::models::FileVersion>,
+    pub base_versions: Vec<FileVersion>,
     pub table: CsvTableKey,
     pub header: Vec<String>,
     pub total_rows: usize,
@@ -48,7 +49,7 @@ pub struct CsvTableIndex {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct CsvTableRowsRead {
-    pub base_versions: Vec<crate::models::FileVersion>,
+    pub base_versions: Vec<FileVersion>,
     pub table: CsvTableKey,
     pub rows: Vec<CsvRowRecord>,
 }

@@ -1,8 +1,6 @@
-use crate::{
-    errors::AppError,
-    models::{JointEditDraft, JointEditPrepared, JointEditQuery, JointEditReadResult},
-    services,
-};
+use crate::errors::AppError;
+use crate::models::{JointEditDraft, JointEditPrepared, JointEditQuery, JointEditReadResult};
+use crate::services;
 
 #[command_macros::command(async)]
 pub fn query_joint_edit(payload: JointEditQuery) -> Result<JointEditReadResult, AppError> {

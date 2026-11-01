@@ -1,11 +1,12 @@
 use super::{ProjectSessionId, ResourceRef, ResourceSource};
+use crate::models::ReferenceSource;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct SourceOptionGroup {
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub reference: Option<super::ReferenceSource>,
+    pub reference: Option<ReferenceSource>,
     pub origin: ResourceSource,
     pub options: Vec<SourceOption>,
 }

@@ -61,6 +61,7 @@ pub fn add_ordered_csv_columns(header: &mut Vec<String>, added: &[String], stand
 #[cfg(test)]
 mod tests {
     use super::*;
+
     #[test]
     fn standard_order_keeps_custom_data() {
         let mut header = vec![

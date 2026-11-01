@@ -1,8 +1,6 @@
-use crate::{
-    errors::AppError,
-    models::{CsvSourceOptionsPayload, ImageSourceOptionsPayload, SourceOptionGroup},
-    services,
-};
+use crate::errors::AppError;
+use crate::models::{CsvSourceOptionsPayload, ImageSourceOptionsPayload, SourceOptionGroup};
+use crate::services;
 
 #[command_macros::command(async)]
 pub fn query_csv_source_options(

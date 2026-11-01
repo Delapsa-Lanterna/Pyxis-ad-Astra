@@ -1,7 +1,6 @@
+use super::directory_opening::{GameModSummary, GameScanWarning};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
-
-use super::directory_opening::{GameModSummary, GameScanWarning};
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
@@ -37,6 +36,8 @@ pub struct SaveWorkspacePayload {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(test)]
+    use serde_json::Value;
 
     #[test]
     fn persisted_workspace_uses_camel_case_and_defaults_collections() {
@@ -72,7 +73,7 @@ mod tests {
             let saved = serde_json::to_value(persisted).unwrap();
             assert_eq!(
                 saved.get("referenceable"),
-                setting.map(serde_json::Value::Bool).as_ref()
+                setting.map(Value::Bool).as_ref()
             );
         }
     }

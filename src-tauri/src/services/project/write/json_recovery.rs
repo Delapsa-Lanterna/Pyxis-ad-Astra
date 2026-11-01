@@ -1,10 +1,14 @@
-use crate::models::JsonSourceRestore;
-use crate::{
-    errors::{AppError, AppResult},
-    io::{FileChangeSetBuilder, FsRootBoundary, JsonWriteBatch, acquire_root_write_lock},
-    models::{CsvRow, EntityKind, JsonDocumentOrigin, JsonRecoveryPlan, WriteResult},
-    parsers::render_csv_text,
+use crate::domain::entity_definitions;
+use crate::errors::{AppError, AppResult};
+use crate::io::{FileChangeSetBuilder, FsRootBoundary, JsonWriteBatch, acquire_root_write_lock};
+use crate::models::{
+    CsvRow, EntityKind, JsonDocumentOrigin, JsonRecoveryPlan, JsonSourceRestore,
+    WriteContentTarget, WriteResult,
 };
+use crate::parsers::render_csv_text;
+use crate::services::project::query::{csv_window, json_recovery};
+use crate::services::recreate_json_sources as recreate_sources_via_service;
+use crate::{io, parsers};
 use serde_json::{Map, Value};
 use std::path::Path;
 
@@ -12,9 +16,7 @@ pub fn recreate_json_sources(
     supplied_plan: JsonRecoveryPlan,
     baseline: Value,
 ) -> AppResult<WriteResult<JsonRecoveryPlan>> {
-    let plan = super::super::query::json_recovery::prepare_json_source_recovery(
-        supplied_plan.request.clone(),
-    )?;
+    let plan = json_recovery::prepare_json_source_recovery(supplied_plan.request.clone())?;
     if plan.base_versions != supplied_plan.base_versions
         || plan.missing_paths != supplied_plan.missing_paths
     {
@@ -25,16 +27,13 @@ pub fn recreate_json_sources(
     }
     let original = match &plan.request.origin {
         JsonDocumentOrigin::ModInfo | JsonDocumentOrigin::MiscConfig { .. } => None,
-        JsonDocumentOrigin::Entity { target } => {
-            Some(super::super::query::json_recovery::json_recovery_origin(
-                &supplied_plan.request.session_id,
-                target,
-            )?)
-        }
+        JsonDocumentOrigin::Entity { target } => Some(json_recovery::json_recovery_origin(
+            &supplied_plan.request.session_id,
+            target,
+        )?),
     };
     if let Some(target) = &original
-        && let Some(definition) =
-            crate::domain::entity_definitions::entity_spec_definition(target.kind)
+        && let Some(definition) = entity_definitions::entity_spec_definition(target.kind)
     {
         let file = if matches!(target.kind, EntityKind::Variant | EntityKind::Skin) {
             &baseline
@@ -61,16 +60,14 @@ pub fn recreate_json_sources(
             let Some(target) = &original else {
                 unreachable!("entity index recovery")
             };
-            let mut table = super::super::query::csv_window::read_project_csv(
-                &supplied_plan.request.session_id,
-                relative,
-            )?;
+            let mut table =
+                csv_window::read_project_csv(&supplied_plan.request.session_id, relative)?;
             let mut row = Map::new();
             if target.kind == EntityKind::Faction {
                 if table.header.is_empty() {
                     table.header.push("faction".into());
                 }
-                let (id_column, file_column) = crate::parsers::faction_index_columns(&table.header)
+                let (id_column, file_column) = parsers::faction_index_columns(&table.header)
                     .expect("faction index has a header");
                 row.insert(
                     id_column,
@@ -102,11 +99,9 @@ pub fn recreate_json_sources(
                 }
             }
             let linked = if target.kind == EntityKind::Faction {
-                crate::io::faction_index_entries(&boundary, &table)?
+                io::faction_index_entries(&boundary, &table)?
                     .iter()
-                    .any(|entry| {
-                        crate::io::same_physical_path(&entry.path, Path::new(&target.write.path))
-                    })
+                    .any(|entry| io::same_physical_path(&entry.path, Path::new(&target.write.path)))
             } else {
                 table.rows.iter().any(|existing| {
                     !existing.is_comment
@@ -164,8 +159,8 @@ pub fn recreate_json_sources(
     }
     json.finish()?;
     let result = WriteResult::from_changes(builder.apply()?);
-    let refreshed = super::super::query::json_recovery::prepare_json_source_recovery(plan.request)?;
-    let owner = crate::models::WriteContentTarget::Recovery {
+    let refreshed = json_recovery::prepare_json_source_recovery(plan.request)?;
+    let owner = WriteContentTarget::Recovery {
         origin: refreshed.request.origin.clone(),
     };
     Ok(WriteResult::from_content(result.changes, owner, refreshed))
@@ -173,7 +168,7 @@ pub fn recreate_json_sources(
 
 pub fn restore_source_request(
     payload: JsonSourceRestore,
-) -> Result<WriteResult<crate::models::JsonRecoveryPlan>, AppError> {
+) -> Result<WriteResult<JsonRecoveryPlan>, AppError> {
     if payload.session_id != payload.plan.request.session_id
         || payload.mod_root != payload.plan.request.mod_root
     {
@@ -182,6 +177,6 @@ pub fn restore_source_request(
             "重建计划与项目不匹配",
         ));
     }
-    let result = crate::services::recreate_json_sources(payload.plan, payload.baseline)?;
+    let result = recreate_sources_via_service(payload.plan, payload.baseline)?;
     Ok(result)
 }

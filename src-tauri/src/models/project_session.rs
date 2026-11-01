@@ -3,6 +3,7 @@ use super::serde_fields::deserialize_non_empty_string;
 use super::{
     CsvTableKey, EntityKind, FileChangeRecord, GameScanWarning, ProjectSessionId, ResourceSource,
 };
+use crate::models::{FileVersion, InvalidatedResourceScope as ModelsInvalidatedResourceScope};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::BTreeMap;
@@ -10,7 +11,7 @@ use std::collections::BTreeMap;
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct ProjectManifest {
-    pub base_versions: Vec<crate::models::FileVersion>,
+    pub base_versions: Vec<FileVersion>,
     pub session_id: ProjectSessionId,
     pub mod_root: String,
     pub starsector_root: Option<String>,
@@ -125,7 +126,7 @@ pub struct InvalidateProjectSessionPayload {
 #[serde(rename_all = "camelCase")]
 pub struct SourceRefresh {
     pub session_id: String,
-    pub sources: Vec<crate::models::InvalidatedResourceScope>,
+    pub sources: Vec<ModelsInvalidatedResourceScope>,
 }
 
 impl ProjectInvalidation {

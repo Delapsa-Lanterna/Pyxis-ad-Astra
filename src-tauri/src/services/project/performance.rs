@@ -1,3 +1,5 @@
+use crate::models::performance_monitor::PerformanceSample;
+use crate::services::performance_monitor;
 use std::time::Instant;
 
 #[derive(Debug, Clone)]
@@ -36,8 +38,7 @@ impl PerformanceTrace {
         Self {
             name,
             #[cfg(test)]
-            started_at: (cfg!(test) || crate::services::performance_monitor::enabled())
-                .then(Instant::now),
+            started_at: (cfg!(test) || performance_monitor::enabled()).then(Instant::now),
             #[cfg(test)]
             stages: Vec::new(),
         }
@@ -57,14 +58,14 @@ impl PerformanceTrace {
             return;
         };
         let fields = fields();
-        if crate::services::performance_monitor::enabled() {
+        if performance_monitor::enabled() {
             let duration = started.elapsed().as_secs_f64() * 1000.0;
-            crate::services::performance_monitor::record(
+            performance_monitor::record(
                 "project".into(),
-                crate::models::performance_monitor::PerformanceSample {
+                PerformanceSample {
                     name: format!("{}.{name}", self.name),
                     category: "stage".into(),
-                    started_at: crate::services::performance_monitor::now() - duration,
+                    started_at: performance_monitor::now() - duration,
                     duration,
                     fields: fields
                         .iter()
@@ -118,8 +119,7 @@ impl PerformanceTrace {
 impl PerformanceTimer {
     pub(crate) fn start() -> Self {
         Self {
-            started_at: (cfg!(test) || crate::services::performance_monitor::enabled())
-                .then(Instant::now),
+            started_at: (cfg!(test) || performance_monitor::enabled()).then(Instant::now),
         }
     }
 

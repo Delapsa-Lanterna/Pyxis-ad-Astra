@@ -1,20 +1,30 @@
+use crate::domain::schema;
 use crate::domain::schema::validate_field;
+#[cfg(test)]
+use crate::domain::{entity_construction, joint_hull, well_known_labels};
 use crate::errors::AppResult;
+#[cfg(test)]
+use crate::models::{AssociatedSpecCreateParams, CsvTableKey};
 use crate::parsers::bundled_schema;
+#[cfg(test)]
+use crate::test_support::work_counts;
 use serde_json::{Value, json};
+#[cfg(test)]
+use std::path::Path;
+#[cfg(test)]
+use std::sync::Barrier;
+#[cfg(test)]
+use std::{fs, thread};
 
 fn validate_document(id: &str, data: &Value) -> AppResult<()> {
-    crate::domain::schema::validate_document(bundled_schema(id), data)
+    schema::validate_document(bundled_schema(id), data)
 }
 
 #[test]
 fn bundled_assets_parse_and_build_once_across_concurrent_consumers() {
-    use crate::domain::{entity_construction, joint_hull, well_known_labels};
-    use crate::models::{AssociatedSpecCreateParams, CsvTableKey};
-    use std::{path::Path, sync::Barrier};
     let schemas = include!(concat!(env!("OUT_DIR"), "/config_schemas.rs"));
     let barrier = Barrier::new(8);
-    std::thread::scope(|scope| {
+    thread::scope(|scope| {
         for _ in 0..8 {
             scope.spawn(|| {
                 barrier.wait();
@@ -44,21 +54,17 @@ fn bundled_assets_parse_and_build_once_across_concurrent_consumers() {
         }
     });
     for (id, _) in &schemas {
-        assert_eq!(
-            crate::test_support::work_counts::count("schema-parse", Path::new(id)),
-            1,
-            "{id}"
-        );
+        assert_eq!(work_counts::count("schema-parse", Path::new(id)), 1, "{id}");
     }
     for name in ["spec-defaults", "skin-hull-fields", "well-known-labels"] {
         assert_eq!(
-            crate::test_support::work_counts::count("asset-parse", Path::new(name)),
+            work_counts::count("asset-parse", Path::new(name)),
             1,
             "{name}"
         );
     }
     assert_eq!(
-        crate::test_support::work_counts::count("asset-build", Path::new("well-known-labels")),
+        work_counts::count("asset-build", Path::new("well-known-labels")),
         1
     );
 }
@@ -116,7 +122,7 @@ fn open_parents_keep_items_closed() {
 
 #[test]
 fn asset_discovery_and_version_types() {
-    for entry in std::fs::read_dir(concat!(env!("CARGO_MANIFEST_DIR"), "/../schemas")).unwrap() {
+    for entry in fs::read_dir(concat!(env!("CARGO_MANIFEST_DIR"), "/../schemas")).unwrap() {
         let name = entry.unwrap().file_name().to_string_lossy().into_owned();
         if let Some(id) = name.strip_suffix(".schema.json") {
             assert_eq!(bundled_schema(id)["id"], id);

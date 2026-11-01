@@ -1,10 +1,9 @@
-use crate::{
-    domain::mod_creation::{render_initial_mod_info, validate_new_mod_template},
-    errors::AppResult,
-    io::{FsRootBoundary, mod_creation::create_new_mod},
-    models::{CreatedMod, NewModDestination, NewModTemplate},
-    services::project::{infer_starsector_root, resolve_game_mods_directory},
-};
+use crate::domain::mod_creation::{render_initial_mod_info, validate_new_mod_template};
+use crate::errors::AppResult;
+use crate::io::FsRootBoundary;
+use crate::io::mod_creation::create_new_mod;
+use crate::models::{CreatedMod, NewModDestination, NewModTemplate};
+use crate::services::project::{infer_starsector_root, resolve_game_mods_directory};
 use std::path::Path;
 
 pub fn create_mod(

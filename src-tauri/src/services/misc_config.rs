@@ -1,15 +1,16 @@
-use crate::{
-    domain::misc_config::{MISC_CONFIG_FILES, misc_config_path},
-    errors::{AppError, AppResult},
-    io::{
-        FileChangeSetBuilder, FsRootBoundary, JsonWriteBatch, acquire_root_write_lock,
-        read_versioned_json,
-    },
-    models::{
-        FileVersion, MiscConfigEntry, MiscConfigFile, MiscConfigKind, MiscConfigRead,
-        MiscConfigState, MiscConfigWrite, WriteResult,
-    },
+use crate::domain::misc_config::{MISC_CONFIG_FILES, misc_config_path};
+use crate::domain::{json_composition, misc_config as domain_misc_config, save_edits, schema};
+use crate::errors::{AppError, AppResult};
+use crate::io::{
+    FileChangeSetBuilder, FsRootBoundary, JsonWriteBatch, acquire_root_write_lock,
+    read_versioned_json,
 };
+use crate::models::{
+    FileVersion, JsonDocumentOrigin, MiscConfigEntry, MiscConfigFile, MiscConfigKind,
+    MiscConfigRead, MiscConfigState, MiscConfigWrite, SaveEdit, WriteContentTarget, WriteResult,
+};
+use crate::services::{misc_config, project};
+use crate::{io, parsers};
 use serde_json::Value;
 use std::path::{Path, PathBuf};
 
@@ -66,16 +67,12 @@ pub fn query_misc_config_file(
 pub fn query_project_misc_config(payload: MiscConfigRead) -> AppResult<Option<MiscConfigFile>> {
     let mut file = query_misc_config_file(&payload.mod_root, payload.kind)?;
     if let Some(file) = &mut file {
-        file.composition =
-            crate::services::project::composition_for_session(&payload.session_id, &file.rel_path)?;
+        file.composition = project::composition_for_session(&payload.session_id, &file.rel_path)?;
     }
     Ok(file)
 }
 
-pub fn prepare_misc_save(
-    input: &mut MiscConfigWrite,
-    edits: &[crate::models::SaveEdit],
-) -> AppResult<()> {
+pub fn prepare_misc_save(input: &mut MiscConfigWrite, edits: &[SaveEdit]) -> AppResult<()> {
     let MiscConfigWrite {
         mod_root,
         kind,
@@ -87,24 +84,22 @@ pub fn prepare_misc_save(
     if let Some(current) = query_misc_config_file(mod_root, *kind)? {
         *data = current.data;
         *versions = current.base_versions;
-        crate::domain::save_edits::apply_save_edits(data, edits);
+        save_edits::apply_save_edits(data, edits);
         *ordered = serde_json::to_string(data)?;
     }
     Ok(())
 }
 
-pub fn write_misc_request(
-    payload: crate::models::MiscConfigWrite,
-) -> Result<WriteResult<Value>, AppError> {
-    let root = crate::services::project::current_projection(&payload.session_id)?
+pub fn write_misc_request(payload: MiscConfigWrite) -> Result<WriteResult<Value>, AppError> {
+    let root = project::current_projection(&payload.session_id)?
         .manifest
         .starsector_root;
     let root = root
         .as_deref()
         .filter(|root| Path::new(root).join("starsector-core").is_dir())
-        .map(crate::services::project::core_dir)
+        .map(project::core_dir)
         .transpose()?;
-    let result = crate::services::misc_config::save_misc_config(payload, root.as_deref())?;
+    let result = misc_config::save_misc_config(payload, root.as_deref())?;
     Ok(result)
 }
 
@@ -115,7 +110,7 @@ fn target_path(mod_root: &str, kind: MiscConfigKind) -> AppResult<PathBuf> {
 fn require_version(path: &Path, versions: &[FileVersion]) -> AppResult<()> {
     if !versions
         .iter()
-        .any(|version| crate::io::same_physical_path(Path::new(&version.path), path))
+        .any(|version| io::same_physical_path(Path::new(&version.path), path))
     {
         return Err(AppError::message(
             "write.version_scope_missing",
@@ -132,13 +127,10 @@ pub fn save_misc_config(
     let path = target_path(&payload.mod_root, payload.kind)?;
     require_version(&path, &payload.base_versions)?;
     validate_misc_config(payload.kind, &payload.data).map_err(|error| error.at_path(&path))?;
-    let composition = crate::services::project::composition_for_session(
-        &payload.session_id,
-        misc_config_path(payload.kind),
-    )?;
-    let effective =
-        crate::domain::json_composition::compose_game_json(&composition, &payload.data)?;
-    crate::domain::schema::validate_field(
+    let composition =
+        project::composition_for_session(&payload.session_id, misc_config_path(payload.kind))?;
+    let effective = json_composition::compose_game_json(&composition, &payload.data)?;
+    schema::validate_field(
         config_schema(payload.kind),
         &effective,
         misc_config_path(payload.kind),
@@ -155,8 +147,8 @@ pub fn save_misc_config(
     builder.text_file(misc_config_path(payload.kind), Some(text))?;
     Ok(WriteResult::from_content(
         builder.apply()?,
-        crate::models::WriteContentTarget::Json {
-            origin: crate::models::JsonDocumentOrigin::MiscConfig { file: payload.kind },
+        WriteContentTarget::Json {
+            origin: JsonDocumentOrigin::MiscConfig { file: payload.kind },
         },
         payload.data,
     ))
@@ -173,11 +165,11 @@ pub fn delete_misc_config(
 }
 
 pub(crate) fn validate_misc_config(kind: MiscConfigKind, data: &Value) -> AppResult<()> {
-    crate::domain::misc_config::validate_misc_config(kind, data, config_schema(kind))
+    domain_misc_config::validate_misc_config(kind, data, config_schema(kind))
 }
 
 fn config_schema(kind: MiscConfigKind) -> &'static Value {
-    &crate::parsers::bundled_schema(crate::domain::misc_config::misc_config_schema_id(kind))["root"]
+    &parsers::bundled_schema(domain_misc_config::misc_config_schema_id(kind))["root"]
 }
 
 fn validate_sound_indices(data: &Value) -> AppResult<()> {

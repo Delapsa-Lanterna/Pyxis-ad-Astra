@@ -1,18 +1,18 @@
-use crate::{
-    errors::AppError,
-    models::{
-        DraftResourcesPayload, ResolveModRelativePathPayload, ResourceDataUrlBatchPayload,
-        ResourceDataUrlBatchResult, ResourceRef,
-    },
-    services,
+use crate::errors::AppError;
+use crate::models::{
+    DraftResourcesPayload, EngineRenderAssets, ResolveModRelativePathPayload,
+    ResourceDataUrlBatchPayload, ResourceDataUrlBatchResult, ResourceRef,
 };
+use crate::services;
+use crate::services::project_session;
+use serde_json::Value;
 use std::collections::BTreeMap;
 
 #[command_macros::command(async)]
 pub fn query_engine_render_assets(
     session_id: String,
-    inline_styles: Vec<serde_json::Value>,
-) -> Result<crate::models::EngineRenderAssets, AppError> {
+    inline_styles: Vec<Value>,
+) -> Result<EngineRenderAssets, AppError> {
     services::query_engine_render_assets(&session_id, &inline_styles)
 }
 
@@ -27,7 +27,7 @@ pub fn query_resource_data_urls(
 pub fn resolve_mod_relative_path(
     payload: ResolveModRelativePathPayload,
 ) -> Result<String, AppError> {
-    crate::services::project_session::ensure_session_mod_scope(&payload)?;
+    project_session::ensure_session_mod_scope(&payload)?;
     services::resolve_mod_relative_path(&payload.mod_root, &payload.absolute_path)
 }
 

@@ -1,12 +1,32 @@
 use super::*;
-use std::{collections::BTreeSet, time::Instant};
+#[cfg(windows)]
+#[cfg(test)]
+use crate::models;
+use std::collections::BTreeSet;
+#[cfg(windows)]
+#[cfg(test)]
+use std::fs::OpenOptions;
+#[cfg(windows)]
+#[cfg(test)]
+use std::io::Error;
+#[cfg(windows)]
+#[cfg(test)]
+use std::mem;
+#[cfg(windows)]
+#[cfg(test)]
+use std::os::windows::fs::OpenOptionsExt;
+#[cfg(test)]
+use std::process::{Command, Stdio};
+use std::time::Instant;
+#[cfg(test)]
+use std::{env, process, thread};
 
 #[test]
 fn concurrent_workspaces_preserve_names_and_contents() {
     let started = Instant::now();
     let workers = (0..8)
         .map(|worker| {
-            std::thread::spawn(move || {
+            thread::spawn(move || {
                 (0..32)
                     .map(|index| {
                         let root = TestWorkspace::new("same_name");
@@ -60,12 +80,11 @@ fn renamed_and_missing_business_roots_are_owned_by_the_outer_directory() {
 #[test]
 #[cfg(windows)]
 fn cleanup_reports_locked_file_and_continues_other_files() {
-    use std::os::windows::fs::OpenOptionsExt;
     let root = TestWorkspace::new("locked_cleanup");
     let first = root.join("locked.txt");
     fs::write(&first, "held").unwrap();
     fs::write(root.join("other.txt"), "other").unwrap();
-    let held = fs::OpenOptions::new()
+    let held = OpenOptions::new()
         .read(true)
         .share_mode(0)
         .open(&first)
@@ -82,9 +101,9 @@ fn separate_processes_get_independent_workspaces() {
     let name = "test_support::tests::workspace_child";
     let mut children = (0..2)
         .map(|_| {
-            std::process::Command::new(std::env::current_exe().unwrap())
+            Command::new(env::current_exe().unwrap())
                 .args(["--exact", name, "--ignored", "--nocapture"])
-                .stdout(std::process::Stdio::piped())
+                .stdout(Stdio::piped())
                 .spawn()
                 .unwrap()
         })
@@ -109,7 +128,7 @@ fn separate_processes_get_independent_workspaces() {
 #[test]
 fn failure_cleanup_and_retention_preserve_the_original_error() {
     for mode in ["cleanup", "retain", "locked"] {
-        let mut command = std::process::Command::new(std::env::current_exe().unwrap());
+        let mut command = Command::new(env::current_exe().unwrap());
         command
             .args([
                 "--exact",
@@ -156,21 +175,20 @@ fn failure_cleanup_and_retention_preserve_the_original_error() {
 #[test]
 #[ignore = "test workspace failure subprocess fixture"]
 fn workspace_failure_child() {
-    let mode = std::env::var("PYXIS_FAILURE_MODE").unwrap();
+    let mode = env::var("PYXIS_FAILURE_MODE").unwrap();
     let root = TestWorkspace::new("failure_child");
     println!("FAILURE_WORKSPACE {}", root.outer().display());
     fs::write(root.join("notes.txt"), "evidence").unwrap();
     #[cfg(windows)]
     if mode == "locked" {
-        use std::os::windows::fs::OpenOptionsExt;
         let path = root.join("locked.txt");
         fs::write(&path, "held").unwrap();
-        let held = fs::OpenOptions::new()
+        let held = OpenOptions::new()
             .read(true)
             .share_mode(0)
             .open(&path)
             .unwrap();
-        std::mem::forget(held);
+        mem::forget(held);
     }
     #[cfg(not(windows))]
     assert_ne!(mode, "locked", "locked fixture requires Windows");
@@ -180,13 +198,10 @@ fn workspace_failure_child() {
 #[test]
 #[ignore = "test workspace subprocess fixture"]
 fn workspace_child() {
-    let parent = std::env::var_os("PYXIS_TEST_ROOT")
+    let parent = env::var_os("PYXIS_TEST_ROOT")
         .map(PathBuf::from)
-        .unwrap_or_else(std::env::temp_dir);
-    let occupied = parent.join(format!(
-        "pyxis_test_{}_0_process_same_name",
-        std::process::id()
-    ));
+        .unwrap_or_else(env::temp_dir);
+    let occupied = parent.join(format!("pyxis_test_{}_0_process_same_name", process::id()));
     fs::create_dir(&occupied).unwrap();
     fs::write(occupied.join("sentinel.txt"), "existing contents").unwrap();
     let workspaces = (0..32)
@@ -217,16 +232,14 @@ fn workspace_capabilities() {
         let root = TestWorkspace::new("actual_short_name_probe");
         let result = try_short_path(&root)
             .map(|short| {
-                crate::models::windows_path_key(&short.to_string_lossy())
-                    != crate::models::windows_path_key(
-                        &root.canonicalize().unwrap().to_string_lossy(),
-                    )
+                models::windows_path_key(&short.to_string_lossy())
+                    != models::windows_path_key(&root.canonicalize().unwrap().to_string_lossy())
             })
             .and_then(|different| {
                 if different {
                     Ok(())
                 } else {
-                    Err(std::io::Error::other("no actual short alias"))
+                    Err(Error::other("no actual short alias"))
                 }
             })
             .map_err(|error| error.to_string());

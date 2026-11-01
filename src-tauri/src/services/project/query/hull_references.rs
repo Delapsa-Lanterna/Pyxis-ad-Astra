@@ -2,17 +2,18 @@ use super::super::model::{ProjectSession, SessionCsvRow, string_field, string_fr
 use super::super::resources::{HullReferenceResolver, resource_ref};
 use super::super::session::csv_tables::{ensure_registered_table_rows, loaded_registered_csv_rows};
 use super::super::session::{lock_ready_session, session_handle};
+use crate::errors::{AppError, AppResult};
+use crate::models::{
+    CsvTableKey, HullReferenceGroup, HullReferenceKind, HullReferenceOption, HullReferencesResult,
+    HullWeaponSlot, ReferenceSource, ResourceOwnerKind, ResourceRef, ResourceSource,
+};
+use crate::services::project::model;
 use crate::services::project::sources::core::{
     load_core_csv_table, load_core_ship_files, load_core_skin_files,
 };
-use crate::{
-    errors::AppResult,
-    models::{
-        CsvTableKey, HullReferenceGroup, HullReferenceKind, HullReferenceOption,
-        HullReferencesResult, ResourceOwnerKind, ResourceSource,
-    },
-};
+use serde_json::{Map, Value};
 use std::collections::{BTreeMap, BTreeSet};
+use std::ptr;
 
 pub fn query_hull_references(
     session_id: &str,
@@ -58,21 +59,18 @@ pub(super) fn build_hull_references(
         ));
     }
     if let Some(root) = session.manifest.starsector_root.as_ref() {
-        let names = load_core_csv_table(
-            root,
-            crate::services::project::model::csv_table_spec(CsvTableKey::Ships).rel_path,
-        )?
-        .as_ref()
-        .map(|table| {
-            all_ship_names_from_data(
-                table
-                    .rows
-                    .iter()
-                    .filter(|row| !row.is_comment)
-                    .map(|row| &row.data),
-            )
-        })
-        .unwrap_or_default();
+        let names = load_core_csv_table(root, model::csv_table_spec(CsvTableKey::Ships).rel_path)?
+            .as_ref()
+            .map(|table| {
+                all_ship_names_from_data(
+                    table
+                        .rows
+                        .iter()
+                        .filter(|row| !row.is_comment)
+                        .map(|row| &row.data),
+                )
+            })
+            .unwrap_or_default();
         sources.push((
             ResourceSource::Core,
             None,
@@ -196,7 +194,7 @@ fn resolve_weapon_slots(
             })
         {
             if !seen.insert(current) {
-                return Err(crate::errors::AppError::message(
+                return Err(AppError::message(
                     "skin.base_cycle",
                     format!("循环船体皮肤引用: {id}"),
                 ));
@@ -204,14 +202,14 @@ fn resolve_weapon_slots(
             let origin = if session
                 .skin_files
                 .iter()
-                .any(|candidate| std::ptr::eq(candidate, skin))
+                .any(|candidate| ptr::eq(candidate, skin))
             {
                 ResourceSource::Mod
             } else if session
                 .references
                 .iter()
                 .flat_map(|view| view.session.skin_files.iter())
-                .any(|candidate| std::ptr::eq(candidate, skin))
+                .any(|candidate| ptr::eq(candidate, skin))
             {
                 ResourceSource::Reference
             } else {
@@ -241,9 +239,9 @@ fn resolve_weapon_slots(
                     .find_map(|view| view.session.ship_files.get(current))
             })
             .or_else(|| core_ships.as_ref().and_then(|ships| ships.get(current)));
-        let mut weapons: Vec<(serde_json::Value, ResourceSource)> = ship
+        let mut weapons: Vec<(Value, ResourceSource)> = ship
             .and_then(|ship| ship.data.get("weaponSlots"))
-            .and_then(serde_json::Value::as_array)
+            .and_then(Value::as_array)
             .map(|slots| {
                 slots
                     .iter()
@@ -253,7 +251,7 @@ fn resolve_weapon_slots(
             .unwrap_or_default();
         let mut slots: BTreeMap<String, ResourceSource> = ship
             .and_then(|ship| ship.data.get("builtInWeapons"))
-            .and_then(serde_json::Value::as_object)
+            .and_then(Value::as_object)
             .map(|weapons| {
                 weapons
                     .keys()
@@ -262,24 +260,18 @@ fn resolve_weapon_slots(
             })
             .unwrap_or_default();
         for (skin, origin) in chain.into_iter().rev() {
-            if let Some(removed) = skin
-                .get("removeWeaponSlots")
-                .and_then(serde_json::Value::as_array)
-            {
+            if let Some(removed) = skin.get("removeWeaponSlots").and_then(Value::as_array) {
                 weapons.retain(|(slot, _)| !removed.contains(&slot["id"]));
-                for id in removed.iter().filter_map(serde_json::Value::as_str) {
+                for id in removed.iter().filter_map(Value::as_str) {
                     slots.remove(id);
                 }
             }
-            if let Some(changes) = skin
-                .get("weaponSlotChanges")
-                .and_then(serde_json::Value::as_object)
-            {
+            if let Some(changes) = skin.get("weaponSlotChanges").and_then(Value::as_object) {
                 for (slot, source) in &mut weapons {
                     if let Some(change) = slot["id"]
                         .as_str()
                         .and_then(|id| changes.get(id))
-                        .and_then(serde_json::Value::as_object)
+                        .and_then(Value::as_object)
                     {
                         slot.as_object_mut()
                             .expect("weapon slot object")
@@ -288,18 +280,12 @@ fn resolve_weapon_slots(
                     }
                 }
             }
-            if let Some(removed) = skin
-                .get("removeBuiltInWeapons")
-                .and_then(serde_json::Value::as_array)
-            {
-                for slot in removed.iter().filter_map(serde_json::Value::as_str) {
+            if let Some(removed) = skin.get("removeBuiltInWeapons").and_then(Value::as_array) {
+                for slot in removed.iter().filter_map(Value::as_str) {
                     slots.remove(slot);
                 }
             }
-            if let Some(added) = skin
-                .get("builtInWeapons")
-                .and_then(serde_json::Value::as_object)
-            {
+            if let Some(added) = skin.get("builtInWeapons").and_then(Value::as_object) {
                 slots.extend(added.keys().map(|key| (key.clone(), origin)));
             }
         }
@@ -307,7 +293,7 @@ fn resolve_weapon_slots(
             .into_iter()
             .filter_map(|(slot, origin)| {
                 let id = slot["id"].as_str()?.to_owned();
-                Some(crate::models::HullWeaponSlot {
+                Some(HullWeaponSlot {
                     id,
                     origin,
                     size: string_field(&slot, "size"),
@@ -350,7 +336,7 @@ fn resolve_weapon_slots(
             id.clone(),
             slots
                 .into_iter()
-                .map(|(id, origin)| crate::models::HullWeaponSlot {
+                .map(|(id, origin)| HullWeaponSlot {
                     size: slot_by_id.get(&id).and_then(|slot| slot.size.clone()),
                     r#type: slot_by_id.get(&id).and_then(|slot| slot.r#type.clone()),
                     mount: slot_by_id.get(&id).and_then(|slot| slot.mount.clone()),
@@ -387,7 +373,7 @@ fn all_ship_names_from_rows(rows: &[SessionCsvRow]) -> BTreeMap<String, String> 
 }
 
 fn all_ship_names_from_data<'a>(
-    rows: impl Iterator<Item = &'a serde_json::Map<String, serde_json::Value>>,
+    rows: impl Iterator<Item = &'a Map<String, Value>>,
 ) -> BTreeMap<String, String> {
     rows.filter_map(|row| Some((string_from_row(row, "id")?, string_from_row(row, "name")?)))
         .collect()
@@ -396,7 +382,7 @@ fn all_ship_names_from_data<'a>(
 fn resolve_requested_hull_sprites(
     session: &ProjectSession,
     requested_reference_ids: &[String],
-) -> AppResult<BTreeMap<String, crate::models::ResourceRef>> {
+) -> AppResult<BTreeMap<String, ResourceRef>> {
     let mut resolver = HullReferenceResolver::new(session);
     let mut sprites = BTreeMap::new();
     for id in requested_reference_ids {
@@ -412,7 +398,7 @@ fn resolve_requested_hull_sprites(
 fn push_non_empty_group(
     groups: &mut Vec<HullReferenceGroup>,
     origin: ResourceSource,
-    reference: Option<crate::models::ReferenceSource>,
+    reference: Option<ReferenceSource>,
     kind: HullReferenceKind,
     options: Vec<HullReferenceOption>,
 ) {
@@ -441,14 +427,22 @@ mod tests {
     use super::super::super::session::{close_project_session, open_project_session_traced};
     use super::*;
     use crate::io::write_utf8_no_bom;
+    #[cfg(test)]
+    use crate::models::{CsvSearchField, EntityKind};
+    #[cfg(test)]
+    use crate::services::project::performance::PerformanceTrace;
+    #[cfg(test)]
+    use crate::services::project::query::{csv_window, entities, source_options};
     use crate::services::project::test_support::project_workspace;
+    #[cfg(test)]
+    use std::fs;
 
     #[test]
     fn hull_reference_query_returns_mod_and_core_ship_and_skin_refs() {
         let root = project_workspace("hull_reference_query");
         let mod_root = root.join("mods/demo");
-        std::fs::create_dir_all(mod_root.join("data/hulls/skins")).unwrap();
-        std::fs::create_dir_all(root.join("starsector-core/data/hulls/skins")).unwrap();
+        fs::create_dir_all(mod_root.join("data/hulls/skins")).unwrap();
+        fs::create_dir_all(root.join("starsector-core/data/hulls/skins")).unwrap();
         write_utf8_no_bom(
             &mod_root.join("data/hulls/mod_ship.ship"),
             r#"{"hullId":"mod_ship","hullName":"Mod Ship","spriteName":"graphics/ships/mod_ship.png","builtInWeapons":{"WS001":"weapon_a","WS002":"weapon_a"},"weaponSlots":[{"id":"WS001","type":"BALLISTIC","size":"SMALL","mount":"HIDDEN"},{"id":"A","type":"ENERGY","size":"MEDIUM","mount":"TURRET"},{"id":"B","type":"UNIVERSAL"},{"id":"C","type":"MISSILE"},{"id":"D","type":"DECORATIVE"},{"id":"E","type":"BUILT_IN"},{"id":"F","type":"LAUNCH_BAY"},{"id":"G","type":"STATION_MODULE"},{"id":"H","type":"SYSTEM"}]}"#,
@@ -490,12 +484,11 @@ mod tests {
         )
         .unwrap();
 
-        let mut trace =
-            crate::services::project::performance::PerformanceTrace::new("project.openSession");
+        let mut trace = PerformanceTrace::new("project.openSession");
         write_utf8_no_bom(&mod_root.join("data/hulls/skins/mod_core.skin"), r#"{"skinHullId":"mod_core","baseHullId":"core_ship","builtInWeapons":{"MOD_SLOT":"mod_weapon"}}"#).unwrap();
         write_utf8_no_bom(&mod_root.join("data/hulls/skins/mod_override.skin"), r#"{"skinHullId":"mod_override","baseHullId":"core_ship","builtInWeapons":{"CORE_SLOT":"mod_weapon"}}"#).unwrap();
         write_utf8_no_bom(&mod_root.join("data/hulls/skins/nested.skin"), r#"{"skinHullId":"nested","baseHullId":"mod_core","hullName":"Nested Hull","tags":["example_tag","example_tag"]}"#).unwrap();
-        std::fs::create_dir_all(mod_root.join("data/variants")).unwrap();
+        fs::create_dir_all(mod_root.join("data/variants")).unwrap();
         write_utf8_no_bom(
             &mod_root.join("data/variants/nested.variant"),
             r#"{"variantId":"nested","hullId":"nested"}"#,
@@ -689,11 +682,8 @@ mod tests {
             nested.sprites["nested"].rel_path,
             "graphics/ships/core_ship.png"
         );
-        let ids = super::super::source_options::query_csv_source_options(
-            &manifest.session_id,
-            "csv:ships.id",
-        )
-        .unwrap();
+        let ids =
+            source_options::query_csv_source_options(&manifest.session_id, "csv:ships.id").unwrap();
         assert_eq!(
             ids.iter()
                 .flat_map(|group| &group.options)
@@ -702,11 +692,8 @@ mod tests {
                 .label,
             "Nested Hull (nested)"
         );
-        let tags = super::super::source_options::query_csv_source_options(
-            &manifest.session_id,
-            "csv:ships.tags",
-        )
-        .unwrap();
+        let tags = source_options::query_csv_source_options(&manifest.session_id, "csv:ships.tags")
+            .unwrap();
         assert_eq!(
             tags.iter()
                 .flat_map(|group| &group.options)
@@ -719,25 +706,22 @@ mod tests {
                 .flat_map(|group| &group.options)
                 .any(|item| item.value == "core_tag")
         );
-        let variants = super::super::entities::query_entity_list(
-            &manifest.session_id,
-            crate::models::EntityKind::Variant,
-        )
-        .unwrap();
+        let variants =
+            entities::query_entity_list(&manifest.session_id, EntityKind::Variant).unwrap();
         assert_eq!(
             variants[0].resource_refs["sprite"].rel_path,
             nested.sprites["nested"].rel_path
         );
-        let wings = super::super::csv_window::query_csv_table_window(
+        let wings = csv_window::query_csv_table_window(
             &manifest.session_id,
             CsvTableKey::Wings,
             0,
             10,
             None,
-            crate::models::CsvSearchField::IdName,
+            CsvSearchField::IdName,
         )
         .unwrap();
-        let preview = super::super::csv_window::query_csv_row_preview(
+        let preview = csv_window::query_csv_row_preview(
             &manifest.session_id,
             CsvTableKey::Wings,
             &wings.rows[0].row_key,
@@ -786,7 +770,7 @@ mod tests {
     fn cyclic_skin_references_end_with_a_formal_error() {
         for base in ["first", "second"] {
             let root = project_workspace("skin_cycle");
-            std::fs::create_dir_all(root.join("data/hulls/skins")).unwrap();
+            fs::create_dir_all(root.join("data/hulls/skins")).unwrap();
             write_utf8_no_bom(
                 &root.join("data/hulls/skins/first.skin"),
                 &serde_json::json!({"skinHullId":"first","baseHullId":base}).to_string(),
@@ -797,8 +781,7 @@ mod tests {
                 r#"{"skinHullId":"second","baseHullId":"first"}"#,
             )
             .unwrap();
-            let mut trace =
-                crate::services::project::performance::PerformanceTrace::new("project.openSession");
+            let mut trace = PerformanceTrace::new("project.openSession");
             let manifest = open_project_session_traced(&root, None, &mut trace).unwrap();
             assert_eq!(
                 query_hull_references(&manifest.session_id, &["first".into()])

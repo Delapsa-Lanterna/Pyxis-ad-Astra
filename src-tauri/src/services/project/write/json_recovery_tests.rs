@@ -1,15 +1,24 @@
 #![cfg(test)]
-use crate::services::project::test_support::project_workspace;
-
-use crate::{
-    commands::prepare_json_source_recovery,
-    models::{
-        EntityKind, JsonDocumentOrigin, JsonRecoveryRequest, JsonSourceIdentity, JsonSourceRestore,
-    },
-    services::{project, query_entity},
-    test_support::TestWorkspace,
+use crate::commands::prepare_json_source_recovery;
+use crate::errors::AppError;
+#[cfg(test)]
+use crate::io;
+#[cfg(test)]
+use crate::models::FileChangeReplayDirection;
+use crate::models::{
+    EntityKind, JsonDocumentOrigin, JsonRecoveryPlan, JsonRecoveryRequest, JsonSourceIdentity,
+    JsonSourceRestore, SaveAction, WriteResult,
 };
+use crate::services::project::PerformanceTrace;
+use crate::services::project::test_support::project_workspace;
+#[cfg(test)]
+use crate::services::write_transactions;
+use crate::services::{project, project_save, query_entity};
+use crate::test_support::TestWorkspace;
+#[cfg(test)]
+use crate::test_support::work_counts;
 use serde_json::{Value, json};
+use std::fs;
 
 struct Fixture {
     root: TestWorkspace,
@@ -84,10 +93,10 @@ other,unrelated
         };
         for (relative, text) in &files {
             let path = root.join(relative);
-            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
-            std::fs::write(path, text).unwrap();
+            fs::create_dir_all(path.parent().unwrap()).unwrap();
+            fs::write(path, text).unwrap();
         }
-        let mut trace = project::PerformanceTrace::new("project.openSession");
+        let mut trace = PerformanceTrace::new("project.openSession");
         let manifest = project::open_project_session_traced(&root, None, &mut trace).unwrap();
         if let JsonDocumentOrigin::Entity { target } = &origin {
             query_entity(&manifest.session_id, target.kind, &target.id)
@@ -105,19 +114,15 @@ other,unrelated
             paths: files.iter().map(|(path, _)| path.to_string()).collect(),
         }
     }
-    fn restore(
-        &self,
-        plan: crate::models::JsonRecoveryPlan,
-    ) -> Result<crate::models::WriteResult<crate::models::JsonRecoveryPlan>, crate::errors::AppError>
-    {
-        crate::services::project_save::execute_typed_save::<crate::models::JsonRecoveryPlan>(
-            crate::models::SaveAction::RecreateJsonSources(JsonSourceRestore {
+    fn restore(&self, plan: JsonRecoveryPlan) -> Result<WriteResult<JsonRecoveryPlan>, AppError> {
+        project_save::execute_typed_save::<JsonRecoveryPlan>(SaveAction::RecreateJsonSources(
+            JsonSourceRestore {
                 session_id: self.request.session_id.clone(),
                 mod_root: self.request.mod_root.clone(),
                 plan,
                 baseline: self.baseline.clone(),
-            }),
-        )
+            },
+        ))
     }
 }
 fn entity(kind: EntityKind, relative: &str) -> JsonDocumentOrigin {
@@ -144,7 +149,7 @@ fn restore_sources_and_history() {
             let original = fixture
                 .paths
                 .iter()
-                .map(|path| std::fs::read(fixture.root.join(path)).unwrap())
+                .map(|path| fs::read(fixture.root.join(path)).unwrap())
                 .collect::<Vec<_>>();
             let missing = fixture
                 .paths
@@ -154,7 +159,7 @@ fn restore_sources_and_history() {
                 .map(|(_, path)| path.clone())
                 .collect::<Vec<_>>();
             for path in &missing {
-                std::fs::remove_file(fixture.root.join(path)).unwrap();
+                fs::remove_file(fixture.root.join(path)).unwrap();
             }
             let plan = prepare_json_source_recovery(fixture.request.clone()).unwrap();
             assert_eq!(plan.missing_paths, missing, "{kind}: {mask}");
@@ -173,7 +178,7 @@ fn restore_sources_and_history() {
             for (index, path) in fixture.paths.iter().enumerate() {
                 assert!(fixture.root.join(path).is_file(), "{path}");
                 if path.ends_with(".csv") {
-                    let table = crate::io::read_csv_data(&fixture.root.join(path)).unwrap();
+                    let table = io::read_csv_data(&fixture.root.join(path)).unwrap();
                     assert_eq!(table.rows.len(), 2, "{kind}: shared index");
                     assert!(
                         table
@@ -183,18 +188,15 @@ fn restore_sources_and_history() {
                     );
                 }
                 if !missing.contains(path) {
-                    assert_eq!(
-                        std::fs::read(fixture.root.join(path)).unwrap(),
-                        original[index]
-                    );
+                    assert_eq!(fs::read(fixture.root.join(path)).unwrap(), original[index]);
                 }
             }
             let history = &result.history;
             let entry = history.undo_stack.last().unwrap();
-            let undone = crate::services::write_transactions::replay(
+            let undone = write_transactions::replay(
                 &fixture.request.session_id,
                 &fixture.request.mod_root,
-                crate::models::FileChangeReplayDirection::Undo,
+                FileChangeReplayDirection::Undo,
                 entry.id,
                 history.revision,
             )
@@ -203,10 +205,10 @@ fn restore_sources_and_history() {
                 assert!(!fixture.root.join(path).exists());
             }
             let entry = undone.history.redo_stack.last().unwrap();
-            crate::services::write_transactions::replay(
+            write_transactions::replay(
                 &fixture.request.session_id,
                 &fixture.request.mod_root,
-                crate::models::FileChangeReplayDirection::Redo,
+                FileChangeReplayDirection::Redo,
                 entry.id,
                 undone.history.revision,
             )
@@ -221,13 +223,13 @@ fn restore_sources_and_history() {
 fn reject_stale_recovery() {
     for kind in ["modInfo", "variant", "skin", "faction", "mission"] {
         let fixture = Fixture::new(kind);
-        std::fs::remove_file(fixture.root.join(&fixture.paths[0])).unwrap();
+        fs::remove_file(fixture.root.join(&fixture.paths[0])).unwrap();
         let plan = prepare_json_source_recovery(fixture.request.clone()).unwrap();
-        std::fs::write(fixture.root.join(&fixture.paths[0]), "{}").unwrap();
+        fs::write(fixture.root.join(&fixture.paths[0]), "{}").unwrap();
         let error = fixture.restore(plan).unwrap_err();
         assert_eq!(error.code(), "write.version_conflict", "{kind}");
         assert_eq!(
-            std::fs::read_to_string(fixture.root.join(&fixture.paths[0])).unwrap(),
+            fs::read_to_string(fixture.root.join(&fixture.paths[0])).unwrap(),
             "{}"
         );
     }
@@ -239,17 +241,17 @@ fn recovery_snapshot_versions() {
         let before: Vec<_> = fixture
             .paths
             .iter()
-            .map(|path| crate::test_support::work_counts::count("read", &fixture.root.join(path)))
+            .map(|path| work_counts::count("read", &fixture.root.join(path)))
             .collect();
         let plan = prepare_json_source_recovery(fixture.request.clone()).unwrap();
         assert!(plan.missing_paths.is_empty(), "{kind}");
         for (path, before) in fixture.paths.iter().zip(before) {
             assert_eq!(
-                crate::test_support::work_counts::count("read", &fixture.root.join(path)) - before,
+                work_counts::count("read", &fixture.root.join(path)) - before,
                 1,
                 "{kind}: {path}"
             );
-            let expected = crate::io::file_version(&fixture.root.join(path)).unwrap();
+            let expected = io::file_version(&fixture.root.join(path)).unwrap();
             assert!(plan.base_versions.contains(&expected), "{kind}: {path}");
         }
         if kind == "mission" {
@@ -263,7 +265,7 @@ fn recovery_snapshot_versions() {
         }
     }
     let fixture = Fixture::new("faction");
-    std::fs::write(
+    fs::write(
         fixture.root.join(&fixture.paths[0]),
         r#"{"id":"sample","crest":"graphics/current.png"}"#,
     )
@@ -276,8 +278,8 @@ fn repair_faction_reference() {
     let fixture = Fixture::new("faction");
     let path = fixture.root.join(&fixture.paths[0]);
     let external = "{ \"id\": \"sample\", \"displayName\": \"External\" }";
-    std::fs::write(&path, external).unwrap();
-    std::fs::write(
+    fs::write(&path, external).unwrap();
+    fs::write(
         fixture.root.join(&fixture.paths[1]),
         "id,file,note
 ",
@@ -286,7 +288,7 @@ fn repair_faction_reference() {
     let plan = prepare_json_source_recovery(fixture.request.clone()).unwrap();
     assert_eq!(plan.missing_paths, [fixture.paths[1].clone()]);
     let result = fixture.restore(plan).unwrap();
-    assert_eq!(std::fs::read_to_string(path).unwrap(), external);
+    assert_eq!(fs::read_to_string(path).unwrap(), external);
     assert_eq!(
         result.content.unwrap().value.current_sources["file"]["displayName"],
         "External"

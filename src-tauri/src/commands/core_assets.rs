@@ -1,8 +1,9 @@
-use crate::{
-    errors::AppError,
-    models::{CoreRootPayload, CoreScanPayload, DiscoveredField, InvalidateCoreCachePayload},
-    services,
+use crate::errors::AppError;
+use crate::models::{
+    CoreRootPayload, CoreScanPayload, DiscoveredField, InvalidateCoreCachePayload,
 };
+use crate::services;
+use crate::services::project;
 use std::collections::BTreeMap;
 
 #[command_macros::command(async)]
@@ -27,5 +28,5 @@ pub fn scan_core_graphics(payload: CoreScanPayload) -> Result<Vec<String>, AppEr
 
 #[command_macros::command(async)]
 pub fn invalidate_core_cache(payload: InvalidateCoreCachePayload) -> Result<(), AppError> {
-    services::project::invalidate_core_cache(&payload.starsector_root)
+    project::invalidate_core_cache(&payload.starsector_root)
 }

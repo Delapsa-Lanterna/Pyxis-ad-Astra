@@ -1,18 +1,25 @@
-use crate::{
-    errors::{AppError, AppResult},
-    io::{FsRootBoundary, read_utf8_no_bom},
-    models::font::{FontId, OriginalFontPage, OriginalFontResult},
-};
-use base64::{Engine as _, engine::general_purpose};
-use std::{collections::BTreeSet, fs, path::Path};
+use crate::errors::{AppError, AppResult};
+use crate::io::{FsRootBoundary, read_utf8_no_bom};
+use crate::models::font::{FontId, OriginalFontPage, OriginalFontResult};
+#[cfg(test)]
+use crate::services::project::session::{close_project_session, open_project_session_traced};
+use crate::services::project::session::{lock_session, session_handle};
+
+#[cfg(test)]
+use crate::test_support::work_counts;
+use base64::Engine as _;
+use base64::engine::general_purpose::STANDARD;
+use std::collections::BTreeSet;
+use std::fs;
+use std::path::Path;
 
 pub fn query_original_font(
     session_id: &str,
     font_id: FontId,
     font_directory: Option<&str>,
 ) -> AppResult<OriginalFontResult> {
-    let handle = super::super::session::session_handle(session_id)?;
-    let session = super::super::session::lock_session(&handle)?;
+    let handle = session_handle(session_id)?;
+    let session = lock_session(&handle)?;
     let root = session.manifest.starsector_root.clone();
     drop(session);
     if let Some(directory) = font_directory {
@@ -71,14 +78,11 @@ fn read_font_directory(directory: &Path, font_id: FontId) -> AppResult<OriginalF
             AppError::context("Read font page failed", error.into()).at_path(&image)
         })?;
         #[cfg(test)]
-        crate::test_support::work_counts::record("read", &image);
+        work_counts::record("read", &image);
         pages.push(OriginalFontPage {
             id,
             path: image.to_string_lossy().into_owned(),
-            data_url: format!(
-                "data:image/png;base64,{}",
-                general_purpose::STANDARD.encode(bytes)
-            ),
+            data_url: format!("data:image/png;base64,{}", STANDARD.encode(bytes)),
         });
     }
     Ok(OriginalFontResult::Available {
@@ -93,8 +97,13 @@ fn read_font_directory(directory: &Path, font_id: FontId) -> AppResult<OriginalF
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::io::write_utf8_no_bom;
+    #[cfg(test)]
+    use crate::services::project::PerformanceTrace;
     use crate::services::project::test_support::project_workspace;
-    use crate::{io::write_utf8_no_bom, test_support::TestWorkspace};
+    use crate::test_support::TestWorkspace;
+    #[cfg(test)]
+    use crate::test_support::work_counts;
 
     fn install(root: &Path, marker: &str) {
         let directory = root.join("starsector-core/graphics/fonts");
@@ -111,7 +120,7 @@ mod tests {
         let result = read_original_font(&root, FontId::Orbitron12condensed).unwrap();
         for name in ["orbitron12condensed.fnt", "orbitron12_0.png", "page1.png"] {
             assert_eq!(
-                crate::test_support::work_counts::count(
+                work_counts::count(
                     "read",
                     &root.join("starsector-core/graphics/fonts").join(name)
                 ),
@@ -210,13 +219,8 @@ mod tests {
         .unwrap();
         install(&game, "session-source");
         install(&other, "settings-source");
-        let mut trace = crate::services::project::PerformanceTrace::new("fonts.test");
-        let manifest = super::super::super::session::open_project_session_traced(
-            &root,
-            Some(&game),
-            &mut trace,
-        )
-        .unwrap();
+        let mut trace = PerformanceTrace::new("fonts.test");
+        let manifest = open_project_session_traced(&root, Some(&game), &mut trace).unwrap();
         let from_session =
             query_original_font(&manifest.session_id, FontId::Orbitron12condensed, None).unwrap();
         let OriginalFontResult::Available { definition, .. } = from_session else {
@@ -255,7 +259,7 @@ mod tests {
                 .is_err()
             );
         }
-        super::super::super::session::close_project_session(manifest.session_id.clone()).unwrap();
+        close_project_session(manifest.session_id.clone()).unwrap();
         assert!(
             query_original_font(&manifest.session_id, FontId::Orbitron12condensed, None).is_err()
         );

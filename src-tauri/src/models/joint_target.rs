@@ -1,3 +1,4 @@
+use crate::models::project_identity;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
@@ -19,13 +20,14 @@ pub struct JointEditRoot {
     pub id: String,
 }
 
-super::project_identity::impl_session_mod_scope_required!(JointEditRoot);
+project_identity::impl_session_mod_scope_required!(JointEditRoot);
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::models::SessionModScope;
     use serde_json::json;
+
     #[test]
     fn joint_roots_keep_wire_identity_and_session_scope() {
         for kind in ["ship", "skin", "weapon", "wing", "variant"] {

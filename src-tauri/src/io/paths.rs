@@ -1,8 +1,9 @@
 use crate::errors::{AppError, AppResult};
-use std::{
-    fs,
-    path::{Component, Path, PathBuf},
-};
+use std::fs;
+use std::fs::Metadata;
+#[cfg(windows)]
+use std::os::windows::fs::MetadataExt;
+use std::path::{Component, Path, PathBuf};
 
 #[derive(Debug, Clone)]
 pub struct FsRootBoundary {
@@ -220,14 +221,13 @@ fn reject_link_path(path: &Path, label: &str) -> AppResult<()> {
 }
 
 #[cfg(windows)]
-fn is_reparse_point(metadata: &fs::Metadata) -> bool {
-    use std::os::windows::fs::MetadataExt;
+fn is_reparse_point(metadata: &Metadata) -> bool {
     const FILE_ATTRIBUTE_REPARSE_POINT: u32 = 0x400;
     metadata.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT != 0
 }
 
 #[cfg(not(windows))]
-fn is_reparse_point(_metadata: &fs::Metadata) -> bool {
+fn is_reparse_point(_metadata: &Metadata) -> bool {
     false
 }
 
@@ -238,8 +238,14 @@ pub fn relative_path_contains(scope: &str, target: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::FsRootBoundary;
+    #[cfg(windows)]
+    #[cfg(test)]
+    use crate::io::paths::canonical_path;
     use crate::io::write_utf8_no_bom;
     use crate::test_support::TestWorkspace;
+    #[cfg(windows)]
+    #[cfg(test)]
+    use crate::{io, test_support};
     use std::fs;
 
     #[test]
@@ -286,10 +292,9 @@ mod tests {
         fs::create_dir_all(root.join("Long directory name")).unwrap();
         let path = root.join("Long directory name/Long weapon filename.wpn");
         write_utf8_no_bom(&path, "{}").unwrap();
-        let short = crate::test_support::short_path(&path);
+        let short = test_support::short_path(&path);
         assert_ne!(short, path);
-        let boundary =
-            FsRootBoundary::new(&crate::test_support::short_path(&root), "test root").unwrap();
+        let boundary = FsRootBoundary::new(&test_support::short_path(&root), "test root").unwrap();
         let expanded = path.canonicalize().unwrap();
         assert_eq!(boundary.resolve_absolute(&short, "file").unwrap(), expanded);
         assert_eq!(
@@ -298,13 +303,12 @@ mod tests {
                 .unwrap(),
             expanded
         );
-        assert_eq!(super::canonical_path(&short, "file").unwrap(), expanded);
+        assert_eq!(canonical_path(&short, "file").unwrap(), expanded);
         assert_eq!(
-            crate::io::file_version(&short).unwrap().path,
+            io::file_version(&short).unwrap().path,
             expanded.to_string_lossy()
         );
-        let missing =
-            crate::test_support::short_path(path.parent().unwrap()).join("new/deep/new.wpn");
+        let missing = test_support::short_path(path.parent().unwrap()).join("new/deep/new.wpn");
         assert_eq!(
             boundary.resolve_absolute(&missing, "missing").unwrap(),
             path.parent()

@@ -1,11 +1,15 @@
+use crate::diagnostics;
+use crate::errors::{AppError, AppResult};
+use crate::models::{CacheLimits, CacheSize};
 use std::collections::{HashMap, VecDeque};
+use std::fs;
 use std::path::PathBuf;
 use std::sync::{LazyLock, Mutex};
 use std::time::SystemTime;
 
 #[cfg(test)]
 pub(in crate::services::project) fn media_capacity_for_test() -> usize {
-    crate::models::CacheLimits::default().backend_media.entries as usize
+    CacheLimits::default().backend_media.entries as usize
 }
 
 struct CachedSpriteMedia {
@@ -16,14 +20,14 @@ struct CachedSpriteMedia {
 }
 
 struct SpriteMediaCacheState {
-    limits: crate::models::CacheSize,
+    limits: CacheSize,
     entries: HashMap<(String, String), CachedSpriteMedia>,
     order: VecDeque<(String, String)>,
     bytes: usize,
 }
 
 impl SpriteMediaCacheState {
-    fn configure(&mut self, limits: &crate::models::CacheSize) {
+    fn configure(&mut self, limits: &CacheSize) {
         self.limits = limits.clone();
         self.trim();
     }
@@ -56,7 +60,7 @@ impl SpriteMediaCacheState {
                 break;
             };
             self.remove(&oldest);
-            crate::diagnostics::debug("cache.backend_evicted", || {
+            diagnostics::debug("cache.backend_evicted", || {
                 format!(
                     "cache=media session={} resource={} remaining={} bytes={}",
                     oldest.0,
@@ -72,7 +76,7 @@ impl SpriteMediaCacheState {
 fn sprite_media_cache() -> &'static Mutex<SpriteMediaCacheState> {
     static CACHE: LazyLock<Mutex<SpriteMediaCacheState>> = LazyLock::new(|| {
         Mutex::new(SpriteMediaCacheState {
-            limits: crate::models::CacheLimits::default().backend_media,
+            limits: CacheLimits::default().backend_media,
             entries: HashMap::new(),
             order: VecDeque::new(),
             bytes: 0,
@@ -81,12 +85,10 @@ fn sprite_media_cache() -> &'static Mutex<SpriteMediaCacheState> {
     &CACHE
 }
 
-pub(crate) fn configure_media_cache(
-    limits: &crate::models::CacheSize,
-) -> crate::errors::AppResult<()> {
-    let mut cache = sprite_media_cache().lock().map_err(|_| {
-        crate::errors::AppError::message("settings.lock_poisoned", "media cache lock poisoned")
-    })?;
+pub(crate) fn configure_media_cache(limits: &CacheSize) -> AppResult<()> {
+    let mut cache = sprite_media_cache()
+        .lock()
+        .map_err(|_| AppError::message("settings.lock_poisoned", "media cache lock poisoned"))?;
     cache.configure(limits);
     Ok(())
 }
@@ -100,13 +102,13 @@ pub(in crate::services::project) fn lookup_data_url(
     let mut cache = match sprite_media_cache().lock() {
         Ok(cache) => cache,
         Err(_) => {
-            crate::diagnostics::record("sprite media cache lock poisoned");
+            diagnostics::record("sprite media cache lock poisoned");
             return None;
         }
     };
     let cache_key = (session_id.to_string(), resource_key.to_string());
     let entry = cache.entries.get(&cache_key)?;
-    let current = std::fs::metadata(&entry.resolved_path)
+    let current = fs::metadata(&entry.resolved_path)
         .ok()
         .is_some_and(|metadata| {
             metadata.modified().ok() == Some(entry.modified) && metadata.len() == entry.length
@@ -129,7 +131,7 @@ pub(in crate::services::project) fn insert_entry(
     data_url: String,
 ) {
     let Ok(mut cache) = sprite_media_cache().lock() else {
-        crate::diagnostics::record("sprite media cache lock poisoned");
+        diagnostics::record("sprite media cache lock poisoned");
         return;
     };
     let cache_key = (session_id.to_string(), resource_key.to_string());
@@ -146,7 +148,7 @@ pub(in crate::services::project) fn insert_entry(
 
 pub(in crate::services::project) fn clear_sprite_media_for_session(session_id: &str) {
     let Ok(mut cache) = sprite_media_cache().lock() else {
-        crate::diagnostics::record("sprite media cache lock poisoned");
+        diagnostics::record("sprite media cache lock poisoned");
         return;
     };
     let keys = cache
@@ -166,7 +168,7 @@ pub(in crate::services::project) fn cached_sprite_media_contains(
     resource_key: &str,
 ) -> bool {
     let Ok(cache) = sprite_media_cache().lock() else {
-        crate::diagnostics::record("sprite media cache lock poisoned");
+        diagnostics::record("sprite media cache lock poisoned");
         return false;
     };
     cache
@@ -177,6 +179,10 @@ pub(in crate::services::project) fn cached_sprite_media_contains(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::models::CacheLimits;
+    #[cfg(test)]
+    use crate::models::CacheSize;
+
     #[test]
     fn zero_media_limits_keep_returned_content_outside_idle_cache() {
         let mut cache = state();
@@ -191,7 +197,7 @@ mod tests {
 
     fn state() -> SpriteMediaCacheState {
         SpriteMediaCacheState {
-            limits: crate::models::CacheLimits::default().backend_media,
+            limits: CacheLimits::default().backend_media,
             entries: HashMap::new(),
             order: VecDeque::new(),
             bytes: 0,
@@ -226,10 +232,10 @@ mod tests {
         assert_eq!(cache.order.back(), Some(&key(2)));
         assert_eq!(cache.bytes, capacity + 1);
         let delivered = cache.entries[&key(2)].data_url.clone();
-        cache.configure(&crate::models::CacheSize { entries: 1, mib: 1 });
+        cache.configure(&CacheSize { entries: 1, mib: 1 });
         assert_eq!(cache.entries.len(), 1);
         assert!(cache.entries.contains_key(&key(2)));
-        cache.configure(&crate::models::CacheSize { entries: 4, mib: 0 });
+        cache.configure(&CacheSize { entries: 4, mib: 0 });
         assert_eq!(cache.bytes, 0);
         assert!(cache.entries.is_empty());
         assert_eq!(delivered, "aa");
