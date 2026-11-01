@@ -130,7 +130,7 @@ describe('table-save orchestrator', () => {
       markCsvTableSavedDraft(state.documents.ships);
       state.documents.ships.totalRowCount = state.documents.ships.filteredRowCount = 3;
       const target = { sessionId: SESSION_ID, modRoot: MOD_ROOT, table: 'ships' as const };
-      tables.moveRow(target, 'ships:row:2', 0);
+      tables.moveRows(target, ['ships:row:2'], 0);
       let finish!: (result: WriteResult) => void;
       writeCsvPatch.mockImplementationOnce(
         () =>
@@ -176,7 +176,7 @@ describe('table-save orchestrator', () => {
     );
     markCsvTableSavedDraft(state.documents.ships);
     state.documents.ships.totalRowCount = state.documents.ships.filteredRowCount = 2;
-    tables.moveRow({ sessionId: SESSION_ID, modRoot: MOD_ROOT, table: 'ships' }, 'ships:row:1', 0);
+    tables.moveRows({ sessionId: SESSION_ID, modRoot: MOD_ROOT, table: 'ships' }, ['ships:row:1'], 0);
     const added = tables.addNewRow()!;
     let finish!: (result: WriteResult) => void;
     writeCsvPatch.mockImplementationOnce(
@@ -211,7 +211,7 @@ describe('table-save orchestrator', () => {
     const target = { sessionId: SESSION_ID, modRoot: MOD_ROOT, table: 'ships' as const };
     tables.selectRowByKey(target, 'ships:row:0');
     tables.deleteSelected();
-    tables.moveRow(target, 'ships:row:2', 0);
+    tables.moveRows(target, ['ships:row:2'], 0);
     let finish!: (result: WriteResult) => void;
     writeCsvPatch.mockImplementationOnce(
       () =>
@@ -246,7 +246,7 @@ describe('table-save orchestrator', () => {
     );
     markCsvTableSavedDraft(state.documents.ships);
     state.documents.ships.totalRowCount = state.documents.ships.filteredRowCount = 3;
-    tables.moveRow({ sessionId: SESSION_ID, modRoot: MOD_ROOT, table: 'ships' }, 'ships:row:2', 0);
+    tables.moveRows({ sessionId: SESSION_ID, modRoot: MOD_ROOT, table: 'ships' }, ['ships:row:2'], 0);
     let finish!: (result: WriteResult) => void;
     writeCsvPatch.mockImplementationOnce(
       () =>

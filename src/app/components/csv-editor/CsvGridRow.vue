@@ -3,20 +3,20 @@
     class="csv-grid-row csv-grid-record"
     role="row"
     :data-row-key="row.rowKey"
-    :class="{ selected }"
+    :class="{ selected: selected || rowSelected }"
     :style="{ top: (activity.index + 1) * 24 + 'px', display: activity.hidden ? 'none' : undefined }"
     :aria-rowindex="activity.index + 2"
     @mousedown.left.prevent
-    @click="handleClick"
+    @click.left="handleClick"
+    @dblclick.left="handleClick"
   >
     <div class="csv-grid-cell csv-row-handle-cell" role="rowheader" :title="reorderDisabledReason || '拖动调整行序，Ctrl+左键拖动复制整行'">
       <button
         class="csv-row-handle ui-control-reset"
         type="button"
-        :disabled="Boolean(reorderDisabledReason)"
         aria-label="拖动调整行序，Ctrl+左键拖动复制整行"
         @pointerdown.left.prevent.stop="$emit('start-row-drag', row.rowKey, $event)"
-        @click.stop="$emit('select-row', row.rowKey)"
+        @click.stop
       >
         <svg class="csv-row-handle-icon" viewBox="0 0 12 12" aria-hidden="true">
           <path
@@ -30,7 +30,15 @@
       :key="column.key"
       class="csv-grid-cell"
       role="gridcell"
-      :class="[column.className, { dirty: isDirty(row.rowKey, column.key) }]"
+      :class="[
+        column.className,
+        {
+          dirty: isDirty(row.rowKey, column.key),
+          'csv-cell-selected': selected && selectedColumn === column.key,
+          'csv-cell-in-range': inRange(gridColumn - 2),
+        },
+      ]"
+      :aria-selected="inRange(gridColumn - 2) || (selected && selectedColumn === column.key)"
       :data-column-key="column.key"
       :style="{ gridColumn }"
       :aria-colindex="gridColumn"
@@ -67,10 +75,17 @@
             :height="16"
           />
           <span class="csv-cell-value ui-text-truncate ui-layout-shrink">{{ cells[index]!.display }}</span>
-          <svg v-if="cells[index]!.caret" class="csv-cell-caret ui-control-icon ui-text-muted" viewBox="0 0 16 16" aria-hidden="true">
-            <path d="m4 6 4 4 4-4" />
-          </svg>
         </template>
+        <button
+          v-if="mode === 'smart' && cells[index]!.caret"
+          data-csv-picker
+          type="button"
+          tabindex="-1"
+          class="csv-cell-caret ui-control-reset ui-layout-row ui-layout-center"
+          aria-label="打开候选列表"
+        >
+          <svg class="ui-control-icon ui-text-muted" viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4" /></svg>
+        </button>
       </div>
     </div>
   </div>
@@ -94,6 +109,9 @@ const props = defineProps<{
   columns: CsvRenderColumn[];
   sourceIndex: CsvSourceIndex;
   selected: boolean;
+  rowSelected?: boolean;
+  selectedColumn?: string | null;
+  rangeColumns?: string;
   isDirty: (rowKey: string, column: string) => boolean;
   reorderDisabledReason?: string;
 }>();
@@ -102,6 +120,11 @@ const emit = defineEmits<{
   'activate-cell': [row: CsvRowRecord, column: CsvGridColumn, event: MouseEvent];
   'select-row': [key: string];
 }>();
+function inRange(index: number) {
+  if (!props.rangeColumns) return false;
+  const [left, right] = props.rangeColumns.split(':').map(Number);
+  return index >= left! && index <= right!;
+}
 function handleClick(event: MouseEvent) {
   const cell = (event.target as Element).closest<HTMLElement>('[data-column-key]');
   if (cell) emit('activate-cell', props.row, props.columns.find((view) => view.column.key === cell.dataset.columnKey)!.column, event);
@@ -124,7 +147,7 @@ const cells = computed(() =>
     const control = csvColumnControl(column.schema);
     const match = sourceValue(props.sourceIndex, column.schema?.source, raw);
     const list = isCsvListControl(control);
-    const caret = !list && csvControlUsesPicker(control);
+    const caret = csvControlUsesPicker(control) || control === 'path-image';
     return {
       control,
       list,

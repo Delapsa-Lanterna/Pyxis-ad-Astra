@@ -36,7 +36,14 @@ export interface CsvRowMovedOperation {
   nextIndex: number;
 }
 
-export type CsvDraftOperation = CsvCellValueSetOperation | CsvRowCreatedOperation | CsvRowDeletedOperation | CsvRowMovedOperation;
+export type CsvSingleOperation = CsvCellValueSetOperation | CsvRowCreatedOperation | CsvRowDeletedOperation | CsvRowMovedOperation;
+export interface CsvBatchOperation {
+  type: 'batch';
+  tab: CsvTableKey;
+  rowKey: string;
+  operations: CsvSingleOperation[];
+}
+export type CsvDraftOperation = CsvSingleOperation | CsvBatchOperation;
 
 export interface CsvTableHistoryEntry {
   id: string;

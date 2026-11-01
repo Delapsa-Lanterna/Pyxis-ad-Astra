@@ -7,6 +7,17 @@ interface CsvTableInputs {
   inputs: FieldInputs;
   activate: (target: CsvCellTarget | null) => void;
   update: (target: CsvCellTarget, value: string) => void;
+  range?: {
+    load: (keys: string[]) => Promise<boolean>;
+    update: (keys: string[], columns: string[], values: string[][]) => string[];
+    revision: () => string;
+    disabled: () => boolean;
+    move: (keys: string[], boundary: number) => void;
+    copy: (keys: string[], boundary: number) => string[];
+    remove: (keys: string[]) => void;
+    insert: (columns: string[], values: string[][], boundary: number) => string[];
+    position: (rowKey: string, after?: boolean) => number;
+  };
 }
 
 const csvTableInputsKey: InjectionKey<CsvTableInputs> = Symbol('csv-table-inputs');

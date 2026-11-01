@@ -6,12 +6,12 @@ import { useWindowShortcuts } from '@/app/composables/use-window-shortcuts';
 export function useCsvRowDrag(options: {
   panel: Readonly<Ref<HTMLElement | null>>;
   rowKeys: Readonly<Ref<string[]>>;
-  disabled: () => string;
+  disabled: (copy: boolean) => string;
   context: () => string;
   inputs: FieldInputs;
-  select: (rowKey: string) => void;
-  move: (rowKey: string, index: number) => void;
-  copy: (rowKey: string, index: number) => void;
+  select: (rowKey: string, gesture: 'click' | 'drag', ctrl: boolean, shift: boolean) => string[];
+  move: (keys: string[], index: number) => void;
+  copy: (keys: string[], index: number) => void;
   scrolled: () => void;
 }) {
   const feedback = useAppFeedback();
@@ -25,7 +25,10 @@ export function useCsvRowDrag(options: {
     latestX: number;
     latestY: number;
     ready: boolean;
+    moved: boolean;
     copy: boolean;
+    shift: boolean;
+    keys: string[];
   } | null = null;
   let frame = 0,
     previousTime = 0;
@@ -72,13 +75,16 @@ export function useCsvRowDrag(options: {
   function update() {
     if (!request?.ready) return;
     if (!dragging.value && Math.hypot(request.latestX - request.x, request.latestY - request.y) >= 4) {
+      request.moved = true;
+      if (options.disabled(request.copy)) return;
+      request.keys = options.select(request.rowKey, 'drag', request.copy, request.shift);
       dragging.value = true;
       frame = requestAnimationFrame(animate);
     }
     if (dragging.value) locate();
   }
   function start(rowKey: string, event: PointerEvent) {
-    if (event.button !== 0 || options.disabled()) return;
+    if (event.button !== 0) return;
     cancel();
     const current = {
       rowKey,
@@ -88,7 +94,10 @@ export function useCsvRowDrag(options: {
       latestX: event.clientX,
       latestY: event.clientY,
       ready: false,
+      moved: false,
       copy: event.ctrlKey,
+      shift: event.shiftKey,
+      keys: [] as string[],
     };
     request = current;
     options.panel.value!.setPointerCapture(event.pointerId);
@@ -100,7 +109,6 @@ export function useCsvRowDrag(options: {
           return;
         }
         current.ready = true;
-        options.select(rowKey);
         update();
       })
       .catch((error: unknown) => {
@@ -123,17 +131,25 @@ export function useCsvRowDrag(options: {
       drop = insertion.value,
       active = dragging.value;
     cancel();
-    if (!current.ready || !active || !drop || options.disabled()) return;
-    const boundary = drop.index + Number(drop.after);
-    if (current.copy) {
-      options.copy(current.rowKey, boundary);
+    if (!current.ready) return;
+    if (!active) {
+      if (!current.moved) options.select(current.rowKey, 'click', current.copy, current.shift);
       return;
     }
-    const from = options.rowKeys.value.indexOf(current.rowKey);
-    const to = boundary - Number(from < boundary);
-    if (from >= 0 && from !== to) options.move(current.rowKey, to);
+    if (!drop || options.disabled(current.copy)) return;
+    const boundary = drop.index + Number(drop.after);
+    if (current.copy) {
+      options.copy(current.keys, boundary);
+      return;
+    }
+    const selected = new Set(current.keys),
+      order = options.rowKeys.value;
+    const position = boundary - order.slice(0, boundary).filter((key) => selected.has(key)).length;
+    const rest = order.filter((key) => !selected.has(key));
+    const next = [...rest.slice(0, position), ...current.keys, ...rest.slice(position)];
+    if (next.some((key, index) => key !== order[index])) options.move(current.keys, boundary);
   }
-  watch(() => [options.disabled(), options.context()], cancel, { flush: 'sync' });
+  watch(() => [options.disabled(false), options.disabled(true), options.context()], cancel, { flush: 'sync' });
   useWindowShortcuts({
     priority: (event) => {
       if (event.key !== 'Escape' || !request) return false;

@@ -1,17 +1,21 @@
 <template>
   <div
+    ref="pickerRef"
     class="csv-cell-picker ui-layout-row ui-layout-stack ui-layout-clip ui-control-border ui-content-surface"
     :style="pickerStyle"
     tabindex="-1"
     @mousedown.stop
-    @keydown.esc.stop.prevent="$emit('cancel')"
+    @keydown.esc="cancelSelection"
   >
     <input
       ref="searchRef"
-      v-model="query"
+      v-model="inputText"
+      :data-csv-raw="editingRaw ? '' : undefined"
+      :data-csv-candidate="activeOption ? '' : undefined"
       class="csv-cell-picker-search ui-input ui-text-normal ui-text-small ui-layout-stretch ui-content-surface-muted"
       placeholder="搜索或输入新值，回车确认"
       @keydown.enter="submitQuery"
+      @compositionstart="activeValue = null"
     />
     <button
       v-if="!multiple && selectedValues.size > 0"
@@ -37,6 +41,7 @@
           :group="group"
           :media="visible"
           :selected="selectedValues"
+          :active-value="activeOption?.value"
           :multiple="multiple"
           :session-id="sessionId"
           :image-paths="imagePaths"
@@ -48,7 +53,7 @@
       v-if="multiple"
       class="csv-cell-picker-action ui-button ui-text-small ui-layout-stretch ui-text-normal"
       type="button"
-      @click="$emit('commit', values)"
+      @click="confirmSelection"
     >
       确认选择
     </button>
@@ -56,11 +61,14 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onMounted, onUnmounted, ref, useTemplateRef } from 'vue';
+import { computed, nextTick, onMounted, onUnmounted, ref, useTemplateRef, watch } from 'vue';
 import { groupSelectOptions, type FlatSelectOption, type SelectOption } from '@/domain/schema/schema-options';
 import { useVisibleResourceMedia } from '@/app/composables/use-visible-resource-media';
 import CsvCellPickerGroup from './CsvCellPickerGroup.vue';
 import { useCsvFloatingPanel } from '@/app/composables/csv-editor/use-csv-floating-panel';
+import { focusCsvCellText, type CsvCellEdit } from '@/app/composables/csv-editor/csv-cell-edit';
+import { csvListValues } from '@/domain/csv-editor/csv-column-schema';
+import { useWindowShortcuts } from '@/app/composables/use-window-shortcuts';
 
 const props = defineProps<{
   anchor: { height: number; left: number; top: number; width: number };
@@ -69,12 +77,16 @@ const props = defineProps<{
   options: SelectOption[];
   imagePaths?: boolean;
   values: string[];
+  edit?: CsvCellEdit;
+  rawValue?: string;
 }>();
 
 const emit = defineEmits<{
   cancel: [];
   commit: [values: string[]];
   update: [values: string[]];
+  'update-raw': [value: string];
+  'commit-raw': [];
 }>();
 
 const visible = useVisibleResourceMedia({
@@ -86,6 +98,17 @@ const visible = useVisibleResourceMedia({
 
 const collapsedGroups = ref(new Set<string | number>());
 const query = ref('');
+const activeValue = ref<string | null>(null);
+const pickerRef = useTemplateRef<HTMLDivElement>('pickerRef');
+const editingRaw = computed(() => props.edit?.kind === 'raw');
+const inputText = computed({
+  get: () => (editingRaw.value ? props.rawValue! : query.value),
+  set: (value: string) => {
+    activeValue.value = null;
+    if (editingRaw.value) emit('update-raw', value);
+    else query.value = value;
+  },
+});
 const searchRef = useTemplateRef<HTMLInputElement>('searchRef');
 const selectedValues = computed(() => new Set(props.values));
 
@@ -105,14 +128,44 @@ const catalog = computed(() => {
   return { search, exact };
 });
 const filteredGroups = computed(() => {
-  const needle = query.value.trim().toLowerCase();
-  if (!needle) return groups.value;
+  const text = inputText.value.trim().toLowerCase();
+  const needles = editingRaw.value && props.multiple ? csvListValues(text) : text ? [text] : [];
+  if (!needles.length) return groups.value;
   return groups.value
     .map((group) => ({
       ...group,
-      options: group.options.filter((option) => catalog.value.search.get(option)!.includes(needle)),
+      options: group.options.filter((option) => needles.some((needle) => catalog.value.search.get(option)!.includes(needle))),
     }))
     .filter((group) => group.options.length > 0);
+});
+const navigableOptions = computed(() =>
+  filteredGroups.value.flatMap((group) => (collapsedGroups.value.has(group.key) ? [] : group.options)),
+);
+const activeOption = computed(() => navigableOptions.value.find((option) => option.value === activeValue.value));
+watch(navigableOptions, () => {
+  if (!activeOption.value) activeValue.value = null;
+});
+watch(activeOption, async (option) => {
+  if (!option) return;
+  await nextTick();
+  pickerRef.value?.querySelector('.csv-cell-picker-option.active')?.scrollIntoView({ block: 'nearest' });
+});
+useWindowShortcuts({
+  priority: (event) => {
+    if (event.target !== searchRef.value || event.isComposing || event.ctrlKey || event.metaKey || event.altKey) return false;
+    if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return false;
+    const options = navigableOptions.value;
+    if (!options.length) return true;
+    const current = options.findIndex((option) => option.value === (activeOption.value?.value ?? props.values[0]));
+    const next =
+      current < 0
+        ? event.key === 'ArrowDown'
+          ? 0
+          : options.length - 1
+        : Math.max(0, Math.min(options.length - 1, current + (event.key === 'ArrowDown' ? 1 : -1)));
+    activeValue.value = options[next]!.value;
+    return true;
+  },
 });
 
 onMounted(() => {
@@ -125,19 +178,30 @@ onUnmounted(() => {
 });
 
 function focusSearch() {
-  searchRef.value?.focus({ preventScroll: true });
+  const input = searchRef.value;
+  if (!input) return;
+  if (props.edit?.kind === 'raw') focusCsvCellText(input, props.edit.offsetX);
+  else input.focus({ preventScroll: true });
 }
 
 function clearValue() {
   emit('commit', ['']);
 }
 
+function cancelSelection(event: KeyboardEvent) {
+  if (event.isComposing) return;
+  event.preventDefault();
+  event.stopPropagation();
+  emit('cancel');
+}
+
 function selectOption(option: FlatSelectOption) {
   if (option.templateValue !== undefined) {
-    query.value = option.templateValue;
+    const prefix = editingRaw.value && props.multiple && props.rawValue ? props.rawValue + ', ' : '';
+    inputText.value = prefix + option.templateValue;
     void nextTick(() => {
       focusSearch();
-      searchRef.value?.select();
+      searchRef.value?.setSelectionRange(prefix.length, inputText.value.length);
     });
     return;
   }
@@ -154,8 +218,16 @@ function selectOption(option: FlatSelectOption) {
 }
 
 function submitQuery(event: KeyboardEvent) {
-  if (event.isComposing) return;
+  if (event.defaultPrevented || event.isComposing) return;
   event.preventDefault();
+  if (activeOption.value) {
+    selectOption(activeOption.value);
+    return;
+  }
+  if (editingRaw.value) {
+    emit('commit-raw');
+    return;
+  }
   const value = query.value.trim();
   if (!value) return;
   const option = catalog.value.exact.get(value);
@@ -164,10 +236,15 @@ function submitQuery(event: KeyboardEvent) {
 
 defineExpose({ reset: () => (query.value = ''), focus: focusSearch });
 
+function confirmSelection() {
+  if (editingRaw.value) emit('commit-raw');
+  else emit('commit', props.values);
+}
+
 function handleDocumentMouseDown(event: MouseEvent) {
   const target = event.target as { closest?: (selector: string) => unknown } | null;
   if (target?.closest?.('.csv-grid-cell')) return;
   if (target?.closest?.('.csv-cell-picker')) return;
-  emit('commit', props.values);
+  confirmSelection();
 }
 </script>

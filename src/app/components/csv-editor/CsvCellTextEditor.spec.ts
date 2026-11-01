@@ -72,6 +72,22 @@ describe('CsvCellTextEditor', () => {
     wrapper.unmount();
   });
 
+  it('inserts a newline with Alt+Enter and commits with Enter', async () => {
+    const wrapper = mountEditor({ height: 24, left: 0, top: 0, width: 200 }, 'AB');
+    const area = wrapper.get<HTMLTextAreaElement>('textarea');
+    area.element.setSelectionRange(1, 1);
+    await area.trigger('keydown', { key: 'Enter', altKey: true });
+    expect(area.element.value).toBe('A\nB');
+    expect(wrapper.emitted('commit')).toBeUndefined();
+    await area.trigger('keydown', { key: 'Enter', isComposing: true });
+    expect(wrapper.emitted('commit')).toBeUndefined();
+    await area.trigger('keydown', { key: 'Escape', isComposing: true });
+    expect(wrapper.emitted('cancel')).toBeUndefined();
+    await area.trigger('keydown', { key: 'Enter' });
+    expect(wrapper.emitted('commit')).toEqual([['A\nB']]);
+    wrapper.unmount();
+  });
+
   it('closes without committing on esc', async () => {
     const wrapper = mountEditor({ height: 30, left: 40, top: 100, width: 200 });
     await wrapper.find('textarea').setValue('改动');

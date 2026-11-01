@@ -1,5 +1,6 @@
 import type {
   CsvDraftOperation,
+  CsvSingleOperation,
   CsvRowKeyMapping,
   CsvRowPatch,
   CsvTableIndex,
@@ -212,17 +213,6 @@ export function createCsvRowDraft(state: CsvTableState, selectedRowKey: string |
     historyOperation: { type: 'row-created', tab, rowKey: row.rowKey, rowIndex, row: deepClone(row) },
   };
 }
-export function copyCsvRowDraft(state: CsvTableState, rowKey: string, rowIndex: number): CsvDraftResult {
-  const source = state.rows[rowKey]!;
-  const row: CsvDraftRow = {
-    rowKey: createTableRowKey(state.table, state.nextRowKey++),
-    data: deepClone(source.data),
-    isComment: source.isComment,
-  };
-  const operation: CsvDraftOperation = { type: 'row-created', tab: state.table, rowKey: row.rowKey, rowIndex, row };
-  applyCsvDraftOperation(state, operation, 'redo');
-  return { changed: true, historyLabel: '复制 ' + state.table + ' 行', historyOperation: operation };
-}
 export function deleteCsvRowDraft(state: CsvTableState, rowKey: string): CsvDraftResult {
   const tab = state.table;
   const row = state.rows[rowKey],
@@ -236,7 +226,96 @@ export function deleteCsvRowDraft(state: CsvTableState, rowKey: string): CsvDraf
   removeRow(state, rowKey);
   return result;
 }
+export function writeCsvRangeDraft(state: CsvTableState, rowKeys: string[], columns: string[], values: string[][]): CsvDraftResult {
+  const operations: CsvSingleOperation[] = [];
+  for (let index = 0; index < values.length; index++) {
+    if (!rowKeys[index]) {
+      const row: CsvDraftRow = {
+        rowKey: createTableRowKey(state.table, state.nextRowKey++),
+        data: Object.fromEntries(state.header.map((key) => [key, ''])),
+        isComment: false,
+      };
+      const operation: CsvSingleOperation = {
+        type: 'row-created',
+        tab: state.table,
+        rowKey: row.rowKey,
+        rowIndex: state.rowOrder.length,
+        row: deepClone(row),
+      };
+      applyCsvDraftOperation(state, operation, 'redo');
+      operations.push(operation);
+      rowKeys.push(row.rowKey);
+    }
+    for (let col = 0; col < columns.length; col++) {
+      const result = setCsvCellValueDraft(state, rowKeys[index]!, columns[col]!, values[index]![col]!);
+      if (result.historyOperation?.type === 'cell-value-set') operations.push(result.historyOperation);
+    }
+  }
+  return operations.length
+    ? {
+        changed: true,
+        historyLabel: '批量编辑 ' + state.table,
+        historyOperation: { type: 'batch', tab: state.table, rowKey: rowKeys[0]!, operations },
+      }
+    : { changed: false };
+}
+function csvRowBatch(state: CsvTableState, operations: CsvSingleOperation[], label: string): CsvDraftResult {
+  return operations.length
+    ? {
+        changed: true,
+        historyLabel: label + ' ' + state.table + ' 行',
+        historyOperation: { type: 'batch', tab: state.table, rowKey: operations[0]!.rowKey, operations },
+      }
+    : { changed: false };
+}
+export function moveCsvRowsDraft(state: CsvTableState, keys: string[], boundary: number): CsvDraftResult {
+  const selected = new Set(keys),
+    order = state.rowOrder;
+  const moving = order.filter((key) => selected.has(key));
+  const remaining = order.filter((key) => !selected.has(key));
+  const position = boundary - order.slice(0, boundary).filter((key) => selected.has(key)).length;
+  const next = [...remaining.slice(0, position), ...moving, ...remaining.slice(position)];
+  if (next.every((key, index) => key === order[index])) return { changed: false };
+  const operations: CsvSingleOperation[] = [];
+  const move = (key: string, index: number) => {
+    const result = moveCsvRowDraft(state, key, index);
+    if (result.historyOperation?.type === 'row-moved') operations.push(result.historyOperation);
+  };
+  // Vacate the selected records before placing the group; history grows with the group size.
+  moving.forEach((key) => move(key, order.length - 1));
+  moving.forEach((key, offset) => move(key, position + offset));
+  return csvRowBatch(state, operations, '移动');
+}
+export function insertCsvRowsDraft(
+  state: CsvTableState,
+  rows: CsvDraftRow[],
+  boundary: number,
+): { result: CsvDraftResult; keys: string[] } {
+  const operations: CsvSingleOperation[] = [],
+    keys: string[] = [];
+  rows.forEach((source, offset) => {
+    const row = { rowKey: createTableRowKey(state.table, state.nextRowKey++), data: deepClone(source.data), isComment: source.isComment };
+    const operation: CsvSingleOperation = { type: 'row-created', tab: state.table, rowKey: row.rowKey, rowIndex: boundary + offset, row };
+    applyCsvDraftOperation(state, operation, 'redo');
+    operations.push(operation);
+    keys.push(row.rowKey);
+  });
+  return { result: csvRowBatch(state, operations, '插入'), keys };
+}
+export function deleteCsvRowsDraft(state: CsvTableState, keys: string[]): CsvDraftResult {
+  const operations: CsvSingleOperation[] = [];
+  for (const key of keys) {
+    const result = deleteCsvRowDraft(state, key);
+    if (result.historyOperation?.type === 'row-deleted') operations.push(result.historyOperation);
+  }
+  return csvRowBatch(state, operations, '删除');
+}
 export function applyCsvDraftOperation(state: CsvTableState, operation: CsvDraftOperation, direction: 'undo' | 'redo'): boolean {
+  if (operation.type === 'batch') {
+    // Undo cell edits before removing rows created by the same operation.
+    const operations = direction === 'undo' ? [...operation.operations].reverse() : operation.operations;
+    return operations.every((entry) => applyCsvDraftOperation(state, entry, direction));
+  }
   const { rowKey } = operation;
   if (operation.type === 'row-moved')
     return moveCsvRowDraft(state, rowKey, direction === 'undo' ? operation.previousIndex : operation.nextIndex).changed;
@@ -254,7 +333,10 @@ export function applyCsvDraftOperation(state: CsvTableState, operation: CsvDraft
   row.rowKey = rowKey;
   state.rows[rowKey] = row;
   state.rowOrder.splice(operation.rowIndex, 0, rowKey);
-  if (state.queryRowKeys) state.queryRowKeys.splice(operation.rowIndex, 0, rowKey);
+  if (state.queryRowKeys) {
+    const next = state.rowOrder.slice(operation.rowIndex + 1).find((key) => state.queryRowKeys!.includes(key));
+    state.queryRowKeys.splice(next ? state.queryRowKeys.indexOf(next) : state.queryRowKeys.length, 0, rowKey);
+  }
   markRowDirty(state, row);
   updateCounts(state);
   return true;

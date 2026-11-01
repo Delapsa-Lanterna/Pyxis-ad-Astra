@@ -1,6 +1,7 @@
 import { mount, type VueWrapper } from '@vue/test-utils';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { computed, ref } from 'vue';
+import { computed, h, ref } from 'vue';
+import { useCsvTableInputs } from '@/app/composables/csv-editor/use-csv-table-inputs';
 import CsvTableEditor from './CsvTableEditor.vue';
 import CsvGrid from './CsvGrid.vue';
 import type { CsvTableViewModel } from '@/app/composables/csv-editor/use-csv-table-view-model';
@@ -55,8 +56,16 @@ function mountTable(vm: CsvTableViewModel) {
         'n-button': { emits: ['click'], template: `<button @click="$emit('click', $event)"><slot /></button>` },
         CsvGrid: {
           props: ['model', 'selectedRowKey', 'editing', 'isDirty'],
-          emits: ['request-window', 'resize-column', 'select-row', 'update-cell', 'copy-row'],
-          template: '<div class="csv-grid-stub" />',
+          emits: ['request-window', 'resize-column', 'select-row', 'undo', 'redo'],
+          setup() {
+            const inputs = useCsvTableInputs();
+            return () =>
+              h(
+                'div',
+                { class: 'csv-grid-stub' },
+                h('button', { class: 'copy-fixture', onClick: () => inputs.range!.copy(['source'], 3) }),
+              );
+          },
         },
       },
     },
@@ -65,16 +74,21 @@ function mountTable(vm: CsvTableViewModel) {
 }
 
 describe('CsvTableEditor', () => {
-  it('copies through its captured table target', () => {
-    const copyRow = vi.fn();
-    const fixture = tableVmFixture({ tables: { copyRow } });
+  it.each(['undo', 'redo'] as const)('forwards %s to the CSV action owner', (command) => {
+    const mounted = mountTable(tableVmFixture());
+    mounted.findComponent(CsvGrid).vm.$emit(command);
+    expect(mounted.emitted(command)).toHaveLength(1);
+  });
+  it('copies through its captured table target', async () => {
+    const copyRows = vi.fn();
+    const fixture = tableVmFixture({ tables: { copyRows } });
     const currentTarget = ref(fixture.target.value);
     const vm = { ...fixture, target: computed(() => currentTarget.value) };
     const target = vm.target.value;
     const mounted = mountTable(vm);
     currentTarget.value = { sessionId: 'other', modRoot: 'M:/other', table: 'weapons' };
-    mounted.findComponent(CsvGrid).vm.$emit('copy-row', 'source', 3);
-    expect(copyRow).toHaveBeenCalledExactlyOnceWith(target, 'source', 3);
+    await mounted.get('.copy-fixture').trigger('click');
+    expect(copyRows).toHaveBeenCalledExactlyOnceWith(target, ['source'], 3);
   });
   it('renders the grid without notices for a clean table with columns', () => {
     const mounted = mountTable(tableVmFixture());

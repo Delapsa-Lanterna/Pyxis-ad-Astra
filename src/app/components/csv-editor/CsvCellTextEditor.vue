@@ -11,11 +11,11 @@
       @input="updateText"
       class="csv-cell-text-input ui-textarea ui-text-normal ui-control-border"
       spellcheck="false"
-      @keydown.enter.ctrl.prevent="commit"
-      @keydown.esc.prevent="cancel"
+      @keydown.enter="handleEnter"
+      @keydown.esc="handleEscape"
     ></textarea>
     <div class="csv-cell-text-actions ui-control-between">
-      <span class="csv-cell-text-hint ui-text-muted">Ctrl+Enter 提交，Esc 取消</span>
+      <span class="csv-cell-text-hint ui-text-muted">Enter 提交，Alt+Enter 换行，Esc 取消</span>
       <button type="button" class="csv-cell-text-commit ui-button ui-text-small" @click="commit">提交</button>
     </div>
   </div>
@@ -24,10 +24,12 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, useTemplateRef } from 'vue';
 import { useCsvFloatingPanel } from '@/app/composables/csv-editor/use-csv-floating-panel';
+import { focusCsvCellText } from '@/app/composables/csv-editor/csv-cell-edit';
 
 const props = defineProps<{
   anchor: { height: number; left: number; top: number; width: number };
   value: string;
+  offsetX?: number;
 }>();
 
 const emit = defineEmits<{
@@ -62,11 +64,25 @@ function updateText(event: Event) {
   emit('update', (event.target as HTMLTextAreaElement).value);
 }
 
+function handleEnter(event: KeyboardEvent) {
+  if (event.defaultPrevented || event.isComposing) return;
+  event.preventDefault();
+  if (event.altKey) {
+    textRef.value!.setRangeText('\n', textRef.value!.selectionStart, textRef.value!.selectionEnd, 'end');
+    emit('update', textRef.value!.value);
+  } else commit();
+}
+
+function handleEscape(event: KeyboardEvent) {
+  if (event.isComposing) return;
+  event.preventDefault();
+  cancel();
+}
+
 function focusText() {
   const area = textRef.value;
   if (!area) return;
-  area.focus({ preventScroll: true });
-  area.setSelectionRange(area.value.length, area.value.length);
+  focusCsvCellText(area, props.offsetX);
 }
 
 function handleDocumentMouseDown(event: MouseEvent) {

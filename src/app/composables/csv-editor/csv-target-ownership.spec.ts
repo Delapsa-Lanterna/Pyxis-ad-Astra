@@ -98,7 +98,7 @@ describe('CSV explicit targets and column ownership', () => {
     mocks.query.mockResolvedValue(record);
     const vm = harness(save);
     await flushPromises();
-    useCsvEditorStore().moveRow(a, 'second', 0);
+    useCsvEditorStore().moveRows(a, ['second'], 0);
     return vm;
   }
   it('reads the identities currently occupying the requested range after reordering', async () => {
@@ -113,7 +113,7 @@ describe('CSV explicit targets and column ownership', () => {
     await flushPromises();
     await vm.loadTableWindow(400, 80);
     const tables = useCsvEditorStore();
-    tables.moveRow(a, 'row-400', 0);
+    tables.moveRows(a, ['row-400'], 0);
     tables.updateCellValue({ ...a, rowKey: 'row-0', column: 'id' }, 'local');
     await vm.loadTableWindow(240, 80);
     expect(mocks.rows).toHaveBeenLastCalledWith(

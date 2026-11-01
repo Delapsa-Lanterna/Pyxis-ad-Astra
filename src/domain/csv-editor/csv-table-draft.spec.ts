@@ -10,8 +10,11 @@ import {
   applyCsvTableRowsDraft,
   commitCsvTableSaveDraft,
   createCsvRowDraft,
-  copyCsvRowDraft,
   setCsvCellValueDraft,
+  writeCsvRangeDraft,
+  moveCsvRowsDraft,
+  insertCsvRowsDraft,
+  deleteCsvRowsDraft,
   moveCsvRowDraft,
   hasCsvRowOrderChanges,
   hasCsvTableDraftChanges,
@@ -40,6 +43,127 @@ function fixture(count = 6, loaded = Array.from({ length: count }, (_, index) =>
   return { state, index };
 }
 describe('CSV keyed baseline, order and draft acceptance', () => {
+  it.each([0, 2, 6])('moves disjoint rows together at boundary %s and reverses exactly', (boundary) => {
+    const { state } = fixture(6),
+      document = state.documents.ships;
+    const selected = [key(1), key(4)],
+      remaining = [0, 2, 3, 5].map(key);
+    const at = boundary - [1, 4].filter((index) => index < boundary).length;
+    const result = moveCsvRowsDraft(document, selected, boundary);
+    expect(document.rowOrder).toEqual([...remaining.slice(0, at), ...selected, ...remaining.slice(at)]);
+    applyCsvDraftOperation(document, result.historyOperation!, 'undo');
+    expect(document.rowOrder).toEqual([0, 1, 2, 3, 4, 5].map(key));
+    expect(hasCsvTableDraftChanges(document)).toBe(false);
+    applyCsvDraftOperation(document, result.historyOperation!, 'redo');
+    expect(document.rowOrder.slice(at, at + 2)).toEqual(selected);
+  });
+  it('treats an unchanged group position as no history operation', () => {
+    const { state } = fixture(4);
+    expect(moveCsvRowsDraft(state.documents.ships, [key(1), key(2)], 2).changed).toBe(false);
+  });
+  it('moves unloaded rows with history proportional to the chosen group', () => {
+    const { state } = fixture(300, []),
+      document = state.documents.ships;
+    const single = moveCsvRowsDraft(document, [key(0)], 300).historyOperation!;
+    if (single.type !== 'batch') throw Error('expected batch');
+    expect(single.operations).toHaveLength(1);
+    expect(document.rowOrder.at(-1)).toBe(key(0));
+    applyCsvDraftOperation(document, single, 'undo');
+    const group = moveCsvRowsDraft(document, [key(0), key(2)], 300).historyOperation!;
+    if (group.type !== 'batch') throw Error('expected batch');
+    expect(group.operations.length).toBeLessThanOrEqual(4);
+    expect(document.rowOrder.slice(-2)).toEqual([key(0), key(2)]);
+    expect(Object.keys(document.rows)).toHaveLength(0);
+    applyCsvDraftOperation(document, group, 'undo');
+    expect(document.rowOrder).toEqual(Array.from({ length: 300 }, (_, index) => key(index)));
+  });
+  it('inserts independent copies before a filtered target and replays their visibility', () => {
+    const { state } = fixture(6),
+      document = state.documents.ships;
+    document.queryRowKeys = [key(1), key(4)];
+    document.filteredRowCount = 2;
+    const rows = [document.rows[key(1)]!, document.rows[key(4)]!];
+    const { result, keys } = insertCsvRowsDraft(document, rows, 4);
+    expect(document.queryRowKeys).toEqual([key(1), ...keys, key(4)]);
+    expect(document.rowOrder).toEqual([0, 1, 2, 3].map(key).concat(keys, [key(4), key(5)]));
+    expect(document.rows[keys[0]!]!.isComment).toBe(true);
+    expect(document.rows[keys[0]!]!.data).not.toBe(rows[0]!.data);
+    applyCsvDraftOperation(document, result.historyOperation!, 'undo');
+    expect(document.totalRowCount).toBe(6);
+    applyCsvDraftOperation(document, result.historyOperation!, 'redo');
+    expect(document.queryRowKeys).toEqual([key(1), ...keys, key(4)]);
+  });
+  it('deletes disjoint records with comments as one reversible history item', () => {
+    const { state } = fixture(6),
+      document = state.documents.ships;
+    const result = deleteCsvRowsDraft(document, [key(1), key(4)]);
+    expect(document.rowOrder).toEqual([0, 2, 3, 5].map(key));
+    expect(result.historyOperation?.type).toBe('batch');
+    applyCsvDraftOperation(document, result.historyOperation!, 'undo');
+    expect(document.rowOrder).toEqual([0, 1, 2, 3, 4, 5].map(key));
+    expect(document.rows[key(1)]!.isComment).toBe(true);
+    expect(document.dirty).toEqual({});
+  });
+  it('groups a filtered paste and appended blank rows into one reversible operation', () => {
+    const { state } = fixture(4),
+      document = state.documents.ships;
+    document.queryRowKeys = [key(0), key(2)];
+    const keys = [key(2)];
+    const result = writeCsvRangeDraft(document, keys, ['name'], [['001'], [''], ['quoted\ntext']]);
+    expect(keys).toHaveLength(3);
+    expect(document.rowOrder).toEqual([key(0), key(1), key(2), key(3), keys[1], keys[2]]);
+    expect(document.queryRowKeys).toEqual([key(0), key(2), keys[1], keys[2]]);
+    expect(document.rows[key(1)]!.data.name).toBe('Name 1');
+    expect(document.rows[keys[1]!]!.data).toEqual({ id: '', name: '' });
+    expect(document.rows[keys[2]!]!.data).toEqual({ id: '', name: 'quoted\ntext' });
+    expect(document.totalRowCount).toBe(6);
+    applyCsvDraftOperation(document, result.historyOperation!, 'undo');
+    expect(document.rowOrder).toEqual([0, 1, 2, 3].map(key));
+    expect(document.queryRowKeys).toEqual([key(0), key(2)]);
+    expect(document.dirty).toEqual({});
+    applyCsvDraftOperation(document, result.historyOperation!, 'redo');
+    expect(document.totalRowCount).toBe(6);
+    expect(document.rows[key(2)]!.data.name).toBe('001');
+  });
+  it('replays comment identity exactly and ignores unchanged batch values', () => {
+    const { state } = fixture(2),
+      document = state.documents.ships;
+    const result = writeCsvRangeDraft(document, [key(0), key(1)], ['id'], [['#disabled'], ['enabled']]);
+    expect(document.rows[key(0)]!.isComment).toBe(true);
+    expect(document.rows[key(1)]!.isComment).toBe(false);
+    expect(writeCsvRangeDraft(document, [key(0), key(1)], ['id'], [['#disabled'], ['enabled']]).historyOperation).toBeUndefined();
+    applyCsvDraftOperation(document, result.historyOperation!, 'undo');
+    expect(document.rows[key(0)]!.isComment).toBe(false);
+    expect(document.rows[key(1)]!.isComment).toBe(true);
+    expect(document.dirty).toEqual({});
+  });
+  it('maps every member of a saved batch while retaining subsequent raw values', () => {
+    const { state } = fixture(1),
+      document = state.documents.ships,
+      tables = useCsvEditorStore();
+    const target = { sessionId: 'session', modRoot: 'M:/mod', table: 'ships' as const };
+    const keys = tables.updateRange(target, [key(0)], ['name'], [['A'], ['B']]);
+    const order = [...document.rowOrder];
+    const patches = keys.map((rowKey) => ({
+      rowKey,
+      action: 'upsert' as const,
+      row: { ...document.rows[rowKey]!.data },
+      isComment: false,
+    }));
+    setCsvCellValueDraft(document, keys[1]!, 'name', 'Later');
+    const mapping = [{ previousKey: keys[1]!, nextKey: key(9), rowIndex: 1 }];
+    commitCsvTableSaveDraft(document, patches, mapping, order);
+    tables.applySavedRowKeyMap(target.modRoot, target.table, mapping);
+    expect(document.rows[key(9)]!.data.name).toBe('Later');
+    const batch = document.history.undoStack[0]!.operation;
+    if (batch.type !== 'batch') throw Error('expected batch');
+    expect(batch.operations.filter((operation) => operation.rowKey === keys[1])).toHaveLength(0);
+    expect(batch.operations.filter((operation) => operation.rowKey === key(9))).toHaveLength(2);
+    applyCsvDraftOperation(document, batch, 'undo');
+    expect(document.dirty[key(9)]).toEqual({ action: 'delete' });
+    applyCsvDraftOperation(document, batch, 'redo');
+    expect(document.rows[key(9)]!.data.name).toBe('B');
+  });
   it.each([0, 1, 2, 3].flatMap((position) => [false, true].map((comment) => ({ position, comment }))))(
     'copies complete independent rows to $position with comment=$comment through history',
     ({ position, comment }) => {
@@ -48,7 +172,7 @@ describe('CSV keyed baseline, order and draft acceptance', () => {
       const source = document.rows[key(1)]!;
       source.data.extra = '001';
       source.isComment = comment;
-      const operation = copyCsvRowDraft(document, source.rowKey, position).historyOperation!;
+      const operation = insertCsvRowsDraft(document, [source], position).result.historyOperation!;
       const copy = document.rows[operation.rowKey]!;
       expect(copy.data).toEqual(source.data);
       expect(copy.data).not.toBe(source.data);
@@ -72,10 +196,9 @@ describe('CSV keyed baseline, order and draft acceptance', () => {
       document = state.documents.ships,
       tables = useCsvEditorStore();
     const target = { sessionId: 'session', modRoot: 'M:/mod', table: 'ships' as const };
-    tables.copyRow(target, key(1), 0);
-    const first = state.selectedRowKey!;
-    tables.copyRow(target, first, 1);
-    const second = state.selectedRowKey!;
+    const first = tables.copyRows(target, [key(1)], 0)[0]!;
+    const second = tables.copyRows(target, [first], 1)[0]!;
+    tables.selectRowByKey(target, second);
     expect(first).not.toBe(second);
     expect(document.rowOrder).toEqual([first, second, key(0), key(1)]);
     expect(document.history.undoStack).toHaveLength(2);

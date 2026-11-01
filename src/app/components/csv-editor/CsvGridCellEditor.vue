@@ -4,7 +4,8 @@
     :class="{ 'csv-cell-editor-picker': !usesNativeInput && !isTextControl }"
     @mousedown.stop
     @click.stop
-    @keydown.esc.stop.prevent="cancelAndClose"
+    @dblclick.stop
+    @keydown.esc="handleEscape"
   >
     <input
       v-if="usesNativeInput"
@@ -13,7 +14,7 @@
       :value="raw"
       @blur="handleNativeBlur"
       @input="handleNativeInput"
-      @keydown.enter.prevent="commitAndClose"
+      @keydown.enter="handleEnter"
     />
     <template v-else-if="isTextControl">
       <span class="csv-cell-value ui-text-truncate ui-layout-shrink">{{ displayValue }}</span>
@@ -24,6 +25,7 @@
           v-if="pickerAnchor"
           :anchor="pickerAnchor"
           :value="raw"
+          :offset-x="edit?.kind === 'raw' ? edit.offsetX : undefined"
           @update="update"
           @cancel="cancelAndClose"
           @commit="commitAndClose"
@@ -55,7 +57,6 @@
       <template v-else>
         <span class="csv-cell-value ui-text-truncate ui-layout-shrink">{{ displayValue }}</span>
       </template>
-      <svg class="csv-cell-caret ui-control-icon ui-text-muted" viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4" /></svg>
       <Teleport :to="floating?.overlay.value ?? 'body'" :disabled="!floating?.overlay.value"
         ><CsvCellPicker
           ref="pickerRef"
@@ -67,9 +68,13 @@
           :image-paths="control === 'path-image'"
           :session-id="context.target.sessionId"
           :values="pickerValues"
+          :edit="edit"
+          :raw-value="raw"
           @cancel="cancelAndClose"
           @commit="handlePickerCommit"
           @update="handlePickerUpdate"
+          @update-raw="update"
+          @commit-raw="commitAndClose"
       /></Teleport>
     </template>
   </div>
@@ -102,6 +107,7 @@ import CsvCellPicker from '@/app/components/csv-editor/CsvCellPicker.vue';
 import CsvCellTextEditor from '@/app/components/csv-editor/CsvCellTextEditor.vue';
 import ResourceThumbnail from '@/app/components/media/ResourceThumbnail.vue';
 import { useImageSourceOptions } from '@/app/composables/editors/use-image-source-options';
+import { focusCsvCellText, type CsvCellEdit } from '@/app/composables/csv-editor/csv-cell-edit';
 
 const props = defineProps<{
   anchorElement: HTMLElement | null;
@@ -109,6 +115,7 @@ const props = defineProps<{
   column: CsvGridColumn;
   row: CsvRowRecord;
   sourceIndex: CsvSourceIndex;
+  edit?: CsvCellEdit;
 }>();
 
 const emit = defineEmits<{
@@ -123,8 +130,8 @@ const inputRef = useTemplateRef<HTMLInputElement>('inputRef');
 const textEditorRef = ref<InstanceType<typeof CsvCellTextEditor> | null>(null);
 const pickerAnchor = shallowRef<CsvFloatingAnchor | null>(props.initialAnchor ?? null);
 
-const raw = ref(cell(props.row.data[props.column.key]));
-const baseline = ref(raw.value);
+const baseline = ref(cell(props.row.data[props.column.key]));
+const raw = ref(props.edit?.kind === 'raw' ? (props.edit.text ?? baseline.value) : baseline.value);
 const pickerRef = ref<InstanceType<typeof CsvCellPicker> | null>(null);
 const dirty = computed(() => raw.value !== baseline.value);
 const inputKey = ref(0);
@@ -147,7 +154,7 @@ const listValue = computed(() => csvListValues(raw.value));
 const imageOptions = useImageSourceOptions({
   sessionId: () => context.target.sessionId,
   directories: () => props.column.schema?.imageDirectories,
-  active: () => mode.value !== 'plain' && control.value === 'path-image',
+  active: () => !usesNativeInput.value && mode.value !== 'plain' && control.value === 'path-image',
 });
 const pickerOptions = computed(() => {
   if (control.value === 'path-image') return imageOptions.value;
@@ -184,8 +191,7 @@ watch(
 
 function focusActive() {
   if (usesNativeInput.value) {
-    inputRef.value?.focus({ preventScroll: true });
-    inputRef.value?.select();
+    if (inputRef.value) focusCsvCellText(inputRef.value, props.edit?.kind === 'raw' ? props.edit.offsetX : undefined);
     return;
   }
   updateAnchor();
@@ -236,6 +242,19 @@ onScopeDispose(() => {
 function handleNativeInput(event: Event) {
   const target = event.target as HTMLInputElement | null;
   update(target?.value ?? '');
+}
+
+function handleEnter(event: KeyboardEvent) {
+  if (event.defaultPrevented || event.isComposing) return;
+  event.preventDefault();
+  commitAndClose();
+}
+
+function handleEscape(event: KeyboardEvent) {
+  if (event.isComposing) return;
+  event.preventDefault();
+  event.stopPropagation();
+  cancelAndClose();
 }
 
 function update(value: string) {
@@ -311,5 +330,17 @@ function listValueDescription(value: string): string | undefined {
   return sourceValue(props.sourceIndex, props.column.schema?.source, value)?.option.description ?? undefined;
 }
 
-defineExpose({ focus });
+defineExpose({
+  focus,
+  capture: () => {
+    const text = raw.value;
+    return {
+      text,
+      current: () => raw.value === text,
+      accept: () => {
+        baseline.value = text;
+      },
+    };
+  },
+});
 </script>

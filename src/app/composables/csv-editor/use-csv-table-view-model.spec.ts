@@ -172,13 +172,16 @@ describe('CSV index and keyed content owner', () => {
     const loading = vm.loadTableWindow(240, 760);
     await flushPromises();
     expect(mocks.rows).toHaveBeenCalledTimes(2);
-    await vm.loadTableWindow(240, 160);
+    const duplicate = vm.loadTableWindow(240, 160);
+    const range = vm.ensureTableRows(['key-240', 'key-399']);
     expect(mocks.rows).toHaveBeenCalledTimes(2);
     while (releases.length) {
       releases.shift()!();
       await flushPromises();
     }
     await loading;
+    await duplicate;
+    expect(await range).toBe(true);
     expect(maximum).toBe(2);
     expect(mocks.rows.mock.calls.every((call) => call[2].length <= 160)).toBe(true);
     expect(Object.keys(vm.gridModel.value.rowsByKey)).toHaveLength(1000);
@@ -186,10 +189,25 @@ describe('CSV index and keyed content owner', () => {
   it('loads the actual identities after moving an unloaded target into the viewport', async () => {
     const vm = harness();
     await flushPromises();
-    useCsvEditorStore().moveRow(target, 'key-900', 0);
+    useCsvEditorStore().moveRows(target, ['key-900'], 0);
     await vm.loadTableWindow(0, 40);
     expect(mocks.rows).toHaveBeenLastCalledWith('session', 'ships', ['key-900'], expect.any(AbortSignal));
     expect(useCsvEditorStore().rows[0]?.rowKey).toBe('key-900');
+  });
+  it('reuses loaded range contents without another row, index or source read', async () => {
+    const vm = harness();
+    await flushPromises();
+    mocks.index.mockClear();
+    mocks.sources.mockClear();
+    mocks.rows.mockClear();
+    expect(await vm.ensureTableRows(['key-1', 'key-239'])).toBe(true);
+    expect(mocks.rows).not.toHaveBeenCalled();
+    expect(await vm.ensureTableRows(['key-240', 'key-399'])).toBe(true);
+    expect(mocks.rows).toHaveBeenCalledExactlyOnceWith(target.sessionId, target.table, ['key-240', 'key-399'], expect.any(AbortSignal));
+    expect(await vm.ensureTableRows(['key-240', 'key-399'])).toBe(true);
+    expect(mocks.rows).toHaveBeenCalledTimes(1);
+    expect(mocks.index).not.toHaveBeenCalled();
+    expect(mocks.sources).not.toHaveBeenCalled();
   });
   it('accepts later content while a local field edit remains dirty against the same baseline', async () => {
     let finish!: (value: CsvTableRowsRead) => void;

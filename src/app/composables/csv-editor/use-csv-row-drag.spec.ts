@@ -21,7 +21,7 @@ function fixture() {
   const inputs = createFieldInputs(ref('one')),
     move = vi.fn(),
     copy = vi.fn(),
-    select = vi.fn(),
+    select = vi.fn((key: string) => [key]),
     scrolled = vi.fn();
   const frames = new Map<number, FrameRequestCallback>();
   let next = 0,
@@ -71,6 +71,38 @@ function fixture() {
 }
 
 describe('CSV row drag lifecycle', () => {
+  it.each([false, true])('captures one complete group for Ctrl=%s and submits once', async (ctrl) => {
+    const { drag, select, move, copy, event } = fixture();
+    select.mockReturnValue(['row-0', 'row-2']);
+    drag.start('row-2', event(78, ctrl));
+    await flushPromises();
+    drag.onMove(event(95));
+    select.mockReturnValue(['row-7']);
+    drag.onUp(event(203));
+    drag.onUp(event(203));
+    expect(select).toHaveBeenCalledOnce();
+    expect(ctrl ? copy : move).toHaveBeenCalledExactlyOnceWith(['row-0', 'row-2'], 7);
+    expect(ctrl ? move : copy).not.toHaveBeenCalled();
+  });
+  it('distinguishes Ctrl click from a copy gesture below the threshold', async () => {
+    const { drag, select, copy, move, event } = fixture();
+    drag.start('row-0', event(30, true));
+    await flushPromises();
+    drag.onUp(event(32));
+    expect(select).toHaveBeenCalledExactlyOnceWith('row-0', 'click', true, undefined);
+    expect(copy).not.toHaveBeenCalled();
+    expect(move).not.toHaveBeenCalled();
+  });
+  it('preserves a selected group when a disabled move gesture is released', async () => {
+    const { drag, select, move, copy, event, disabled } = fixture();
+    disabled.value = '搜索中';
+    drag.start('row-0', event(30));
+    await flushPromises();
+    drag.onUp(event(119));
+    expect(select).not.toHaveBeenCalled();
+    expect(move).not.toHaveBeenCalled();
+    expect(copy).not.toHaveBeenCalled();
+  });
   it.each([false, true])('fixes the copy mode at pointer down with Ctrl=%s', async (ctrl) => {
     const { drag, move, copy, event } = fixture();
     drag.start('row-0', event(30, ctrl));
@@ -78,8 +110,8 @@ describe('CSV row drag lifecycle', () => {
     drag.onMove(event(95, !ctrl));
     drag.onUp(event(95, !ctrl));
     drag.onUp(event(95, !ctrl));
-    expect(copy.mock.calls).toEqual(ctrl ? [['row-0', 3]] : []);
-    expect(move.mock.calls).toEqual(ctrl ? [] : [['row-0', 2]]);
+    expect(copy.mock.calls).toEqual(ctrl ? [[['row-0'], 3]] : []);
+    expect(move.mock.calls).toEqual(ctrl ? [] : [[['row-0'], 3]]);
   });
   it.each([
     [25, 0],
@@ -91,7 +123,7 @@ describe('CSV row drag lifecycle', () => {
     await flushPromises();
     drag.onMove(event(y));
     drag.onUp(event(y));
-    expect(copy).toHaveBeenCalledExactlyOnceWith('row-0', boundary);
+    expect(copy).toHaveBeenCalledExactlyOnceWith(['row-0'], boundary);
   });
   it.each(['threshold', 'escape', 'cancel', 'disabled', 'baseline', 'unmount'])('releases a copy on %s', async (boundary) => {
     const { drag, copy, disabled, context, event, frames } = fixture();
@@ -116,8 +148,8 @@ describe('CSV row drag lifecycle', () => {
     drag.onMove(event(95));
     expect(move).not.toHaveBeenCalled();
     drag.onUp(event(95));
-    expect(select).toHaveBeenCalledExactlyOnceWith('row-0');
-    expect(move).toHaveBeenCalledExactlyOnceWith('row-0', 2);
+    expect(select).toHaveBeenCalledExactlyOnceWith('row-0', 'drag', false, undefined);
+    expect(move).toHaveBeenCalledExactlyOnceWith(['row-0'], 3);
     expect(drag.insertion.value).toBeNull();
   });
   it.each(['threshold', 'origin', 'escape', 'cancel', 'disabled', 'baseline', 'unmount'])('keeps the order on %s', async (boundary) => {
@@ -187,6 +219,6 @@ describe('CSV row drag lifecycle', () => {
     await flushPromises();
     drag.onMove(event(90));
     drag.onUp(event(90));
-    expect(move).toHaveBeenCalledExactlyOnceWith('row-0', 2);
+    expect(move).toHaveBeenCalledExactlyOnceWith(['row-0'], 3);
   });
 });

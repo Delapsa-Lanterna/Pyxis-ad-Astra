@@ -27,7 +27,7 @@ export function useCsvTableViewModel(saveBeforeSearch: () => Promise<boolean>) {
   const workspace = useWorkspaceStore();
   const feedback = useAppFeedback();
   const reads = useQueryReadOwner();
-  let pendingRows = new Set<string>();
+  let pendingRows = new Map<string, Promise<void>>();
   const rowQueue: Array<{ run: () => Promise<void>; cancel: () => void }> = [];
   let rowReads = 0;
   let lastRange = { start: 0, count: 240 };
@@ -427,65 +427,77 @@ export function useCsvTableViewModel(saveBeforeSearch: () => Promise<boolean>) {
   }
   function loadTableWindow(start: number, count: number): Promise<void> {
     lastRange = { start, count };
+    return loadRows(tables.rowKeys.slice(start, start + count));
+  }
+  function loadRows(requested: string[]): Promise<void> {
     const captured = target.value;
-    if (!captured || count <= 0 || !windowReady.value) return Promise.resolve();
+    if (!captured || !requested.length || !windowReady.value) return Promise.resolve();
     const state = tables.getCsvModState(captured.modRoot);
     if (!state) return Promise.resolve();
     const generation = tables.tableReadGeneration(captured.modRoot, captured.table);
-    const missing = tables.rowKeys
-      .slice(start, start + count)
-      .filter((key) => !state.documents[captured.table].rows[key] && !pendingRows.has(key));
+    const missing = requested.filter((key) => !state.documents[captured.table].rows[key] && !pendingRows.has(key));
     const pending = pendingRows;
-    const waits: Promise<void>[] = [];
+    const waits: Promise<void>[] = requested.flatMap((key) => (pending.has(key) ? [pending.get(key)!] : []));
     for (let offset = 0; offset < missing.length; offset += 160) {
       const keys = missing.slice(offset, offset + 160);
-      keys.forEach((key) => pending.add(key));
-      waits.push(
-        new Promise<void>((resolve) => {
-          rowQueue.push({
-            cancel: resolve,
-            run: async () => {
-              try {
-                await reads.consume(
-                  'rows:' + keys[0],
-                  { ...captured, generation, keys },
-                  (signal) => queryTableRows(captured.sessionId, captured.table, keys, signal),
-                  {
-                    ready: (rows) => {
-                      if (
-                        state === tables.getCsvModState(captured.modRoot) &&
-                        generation === tables.tableReadGeneration(captured.modRoot, captured.table) &&
-                        !tables.saving &&
-                        !tables.currentTableLocked
-                      )
-                        tables.applyTableRows(captured, rows);
-                    },
-                    error: (error) => {
-                      if (
-                        state === tables.getCsvModState(captured.modRoot) &&
-                        generation === tables.tableReadGeneration(captured.modRoot, captured.table)
-                      )
-                        feedback.error(error, '加载表格内容失败');
-                    },
+      const wait = new Promise<void>((resolve) => {
+        rowQueue.push({
+          cancel: resolve,
+          run: async () => {
+            try {
+              await reads.consume(
+                'rows:' + keys[0],
+                { ...captured, generation, keys },
+                (signal) => queryTableRows(captured.sessionId, captured.table, keys, signal),
+                {
+                  ready: (rows) => {
+                    if (
+                      state === tables.getCsvModState(captured.modRoot) &&
+                      generation === tables.tableReadGeneration(captured.modRoot, captured.table) &&
+                      !tables.saving &&
+                      !tables.currentTableLocked
+                    )
+                      tables.applyTableRows(captured, rows);
                   },
-                );
-              } finally {
-                keys.forEach((key) => pending.delete(key));
-                resolve();
-              }
-            },
-          });
-        }),
-      );
+                  error: (error) => {
+                    if (
+                      state === tables.getCsvModState(captured.modRoot) &&
+                      generation === tables.tableReadGeneration(captured.modRoot, captured.table)
+                    )
+                      feedback.error(error, '加载表格内容失败');
+                  },
+                },
+              );
+            } finally {
+              keys.forEach((key) => pending.delete(key));
+              resolve();
+            }
+          },
+        });
+      });
+      keys.forEach((key) => pending.set(key, wait));
+      waits.push(wait);
     }
     drainRows();
     return Promise.all(waits).then(() => undefined);
   }
 
+  async function ensureTableRows(keys: string[]) {
+    const captured = target.value!;
+    const state = tables.getCsvModState(captured.modRoot)!;
+    const generation = tables.tableReadGeneration(captured.modRoot, captured.table);
+    await loadRows(keys);
+    return (
+      state === tables.getCsvModState(captured.modRoot) &&
+      generation === tables.tableReadGeneration(captured.modRoot, captured.table) &&
+      keys.every((key) => Boolean(state.documents[captured.table].rows[key]))
+    );
+  }
+
   function clearRowQueue() {
     for (const job of rowQueue) job.cancel();
     rowQueue.length = 0;
-    pendingRows = new Set();
+    pendingRows = new Map();
   }
 
   async function reloadVisibleSourceOptions(required = false) {
@@ -549,6 +561,7 @@ export function useCsvTableViewModel(saveBeforeSearch: () => Promise<boolean>) {
     sourceIndex,
     loadExternalTableUpdate,
     loadTableWindow,
+    ensureTableRows,
     querySelectedRowPreview,
     setColumnWidth,
   };

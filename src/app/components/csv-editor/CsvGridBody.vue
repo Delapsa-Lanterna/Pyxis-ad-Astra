@@ -8,6 +8,9 @@
       :columns="columns"
       :source-index="sourceIndex"
       :selected="selectedRowKey === entry.item.rowKey"
+      :row-selected="selectedRows?.includes(entry.item.rowKey) ?? false"
+      :selected-column="selectedRowKey === entry.item.rowKey ? selectedColumn : null"
+      :range-columns="rangeForRow?.(entry.index) ?? ''"
       :is-dirty="isDirty"
       :reorder-disabled-reason="reorderDisabledReason"
       @start-row-drag="(key, event) => $emit('start-row-drag', key, event)"
@@ -28,6 +31,9 @@ const props = defineProps<{
   columns: CsvRenderColumn[];
   sourceIndex: CsvSourceIndex;
   selectedRowKey: string | null;
+  selectedRows?: string[];
+  selectedColumn?: string | null;
+  rangeForRow?: (index: number) => string;
   isDirty: (rowKey: string, column: string) => boolean;
   reorderDisabledReason?: string;
 }>();

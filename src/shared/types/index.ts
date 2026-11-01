@@ -102,7 +102,7 @@ export { ACCENT_PRESET_VALUES, APP_THEMES, EDIT_MODES, LOG_LEVELS } from '@/shar
 export type { AppLogEntry, AppLogLevel, AppLogStatus, AppendAppLogsPayload } from '@/shared/types/app-log.types';
 export { APP_LOG_LEVELS } from '@/shared/types/app-log.types';
 export type { FileChangeKind, FileChangeRecord, FileChangeReplayDirection, FileSnapshot } from '@/shared/types/file-changes.types';
-export type { CsvDraftOperation, CsvTableHistoryEntry } from '@/shared/types/csv-table-history.types';
+export type { CsvDraftOperation, CsvSingleOperation, CsvTableHistoryEntry } from '@/shared/types/csv-table-history.types';
 export type { FileHistoryEntrySummary, FileHistorySnapshot, FileReplay, FileHistoryPayload } from '@/shared/types/file-history.types';
 export type {
   AssociatedSpecChange,

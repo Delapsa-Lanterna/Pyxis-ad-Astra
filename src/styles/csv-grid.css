@@ -31,7 +31,7 @@
   box-sizing: border-box;
   min-width: 0;
   height: 24px;
-  padding: 1px 6px;
+  padding: 1px;
   overflow: clip;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -39,6 +39,7 @@
   border-bottom: 1px solid var(--color-border);
 }
 .data-table .csv-header-cell {
+  padding: 1px 6px;
   color: var(--color-text-soft);
   font-weight: 600;
   text-align: left;
@@ -153,11 +154,37 @@
   background: var(--color-panel-muted);
 }
 .csv-cell-caret {
+  position: relative;
+  z-index: 1;
   flex: 0 0 auto;
   margin-left: auto;
-  width: 10px;
-  height: 10px;
+  width: 16px;
+  height: 18px;
   stroke-width: 1.5;
+  cursor: pointer;
+  border: 0;
+  background: transparent;
+}
+.csv-cell-caret > svg {
+  transform: rotate(90deg);
+  transition: transform var(--ui-motion-duration) var(--ui-motion-easing);
+}
+.csv-cell-frame:has(> .csv-cell-editor-picker) > .csv-cell-caret > svg {
+  transform: rotate(0deg);
+}
+.csv-cell-selected > .csv-cell-frame {
+  border-color: var(--color-primary);
+}
+.csv-cell-in-range > .csv-cell-frame {
+  background: var(--color-primary-soft);
+}
+.csv-cell-selection-input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  pointer-events: none;
 }
 .csv-cell-thumb {
   flex: 0 0 auto;
@@ -175,7 +202,7 @@
 }
 .csv-cell-editor {
   position: absolute;
-  inset: 1px 6px auto;
+  inset: 1px 1px auto;
   box-sizing: border-box;
   display: flex;
   align-items: center;
@@ -190,7 +217,7 @@
 }
 .csv-cell-editor-picker {
   gap: var(--space-1);
-  padding-right: var(--space-1);
+  padding-right: calc(var(--space-1) + 16px);
 }
 .csv-cell-input {
   box-sizing: border-box;
@@ -326,6 +353,9 @@ body.csv-column-resizing {
   background: transparent;
   border: 0;
   border-radius: var(--radius-sm);
+}
+.csv-cell-picker-option.active {
+  box-shadow: inset 0 0 0 1px var(--color-primary);
 }
 .csv-cell-picker-check {
   flex: 0 0 12px;

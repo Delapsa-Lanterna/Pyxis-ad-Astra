@@ -22,6 +22,9 @@ let wrapper: VueWrapper | null = null;
 let resize: () => void;
 const disconnect = vi.fn();
 beforeEach(() => {
+  vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({
+    measureText: (text: string) => ({ width: text.length * 7 }),
+  } as CanvasRenderingContext2D);
   prepare.mockClear();
   vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(240);
   vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(240);
@@ -83,14 +86,22 @@ function mountGrid(model = modelFixture(), smart = false, anchored = false) {
               class="row-slot"
               ${anchored ? ':data-row-key="row.item.rowKey"' : ''}
               @click="$emit('activate-cell', row.item, columns[0].column, $event)"
-            >${anchored ? '<div class="csv-grid-cell" data-column-key="id"><span class="csv-cell-frame">{{ row.item.rowKey }}</span></div>' : '{{ row.item.rowKey }}'}</div>
+              @dblclick="$emit('activate-cell', row.item, columns[0].column, $event)"
+            >${anchored ? '<div class="csv-grid-cell" data-column-key="id"><span class="csv-cell-frame">{{ row.item.rowKey }}<button data-csv-picker>Open</button></span></div>' : '{{ row.item.rowKey }}'}</div>
           </div>`,
           },
         },
       },
       attachTo: document.body,
     },
-    { isDirty: () => false, model: reactive(model), selectedRowKey: null },
+    {
+      isDirty: () => false,
+      model: reactive(model),
+      selectedRowKey: null,
+      onSelectRow: (rowKey: string) => {
+        fixture.props.value = { ...fixture.props.value, selectedRowKey: rowKey };
+      },
+    },
     undefined,
     (editing) => ({ editing }),
   );
@@ -99,7 +110,19 @@ function mountGrid(model = modelFixture(), smart = false, anchored = false) {
 }
 
 describe('CsvGrid', () => {
-  it('forwards a Ctrl drag after committing the latest input', async () => {
+  it.each([
+    ['z', false, 'undo'],
+    ['y', false, 'redo'],
+    ['z', true, 'redo'],
+  ] as const)('dispatches Ctrl+%s with Shift=%s from selection', async (key, shiftKey, command) => {
+    const grid = mountGrid();
+    await vi.waitFor(() => expect(grid.find('.row-slot').exists()).toBe(true));
+    await grid.get('.row-slot').trigger('click');
+    await grid.get('.csv-cell-selection-input').trigger('keydown', { key, ctrlKey: true, shiftKey });
+    expect(grid.emitted(command)).toHaveLength(1);
+    expect(fixture.inputs.dirty.value).toBe(false);
+  });
+  it('commits the latest input before selecting rows for dragging', async () => {
     const grid = mountGrid();
     const panel = grid.get('.table-panel');
     Object.assign(panel.element, { setPointerCapture: vi.fn(), hasPointerCapture: () => false });
@@ -117,7 +140,7 @@ describe('CsvGrid', () => {
     Object.defineProperty(up, 'pointerId', { value: 7 });
     panel.element.dispatchEvent(up);
     expect(commit).toHaveBeenCalledOnce();
-    expect(grid.emitted('copy-row')).toEqual([['key-0', 1]]);
+    expect(grid.emitted('select-row')).toEqual([['key-0']]);
   });
   it.each([0, 1, 2])('reserves only the left button for row interactions (button %s)', (button) => {
     setActivePinia(createPinia());
@@ -156,7 +179,7 @@ describe('CsvGrid', () => {
     );
     const grid = mountGrid(model, true, true);
     await vi.waitFor(() => expect(grid.find('.row-slot').exists()).toBe(true));
-    await grid.get('.csv-cell-frame').trigger('click');
+    await grid.get(control === 'text' ? '.csv-cell-frame' : '[data-csv-picker]').trigger(control === 'text' ? 'dblclick' : 'click');
     await flushPromises();
     const selector = control === 'text' ? '.csv-cell-text-editor' : '.csv-cell-picker';
     expect(grid.find(selector).exists()).toBe(true);
@@ -220,7 +243,7 @@ describe('CsvGrid', () => {
   it('refreshes the requested window and releases observation', async () => {
     const grid = mountGrid();
     await vi.waitFor(() => expect(grid.find('.row-slot').exists()).toBe(true));
-    await grid.find('.row-slot').trigger('click');
+    await grid.find('.row-slot').trigger('dblclick');
     const requests = grid.emitted('request-window')!.length;
     resize();
     await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
@@ -243,7 +266,7 @@ describe('CsvGrid', () => {
   it('activates a cell: selects the row and exposes it through the editor host', async () => {
     const grid = mountGrid();
     await vi.waitFor(() => expect(grid.find('.row-slot').exists()).toBe(true));
-    await grid.find('.row-slot').trigger('click');
+    await grid.find('.row-slot').trigger('dblclick');
     expect(grid.emitted('select-row')?.at(-1)).toEqual(['key-0']);
     expect(grid.findComponent({ name: 'CsvGridEditorHost' }).props('target')).toMatchObject({ column: 'id', rowKey: 'key-0' });
   });
@@ -251,7 +274,7 @@ describe('CsvGrid', () => {
   it('keeps the active cell when the same target model is replaced', async () => {
     const grid = mountGrid();
     await vi.waitFor(() => expect(grid.find('.row-slot').exists()).toBe(true));
-    await grid.find('.row-slot').trigger('click');
+    await grid.find('.row-slot').trigger('dblclick');
     expect(grid.findComponent({ name: 'CsvGridEditorHost' }).props('target')).not.toBeNull();
 
     fixture.props.value = { ...fixture.props.value, model: reactive(modelFixture()) };
@@ -272,7 +295,7 @@ describe('CsvGrid', () => {
     const focus = vi.fn();
     fixture.inputs.register({ key: 'pending', label: 'Pending input', dirty: ref(true), commit: () => 'Invalid', focus, cancel: vi.fn() });
     await vi.waitFor(() => expect(grid.find('.row-slot').exists()).toBe(true));
-    await grid.get('.row-slot').trigger('click');
+    await grid.get('.row-slot').trigger('dblclick');
     await flushPromises();
     expect(focus).toHaveBeenCalledOnce();
     expect(fixture.activeCell.value).toBeNull();
@@ -283,7 +306,7 @@ describe('CsvGrid', () => {
     const grid = mountGrid();
     fixture.props.value = { ...fixture.props.value, selectedRowKey: 'key-0' };
     await vi.waitFor(() => expect(grid.find('.row-slot').exists()).toBe(true));
-    await grid.get('.row-slot').trigger('click');
+    await grid.get('.row-slot').trigger('dblclick');
     expect(fixture.activeCell.value?.rowKey).toBe('key-0');
     expect(grid.emitted('select-row')).toBeUndefined();
   });

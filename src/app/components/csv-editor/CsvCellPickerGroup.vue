@@ -6,6 +6,7 @@
       v-memo="[
         option,
         selected.has(option.value),
+        activeValue === option.value,
         multiple,
         sessionId,
         media.mediaSrc(option.resourceRef),
@@ -13,7 +14,7 @@
       ]"
       :ref="media.mediaRef(option.value, option.resourceRef)"
       class="csv-cell-picker-option ui-button ui-text-normal ui-text-small ui-layout-row ui-layout-center ui-layout-stretch"
-      :class="{ selected: selected.has(option.value) }"
+      :class="{ selected: selected.has(option.value), active: activeValue === option.value }"
       :aria-pressed="multiple ? selected.has(option.value) : undefined"
       :title="imagePaths ? option.value : (option.description ?? undefined)"
       type="button"
@@ -49,6 +50,7 @@ import ResourceThumbnail from '@/app/components/media/ResourceThumbnail.vue';
 defineProps<{
   group: SelectOptionGroup;
   selected: ReadonlySet<string>;
+  activeValue?: string;
   multiple: boolean;
   sessionId: string;
   imagePaths?: boolean;

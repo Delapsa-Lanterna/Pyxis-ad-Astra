@@ -50,17 +50,19 @@ import {
   csvVisibleRowKeys,
   clearCsvTableExternalUpdateDraft,
   createCsvRowDraft,
-  copyCsvRowDraft,
   deleteCsvRowDraft,
   discardCsvTableWindowForReloadDraft,
   hasCsvTableDraftChanges,
   markCsvTableExternalUpdateDraft,
   replaceCsvTableDraft,
   setCsvCellValueDraft,
+  writeCsvRangeDraft,
+  moveCsvRowsDraft,
+  insertCsvRowsDraft,
+  deleteCsvRowsDraft,
   csvRowTargetOf,
   type CsvDraftResult,
   type CsvRowTarget,
-  moveCsvRowDraft,
   hasCsvRowOrderChanges,
 } from '@/domain/csv-editor/csv-table-draft';
 import { isLoadedCsvTableRow } from '@/domain/csv-editor/csv-table-rows';
@@ -318,6 +320,13 @@ export const useCsvEditorStore = defineStore('csv-editor', () => {
     return csvRowTargetOf(result);
   }
 
+  function updateRange(target: CsvTableTarget, rowKeys: string[], columns: string[], values: string[][]) {
+    const state = stateMap.get(target.modRoot)!;
+    const keys = [...rowKeys];
+    pushCsvDraftResult(target.table, writeCsvRangeDraft(state.documents[target.table], keys, columns, values), target.modRoot);
+    return keys;
+  }
+
   function rowDragDisabled(target: CsvTableTarget) {
     const state = stateMap.get(target.modRoot)!;
     return (
@@ -327,20 +336,30 @@ export const useCsvEditorStore = defineStore('csv-editor', () => {
     );
   }
 
-  function moveRow(target: CsvTableTarget, rowKey: string, nextIndex: number) {
+  function moveRows(target: CsvTableTarget, keys: string[], boundary: number) {
     if (rowDragDisabled(target)) return;
     const state = stateMap.get(target.modRoot)!;
-    const result = moveCsvRowDraft(state.documents[target.table], rowKey, nextIndex);
-    if (result.changed && state.currentTab === target.table) state.selectedRowKey = rowKey;
+    const result = moveCsvRowsDraft(state.documents[target.table], keys, boundary);
+    if (result.changed && state.currentTab === target.table) state.selectedRowKey = keys[0]!;
     pushCsvDraftResult(target.table, result, target.modRoot);
   }
-
-  function copyRow(target: CsvTableTarget, rowKey: string, rowIndex: number) {
-    if (rowDragDisabled(target)) return;
-    const state = stateMap.get(target.modRoot)!;
-    const result = copyCsvRowDraft(state.documents[target.table], rowKey, rowIndex);
-    if (state.currentTab === target.table) state.selectedRowKey = csvRowTargetOf(result)!.rowKey;
+  function insertRows(target: CsvTableTarget, rows: CsvDraftRow[], boundary: number) {
+    const { result, keys } = insertCsvRowsDraft(stateMap.get(target.modRoot)!.documents[target.table], rows, boundary);
     pushCsvDraftResult(target.table, result, target.modRoot);
+    return keys;
+  }
+  function copyRows(target: CsvTableTarget, keys: string[], boundary: number) {
+    const document = stateMap.get(target.modRoot)!.documents[target.table];
+    return insertRows(
+      target,
+      keys.map((key) => document.rows[key]!),
+      boundary,
+    );
+  }
+  function deleteRows(target: CsvTableTarget, keys: string[]) {
+    const state = stateMap.get(target.modRoot)!;
+    pushCsvDraftResult(target.table, deleteCsvRowsDraft(state.documents[target.table], keys), target.modRoot);
+    if (state.currentTab === target.table && keys.includes(state.selectedRowKey!)) state.selectedRowKey = null;
   }
 
   function deleteSelected(): CsvRowTarget | null {
@@ -444,9 +463,10 @@ export const useCsvEditorStore = defineStore('csv-editor', () => {
     if (state.currentTab === table && state.selectedRowKey) state.selectedRowKey = mapped.get(state.selectedRowKey) ?? state.selectedRowKey;
     if (state.editing?.table === table) state.editing.rowKey = mapped.get(state.editing.rowKey) ?? state.editing.rowKey;
     for (const entry of [...stack.undoStack, ...stack.redoStack]) {
-      entry.operation.rowKey = mapped.get(entry.operation.rowKey) ?? entry.operation.rowKey;
-      if (entry.operation.type === 'row-created' || entry.operation.type === 'row-deleted') {
-        entry.operation.row.rowKey = entry.operation.rowKey;
+      const operations = entry.operation.type === 'batch' ? [entry.operation, ...entry.operation.operations] : [entry.operation];
+      for (const operation of operations) {
+        operation.rowKey = mapped.get(operation.rowKey) ?? operation.rowKey;
+        if (operation.type === 'row-created' || operation.type === 'row-deleted') operation.row.rowKey = operation.rowKey;
       }
     }
   }
@@ -586,10 +606,13 @@ export const useCsvEditorStore = defineStore('csv-editor', () => {
     editing,
     setActiveCell,
     updateCellValue,
+    updateRange,
     addNewRow,
     deleteSelected,
-    moveRow,
-    copyRow,
+    moveRows,
+    copyRows,
+    insertRows,
+    deleteRows,
     selectRowByKey,
     setSearchText,
     setSearchField,

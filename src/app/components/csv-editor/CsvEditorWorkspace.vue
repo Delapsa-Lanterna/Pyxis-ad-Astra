@@ -40,9 +40,7 @@
         </div>
         <div class="top-action-group action-group">
           <n-button :disabled="tables.currentTableLocked || !workspace.activeManifest" @click="actions.addNewRow">新建</n-button>
-          <n-button type="error" ghost :disabled="tables.currentTableLocked || !tables.selectedRowKey" @click="actions.deleteSelectedRow"
-            >删除</n-button
-          >
+          <n-button type="error" ghost :disabled="tables.currentTableLocked || !tables.selectedRowKey" @click="deleteRows">删除</n-button>
         </div>
         <div class="top-action-group action-group">
           <n-button :disabled="tables.currentTableLocked || !tables.activeEditor?.canUndo.value" @click="actions.undoCurrentTableEdit"
@@ -68,7 +66,13 @@
       :class="{ 'csv-details-collapsed': !detailPaneExpanded }"
     >
       <div class="table-content ui-content-column ui-content-contained">
-        <CsvTableEditor :key="csvTable.targetKey.value" :csv-table="csvTable" />
+        <CsvTableEditor
+          ref="tableEditor"
+          :key="csvTable.targetKey.value"
+          :csv-table="csvTable"
+          @undo="actions.undoCurrentTableEdit"
+          @redo="actions.redoCurrentTableEdit"
+        />
       </div>
       <button
         class="csv-details-toggle ui-panel-toggle ui-button ui-control-button ui-control-reset"
@@ -91,7 +95,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, h } from 'vue';
+import { computed, h, useTemplateRef } from 'vue';
 import { NDropdown } from 'naive-ui/es/dropdown';
 import CsvTableEditor from '@/app/components/csv-editor/CsvTableEditor.vue';
 import CsvRowDetails from '@/app/components/csv-editor/CsvRowDetails.vue';
@@ -106,6 +110,10 @@ const tables = useCsvEditorStore();
 const detailPaneExpanded = defineModel<boolean>('detailPaneExpanded', { default: true });
 const workspace = useWorkspaceStore();
 const { actions } = defineProps<{ actions: ReturnType<typeof useCsvEditorActions> }>();
+const tableEditor = useTemplateRef<InstanceType<typeof CsvTableEditor>>('tableEditor');
+async function deleteRows() {
+  if (!(await tableEditor.value!.deleteRows())) await actions.deleteSelectedRow();
+}
 const csvTable = useCsvTableViewModel(async () => {
   const result = await actions.save();
   return result?.status === 'saved' || result?.status === 'noop';
