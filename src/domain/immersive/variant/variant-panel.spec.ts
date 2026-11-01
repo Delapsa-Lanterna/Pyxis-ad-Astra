@@ -5,6 +5,8 @@ import { immersiveSnapshotScene } from '../hull-scene';
 import { variantEditableRecords } from '../source-records';
 import { jointObject } from '@/domain/joint-edit';
 import { equipVariantWing, setVariantHullmod } from './variant-actions';
+import type { RowData } from '@/shared/types';
+
 describe('variant base configuration projection', () => {
   it('normalizes equipment ordering while retaining referenced content changes', () => {
     const snapshot = variantJointFixture();
@@ -21,7 +23,7 @@ describe('variant base configuration projection', () => {
     const reordered = { ...data, weaponGroups: [{ weapons: { A: 'one', B: 'two' } }], hullMods: ['a', 'z'] };
     expect(variantProjectionInputs(snapshot, { variant: { state: 'present', value: reordered } })).toEqual(baseline);
     expect(variantProjectionInputs(snapshot, { variant: { state: 'present', value: { ...data, fluxVents: 10 } } })).toEqual(baseline);
-    const updates: import('@/shared/types').RowData[] = [
+    const updates: RowData[] = [
       { hullId: 'other' },
       { modules: { A: 'other' } },
       { weaponGroups: [{ weapons: { A: 'other' } }] },

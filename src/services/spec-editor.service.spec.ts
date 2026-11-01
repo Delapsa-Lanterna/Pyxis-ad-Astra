@@ -1,7 +1,7 @@
 import { savedWriteFixture } from '@/test/fixtures/write-result';
 import { entityTargetFixture } from '@/test/fixtures/entity-target';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { EntityData, ResourceRef, RowData, WriteResult } from '@/shared/types/index';
+import type { EntityData, ResourceRef, RowData, WriteResult, EntityKind, JointEditRoot } from '@/shared/types/index';
 import { shipJointFixture } from '@/test/fixtures/joint-edit/ship-joint-edit';
 import { weaponJointFixture } from '@/test/fixtures/joint-edit/weapon-joint-edit';
 
@@ -14,7 +14,7 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('@/services/entity-query.service', () => ({
-  querySessionEntityEditTarget: vi.fn(async (_session: string, kind: import('@/shared/types/index').EntityKind, id: string) => ({
+  querySessionEntityEditTarget: vi.fn(async (_session: string, kind: EntityKind, id: string) => ({
     target: entityTargetFixture(kind, id, 'create'),
     baseVersions: [],
   })),
@@ -71,9 +71,7 @@ describe('ship built-in source reads', () => {
       ownerId: 'chaingun',
     };
     weapon.records[0]!.resourceRefs = { turretSprite: sprite };
-    mocks.queryJointCandidate.mockImplementation(async (root: import('@/shared/types/index').JointEditRoot) =>
-      root.kind === 'ship' ? hull : weapon,
-    );
+    mocks.queryJointCandidate.mockImplementation(async (root: JointEditRoot) => (root.kind === 'ship' ? hull : weapon));
     const signal = new AbortController().signal;
     const read = await querySpecShipWeaponSources(hull.root, { builtInWeapons: { A: 'chaingun', B: 'chaingun' } }, signal);
     expect(mocks.queryJointCandidate).toHaveBeenCalledTimes(2);
@@ -86,7 +84,7 @@ describe('ship built-in source reads', () => {
     });
   });
   it('returns per-weapon failures alongside available equipment and missing records', async () => {
-    mocks.queryJointCandidate.mockImplementation(async (root: import('@/shared/types/index').JointEditRoot) => {
+    mocks.queryJointCandidate.mockImplementation(async (root: JointEditRoot) => {
       if (root.kind === 'ship') return shipJointFixture();
       if (root.id === 'broken') throw new Error('规格格式错误');
       const snapshot = weaponJointFixture();

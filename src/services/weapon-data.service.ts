@@ -8,9 +8,18 @@ import { createWeaponSpec } from '@/domain/entity-write/spec-construction';
 import { inferWeaponSpecClass } from '@/domain/editors/weapon-spec';
 
 import { WEAPON_SPRITE_FIELDS } from '@/shared/lib/starsector/weapon-sprite-fields';
-import type { DeepReadonly, EntityData, EntityEditInfo, SpecEditorKind, ProjectSessionId, ResourceRef, RowData } from '@/shared/types';
+import type {
+  DeepReadonly,
+  EntityData,
+  EntityEditInfo,
+  SpecEditorKind,
+  ProjectSessionId,
+  ResourceRef,
+  RowData,
+  JsonComposition,
+} from '@/shared/types';
 export interface WeaponData extends EntityEditInfo {
-  composition?: import('@/shared/types').JsonComposition;
+  composition?: JsonComposition;
   weapon: RowData;
   weaponCsvRow: RowData;
   resourceRefs: ResourceRef[];

@@ -37,6 +37,9 @@ import type {
   SourceOptionGroup,
 } from '@/shared/types';
 import type { CommittedWriteEvent } from '@/shared/types';
+import type * as EntityQueryServiceModule from '@/services/entity-query.service';
+import type * as MiscConfigServiceModule from '@/services/misc-config.service';
+
 vi.mock('@/services/window.service', () => ({ releaseNativeWindowTargets: vi.fn(async () => {}) }));
 const mocks = vi.hoisted(() => ({
   read: vi.fn(),
@@ -51,13 +54,13 @@ const mocks = vi.hoisted(() => ({
   listeners: new Set<(event: CommittedWriteEvent) => Promise<void>>(),
 }));
 vi.mock('@/services/entity-query.service', async (original) => ({
-  ...(await original<typeof import('@/services/entity-query.service')>()),
+  ...(await original<typeof EntityQueryServiceModule>()),
   querySessionEntity: mocks.read,
 }));
 vi.mock('@/app/composables/use-core-schema', () => ({ useCoreSchema: () => ({ getMergedSchema: getSchema }) }));
 vi.mock('@/services/json-recovery.service', () => ({ prepareJsonSourceRecovery: mocks.prepare }));
 vi.mock('@/services/misc-config.service', async (original) => ({
-  ...(await original<typeof import('@/services/misc-config.service')>()),
+  ...(await original<typeof MiscConfigServiceModule>()),
   queryMiscConfigFile: mocks.readMisc,
   saveMiscConfig: mocks.saveMisc,
 }));

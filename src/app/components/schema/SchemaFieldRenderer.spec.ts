@@ -1,6 +1,6 @@
 import { beginSavedWrite } from '@/test/unit/project-changes';
 import { createFieldInputs, provideFieldInputs } from '@/shared/runtime/field-inputs';
-import { flushPromises, mount } from '@vue/test-utils';
+import { flushPromises, mount, type VueWrapper } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { FieldSchema } from '@/domain/schema/schema.types';
@@ -12,6 +12,7 @@ import { nSelect, nSwitch } from '@/test/unit/ui-stubs';
 import { h, nextTick, ref } from 'vue';
 import { useEditTargetDraftSession } from '@/app/composables/use-edit-target-draft-session';
 import { applySchemaFieldUpdate } from '@/domain/schema/schema-values';
+import type { RowData, JsonValue } from '@/shared/types';
 
 const mocks = vi.hoisted(() => ({
   queryImages: vi.fn(async () => [
@@ -47,7 +48,7 @@ vi.mock('@/app/composables/use-app-feedback', () => ({
   }),
 }));
 
-let wrapper: import('@vue/test-utils').VueWrapper | null = null;
+let wrapper: VueWrapper | null = null;
 
 afterEach(() => {
   wrapper?.unmount();
@@ -394,7 +395,7 @@ describe('SchemaFieldRenderer smart mode', () => {
   });
   it('edits nested text maps without converting strings or overwriting duplicate keys', async () => {
     const schema = (await import('@/domain/schema/config-schema-registry')).getSchema('strings')!.root!;
-    const value = ref<import('@/shared/types').RowData>({ first: { line: '001' }, second: {} });
+    const value = ref<RowData>({ first: { line: '001' }, second: {} });
     wrapper = mount(
       {
         setup: () => () =>
@@ -402,7 +403,7 @@ describe('SchemaFieldRenderer smart mode', () => {
             field: schema,
             value: value.value,
             onUpdate: (update) => {
-              if (update.kind === 'set') value.value = update.value as import('@/shared/types').RowData;
+              if (update.kind === 'set') value.value = update.value as RowData;
             },
           }),
       },
@@ -830,8 +831,8 @@ describe('SchemaFieldRenderer plain mode', () => {
   });
 
   it('keeps incomplete scalar text outside the typed draft and removes optional keys on commit', async () => {
-    let session!: ReturnType<typeof useEditTargetDraftSession<Record<string, import('@/shared/types').JsonValue>, string, null>>;
-    const save = vi.fn(async (_target: string, value: Record<string, import('@/shared/types').JsonValue>) => ({
+    let session!: ReturnType<typeof useEditTargetDraftSession<Record<string, JsonValue>, string, null>>;
+    const save = vi.fn(async (_target: string, value: Record<string, JsonValue>) => ({
       target: 'one',
       baseVersions: [],
       meta: null,

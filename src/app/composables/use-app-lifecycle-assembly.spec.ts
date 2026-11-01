@@ -9,7 +9,7 @@ import { useCsvEditorStore } from '@/stores/csv-editor.store';
 import { createSettingsFixture } from '@/test/fixtures/settings';
 import { sessionUpdateFixture } from '@/test/fixtures/write-result';
 import { csvDraftRow } from '@/test/fixtures/csv-row';
-import type { AppSettings, CsvTableTarget } from '@/shared/types';
+import type { AppSettings, CsvTableTarget, AppFeedback, WindowFeedback } from '@/shared/types';
 
 const api = vi.hoisted(() => ({ read: vi.fn(), save: vi.fn(), listen: vi.fn(), stop: vi.fn(), committed: vi.fn() }));
 vi.mock('@/services/app-settings.service', () => ({ readSettings: api.read, saveSettings: api.save, listenSettingsChanged: api.listen }));
@@ -148,7 +148,7 @@ it('provides application phase actions and the real participant factory to windo
     if (command === 'plugin:event|listen') return 7;
     return undefined;
   });
-  const feedback = { error: vi.fn() } as unknown as import('@/shared/types').AppFeedback;
+  const feedback = { error: vi.fn() } as unknown as AppFeedback;
   const Content = {
     setup() {
       expect(useWindowCloseState()!.value).toBe(false);
@@ -159,7 +159,7 @@ it('provides application phase actions and the real participant factory to windo
   };
   wrapper = mount({
     setup() {
-      provideAppFeedback(feedback as import('@/shared/types').WindowFeedback);
+      provideAppFeedback(feedback as WindowFeedback);
       useAppLifecycleAssembly(feedback);
       return () => h(Content);
     },

@@ -3,6 +3,7 @@ import { useAppFeedback } from '@/app/composables/use-app-feedback';
 import { openJointEditSnapshot, submitJointEdit } from '@/orchestrators/joint-edit.orchestrator';
 import JointEditConflictChoices from '@/app/components/JointEditConflictChoices.vue';
 import type { JointEditDraft, JointEditPrepared, JointConflictChoice, JointEditRoot } from '@/shared/types';
+import type { SaveCommandRequest } from '@/shared/runtime/command.runtime';
 
 export function useJointEditActions() {
   const feedback = useAppFeedback();
@@ -24,10 +25,7 @@ export function useJointEditActions() {
   }
   return {
     open: (root: JointEditRoot, signal?: AbortSignal) => openJointEditSnapshot(root, feedback, signal),
-    save: (
-      draft: JointEditDraft,
-      createOverrides: string[] = [],
-      request?: import('@/shared/runtime/command.runtime').SaveCommandRequest,
-    ) => submitJointEdit(draft, feedback, chooseConflicts, createOverrides, request),
+    save: (draft: JointEditDraft, createOverrides: string[] = [], request?: SaveCommandRequest) =>
+      submitJointEdit(draft, feedback, chooseConflicts, createOverrides, request),
   };
 }

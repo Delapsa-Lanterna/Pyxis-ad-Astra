@@ -1,4 +1,13 @@
-import type { AppFeedback, CsvRowPatch, CsvModState, ProjectManifest, CsvTableKey, WindowIdentity } from '@/shared/types';
+import type {
+  AppFeedback,
+  CsvRowPatch,
+  CsvModState,
+  ProjectManifest,
+  CsvTableKey,
+  WindowIdentity,
+  AssociatedSpecWrite,
+  CsvTableRowsRead,
+} from '@/shared/types';
 import { getAssociatedSpecCandidates } from '@/domain/csv-editor/associated-spec-candidates';
 import { isCsvDeletedRow } from '@/domain/csv-editor/csv-dirty';
 import { saveCsvPatch, prepareCsvAssociatedSpecs } from '@/services/csv-table.service';
@@ -15,8 +24,9 @@ import { retainLaterDraft } from '@/domain/edit-session';
 import { isAbsoluteFsPath, joinRootRelativePath, normalizeFsPath } from '@/shared/lib/paths';
 
 import { reserveNativeWindowTargets, releaseNativeWindowTargets } from '@/services/window.service';
+import type { DocumentSaveResult } from '@/shared/runtime/document-editor';
 
-export type CsvSaveResult = import('@/shared/runtime/document-editor').DocumentSaveResult;
+export type CsvSaveResult = DocumentSaveResult;
 
 interface CapturedTableSaveTarget {
   manifest: ProjectManifest;
@@ -28,7 +38,7 @@ interface CapturedTableSaveTarget {
 interface TableSaveOptions {
   table: CsvTableKey;
   manifest: ProjectManifest | null;
-  selectAssociatedSpecs: (candidates: AssociatedSpecCandidate[]) => Promise<import('@/shared/types').AssociatedSpecWrite[] | null>;
+  selectAssociatedSpecs: (candidates: AssociatedSpecCandidate[]) => Promise<AssociatedSpecWrite[] | null>;
   feedback?: AppFeedback;
 }
 
@@ -128,8 +138,7 @@ async function saveTarget(target: CapturedTableSaveTarget, options: TableSaveOpt
         if (!isTableSaveTargetCurrent(target)) return;
         tables.revokeTableReads(modRoot, table);
         const keyMap = deepClone(result.keyMap);
-        const savedRows =
-          result.content?.target.kind === 'csv' ? (result.content.value as unknown as import('@/shared/types').CsvTableRowsRead).rows : [];
+        const savedRows = result.content?.target.kind === 'csv' ? (result.content.value as unknown as CsvTableRowsRead).rows : [];
         const actualPatches = patches.map((patch) => {
           const key = keyMap.find((mapping) => mapping.previousKey === patch.rowKey)?.nextKey ?? patch.rowKey;
           const saved = savedRows.find((row) => row.rowKey === key);

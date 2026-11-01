@@ -1,6 +1,6 @@
 import { immersiveNumber, updateImmersiveField } from '../fields';
 import { changeWeaponSpecClass } from '@/domain/entity-write/spec-construction';
-import type { JointEditSnapshot, JointValue, ResourceRef } from '@/shared/types';
+import type { JointEditSnapshot, JointValue, ResourceRef, RowData } from '@/shared/types';
 import type { ImmersiveField, ImmersiveStat } from '../fields';
 import { immersiveSourceRecords } from '../source-records';
 import { jointObject } from '@/domain/joint-edit';
@@ -389,7 +389,7 @@ export function updateImmersiveWeaponField(...args: Parameters<typeof updateImme
   return after;
 }
 
-export function weaponProjectionInputs(snapshot: JointEditSnapshot, values: Record<string, JointValue>): import('@/shared/types').RowData {
+export function weaponProjectionInputs(snapshot: JointEditSnapshot, values: Record<string, JointValue>): RowData {
   const records = immersiveSourceRecords(snapshot),
     spec = jointObject(values[records.spec.key]),
     csv = jointObject(values[records.csv.key]);

@@ -1,10 +1,11 @@
-import type { EntityKind, ResourceRef } from '@/shared/types/project-identity.types';
+import type { EntityKind, ResourceRef, EntityEditTarget, FileVersion } from '@/shared/types/project-identity.types';
 import type { JsonValue } from '@/shared/types/json.types';
+import type { JsonComposition } from './json-composition.types';
 
 export interface EntityData {
-  composition?: import('./json-composition.types').JsonComposition;
-  target: import('@/shared/types/project-identity.types').EntityEditTarget;
-  baseVersions: import('@/shared/types/project-identity.types').FileVersion[];
+  composition?: JsonComposition;
+  target: EntityEditTarget;
+  baseVersions: FileVersion[];
   kind: EntityKind;
   id: string;
   data: JsonValue;

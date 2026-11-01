@@ -43,7 +43,7 @@ export function hasMiscConfigInvalidation(invalidation: ProjectInvalidation, mod
 export function saveMiscConfig(
   payload: MiscConfigWrite,
   original?: JsonValue,
-  request?: import('@/shared/runtime/command.runtime').SaveCommandRequest,
+  request?: SaveCommandRequest,
 ): Promise<WriteResult<MiscConfigFile['data']>> {
   return invokeSaveCommand(
     'save_misc_config',

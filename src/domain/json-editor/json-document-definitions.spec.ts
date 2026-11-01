@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { ResourceRef } from '@/shared/types';
+import type { ResourceRef, RowData } from '@/shared/types';
 import { entityTargetFixture } from '@/test/fixtures/entity-target';
 import { JSON_DOCUMENT_DEFINITIONS, jsonDocumentMedia, jsonDocumentRecord, jsonDocumentSummary } from './json-document-definitions';
 
@@ -49,7 +49,7 @@ describe('faction list icon', () => {
         resourceRefs,
       });
       expect(jsonDocumentMedia(record)).toEqual(expected);
-      expect((record.value.file as import('@/shared/types').RowData).color).toEqual([85, 190, 220, 255]);
+      expect((record.value.file as RowData).color).toEqual([85, 190, 220, 255]);
     },
   );
 });

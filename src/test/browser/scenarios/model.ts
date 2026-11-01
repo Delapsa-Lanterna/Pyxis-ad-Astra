@@ -14,6 +14,7 @@ import type {
   SaveJointEditPayload,
   MiscConfigFile,
   ErrorDiagnostic,
+  WriteContentTarget,
 } from '@/shared/types';
 import { createSettingsFixture } from '../../fixtures/settings';
 import { sessionUpdateFixture, savedWriteFixture } from '../../fixtures/write-result';
@@ -29,8 +30,9 @@ import { variantEditableRecords } from '@/domain/immersive/source-records';
 import { resourceImage } from '../../fixtures/resources';
 import { variantModuleEntries } from '@/shared/lib/starsector/variant-modules';
 import type { OriginalFontResult, FontId } from '@/shared/types';
+import type { ScenarioOptions } from '../contracts';
 
-export type BrowserScenario = import('../contracts').ScenarioOptions['scene'];
+export type BrowserScenario = ScenarioOptions['scene'];
 export const sampleRoot = 'M:/browser-sample';
 const builders = {
   skin: skinJointFixture,
@@ -335,7 +337,7 @@ export function createBrowserModel(
     }
     return snapshot;
   }
-  function receipt<T>(value: T, target: import('@/shared/types').WriteContentTarget = { kind: 'json', origin: { kind: 'modInfo' } }) {
+  function receipt<T>(value: T, target: WriteContentTarget = { kind: 'json', origin: { kind: 'modInfo' } }) {
     saveCount++;
     const result = {
       ...savedWriteFixture(),

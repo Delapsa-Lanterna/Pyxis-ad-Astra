@@ -5,7 +5,7 @@ import { useJointEditActions } from '@/app/composables/use-joint-edit-actions';
 import { useSaveCommandStore } from '@/stores/save-command.store';
 import { observeSavedContent, saveProjection } from '@/orchestrators/project-sync.orchestrator';
 import { jointWriteTargets, rebaseJointDraft, type JointIdentitySnapshot } from '@/domain/joint-edit';
-import type { JointEditRoot, JointEditSnapshot, JointValue, JointEditWriteResult, WriteContent } from '@/shared/types';
+import type { JointEditRoot, JointEditSnapshot, JointValue, JointEditWriteResult, WriteContent, DeepReadonly } from '@/shared/types';
 import { queryJointEdit } from '@/services/joint-edit.service';
 import { cloneQuerySnapshot } from '@/shared/lib/query-snapshot';
 
@@ -18,7 +18,7 @@ export function useJointEditSession(
   options: {
     editableRecords?: (snapshot: JointEditSnapshot) => string[];
     afterBaseline?: (snapshot: JointEditSnapshot, receipt: JointEditWriteResult, previous: JointIdentitySnapshot) => Promise<void>;
-    readSnapshot?: (root: JointEditRoot, signal?: AbortSignal) => Promise<import('@/shared/types').DeepReadonly<JointEditSnapshot>>;
+    readSnapshot?: (root: JointEditRoot, signal?: AbortSignal) => Promise<DeepReadonly<JointEditSnapshot>>;
     onProjection?: (root: JointEditRoot) => Promise<void>;
   } = {},
 ) {

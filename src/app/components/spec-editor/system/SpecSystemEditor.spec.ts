@@ -1,4 +1,4 @@
-import { mount } from '@vue/test-utils';
+import { mount, type VueWrapper } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { nextTick } from 'vue';
@@ -32,7 +32,7 @@ vi.mock('@/shared/runtime/dialog.runtime', () => ({
 
 import SpecSystemEditor from './SpecSystemEditor.vue';
 
-let wrapper: import('@vue/test-utils').VueWrapper | null = null;
+let wrapper: VueWrapper | null = null;
 
 afterEach(() => {
   wrapper?.unmount();

@@ -10,6 +10,7 @@ import type {
   CsvTableKey,
   WorkspaceColumnWidths,
   WorkspaceView,
+  WorkspaceEntityLocation,
 } from '@/shared/types';
 import { gameModsDirectoryPath } from '@/shared/lib/paths';
 import { isRowData } from '@/shared/lib/row-data';
@@ -30,7 +31,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
   const modGenerations = new Map<string, number>();
   let nextModGeneration = 0;
   let workspaceGeneration = 0;
-  const entityLocation = shallowRef<import('@/shared/types').WorkspaceEntityLocation | null>(null);
+  const entityLocation = shallowRef<WorkspaceEntityLocation | null>(null);
   const activeModRoot = ref<string | null>(null);
   const currentView = ref<WorkspaceView>('overview');
   const jsonPage = ref<JsonEditorPageId>('mod-info');

@@ -1,3 +1,4 @@
+import type { FileChangeReplayDirection } from '@/shared/types/file-changes.types';
 export interface FileHistoryEntrySummary {
   id: number;
   timestamp: number;
@@ -14,7 +15,7 @@ export interface FileHistorySnapshot {
 export interface FileReplay {
   sessionId: string;
   modRoot: string;
-  direction: import('@/shared/types/file-changes.types').FileChangeReplayDirection;
+  direction: FileChangeReplayDirection;
   entryId: number;
   revision: number;
 }

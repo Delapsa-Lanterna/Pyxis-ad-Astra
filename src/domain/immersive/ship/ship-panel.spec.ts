@@ -6,6 +6,7 @@ import { updateImmersiveField } from '../fields';
 import { variantJointFixture } from '@/test/fixtures/joint-edit/variant-joint-edit';
 import { jointObject } from '@/domain/joint-edit';
 import { projectVariantPanel } from '../variant/variant-panel';
+import type { JsonValue } from '@/shared/types';
 
 describe('ship original configuration projection', () => {
   it('tracks system and defense references independently of ship statistics', () => {
@@ -86,7 +87,7 @@ describe('ship original configuration projection', () => {
     const values = jointFixtureValues(snapshot);
     const csv = values.csv!;
     if (csv.state !== 'present') throw new Error('CSV fixture');
-    const data = csv.value as Record<string, import('@/shared/types').JsonValue>;
+    const data = csv.value as Record<string, JsonValue>;
     delete data['cr %/day'];
     data['repair %/day'] = '9';
     expect(projectShipPanel(snapshot, values).logistics[0]!.find((stat) => stat.label === '战备恢复速率 (每天)')!.display).toBe('9%');
@@ -137,7 +138,7 @@ describe('ship original configuration projection', () => {
     const snapshot = shipJointFixture();
     const values = jointFixtureValues(snapshot);
     if (values.csv!.state === 'present') {
-      const value = values.csv!.value as Record<string, import('@/shared/types').JsonValue>;
+      const value = values.csv!.value as Record<string, JsonValue>;
       value.hitpoints = 'unfinished';
     }
     snapshot.referenceSettings.values = {};

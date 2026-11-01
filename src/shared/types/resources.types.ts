@@ -1,22 +1,24 @@
 import type { ResourceRef, ResourceSource, ResourceOwnerKind } from '@/shared/types/project-identity.types';
 import type { RowData } from '@/shared/types/json.types';
+import type { FileVersion, ReferenceSource } from './project-identity.types';
+import type { ErrorDiagnostic } from './error.types';
 
 export type EngineEffect = 'engineGlow' | 'engineFlame' | 'engineHitGlow';
 export interface EngineRenderAssets {
   styles: RowData;
-  versions: import('./project-identity.types').FileVersion[];
+  versions: FileVersion[];
   resources: Record<string, ResourceRef>;
 }
 
 export interface ResourceDataUrlBatchEntry {
-  reference?: import('./project-identity.types').ReferenceSource;
+  reference?: ReferenceSource;
   key: string;
   source: ResourceSource;
   relPath: string;
   ownerKind: ResourceOwnerKind;
   ownerId: string;
   dataUrl: string | null;
-  error?: import('./error.types').ErrorDiagnostic;
+  error?: ErrorDiagnostic;
 }
 
 export interface ResourceDataUrlBatchResult {
@@ -34,7 +36,7 @@ export interface HullReferenceOption {
 export type HullReferenceKind = 'ship' | 'skin';
 
 export interface HullReferenceGroup {
-  reference?: import('./project-identity.types').ReferenceSource;
+  reference?: ReferenceSource;
   origin: ResourceSource;
   kind: HullReferenceKind;
   options: HullReferenceOption[];

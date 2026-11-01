@@ -13,7 +13,7 @@ import { queryResourceDataUrls, invalidateResourceMediaForSession } from './reso
 import { invalidateQueryCacheForSession } from './query-cache.service';
 import { entityTargetFixture } from '@/test/fixtures/entity-target';
 import { jsonDocumentRecord } from '@/domain/json-editor/json-document-definitions';
-import type { EntityData, ResourceRef, DeepReadonly, CsvRowPreviewPayload } from '@/shared/types';
+import type { EntityData, ResourceRef, DeepReadonly, CsvRowPreviewPayload, CsvTableKey } from '@/shared/types';
 import { expectTypeOf } from 'vitest';
 import { queryMiscConfigFiles, queryMiscConfigFile } from './misc-config.service';
 
@@ -217,7 +217,7 @@ describe('formal reading protocols', () => {
     expect(invoke).toHaveBeenCalledOnce();
     expectTypeOf<ReturnType<typeof querySessionEntity>>().toEqualTypeOf<Promise<DeepReadonly<EntityData | null>>>();
     expectTypeOf<Omit<CsvRowPreviewPayload, 'sessionId'>>().toEqualTypeOf<{
-      table: import('@/shared/types').CsvTableKey;
+      table: CsvTableKey;
       rowKey: string;
     }>();
   });

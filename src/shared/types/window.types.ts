@@ -1,6 +1,8 @@
 import type { SpecEditorKind } from './spec-editor.types';
 import type { JointEditKind } from './joint-edit.types';
 import type { WeaponFirePreviewSource } from './weapon-fire-preview.types';
+import type { ErrorDiagnostic } from './error.types';
+
 export type WindowIdentity =
   | { type: 'immersive'; sessionId: string; kind: JointEditKind; modRoot: string; id: string }
   | { type: 'spec'; sessionId: string; kind: SpecEditorKind; modRoot: string; id: string }
@@ -82,5 +84,5 @@ export interface CloseResult {
   status: 'closed' | 'cancelled' | 'failed';
   destroyedWindows: string[];
   releasedSessions: string[];
-  diagnostic: import('./error.types').ErrorDiagnostic | null;
+  diagnostic: ErrorDiagnostic | null;
 }

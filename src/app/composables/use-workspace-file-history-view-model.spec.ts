@@ -19,8 +19,8 @@ const mocks = vi.hoisted(() => ({
   historyScope: vi.fn(),
   loadFileHistory: vi.fn(async () => ({
     revision: 0,
-    undoStack: [] as import('@/shared/types').FileHistoryEntrySummary[],
-    redoStack: [] as import('@/shared/types').FileHistoryEntrySummary[],
+    undoStack: [] as FileHistoryEntrySummary[],
+    redoStack: [] as FileHistoryEntrySummary[],
   })),
   replayWorkspaceFileUndo: vi.fn(),
   replayWorkspaceFileRedo: vi.fn(),
@@ -45,7 +45,7 @@ import { useWorkspaceFileHistoryViewModel } from './use-workspace-file-history-v
 import { useFileHistoryStore } from '@/stores/file-history.store';
 import { useProjectStore } from '@/stores/project.store';
 import { useWorkspaceStore } from '@/stores/workspace.store';
-import type { ProjectManifest } from '@/shared/types';
+import type { ProjectManifest, FileHistoryEntrySummary } from '@/shared/types';
 
 function manifestFixture(modRoot: string): ProjectManifest {
   return {

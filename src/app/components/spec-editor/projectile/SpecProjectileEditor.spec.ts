@@ -1,4 +1,4 @@
-import { mount } from '@vue/test-utils';
+import { mount, type VueWrapper } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { initializeCacheLimits } from '@/shared/runtime/cache-limits';
@@ -37,7 +37,7 @@ vi.mock('@/shared/runtime/dialog.runtime', () => ({
 import SpecProjectileEditor from './SpecProjectileEditor.vue';
 vi.mock('@/app/composables/use-core-assets', () => ({ useCoreGraphics: () => ({ graphicsPaths: ref([]), loadGraphics: vi.fn() }) }));
 
-let wrapper: import('@vue/test-utils').VueWrapper | null = null;
+let wrapper: VueWrapper | null = null;
 
 afterEach(() => {
   wrapper?.unmount();

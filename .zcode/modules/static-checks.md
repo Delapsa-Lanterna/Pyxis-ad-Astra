@@ -27,6 +27,7 @@
 - `scripts/check-architecture.mjs`：采集事实、执行检查并交付退出码。
 - `scripts/check-encoding.mjs`：检查 UTF-8 无 BOM 文本。
 - `scripts/check-identifier-length.mjs`：检查变量与函数长度。
+- `scripts/check-imports.mjs`：按语法检查源码与测试中的内联类型导入。
 - `scripts/check-styles.mjs`：检查展示依赖、语法、声明与变量来源。
 - `scripts/test-rust-paths.ps1`：验证 Windows 长路径与实际 8.3 短路径。
 - `scripts/test-rust.mjs`：Rust 测试运行、能力探测、工作区释放及结果记录。
@@ -95,6 +96,7 @@
 - Rust 测试必须经统一运行入口交付命令退出码、环境能力、未执行场景、工作区释放及实际报告路径。
 - 公共文件与共址测试必须保持公共属性，模块拥有声明严禁覆盖公共文件。
 - 前端运行时与类型依赖必须共同参与循环及层级检查。
+- 内联类型导入检查必须覆盖 TypeScript、Vue 脚本和测试中的类型语法，并按原始源码位置报告；JSDoc 必须按注释语义处理。
 - 受控入口的运行时导出必须声明公开能力与消费职责。
 - 各类源码、文档、导出索引与角色必须在单次执行中建立并复用。
 - 同一位置命中的独立规则必须分别交付诊断及所属依据。

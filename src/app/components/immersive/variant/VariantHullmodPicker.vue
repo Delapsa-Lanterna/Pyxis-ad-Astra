@@ -129,7 +129,7 @@
 import { useLayoutFrame } from '@/shared/runtime/use-layout-frame';
 import { computed, ref, watch, nextTick, onMounted, onScopeDispose, type ComputedRef } from 'vue';
 import { debugLog } from '@/shared/runtime/app-log-queue';
-import type { JointEditRoot } from '@/shared/types';
+import type { JointEditRoot, ReadonlyVariantEntry } from '@/shared/types';
 import type { VariantProjection } from '@/domain/immersive/variant/variant-panel';
 import type { HullmodCategory } from '@/domain/immersive/variant/variant-actions';
 import {
@@ -191,7 +191,7 @@ const availableEntries = computed(() => entries.value.filter(visibleHullmod));
 const designOptions = computed(() => hullmodFilterOptions(availableEntries.value, 'design')),
   tagOptions = computed(() => hullmodFilterOptions(availableEntries.value, 'tags'));
 const installed = (id: string) => props.variant.mods.find((mod) => mod.id === id);
-const state = (entry: import('@/shared/types').ReadonlyVariantEntry) =>
+const state = (entry: ReadonlyVariantEntry) =>
   hullmodRowState(entry, installed(entry.id), String(props.variant.spec.hullSize), props.variant.opTotal - props.variant.opUsed);
 const columnWidths = computed(() => hullmodColumns(width.value));
 const columns: Array<{ key: HullmodSort; label: string }> = [
@@ -266,8 +266,8 @@ watch(
 );
 const selected = computed(() => (hovered.value ? availableEntries.value.find((entry) => entry.id === hovered.value) : undefined));
 const measureText = useFontMeasurement(immersiveFontIds.body);
-const rowLabels = new WeakMap<import('@/shared/types').ReadonlyVariantEntry, ComputedRef<{ name: string; design: string }>>();
-function rowText(entry: import('@/shared/types').ReadonlyVariantEntry) {
+const rowLabels = new WeakMap<ReadonlyVariantEntry, ComputedRef<{ name: string; design: string }>>();
+function rowText(entry: ReadonlyVariantEntry) {
   let labels = rowLabels.get(entry);
   if (!labels) {
     labels = computed(() => ({
@@ -310,7 +310,7 @@ function cancel() {
   inputs.cancel(prefix);
   emit('close');
 }
-function showDetails(entry: import('@/shared/types').ReadonlyVariantEntry) {
+function showDetails(entry: ReadonlyVariantEntry) {
   hovered.value = entry.id;
   void nextTick(positionDetails);
 }

@@ -1,8 +1,11 @@
 import type { RowData } from '@/shared/types/json.types';
+import type { WeaponSpecClass } from '@/shared/types/spec-editor.types';
+import type { EntityEditTarget, EntityFileLocation, FileVersion, CsvTableKey } from '@/shared/types/project-identity.types';
+import type { JsonWriteOptions } from '@/shared/types/json-write.types';
 
 export type AssociatedSpecCreateParams =
   | { kind: 'ship'; id: string; hullName: string }
-  | { kind: 'weapon'; id: string; specClass: import('@/shared/types/spec-editor.types').WeaponSpecClass }
+  | { kind: 'weapon'; id: string; specClass: WeaponSpecClass }
   | { kind: 'system'; id: string }
   | { kind: 'skill'; id: string };
 
@@ -13,19 +16,19 @@ export type AssociatedSpecChange =
 
 export interface AssociatedSpecWrite {
   change: AssociatedSpecChange;
-  target: import('@/shared/types/project-identity.types').EntityEditTarget;
+  target: EntityEditTarget;
   resolution: AssociatedSpecResolution | null;
 }
 
 export interface AssociatedSpecFile {
-  location: import('@/shared/types/project-identity.types').EntityFileLocation;
-  version: import('@/shared/types/project-identity.types').FileVersion;
+  location: EntityFileLocation;
+  version: FileVersion;
   problem: string | null;
 }
 
 export interface AssociatedSpecPreparation {
-  target: import('@/shared/types/project-identity.types').EntityEditTarget;
-  baseVersions: import('@/shared/types/project-identity.types').FileVersion[];
+  target: EntityEditTarget;
+  baseVersions: FileVersion[];
   original: AssociatedSpecFile | null;
   destination: AssociatedSpecFile;
 }
@@ -49,11 +52,11 @@ export interface CsvRowPatch {
 
 export interface CsvSave {
   rowOrder: CsvRowOrderEntry[] | null;
-  baseVersions: import('@/shared/types/project-identity.types').FileVersion[];
+  baseVersions: FileVersion[];
   sessionId: string;
   modRoot: string;
-  table: import('@/shared/types/project-identity.types').CsvTableKey;
+  table: CsvTableKey;
   patches: CsvRowPatch[];
   associatedSpecs: AssociatedSpecWrite[];
-  jsonWrite?: import('@/shared/types/json-write.types').JsonWriteOptions;
+  jsonWrite?: JsonWriteOptions;
 }

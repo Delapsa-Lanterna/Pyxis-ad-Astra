@@ -9,6 +9,8 @@ import {
   removeLoadedModRuntime,
 } from './workspace-lifecycle.orchestrator';
 import { useWorkspaceStore } from '@/stores/workspace.store';
+import type { CloseScope } from '@/shared/types';
+
 const api = vi.hoisted(() => ({ close: vi.fn() }));
 vi.mock('@/services/core-assets.service', () => ({ invalidateCoreCacheForRoot: vi.fn(async () => {}) }));
 vi.mock('@/services/app-log.service', () => ({ recordLogBestEffort: vi.fn() }));
@@ -27,7 +29,7 @@ describe('workspace close results', () => {
   function isolatedPair() {
     register('mod', external);
     register('core', core);
-    api.close.mockImplementation(async (scope: import('@/shared/types').CloseScope) => ({
+    api.close.mockImplementation(async (scope: CloseScope) => ({
       status: 'closed',
       destroyedWindows: [],
       releasedSessions: scope.kind === 'sessions' ? scope.sessionIds : [],

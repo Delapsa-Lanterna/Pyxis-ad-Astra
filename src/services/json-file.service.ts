@@ -8,7 +8,7 @@ export function saveVariantEntity(
   write: Omit<JsonFileSave, 'jsonWrite' | 'orderedJson'>,
   jsonWrite?: JsonWriteOptions,
   original?: RowData,
-  request?: import('@/shared/runtime/command.runtime').SaveCommandRequest,
+  request?: SaveCommandRequest,
 ): Promise<WriteResult<VariantFile>> {
   return invokeSaveCommand(
     'save_variant_entity',
@@ -35,7 +35,7 @@ export function saveSkinEntity(
   write: Omit<JsonFileSave, 'jsonWrite' | 'orderedJson'>,
   jsonWrite?: JsonWriteOptions,
   original?: RowData,
-  request?: import('@/shared/runtime/command.runtime').SaveCommandRequest,
+  request?: SaveCommandRequest,
 ): Promise<WriteResult<SkinFile>> {
   return invokeSaveCommand(
     'save_skin_entity',

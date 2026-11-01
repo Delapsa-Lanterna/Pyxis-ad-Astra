@@ -14,9 +14,13 @@ import type {
   CsvTableKey,
   WriteResult,
   DeepReadonly,
+  FileVersion,
+  CsvRowOrderEntry,
+  CsvDraftRow,
+  AssociatedSpecPreparation,
 } from '@/shared/types';
 
-import { invokeCommand, invokeSaveCommand } from '@/shared/runtime/command.runtime';
+import { invokeCommand, invokeSaveCommand, type SaveCommandRequest } from '@/shared/runtime/command.runtime';
 import { CachedSessionQuery, readLiveSessionQuery, type SessionQueryDefinition } from '@/services/query-cache.service';
 import type { ProjectInvalidation } from '@/shared/types';
 import { queryResourceDataUrls } from '@/services/resource-media.service';
@@ -54,10 +58,10 @@ export function saveCsvPatch(
   patches: CsvRowPatch[],
   associatedSpecs: AssociatedSpecWrite[],
   jsonWrite?: JsonWriteOptions,
-  baseVersions: import('@/shared/types').FileVersion[] = [],
-  rowOrder: import('@/shared/types').CsvRowOrderEntry[] | null = null,
-  originalRows: Record<string, import('@/shared/types').CsvDraftRow> = {},
-  request?: import('@/shared/runtime/command.runtime').SaveCommandRequest,
+  baseVersions: FileVersion[] = [],
+  rowOrder: CsvRowOrderEntry[] | null = null,
+  originalRows: Record<string, CsvDraftRow> = {},
+  request?: SaveCommandRequest,
 ): Promise<WriteResult> {
   const before = Object.fromEntries(
     patches
@@ -92,7 +96,7 @@ export function saveCsvPatch(
 }
 
 export function prepareCsvAssociatedSpecs(sessionId: string, table: CsvTableKey, changes: AssociatedSpecChange[]) {
-  return invokeCommand<import('@/shared/types').AssociatedSpecPreparation[]>('prepare_csv_associated_specs', {
+  return invokeCommand<AssociatedSpecPreparation[]>('prepare_csv_associated_specs', {
     payload: { sessionId, table, changes },
   });
 }

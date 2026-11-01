@@ -47,7 +47,7 @@
 <script setup lang="ts">
 import { inject, ref, watch, onScopeDispose } from 'vue';
 import { immersiveBlockedKey } from './immersive-render-context';
-import type { ImmersiveStat, ImmersiveFieldChange } from '@/domain/immersive/fields';
+import type { ImmersiveStat, ImmersiveFieldChange, ImmersiveField } from '@/domain/immersive/fields';
 import type { JointEditSnapshot, JointValue } from '@/shared/types';
 import type { SchemaRuntimeContext } from '@/domain/schema/schema-runtime';
 import ImmersiveFieldPopover from './ImmersiveFieldPopover.vue';
@@ -56,7 +56,7 @@ const props = defineProps<{
   stat: ImmersiveStat;
   editable: boolean;
   active: boolean;
-  fieldEditable?: (field: import('@/domain/immersive/fields').ImmersiveField) => boolean;
+  fieldEditable?: (field: ImmersiveField) => boolean;
   values?: Record<string, JointValue>;
   snapshot?: JointEditSnapshot;
   runtimeContext?: SchemaRuntimeContext;

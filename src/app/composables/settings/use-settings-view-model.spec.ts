@@ -17,12 +17,12 @@ const mocks = vi.hoisted(() => ({
   },
   pickDirectoryDialog: vi.fn(async () => null as string | null),
   saveLogDirectory: vi.fn(async () => {}),
-  saveStarsectorRoot: vi.fn<typeof import('@/orchestrators/settings-persistence.orchestrator').saveStarsectorRoot>(async () => true),
+  saveStarsectorRoot: vi.fn<typeof saveStarsectorRoot>(async () => true),
   switchWorkspaceCoreSource: vi.fn(async () => true),
   requestClose: vi.fn(),
   loadLogStatus: vi.fn(async () => ({ path: 'C:/log/app.log', sizeBytes: 0 })),
   openConfigFolder: vi.fn(async () => {}),
-  resetSettings: vi.fn<typeof import('@/orchestrators/settings-persistence.orchestrator').resetSettings>(async () => true),
+  resetSettings: vi.fn<typeof resetSettings>(async () => true),
   clearLog: vi.fn(async () => ({ path: 'C:/log/app.log', sizeBytes: 0 })),
   querySystemFonts: vi.fn(async () => ['Arial', 'Microsoft YaHei']),
 }));
@@ -55,6 +55,7 @@ vi.mock('@/orchestrators/workspace-core-source.orchestrator', () => ({ switchWor
 import { useSettingsViewModel } from './use-settings-view-model';
 import { initializeSettingsStore, useSettingsStore } from '@/stores/settings.store';
 import { createSettingsFixture } from '@/test/fixtures/settings';
+import type { saveStarsectorRoot, resetSettings } from '@/orchestrators/settings-persistence.orchestrator';
 
 describe('useSettingsViewModel', () => {
   beforeEach(() => {

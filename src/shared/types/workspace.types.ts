@@ -1,3 +1,4 @@
+import type { ErrorDiagnostic } from '@/shared/types/error.types';
 /** Metadata for one imported Mod in the workspace */
 export interface ModEntry {
   modRoot: string;
@@ -17,7 +18,7 @@ export interface ModOpeningFailureFile {
 export interface ModOpeningFailure {
   modRoot: string;
   message: string;
-  diagnostic: import('@/shared/types/error.types').ErrorDiagnostic;
+  diagnostic: ErrorDiagnostic;
   file: ModOpeningFailureFile | null;
 }
 

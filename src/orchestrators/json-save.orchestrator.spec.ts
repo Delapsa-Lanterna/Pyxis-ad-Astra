@@ -26,7 +26,7 @@ vi.mock('@/services/window.service', () => ({ releaseNativeWindowTargets: vi.fn(
 
 vi.mock('@/services/json-entity.service', async () => ({
   ...(await vi.importActual('@/services/json-entity.service')),
-  captureConfigIdentityIntent: async (_session: string, kind: import('@/shared/types').EntityKind, sourceId: string, nextId: string) => {
+  captureConfigIdentityIntent: async (_session: string, kind: EntityKind, sourceId: string, nextId: string) => {
     const source = entityTargetFixture(kind, sourceId);
     const next = entityTargetFixture(kind, nextId);
     return {
@@ -57,6 +57,7 @@ import {
 } from '@/orchestrators/json-save.orchestrator';
 import { deleteJsonDocument } from '@/app/composables/json-editor/json-document-capabilities';
 import { createDefaultVariant } from '@/domain/entity-write/spec-construction';
+import type { EntityKind } from '@/shared/types';
 
 const MOD_ROOT = 'M:\\test-mod';
 const SESSION_ID = 'sess-1';

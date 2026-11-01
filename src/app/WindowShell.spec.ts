@@ -10,6 +10,7 @@ import { useCoreAssetsStore } from '@/stores/core-assets.store';
 import { createSettingsFixture } from '@/test/fixtures/settings';
 import { sessionUpdateFixture } from '@/test/fixtures/write-result';
 import { nPopover } from '@/test/unit/ui-stubs';
+import type * as UseAppLifecycleAssemblyModule from '@/app/composables/use-app-lifecycle-assembly';
 
 const mocks = vi.hoisted(() => ({ root: vi.fn(), fields: vi.fn(), graphics: vi.fn(), log: vi.fn() }));
 vi.mock('@/services/core-assets.service', () => ({
@@ -22,7 +23,7 @@ vi.mock('./WindowRuntime.vue', () => ({ default: { template: '<div><slot /></div
 vi.mock('@/app/components/ContextMenu.vue', () => ({ default: { template: '<div><slot /></div>' } }));
 vi.mock('@/app/composables/use-window-image-runtime', () => ({ useWindowImageRuntimeLifetime: vi.fn() }));
 vi.mock('@/app/composables/use-app-lifecycle-assembly', async (original) => ({
-  ...(await original<typeof import('@/app/composables/use-app-lifecycle-assembly')>()),
+  ...(await original<typeof UseAppLifecycleAssemblyModule>()),
   useAppSettings: vi.fn(),
 }));
 vi.mock('@/app/composables/settings/use-theme-dom-effect', () => ({ useThemeDomEffect: vi.fn() }));

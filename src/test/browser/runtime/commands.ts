@@ -18,6 +18,7 @@ import type {
   SaveDelivery,
   SaveRequest,
   WriteResult,
+  SourceRefresh,
 } from '@/shared/types';
 import { createSettingsFixture } from '../../fixtures/settings';
 import { windowsPathCaseFixture } from '../../fixtures/windows-path-case';
@@ -379,7 +380,7 @@ export async function dispatch(command: string, args: Record<string, unknown>, m
         manifest: model.manifest,
         invalidation: {
           ...projection.invalidation,
-          resources: (args.payload as import('@/shared/types').SourceRefresh).sources,
+          resources: (args.payload as SourceRefresh).sources,
         },
       };
       return {

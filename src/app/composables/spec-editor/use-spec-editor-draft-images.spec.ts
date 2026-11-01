@@ -7,6 +7,8 @@ import { flushPromises } from '@vue/test-utils';
 import type { EditContext, RowData } from '@/shared/types/index';
 import type { SpecEditorTarget } from './spec-editor.types';
 import { useSpecEditorDraftImages } from './use-spec-editor-draft-images';
+import type { ResourceRef } from '@/shared/types';
+
 const mocks = vi.hoisted(() => ({
   feedback: vi.fn(),
 }));
@@ -16,7 +18,7 @@ it('accepts current projectile image status through edits, invalidation and rele
     target = ref<SpecEditorTarget | null>({ sessionId: 's', modRoot: 'M:/mod', kind: 'projectile', id: 'p' });
   const draft = ref<RowData>({ sprite: 'first.png' }),
     context = ref<EditContext | null>({ targetKey: 'p', baselineGeneration: 1, handoff: 'load' });
-  type Result = { resourceRefs: import('@/shared/types').ResourceRef[]; spriteData: Record<string, string> };
+  type Result = { resourceRefs: ResourceRef[]; spriteData: Record<string, string> };
   const pending: Array<{ resolve: (result: Result) => void; reject: (error: Error) => void; signal: AbortSignal }> = [];
   const query = vi.fn(
     (_s: string, _id: string, _draft: RowData, signal?: AbortSignal) =>

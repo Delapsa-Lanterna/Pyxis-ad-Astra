@@ -9,7 +9,7 @@ import {
   saveProjection,
 } from '@/orchestrators/project-sync.orchestrator';
 import { computed, onScopeDispose, ref, shallowRef, watch } from 'vue';
-import type { JointEditRoot, JointEditSnapshot, JointValue } from '@/shared/types';
+import type { JointEditRoot, JointEditSnapshot, JointValue, RowData, ResourceRef } from '@/shared/types';
 import { useJointEditSession } from '../use-joint-edit-session';
 import { useSnapshotHistory } from '../use-snapshot-history';
 import { useQueryReadOwner } from '../use-query-read-owner';
@@ -97,7 +97,7 @@ export function useImmersiveEditorRuntime<TPanel extends ImmersivePanelState>(
     for (const record of snapshot.value.records) {
       const value = values[record.key];
       if (record.composition && value?.state === 'present')
-        values[record.key] = { state: 'present', value: composeJson(value.value as import('@/shared/types').RowData, record.composition) };
+        values[record.key] = { state: 'present', value: composeJson(value.value as RowData, record.composition) };
     }
     return definition.project(snapshot.value, values, displaySnapshot.value);
   });
@@ -155,7 +155,7 @@ export function useImmersiveEditorRuntime<TPanel extends ImmersivePanelState>(
         );
     },
   });
-  const mediaUrl = (resource: import('@/shared/types').ResourceRef | null | undefined) => media.dataUrl(root.sessionId, resource) ?? '';
+  const mediaUrl = (resource: ResourceRef | null | undefined) => media.dataUrl(root.sessionId, resource) ?? '';
   watch(
     () => (panel.value ? definition.displayResources(panel.value) : []),
     (resources) => {

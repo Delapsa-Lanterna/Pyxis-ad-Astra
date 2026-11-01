@@ -136,7 +136,15 @@ import { computed, ref, onMounted, onScopeDispose, watch, type ComputedRef } fro
 import { debugLog } from '@/shared/runtime/app-log-queue';
 import { useFieldInputs } from '@/shared/runtime/field-inputs';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
-import type { ReadonlyVariantEntry, JointEditRoot, RowData, ResourceSource, JointEditSnapshot, JointValue } from '@/shared/types';
+import type {
+  ReadonlyVariantEntry,
+  JointEditRoot,
+  RowData,
+  ResourceSource,
+  JointEditSnapshot,
+  JointValue,
+  ResourceRef,
+} from '@/shared/types';
 import type { VariantProjection } from '@/domain/immersive/variant/variant-panel';
 import type { ImmersiveRenderContext } from '../immersive-render-context';
 import { useVariantCatalog } from '@/app/composables/immersive-editor/variant/use-variant-catalog';
@@ -333,7 +341,7 @@ const viewport = useRetainedList(
 watch(() => JSON.stringify([props.root.sessionId, props.root.modRoot, props.kind]), viewport.reset, { flush: 'sync' });
 const preload = useThumbnailPreload('装配候选预读');
 const thumbnailRequests = new WeakMap<ReadonlyVariantEntry, ComputedRef<ReturnType<typeof variantCandidateThumbnail>>>();
-const mediaUrl = (resource: import('@/shared/types').ResourceRef) => preload.url(props.root.sessionId, resource);
+const mediaUrl = (resource: ResourceRef) => preload.url(props.root.sessionId, resource);
 function preloadImages() {
   const list = listSurface.value!,
     start = Math.floor(list.scrollTop / VARIANT_CARD_STEP),

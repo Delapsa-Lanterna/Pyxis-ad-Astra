@@ -1,4 +1,4 @@
-import type { FileHistoryPayload, FileReplay } from '@/shared/types';
+import type { FileHistoryPayload, FileReplay, WriteResult } from '@/shared/types';
 import { invokeCommand, invokeSaveCommand } from '@/shared/runtime/command.runtime';
 import type { FileChangeReplayDirection, FileHistorySnapshot } from '@/shared/types';
 
@@ -16,7 +16,7 @@ export function replayFileChangeSet(
   direction: FileChangeReplayDirection,
   entryId: number,
   revision: number,
-): Promise<import('@/shared/types').WriteResult> {
+): Promise<WriteResult> {
   return invokeSaveCommand('apply_file_change_set', {
     payload: { sessionId, modRoot, direction, entryId, revision } satisfies FileReplay,
   });

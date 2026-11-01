@@ -1,4 +1,4 @@
-import type { RowData, ResourceRef } from '@/shared/types';
+import type { RowData, ResourceRef, FileVersion } from '@/shared/types';
 import { arr, str } from '@/shared/lib/starsector';
 import { isRowData } from '@/shared/lib/row-data';
 import { mountedWeaponImages, type MountedWeaponImages } from '@/shared/lib/starsector/weapon-images';
@@ -12,7 +12,7 @@ export interface ShipWeaponSource {
   diagnostic: string;
 }
 export interface ShipWeaponSources {
-  baseVersions: import('@/shared/types').FileVersion[];
+  baseVersions: FileVersion[];
   hints: string[];
   weapons: Record<string, ShipWeaponSource>;
   diagnostic: string;

@@ -6,7 +6,7 @@ import { deepClone } from '@/shared/lib/starsector';
 import { stableDeepEqual } from '@/shared/lib/stable-compare';
 import { errorCodeOf } from '@/shared/lib/errors';
 import { createReadTicketOwner, isReadInvalidated } from '@/shared/runtime/read-request';
-import type { EditContext, FileVersion } from '@/shared/types';
+import type { EditContext, FileVersion, SaveAcceptanceTask } from '@/shared/types';
 import { retainLaterDraft } from '@/domain/edit-session';
 
 type MaybePromise<T> = T | Promise<T>;
@@ -41,7 +41,7 @@ export interface EditTargetDraftSessionOptions<TValue, TTarget, TMeta = unknown>
   acceptSaved?: (snapshot: EditTargetSnapshot<TValue, TTarget, TMeta>) => MaybePromise<void>;
   beginSave?: (
     write: (request?: SaveCommandRequest) => Promise<EditTargetSnapshot<TValue, TTarget, TMeta> | void>,
-    accept: (snapshot: EditTargetSnapshot<TValue, TTarget, TMeta>) => import('@/shared/types').SaveAcceptanceTask[],
+    accept: (snapshot: EditTargetSnapshot<TValue, TTarget, TMeta>) => SaveAcceptanceTask[],
   ) => SaveOperation<EditTargetSnapshot<TValue, TTarget, TMeta> | void>;
   savedContent?: (snapshot: EditTargetSnapshot<TValue, TTarget, TMeta>) => EditTargetSnapshot<TValue, TTarget, TMeta>;
   confirmSave?: (target: TTarget, value: TValue) => MaybePromise<boolean>;

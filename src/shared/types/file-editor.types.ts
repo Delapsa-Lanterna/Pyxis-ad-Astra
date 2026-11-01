@@ -1,13 +1,15 @@
+import type { EntityEditInfo, FileVersion, EntityEditTarget, EntityKind } from '@/shared/types/project-identity.types';
+import type { JsonWriteOptions } from './json-write.types';
 export interface EditableFileData {
-  entity: import('@/shared/types/project-identity.types').EntityEditInfo | null;
+  entity: EntityEditInfo | null;
   path: string;
   text: string;
-  baseVersions: import('@/shared/types/project-identity.types').FileVersion[];
+  baseVersions: FileVersion[];
 }
 
 export interface TextSave {
-  jsonWrite?: import('./json-write.types').JsonWriteOptions;
-  baseVersions: import('@/shared/types/project-identity.types').FileVersion[];
+  jsonWrite?: JsonWriteOptions;
+  baseVersions: FileVersion[];
   sessionId: string | null;
   modRoot: string;
   path: string;
@@ -15,7 +17,7 @@ export interface TextSave {
 }
 
 export interface TextTranscode {
-  baseVersions: import('@/shared/types/project-identity.types').FileVersion[];
+  baseVersions: FileVersion[];
   sessionId: string | null;
   modRoot: string;
   path: string;
@@ -30,12 +32,12 @@ export interface LoadEditableFilePayload {
 
 export interface TextIdentityIntentPayload {
   sessionId: string;
-  source: import('@/shared/types/project-identity.types').EntityEditTarget;
+  source: EntityEditTarget;
   text: string;
 }
 
 export interface FollowTextIdentityPayload {
-  kind: import('@/shared/types/project-identity.types').EntityKind;
+  kind: EntityKind;
   text: string;
   nextId: string;
 }

@@ -9,6 +9,7 @@ import { formatError } from '@/shared/lib/errors';
 import { requireRowData } from '@/shared/lib/row-data';
 import { cloneQuerySnapshot } from '@/shared/lib/query-snapshot';
 import type { EntityData, ProjectSessionId, JointEditRoot, ResourceRef, RowData } from '@/shared/types';
+import type { SpecEditorData, FileVersion } from '@/shared/types/index';
 
 export async function querySpecShipWeaponSources(root: JointEditRoot, ship: RowData, signal?: AbortSignal): Promise<ShipWeaponSources> {
   const ids = shipBuiltInWeaponIds(ship);
@@ -59,7 +60,7 @@ export async function querySpecShipEditorData(
   sessionId: ProjectSessionId,
   id: string,
   signal?: AbortSignal,
-): Promise<import('@/shared/types/index').SpecEditorData<'ship'>> {
+): Promise<SpecEditorData<'ship'>> {
   const record = await querySessionEntity(sessionId, 'ship', id, signal);
   const data = record ? cloneQuerySnapshot<EntityData>(record) : null;
   const info = data ?? (await querySessionEntityEditTarget(sessionId, 'ship', id, signal));
@@ -68,7 +69,7 @@ export async function querySpecShipEditorData(
     composition: data?.composition,
     spec: data ? requireRowData(data.data, '舰船 ' + id + ' 数据无效') : createShipSpec(id),
     target: info.target,
-    baseVersions: cloneQuerySnapshot<import('@/shared/types/index').FileVersion[]>(info.baseVersions),
+    baseVersions: cloneQuerySnapshot<FileVersion[]>(info.baseVersions),
     isNew: info.target.state === 'create',
   };
 }

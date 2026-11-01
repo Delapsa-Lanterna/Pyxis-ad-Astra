@@ -8,6 +8,7 @@ import { specFieldIssues } from './spec-validation';
 import { createShipSpec, createSystemSpec, createSpecObject } from '@/domain/entity-write/spec-construction';
 import { createWeaponSpec } from '@/domain/entity-write/spec-construction';
 import { createProjectileSpec } from '@/domain/entity-write/spec-construction';
+import type { JsonValue } from '@/shared/types';
 
 describe('Spec schema validation', () => {
   it.each([
@@ -103,7 +104,7 @@ describe('Spec schema validation', () => {
     const issues = shipSpecIssues(ship);
     expect(issues.some((issue) => issue.code === 'spec.slot_id_duplicate' && issue.path === 'weaponSlots[1].id')).toBe(true);
     expect(issues.some((issue) => issue.path === 'weaponSlots[0].angle')).toBe(true);
-    const missing: Record<string, import('@/shared/types').JsonValue> = { ...ship };
+    const missing: Record<string, JsonValue> = { ...ship };
     delete missing.width;
     expect(shipSpecIssues(missing).some((issue) => issue.path === 'width')).toBe(true);
   });

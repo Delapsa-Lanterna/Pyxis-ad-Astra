@@ -15,7 +15,14 @@ import { isReadInvalidated } from '@/shared/runtime/read-request';
 import { computed, shallowReactive, shallowRef, watch } from 'vue';
 import { createSpecProblems } from './use-spec-problems';
 import { loadSpecEditorImport, saveSpecEditorSpecByKind } from '@/services/spec-editor.service';
-import type { SpecEditorKind, RowData, WriteResult, SpecEditorData, CommittedWriteEvent } from '@/shared/types/index';
+import type {
+  SpecEditorKind,
+  RowData,
+  WriteResult,
+  SpecEditorData,
+  CommittedWriteEvent,
+  InvalidatedResourceScope,
+} from '@/shared/types/index';
 import { useSaveCommandStore } from '@/stores/save-command.store';
 import { deepClone } from '@/shared/lib/starsector/index';
 import { AppError, formatError } from '@/shared/lib/errors';
@@ -434,7 +441,7 @@ export function useSpecEditorWindowViewModel(
   return {
     problems,
     inputs: draftSession.inputs,
-    refresh: (resources: readonly import('@/shared/types/index').InvalidatedResourceScope[], paths: string[] = []) =>
+    refresh: (resources: readonly InvalidatedResourceScope[], paths: string[] = []) =>
       refreshProjectSourcePaths(
         params.sessionId!,
         params.modRoot!,

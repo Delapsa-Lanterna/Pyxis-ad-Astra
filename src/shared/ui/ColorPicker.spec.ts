@@ -1,4 +1,4 @@
-import { mount } from '@vue/test-utils';
+import { mount, type VueWrapper } from '@vue/test-utils';
 import { afterEach, describe, expect, it } from 'vitest';
 import { h, ref } from 'vue';
 import { createFieldInputs, provideFieldInputs } from '@/shared/runtime/field-inputs';
@@ -7,7 +7,7 @@ import FieldRow from './FieldRow.vue';
 import { editorUiStubs } from '@/test/unit/ui-stubs';
 import { deepClone } from '@/shared/lib/starsector';
 
-let wrapper: import('@vue/test-utils').VueWrapper | null = null;
+let wrapper: VueWrapper | null = null;
 
 afterEach(() => {
   wrapper?.unmount();

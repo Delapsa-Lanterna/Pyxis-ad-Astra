@@ -6,12 +6,14 @@ import type {
   JointEditWriteResult,
   AppFeedback,
   EditWriteTarget,
+  JointEditPrepared,
 } from '@/shared/types';
 import { queryJointEdit, queryJointEditRow, prepareJointEdit, saveJointEdit } from '@/services/joint-edit.service';
 import { runConfirmedJsonWrite } from '@/orchestrators/json-write-confirmation.orchestrator';
 import { applyJointConflictChoices } from '@/domain/joint-edit';
 import { cloneQuerySnapshot } from '@/shared/lib/query-snapshot';
 import { AppError } from '@/shared/lib/errors';
+import type { SaveCommandRequest } from '@/shared/runtime/command.runtime';
 
 export async function resolveWingReference(root: JointEditRoot, destination: 'hull' | 'variant', signal?: AbortSignal) {
   const snapshot = await queryJointEdit(root, signal);
@@ -55,11 +57,11 @@ export function openJointEditRowSnapshot(
 export async function submitJointEdit(
   draft: JointEditDraft,
   feedback: AppFeedback,
-  chooseConflicts: (prepared: import('@/shared/types').JointEditPrepared) => Promise<JointConflictChoice[] | null>,
+  chooseConflicts: (prepared: JointEditPrepared) => Promise<JointConflictChoice[] | null>,
   createOverrides: string[] = [],
-  request?: import('@/shared/runtime/command.runtime').SaveCommandRequest,
+  request?: SaveCommandRequest,
 ): Promise<JointEditWriteResult | null> {
-  const prepared = cloneQuerySnapshot<import('@/shared/types').JointEditPrepared>(await prepareJointEdit(draft));
+  const prepared = cloneQuerySnapshot<JointEditPrepared>(await prepareJointEdit(draft));
   const choices = prepared.conflicts.length > 0 ? await chooseConflicts(prepared) : [];
   if (choices === null) return null;
   const values = applyJointConflictChoices(prepared, choices);

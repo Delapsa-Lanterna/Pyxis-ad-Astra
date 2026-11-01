@@ -1,11 +1,11 @@
-import { mount, flushPromises } from '@vue/test-utils';
+import { mount, flushPromises, type VueWrapper } from '@vue/test-utils';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import ImmersiveWeaponIcon from './ImmersiveWeaponIcon.vue';
 import type { ResourceRef } from '@/shared/types';
 import { windowImageRuntime } from '@/app/composables/use-window-image-runtime';
 
 const feedback = vi.hoisted(() => ({ error: vi.fn() }));
-let iconSurface: import('@vue/test-utils').VueWrapper | null = null;
+let iconSurface: VueWrapper | null = null;
 vi.mock('@/app/composables/use-app-feedback', () => ({ useAppFeedback: () => feedback }));
 afterEach(() => {
   iconSurface?.unmount();

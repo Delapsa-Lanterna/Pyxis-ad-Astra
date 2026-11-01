@@ -11,12 +11,13 @@ import type {
   JointSourceCreate,
   JointVariantCatalogKind,
   ResourceSource,
+  ProjectInvalidation,
 } from '@/shared/types';
-import { invokeCommand, invokeSaveCommand } from '@/shared/runtime/command.runtime';
+import { invokeCommand, invokeSaveCommand, type SaveCommandRequest } from '@/shared/runtime/command.runtime';
 import { readLiveSessionQuery, type SessionQueryDefinition, CachedSessionQuery } from '@/services/query-cache.service';
 import { captureSaveEdits } from '@/domain/project/save-edits';
 
-export function hasJointEditInvalidation(invalidation: import('@/shared/types').ProjectInvalidation) {
+export function hasJointEditInvalidation(invalidation: ProjectInvalidation) {
   return invalidation.session || invalidation.paths.length > 0;
 }
 
@@ -106,10 +107,7 @@ export function queryJointVariantCatalog(
 export function prepareJointEdit(draft: JointEditDraft, signal?: AbortSignal): Promise<DeepReadonly<JointEditPrepared>> {
   return readLiveSessionQuery(readJointPreparation, draft.baseline.root.sessionId, draft, signal);
 }
-export function saveJointEdit(
-  payload: SaveJointEditPayload,
-  request?: import('@/shared/runtime/command.runtime').SaveCommandRequest,
-): Promise<JointEditWriteResult> {
+export function saveJointEdit(payload: SaveJointEditPayload, request?: SaveCommandRequest): Promise<JointEditWriteResult> {
   const original = Object.fromEntries(
     payload.snapshot.records.filter((record) => Object.hasOwn(payload.values, record.key)).map((record) => [record.key, record.value]),
   );

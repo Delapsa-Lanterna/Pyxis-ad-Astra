@@ -15,6 +15,7 @@
 - 组件文件使用 `PascalCase`；composable 使用 `use*`；store 文件使用 `*.store.ts`；类型使用 `PascalCase`。
 - 应用与单元测试必须分别消费浏览器及 Vitest 类型环境，共同严格检查必须由 tsconfig.base.json 维护。
 - 模板必须检查组件、事件及值的类型契约，属性透传必须遵循组件既有运行边界。
+- TypeScript 类型依赖必须通过文件顶部的 import 或 import type 声明，严禁在类型位置使用 import(...) 或 typeof import(...)；JSDoc 类型注释沿用所属语法。
 
 ## 状态与模块
 

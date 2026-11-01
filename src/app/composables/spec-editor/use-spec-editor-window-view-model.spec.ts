@@ -19,14 +19,14 @@ import { initializeSettingsStore } from '@/stores/settings.store';
 import { createSettingsFixture } from '@/test/fixtures/settings';
 import { editorUiStubs } from '@/test/unit/ui-stubs';
 
-import type { SpecEditorData, SpecEditorKind, WriteResult, RowData } from '@/shared/types/index';
+import type { SpecEditorData, SpecEditorKind, WriteResult, RowData, EntityEditTarget } from '@/shared/types/index';
 import * as projectSync from '@/orchestrators/project-sync.orchestrator';
 import * as sourceOptions from '@/services/source-options.service';
 import { committedChangeFixture, dispatchProjectChangeFixture } from '@/test/unit/project-changes';
 
 vi.mock('@/services/window.service', () => ({ releaseNativeWindowTargets: vi.fn(async () => {}) }));
 const mocks = vi.hoisted(() => ({
-  identityHandler: null as null | ((event: import('@/shared/types').CommittedWriteEvent) => Promise<void>),
+  identityHandler: null as null | ((event: CommittedWriteEvent) => Promise<void>),
   querySpecEditorData: vi.fn(),
   saveSpecEditorSpecByKind: vi.fn(),
   loadSpecEditorImport: vi.fn(),
@@ -66,12 +66,7 @@ vi.mock('@/orchestrators/entity-write.orchestrator', () => ({
   chooseEntityFilename: vi.fn(async () => false),
 }));
 vi.mock('@/orchestrators/spec-editor-identity.orchestrator', () => ({
-  reserveEntityIntent: async (
-    _session: string,
-    _root: string,
-    source: import('@/shared/types/index').EntityEditTarget,
-    draft: RowData,
-  ) => ({
+  reserveEntityIntent: async (_session: string, _root: string, source: EntityEditTarget, draft: RowData) => ({
     source,
     nextId: draft.hullId ?? draft.id,
     destinationVersion: { path: source.write.path, fingerprint: 'destination' },
@@ -117,6 +112,7 @@ import { createWeaponSpec } from '@/domain/entity-write/spec-construction';
 import { createProjectileSpec } from '@/domain/entity-write/spec-construction';
 import { formatError } from '@/shared/lib/errors';
 import { useSaveCommandStore } from '@/stores/save-command.store';
+import type { CommittedWriteEvent } from '@/shared/types';
 
 function shipBundleFixture(isNew = false): SpecEditorData<'ship'> {
   return {

@@ -1,4 +1,4 @@
-import type { FileChangeReplayDirection, FileHistoryEntrySummary } from '@/shared/types';
+import type { FileChangeReplayDirection, FileHistoryEntrySummary, WriteResult } from '@/shared/types';
 import { useProjectStore } from '@/stores/project.store';
 import { useFileHistoryStore } from '@/stores/file-history.store';
 import { replayFileChangeSet, loadFileHistory } from '@/services/file-history.service';
@@ -62,10 +62,7 @@ export function createFileReplayPlan(
   };
 }
 
-export async function executeFileReplayPlan(
-  plan: FileHistoryReplayPlan,
-  project: ProjectStore,
-): Promise<import('@/shared/types').WriteResult> {
+export async function executeFileReplayPlan(plan: FileHistoryReplayPlan, project: ProjectStore): Promise<WriteResult> {
   assertReplayPlanStillCurrent(plan, project);
   const result = await replayFileChangeSet(plan.sessionId, plan.modRoot, plan.direction, plan.entry.id, plan.revision);
   if (project.getSessionId(plan.modRoot) !== plan.sessionId) return result;

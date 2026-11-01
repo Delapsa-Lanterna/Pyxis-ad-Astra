@@ -4,6 +4,8 @@ import type {
   SourceRefresh,
   FileChangeRecord,
   ProjectSessionInvalidationResult,
+  InvalidatedResourceScope,
+  WriteResult,
 } from '@/shared/types';
 import { commandChannel, invokeCommand, invokeSaveCommand } from '@/shared/runtime/command.runtime';
 import type { SaveDelivery } from '@/shared/types';
@@ -49,10 +51,7 @@ export function requestProjectSessionRefresh(sessionId: string, changes: FileCha
   return invokeCommand('invalidate_project_session', { payload: { sessionId, changes } satisfies InvalidateProjectSessionPayload });
 }
 
-export function refreshProjectSources(
-  sessionId: string,
-  sources: readonly import('@/shared/types').InvalidatedResourceScope[],
-): Promise<import('@/shared/types').WriteResult<unknown>> {
+export function refreshProjectSources(sessionId: string, sources: readonly InvalidatedResourceScope[]): Promise<WriteResult<unknown>> {
   return invokeSaveCommand('refresh_project_sources', { payload: { sessionId, sources } satisfies SourceRefresh });
 }
 

@@ -9,7 +9,7 @@ import JsonDocumentEditor from './JsonDocumentEditor.vue';
 import JsonDocumentList from './JsonDocumentList.vue';
 import { NInput } from 'naive-ui/es/input';
 import { NDropdown } from 'naive-ui/es/dropdown';
-import type { CommittedWriteEvent } from '@/shared/types';
+import type { CommittedWriteEvent, WriteResult } from '@/shared/types';
 import SchemaFormRenderer from '@/app/components/schema/SchemaFormRenderer.vue';
 import { useJsonEditorStore } from '@/stores/json-editor.store';
 import { useCsvEditorStore } from '@/stores/csv-editor.store';
@@ -27,6 +27,11 @@ import { getSchema } from '@/domain/schema/config-schema-registry';
 import { JSON_DOCUMENT_DEFINITIONS } from '@/domain/json-editor/json-document-definitions';
 import * as miscConfig from '@/domain/misc-config';
 import type { AppFeedback, EntityData, JsonEditorPageId, RowData, JsonRecoveryRequest, IndexedConfigSave } from '@/shared/types';
+import type * as EntityQueryServiceModule from '@/services/entity-query.service';
+import type * as ProjectSyncOrchestratorModule from '@/orchestrators/project-sync.orchestrator';
+import type * as MiscConfigServiceModule from '@/services/misc-config.service';
+import type { Component, VNode } from 'vue';
+
 vi.mock('@/services/window.service', () => ({ releaseNativeWindowTargets: vi.fn(async () => {}) }));
 const mocks = vi.hoisted(() => ({
   listeners: new Set<(event: CommittedWriteEvent) => Promise<void>>(),
@@ -106,13 +111,13 @@ vi.mock('@/app/composables/use-core-schema', () => ({
   }),
 }));
 vi.mock('@/services/entity-query.service', async (original) => ({
-  ...(await original<typeof import('@/services/entity-query.service')>()),
+  ...(await original<typeof EntityQueryServiceModule>()),
   querySessionEntityList: mocks.list,
   querySessionEntity: mocks.read,
   querySessionEntityEditTarget: mocks.hullTarget,
 }));
 vi.mock('@/orchestrators/project-sync.orchestrator', async (original) => ({
-  ...(await original<typeof import('@/orchestrators/project-sync.orchestrator')>()),
+  ...(await original<typeof ProjectSyncOrchestratorModule>()),
   ...(await import('@/test/unit/project-changes')),
   listenSavedIdentity: async (listener: (event: CommittedWriteEvent) => Promise<void>) => {
     mocks.listeners.add(listener);
@@ -129,7 +134,7 @@ vi.mock('@/orchestrators/json-save.orchestrator', () => ({
 vi.mock('@/services/json-file.service', () => ({ deleteVariantEntity: mocks.remove, deleteSkinEntity: mocks.remove }));
 vi.mock('@/services/json-recovery.service', () => ({ prepareJsonSourceRecovery: mocks.prepare }));
 vi.mock('@/services/misc-config.service', async (original) => ({
-  ...(await original<typeof import('@/services/misc-config.service')>()),
+  ...(await original<typeof MiscConfigServiceModule>()),
   queryMiscConfigFiles: mocks.miscList,
   queryMiscConfigFile: mocks.miscRead,
   saveMiscConfig: mocks.miscSave,
@@ -175,7 +180,7 @@ function register() {
       for (const id of ['a', 'b']) entities.set(key(session!, kind, id), jsonEntityFixture(kind, id, 'Saved', root));
   }
 }
-async function mountPage(page: JsonEditorPageId, root = 'M:/one', input: import('vue').Component = nInput) {
+async function mountPage(page: JsonEditorPageId, root = 'M:/one', input: Component = nInput) {
   useWorkspaceStore().activateModJson(root, page);
   wrapper = mount(JsonEditorWorkspace, {
     attachTo: document.body,
@@ -231,7 +236,7 @@ beforeEach(() => {
     entities.set(key(write.sessionId, write.kind, after.id), after);
     return { entity: { entityData: write.entityData, indexRows: [{ data: write.indexRow, isComment: false }] }, receipt };
   });
-  mocks.complete.mockImplementation(async (modRoot: string, _session: string, result: import('@/shared/types').WriteResult) => {
+  mocks.complete.mockImplementation(async (modRoot: string, _session: string, result: WriteResult) => {
     await dispatchProjectChangeFixture(committedChangeFixture(result, _session, modRoot));
   });
   mocks.prepare.mockImplementation(async (request: JsonRecoveryRequest) => {
@@ -833,7 +838,7 @@ describe('JSON common workspace and form', () => {
         .find((button) => button.text() === '删除')!
         .trigger('click');
       const confirmation = mocks.feedback.confirmDanger.mock.lastCall![0];
-      const content = mount({ render: confirmation.content as () => import('vue').VNode }, { global: { stubs: editorUiStubs } });
+      const content = mount({ render: confirmation.content as () => VNode }, { global: { stubs: editorUiStubs } });
       const checkbox = content.get('input[type="checkbox"]');
       await checkbox.setValue(removeSource);
       await confirmation.onConfirm();

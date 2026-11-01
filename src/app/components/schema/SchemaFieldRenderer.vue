@@ -25,6 +25,8 @@ import type { FieldSchema, SchemaFieldUpdate } from '@/domain/schema/schema.type
 import { computed } from 'vue';
 import { compositionOrigin, compositionPath } from '@/domain/schema/json-composition';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
+import type { JsonValue } from '@/shared/types';
+
 const props = defineProps<{
   field: FieldSchema;
   value: unknown;
@@ -47,7 +49,7 @@ function replaceList() {
     onConfirm: () =>
       props.runtimeContext!.composition!.apply(path.value, [
         'core_clearArray',
-        ...(props.value as import('@/shared/types').JsonValue[]).filter((value) => value !== 'core_clearArray'),
+        ...(props.value as JsonValue[]).filter((value) => value !== 'core_clearArray'),
       ]),
   });
 }

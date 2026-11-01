@@ -18,7 +18,7 @@ import { stableStringify } from '@/shared/lib/stable-compare';
 import { cloneQuerySnapshot } from '@/shared/lib/query-snapshot';
 
 import { hasResourceInvalidation } from '@/services/resource-media.service';
-import type { CsvRowPreviewTarget, ResourceRef, CsvSearchField } from '@/shared/types';
+import type { CsvRowPreviewTarget, ResourceRef, CsvSearchField, CsvDraftRow, SaveAcceptanceTask } from '@/shared/types';
 import { useFieldInputActions } from '@/app/composables/use-field-input-actions';
 
 export function useCsvTableViewModel(saveBeforeSearch: () => Promise<boolean>) {
@@ -31,7 +31,7 @@ export function useCsvTableViewModel(saveBeforeSearch: () => Promise<boolean>) {
   const rowQueue: Array<{ run: () => Promise<void>; cancel: () => void }> = [];
   let rowReads = 0;
   let lastRange = { start: 0, count: 240 };
-  const widthSample = ref<import('@/shared/types').CsvDraftRow[]>([]);
+  const widthSample = ref<CsvDraftRow[]>([]);
   const loadedSourceOptions = ref(new Map<string, SelectOption[]>());
   const searchPending = ref(false),
     windowReady = ref(false);
@@ -229,7 +229,7 @@ export function useCsvTableViewModel(saveBeforeSearch: () => Promise<boolean>) {
     (event) => {
       const projection = saveProjection(event, workspace.activeSessionId);
       if (!projection) return;
-      const tasks: import('@/shared/types').SaveAcceptanceTask[] = [];
+      const tasks: SaveAcceptanceTask[] = [];
       if (hasTableInvalidation(projection.invalidation, 'csv-table-window', tables.currentTab)) {
         tasks.push(async () => {
           const captured = target.value!;
@@ -244,7 +244,7 @@ export function useCsvTableViewModel(saveBeforeSearch: () => Promise<boolean>) {
           );
           tables.acceptSavedTableIndex(captured, index, Boolean(tables.searchText.trim()));
           refreshAfterSave = false;
-          widthSample.value = cloneQuerySnapshot<import('@/shared/types').CsvDraftRow[]>(index.rows);
+          widthSample.value = cloneQuerySnapshot<CsvDraftRow[]>(index.rows);
           windowReady.value = true;
           lockColumnWidthsForLoadedModel();
         });
@@ -354,7 +354,7 @@ export function useCsvTableViewModel(saveBeforeSearch: () => Promise<boolean>) {
           )
             return;
           tables.applyTableIndex(captured, index, filtered);
-          if (initialCount) widthSample.value = cloneQuerySnapshot<import('@/shared/types').CsvDraftRow[]>(index.rows);
+          if (initialCount) widthSample.value = cloneQuerySnapshot<CsvDraftRow[]>(index.rows);
           windowReady.value = true;
           accepted = true;
           void locateRequestedRow();

@@ -1,7 +1,7 @@
 import { createPinia, setActivePinia } from 'pinia';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { flushPromises } from '@vue/test-utils';
-import type { SaveDelivery, CommittedWriteEvent } from '@/shared/types';
+import type { SaveDelivery, CommittedWriteEvent, WriteResult, AppFeedback } from '@/shared/types';
 import { savedWriteFixture, sessionUpdateFixture } from '@/test/fixtures/write-result';
 import { entityTargetFixture } from '@/test/fixtures/entity-target';
 
@@ -51,9 +51,10 @@ import { useProjectSyncStore } from '@/stores/project-sync.store';
 import { useProjectStore } from '@/stores/project.store';
 import { useFileHistoryStore } from '@/stores/file-history.store';
 import { useEditTargetDraftSession } from '@/app/composables/use-edit-target-draft-session';
+import type { SaveCommandRequest } from '@/shared/runtime/command.runtime';
 
 const nativeWaits = new Map<string, (value: unknown) => void>();
-async function invokeSave(request: import('@/shared/runtime/command.runtime').SaveCommandRequest) {
+async function invokeSave(request: SaveCommandRequest) {
   return new Promise<unknown>((resolve) => nativeWaits.set(request.id, resolve));
 }
 const root = 'C:/mods/queue';
@@ -120,7 +121,7 @@ describe('ordered save consumption', () => {
       load: () => ({ target: { id: 'a' }, value: { speed: 80 }, baseVersions: [], meta: null }),
       beginSave: beginSavedWrite,
       save: async (target, _value, _versions, _original, request) => {
-        const result = (await invokeSave(request!)) as import('@/shared/types').WriteResult<{ speed: number }>;
+        const result = (await invokeSave(request!)) as WriteResult<{ speed: number }>;
         return { target, value: result.content!.value, baseVersions: result.baseVersions, meta: null, requestId: request!.id };
       },
     });
@@ -157,7 +158,7 @@ describe('ordered save consumption', () => {
     const choose = vi.fn().mockResolvedValue(abandon ? 'abandon' : null);
     const result = settleProjectSaves({ kind: 'sessions', sessionIds: ['s1'] }, {
       choose,
-    } as unknown as import('@/shared/types').AppFeedback);
+    } as unknown as AppFeedback);
     if (abandon) {
       await result;
       expect(mocks.abandon).toHaveBeenCalledExactlyOnceWith([root]);
@@ -170,7 +171,7 @@ describe('ordered save consumption', () => {
   });
   it.each(['recreate', null])('asks about exact missing sources and returns the user choice %s', async (choice) => {
     const choose = vi.fn().mockResolvedValue(choice);
-    await startProjectSync({ choose } as unknown as import('@/shared/types').AppFeedback);
+    await startProjectSync({ choose } as unknown as AppFeedback);
     mocks.receive!({ kind: 'missing', requestId: 'missing', paths: ['C:/mods/queue/notes.txt'] });
     await flushPromises();
     expect(choose.mock.calls[0]![0].content).toContain('C:/mods/queue/notes.txt');

@@ -1,7 +1,7 @@
 import { publishWindowContext } from '@/windows/window-context.window';
 import { reserveNativeWindowTargets, retargetNativeWindow } from '@/services/window.service';
-import type { WindowIdentity, SpecEditorKind } from '@/shared/types';
-export async function reserveFileIdentityIntent(sessionId: string, modRoot: string, intent: import('@/shared/types').EntityIdentityIntent) {
+import type { WindowIdentity, SpecEditorKind, EntityIdentityIntent } from '@/shared/types';
+export async function reserveFileIdentityIntent(sessionId: string, modRoot: string, intent: EntityIdentityIntent) {
   if (intent.source.id === intent.nextId && intent.source.write.path === intent.nextWrite.path) return;
   const identities: WindowIdentity[] = [{ type: 'file', sessionId, modRoot, path: intent.nextWrite.path }];
   if (['ship', 'weapon', 'projectile', 'system'].includes(intent.source.kind))

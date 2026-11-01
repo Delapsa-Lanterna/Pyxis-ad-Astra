@@ -32,14 +32,21 @@ vi.mock('@/services/window.service', () => ({
   releaseNativeWindowTargets: vi.fn(async () => {}),
 }));
 vi.mock('@/orchestrators/project-sync.orchestrator', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/orchestrators/project-sync.orchestrator')>()),
+  ...(await importOriginal<typeof ProjectSyncOrchestratorModule>()),
   completeSavedWrite,
   beginSavedWrite: (await import('@/test/unit/project-changes')).withSavedCompletion((result) =>
     completeSavedWrite({ modRoot: MOD_ROOT, sessionId: SESSION_ID, label: '保存 ships CSV', result }),
   ),
 }));
 
-import type { ProjectInvalidation, ProjectManifest, WriteResult, AssociatedSpecChange } from '@/shared/types';
+import type {
+  ProjectInvalidation,
+  ProjectManifest,
+  WriteResult,
+  AssociatedSpecChange,
+  AssociatedSpecPreparation,
+  AssociatedSpecWrite,
+} from '@/shared/types';
 import { TABLE_KEYS } from '@/shared/types';
 import { useProjectStore } from '@/stores/project.store';
 import { useCsvEditorStore } from '@/stores/csv-editor.store';
@@ -50,6 +57,7 @@ import { ref } from 'vue';
 import type { AssociatedSpecCandidate } from '@/domain/csv-editor/associated-spec-candidates';
 
 import { useDraftSessionsStore } from '@/stores/draft-sessions.store';
+import type * as ProjectSyncOrchestratorModule from '@/orchestrators/project-sync.orchestrator';
 
 const MOD_ROOT = 'M:\\test-mod';
 const SESSION_ID = 'sess-1';
@@ -130,7 +138,7 @@ describe('table-save orchestrator', () => {
       { sessionId: SESSION_ID, modRoot: MOD_ROOT, table: 'ships', rowKey: 'ships:r1', column: 'id' },
       'changed',
     );
-    let finish!: (value: import('@/shared/types').AssociatedSpecPreparation[]) => void;
+    let finish!: (value: AssociatedSpecPreparation[]) => void;
     vi.mocked(prepareCsvAssociatedSpecs).mockImplementationOnce(
       () =>
         new Promise((resolve) => {
@@ -548,7 +556,7 @@ describe('table-save orchestrator', () => {
     const tables = useCsvEditorStore();
     const cellTarget = { sessionId: SESSION_ID, modRoot: MOD_ROOT, table: 'ships' as const, rowKey: 'ships:r1', column: 'id' };
     tables.updateCellValue(cellTarget, 'submitted');
-    let release!: (selection: import('@/shared/types').AssociatedSpecWrite[]) => void;
+    let release!: (selection: AssociatedSpecWrite[]) => void;
     let candidates!: AssociatedSpecCandidate[];
     const saving = saveCsvChanges({
       table: 'ships',

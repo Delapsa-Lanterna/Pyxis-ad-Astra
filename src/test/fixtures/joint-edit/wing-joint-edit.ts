@@ -1,4 +1,4 @@
-import type { JointEditSnapshot } from '@/shared/types';
+import type { JointEditSnapshot, RowData } from '@/shared/types';
 import { fixtureSpecRecord, fixtureCsvRecord, fixtureJointSnapshot } from './joint-record';
 
 export function wingJointFixture(): JointEditSnapshot {
@@ -86,7 +86,7 @@ export function wingJointFixture(): JointEditSnapshot {
     system: 'system',
   });
   snapshot.hull = {
-    spec: records[0]!.value.state === 'present' ? (records[0]!.value.value as import('@/shared/types').RowData) : {},
+    spec: records[0]!.value.state === 'present' ? (records[0]!.value.value as RowData) : {},
     hints: [],
     slots: [],
     builtInWeapons: {},

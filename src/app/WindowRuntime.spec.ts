@@ -17,10 +17,13 @@ import { useWindowCloseState } from './composables/use-window-close-state';
 import type { Ref } from 'vue';
 import { nPopover } from '@/test/unit/ui-stubs';
 import { useEditTargetHandoff } from './composables/use-edit-target-handoff';
+import type * as AppFeedbackAssemblyModule from './app-feedback-assembly';
+import type * as UseEditTargetHandoffModule from './composables/use-edit-target-handoff';
+import type * as UseAppLifecycleAssemblyModule from '@/app/composables/use-app-lifecycle-assembly';
 
 const mocks = vi.hoisted(() => ({ stop: vi.fn(), listen: vi.fn(), register: vi.fn(async () => {}), log: vi.fn() }));
 vi.mock('./app-feedback-assembly', async (original) => {
-  const module = await original<typeof import('./app-feedback-assembly')>();
+  const module = await original<typeof AppFeedbackAssemblyModule>();
   return { ...module, createWindowFeedback: vi.fn(module.createWindowFeedback) };
 });
 vi.mock('@/orchestrators/project-sync.orchestrator', () => ({ startProjectSync: mocks.listen, pauseProjectDisplay: vi.fn() }));
@@ -29,12 +32,12 @@ vi.mock('@/services/app-log.service', () => ({ recordLogBestEffort: mocks.log })
 vi.mock('@/app/composables/use-core-assets', () => ({ useCoreAssetsLifecycle: vi.fn() }));
 vi.mock('@/app/composables/use-window-image-runtime', () => ({ useWindowImageRuntimeLifetime: vi.fn() }));
 vi.mock('@/app/composables/use-app-lifecycle-assembly', async (original) => ({
-  ...(await original<typeof import('@/app/composables/use-app-lifecycle-assembly')>()),
+  ...(await original<typeof UseAppLifecycleAssemblyModule>()),
   useAppSettings: vi.fn(),
 }));
 vi.mock('@/app/composables/settings/use-theme-dom-effect', () => ({ useThemeDomEffect: vi.fn() }));
 vi.mock('./composables/use-edit-target-handoff', async (original) => {
-  const module = await original<typeof import('./composables/use-edit-target-handoff')>();
+  const module = await original<typeof UseEditTargetHandoffModule>();
   return { ...module, useEditTargetHandoff: vi.fn(module.useEditTargetHandoff) };
 });
 

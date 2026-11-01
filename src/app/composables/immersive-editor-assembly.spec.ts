@@ -10,7 +10,7 @@ import { weaponJointFixture } from '@/test/fixtures/joint-edit/weapon-joint-edit
 import { wingJointFixture } from '@/test/fixtures/joint-edit/wing-joint-edit';
 import { variantJointFixture } from '@/test/fixtures/joint-edit/variant-joint-edit';
 import { setVariantHullmod, equipVariantWing } from '@/domain/immersive/variant/variant-actions';
-import type { JointEditSnapshot } from '@/shared/types';
+import type { JointEditSnapshot, ProjectSessionInvalidationResult, JsonValue } from '@/shared/types';
 import { initializeSettingsStore } from '@/stores/settings.store';
 import { createSettingsFixture } from '@/test/fixtures/settings';
 import { savedWriteFixture, sessionUpdateFixture } from '@/test/fixtures/write-result';
@@ -33,7 +33,7 @@ const mocks = vi.hoisted(() => ({
   openPreview: vi.fn(),
   openImmersive: vi.fn(),
   invalidations: [] as Array<(event: unknown) => void>,
-  projectUpdates: [] as Array<(event: import('@/shared/types').ProjectSessionInvalidationResult) => Promise<void>>,
+  projectUpdates: [] as Array<(event: ProjectSessionInvalidationResult) => Promise<void>>,
 }));
 vi.mock('@/services/joint-edit.service', () => ({
   queryJointEdit: mocks.query,
@@ -49,9 +49,7 @@ vi.mock('@/app/composables/use-app-feedback', () => ({
 vi.mock('@/orchestrators/project-sync.orchestrator', async () => ({
   ...(await import('@/test/unit/project-changes')),
   listenSavedIdentity: mocks.listen,
-  listenProjectSessionInvalidated: async (
-    listener: (event: import('@/shared/types').ProjectSessionInvalidationResult) => Promise<void>,
-  ) => {
+  listenProjectSessionInvalidated: async (listener: (event: ProjectSessionInvalidationResult) => Promise<void>) => {
     mocks.projectUpdates.push(listener);
     return () => {
       mocks.projectUpdates.splice(mocks.projectUpdates.indexOf(listener), 1);
@@ -67,7 +65,7 @@ vi.mock('@/windows/immersive-editor.window', () => ({ openImmersiveEditorWindow:
 vi.mock('@/services/app-log.service', () => ({ recordLogBestEffort: mocks.log }));
 vi.mock('@/services/source-options.service', () => ({ querySourceOptionCatalog: vi.fn(), hasSourceInvalidation: () => false }));
 vi.mock('@/services/query-cache.service', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/services/query-cache.service')>()),
+  ...(await importOriginal<typeof QueryCacheServiceModule>()),
   subscribeQueryInvalidations: (listener: (event: unknown) => void) => {
     mocks.invalidations.push(listener);
     return () => {
@@ -79,6 +77,7 @@ vi.mock('@/app/composables/use-resource-media-registry', () => ({
   useResourceMediaRegistry: () => ({ dataUrl: () => '', replaceCollection: mocks.media }),
 }));
 import { useImmersiveEditorViewModel } from './immersive-editor-assembly';
+import type * as QueryCacheServiceModule from '@/services/query-cache.service';
 
 function editor(kind: 'ship' | 'weapon' | 'wing' | 'variant' = 'ship') {
   let vm!: ReturnType<typeof useImmersiveEditorViewModel>;
@@ -858,7 +857,7 @@ describe('wing joint source handoff', () => {
     if (row.value.state === 'present')
       row.value = {
         state: 'present',
-        value: { ...(row.value.value as Record<string, import('@/shared/types').JsonValue>), id: 'renamed-wing' },
+        value: { ...(row.value.value as Record<string, JsonValue>), id: 'renamed-wing' },
       };
     next.bindings.csv = 'next-wing';
     mocks.query.mockResolvedValue(next);

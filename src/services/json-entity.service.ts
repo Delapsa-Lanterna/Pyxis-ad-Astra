@@ -8,6 +8,10 @@ import type {
   IndexedConfigSave,
   JsonWriteOptions,
   WriteResult,
+  FileVersion,
+  EntityKind,
+  EntityEditInfo,
+  EntityIdentityIntent,
 } from '@/shared/types';
 import { querySessionEntityEditTarget, querySessionEntityIdentityIntent } from '@/services/entity-query.service';
 import { querySessionDraftResources } from '@/services/resource-reference.service';
@@ -22,9 +26,9 @@ export function saveModInfo(
   modRoot: string,
   data: RowData,
   jsonWrite: JsonWriteOptions,
-  baseVersions: import('@/shared/types').FileVersion[] = [],
+  baseVersions: FileVersion[] = [],
   original?: RowData,
-  request?: import('@/shared/runtime/command.runtime').SaveCommandRequest,
+  request?: SaveCommandRequest,
 ): Promise<WriteResult> {
   return invokeSaveCommand(
     'save_mod_info',
@@ -40,7 +44,7 @@ export function saveIndexedConfigEntity(
   write: Omit<IndexedConfigSave, 'jsonWrite' | 'orderedJson'>,
   jsonWrite?: JsonWriteOptions,
   original?: RowData,
-  request?: import('@/shared/runtime/command.runtime').SaveCommandRequest,
+  request?: SaveCommandRequest,
 ): Promise<WriteResult> {
   return invokeSaveCommand(
     'save_indexed_config_entity',
@@ -75,15 +79,10 @@ export function deleteIndexedConfigEntity(write: IndexedConfigDelete, request?: 
   return invokeSaveCommand('delete_indexed_config_entity', { payload: write satisfies IndexedConfigDelete }, [], request);
 }
 
-export async function captureConfigIdentityIntent(
-  sessionId: string,
-  kind: import('@/shared/types').EntityKind,
-  sourceId: string,
-  nextId: string,
-) {
-  const info = cloneQuerySnapshot<import('@/shared/types').EntityEditInfo>(await querySessionEntityEditTarget(sessionId, kind, sourceId));
+export async function captureConfigIdentityIntent(sessionId: string, kind: EntityKind, sourceId: string, nextId: string) {
+  const info = cloneQuerySnapshot<EntityEditInfo>(await querySessionEntityEditTarget(sessionId, kind, sourceId));
   const intent = await querySessionEntityIdentityIntent(sessionId, info.target, nextId);
-  return { info, intent: cloneQuerySnapshot<import('@/shared/types').EntityIdentityIntent>(intent) };
+  return { info, intent: cloneQuerySnapshot<EntityIdentityIntent>(intent) };
 }
 
 export async function queryFactionPreviewImages(

@@ -8,7 +8,7 @@ import CsvGridCellEditor from './CsvGridCellEditor.vue';
 import { editorUiStubs } from '@/test/unit/ui-stubs';
 import { mountCsvInputHost } from '@/test/unit/csv-input-host';
 import { vi } from 'vitest';
-import { flushPromises } from '@vue/test-utils';
+import { flushPromises, type VueWrapper } from '@vue/test-utils';
 
 const images = vi.hoisted(() => ({
   query: vi.fn(async () => [
@@ -47,7 +47,7 @@ function columnFixture(control: string): CsvGridColumn {
   };
 }
 
-let wrapper: import('@vue/test-utils').VueWrapper | null = null;
+let wrapper: VueWrapper | null = null;
 let fixture: ReturnType<typeof mountCsvInputHost>;
 
 afterEach(() => {

@@ -1,4 +1,4 @@
-import { flushPromises } from '@vue/test-utils';
+import { flushPromises, type VueWrapper } from '@vue/test-utils';
 import { mount } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 import { h } from 'vue';
@@ -35,7 +35,7 @@ vi.mock('@/shared/runtime/dialog.runtime', () => ({
 
 import SpecWeaponEditor from './SpecWeaponEditor.vue';
 
-let wrapper: import('@vue/test-utils').VueWrapper | null = null;
+let wrapper: VueWrapper | null = null;
 
 afterEach(() => {
   wrapper?.unmount();

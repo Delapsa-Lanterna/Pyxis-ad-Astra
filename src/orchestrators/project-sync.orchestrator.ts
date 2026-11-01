@@ -2,7 +2,7 @@ import { recordWindowEventHandlerError } from '@/orchestrators/window-event-erro
 import { useProjectStore } from '@/stores/project.store';
 import { useFileHistoryStore } from '@/stores/file-history.store';
 import { useProjectSyncStore, type PendingWriteSync } from '@/stores/project-sync.store';
-import type { SaveAcceptanceTask } from '@/shared/types';
+import type { SaveAcceptanceTask, AppFeedback, ReferenceSource, SaveDelivery } from '@/shared/types';
 import { markProjectionReady, acceptReferenceRevision, setReferenceReadiness } from '@/services/project-projection.service';
 import { AppError, errorDiagnosticOf } from '@/shared/lib/errors';
 import type { InvalidatedResourceScope, CommittedWriteEvent, ProjectSessionInvalidationResult } from '@/shared/types';
@@ -21,6 +21,7 @@ import type { CloseScope } from '@/shared/types';
 import { pathBelongsToRoot, relativePathFromRoot, normalizeRelPath } from '@/shared/lib/paths';
 import { invalidateQueryCacheByProject } from '@/services/query-cache.service';
 import { invalidateResourceMediaByProject } from '@/services/resource-media.service';
+import type { SaveOperation, SaveCommandRequest } from '@/shared/runtime/command.runtime';
 
 type SaveHandler = (event: CommittedWriteEvent) => ReturnType<SaveAcceptanceTask>;
 interface ContentOwner {
@@ -28,7 +29,7 @@ interface ContentOwner {
   release?: (sessionId: string) => void;
 }
 interface SaveConsumers {
-  feedback?: import('@/shared/types').AppFeedback;
+  feedback?: AppFeedback;
   content: Set<ContentOwner>;
   identity: Set<SaveHandler>;
   ready: Promise<void>;
@@ -39,7 +40,7 @@ const windows = new WeakMap<ReturnType<typeof useProjectSyncStore>, SaveConsumer
 let displayReady: Promise<void> | null = null;
 
 export async function publishReferenceSources(
-  sources: readonly Pick<import('@/shared/types').ReferenceSource, 'sessionId' | 'modRoot'>[],
+  sources: readonly Pick<ReferenceSource, 'sessionId' | 'modRoot'>[],
   order = sources.map((source) => source.sessionId),
 ) {
   await waitProjectSaves(sources.map((source) => source.modRoot));
@@ -199,7 +200,7 @@ async function consume(entry: PendingWriteSync): Promise<void> {
   return operation;
 }
 
-async function confirmMissingSources(window: SaveConsumers, delivery: Extract<import('@/shared/types').SaveDelivery, { kind: 'missing' }>) {
+async function confirmMissingSources(window: SaveConsumers, delivery: Extract<SaveDelivery, { kind: 'missing' }>) {
   const choice = await window.feedback?.choose({
     title: '确认重建缺失文件',
     content: ['以下文件已缺失，将使用已读取的完整内容及本次保存修改重新创建：', ...delivery.paths].join('\n'),
@@ -208,7 +209,7 @@ async function confirmMissingSources(window: SaveConsumers, delivery: Extract<im
   await resolveSaveSources(delivery.requestId, delivery.paths, choice === 'recreate');
 }
 
-export async function startProjectSync(feedback?: import('@/shared/types').AppFeedback) {
+export async function startProjectSync(feedback?: AppFeedback) {
   const sync = useProjectSyncStore();
   const window = consumers();
   window.feedback = feedback;
@@ -225,10 +226,10 @@ export async function startProjectSync(feedback?: import('@/shared/types').AppFe
   };
 }
 
-export type SavedWriteOperation<T> = import('@/shared/runtime/command.runtime').SaveOperation<T>;
+export type SavedWriteOperation<T> = SaveOperation<T>;
 
 export function beginSavedWrite<T>(
-  write: (request: import('@/shared/runtime/command.runtime').SaveCommandRequest) => Promise<T>,
+  write: (request: SaveCommandRequest) => Promise<T>,
   accept: (value: Exclude<T, void | null>) => SaveAcceptanceTask[],
 ): SavedWriteOperation<T> {
   const id = crypto.randomUUID();
@@ -263,7 +264,7 @@ export function beginSavedWrite<T>(
   return { id, result };
 }
 
-export async function settleProjectSaves(scope: CloseScope, feedback?: import('@/shared/types').AppFeedback) {
+export async function settleProjectSaves(scope: CloseScope, feedback?: AppFeedback) {
   const roots =
     scope.kind === 'window'
       ? [managedWindowContext.value?.identity.modRoot].filter((root): root is string => !!root)

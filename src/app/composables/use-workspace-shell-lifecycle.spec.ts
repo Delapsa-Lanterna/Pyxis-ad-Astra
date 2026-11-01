@@ -10,6 +10,8 @@ import { useWorkspaceStore } from '@/stores/workspace.store';
 import { useProjectStore } from '@/stores/project.store';
 import { useSaveCommandStore } from '@/stores/save-command.store';
 import { sessionUpdateFixture } from '@/test/fixtures/write-result';
+import type * as ProjectSyncOrchestratorModule from '@/orchestrators/project-sync.orchestrator';
+
 const mocks = vi.hoisted(() => ({
   identity: vi.fn(),
   events: vi.fn(),
@@ -19,7 +21,7 @@ const mocks = vi.hoisted(() => ({
   publish: vi.fn(async () => {}),
 }));
 vi.mock('@/orchestrators/project-sync.orchestrator', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/orchestrators/project-sync.orchestrator')>()),
+  ...(await importOriginal<typeof ProjectSyncOrchestratorModule>()),
   publishReferenceSources: mocks.publish,
 }));
 vi.mock('@/orchestrators/editor-window.orchestrator', () => ({ listenEditorSpecSaved: mocks.events }));

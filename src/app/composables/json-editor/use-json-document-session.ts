@@ -34,7 +34,7 @@ import { useSettingsStore } from '@/stores/settings.store';
 import { hasEntityInvalidation } from '@/services/entity-query.service';
 import { relativePathFromRoot } from '@/shared/lib/paths';
 import type { DocumentEditorActions, DocumentSaveResult } from '@/shared/runtime/document-editor';
-import type { AppFeedback, RowData, WriteContent, JsonRecoveryPlan } from '@/shared/types';
+import type { AppFeedback, RowData, WriteContent, JsonRecoveryPlan, JsonValue } from '@/shared/types';
 
 export function useJsonDocumentSession(definition: JsonDocumentDefinition, record: JsonDocumentRecord, feedback: AppFeedback) {
   const editors = useJsonEditorStore();
@@ -251,7 +251,7 @@ function createJsonDocumentSession(definition: JsonDocumentDefinition, record: J
           if (target.kind === 'mod-info' || target.kind === 'misc-config') {
             const value =
               target.kind === 'misc-config'
-                ? miscConfigDocumentValue(content.value as import('@/shared/types').JsonValue)
+                ? miscConfigDocumentValue(content.value as JsonValue)
                 : jsonDocumentValue(target.kind, requireRowData(content.value, 'JSON 文档内容无效'));
             session.applyExternalForTarget(
               {

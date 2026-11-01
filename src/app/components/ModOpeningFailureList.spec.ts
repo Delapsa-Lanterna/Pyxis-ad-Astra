@@ -3,12 +3,12 @@ import { mount, type VueWrapper } from '@vue/test-utils';
 import ModOpeningFailureList from '@/app/components/ModOpeningFailureList.vue';
 import { nButton } from '@/test/unit/ui-stubs';
 import type { ModOpeningFailure } from '@/shared/types';
+import type { FileReference } from '@/shared/lib/errors';
 
 const open = vi.hoisted(() => vi.fn());
 vi.mock('@/app/composables/use-app-feedback', () => ({
   useAppFeedback: () => ({
-    fileActions: (reference: import('@/shared/lib/errors').FileReference) =>
-      reference.target ? [{ label: '打开文件', type: 'error', run: open }] : [],
+    fileActions: (reference: FileReference) => (reference.target ? [{ label: '打开文件', type: 'error', run: open }] : []),
   }),
 }));
 

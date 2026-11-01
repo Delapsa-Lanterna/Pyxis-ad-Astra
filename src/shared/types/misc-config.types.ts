@@ -3,6 +3,8 @@ import type { ErrorDiagnostic } from './error.types';
 import type { FileVersion } from './project-identity.types';
 import type { JsonWriteOptions } from './json-write.types';
 import type { MiscConfigKind } from './document-identity.types';
+import type { JsonComposition } from './json-composition.types';
+
 export type { MiscConfigKind } from './document-identity.types';
 
 export interface MiscConfigScope {
@@ -20,7 +22,7 @@ export interface MiscConfigEntry {
   error: ErrorDiagnostic | null;
 }
 export interface MiscConfigFile {
-  composition?: import('./json-composition.types').JsonComposition;
+  composition?: JsonComposition;
   kind: MiscConfigKind;
   path: string;
   relPath: string;

@@ -1,9 +1,19 @@
-import type { EntityEditTarget, EntityFileLocation, CsvTableKey, ResourceRef, FileVersion } from '@/shared/types/project-identity.types';
-import type { JsonValue, DeepReadonly } from './json.types';
+import type {
+  EntityEditTarget,
+  EntityFileLocation,
+  CsvTableKey,
+  ResourceRef,
+  FileVersion,
+  EntityKind,
+} from '@/shared/types/project-identity.types';
+import type { JsonValue, DeepReadonly, RowData } from './json.types';
 import type { JsonWriteOptions } from './json-write.types';
-import type { WriteResult } from './write-commit.types';
+import type { WriteResult, WriteContent } from './write-commit.types';
 
 import type { JointEditRoot } from './joint-target.types';
+import type { ResourceSource } from './project-identity.types';
+import type { JsonComposition } from './json-composition.types';
+
 export type { JointEditKind, JointEditRoot } from './joint-target.types';
 export interface JointEditQuery {
   root: JointEditRoot;
@@ -11,7 +21,7 @@ export interface JointEditQuery {
   values: Record<string, JointValue> | null;
   newSources: JointSourceCreate[];
   catalog: JointVariantCatalogKind | null;
-  catalogSource?: import('./project-identity.types').ResourceSource;
+  catalogSource?: ResourceSource;
 }
 export type JointVariantCatalogKind = 'weapons' | 'wings' | 'hullmods' | 'variants';
 export interface JointVariantEntry {
@@ -31,7 +41,7 @@ export interface JointVariantEntry {
 }
 export type ReadonlyVariantEntry = DeepReadonly<JointVariantEntry>;
 export interface JointPreviewSpec {
-  kind: import('@/shared/types/project-identity.types').EntityKind;
+  kind: EntityKind;
   id: string;
   data: JsonValue;
   resourceRefs: Record<string, ResourceRef>;
@@ -67,7 +77,7 @@ export type JointRecordTarget =
   | { kind: 'text'; write: EntityFileLocation };
 export type JointValue = { state: 'missing' } | { state: 'present'; value: JsonValue };
 export interface JointEditRecord {
-  composition?: import('./json-composition.types').JsonComposition;
+  composition?: JsonComposition;
   key: string;
   target: JointRecordTarget;
   source: EntityFileLocation | null;
@@ -93,7 +103,7 @@ export interface JointFieldBinding {
   path: string;
 }
 export interface JointHullProjection {
-  spec: import('./json.types').RowData;
+  spec: RowData;
   variantKey: string;
   hullKey: string;
   skinKeys: string[];
@@ -137,5 +147,5 @@ export interface SaveJointEditPayload {
   createOverrides: string[];
 }
 export type JointEditWriteResult = Omit<WriteResult, 'content'> & {
-  content: import('./write-commit.types').WriteContent<JointEditSnapshot>;
+  content: WriteContent<JointEditSnapshot>;
 };

@@ -1,22 +1,23 @@
 import type { SpecSave, LoadImportedEditorSpecPayload } from '@/shared/types';
 import { querySessionEntityIdentityIntent } from '@/services/entity-query.service';
 import { AppError, withCause } from '@/shared/lib/errors';
-import { invokeCommand, invokeSaveCommand } from '@/shared/runtime/command.runtime';
+import { invokeCommand, invokeSaveCommand, type SaveCommandRequest } from '@/shared/runtime/command.runtime';
 import { entityContentId, entityContentIdField } from '@/domain/project/entity-definitions';
 import { requireRowData } from '@/shared/lib/row-data';
 import { cloneQuerySnapshot } from '@/shared/lib/query-snapshot';
 import { captureSaveEdits } from '@/domain/project/save-edits';
 import type { EntityEditTarget, SpecEditorKind, RowData, WriteResult } from '@/shared/types';
+import type { JsonWriteOptions, FileVersion, EntityIdentityIntent } from '@/shared/types/index';
 
 export async function saveSpecEditorSpecByKind(
   sessionId: string,
   modRoot: string,
   target: EntityEditTarget,
   data: RowData,
-  jsonWrite?: import('@/shared/types/index').JsonWriteOptions,
-  baseVersions: import('@/shared/types/index').FileVersion[] = [],
+  jsonWrite?: JsonWriteOptions,
+  baseVersions: FileVersion[] = [],
   original?: RowData,
-  request?: import('@/shared/runtime/command.runtime').SaveCommandRequest,
+  request?: SaveCommandRequest,
 ): Promise<WriteResult> {
   ensureSpecContext(modRoot, target.id);
   try {
@@ -32,10 +33,10 @@ export function saveSpecEditorSpec(
   modRoot: string,
   target: EntityEditTarget,
   data: RowData,
-  jsonWrite?: import('@/shared/types/index').JsonWriteOptions,
-  baseVersions: import('@/shared/types/index').FileVersion[] = [],
+  jsonWrite?: JsonWriteOptions,
+  baseVersions: FileVersion[] = [],
   original?: RowData,
-  request?: import('@/shared/runtime/command.runtime').SaveCommandRequest,
+  request?: SaveCommandRequest,
 ): Promise<WriteResult> {
   return invokeSaveCommand(
     'save_editor_spec',
@@ -65,7 +66,7 @@ export function querySpecEditorIdentityIntent(sessionId: string, source: EntityE
           .replace(/\.[^.]+$/, '')
       : entityContentId(source.kind, content),
     signal,
-  ).then((intent) => cloneQuerySnapshot<import('@/shared/types/index').EntityIdentityIntent>(intent));
+  ).then((intent) => cloneQuerySnapshot<EntityIdentityIntent>(intent));
 }
 
 export async function loadSpecEditorImport(kind: SpecEditorKind, path: string): Promise<RowData> {

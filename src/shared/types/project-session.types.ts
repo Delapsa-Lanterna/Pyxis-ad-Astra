@@ -1,9 +1,10 @@
-import type { CsvTableKey, ProjectSessionId, EntityKind, ResourceSource } from '@/shared/types/project-identity.types';
+import type { CsvTableKey, ProjectSessionId, EntityKind, ResourceSource, FileVersion } from '@/shared/types/project-identity.types';
 import type { RowData } from '@/shared/types/json.types';
 import type { GameScanWarning } from '@/shared/types/directory-opening.types';
+import type { FileChangeRecord } from '@/shared/types/file-changes.types';
 
 export interface ProjectManifest {
-  baseVersions: import('@/shared/types/project-identity.types').FileVersion[];
+  baseVersions: FileVersion[];
   sessionId: ProjectSessionId;
   modRoot: string;
   starsectorRoot: string | null;
@@ -88,7 +89,7 @@ export interface CloseProjectSessionPayload {
 
 export interface InvalidateProjectSessionPayload {
   sessionId: string;
-  changes: import('@/shared/types/file-changes.types').FileChangeRecord[];
+  changes: FileChangeRecord[];
 }
 
 export interface SourceRefresh {

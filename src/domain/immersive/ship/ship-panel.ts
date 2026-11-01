@@ -1,4 +1,4 @@
-import type { JointEditSnapshot, JointValue, ResourceRef, JointHullProjection, DeepReadonly } from '@/shared/types';
+import type { JointEditSnapshot, JointValue, ResourceRef, JointHullProjection, DeepReadonly, RowData } from '@/shared/types';
 import type { ImmersiveField, ImmersiveStat } from '../fields';
 import { jointObject } from '@/domain/joint-edit';
 import { hullDataIndex, hullFieldInputs, hullFieldValue } from '../hull-fields';
@@ -454,7 +454,7 @@ export function projectShipPanel(
   return panel;
 }
 
-export function shipProjectionInputs(snapshot: JointEditSnapshot, values: Record<string, JointValue>): import('@/shared/types').RowData {
+export function shipProjectionInputs(snapshot: JointEditSnapshot, values: Record<string, JointValue>): RowData {
   const csv = jointObject(values[immersiveSourceRecords(snapshot).csv.key]);
   return { systemId: csv['system id'] ?? null, shieldType: csv['shield type'] ?? null, defenseId: csv['defense id'] ?? null };
 }

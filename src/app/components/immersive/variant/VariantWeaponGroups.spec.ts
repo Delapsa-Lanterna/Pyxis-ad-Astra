@@ -5,7 +5,7 @@ import { createFieldInputs, provideFieldInputs } from '@/shared/runtime/field-in
 import { variantJointFixture } from '@/test/fixtures/joint-edit/variant-joint-edit';
 import { projectVariantPanel } from '@/domain/immersive/variant/variant-panel';
 import { jointObject } from '@/domain/joint-edit';
-import type { JointValue } from '@/shared/types';
+import type { JointValue, RowData } from '@/shared/types';
 import type { useImmersiveVariantEditor } from '@/app/composables/immersive-editor/variant/use-immersive-variant-editor';
 import VariantWeaponGroups from './VariantWeaponGroups.vue';
 vi.mock('@/app/composables/use-app-feedback', () => ({
@@ -21,11 +21,9 @@ function harness() {
     values = shallowRef<Record<string, JointValue>>({ variant: snapshot.records.find((record) => record.key === 'variant')!.value });
   const snapshotRef = shallowRef(snapshot);
   const inputs = createFieldInputs(ref('variant'));
-  const applyVariantAction = vi.fn(
-    (key: string, transform: (data: Readonly<import('@/shared/types').RowData>) => import('@/shared/types').RowData) => {
-      values.value = { ...values.value, [key]: { state: 'present', value: transform(jointObject(values.value[key])) } };
-    },
-  );
+  const applyVariantAction = vi.fn((key: string, transform: (data: Readonly<RowData>) => RowData) => {
+    values.value = { ...values.value, [key]: { state: 'present', value: transform(jointObject(values.value[key])) } };
+  });
   const vm = {
     snapshot: snapshotRef,
     joint: { draftValue: values, currentTarget: ref(snapshot.root) },
@@ -89,7 +87,7 @@ describe('variant weapon group confirmation', () => {
     await own.wrapper.find('[role=checkbox]').trigger('click');
     await own.inputs.commit();
     expect(own.applyVariantAction).toHaveBeenCalledTimes(1);
-    const groups = jointObject(own.values.value.variant).weaponGroups as import('@/shared/types').RowData[];
+    const groups = jointObject(own.values.value.variant).weaponGroups as RowData[];
     expect(groups).toHaveLength(7);
     expect(groups[0]!.autofire).toBe(true);
     expect(own.group.emitted('close')).toHaveLength(1);
@@ -145,7 +143,7 @@ describe('variant weapon group confirmation', () => {
     await last.trigger('click');
     expect(last.text()).toContain('交替');
     await own.inputs.commit();
-    const groups = jointObject(own.values.value.variant).weaponGroups as import('@/shared/types').RowData[];
+    const groups = jointObject(own.values.value.variant).weaponGroups as RowData[];
     expect(groups[6]).toMatchObject({ mode: 'ALTERNATING', weapons: { WS1: 'chaingun', WS2: 'chaingun' } });
     expect(own.applyVariantAction).toHaveBeenCalledTimes(1);
     own.wrapper.unmount();

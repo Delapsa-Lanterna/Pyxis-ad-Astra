@@ -7,6 +7,9 @@ import type {
   JsonValue,
   DeepReadonly,
   RowData,
+  EntityIdentityChange,
+  CsvRowKeyMapping,
+  JointEditRecord,
 } from '@/shared/types';
 import { deepClone } from '@/shared/lib/starsector';
 import { formatJsonInput } from '@/shared/lib/json-input';
@@ -36,8 +39,8 @@ export function mapJointDraftIdentity(
   values: Record<string, JointValue>,
   before: JointIdentitySnapshot,
   after: JointEditSnapshot,
-  changes: readonly import('@/shared/types').EntityIdentityChange[],
-  keyMap: readonly import('@/shared/types').CsvRowKeyMapping[],
+  changes: readonly EntityIdentityChange[],
+  keyMap: readonly CsvRowKeyMapping[],
 ): Record<string, JointValue> {
   const mapped: Record<string, JointValue> = Object.create(null);
   for (const previous of before.records) {
@@ -101,15 +104,15 @@ export function mapJointDraftIdentity(
 
 export interface JointIdentitySnapshot {
   bindings: Record<string, string>;
-  records: Array<Pick<import('@/shared/types').JointEditRecord, 'key' | 'target'>>;
+  records: Array<Pick<JointEditRecord, 'key' | 'target'>>;
 }
 
 export function rebaseJointDraft(
   values: Record<string, JointValue>,
   before: JointEditSnapshot,
   after: JointEditSnapshot,
-  changes: readonly import('@/shared/types').EntityIdentityChange[],
-  keyMap: readonly import('@/shared/types').CsvRowKeyMapping[],
+  changes: readonly EntityIdentityChange[],
+  keyMap: readonly CsvRowKeyMapping[],
   baselineValues: Record<string, JointValue> = Object.fromEntries(before.records.map((record) => [record.key, record.value])),
 ): Record<string, JointValue> {
   const mapped = mapJointDraftIdentity(values, before, after, changes, keyMap);

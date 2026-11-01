@@ -1,3 +1,4 @@
+import type { AccentPreset } from '../../shared/types/app-settings.types.js';
 export interface ScenarioOptions {
   scene: 'csv' | 'ship' | 'skin' | 'weapon' | 'wing' | 'variant' | 'weapons' | 'wings' | 'hullmods' | 'fields' | 'resources' | 'feedback';
   source?: 'mod' | 'core' | 'all';
@@ -5,7 +6,7 @@ export interface ScenarioOptions {
   resourceSize: number;
   monitor: boolean;
   theme: 'light' | 'dark';
-  accent?: import('../../shared/types/app-settings.types.js').AccentPreset;
+  accent?: AccentPreset;
   customAccent?: string;
 }
 

@@ -29,6 +29,8 @@ import {
   type ProjectManifest,
   type CsvDraftRow,
   type CsvTableKey,
+  type DeepReadonly,
+  type CsvSearchField,
 } from '@/shared/types';
 import { defineStore } from 'pinia';
 import { computed, markRaw, reactive, ref, shallowReactive, type Raw } from 'vue';
@@ -235,20 +237,20 @@ export const useCsvEditorStore = defineStore('csv-editor', () => {
     state.searchField = DEFAULT_CSV_SEARCH_FIELD;
   }
 
-  function applyTableIndex(target: CsvTableTarget, index: import('@/shared/types').DeepReadonly<CsvTableIndex>, filtered = false) {
+  function applyTableIndex(target: CsvTableTarget, index: DeepReadonly<CsvTableIndex>, filtered = false) {
     const state = stateMap.get(target.modRoot)!;
     applyCsvTableIndexDraft(state.documents[target.table], index, filtered, getTableInputs(target.modRoot, target.table).dirty.value);
   }
 
-  function acceptSavedTableIndex(target: CsvTableTarget, index: import('@/shared/types').DeepReadonly<CsvTableIndex>, filtered = false) {
+  function acceptSavedTableIndex(target: CsvTableTarget, index: DeepReadonly<CsvTableIndex>, filtered = false) {
     acceptSavedCsvTableIndex(stateMap.get(target.modRoot)!.documents[target.table], index, filtered);
   }
 
-  function acceptSavedTableRows(target: CsvTableTarget, rows: import('@/shared/types').DeepReadonly<CsvTableRowsRead>) {
+  function acceptSavedTableRows(target: CsvTableTarget, rows: DeepReadonly<CsvTableRowsRead>) {
     acceptSavedCsvTableRows(stateMap.get(target.modRoot)!.documents[target.table], rows.rows);
   }
 
-  function applyTableRows(target: CsvTableTarget, rows: import('@/shared/types').DeepReadonly<CsvTableRowsRead>) {
+  function applyTableRows(target: CsvTableTarget, rows: DeepReadonly<CsvTableRowsRead>) {
     applyCsvTableRowsDraft(
       stateMap.get(target.modRoot)!.documents[target.table],
       rows,
@@ -274,7 +276,7 @@ export const useCsvEditorStore = defineStore('csv-editor', () => {
     stateMap.get(target.modRoot)!.searchText = text;
   }
 
-  function setSearchField(target: CsvTableTarget, field: import('@/shared/types').CsvSearchField) {
+  function setSearchField(target: CsvTableTarget, field: CsvSearchField) {
     stateMap.get(target.modRoot)!.searchField = field;
   }
 

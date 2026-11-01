@@ -12,6 +12,7 @@ import { savedWriteFixture } from '@/test/fixtures/write-result';
 import { useCsvEditorActions } from './use-csv-editor-actions';
 import { mountSetup } from '@/test/unit/mount-setup';
 import { entityTargetFixture } from '@/test/fixtures/entity-target';
+import type { VNode } from 'vue';
 
 enableAutoUnmount(afterEach);
 
@@ -39,7 +40,7 @@ describe('CSV editor actions', () => {
     const target = entityTargetFixture('weapon', 'prepared');
     const file = { location: target.write, version: { path: target.write.path, fingerprint: 'base' }, problem: null };
     vi.mocked(feedback.choose).mockImplementationOnce(async (options) => {
-      const content = options.content as () => import('vue').VNode;
+      const content = options.content as () => VNode;
       const wrapper = mount({ render: content }, { global: { plugins: [installNaiveUi] } });
       try {
         await flushPromises();
@@ -92,7 +93,7 @@ describe('CSV editor actions', () => {
     const { value: actions } = mountSetup(() => useCsvEditorActions(feedback));
     const select = actions.selectAssociatedSpecs;
     vi.mocked(feedback.choose).mockImplementationOnce(async (options: ChooseOptions) => {
-      const content = options.content as () => import('vue').VNode;
+      const content = options.content as () => VNode;
       const wrapper = mount({ render: content }, { global: { plugins: [installNaiveUi] } });
       try {
         await flushPromises();

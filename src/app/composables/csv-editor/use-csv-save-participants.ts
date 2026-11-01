@@ -4,12 +4,12 @@ import { useCsvEditorStore } from '@/stores/csv-editor.store';
 import { useSaveCommandStore, type SaveSessionHandle } from '@/stores/save-command.store';
 import { saveCsvChanges } from '@/orchestrators/csv-save.orchestrator';
 import { hasCsvTableDraftChanges } from '@/domain/csv-editor/csv-table-draft';
-import { TABLE_KEYS, type AppFeedback } from '@/shared/types';
+import { TABLE_KEYS, type AppFeedback, type AssociatedSpecWrite } from '@/shared/types';
 import type { AssociatedSpecCandidate } from '@/domain/csv-editor/associated-spec-candidates';
 
 export function useCsvSaveParticipants(
   feedback: AppFeedback,
-  selectAssociatedSpecs: (candidates: AssociatedSpecCandidate[]) => Promise<import('@/shared/types').AssociatedSpecWrite[] | null>,
+  selectAssociatedSpecs: (candidates: AssociatedSpecCandidate[]) => Promise<AssociatedSpecWrite[] | null>,
 ) {
   const project = useProjectStore();
   const tables = useCsvEditorStore();

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-const requestClose = vi.fn(async (scope: import('@/shared/types').CloseScope) => ({
+const requestClose = vi.fn(async (scope: CloseScope) => ({
   status: 'closed' as const,
   destroyedWindows: [],
   releasedSessions: scope.kind === 'sessions' ? scope.sessionIds : [],
@@ -15,7 +15,7 @@ import {
 import { restorePersistedWorkspace } from '@/orchestrators/workspace-persistence.orchestrator';
 import { useWorkspaceStore } from '@/stores/workspace.store';
 import { useProjectStore } from '@/stores/project.store';
-import type { ProjectManifest } from '@/shared/types';
+import type { ProjectManifest, CloseScope } from '@/shared/types';
 
 const mocks = vi.hoisted(() => ({
   openProject: vi.fn(),

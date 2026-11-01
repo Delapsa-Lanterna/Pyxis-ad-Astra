@@ -1,7 +1,8 @@
 import type { ResourceRef, ResourceSource } from '@/shared/types/project-identity.types';
+import type { ReferenceSource } from './project-identity.types';
 
 export interface SourceOptionGroup {
-  reference?: import('./project-identity.types').ReferenceSource;
+  reference?: ReferenceSource;
   origin: ResourceSource;
   options: SourceOption[];
 }

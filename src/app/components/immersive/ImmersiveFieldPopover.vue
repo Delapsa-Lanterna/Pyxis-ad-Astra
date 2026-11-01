@@ -29,7 +29,7 @@
 import { computed, onScopeDispose, shallowReactive } from 'vue';
 import type { ImmersiveField, ImmersiveStat, ImmersiveFieldChange } from '@/domain/immersive/fields';
 import { immersiveFieldValue } from '@/domain/immersive/fields';
-import type { JointValue, JointEditSnapshot } from '@/shared/types';
+import type { JointValue, JointEditSnapshot, RowData } from '@/shared/types';
 import type { SchemaFieldUpdate } from '@/domain/schema/schema.types';
 import type { SchemaRuntimeContext } from '@/domain/schema/schema-runtime';
 import { useFieldInputs } from '@/shared/runtime/field-inputs';
@@ -59,7 +59,7 @@ function effectiveValue(field: ImmersiveField) {
   const record = props.snapshot.records.find((record) => record.key === field.recordKey)!;
   return record.composition
     ? compositionValue(
-        composeJson(jointObject(props.values[field.recordKey]) as import('@/shared/types').RowData, record.composition),
+        composeJson(jointObject(props.values[field.recordKey]) as RowData, record.composition),
         compositionPath(field.schema.key),
       )
     : undefined;

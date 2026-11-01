@@ -52,12 +52,14 @@ import { warningNotice } from '@/shared/lib/errors';
 import ImmersiveText from './ImmersiveText.vue';
 import { useEngineRendering } from '@/app/composables/editors/use-engine-rendering';
 import { drawEngineVisual, type EngineImages } from '@/app/renderers/editors/engine-renderer';
+import type { ResourceRef, DeepReadonly, RowData } from '@/shared/types';
+
 const props = defineProps<{
   variant: ImmersiveHullProjection;
   sessionId: string;
   iconSize?: number;
   wingLayout?: ImmersiveWingLayout;
-  resourceUrl?: (resource: import('@/shared/types').ResourceRef) => string;
+  resourceUrl?: (resource: ResourceRef) => string;
 }>();
 const emit = defineEmits<{
   slot: [index: number, anchor: { x: number; y: number }];
@@ -129,7 +131,7 @@ watch(
   },
   { immediate: true },
 );
-const url = (resource: import('@/shared/types').ResourceRef) =>
+const url = (resource: ResourceRef) =>
   props.resourceUrl ? props.resourceUrl(resource) : (media!.dataUrl(props.sessionId, resource) ?? '');
 const decoded = useResourceImages(
   () => props.sessionId,
@@ -176,7 +178,7 @@ const sceneSignature = computed(() =>
 function thumbnailKey() {
   return sceneSignature.value + '/' + window.devicePixelRatio;
 }
-const point = (slot: import('@/shared/types').DeepReadonly<import('@/shared/types').RowData>) => {
+const point = (slot: DeepReadonly<RowData>) => {
   const location = Array.isArray(slot.locations) ? slot.locations : [0, 0];
   return viewport.toCanvas('ship', -Number(location[1]), Number(location[0]));
 };

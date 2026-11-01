@@ -35,11 +35,20 @@ import {
   createJsonFileAction,
 } from '@/orchestrators/json-save.orchestrator';
 import type { EditTargetSnapshot } from '@/app/composables/use-edit-target-draft-session';
-import type { AppFeedback, FileVersion, JsonRecoveryPlan, JsonValue, RowData, WriteResult } from '@/shared/types';
+import type {
+  AppFeedback,
+  FileVersion,
+  JsonRecoveryPlan,
+  JsonValue,
+  RowData,
+  WriteResult,
+  JsonComposition,
+  ResourceRef,
+} from '@/shared/types';
 
 export interface JsonDocumentMeta {
-  composition?: import('@/shared/types').JsonComposition;
-  resources?: Record<string, import('@/shared/types').ResourceRef>;
+  composition?: JsonComposition;
+  resources?: Record<string, ResourceRef>;
   receipt: WriteResult<unknown> | null;
   recovery?: JsonRecoveryPlan;
 }
@@ -56,7 +65,7 @@ export async function loadJsonDocument(target: ConfigDocumentTarget, signal?: Ab
       baseVersions: [...file.baseVersions],
       meta: {
         receipt: null,
-        composition: file.composition ? cloneQuerySnapshot<import('@/shared/types').JsonComposition>(file.composition) : undefined,
+        composition: file.composition ? cloneQuerySnapshot<JsonComposition>(file.composition) : undefined,
       },
     };
   }
@@ -83,7 +92,7 @@ export async function saveJsonDocument(
   data: RowData,
   baseVersions: FileVersion[],
   original: RowData,
-  request?: import('@/shared/runtime/command.runtime').SaveCommandRequest,
+  request?: SaveCommandRequest,
 ): Promise<JsonDocumentSnapshot | void> {
   const { kind, file } = definition;
   const { sessionId, modRoot, id } = target;

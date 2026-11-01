@@ -6,7 +6,7 @@ import * as editor from '@/services/spec-editor.service';
 import * as fileHistory from '@/services/file-history.service';
 import * as fileService from '@/services/files.service';
 import { entityTargetFixture } from '@/test/fixtures/entity-target';
-import type { IndexedConfigDelete, JsonFileDelete, IndexedConfigSave, JsonFileSave } from '@/shared/types';
+import type { IndexedConfigDelete, JsonFileDelete, IndexedConfigSave, JsonFileSave, SaveEdit } from '@/shared/types';
 
 const invoke = vi.hoisted(() => vi.fn());
 vi.mock('@tauri-apps/api/core', () => ({ invoke }));
@@ -52,7 +52,7 @@ const readCommands = new Set([
   'query_file_history',
   'clear_file_history',
 ]);
-const edits: Record<string, import('@/shared/types').SaveEdit[]> = {
+const edits: Record<string, SaveEdit[]> = {
   save_editor_spec: [{ kind: 'set', path: [], value: data }],
   save_mod_info: [{ kind: 'set', path: [], value: data }],
   save_indexed_config_entity: [{ kind: 'set', path: [], value: indexed.entityData }],

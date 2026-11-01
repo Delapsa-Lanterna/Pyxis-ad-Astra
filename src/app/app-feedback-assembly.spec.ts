@@ -15,10 +15,11 @@ import FeedbackFileActions from '@/app/components/FeedbackFileActions.vue';
 import { provideAppFeedback } from '@/app/composables/use-app-feedback';
 import { h } from 'vue';
 import { nButton } from '@/test/unit/ui-stubs';
+import type { FileEditorRequest } from '@/windows/file-editor.window';
 
 const mocks = vi.hoisted(() => ({
   log: vi.fn(),
-  open: vi.fn<(request: import('@/windows/file-editor.window').FileEditorRequest) => Promise<void>>(async () => {}),
+  open: vi.fn<(request: FileEditorRequest) => Promise<void>>(async () => {}),
   transcode: vi.fn(),
   sync: vi.fn(),
   context: { value: null as ManagedWindowContext | null },

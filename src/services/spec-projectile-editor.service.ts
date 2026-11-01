@@ -5,7 +5,7 @@ import { str } from '@/shared/lib/starsector/index';
 import { cloneQuerySnapshot } from '@/shared/lib/query-snapshot';
 import { requireRowData } from '@/shared/lib/row-data';
 import { createProjectileSpec } from '@/domain/entity-write/spec-construction';
-import type { EntityData, SpecProjectileEditorData } from '@/shared/types/index';
+import type { EntityData, SpecProjectileEditorData, FileVersion, RowData } from '@/shared/types/index';
 
 export async function querySpecProjectileEditorData(
   sessionId: string,
@@ -20,17 +20,12 @@ export async function querySpecProjectileEditorData(
     composition: data?.composition,
     spec: data ? requireRowData(data.data, '弹体 ' + id + ' 数据无效') : createProjectileSpec(id),
     target: info.target,
-    baseVersions: cloneQuerySnapshot<import('@/shared/types/index').FileVersion[]>(info.baseVersions),
+    baseVersions: cloneQuerySnapshot<FileVersion[]>(info.baseVersions),
     isNew: info.target.state === 'create',
   };
 }
 
-export async function querySpecProjectileEditorImages(
-  sessionId: string,
-  id: string,
-  draft: import('@/shared/types/index').RowData,
-  signal?: AbortSignal,
-) {
+export async function querySpecProjectileEditorImages(sessionId: string, id: string, draft: RowData, signal?: AbortSignal) {
   const refs = await querySessionDraftResources(sessionId, 'projectile', id, draft, signal);
   const field = draft.specClass === 'missile' ? 'sprite' : 'bulletSprite';
   const entries = Object.entries(refs),

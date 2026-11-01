@@ -61,7 +61,7 @@
 import { provideFieldInputs } from '@/shared/runtime/field-inputs';
 import { useProjectSyncStore } from '@/stores/project-sync.store';
 import { computed, onMounted } from 'vue';
-import type { JointEditRoot } from '@/shared/types';
+import type { JointEditRoot, JointEditKind } from '@/shared/types';
 import { useWindowContext } from '@/windows/window-context.window';
 import { useManagedWindowRequests } from '@/app/composables/use-managed-window-requests';
 import { useImmersiveEditorViewModel, editableRenderContext } from '@/app/composables/immersive-editor-assembly';
@@ -81,7 +81,7 @@ const context = useWindowContext('immersive-editor').value;
 const { sessionId, modRoot, id, kind } = context.identity;
 provideOriginalFonts(() => sessionId);
 const rowKey = context.input.rowKey;
-const root: JointEditRoot & { kind: import('@/shared/types').JointEditKind; rowKey?: string } = {
+const root: JointEditRoot & { kind: JointEditKind; rowKey?: string } = {
   sessionId,
   modRoot,
   id,

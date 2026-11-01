@@ -21,7 +21,7 @@ const api = vi.hoisted(() => ({
   acceptReleased: vi.fn(),
 }));
 vi.mock('@/app/composables/use-query-read-owner', async (original) => {
-  const actual = await original<typeof import('@/app/composables/use-query-read-owner')>();
+  const actual = await original<typeof UseQueryReadOwnerModule>();
   return {
     ...actual,
     pauseQueryReads: () => {
@@ -52,6 +52,8 @@ vi.mock('@/app/composables/use-app-feedback', () => ({ useAppFeedback: () => ({ 
 vi.mock('./use-window-close-state', () => ({ useWindowCloseState: () => ref(false), useWindowCloseRequest: () => api.native }));
 import { useAppCloseParticipant, provideAppCloseActions } from './use-app-close-participant';
 import { useQueryReadOwner } from './use-query-read-owner';
+import type * as UseQueryReadOwnerModule from '@/app/composables/use-query-read-owner';
+
 const intent = (phase: WindowCloseIntent['phase']): WindowCloseIntent => ({
   operationId: 7,
   phase,

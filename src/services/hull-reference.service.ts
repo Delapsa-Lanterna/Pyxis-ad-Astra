@@ -1,10 +1,10 @@
-import type { HullReferencesResult, HullReferencesPayload, DeepReadonly } from '@/shared/types';
+import type { HullReferencesResult, HullReferencesPayload, DeepReadonly, ProjectInvalidation } from '@/shared/types';
 
 import { invokeCommand } from '@/shared/runtime/command.runtime';
 import { CachedSessionQuery } from '@/services/query-cache.service';
 import { hullReferenceOptions, hullWeaponSlotOptions, type HullSlotKind } from '@/domain/resources/hull-references';
 
-export function hasHullReferencesInvalidation(invalidation: import('@/shared/types').ProjectInvalidation) {
+export function hasHullReferencesInvalidation(invalidation: ProjectInvalidation) {
   return invalidation.session || invalidation.queryScopes.some((scope) => scope.kind === 'hull-references');
 }
 

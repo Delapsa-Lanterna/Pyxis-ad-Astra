@@ -6,6 +6,7 @@ import { errorContextOf, errorDiagnosticOf } from '@/shared/lib/errors';
 import { logFields } from '@/shared/lib/log-fields';
 import { normalizeFsPath, pathBelongsToRoot } from '@/shared/lib/paths';
 import { observeSavedContent, saveProjection } from '@/orchestrators/project-sync.orchestrator';
+import type { DiscoveredField } from '@/shared/types';
 
 class CoreAssetLoader<T> {
   private revision = 0;
@@ -61,7 +62,7 @@ class CoreAssetLoader<T> {
 }
 
 interface CoreLoader {
-  fields: CoreAssetLoader<Record<string, import('@/shared/types').DiscoveredField[]>>;
+  fields: CoreAssetLoader<Record<string, DiscoveredField[]>>;
   graphics: CoreAssetLoader<string[]>;
 }
 

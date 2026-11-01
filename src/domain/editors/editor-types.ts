@@ -1,3 +1,4 @@
+import type { RowData } from '@/shared/types';
 export interface Point {
   x: number;
   y: number;
@@ -46,9 +47,9 @@ export interface ShipSlotGeometry {
   locations: number[];
 }
 export interface ShipEngineGeometry {
-  styleId?: import('@/shared/types').RowData[string];
-  style?: import('@/shared/types').RowData[string];
-  styleSpec?: import('@/shared/types').RowData[string];
+  styleId?: RowData[string];
+  style?: RowData[string];
+  styleSpec?: RowData[string];
   angle: number;
   length: number;
   width: number;

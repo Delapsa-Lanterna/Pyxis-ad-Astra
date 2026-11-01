@@ -3,9 +3,11 @@ import { flushPromises } from '@vue/test-utils';
 import { createWindowImageRuntime } from './use-window-image-runtime';
 import { initializeCacheLimits } from '@/shared/runtime/cache-limits';
 import { createSettingsFixture } from '@/test/fixtures/settings';
-import type { ResourceRef } from '@/shared/types';
+import type { ResourceRef, ProjectInvalidation } from '@/shared/types';
+import type { ResourceMediaInvalidationEvent } from '@/services/resource-media.service';
+
 const mocks = vi.hoisted(() => ({
-  listener: null as ((event: import('@/services/resource-media.service').ResourceMediaInvalidationEvent) => void) | null,
+  listener: null as ((event: ResourceMediaInvalidationEvent) => void) | null,
 }));
 vi.mock('@/services/resource-media.service', () => ({
   mediaResourceKey: (session: string, resource: ResourceRef) => JSON.stringify([session, resource.source, resource.relPath]),
@@ -91,7 +93,7 @@ describe('window image residence', () => {
       scope: 'resources',
       sessionId: 's',
       resources: [resource],
-      invalidation: { resources: [{ source: resource.source, relPath: resource.relPath }] } as import('@/shared/types').ProjectInvalidation,
+      invalidation: { resources: [{ source: resource.source, relPath: resource.relPath }] } as ProjectInvalidation,
     });
     await ended;
     images[0]!.onload!(new Event('load'));

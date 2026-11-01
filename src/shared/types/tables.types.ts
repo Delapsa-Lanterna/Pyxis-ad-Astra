@@ -1,4 +1,4 @@
-import type { ProjectSessionId, ResourceRef, CsvTableKey } from '@/shared/types/project-identity.types';
+import type { ProjectSessionId, ResourceRef, CsvTableKey, FileVersion } from '@/shared/types/project-identity.types';
 import type { RowData } from '@/shared/types/json.types';
 
 export interface CsvTableState {
@@ -7,7 +7,7 @@ export interface CsvTableState {
   rowOrder: string[];
   baselineRowOrder: string[];
   queryRowKeys?: string[];
-  baseVersions: import('@/shared/types/project-identity.types').FileVersion[];
+  baseVersions: FileVersion[];
   rows: Record<string, CsvDraftRow>;
   baselineRows: Record<string, CsvDraftRow>;
   header: string[];
@@ -55,7 +55,7 @@ export type CsvDraftRow = CsvRowRecord;
 export type CsvTableRows = Array<CsvDraftRow | null>;
 
 export interface CsvTableIndex {
-  baseVersions: import('@/shared/types/project-identity.types').FileVersion[];
+  baseVersions: FileVersion[];
   table: CsvTableKey;
   header: string[];
   totalRows: number;
@@ -64,7 +64,7 @@ export interface CsvTableIndex {
 }
 
 export interface CsvTableRowsRead {
-  baseVersions: import('@/shared/types/project-identity.types').FileVersion[];
+  baseVersions: FileVersion[];
   table: CsvTableKey;
   rows: CsvRowRecord[];
 }
@@ -95,6 +95,6 @@ export interface CsvRowPreviewTarget {
 
 export interface CsvRowPreviewPayload {
   sessionId: string;
-  table: import('@/shared/types/project-identity.types').CsvTableKey;
+  table: CsvTableKey;
   rowKey: string;
 }

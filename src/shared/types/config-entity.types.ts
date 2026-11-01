@@ -1,8 +1,12 @@
 import type { JsonValue, RowData } from '@/shared/types/json.types';
+import type { WriteResult } from '@/shared/types/write-commit.types';
+import type { CsvRow } from '@/shared/types/tables.types';
+import type { FileVersion } from '@/shared/types/project-identity.types';
+import type { JsonWriteOptions } from '@/shared/types/json-write.types';
 
 export interface SavedConfig<T> {
   entity: T;
-  receipt: import('@/shared/types/write-commit.types').WriteResult;
+  receipt: WriteResult;
 }
 
 export interface ConfigEditTarget {
@@ -19,26 +23,26 @@ export interface IndexedConfigEntityRefresh {
   entityId: string;
   indexPath: string;
   indexHeader: string[];
-  indexRows: import('@/shared/types/tables.types').CsvRow[];
+  indexRows: CsvRow[];
   entityData: JsonValue;
 }
 
 export interface IndexedConfigEntityData extends Omit<IndexedConfigEntityRefresh, 'entityData'> {
-  baseVersions: import('@/shared/types/project-identity.types').FileVersion[];
+  baseVersions: FileVersion[];
   entityData: RowData | null;
 }
 
 export interface ModInfoSave {
-  baseVersions: import('@/shared/types/project-identity.types').FileVersion[];
+  baseVersions: FileVersion[];
   sessionId: string;
   modRoot: string;
   data: RowData;
-  jsonWrite?: import('@/shared/types/json-write.types').JsonWriteOptions;
+  jsonWrite?: JsonWriteOptions;
   orderedJson?: string | null;
 }
 
 export interface IndexedConfigSave {
-  baseVersions: import('@/shared/types/project-identity.types').FileVersion[];
+  baseVersions: FileVersion[];
   sessionId: string;
   modRoot: string;
   kind: IndexedConfigKind;
@@ -46,12 +50,12 @@ export interface IndexedConfigSave {
   nextId: string;
   indexRow: RowData;
   entityData: RowData;
-  jsonWrite?: import('@/shared/types/json-write.types').JsonWriteOptions;
+  jsonWrite?: JsonWriteOptions;
   orderedJson?: string | null;
 }
 
 export interface IndexedConfigDelete {
-  baseVersions: import('@/shared/types/project-identity.types').FileVersion[];
+  baseVersions: FileVersion[];
   sessionId: string;
   modRoot: string;
   kind: IndexedConfigKind;

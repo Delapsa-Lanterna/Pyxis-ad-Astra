@@ -1,4 +1,4 @@
-import type { AssociatedSpecChange, CsvTableState, CsvTableKey } from '@/shared/types';
+import type { AssociatedSpecChange, CsvTableState, CsvTableKey, AssociatedSpecPreparation } from '@/shared/types';
 import { rowSpecId } from '@/shared/lib/starsector';
 import { isCsvDeletedRow } from '@/domain/csv-editor/csv-dirty';
 import { associatedSpecCreateParams } from '@/domain/csv-editor/associated-spec-creation';
@@ -8,7 +8,7 @@ export interface AssociatedSpecCandidate {
   table: CsvTableKey;
   label: string;
   change: AssociatedSpecChange;
-  preparation?: import('@/shared/types').AssociatedSpecPreparation;
+  preparation?: AssociatedSpecPreparation;
   mode?: 'read' | 'overwrite';
 }
 

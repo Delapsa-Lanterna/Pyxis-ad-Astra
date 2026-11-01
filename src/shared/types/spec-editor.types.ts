@@ -1,5 +1,8 @@
-import type { EntityEditInfo } from '@/shared/types/project-identity.types';
+import type { EntityEditInfo, FileVersion, EntityEditTarget } from '@/shared/types/project-identity.types';
 import type { RowData } from './json.types';
+import type { JsonComposition } from './json-composition.types';
+import type { JsonWriteOptions } from '@/shared/types/json-write.types';
+
 export const SPEC_EDITOR_KINDS = ['ship', 'weapon', 'projectile', 'system'] as const;
 export type SpecEditorKind = (typeof SPEC_EDITOR_KINDS)[number];
 
@@ -7,7 +10,7 @@ export type WeaponSpecClass = 'projectile' | 'beam';
 export type ProjectileSpecClass = 'projectile' | 'missile';
 
 export interface SpecEditorData<K extends SpecEditorKind = SpecEditorKind> extends EntityEditInfo {
-  composition?: import('./json-composition.types').JsonComposition;
+  composition?: JsonComposition;
   kind: K;
   spec: RowData;
   isNew: boolean;
@@ -21,11 +24,11 @@ export interface LoadImportedEditorSpecPayload {
 }
 
 export interface SpecSave {
-  baseVersions: import('@/shared/types/project-identity.types').FileVersion[];
+  baseVersions: FileVersion[];
   sessionId: string;
   modRoot: string;
-  target: import('@/shared/types/project-identity.types').EntityEditTarget;
+  target: EntityEditTarget;
   data: RowData;
-  jsonWrite?: import('@/shared/types/json-write.types').JsonWriteOptions;
+  jsonWrite?: JsonWriteOptions;
   orderedJson?: string | null;
 }

@@ -9,7 +9,7 @@ import { createSettingsFixture } from '@/test/fixtures/settings';
 import { mountSetup } from '@/test/unit/mount-setup';
 import FileEditorContent from '@/app/FileEditorContent.vue';
 import { nButton } from '@/test/unit/ui-stubs';
-import type { ManagedWindowContext, WindowContextFor } from '@/shared/types';
+import type { ManagedWindowContext, WindowContextFor, CommittedWriteEvent } from '@/shared/types';
 
 enableAutoUnmount(afterEach);
 
@@ -34,7 +34,7 @@ vi.mock('@/orchestrators/project-sync.orchestrator', async () => ({
 vi.mock('@/services/window.service', () => ({ releaseNativeWindowTargets: vi.fn(async () => {}) }));
 const mocks = vi.hoisted(() => ({
   request: null as null | ((request: ManagedWindowContext) => Promise<void>),
-  identityHandler: null as null | ((event: import('@/shared/types').CommittedWriteEvent) => Promise<void>),
+  identityHandler: null as null | ((event: CommittedWriteEvent) => Promise<void>),
   followIdentity: vi.fn(),
   loadEditableFileData: vi.fn(),
   writeEditableFileText: vi.fn(),

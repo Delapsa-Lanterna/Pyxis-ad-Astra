@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { applyJointConflictChoices, conflictValueText, jointWriteTargets, rebaseJointDraft } from './joint-edit';
 import { shipJointFixture } from '@/test/fixtures/joint-edit/ship-joint-edit';
 import { jointFixtureValues } from '@/test/fixtures/joint-edit/joint-record';
-import type { JointEditPrepared, JointValue, JointEditSnapshot } from '@/shared/types';
-const present = (value: import('@/shared/types').JsonValue): JointValue => ({ state: 'present', value });
+import type { JointEditPrepared, JointValue, JointEditSnapshot, JsonValue } from '@/shared/types';
+const present = (value: JsonValue): JointValue => ({ state: 'present', value });
 describe('joint edit field and physical target projection', () => {
   it('uses the authoritative root binding when a row read has advanced beyond the identity event', () => {
     const before = shipJointFixture();
@@ -28,7 +28,7 @@ describe('joint edit field and physical target projection', () => {
     const later = structuredClone(submitted);
     const after = structuredClone(before);
     if (later.csv!.state !== 'present') throw new Error('csv fixture');
-    const data = later.csv!.value as Record<string, import('@/shared/types').JsonValue>;
+    const data = later.csv!.value as Record<string, JsonValue>;
     data.name = 'Later name';
     delete data.cargo;
     const record = after.records.find((record) => record.key === 'csv')!;

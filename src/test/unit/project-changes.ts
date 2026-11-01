@@ -4,12 +4,13 @@ import { savedWriteFixture, sessionUpdateFixture } from '@/test/fixtures/write-r
 import { getActivePinia } from 'pinia';
 import { useProjectStore } from '@/stores/project.store';
 import type { SaveAcceptanceTask } from '@/shared/types';
+import type { SaveCommandRequest } from '@/shared/runtime/command.runtime';
 
 export const projectChangeListeners = new Set<(event: CommittedWriteEvent) => ReturnType<SaveAcceptanceTask>>();
 const releases = new Map<(event: CommittedWriteEvent) => ReturnType<SaveAcceptanceTask>, (sessionId: string) => void>();
 export const savedContentWorks: Array<{ content: Promise<unknown>; retryContent: () => Promise<unknown> }> = [];
 export function beginSavedWrite<T>(
-  write: (request?: import('@/shared/runtime/command.runtime').SaveCommandRequest) => Promise<T>,
+  write: (request?: SaveCommandRequest) => Promise<T>,
   accept: (value: Exclude<T, void | null>) => SaveAcceptanceTask[],
   complete?: (value: T) => unknown,
 ) {

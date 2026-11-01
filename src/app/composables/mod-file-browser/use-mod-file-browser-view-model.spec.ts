@@ -11,7 +11,7 @@ import { useModFileBrowserStore } from '@/stores/mod-file-browser.store';
 import { sessionUpdateFixture, savedWriteFixture } from '@/test/fixtures/write-result';
 
 import type { ModDirectory, ModFileEntry } from '@/shared/types/mod-file-browser.types';
-import type { CommittedWriteEvent } from '@/shared/types';
+import type { CommittedWriteEvent, SaveAcceptanceTask } from '@/shared/types';
 const mocks = vi.hoisted(() => ({
   directory: vi.fn(),
   search: vi.fn(),
@@ -19,7 +19,7 @@ const mocks = vi.hoisted(() => ({
   open: vi.fn(),
   error: vi.fn(),
   listen: vi.fn(),
-  handler: null as null | ((event: CommittedWriteEvent) => import('@/shared/types').SaveAcceptanceTask[] | undefined),
+  handler: null as null | ((event: CommittedWriteEvent) => SaveAcceptanceTask[] | undefined),
 }));
 vi.mock('@/services/mod-file-browser.service', () => ({
   queryModDirectory: mocks.directory,

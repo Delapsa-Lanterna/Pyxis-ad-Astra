@@ -9,11 +9,14 @@ import { loadEngineFallbacks } from '@/app/renderers/editors/engine-fallback';
 import { windowImageRuntime } from '@/app/composables/use-window-image-runtime';
 import { initializeCacheLimits } from '@/shared/runtime/cache-limits';
 import { createSettingsFixture } from '@/test/fixtures/settings';
+import type * as EngineFallbackModule from '@/app/renderers/editors/engine-fallback';
+import type { EngineRenderAssets, RowData } from '@/shared/types';
+
 const mocks = vi.hoisted(() => ({
   images: new Map<string, HTMLImageElement>(),
   engines: {} as Record<string, HTMLImageElement>,
-  resources: {} as import('@/shared/types').EngineRenderAssets['resources'],
-  styles: {} as import('@/shared/types').RowData,
+  resources: {} as EngineRenderAssets['resources'],
+  styles: {} as RowData,
 }));
 vi.mock('@/services/engine-assets.service', () => ({
   queryEngineRenderAssets: async () => ({ styles: mocks.styles, versions: [], resources: mocks.resources }),
@@ -183,9 +186,7 @@ describe('variant scene pointer dismissal', () => {
     own.unmount();
   });
   it('shares three bundled SVG decodes and returns their ready images synchronously', async () => {
-    const actual = await vi.importActual<typeof import('@/app/renderers/editors/engine-fallback')>(
-      '@/app/renderers/editors/engine-fallback',
-    );
+    const actual = await vi.importActual<typeof EngineFallbackModule>('@/app/renderers/editors/engine-fallback');
     const images: HTMLImageElement[] = [];
     vi.stubGlobal(
       'Image',
@@ -250,7 +251,7 @@ describe('variant scene pointer dismissal', () => {
         if (index < ready) mocks.images.set(path, image);
         return [path, { source: 'core' as const, ownerKind: 'ship' as const, ownerId: 'sample', key, relPath: path }];
       }),
-    ) as import('@/shared/types').EngineRenderAssets['resources'];
+    ) as EngineRenderAssets['resources'];
     const creates = vi.spyOn(document, 'createElement');
     const fallback = { ...mocks.engines };
     mocks.engines = {};

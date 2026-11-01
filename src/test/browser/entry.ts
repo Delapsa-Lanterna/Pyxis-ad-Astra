@@ -12,7 +12,7 @@ import {
 import { listen, eventListenerCount } from './runtime/events';
 import { createBrowserWorkspace, workspaceClient } from './workspace-runtime';
 import WorkspaceShell from './WorkspaceShell.vue';
-import { createApp } from 'vue';
+import { createApp, type Component } from 'vue';
 import { createPinia } from 'pinia';
 import { useSettingsStore } from '@/stores/settings.store';
 import type { AppSettings } from '@/shared/types';
@@ -133,7 +133,7 @@ async function workspaceWindows() {
   if (!query.has('scene')) return;
   await startScene();
 }
-async function loadRoot(bootstrap: Awaited<ReturnType<typeof initializeWindowContext>>): Promise<import('vue').Component> {
+async function loadRoot(bootstrap: Awaited<ReturnType<typeof initializeWindowContext>>): Promise<Component> {
   if (bootstrap.kind === 'main') return (await import('@/app/App.vue')).default;
   switch (bootstrap.context.kind) {
     case 'editor':

@@ -11,6 +11,8 @@ import type {
   JsonValue,
   ResourceRef,
   RowData,
+  JsonDocumentOrigin,
+  JsonComposition,
 } from '@/shared/types';
 import { aggregateSchemaSources } from '@/domain/schema/schema-sources';
 import { configFactionListItems } from './json-config-entities';
@@ -26,7 +28,7 @@ export interface ConfigDocumentTarget {
   id: string;
   entity: EntityEditTarget | null;
 }
-export function jsonDocumentOrigin(target: ConfigDocumentTarget): import('@/shared/types').JsonDocumentOrigin {
+export function jsonDocumentOrigin(target: ConfigDocumentTarget): JsonDocumentOrigin {
   return target.kind === 'mod-info'
     ? { kind: 'modInfo' }
     : target.kind === 'misc-config'
@@ -34,7 +36,7 @@ export function jsonDocumentOrigin(target: ConfigDocumentTarget): import('@/shar
       : { kind: 'entity', target: { kind: target.kind, id: target.id, relPath: target.entity!.write.relPath } };
 }
 export interface JsonDocumentRecord {
-  composition?: import('@/shared/types').JsonComposition;
+  composition?: JsonComposition;
   target: ConfigDocumentTarget;
   value: RowData;
   baseVersions: FileVersion[];

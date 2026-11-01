@@ -20,6 +20,7 @@ import type { JsonDocumentSession } from './use-json-document-session';
 import type { SchemaRuntimeContext } from '@/domain/schema/schema-runtime';
 import type { JsonDocumentDefinition } from '@/domain/json-editor/json-document-definitions';
 import { composeJson, setCompositionValue } from '@/domain/schema/json-composition';
+import type { JsonValue } from '@/shared/types';
 
 export function useJsonDocumentView(document: JsonDocumentSession, definition: JsonDocumentDefinition) {
   const feedback = useAppFeedback();
@@ -45,7 +46,7 @@ export function useJsonDocumentView(document: JsonDocumentSession, definition: J
                 ? sources
                 : { ...sources, layers: sources.layers.map((layer) => ({ ...layer, data: { file: layer.data } })) };
             },
-            apply: (path: string[], value: import('@/shared/types').JsonValue | undefined) => {
+            apply: (path: string[], value: JsonValue | undefined) => {
               document.draftValue.value = setCompositionValue(document.draftValue.value, path, value);
             },
           }

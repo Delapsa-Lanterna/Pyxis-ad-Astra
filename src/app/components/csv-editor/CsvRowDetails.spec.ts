@@ -1,5 +1,5 @@
 import { csvTableIndex } from '@/test/fixtures/csv-row';
-import { mount } from '@vue/test-utils';
+import { mount, type VueWrapper } from '@vue/test-utils';
 import { createPinia, getActivePinia, setActivePinia } from 'pinia';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { initializeSettingsStore, useSettingsStore } from '@/stores/settings.store';
@@ -47,7 +47,7 @@ vi.mock('@/app/composables/use-schema-select-media', () => ({
   }),
 }));
 
-let wrapper: import('@vue/test-utils').VueWrapper | null = null;
+let wrapper: VueWrapper | null = null;
 
 afterEach(() => {
   wrapper?.unmount();

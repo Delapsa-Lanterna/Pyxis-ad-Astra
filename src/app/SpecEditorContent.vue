@@ -126,6 +126,7 @@ import { specEditorDefinitions, useSpecEditorDependencies } from '@/app/composab
 import { useSpecEditorWindowViewModel } from '@/app/composables/spec-editor/use-spec-editor-window-view-model';
 import { useWindowContext } from '@/windows/window-context.window';
 import { useManagedWindowRequests } from '@/app/composables/use-managed-window-requests';
+import type { RowData } from '@/shared/types/index';
 
 const context = useWindowContext('editor').value;
 const { sessionId, modRoot, id } = context.identity;
@@ -216,7 +217,7 @@ function openProjectile(projectileId: string) {
   }).catch((error) => feedback.error(error, '打开弹体编辑器失败'));
 }
 
-function openPreview(weapon: import('@/shared/types/index').RowData) {
+function openPreview(weapon: RowData) {
   if (!target.value) return;
   openWeaponFirePreviewWindow({
     modRoot: target.value.modRoot,

@@ -8,6 +8,7 @@ import type { CsvGridColumn } from '@/domain/csv-editor/csv-grid-model';
 import type { ResourceRef } from '@/shared/types';
 import CsvGridStaticCell from './CsvGridStaticCell.vue';
 import { editorUiStubs } from '@/test/unit/ui-stubs';
+import type { VueWrapper } from '@vue/test-utils';
 
 vi.mock('@/services/resource-media.service', () => ({
   resourceMediaDataUrl: vi.fn(() => 'data:image/png;base64,x'),
@@ -16,7 +17,7 @@ vi.mock('@/services/resource-media.service', () => ({
 
 vi.mock('@/app/composables/use-app-feedback', () => ({ useAppFeedback: () => ({ choose: vi.fn(), error: vi.fn() }) }));
 
-let wrapper: import('@vue/test-utils').VueWrapper | null = null;
+let wrapper: VueWrapper | null = null;
 
 afterEach(() => {
   wrapper?.unmount();

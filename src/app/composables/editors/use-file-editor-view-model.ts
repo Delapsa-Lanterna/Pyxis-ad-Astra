@@ -22,7 +22,7 @@ import { reserveFileIdentityIntent, retargetFileWindow } from '@/orchestrators/w
 import { chooseEntityFilename } from '@/orchestrators/entity-write.orchestrator';
 import { focusEntityIdentityConflict } from '@/orchestrators/window-target-focus.orchestrator';
 
-import type { CommittedWriteEvent } from '@/shared/types';
+import type { CommittedWriteEvent, FileWindowLocation } from '@/shared/types';
 import type { EntityIdentityChange, WriteResult, EntityEditInfo } from '@/shared/types';
 import { formatError, errorDiagnosticOf, errorCodeOf, AppError } from '@/shared/lib/errors';
 import { waitForRead } from '@/shared/runtime/read-request';
@@ -426,7 +426,7 @@ export function useFileEditorViewModel(params: FileEditorViewModelParams) {
     return undefined;
   }
 
-  function applyLocation(location: import('@/shared/types').FileWindowLocation) {
+  function applyLocation(location: FileWindowLocation) {
     targetLine.value = normalizeEventLine(location.line);
     targetColumn.value = normalizeEventLine(location.column);
   }

@@ -7,7 +7,7 @@ import { useJsonEditorStore } from '@/stores/json-editor.store';
 import { createFieldInputs } from '@/shared/runtime/field-inputs';
 import { useSaveCommandStore } from '@/stores/save-command.store';
 import { savedWriteFixture } from '@/test/fixtures/write-result';
-import type { AppFeedback } from '@/shared/types';
+import type { AppFeedback, SaveAcceptanceTask } from '@/shared/types';
 
 const mocks = vi.hoisted(() => ({
   complete: vi.fn(),
@@ -20,10 +20,7 @@ vi.mock('@/app/composables/use-app-feedback', () => ({ useAppFeedback: () => moc
 vi.mock('@/services/window.service', () => ({ releaseNativeWindowTargets: mocks.release }));
 vi.mock('@/orchestrators/project-sync.orchestrator', async () => ({
   ...(await import('@/test/unit/project-changes')),
-  beginSavedWrite: <T>(
-    write: () => Promise<T>,
-    accept: (value: Exclude<T, void | null>) => import('@/shared/types').SaveAcceptanceTask[],
-  ) => {
+  beginSavedWrite: <T>(write: () => Promise<T>, accept: (value: Exclude<T, void | null>) => SaveAcceptanceTask[]) => {
     const fixture = import('@/test/unit/project-changes');
     const written = write();
     const content = fixture.then(({ beginSavedWrite }) => {

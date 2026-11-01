@@ -9,8 +9,10 @@ import { useCsvEditorStore } from '@/stores/csv-editor.store';
 import { useEditTargetHandoff } from '@/app/composables/use-edit-target-handoff';
 import { savedWriteFixture, sessionUpdateFixture } from '@/test/fixtures/write-result';
 import type { AppFeedback } from '@/shared/types';
+import type { saveCsvChanges } from '@/orchestrators/csv-save.orchestrator';
+
 const mocks = vi.hoisted(() => ({
-  save: vi.fn<typeof import('@/orchestrators/csv-save.orchestrator').saveCsvChanges>().mockResolvedValue({ status: 'noop' }),
+  save: vi.fn<typeof saveCsvChanges>().mockResolvedValue({ status: 'noop' }),
   retry: vi.fn(async () => {}),
   registration: vi.fn<(targets: unknown) => Promise<void>>().mockResolvedValue(undefined),
   error: vi.fn(),

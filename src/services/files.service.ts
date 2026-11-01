@@ -4,8 +4,12 @@ import type {
   TextTranscode,
   TextIdentityIntentPayload,
   FollowTextIdentityPayload,
+  JsonWriteOptions,
+  EntityEditTarget,
+  EntityIdentityIntent,
+  EntityKind,
 } from '@/shared/types';
-import { invokeCommand, invokeSaveCommand } from '@/shared/runtime/command.runtime';
+import { invokeCommand, invokeSaveCommand, type SaveCommandRequest } from '@/shared/runtime/command.runtime';
 import type { EditableFileData, FileVersion, WriteResult } from '@/shared/types';
 
 export function loadEditableFileData(sessionId: string | null, modRoot: string, path: string): Promise<EditableFileData> {
@@ -17,9 +21,9 @@ export function writeEditableFileText(
   modRoot: string,
   path: string,
   text: string,
-  baseVersions: import('@/shared/types').FileVersion[],
-  request?: import('@/shared/runtime/command.runtime').SaveCommandRequest,
-  jsonWrite?: import('@/shared/types').JsonWriteOptions,
+  baseVersions: FileVersion[],
+  request?: SaveCommandRequest,
+  jsonWrite?: JsonWriteOptions,
 ): Promise<WriteResult> {
   return invokeSaveCommand(
     'save_text_file',
@@ -41,14 +45,10 @@ export function transcodeFileToUtf8(
   });
 }
 
-export function queryFileTextIdentityIntent(
-  sessionId: string,
-  source: import('@/shared/types').EntityEditTarget,
-  text: string,
-): Promise<import('@/shared/types').EntityIdentityIntent> {
+export function queryFileTextIdentityIntent(sessionId: string, source: EntityEditTarget, text: string): Promise<EntityIdentityIntent> {
   return invokeCommand('query_text_identity_intent', { payload: { sessionId, source, text } satisfies TextIdentityIntentPayload });
 }
 
-export function followFileTextIdentity(kind: import('@/shared/types').EntityKind, text: string, nextId: string): Promise<string> {
+export function followFileTextIdentity(kind: EntityKind, text: string, nextId: string): Promise<string> {
   return invokeCommand('follow_text_identity', { payload: { kind, text, nextId } satisfies FollowTextIdentityPayload });
 }
