@@ -154,3 +154,32 @@ test('file browser targets and configuration registries have their own inputs', 
   });
   assert.deepEqual(frontendLayerBoundaryRule.check(allowed), []);
 });
+
+test('JSON editors consume explicit host inputs across implementation layers and import aliases', () => {
+  for (const source of [
+    'src/app/components/json-editor/JsonEditorPage.vue',
+    'src/app/composables/json-editor/use-json-document-view.ts',
+    'src/domain/json-editor/json-document-definitions.ts',
+    'src/stores/json-editor.store.ts',
+    'src/orchestrators/json-save.orchestrator.ts',
+    'src/services/json-file.service.ts',
+  ]) {
+    for (const target of ['src/stores/workspace.store.ts', 'src/orchestrators/workspace-navigation.orchestrator.ts']) {
+      const code = 'import { value as own } from "@/' + target.slice(4, -3) + '"; own();';
+      const context = architectureFixtures({
+        [source]: source.endsWith('.vue') ? '<script setup lang="ts">' + code + '</script>' : code,
+        [target]: 'export function value() {}',
+      });
+      const diagnostics = frontendLayerBoundaryRule.check(context).filter((item) => item.target === target);
+      assert.equal(diagnostics.length, 1, source + ' -> ' + target);
+      assert.equal(diagnostics[0]?.target, target);
+    }
+  }
+  const context = architectureFixtures({
+    'src/app/composables/use-workspace-json-editor-host.ts': 'import type {Host} from "@/app/composables/json-editor/json-editor-context";',
+    'src/app/composables/json-editor/json-editor-context.ts': 'export interface Host {}',
+    'src/app/composables/json-editor/use-json-document-view.ts': 'import type {Location} from "@/shared/types/workspace.types";',
+    'src/shared/types/workspace.types.ts': 'export interface Location {}',
+  });
+  assert.deepEqual(frontendLayerBoundaryRule.check(context), []);
+});

@@ -1,11 +1,9 @@
 import { observeSavedContent, saveProjection } from '@/orchestrators/project-sync.orchestrator';
 import { openVariantImmersiveEditor } from '@/orchestrators/immersive-editor.orchestrator';
 import { computed, onScopeDispose, ref, watch } from 'vue';
-import { navigateToModTable } from '@/orchestrators/workspace-navigation.orchestrator';
 import { querySessionEntityEditTarget } from '@/services/entity-query.service';
 import { useQueryReadOwner } from '@/app/composables/use-query-read-owner';
 import { useSaveCommandStore } from '@/stores/save-command.store';
-import { useWorkspaceStore } from '@/stores/workspace.store';
 import { observeSchemaSourceOptions } from '@/app/composables/editors/use-schema-source-options';
 import { querySourceOptionCatalog } from '@/services/source-options.service';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
@@ -17,21 +15,29 @@ import { jsonDocumentId, jsonDocumentContent } from '@/domain/json-editor/json-d
 import { AppError } from '@/shared/lib/errors';
 import { isExternalSource } from '@/shared/lib/resource-ref';
 import type { JsonDocumentSession } from './use-json-document-session';
+import type { JsonEditorHost } from './json-editor-context';
 import type { SchemaRuntimeContext } from '@/domain/schema/schema-runtime';
 import type { JsonDocumentDefinition } from '@/domain/json-editor/json-document-definitions';
 import { composeJson, setCompositionValue } from '@/domain/schema/json-composition';
 import type { JsonValue } from '@/shared/types';
 
-export function useJsonDocumentView(document: JsonDocumentSession, definition: JsonDocumentDefinition) {
+export function useJsonDocumentView(
+  document: JsonDocumentSession,
+  definition: JsonDocumentDefinition,
+  locateBaseHull: JsonEditorHost['locateBaseHull'],
+) {
   const feedback = useAppFeedback();
   const reads = useQueryReadOwner();
   const commands = useSaveCommandStore();
-  const workspace = useWorkspaceStore();
+  let disposed = false;
+  onScopeDispose(() => {
+    disposed = true;
+  });
   const previews = ref<Record<string, string>>(
     definition.kind === 'faction' ? { logoSrc: '', crestSrc: '' } : definition.kind === 'mission' ? { icon: '' } : {},
   );
   const revision = ref(0);
-  const canNavigateHull = computed(
+  const canNavigateBaseHull = computed(
     () => definition.kind === 'skin' && String(document.draftValue.value.baseHullId ?? '').trim().length > 0,
   );
   const partial = computed(() =>
@@ -135,16 +141,20 @@ export function useJsonDocumentView(document: JsonDocumentSession, definition: J
         revision.value++;
     }),
   );
-  async function navigateToHull() {
-    if (!canNavigateHull.value) return;
+  async function navigateToBaseHull() {
+    if (!canNavigateBaseHull.value) return;
     const target = document.target.value!,
-      admitted = document.inputs.captureContext();
+      admitted = document.inputs.captureContext(),
+      targetKey = document.targetKey.value,
+      sequence = commands.beginTransition();
+    const current = () =>
+      !disposed && document.active.value && document.targetKey.value === targetKey && admitted() && commands.isTransitionCurrent(sequence);
     try {
       const waiting = commands.waitForSaves();
-      if ((waiting && !(await waiting)) || !admitted()) return;
+      if ((waiting && !(await waiting)) || !current()) return;
       const committed = document.inputs.commit();
       if (committed && !(await committed)) return;
-      if (!admitted()) return;
+      if (!current()) return;
       const id = String(document.draftValue.value.baseHullId ?? '').trim();
       await reads.consume(
         'skin-hull-navigation',
@@ -152,8 +162,7 @@ export function useJsonDocumentView(document: JsonDocumentSession, definition: J
         (signal) => querySessionEntityEditTarget(target.sessionId, 'ship', id, signal),
         {
           ready: (info) => {
-            if (!admitted() || document.target.value?.id !== target.id || String(document.draftValue.value.baseHullId ?? '').trim() !== id)
-              return;
+            if (!current() || String(document.draftValue.value.baseHullId ?? '').trim() !== id) return;
             if (isExternalSource(info.target.source?.source)) {
               feedback.info('船体「' + id + '」来自' + (info.target.source?.source === 'core' ? '原版' : '其他 Mod') + '。');
               return;
@@ -163,22 +172,15 @@ export function useJsonDocumentView(document: JsonDocumentSession, definition: J
             const linked = info.target.linkedRecord;
             if (!linked || linked.kind !== 'csv' || linked.table !== 'ships')
               throw new AppError('船体「' + id + '」缺少可定位的舰船表格行', { action: 'navigate-skin-hull' });
-            navigateToModTable(target.modRoot, 'ships');
-            workspace.entityLocation = {
-              sessionId: target.sessionId,
-              modRoot: target.modRoot,
-              kind: 'ship',
-              id,
-              rowKey: linked.rowKey,
-            };
+            locateBaseHull(target, { id, rowKey: linked.rowKey });
           },
           error: (error) => {
-            if (admitted()) feedback.error(error, '跳转皮肤基础船体失败');
+            if (current()) feedback.error(error, '跳转皮肤基础船体失败');
           },
         },
       );
     } catch (error) {
-      if (admitted()) feedback.error(error, '跳转皮肤基础船体失败');
+      if (current()) feedback.error(error, '跳转皮肤基础船体失败');
     }
   }
   async function openImmersive() {
@@ -192,5 +194,5 @@ export function useJsonDocumentView(document: JsonDocumentSession, definition: J
       feedback.error(error, '打开' + definition.label + '沉浸式编辑器失败');
     }
   }
-  return { canNavigateHull, navigateToHull, previews, schemaRuntimeContext, openImmersive };
+  return { canNavigateBaseHull, navigateToBaseHull, previews, schemaRuntimeContext, openImmersive };
 }

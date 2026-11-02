@@ -29,7 +29,11 @@
       <h1 class="page-title">正在加载 Mod</h1>
       <p class="ui-text-muted ui-text-reset ui-text-wrap">{{ loadingModLabel }}</p>
     </section>
-    <JsonEditorWorkspace
+    <JsonEditorPage
+      v-if="jsonHost.pageTarget.value"
+      :key="JSON.stringify(jsonHost.pageTarget.value)"
+      :target="jsonHost.pageTarget.value"
+      :host="jsonHost"
   /></MainWindowFrame>
 </template>
 
@@ -49,6 +53,7 @@ import { useSettingsStore } from '@/stores/settings.store';
 import { useWorkspaceStore } from '@/stores/workspace.store';
 import { useWorkspaceShellActions } from '@/app/composables/use-workspace-shell-actions';
 import { useWorkspaceShellLifecycle } from '@/app/composables/use-workspace-shell-lifecycle';
+import { useWorkspaceJsonEditorHost } from '@/app/composables/use-workspace-json-editor-host';
 import { useMainWindowShortcuts } from '@/app/composables/use-main-window-shortcuts';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
 import { useWindowCloseParticipant } from '@/app/composables/use-window-close-state';
@@ -65,12 +70,13 @@ const CsvEditorWorkspace = defineAsyncComponent(() => import('@/app/components/c
 const ModFileBrowser = defineAsyncComponent(() => import('@/app/components/mod-file-browser/ModFileBrowser.vue'));
 const WorkspaceModOverview = defineAsyncComponent(() => import('@/app/components/workspace/WorkspaceModOverview.vue'));
 const WorkspaceFileHistory = defineAsyncComponent(() => import('@/app/components/workspace/WorkspaceFileHistory.vue'));
-const JsonEditorWorkspace = defineAsyncComponent(() => import('@/app/components/json-editor/JsonEditorWorkspace.vue'));
+const JsonEditorPage = defineAsyncComponent(() => import('@/app/components/json-editor/JsonEditorPage.vue'));
 const modNavigationPanel = createModNavigationPanel();
 const detailPaneExpanded = ref(true);
 provide(modNavigationPanelKey, modNavigationPanel);
 const settings = useSettingsStore();
 const workspace = useWorkspaceStore();
+const jsonHost = useWorkspaceJsonEditorHost();
 const project = useProjectStore();
 const draftSessions = useDraftSessionsStore();
 const feedback = useAppFeedback();

@@ -21,7 +21,7 @@
     >
       <template #actions
         ><n-button v-if="definition.file?.immersiveKind" @click="openImmersive">沉浸式编辑器</n-button
-        ><n-button v-if="definition.kind === 'skin'" :disabled="!canNavigateHull" @click="navigateToHull">跳转到船体</n-button
+        ><n-button v-if="definition.kind === 'skin'" :disabled="!canNavigateBaseHull" @click="navigateToBaseHull">跳转到船体</n-button
         ><n-button v-if="definition.kind !== 'mod-info'" secondary type="error" @click="confirmDelete">删除</n-button
         ><n-button :disabled="!document.canUndo.value" @click="replay('undo')">撤销</n-button
         ><n-button :disabled="!document.canRedo.value" @click="replay('redo')">重做</n-button
@@ -69,6 +69,7 @@ import { useSaveCommandStore } from '@/stores/save-command.store';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
 import { useJsonDocumentView } from '@/app/composables/json-editor/use-json-document-view';
 import type { JsonDocumentSession } from '@/app/composables/json-editor/use-json-document-session';
+import type { JsonEditorHost } from '@/app/composables/json-editor/json-editor-context';
 import { jsonDocumentContent, type JsonDocumentDefinition, type JsonDocumentRecord } from '@/domain/json-editor/json-document-definitions';
 import EditorHeader from '@/app/components/editors/common/EditorHeader.vue';
 import SchemaFormRenderer from '@/app/components/schema/SchemaFormRenderer.vue';
@@ -76,6 +77,7 @@ import JsonTargetNotice from './JsonTargetNotice.vue';
 import JsonDeleteSourceDialog from './JsonDeleteSourceDialog.vue';
 const props = defineProps<{
   definition: JsonDocumentDefinition;
+  locateBaseHull: JsonEditorHost['locateBaseHull'];
   document: JsonDocumentSession;
   actionsLocked: boolean;
   deletedTarget: boolean;
@@ -85,9 +87,10 @@ const props = defineProps<{
 const feedback = useAppFeedback();
 const commands = useSaveCommandStore();
 const fileWaiting = computed(() => useProjectSyncStore().isWaiting(props.document.target.value?.modRoot));
-const { canNavigateHull, navigateToHull, previews, schemaRuntimeContext, openImmersive } = useJsonDocumentView(
+const { canNavigateBaseHull, navigateToBaseHull, previews, schemaRuntimeContext, openImmersive } = useJsonDocumentView(
   props.document,
   props.definition,
+  props.locateBaseHull,
 );
 const draft = props.document.draftValue;
 const title = computed(() => {

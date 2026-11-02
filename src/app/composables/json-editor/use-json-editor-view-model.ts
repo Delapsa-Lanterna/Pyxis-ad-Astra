@@ -13,7 +13,6 @@ import { useJsonListSelection } from './use-json-list-selection';
 import { createJsonDocument, deleteJsonDocument } from './json-document-capabilities';
 import { useJsonEditorStore, type JsonDocumentState, type JsonSearchField } from '@/stores/json-editor.store';
 import { useSettingsStore } from '@/stores/settings.store';
-import { useWorkspaceStore } from '@/stores/workspace.store';
 import {
   jsonDocumentRecord,
   jsonDocumentMedia,
@@ -35,7 +34,6 @@ import type { DeepReadonly, JsonValue, MiscConfigEntry, JsonComposition } from '
 export function useJsonEditorViewModel(definition: JsonDocumentDefinition, context: JsonEditorContext) {
   const feedback = useAppFeedback();
   const editors = useJsonEditorStore();
-  const workspace = useWorkspaceStore();
   const settings = useSettingsStore();
   const reads = useQueryReadOwner();
   const { kind } = definition;
@@ -145,8 +143,8 @@ export function useJsonEditorViewModel(definition: JsonDocumentDefinition, conte
       ? rows
       : rows.sort((a, b) => a.companion.localeCompare(b.companion) || a.key.localeCompare(b.key));
   });
-  watch([items, () => workspace.entityLocation, active], async () => {
-    const location = workspace.entityLocation;
+  watch([items, context.entityLocation, active], async () => {
+    const location = context.entityLocation.value;
     if (
       !active.value ||
       !location ||
@@ -156,8 +154,8 @@ export function useJsonEditorViewModel(definition: JsonDocumentDefinition, conte
       !items.value.some((item) => item.key === location.id)
     )
       return;
-    await selection.select(location.id);
-    if (workspace.entityLocation === location && selectedId.value === location.id) workspace.entityLocation = null;
+    await selection.select(location.id, () => !disposed && active.value && context.entityLocation.value === location);
+    if (!disposed && active.value && selectedId.value === location.id) context.completeEntityLocation(location);
   });
   async function load(required = false) {
     listLoadStartedAt.value = startPerformance();

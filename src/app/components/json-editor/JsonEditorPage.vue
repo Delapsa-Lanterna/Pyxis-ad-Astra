@@ -3,7 +3,7 @@
     <JsonDocumentList
       v-if="definition.kind !== 'mod-info'"
       :definition="definition"
-      :session-id="sessionId"
+      :session-id="target.sessionId"
       :selected-id="selectedId"
       :items="items"
       :search="search"
@@ -25,6 +25,7 @@
       :deleted-target="deletedTarget"
       :discard-deleted-target="discardDeletedTarget"
       :remove="remove"
+      :locate-base-hull="host.locateBaseHull"
     />
     <section v-else-if="selectedFile" class="editor-content empty-state ui-layout-grid ui-content-scroll ui-content-surface-muted">
       <div class="ui-field-stack ui-layout-shrink">
@@ -57,17 +58,15 @@
 import { computed } from 'vue';
 import { appendFileReferenceLocation, extractFileReferenceFromError, formatError } from '@/shared/lib/errors';
 import { useProjectStore } from '@/stores/project.store';
-import { useWorkspaceStore } from '@/stores/workspace.store';
 import { useCoreSchema } from '@/app/composables/use-core-schema';
 import { useJsonEditorViewModel } from '@/app/composables/json-editor/use-json-editor-view-model';
 import { JSON_DOCUMENT_DEFINITIONS } from '@/domain/json-editor/json-document-definitions';
-import type { JsonEditorPageId } from '@/shared/types';
+import type { JsonEditorHost, JsonEditorPageTarget } from '@/app/composables/json-editor/json-editor-context';
 import JsonDocumentList from './JsonDocumentList.vue';
 import JsonDocumentEditor from './JsonDocumentEditor.vue';
-const props = defineProps<{ sessionId: string; modRoot: string; page: JsonEditorPageId }>();
+const props = defineProps<{ target: JsonEditorPageTarget; host: JsonEditorHost }>();
 const project = useProjectStore();
-const workspace = useWorkspaceStore();
-const definition = JSON_DOCUMENT_DEFINITIONS[props.page];
+const definition = JSON_DOCUMENT_DEFINITIONS[props.target.page];
 void useCoreSchema().loadCoreFields();
 const {
   current,
@@ -92,12 +91,15 @@ const {
   create,
   remove,
 } = useJsonEditorViewModel(definition, {
-  modRoot: computed(() => props.modRoot),
-  sessionId: computed(() => props.sessionId),
-  manifest: computed(() => project.getManifest(props.modRoot) ?? null),
-  active: computed(
-    () => workspace.currentView === 'json-editor' && workspace.activeSessionId === props.sessionId && workspace.jsonPage === props.page,
-  ),
+  modRoot: computed(() => props.target.modRoot),
+  sessionId: computed(() => props.target.sessionId),
+  manifest: computed(() => project.getManifest(props.target.modRoot) ?? null),
+  entityLocation: props.host.entityLocation,
+  completeEntityLocation: props.host.completeEntityLocation,
+  active: computed(() => {
+    const current = props.host.pageTarget.value;
+    return current?.sessionId === props.target.sessionId && current.modRoot === props.target.modRoot && current.page === props.target.page;
+  }),
 });
 const fileErrorText = computed(() =>
   appendFileReferenceLocation(formatError(fileError.value), extractFileReferenceFromError(fileError.value)),

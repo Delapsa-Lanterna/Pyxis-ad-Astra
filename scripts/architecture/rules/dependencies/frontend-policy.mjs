@@ -16,6 +16,15 @@ export function frontendDependencyFailure(current, target, edge) {
       target.path === 'src/domain/project/load-diagnostics.ts')
   )
     return { message: 'workspace source transitions belong to the workspace action', expected: 'settings persistence dependencies' };
+  const jsonEditor =
+    /^src\/(?:app\/(?:components|composables)\/json-editor\/|domain\/json-editor\/|stores\/json-editor\.store\.ts$|orchestrators\/json-save\.orchestrator\.ts$|services\/json-(?:entity|file|resource|recovery)\.service\.ts$)/.test(
+      current.path,
+    );
+  if (
+    jsonEditor &&
+    (target.path === 'src/stores/workspace.store.ts' || (target.layer === 'orchestrators' && target.domain?.startsWith('workspace-')))
+  )
+    return { message: 'JSON editors consume explicit page targets and host actions', expected: 'JSON editor host contract' };
   const browser =
     current.path.includes('/mod-file-browser/') ||
     current.path === 'src/stores/mod-file-browser.store.ts' ||

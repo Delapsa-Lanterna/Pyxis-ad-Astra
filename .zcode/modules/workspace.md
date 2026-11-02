@@ -20,6 +20,7 @@
 - `src/app/composables/use-main-window-shortcuts.ts`：主窗口保存与工作区历史命令装配。
 - `src/app/composables/use-mod-navigation-panel.ts`：Mod 导航面板的宽窄布局、展开、焦点和监听释放。
 - `src/app/composables/use-workspace-file-history-view-model.ts`：工作区历史页的读取寿命、菜单、确认及用户动作。
+- `src/app/composables/use-workspace-json-editor-host.ts`：当前 JSON 页面目标、定位完成回执及已解析基础船体的导航交接。
 - `src/app/composables/use-workspace-mod-creation.ts`：总览创建目的地、对话框状态及创建结果的工作区接纳。
 - `src/app/composables/use-workspace-navigation-actions.ts`：导航输入提交、保存等待和存活草稿交接。
 - `src/app/composables/use-workspace-shell-actions.ts`：打开动作消费入口，处理 outcome 与失败反馈。
@@ -40,7 +41,7 @@
 
 - `src-tauri/src/app_data_dir.rs`：工作区快照持久化的工具私有目录解析。
 - `src-tauri/src/models/workspace_persistence.rs`：工作区持久化 wire 契约。
-- `src/app/components/json-editor/JsonEditorWorkspace.vue`：展示当前 JSON 页面并消费所属文档运行态。
+- `src/app/composables/json-editor/json-editor-context.ts`：JSON 页面所需的目标、定位输入及具体宿主动作契约。
 - `src/app/composables/use-window-shortcuts.ts`：窗口键盘监听、命中路由及关闭屏蔽。
 - `src/orchestrators/file-history-replay.orchestrator.ts`：明确目标的回放计划、复核及实际结果。
 - `src/orchestrators/mod-creation.orchestrator.ts`：最小 Mod 骨架的实际创建结果。
@@ -56,7 +57,7 @@
 ## 边界
 
 - JSON 会话与 CSV 提供未保存判定，导航及关闭消费所属输入和保存句柄。
-- JSON 文档运行态归所属模块，工作区持有当前 JSON 页面和每 Mod 导航记忆。
+- JSON 文档运行态归所属模块，工作区宿主持有当前页面目标的只读投影、定位完成及基础船体导航动作。
 - Mod 概览、文件历史和 JSON 编辑使用独立工作区视图，业务侧栏消费各自导航目标。
 - Mod 页面上下文、概览与打开失败状态归本次运行，列宽和目录进入恢复快照。
 - workspace store 拥有全局视图、Mod 页签、运行代次、页面上下文、概览、失败记录与列宽。
@@ -116,6 +117,7 @@
 
 ## 规范
 
+- JSON 宿主必须交付完整 session、Mod 根及页面目标；定位完成必须核对原请求对象，实际船体导航必须消费原皮肤范围及正式行键。
 - 文件回放必须列正式摘要的全部路径及准确数量；清空历史必须说明所属 Mod、目录及实际撤销和重做数量，磁盘内容必须保留。
 - 同路径 JSON 组合查询必须消费引用来源层交付的有序来源，原版必须始终可引用，当前 Mod 只允许接纳前序可引用 Mod 的已保存内容。
 - 工作区创建必须在提交时捕获工作区代次；实际创建结果必须独立交付，创建后的打开必须服从原工作区的接纳权。

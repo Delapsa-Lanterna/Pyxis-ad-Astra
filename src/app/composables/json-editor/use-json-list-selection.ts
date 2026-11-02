@@ -111,15 +111,15 @@ export function useJsonListSelection(options: {
     }
   }
 
-  async function select(id: string | null) {
+  async function select(id: string | null, accepts: () => boolean = () => true) {
     if (id === selectedId.value && !deletedTarget.value) return;
     const captured = key.value;
     try {
-      if (!(await prepare())) return;
+      if (!(await prepare()) || !accepts()) return;
       selectedId.value = id;
       deletedTarget.value = false;
     } catch (error) {
-      if (!disposed && captured === key.value) feedback.error(error, `切换${options.label}失败`);
+      if (!disposed && captured === key.value && accepts()) feedback.error(error, `切换${options.label}失败`);
     }
   }
 

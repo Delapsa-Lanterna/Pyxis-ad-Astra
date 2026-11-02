@@ -4,8 +4,9 @@ import { dispatchProjectChangeFixture, committedChangeFixture } from '@/test/uni
 import { projectChangeFixture } from '@/test/unit/project-changes';
 import { mount, flushPromises, type VueWrapper } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
-import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
-import JsonEditorWorkspace from './JsonEditorWorkspace.vue';
+import { beforeEach, afterEach, describe, expect, it, onTestFinished, vi } from 'vitest';
+import JsonEditorPage from './JsonEditorPage.vue';
+import { useWorkspaceJsonEditorHost } from '@/app/composables/use-workspace-json-editor-host';
 import JsonDocumentEditor from './JsonDocumentEditor.vue';
 import JsonDocumentList from './JsonDocumentList.vue';
 import { NInput } from 'naive-ui/es/input';
@@ -31,6 +32,7 @@ import type { AppFeedback, EntityData, JsonEditorPageId, RowData, JsonRecoveryRe
 import type * as EntityQueryServiceModule from '@/services/entity-query.service';
 import type * as ProjectSyncOrchestratorModule from '@/orchestrators/project-sync.orchestrator';
 import type * as MiscConfigServiceModule from '@/services/misc-config.service';
+import { h } from 'vue';
 import type { Component, VNode } from 'vue';
 
 vi.mock('@/services/window.service', () => ({ releaseNativeWindowTargets: vi.fn(async () => {}) }));
@@ -184,10 +186,21 @@ function register() {
 }
 async function mountPage(page: JsonEditorPageId, root = 'M:/one', input: Component = nInput) {
   useWorkspaceStore().activateModJson(root, page);
-  wrapper = mount(JsonEditorWorkspace, {
-    attachTo: document.body,
-    global: { stubs: { ...editorUiStubs, 'n-input': input, 'n-modal': true } },
-  });
+  wrapper = mount(
+    {
+      setup() {
+        const host = useWorkspaceJsonEditorHost();
+        return () => {
+          const target = host.pageTarget.value;
+          return target ? h(JsonEditorPage, { key: JSON.stringify(target), target, host }) : null;
+        };
+      },
+    },
+    {
+      attachTo: document.body,
+      global: { stubs: { ...editorUiStubs, 'n-input': input, 'n-modal': true } },
+    },
+  );
   useSaveCommandStore().registerActiveSaveHandler(async () => {
     try {
       await useJsonEditorStore().active!.save();
@@ -1208,5 +1221,97 @@ describe('composed JSON detail adoption', () => {
     expect(wrapper!.get('.editor-fields > .ui-text-muted').text()).toBe('自持文件');
     await doc.undo();
     expect(wrapper!.get('.editor-fields > .ui-text-muted').text()).toBe('待组合文件');
+  });
+});
+
+describe('JSON navigation ownership and lifetime', () => {
+  function hullTarget() {
+    const target = jsonEntityFixture('skin').target;
+    return {
+      target: {
+        ...target,
+        kind: 'ship' as const,
+        id: 'hull',
+        linkedRecord: { kind: 'csv' as const, table: 'ships' as const, rowKey: 'ship-row' },
+      },
+      baseVersions: [],
+    };
+  }
+  it.each(['save', 'input', 'query'] as const)('ends a %s wait when its original view leaves or is replaced', async (stage) => {
+    await mountPage('skins');
+    const document = wrapper!.getComponent(JsonDocumentEditor).props('document');
+    let finish!: () => void;
+    const pending = new Promise<boolean>((resolve) => {
+      finish = () => resolve(true);
+    });
+    onTestFinished(() => finish());
+    if (stage === 'save') vi.spyOn(useSaveCommandStore(), 'waitForSaves').mockReturnValueOnce(pending);
+    else if (stage === 'input') vi.spyOn(document.inputs, 'commit').mockReturnValueOnce(pending);
+    else
+      mocks.hullTarget.mockImplementationOnce(async () => {
+        await pending;
+        return hullTarget();
+      });
+    const button = wrapper!.findAll('.editor-actions button').find((button) => button.text() === '跳转到船体')!;
+    await button.trigger('click');
+    useWorkspaceStore().showAbout();
+    await flushPromises();
+    finish();
+    await flushPromises();
+    expect(useWorkspaceStore().currentView).toBe('about');
+    expect(useWorkspaceStore().entityLocation).toBeNull();
+    expect(mocks.hullTarget).toHaveBeenCalledTimes(stage === 'query' ? 1 : 0);
+    expect(document.active.value).toBe(false);
+    expect(mocks.feedback.error).not.toHaveBeenCalled();
+  });
+  it.each(['return', 'intent', 'document', 'failure'] as const)('rejects an earlier hull query after %s', async (boundary) => {
+    await mountPage('skins');
+    const own = wrapper!.getComponent(JsonDocumentEditor).props('document');
+    let finish!: () => void;
+    const pending = new Promise<void>((resolve) => {
+      finish = resolve;
+    });
+    onTestFinished(() => finish());
+    mocks.hullTarget.mockImplementationOnce(async () => {
+      await pending;
+      if (boundary === 'failure') throw new Error('fixture late hull');
+      return hullTarget();
+    });
+    await wrapper!
+      .findAll('.editor-actions button')
+      .find((button) => button.text() === '跳转到船体')!
+      .trigger('click');
+    if (boundary === 'intent') useSaveCommandStore().beginTransition();
+    else if (boundary === 'document') wrapper!.getComponent(JsonDocumentList).vm.$emit('select', 'b');
+    else {
+      useWorkspaceStore().showAbout();
+      await flushPromises();
+      if (boundary === 'return') useWorkspaceStore().activateModJson('M:/one', 'skins');
+    }
+    await flushPromises();
+    finish();
+    await flushPromises();
+    expect(useWorkspaceStore().currentView).toBe(boundary === 'failure' ? 'about' : 'json-editor');
+    expect(useWorkspaceStore().entityLocation).toBeNull();
+    expect(mocks.feedback.error).not.toHaveBeenCalled();
+    if (boundary === 'return') expect(useJsonEditorStore().active!.target.value?.id).toBe(own.target.value?.id);
+  });
+  it('acknowledges only the latest location request after a selection wait', async () => {
+    await mountPage('variants');
+    let finish!: (value: boolean) => void;
+    vi.spyOn(useSaveCommandStore(), 'waitForSaves').mockReturnValueOnce(
+      new Promise<boolean>((resolve) => {
+        finish = resolve;
+      }),
+    );
+    const workspace = useWorkspaceStore();
+    workspace.entityLocation = { sessionId: 's1', modRoot: 'M:/one', kind: 'variant', id: 'b' };
+    await flushPromises();
+    workspace.entityLocation = { sessionId: 's1', modRoot: 'M:/one', kind: 'variant', id: 'a' };
+    await flushPromises();
+    finish(true);
+    await flushPromises();
+    expect(useJsonEditorStore().active!.target.value?.id).toBe('a');
+    expect(workspace.entityLocation).toBeNull();
   });
 });
