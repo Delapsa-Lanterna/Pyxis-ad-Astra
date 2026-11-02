@@ -46,7 +46,7 @@ pub(in crate::services::project) fn load_faction_files_from(
     let table = sources.csv(&sources.path("data/world/factions/factions.csv")?)?;
     let mut defs = documents::load_spec_records_from(
         sources,
-        "data/world/factions",
+        &["data/world/factions"],
         "faction",
         "id",
         ResourceSource::Mod,

@@ -84,11 +84,22 @@ describe('useWindowShortcuts plain keys', () => {
 });
 
 describe('useWindowShortcuts commands', () => {
+  it('dispatches Mod save separately and ignores held-key repeats', () => {
+    const save = vi.fn(),
+      saveMod = vi.fn();
+    mountDispatch({ commands: { save, saveMod } });
+    press('s', { ctrlKey: true, shiftKey: true });
+    press('s', { ctrlKey: true, shiftKey: true, repeat: true });
+    press('s', { ctrlKey: true });
+    expect(saveMod).toHaveBeenCalledOnce();
+    expect(save).toHaveBeenCalledOnce();
+  });
   it('pauses business shortcuts during a window close and restores them afterwards', () => {
-    const save = vi.fn();
+    const save = vi.fn(),
+      saveMod = vi.fn();
     const Child = {
       setup() {
-        useWindowShortcuts({ commands: { save } });
+        useWindowShortcuts({ commands: { save, saveMod } });
         return () => null;
       },
     };
@@ -105,6 +116,8 @@ describe('useWindowShortcuts commands', () => {
     expect(save).toHaveBeenCalledOnce();
     closeState.value = true;
     press('s', { ctrlKey: true });
+    press('s', { ctrlKey: true, shiftKey: true });
+    expect(saveMod).not.toHaveBeenCalled();
     expect(save).toHaveBeenCalledOnce();
     closeState.value = false;
     press('s', { ctrlKey: true });

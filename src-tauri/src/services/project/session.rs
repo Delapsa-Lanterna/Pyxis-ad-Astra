@@ -6,6 +6,7 @@ use super::model::{
 use super::performance::PerformanceTrace;
 #[cfg(test)]
 use super::test_support::project_workspace;
+use crate::domain::entity_definitions::WEAPON_SPEC_DEFINITION;
 use crate::errors::{AppError, AppResult};
 use crate::io::FsRootBoundary;
 use crate::models::{
@@ -448,7 +449,7 @@ pub(super) fn load_spec_bundle(
     let timer = trace.timer();
     let ship_files = documents::load_spec_records_from(
         sources,
-        "data/hulls",
+        &["data/hulls"],
         "ship",
         "hullId",
         ResourceSource::Mod,
@@ -459,7 +460,7 @@ pub(super) fn load_spec_bundle(
     let timer = trace.timer();
     let weapon_specs = documents::load_spec_records_from(
         sources,
-        "data/weapons",
+        WEAPON_SPEC_DEFINITION.source_dirs(),
         "wpn",
         "id",
         ResourceSource::Mod,
@@ -495,7 +496,7 @@ pub(super) fn load_spec_bundle(
     let timer = trace.timer();
     let system_files = documents::load_spec_records_from(
         sources,
-        "data/shipsystems",
+        &["data/shipsystems"],
         "system",
         "id",
         ResourceSource::Mod,
@@ -506,7 +507,7 @@ pub(super) fn load_spec_bundle(
     let timer = trace.timer();
     let skill_files = documents::load_spec_records_from(
         sources,
-        "data/characters/skills",
+        &["data/characters/skills"],
         "skill",
         "id",
         ResourceSource::Mod,

@@ -9,8 +9,21 @@ export const windowsCapabilities = [
     },
     {
       capability: 'edit-target-coordination',
-      names: ['queryEditTargetOwners', 'reserveEditTargets', 'focusEditTargetOwner'],
+      names: ['reserveEditTargets', 'focusEditTargetOwner'],
       owners: [{ layer: 'orchestrators', domain: 'edit-target-handoff' }],
+    },
+    {
+      capability: 'edit-target-owners',
+      names: ['queryEditTargetOwners'],
+      owners: [
+        { layer: 'orchestrators', domain: 'edit-target-handoff' },
+        { layer: 'orchestrators', domain: 'mod-save' },
+      ],
+    },
+    {
+      capability: 'window-mod-save',
+      names: ['registerWindowSaveReceiver', 'unregisterWindowSaveReceiver', 'requestWindowSave', 'replyWindowSave'],
+      owners: [{ layer: 'orchestrators', domain: 'mod-save' }],
     },
     {
       capability: 'window-target-focus',

@@ -1,6 +1,10 @@
 import { testCapabilities } from '../../../testing/capabilities.mjs';
 /** @type {Parameters<typeof testCapabilities>[0]} */
 const cases = [
+  ['mod-save-register', 'src/orchestrators/mod-save.orchestrator.ts', 'src/services/window.service.ts', 'registerWindowSaveReceiver'],
+  ['mod-save-release', 'src/orchestrators/mod-save.orchestrator.ts', 'src/services/window.service.ts', 'unregisterWindowSaveReceiver'],
+  ['mod-save-request', 'src/orchestrators/mod-save.orchestrator.ts', 'src/services/window.service.ts', 'requestWindowSave'],
+  ['mod-save-reply', 'src/orchestrators/mod-save.orchestrator.ts', 'src/services/window.service.ts', 'replyWindowSave'],
   [
     'app-close-assembly',
     'src/app/composables/use-app-lifecycle-assembly.ts',

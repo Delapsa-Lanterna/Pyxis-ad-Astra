@@ -71,6 +71,33 @@ export interface ManagedWindowStatus {
   dirty: boolean;
   saving: boolean;
 }
+export interface ModSaveTarget {
+  sessionId: string;
+  modRoot: string;
+}
+export interface WindowSaveParticipant {
+  id: number;
+  targetKey: string | null;
+  label: string;
+  paths: string[];
+}
+export interface WindowSaveItem {
+  label: string;
+  paths: string[];
+  status: 'saved' | 'noop' | 'cancelled' | 'failed';
+  diagnostic: ErrorDiagnostic | null;
+}
+export interface WindowSaveRequest {
+  target: ModSaveTarget;
+  action: { kind: 'batch' | 'list' } | { kind: 'save'; participant: WindowSaveParticipant };
+}
+export interface WindowSaveMessage {
+  requestId: number;
+  receiverGeneration: number;
+  request: WindowSaveRequest;
+}
+export type WindowSaveReply =
+  { kind: 'participants'; participants: WindowSaveParticipant[] } | { kind: 'results'; items: WindowSaveItem[] };
 export type CloseScope = { kind: 'window' } | { kind: 'sessions'; sessionIds: string[] } | { kind: 'application' };
 export type ClosePhase = 'hold' | 'settle' | 'prepare' | 'confirm' | 'flush' | 'resume';
 export interface WindowCloseIntent {

@@ -25,6 +25,7 @@ export interface ChoiceOption {
 
 export interface ChooseOptions {
   title: string;
+  type?: 'info' | 'warning';
   content?: string | (() => VNodeChild);
   choices: ChoiceOption[];
 }

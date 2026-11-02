@@ -83,6 +83,12 @@ export async function dispatch(command: string, args: Record<string, unknown>, m
   const value = modelQueries.get(model)?.(command, (args.payload ?? {}) as Record<string, unknown>);
   if (value !== undefined) return value;
   switch (command) {
+    case 'register_window_save_receiver':
+      return 1;
+    case 'unregister_window_save_receiver':
+      return;
+    case 'request_window_save':
+      throw Error('请在完整工作区中保存 Mod');
     case 'register_save_window':
       saveChannel = args.channel as typeof saveChannel;
       saveChannel!.onmessage({ kind: 'references', snapshot: { revision: 0, sources: [] }, event: null });

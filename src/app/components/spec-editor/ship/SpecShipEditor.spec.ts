@@ -108,14 +108,14 @@ describe('ship pointer and inspector actions', () => {
     await flushPromises();
     expect(editor.emitted('draft-changed')!.at(-1)![0]).toHaveProperty('bounds', expected);
   });
-  it('derives fixed weapon inputs from built-in slots and preserves unrelated records', async () => {
+  it.each(['BUILT_IN', 'DECORATIVE'])('derives fixed weapon inputs from %s slots and preserves unrelated records', async (type) => {
     const editor = openShip({
       ship: {
         hullId: 'fixture',
         weaponSlots: [
           { id: 'last', type: 'BUILT_IN' },
           { id: 'ordinary', type: 'BALLISTIC' },
-          { id: 'first.with.dot', type: 'BUILT_IN' },
+          { id: 'first.with.dot', type },
           { id: 'bay', type: 'LAUNCH_BAY' },
         ],
         builtInWeapons: { last: 'weapon', ordinary: 'kept', orphan: 'retained' },
@@ -157,7 +157,7 @@ describe('ship pointer and inspector actions', () => {
     expect(group.findAllComponents(nSelect)).toHaveLength(2);
   });
 
-  it('follows slot type changes, slot deletion and external acceptance', async () => {
+  it.each(['BUILT_IN', 'DECORATIVE'])('follows %s slot type changes, deletion and external acceptance', async (type) => {
     const editor = openShip({
       ship: {
         hullId: 'fixture',
@@ -175,7 +175,7 @@ describe('ship pointer and inspector actions', () => {
     const typeOptions = editor.get('[data-field-path="weaponSlots[0].type"]').getComponent(nSelect).props('options');
     expect(typeOptions).toHaveLength(11);
     expect(typeOptions.map((option: { value: string }) => option.value)).not.toContain('LAUNCH_BAY');
-    await editor.get('[data-field-path="weaponSlots[0].type"] select').setValue(JSON.stringify('BUILT_IN'));
+    await editor.get('[data-field-path="weaponSlots[0].type"] select').setValue(JSON.stringify(type));
     expect(labels().filter((label) => label === 'A' || label === 'B')).toEqual(['A', 'B']);
     await editor.get('[data-field-path="weaponSlots[0].type"] select').setValue(JSON.stringify('ENERGY'));
     expect(labels()).not.toContain('A');
@@ -189,16 +189,16 @@ describe('ship pointer and inspector actions', () => {
     expect(labels()).not.toContain('B');
     expect(editor.emitted('draft-changed')!.at(-1)![0]).toHaveProperty('builtInWeapons.B', 'retained');
     await editor.setProps({
-      ship: { hullId: 'fixture', weaponSlots: [{ id: 'external', type: 'BUILT_IN' }], builtInWeapons: { external: 'loaded' } },
+      ship: { hullId: 'fixture', weaponSlots: [{ id: 'external', type }], builtInWeapons: { external: 'loaded' } },
       editContext: { targetKey: 'ship', baselineGeneration: 2, handoff: 'external' },
     });
     expect(labels()).toContain('external');
     expect(editor.get('[data-name="builtins"] [data-field-path="builtInWeapons"]').getComponent(nSelect).props('value')).toBe('loaded');
   });
 
-  it('commits pending weapon input and atomically undoes and redoes a slot rename', async () => {
+  it.each(['BUILT_IN', 'DECORATIVE'])('commits pending weapon input and replays a %s slot rename', async (type) => {
     const inputs = createFieldInputs();
-    const editor = openShip({ ship: { hullId: 'fixture', weaponSlots: [{ id: 'A', type: 'BUILT_IN' }], builtInWeapons: {} } }, inputs);
+    const editor = openShip({ ship: { hullId: 'fixture', weaponSlots: [{ id: 'A', type }], builtInWeapons: {} } }, inputs);
     const weapon = editor.get('[data-name="builtins"] [data-field-path="builtInWeapons"]').getComponent(nSelect);
     weapon.vm.$emit('search', 'laser');
     expect(inputs.dirty.value).toBe(true);

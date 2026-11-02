@@ -11,6 +11,66 @@ pub struct EditWriteTarget {
     pub mod_root: String,
     pub path: String,
 }
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ModSaveTarget {
+    pub session_id: String,
+    pub mod_root: String,
+}
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WindowSaveParticipant {
+    pub id: u64,
+    pub target_key: Option<String>,
+    pub label: String,
+    pub paths: Vec<String>,
+}
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WindowSaveItem {
+    pub label: String,
+    pub paths: Vec<String>,
+    pub status: WindowSaveStatus,
+    pub diagnostic: Option<ErrorDiagnostic>,
+}
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum WindowSaveStatus {
+    Saved,
+    Noop,
+    Cancelled,
+    Failed,
+}
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "camelCase")]
+pub enum WindowSaveAction {
+    Batch,
+    List,
+    Save { participant: WindowSaveParticipant },
+}
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WindowSaveRequest {
+    pub target: ModSaveTarget,
+    pub action: WindowSaveAction,
+}
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WindowSaveMessage {
+    pub request_id: u64,
+    pub receiver_generation: u64,
+    pub request: WindowSaveRequest,
+}
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "camelCase")]
+pub enum WindowSaveReply {
+    Participants {
+        participants: Vec<WindowSaveParticipant>,
+    },
+    Results {
+        items: Vec<WindowSaveItem>,
+    },
+}
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 #[serde(
     tag = "type",

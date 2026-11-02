@@ -29,6 +29,14 @@ function harness(actions: FeedbackFileActions = () => [], durations = createSett
   };
 }
 describe('window feedback presentation', () => {
+  it.each([undefined, 'warning'] as const)('applies the requested choice dialog theme %s', (type) => {
+    const { feedback, dialogs } = harness();
+    void feedback.choose({ title: '保存', type, choices: [] });
+    const options = dialogs.create.mock.lastCall![0];
+    expect(options.type).toBe(type ?? 'info');
+    expect(options.showIcon).toBe(type === 'warning');
+    options.onClose();
+  });
   it.each(['success', 'info', 'warning', 'error'] as const)('captures %s duration and expires the corresponding message', async (level) => {
     const durations = createSettingsFixture().toastDurations,
       { feedback, messages } = harness(() => [], durations);

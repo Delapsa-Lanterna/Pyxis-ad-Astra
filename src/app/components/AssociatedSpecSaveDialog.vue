@@ -7,9 +7,13 @@
           {{ candidate.label }}
         </n-checkbox>
         <template v-if="candidate.preparation && candidate.change.action !== 'delete'">
-          <div class="ui-text-small ui-text-wrap">目标文件：{{ candidate.preparation.destination.location.path }}</div>
           <div v-if="candidate.preparation.original" class="ui-text-small ui-text-wrap">
-            原文件：{{ candidate.preparation.original.location.path }}
+            原文件：
+            <div class="page-path ui-text-muted">{{ candidate.preparation.original.location.path }}</div>
+          </div>
+          <div class="ui-text-small ui-text-wrap">
+            目标文件：
+            <div class="page-path ui-text-muted">{{ candidate.preparation.destination.location.path }}</div>
           </div>
           <div v-if="candidate.preparation.original?.problem" class="ui-text-small ui-text-wrap">
             原文件：{{ candidate.preparation.original.problem }}
@@ -21,6 +25,7 @@
             目标文件：{{ candidate.preparation.destination.problem }}
           </div>
           <n-select
+            v-if="resolutionOptions(candidate).length > 1"
             :value="candidate.mode"
             :disabled="!selectedKeys.has(candidate.key)"
             :options="resolutionOptions(candidate)"

@@ -4,7 +4,7 @@ use crate::models;
 use crate::models::{
     CloseScope, EditWriteTarget, ManagedWindowContext, ManagedWindowInput, ManagedWindowRequest,
     ManagedWindowStatus, WindowBootstrap, WindowIdentity, WindowRequestReceipt,
-    WindowRequestStatus,
+    WindowRequestStatus, WindowSaveAction, WindowSaveMessage, WindowSaveReply, WindowSaveRequest,
 };
 use crate::services::project;
 use serde_json::Value;
@@ -12,6 +12,7 @@ use std::collections::BTreeMap;
 use std::path::Path;
 use std::slice;
 use std::sync::{Condvar, LazyLock, Mutex, MutexGuard};
+use tauri::ipc::Channel;
 use tauri::{AppHandle, Emitter, Manager, Theme, WebviewUrl, WebviewWindowBuilder};
 
 #[cfg(windows)]
@@ -158,6 +159,8 @@ pub mod auxiliary {
 
 #[derive(Default)]
 struct WindowRegistry {
+    save_receivers: BTreeMap<String, (u64, Channel<WindowSaveMessage>)>,
+    save_requests: BTreeMap<u64, PendingSaveRequest>,
     request_sequence: u64,
     requests: BTreeMap<u64, PendingWindowRequest>,
     edit_targets: BTreeMap<String, Vec<EditWriteTarget>>,
@@ -166,6 +169,12 @@ struct WindowRegistry {
     instances: BTreeMap<String, WindowInstance>,
     reservations: BTreeMap<WindowIdentity, String>,
     closing: BTreeMap<u64, (String, CloseScope, Vec<String>)>,
+}
+struct PendingSaveRequest {
+    owner: String,
+    receiver: String,
+    message: WindowSaveMessage,
+    result: Option<Result<WindowSaveReply, ErrorDiagnostic>>,
 }
 
 struct PendingWindowRequest {
@@ -240,6 +249,7 @@ impl WindowRegistry {
         label
     }
     fn release(&mut self, label: &str) {
+        self.release_save_receiver(label);
         let ended = self
             .requests
             .iter()
@@ -261,6 +271,99 @@ impl WindowRegistry {
             self.identities.remove(&instance.identity.comparison_key());
         }
         self.reservations.retain(|_, owner| owner != label);
+    }
+
+    fn release_save_receiver(&mut self, label: &str) {
+        self.save_receivers.remove(label);
+        for pending in self
+            .save_requests
+            .values_mut()
+            .filter(|pending| pending.owner == label || pending.receiver == label)
+        {
+            pending.result.get_or_insert_with(|| {
+                Err(AppError::message("window.released", "保存窗口已释放").diagnostic())
+            });
+        }
+    }
+
+    fn register_save_receiver(&mut self, label: &str, channel: Channel<WindowSaveMessage>) -> u64 {
+        self.release_save_receiver(label);
+        self.request_sequence += 1;
+        self.save_receivers
+            .insert(label.into(), (self.request_sequence, channel));
+        self.request_sequence
+    }
+
+    fn receive_save(
+        &mut self,
+        owner: &str,
+        receiver: &str,
+        request: WindowSaveRequest,
+    ) -> AppResult<WindowSaveMessage> {
+        if (matches!(request.action, WindowSaveAction::Batch) && receiver != "main")
+            || (!matches!(request.action, WindowSaveAction::Batch) && owner != "main")
+        {
+            return Err(AppError::message(
+                "window.save_owner",
+                "保存请求不属于主窗口",
+            ));
+        }
+        for label in [owner, receiver]
+            .into_iter()
+            .filter(|label| *label != "main")
+        {
+            if self.instances.get(label).is_none_or(|instance| {
+                instance.identity.session_id() != Some(request.target.session_id.as_str())
+                    || instance.identity.mod_root().map(models::windows_path_key)
+                        != Some(models::windows_path_key(&request.target.mod_root))
+            }) {
+                return Err(AppError::message(
+                    "window.save_target",
+                    "保存窗口的项目已变化",
+                ));
+            }
+        }
+        let generation = self
+            .save_receivers
+            .get(receiver)
+            .ok_or_else(|| AppError::message("window.released", "保存窗口尚未就绪"))?
+            .0;
+        self.request_sequence += 1;
+        let message = WindowSaveMessage {
+            request_id: self.request_sequence,
+            receiver_generation: generation,
+            request,
+        };
+        self.save_requests.insert(
+            message.request_id,
+            PendingSaveRequest {
+                owner: owner.into(),
+                receiver: receiver.into(),
+                message: message.clone(),
+                result: None,
+            },
+        );
+        Ok(message)
+    }
+
+    fn finish_save(
+        &mut self,
+        receiver: &str,
+        id: u64,
+        generation: u64,
+        result: Result<WindowSaveReply, ErrorDiagnostic>,
+    ) {
+        if let Some(pending) = self.save_requests.get_mut(&id)
+            && pending.receiver == receiver
+            && pending.message.receiver_generation == generation
+            && self
+                .save_receivers
+                .get(receiver)
+                .is_some_and(|(current, _)| *current == generation)
+            && pending.result.is_none()
+        {
+            pending.result = Some(result);
+        }
     }
 
     fn receive(&mut self, label: &str, owner: &str, input: ManagedWindowInput) -> u64 {
@@ -764,6 +867,93 @@ pub fn release_window(label: &str) -> AppResult<()> {
     Ok(())
 }
 
+pub fn register_save_receiver(label: &str, channel: Channel<WindowSaveMessage>) -> AppResult<u64> {
+    let generation = registry()?.register_save_receiver(label, channel);
+    REGISTRY.1.notify_all();
+    Ok(generation)
+}
+pub fn unregister_save_receiver(label: &str, generation: u64) -> AppResult<()> {
+    let mut state = registry()?;
+    if state
+        .save_receivers
+        .get(label)
+        .is_some_and(|(current, _)| *current == generation)
+    {
+        state.release_save_receiver(label);
+    }
+    REGISTRY.1.notify_all();
+    Ok(())
+}
+pub fn request_window_save(
+    app: &AppHandle,
+    owner: &str,
+    receiver: &str,
+    request: WindowSaveRequest,
+) -> AppResult<u64> {
+    project::ensure_project_session_mod_root(&request.target.session_id, &request.target.mod_root)?;
+    let focus = matches!(request.action, WindowSaveAction::Save { .. });
+    let (message, channel) = {
+        let mut state = registry()?;
+        let message = state.receive_save(owner, receiver, request)?;
+        (message, state.save_receivers[receiver].1.clone())
+    };
+    if focus && let Err(error) = focus_window(app, receiver) {
+        registry()?.save_requests.remove(&message.request_id);
+        return Err(error);
+    }
+    let id = message.request_id;
+    if let Err(error) = channel.send(message.clone()) {
+        reply_window_save(
+            receiver,
+            id,
+            message.receiver_generation,
+            None,
+            Some(AppError::message("window.save_delivery", error.to_string()).diagnostic()),
+        )?;
+    }
+    Ok(id)
+}
+pub fn await_window_save(owner: &str, id: u64) -> Result<WindowSaveReply, ErrorDiagnostic> {
+    let mut state = registry().map_err(|error| error.diagnostic())?;
+    loop {
+        let pending = state
+            .save_requests
+            .get_mut(&id)
+            .expect("save request is registered until its owner receives the result");
+        if pending.owner != owner {
+            return Err(
+                AppError::message("window.save_owner", "保存请求不属于当前窗口").diagnostic(),
+            );
+        }
+        if let Some(result) = pending.result.take() {
+            state.save_requests.remove(&id);
+            return result;
+        }
+        state = REGISTRY.1.wait(state).map_err(|_| {
+            AppError::message("window.registry_poisoned", "窗口登记状态不可用").diagnostic()
+        })?;
+    }
+}
+pub fn reply_window_save(
+    receiver: &str,
+    id: u64,
+    generation: u64,
+    result: Option<WindowSaveReply>,
+    diagnostic: Option<ErrorDiagnostic>,
+) -> AppResult<()> {
+    registry()?.finish_save(
+        receiver,
+        id,
+        generation,
+        diagnostic.map_or_else(
+            || Ok(result.expect("successful save reply contains its result")),
+            Err,
+        ),
+    );
+    REGISTRY.1.notify_all();
+    Ok(())
+}
+
 pub fn update_status(label: &str, status: ManagedWindowStatus) -> AppResult<()> {
     if let Some(instance) = registry()?.instances.get_mut(label) {
         instance.status = status;
@@ -926,6 +1116,16 @@ pub(crate) fn wait_ready(label: &str) -> AppResult<bool> {
 }
 pub fn release_session(session_id: &str) -> AppResult<()> {
     let mut state = registry()?;
+    for pending in state
+        .save_requests
+        .values_mut()
+        .filter(|pending| pending.message.request.target.session_id == session_id)
+    {
+        pending.result.get_or_insert_with(|| {
+            Err(AppError::message("session.closed", "保存项目已关闭").diagnostic())
+        });
+    }
+    REGISTRY.1.notify_all();
     state
         .edit_targets
         .values_mut()
@@ -1031,7 +1231,7 @@ mod tests {
     #[cfg(test)]
     use crate::io::FsRootBoundary;
     #[cfg(test)]
-    use crate::models::{EditWriteTarget, FileWindowLocation, JointEditKind};
+    use crate::models::{EditWriteTarget, FileWindowLocation, JointEditKind, ModSaveTarget};
     use crate::models::{SpecEditorKind, WeaponFirePreviewSource};
     #[cfg(test)]
     use crate::services::project;
@@ -1211,6 +1411,59 @@ mod tests {
             kind: SpecEditorKind::Weapon,
             mod_root: root.into(),
             id: id.into(),
+        }
+    }
+    #[test]
+    fn save_delivery_binds_owner_generation_and_release() {
+        for released in ["main", "child"] {
+            let mut state = WindowRegistry::default();
+            let child = register(&mut state, identity("weapon", "M:/mod", "session"));
+            let generation = state.register_save_receiver("main", Channel::new(|_| Ok(())));
+            let request = WindowSaveRequest {
+                target: ModSaveTarget {
+                    session_id: "session".into(),
+                    mod_root: "M:/mod".into(),
+                },
+                action: WindowSaveAction::Batch,
+            };
+            let mut invalid = request.clone();
+            invalid.target.session_id = "other".into();
+            assert!(state.receive_save(&child, "main", invalid).is_err());
+            invalid = request.clone();
+            invalid.action = WindowSaveAction::List;
+            assert!(state.receive_save(&child, "main", invalid).is_err());
+            let message = state.receive_save(&child, "main", request.clone()).unwrap();
+            state.finish_save(
+                &child,
+                message.request_id,
+                generation,
+                Ok(WindowSaveReply::Results { items: vec![] }),
+            );
+            assert!(state.save_requests[&message.request_id].result.is_none());
+            state.register_save_receiver("main", Channel::new(|_| Ok(())));
+            assert!(
+                state.save_requests[&message.request_id]
+                    .result
+                    .as_ref()
+                    .unwrap()
+                    .is_err()
+            );
+            let next = state.receive_save(&child, "main", request.clone()).unwrap();
+            state.finish_save(
+                "main",
+                next.request_id,
+                generation,
+                Ok(WindowSaveReply::Results { items: vec![] }),
+            );
+            assert!(state.save_requests[&next.request_id].result.is_none());
+            state.release(if released == "main" { "main" } else { &child });
+            assert!(
+                state.save_requests[&next.request_id]
+                    .result
+                    .as_ref()
+                    .unwrap()
+                    .is_err()
+            );
         }
     }
     #[test]

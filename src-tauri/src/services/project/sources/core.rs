@@ -19,6 +19,8 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Condvar, LazyLock, Mutex, MutexGuard};
 use walkdir::WalkDir;
 
+const WEAPON_SOURCE_DIRS: &[&str] = &["data/weapons", "data/shipsystems/wpn"];
+
 #[derive(Clone, Copy)]
 pub(in crate::services::project) struct CoreSourceRequirements {
     pub ships: bool,
@@ -371,13 +373,17 @@ fn load_core_fields_from(
     sources: &mut SourceReader,
 ) -> AppResult<BTreeMap<String, Vec<DiscoveredField>>> {
     let mut result = BTreeMap::new();
-    for (key, directory, extension) in [
-        ("faction", "data/world/factions", "faction"),
-        ("ship", "data/hulls", "ship"),
-        ("weapon", "data/weapons", "wpn"),
+    for (key, directories, extension) in [
+        ("faction", &["data/world/factions"][..], "faction"),
+        ("ship", &["data/hulls"][..], "ship"),
+        ("weapon", WEAPON_SOURCE_DIRS, "wpn"),
     ] {
         let mut fields = BTreeMap::<String, DiscoveredFieldType>::new();
-        for (path, value) in sources.walk(directory, extension)? {
+        let mut files = Vec::new();
+        for directory in directories {
+            files.extend(sources.walk(directory, extension)?);
+        }
+        for (path, value) in files {
             let Value::Object(object) = value else {
                 return Err(AppError::message(
                     "schema.field_source_not_object",
@@ -534,7 +540,7 @@ pub(crate) fn load_core_ship_files(
         |sources| {
             load_spec_records_from(
                 sources,
-                "data/hulls",
+                &["data/hulls"],
                 "ship",
                 "hullId",
                 ResourceSource::Core,
@@ -552,7 +558,13 @@ pub(crate) fn load_core_weapon_specs(
         |cache| cache.weapon_specs.as_ref(),
         |cache, specs| cache.weapon_specs = Some(specs),
         |sources| {
-            load_spec_records_from(sources, "data/weapons", "wpn", "id", ResourceSource::Core)
+            load_spec_records_from(
+                sources,
+                WEAPON_SOURCE_DIRS,
+                "wpn",
+                "id",
+                ResourceSource::Core,
+            )
         },
     )
 }
@@ -568,7 +580,7 @@ pub(crate) fn load_core_projectile_specs(
         |sources| {
             load_spec_records_from(
                 sources,
-                "data/weapons/proj",
+                &["data/weapons/proj"],
                 "proj",
                 "id",
                 ResourceSource::Core,
@@ -639,7 +651,12 @@ pub(in crate::services::project) fn invalidate_core_sources(
         };
         data.csv_tables
             .retain(|relative_path, _| !matches(relative_path));
-        if matches("data/world/factions") || matches("data/hulls") || matches("data/weapons") {
+        if matches("data/world/factions")
+            || matches("data/hulls")
+            || WEAPON_SOURCE_DIRS
+                .iter()
+                .any(|directory| matches(directory))
+        {
             data.fields = None;
         }
         if matches("graphics") {
@@ -654,7 +671,10 @@ pub(in crate::services::project) fn invalidate_core_sources(
         if matches("data/hulls/skins") {
             data.skin_files = None;
         }
-        if matches("data/weapons") {
+        if WEAPON_SOURCE_DIRS
+            .iter()
+            .any(|directory| matches(directory))
+        {
             data.weapon_specs = None;
         }
         if matches("data/weapons/proj") {
@@ -703,6 +723,53 @@ mod tests {
             "csv" => load_core_csv_table(root, "data/hulls/ship_data.csv").map(|_| ()),
             _ => unreachable!(),
         }
+    }
+
+    #[test]
+    fn weapon_source_directory_shares_reads_and_refreshes_both_products() {
+        let root = project_workspace("core_weapon_source");
+        let relative = "data/shipsystems/wpn/source.wpn";
+        let path = root.join("starsector-core").join(relative);
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        fs::write(&path, r#"{"id":"source","custom":1}"#).unwrap();
+        let text = root.to_string_lossy();
+        for _ in 0..2 {
+            assert_eq!(
+                load_core_weapon_specs(&text).unwrap()["source"]
+                    .location
+                    .rel_path,
+                relative
+            );
+            assert!(
+                load_core_fields(&text).unwrap()["weapon"]
+                    .iter()
+                    .any(|field| field.key == "custom")
+            );
+        }
+        assert_eq!(work_counts::count("read", &path), 1);
+        assert_eq!(work_counts::count("parse", &path), 1);
+        fs::write(&path, r#"{"id":"source","refreshed":2}"#).unwrap();
+        invalidate_core_sources(
+            &text,
+            &[InvalidatedResourceScope {
+                source: ResourceSource::Core,
+                rel_path: relative.into(),
+            }],
+        )
+        .unwrap();
+        assert_eq!(
+            load_core_weapon_specs(&text).unwrap()["source"].data["refreshed"],
+            2
+        );
+        assert!(
+            load_core_fields(&text).unwrap()["weapon"]
+                .iter()
+                .any(|field| field.key == "refreshed")
+        );
+        assert_eq!(work_counts::count("read", &path), 2);
+        assert_eq!(work_counts::count("parse", &path), 2);
+        invalidate_core_cache(&text).unwrap();
+        root.close().unwrap();
     }
 
     #[test]

@@ -34,6 +34,34 @@ function feedbackStub(): AppFeedback {
 }
 
 describe('CSV editor actions', () => {
+  it.each([null, 'existing'])('presents rename resolution for destination version %s', async (fingerprint) => {
+    const feedback = feedbackStub();
+    const { value: actions } = mountSetup(() => useCsvEditorActions(feedback));
+    const target = entityTargetFixture('ship', 'next');
+    const source = entityTargetFixture('ship', 'source').write;
+    const original = { location: source, version: { path: source.path, fingerprint: 'base' }, problem: null };
+    const destination = { location: target.write, version: { path: target.write.path, fingerprint }, problem: null };
+    vi.mocked(feedback.choose).mockImplementationOnce(async (options) => {
+      expect(options.type).toBe(fingerprint ? 'warning' : 'info');
+      expect(options.choices[0]!.type).toBe(fingerprint ? 'warning' : 'primary');
+      const wrapper = mount({ render: options.content as () => VNode }, { global: { plugins: [installNaiveUi] } });
+      await flushPromises();
+      expect(wrapper.findAllComponents(AppSelect)).toHaveLength(fingerprint ? 1 : 0);
+      expect(wrapper.findAll('.page-path').map((path) => path.text())).toEqual([original.location.path, target.write.path]);
+      wrapper.unmount();
+      return 'save';
+    });
+    await actions.selectAssociatedSpecs([
+      {
+        key: 'rename',
+        table: 'ships',
+        label: 'Rename',
+        mode: fingerprint ? 'read' : 'overwrite',
+        change: { action: 'rename', previousId: 'source', create: { kind: 'ship', id: 'next', hullName: 'Next' } },
+        preparation: { target, baseVersions: [], original, destination },
+      },
+    ]);
+  });
   it('switches prepared choices without reading again and returns one batch or cancels', async () => {
     const feedback = feedbackStub();
     const { value: actions } = mountSetup(() => useCsvEditorActions(feedback));

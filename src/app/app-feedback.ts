@@ -149,11 +149,11 @@ function showChoose(dialog: DialogApiInjection, options: ChooseOptions): Promise
   return new Promise((resolve) => {
     let resolved = false;
     const instance = dialog.create({
-      type: 'info',
+      type: options.type ?? 'info',
       title: options.title,
       content: options.content,
       closable: true,
-      showIcon: false,
+      showIcon: options.type === 'warning',
       action: () =>
         h(
           NSpace,

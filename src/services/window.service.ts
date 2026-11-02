@@ -1,4 +1,5 @@
-import { invokeCommand } from '@/shared/runtime/command.runtime';
+import { commandChannel, invokeCommand } from '@/shared/runtime/command.runtime';
+import type { WindowSaveMessage, WindowSaveReply, WindowSaveRequest } from '@/shared/types';
 import { withCause } from '@/shared/lib/errors';
 import type { ManagedWindowStatus, NativeWindowRequest, WindowIdentity, WindowRequestResult } from '@/shared/types';
 import type { WindowBootstrap, ManagedWindowContext, ErrorDiagnostic } from '@/shared/types';
@@ -6,6 +7,22 @@ import type { EditWriteTarget, ManagedWindowInput } from '@/shared/types';
 
 export function updateEditTargetRegistration(targets: EditWriteTarget[]): Promise<void> {
   return invokeCommand('update_edit_target_registration', { targets });
+}
+export function registerWindowSaveReceiver(receive: (message: WindowSaveMessage) => void): Promise<number> {
+  return invokeCommand('register_window_save_receiver', { channel: commandChannel(receive) });
+}
+export function unregisterWindowSaveReceiver(generation: number): Promise<void> {
+  return invokeCommand('unregister_window_save_receiver', { generation });
+}
+export function requestWindowSave(receiver: string, request: WindowSaveRequest): Promise<WindowSaveReply> {
+  return invokeCommand('request_window_save', { receiver, request });
+}
+export function replyWindowSave(
+  message: WindowSaveMessage,
+  result: WindowSaveReply | null,
+  diagnostic: ErrorDiagnostic | null,
+): Promise<void> {
+  return invokeCommand('reply_window_save', { requestId: message.requestId, generation: message.receiverGeneration, result, diagnostic });
 }
 export function queryEditTargetOwners(targets: EditWriteTarget[]): Promise<string[]> {
   return invokeCommand('query_edit_target_owners', { targets });

@@ -2,6 +2,7 @@ use crate::domain::entity_identity;
 use crate::domain::entity_identity::path_is_or_in_dir;
 use crate::errors::{AppError, AppResult};
 use crate::models::{CsvTableKey, EntityKind, SpecEditorKind};
+use std::{path::Path, slice};
 
 #[derive(Clone, Copy)]
 pub struct EntitySpecDefinition {
@@ -16,9 +17,18 @@ pub struct EntitySpecDefinition {
 }
 
 impl EntitySpecDefinition {
+    pub fn source_dirs(&self) -> &[&str] {
+        match self.entity_kind {
+            EntityKind::Weapon => &["data/weapons", "data/shipsystems/wpn"],
+            _ => slice::from_ref(&self.dir),
+        }
+    }
+
     pub fn path_matches(self, path: &str) -> bool {
-        (path.is_empty() || path_is_or_in_dir(self.dir, path))
-            || (path_is_or_in_dir(path, self.dir) && path.ends_with(self.extension))
+        self.source_dirs().iter().any(|directory| {
+            (path.is_empty() || path_is_or_in_dir(directory, path))
+                || (path_is_or_in_dir(path, directory) && path.ends_with(self.extension))
+        })
     }
 
     pub fn extension_without_dot(self) -> &'static str {
@@ -32,7 +42,11 @@ impl EntitySpecDefinition {
     pub fn validate_rel_path(self, rel_path: &str, message: &str) -> AppResult<()> {
         entity_identity::validate_entity_file_rel_path(
             rel_path,
-            self.dir,
+            self.source_dirs()
+                .iter()
+                .copied()
+                .find(|directory| Path::new(rel_path).starts_with(directory))
+                .unwrap_or(self.dir),
             self.extension_without_dot(),
             message,
         )
@@ -188,6 +202,10 @@ mod tests {
     #[test]
     fn default_rel_path_follows_dir_id_and_extension() {
         assert_eq!(
+            WEAPON_SPEC_DEFINITION.default_rel_path("weapon"),
+            "data/weapons/weapon.wpn"
+        );
+        assert_eq!(
             SHIP_SPEC_DEFINITION.default_rel_path("XY"),
             "data/hulls/XY.ship"
         );
@@ -213,6 +231,29 @@ mod tests {
             .validate_rel_path("data/other/a.ship", "越界")
             .expect_err("rejected");
         assert!(error.to_string().starts_with("越界"));
+    }
+
+    #[test]
+    fn weapon_sources_share_path_validation_and_invalidation() {
+        for directory in WEAPON_SPEC_DEFINITION.source_dirs() {
+            let path = format!("{directory}/nested/weapon.wpn");
+            WEAPON_SPEC_DEFINITION
+                .validate_rel_path(&path, "invalid")
+                .unwrap();
+            assert!(WEAPON_SPEC_DEFINITION.path_matches(&path));
+            assert!(WEAPON_SPEC_DEFINITION.path_matches(directory));
+        }
+        for path in [
+            "data/shipsystems/weapon.wpn",
+            "data/shipsystems/wpn/../weapon.wpn",
+            "data/shipsystems/wpn/weapon.system",
+        ] {
+            assert!(
+                WEAPON_SPEC_DEFINITION
+                    .validate_rel_path(path, "invalid")
+                    .is_err()
+            );
+        }
     }
 
     #[test]

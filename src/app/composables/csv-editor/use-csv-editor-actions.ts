@@ -46,6 +46,15 @@ export function useCsvEditorActions(feedback: AppFeedback) {
   async function selectAssociatedSpecs(candidates: AssociatedSpecCandidate[]) {
     const { default: AssociatedSpecSaveDialog } = await import('@/app/components/AssociatedSpecSaveDialog.vue');
     const choices = ref(candidates);
+    const warning = candidates.some(
+      ({ change, preparation, mode }) =>
+        change.action !== 'delete' &&
+        (preparation!.destination.version.fingerprint ||
+          preparation!.original?.problem ||
+          (change.create.kind === 'weapon' &&
+            mode !== 'read' &&
+            !(preparation!.original?.version.fingerprint && !preparation!.original.problem))),
+    );
     const selectedKeys = ref(
       new Set(
         candidates
@@ -60,6 +69,7 @@ export function useCsvEditorActions(feedback: AppFeedback) {
     );
     const choice = await feedback.choose({
       title: '保存 CSV',
+      type: warning ? 'warning' : 'info',
       content: () =>
         h(AssociatedSpecSaveDialog, {
           candidates: choices.value,
@@ -72,7 +82,7 @@ export function useCsvEditorActions(feedback: AppFeedback) {
             else selectedKeys.value.delete(key);
           },
         }),
-      choices: [{ label: '保存', value: 'save', type: 'primary' }],
+      choices: [{ label: '保存', value: 'save', type: warning ? 'warning' : 'primary' }],
     });
     if (choice !== 'save') return null;
     return choices.value

@@ -13,6 +13,8 @@ import { flushPerformanceMonitor, retainPerformanceMonitorError } from '@/app/pe
 import { flushApplicationLogs } from '@/services/app-log.service';
 import { debugLog } from '@/shared/runtime/app-log-queue';
 import type { AppFeedback } from '@/shared/types';
+import { createModSaveCoordinator } from '@/orchestrators/mod-save.orchestrator';
+import { useWindowShortcuts } from './use-window-shortcuts';
 
 async function flushPerformance() {
   await flushPerformanceMonitor()?.catch(retainPerformanceMonitorError);
@@ -44,7 +46,12 @@ export function useAppLifecycleAssembly(feedback: AppFeedback) {
       await flushPerformance();
     },
   });
-  return provideWindowCloseState({ requestClose, createParticipant: useAppCloseParticipant });
+  const closing = provideWindowCloseState({ requestClose, createParticipant: useAppCloseParticipant });
+  const modSave = createModSaveCoordinator(feedback, () => closing.value);
+  void modSave.ready.catch((error) => feedback.error(error, '登记 Mod 保存入口失败'));
+  useWindowShortcuts({ commands: { saveMod: () => void modSave.save() } });
+  onScopeDispose(modSave.dispose);
+  return closing;
 }
 
 export function useAppSettings(mode: 'main' | 'child') {

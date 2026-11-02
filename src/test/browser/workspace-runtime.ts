@@ -32,6 +32,9 @@ export function createBrowserWorkspace(systemTheme: T.AppTheme = 'light') {
   >();
   const listeners = new Map<number, { label: string; event: string; handler: Handler; target?: string }>();
   const channels = new Map<string, DeliveryChannel>();
+  const saveReceivers = new Map<string, { onmessage: (message: T.WindowSaveMessage) => void }>();
+  const editTargets = new Map<string, T.EditWriteTarget[]>();
+  const saveReplies = new Map<number, { resolve: (reply: T.WindowSaveReply) => void; reject: (error: unknown) => void }>();
   let nextId = 0,
     generation = 0,
     revision = 0,
@@ -256,6 +259,40 @@ export function createBrowserWorkspace(systemTheme: T.AppTheme = 'light') {
         channels.set(label, args.channel as DeliveryChannel);
         channels.get(label)!.onmessage({ kind: 'references', snapshot: { revision, sources: references }, event: null });
         return;
+      case 'register_window_save_receiver':
+        saveReceivers.set(label, args.channel as { onmessage: (message: T.WindowSaveMessage) => void });
+        return ++nextId;
+      case 'unregister_window_save_receiver':
+        saveReceivers.delete(label);
+        return;
+      case 'request_window_save':
+        return new Promise<T.WindowSaveReply>((resolve, reject) => {
+          const requestId = ++nextId;
+          saveReplies.set(requestId, { resolve, reject });
+          saveReceivers
+            .get(String(args.receiver))!
+            .onmessage({ requestId, receiverGeneration: 1, request: args.request as T.WindowSaveRequest });
+        });
+      case 'reply_window_save': {
+        const pending = saveReplies.get(Number(args.requestId))!;
+        saveReplies.delete(Number(args.requestId));
+        if (args.diagnostic) pending.reject(args.diagnostic);
+        else pending.resolve(args.result as T.WindowSaveReply);
+        return;
+      }
+      case 'update_edit_target_registration':
+        editTargets.set(label, args.targets as T.EditWriteTarget[]);
+        return;
+      case 'query_edit_target_owners':
+        return [...editTargets]
+          .filter(
+            ([owner, targets]) =>
+              windows.has(owner) &&
+              targets.some((target) =>
+                (args.targets as T.EditWriteTarget[]).some((own) => own.sessionId === target.sessionId && own.modRoot === target.modRoot),
+              ),
+          )
+          .map(([owner]) => owner);
       case 'unregister_save_window':
         channels.delete(label);
         return;

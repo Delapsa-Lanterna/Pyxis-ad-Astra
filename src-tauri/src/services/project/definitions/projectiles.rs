@@ -22,7 +22,7 @@ pub(in crate::services::project) fn load_projectile_specs_from(
     let mut result = BTreeMap::new();
     result.extend(documents::load_spec_records_from(
         sources,
-        "data/weapons/proj",
+        &["data/weapons/proj"],
         "proj",
         "id",
         ResourceSource::Mod,

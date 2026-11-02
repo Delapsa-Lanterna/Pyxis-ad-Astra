@@ -830,7 +830,7 @@ impl EntityRefresh {
 fn refresh_spec_records(
     _session: &ProjectSession,
     kind: EntityKind,
-    directory: &str,
+    directories: &[&str],
     extension: &str,
     id_field: &str,
     sources: &mut SourceReader,
@@ -839,7 +839,7 @@ fn refresh_spec_records(
         kind,
         records: documents::load_spec_records_from(
             sources,
-            directory,
+            directories,
             extension,
             id_field,
             ResourceSource::Mod,
@@ -850,7 +850,7 @@ fn refresh_ship(session: &ProjectSession, sources: &mut SourceReader) -> AppResu
     refresh_spec_records(
         session,
         EntityKind::Ship,
-        "data/hulls",
+        SHIP_SPEC_DEFINITION.source_dirs(),
         "ship",
         "hullId",
         sources,
@@ -863,7 +863,7 @@ fn refresh_weapon(
     refresh_spec_records(
         session,
         EntityKind::Weapon,
-        "data/weapons",
+        WEAPON_SPEC_DEFINITION.source_dirs(),
         "wpn",
         "id",
         sources,
@@ -892,7 +892,7 @@ fn refresh_system(
     refresh_spec_records(
         session,
         EntityKind::System,
-        "data/shipsystems",
+        SYSTEM_SPEC_DEFINITION.source_dirs(),
         "system",
         "id",
         sources,
@@ -902,7 +902,7 @@ fn refresh_skill(session: &ProjectSession, sources: &mut SourceReader) -> AppRes
     refresh_spec_records(
         session,
         EntityKind::Skill,
-        "data/characters/skills",
+        SKILL_SPEC_DEFINITION.source_dirs(),
         "skill",
         "id",
         sources,

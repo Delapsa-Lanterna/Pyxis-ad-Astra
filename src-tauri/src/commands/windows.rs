@@ -1,10 +1,50 @@
 use crate::errors::{AppError, ErrorDiagnostic};
 use crate::models::{
     EditWriteTarget, ManagedWindowContext, ManagedWindowRequest, ManagedWindowStatus,
-    WindowIdentity, WindowRequestReceipt,
+    WindowIdentity, WindowRequestReceipt, WindowSaveMessage, WindowSaveReply, WindowSaveRequest,
 };
 use crate::services::windows;
+use tauri::ipc::Channel;
 use tauri::{AppHandle, WebviewWindow, async_runtime};
+
+#[command_macros::command]
+pub fn register_window_save_receiver(
+    window: WebviewWindow,
+    channel: Channel<WindowSaveMessage>,
+) -> Result<u64, AppError> {
+    windows::register_save_receiver(window.label(), channel)
+}
+#[command_macros::command]
+pub fn unregister_window_save_receiver(
+    window: WebviewWindow,
+    generation: u64,
+) -> Result<(), AppError> {
+    windows::unregister_save_receiver(window.label(), generation)
+}
+#[command_macros::command(async)]
+pub async fn request_window_save(
+    app: AppHandle,
+    window: WebviewWindow,
+    receiver: String,
+    request: WindowSaveRequest,
+) -> Result<WindowSaveReply, ErrorDiagnostic> {
+    let id = windows::request_window_save(&app, window.label(), &receiver, request)
+        .map_err(|error| error.diagnostic())?;
+    let owner = window.label().to_string();
+    async_runtime::spawn_blocking(move || windows::await_window_save(&owner, id))
+        .await
+        .map_err(|error| AppError::message("window.save_wait", error.to_string()).diagnostic())?
+}
+#[command_macros::command]
+pub fn reply_window_save(
+    window: WebviewWindow,
+    request_id: u64,
+    generation: u64,
+    result: Option<WindowSaveReply>,
+    diagnostic: Option<ErrorDiagnostic>,
+) -> Result<(), AppError> {
+    windows::reply_window_save(window.label(), request_id, generation, result, diagnostic)
+}
 
 #[command_macros::command(async)]
 pub async fn request_window(

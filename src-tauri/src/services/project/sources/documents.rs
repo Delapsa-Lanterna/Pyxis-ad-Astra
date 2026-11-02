@@ -24,19 +24,22 @@ pub(crate) fn load_spec_records(
     source: ResourceSource,
 ) -> AppResult<BTreeMap<String, LoadedSpecRecord>> {
     let mut sources = SourceReader::new(root)?;
-    load_spec_records_from(&mut sources, directory, extension, id_field, source)
+    load_spec_records_from(&mut sources, &[directory], extension, id_field, source)
 }
 
 pub(in crate::services::project) fn load_spec_records_from(
     sources: &mut SourceReader,
-    directory: &str,
+    directories: &[&str],
     extension: &str,
     id_field: &str,
     source: ResourceSource,
 ) -> AppResult<BTreeMap<String, LoadedSpecRecord>> {
     let root = sources.root().to_path_buf();
     let mut records = BTreeMap::new();
-    let mut files = sources.walk(directory, extension)?;
+    let mut files = Vec::new();
+    for directory in directories {
+        files.extend(sources.walk(directory, extension)?);
+    }
     files.sort_by(|left, right| left.0.cmp(&right.0));
     for (path, data) in files {
         {

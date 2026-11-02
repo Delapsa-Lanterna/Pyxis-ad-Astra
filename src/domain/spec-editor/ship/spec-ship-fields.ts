@@ -12,7 +12,7 @@ export function shipBuiltInWeaponsSchema(slots: readonly RowData[]) {
   return {
     ...schema.definitions!.builtInWeapons!,
     nested: slots
-      .filter((slot) => slot.type === 'BUILT_IN')
+      .filter((slot) => slot.type === 'BUILT_IN' || slot.type === 'DECORATIVE')
       .map((slot) => ({ ...schema.definitions!.builtInWeapon!, key: String(slot.id) })),
   };
 }

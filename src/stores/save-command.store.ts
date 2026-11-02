@@ -31,6 +31,8 @@ export interface EditParticipant {
 export const useSaveCommandStore = defineStore('save-command', () => {
   const activeHandler = ref<SaveHandler | null>(null);
   const sessions = shallowReactive(new Set<SaveSessionHandle>());
+  const participantIds = new WeakMap<SaveSessionHandle, number>();
+  let participantSequence = 0;
   const editTargets = computed(() => [...sessions].flatMap((handle) => handle.editing?.targets.value ?? []));
   const requests = shallowReactive(new Map<SaveSessionHandle, Promise<DocumentSaveResult>>());
   let transitionSequence = 0;
@@ -49,10 +51,21 @@ export const useSaveCommandStore = defineStore('save-command', () => {
   }
 
   function registerSaveSession(handle: SaveSessionHandle) {
+    participantIds.set(handle, ++participantSequence);
     sessions.add(handle);
     return () => {
       sessions.delete(handle);
     };
+  }
+  function participantsForSession(sessionId: string, modRoot: string) {
+    return [...sessions]
+      .filter((handle) =>
+        handle.editing?.targets.value.some(
+          (target) => target.sessionId === sessionId && normalizeFsPath(target.modRoot) === normalizeFsPath(modRoot),
+        ),
+      )
+      .map((handle) => ({ id: participantIds.get(handle)!, handle }))
+      .sort((left, right) => String(left.handle.targetKey.value).localeCompare(String(right.handle.targetKey.value)));
   }
   function participantsForTargets(targets: readonly EditWriteTarget[]) {
     return [...sessions]
@@ -167,6 +180,7 @@ export const useSaveCommandStore = defineStore('save-command', () => {
     captureCloseState,
     editTargets,
     participantsForTargets,
+    participantsForSession,
     registerActiveSaveHandler,
     unregisterActiveSaveHandler,
     dispatchSaveCommand,

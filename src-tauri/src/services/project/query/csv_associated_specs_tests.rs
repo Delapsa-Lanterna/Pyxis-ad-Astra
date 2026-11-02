@@ -73,6 +73,7 @@ fn request(
             base_versions.push(version.clone());
         }
     }
+    let id = change.id();
     CsvSave {
         row_order: None,
         session_id: manifest.session_id.clone(),
@@ -83,7 +84,7 @@ fn request(
             row_key,
             insert_at: None,
             action: CsvRowPatchAction::Upsert,
-            row: json!({"id":"next","name":"CSV name","unknown":"007"})
+            row: json!({"id":id,"name":"CSV name","unknown":"007"})
                 .as_object()
                 .unwrap()
                 .clone(),
@@ -108,8 +109,124 @@ fn open(root: &Path) -> ProjectManifest {
 }
 
 #[test]
+fn weapon_source_directory_survives_rename_delete_and_default_creation() {
+    let root = project_workspace("weapon_source_directory");
+    let directory = "data/shipsystems/wpn";
+    fs::create_dir_all(root.join(directory)).unwrap();
+    fs::create_dir_all(root.join("data/weapons")).unwrap();
+    write_utf8_no_bom(
+        &root.join("data/weapons/weapon_data.csv"),
+        "id,name\nold,Original\n",
+    )
+    .unwrap();
+    let mut params = cases().remove(1);
+    let mut data = entity_construction::create_associated_spec(&params);
+    data["id"] = json!("old");
+    write_utf8_no_bom(
+        &root.join(format!("{directory}/old.wpn")),
+        &data.to_string(),
+    )
+    .unwrap();
+    let manifest = open(&root);
+    let input = request(
+        &manifest,
+        AssociatedSpecChange::Rename {
+            previous_id: "old".into(),
+            create: params.clone(),
+        },
+        AssociatedSpecMode::Overwrite,
+    );
+    assert_eq!(
+        input.associated_specs[0]
+            .resolution
+            .as_ref()
+            .unwrap()
+            .destination
+            .location
+            .rel_path,
+        format!("{directory}/next.wpn")
+    );
+    let saved = project_save::execute_save_action(SaveAction::SaveCsvPatch(input)).unwrap();
+    assert_eq!(
+        io::read_json_file(&root.join(format!("{directory}/next.wpn"))).unwrap()["id"],
+        "next"
+    );
+    assert_eq!(saved.changes.len(), 2);
+    let undo = write_transactions::replay(
+        &manifest.session_id,
+        &manifest.mod_root,
+        FileChangeReplayDirection::Undo,
+        saved.history.undo_stack.last().unwrap().id,
+        saved.history.revision,
+    )
+    .unwrap();
+    assert!(root.join(format!("{directory}/old.wpn")).is_file());
+    write_transactions::replay(
+        &manifest.session_id,
+        &manifest.mod_root,
+        FileChangeReplayDirection::Redo,
+        undo.history.redo_stack.last().unwrap().id,
+        undo.history.revision,
+    )
+    .unwrap();
+    let mut deletion = request(
+        &manifest,
+        AssociatedSpecChange::Rename {
+            previous_id: "next".into(),
+            create: params.clone(),
+        },
+        AssociatedSpecMode::Overwrite,
+    );
+    deletion.patches[0].action = CsvRowPatchAction::Delete;
+    deletion.associated_specs[0].change = AssociatedSpecChange::Delete { id: "next".into() };
+    deletion.associated_specs[0].resolution = None;
+    let deleted = project_save::execute_save_action(SaveAction::SaveCsvPatch(deletion)).unwrap();
+    assert!(!root.join(format!("{directory}/next.wpn")).exists());
+    write_transactions::replay(
+        &manifest.session_id,
+        &manifest.mod_root,
+        FileChangeReplayDirection::Undo,
+        deleted.history.undo_stack.last().unwrap().id,
+        deleted.history.revision,
+    )
+    .unwrap();
+    assert!(root.join(format!("{directory}/next.wpn")).is_file());
+    if let AssociatedSpecCreateParams::Weapon { id, .. } = &mut params {
+        *id = "fresh".into();
+    }
+    let creation = request(
+        &manifest,
+        AssociatedSpecChange::Create { create: params },
+        AssociatedSpecMode::Overwrite,
+    );
+    assert_eq!(
+        creation.associated_specs[0]
+            .resolution
+            .as_ref()
+            .unwrap()
+            .destination
+            .location
+            .rel_path,
+        "data/weapons/fresh.wpn"
+    );
+    project_save::execute_save_action(SaveAction::SaveCsvPatch(creation)).unwrap();
+    assert_eq!(
+        io::read_json_file(&root.join("data/weapons/fresh.wpn")).unwrap()["id"],
+        "fresh"
+    );
+    project::close_project_session(manifest.session_id).unwrap();
+    root.close().unwrap();
+}
+
+#[test]
 fn all_formats_read_and_replace_existing_targets_with_one_reversible_save() {
-    for params in cases() {
+    for (params, directory) in cases().into_iter().flat_map(|params| {
+        entity_definitions::associated_spec_definition(params.table())
+            .unwrap()
+            .source_dirs()
+            .iter()
+            .map(move |directory| (params.clone(), *directory))
+    }) {
         for rename in [false, true] {
             for mode in [AssociatedSpecMode::Read, AssociatedSpecMode::Overwrite] {
                 for late in [false, true] {
@@ -126,7 +243,7 @@ fn all_formats_read_and_replace_existing_targets_with_one_reversible_save() {
                     write_utf8_no_bom(&csv_path, csv_before).unwrap();
                     let old = root.join(format!(
                         "{}/nested/filename{}",
-                        definition.dir, definition.extension
+                        directory, definition.extension
                     ));
                     fs::create_dir_all(old.parent().unwrap()).unwrap();
                     let mut data = entity_construction::create_associated_spec(&params);
@@ -136,10 +253,8 @@ fn all_formats_read_and_replace_existing_targets_with_one_reversible_save() {
                     if rename {
                         write_utf8_no_bom(&old, &original).unwrap();
                     }
-                    let destination = root.join(format!(
-                        "{}/nested/next{}",
-                        definition.dir, definition.extension
-                    ));
+                    let destination =
+                        root.join(format!("{}/nested/next{}", directory, definition.extension));
                     let mut existing = entity_construction::create_associated_spec(&params);
                     existing["custom"] = json!({"destination":true});
                     let target_text = format!(
@@ -200,7 +315,7 @@ fn all_formats_read_and_replace_existing_targets_with_one_reversible_save() {
                     assert_eq!(info.target.state, EntityTargetState::Existing);
                     assert_eq!(
                         info.target.write.rel_path,
-                        format!("{}/nested/next{}", definition.dir, definition.extension)
+                        format!("{}/nested/next{}", directory, definition.extension)
                     );
                     let undo = write_transactions::replay(
                         &manifest.session_id,

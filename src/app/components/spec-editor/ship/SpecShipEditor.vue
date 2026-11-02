@@ -258,7 +258,7 @@
                   :runtime-context="schemaRuntime"
                   @update="$event.kind === 'set' && actions.builtInWeaponsUpdated($event.value as RowData)"
                 />
-                <template #hint><FieldHints description="类型为 BUILT_IN 的武器槽会在此处显示对应的内置武器配置项。" /></template>
+                <template #hint><FieldHints description="可安装内置武器的武器槽会在此处显示对应的内置武器配置项。" /></template>
               </FieldRow>
               <SpecFieldList
                 :content="document"

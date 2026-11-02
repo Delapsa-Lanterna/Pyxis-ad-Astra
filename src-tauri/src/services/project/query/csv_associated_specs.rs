@@ -86,7 +86,12 @@ pub fn prepare_csv_associated_specs(
         .map(|record| (windows_path_key(&record.location.path), record.id.clone()))
         .collect();
     let mut sources = SourceReader::for_projection(Path::new(&root))?;
-    for path in sources.files(definition.dir)?.into_iter().filter(|path| {
+    let mut paths = Vec::new();
+    for directory in definition.source_dirs() {
+        paths.extend(sources.files(directory)?);
+    }
+    paths.sort();
+    for path in paths.into_iter().filter(|path| {
         path.extension().and_then(|ext| ext.to_str()) == Some(definition.extension_without_dot())
     }) {
         let location = EntityFileLocation {
@@ -133,7 +138,7 @@ pub fn prepare_csv_associated_specs(
                 let mut reader = SourceReader::new(&root)?;
                 let records = documents::load_spec_records_from(
                     &mut reader,
-                    definition.dir,
+                    definition.source_dirs(),
                     definition.extension_without_dot(),
                     definition.id_field,
                     ResourceSource::Core,

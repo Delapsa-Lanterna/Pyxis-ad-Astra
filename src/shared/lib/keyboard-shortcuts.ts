@@ -1,4 +1,4 @@
-export type ShortcutCommand = 'undo' | 'redo' | 'save' | 'close';
+export type ShortcutCommand = 'undo' | 'redo' | 'save' | 'saveMod' | 'close';
 
 export interface ShortcutKeyOptions {
   // Text surfaces keep undo/redo working inside editable targets; other surfaces
@@ -12,7 +12,7 @@ export function shortcutCommandFromKeyEvent(event: KeyboardEvent, options: Short
   if (!event.ctrlKey && !event.metaKey) return null;
 
   const key = event.key.toLowerCase();
-  if (key === 's') return 'save';
+  if (key === 's') return event.shiftKey ? 'saveMod' : 'save';
   if (isEditableKeyTarget(event.target) && !options.undoRedoInEditable) return null;
   if (key === 'z' && !event.shiftKey) return 'undo';
   if (key === 'y' && !event.shiftKey) return 'redo';

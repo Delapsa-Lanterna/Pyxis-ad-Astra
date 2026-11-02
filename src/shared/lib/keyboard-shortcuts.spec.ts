@@ -20,6 +20,9 @@ describe('shortcutCommandFromKeyEvent', () => {
     expect(shortcutCommandFromKeyEvent(keyEvent({ key: 's', ctrl: true }))).toBe('save');
     expect(shortcutCommandFromKeyEvent(keyEvent({ key: 's', ctrl: true, inInput: true }))).toBe('save');
   });
+  it.each([false, true])('maps Ctrl+Shift+S to Mod save with input focus=%s', (inInput) => {
+    expect(shortcutCommandFromKeyEvent(keyEvent({ key: 'S', ctrl: true, shift: true, inInput }))).toBe('saveMod');
+  });
 
   it('maps undo and redo combos outside editable targets', () => {
     expect(shortcutCommandFromKeyEvent(keyEvent({ key: 'z', ctrl: true }))).toBe('undo');

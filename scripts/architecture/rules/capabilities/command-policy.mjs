@@ -26,6 +26,10 @@ export const commandOwners = {
   ],
   'src/services/app-lifecycle.service.ts': ['request_close', 'reply_close', 'ready_close'],
   'src/services/window.service.ts': [
+    'register_window_save_receiver',
+    'unregister_window_save_receiver',
+    'request_window_save',
+    'reply_window_save',
     'update_edit_target_registration',
     'query_edit_target_owners',
     'reserve_edit_targets',

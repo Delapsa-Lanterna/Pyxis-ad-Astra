@@ -23,6 +23,7 @@ export function useWindowShortcuts(handlers: WindowShortcutHandlers) {
     }
     const command = shortcutCommandFromKeyEvent(event, { undoRedoInEditable: handlers.undoRedoInEditable });
     if (command) {
+      if (command === 'saveMod' && event.repeat) return;
       const commandHandler = handlers.commands?.[command];
       if (commandHandler) {
         event.preventDefault();

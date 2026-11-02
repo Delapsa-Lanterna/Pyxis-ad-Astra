@@ -40,7 +40,7 @@ npm.cmd run tauri -- build --no-bundle
 
 ## AI 辅助开发
 
-使用 AI 辅助编码时，请使用能力达到或超过 `GPT-6.1 Sol`、`Claude Opus 5.5` 之中任一程度的模型。这有助于减轻复核负担并降低意外发生的概率。
+使用 AI 辅助编码时，请使用 Artificial Analysis Intelligence Index v5.0 分数达到或超过 `GPT-6.1 Sol (xhigh)` 的模型/推理配置。这有助于减轻复核负担并降低意外发生的概率。
 
 ## 提交前检查
 

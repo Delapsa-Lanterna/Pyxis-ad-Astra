@@ -71,6 +71,7 @@ describe('Core asset ownership and acceptance', () => {
     ['data/hulls/demo.ship', 2, 1],
     ['data/world/factions/demo.faction', 2, 1],
     ['data/weapons/demo.wpn', 2, 1],
+    ['data/shipsystems/wpn/demo.wpn', 2, 1],
     ['graphics/ships/demo.png', 1, 2],
     ['graphics-backup/demo.png', 1, 1],
     ['data', 2, 1],

@@ -24,15 +24,24 @@ use std::fs;
 
 #[test]
 fn spec_rename_updates_the_registered_row_and_preserves_a_comment_with_the_same_id() {
-    for kind in [
+    for (kind, directory) in [
         EntityKind::Ship,
         EntityKind::Weapon,
         EntityKind::System,
         EntityKind::Skill,
-    ] {
+    ]
+    .into_iter()
+    .flat_map(|kind| {
+        entity_definitions::entity_spec_definition(kind)
+            .unwrap()
+            .source_dirs()
+            .iter()
+            .map(move |directory| (kind, *directory))
+    }) {
         let definition = entity_definitions::entity_spec_definition(kind).unwrap();
         let table = definition.csv_table.unwrap();
         let root = project_workspace(&format!("identity_comment_{kind:?}"));
+        fs::create_dir_all(root.join(directory)).unwrap();
         fs::create_dir_all(root.join(definition.dir)).unwrap();
         let mut content = json!({"specClass":"beam"});
         if kind == EntityKind::Weapon {
@@ -40,13 +49,31 @@ fn spec_rename_updates_the_registered_row_and_preserves_a_comment_with_the_same_
             content["hardpointOffsets"] = json!([0, 0]);
         }
         content[definition.id_field] = "old".into();
-        let source = root.join(definition.default_rel_path("old"));
+        let source = root.join(format!("{directory}/old{}", definition.extension));
         io::write_utf8_no_bom(&source, &content.to_string()).unwrap();
         let csv = root.join(table_definitions::csv_table_definition(table).spec.rel_path);
         let original = "a,id,name\n# retained note,old,Comment\nactive,old,Original\n";
         io::write_utf8_no_bom(&csv, original).unwrap();
         let mut trace = PerformanceTrace::new("project.openSession");
         let manifest = project::open_project_session_traced(&root, None, &mut trace).unwrap();
+        let info =
+            entity_targets::query_entity_edit_target(&manifest.session_id, kind, "old").unwrap();
+        assert_eq!(
+            info.target.write.rel_path,
+            format!("{directory}/old{}", definition.extension)
+        );
+        content["custom"] = json!(7);
+        project_save::execute_save_action(SaveAction::SaveEditorSpec(SpecSave {
+            session_id: manifest.session_id.clone(),
+            mod_root: manifest.mod_root.clone(),
+            target: info.target,
+            base_versions: info.base_versions,
+            data: content.clone(),
+            json_write: Default::default(),
+            ordered_json: None,
+        }))
+        .unwrap();
+        assert_eq!(io::read_json_file(&source).unwrap()["custom"], 7);
         let info =
             entity_targets::query_entity_edit_target(&manifest.session_id, kind, "old").unwrap();
         content[definition.id_field] = "next".into();
@@ -60,6 +87,15 @@ fn spec_rename_updates_the_registered_row_and_preserves_a_comment_with_the_same_
             ordered_json: None,
         }))
         .unwrap();
+        assert_eq!(
+            receipt.identity_changes[0].after.write.rel_path,
+            format!("{directory}/next{}", definition.extension)
+        );
+        assert_eq!(
+            io::read_json_file(&root.join(format!("{directory}/next{}", definition.extension)))
+                .unwrap()["custom"],
+            7
+        );
         let saved = io::read_csv_data(&csv).unwrap();
         assert_eq!(saved.header, ["a", "id", "name"]);
         assert_eq!(saved.rows[0].data["id"], "old");
@@ -72,7 +108,7 @@ fn spec_rename_updates_the_registered_row_and_preserves_a_comment_with_the_same_
             &manifest.session_id,
             &manifest.mod_root,
             FileChangeReplayDirection::Undo,
-            receipt.history.undo_stack[0].id,
+            receipt.history.undo_stack.last().unwrap().id,
             receipt.history.revision,
         )
         .unwrap();

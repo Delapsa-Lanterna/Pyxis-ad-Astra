@@ -93,7 +93,8 @@ export function startCoreAssetsLoading(root: Readonly<Ref<string | null>>): () =
     const paths = invalidation.resources.filter((source) => source.source === 'core').map((source) => source.relPath);
     const affected = (directory: string) => paths.some((path) => pathBelongsToRoot(path, directory) || pathBelongsToRoot(directory, path));
     const tasks = [];
-    if (['data/world/factions', 'data/hulls', 'data/weapons'].some(affected)) tasks.push(() => runtime.fields.load(true, true));
+    if (['data/world/factions', 'data/hulls', 'data/weapons', 'data/shipsystems/wpn'].some(affected))
+      tasks.push(() => runtime.fields.load(true, true));
     if (affected('graphics')) tasks.push(() => runtime.graphics.load(true, true));
     return tasks;
   });

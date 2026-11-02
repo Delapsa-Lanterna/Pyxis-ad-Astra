@@ -86,6 +86,12 @@ export type {
   WindowsPathCaseMap,
   WindowRequestReceipt,
   WindowRequestResult,
+  ModSaveTarget,
+  WindowSaveParticipant,
+  WindowSaveItem,
+  WindowSaveRequest,
+  WindowSaveMessage,
+  WindowSaveReply,
 } from '@/shared/types/window.types';
 export type { CreatedMod, CreateModRequest, NewModDestination, NewModTemplate } from '@/shared/types/mod-creation.types';
 export type {
