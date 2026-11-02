@@ -12,7 +12,7 @@ function syncActiveModRuntime(modRoot: string) {
   // only project per-Mod derived state onto the other stores.
   const manifest = project.getManifest(modRoot);
 
-  tables.activateFor(modRoot, manifest);
+  if (manifest) tables.acceptTableSummaries(modRoot, manifest.tableSummaries);
   fileHistory.activateFor(modRoot);
 }
 
@@ -64,10 +64,5 @@ export function activateModTab(modRoot: string) {
 function isActiveTableTarget(modRoot: string, tab: CsvTableKey): boolean {
   const workspace = useWorkspaceStore();
   const tables = useCsvEditorStore();
-  return (
-    workspace.activeModRoot === modRoot &&
-    workspace.currentView === 'table' &&
-    tables.activeModRoot === modRoot &&
-    tables.currentTab === tab
-  );
+  return workspace.activeModRoot === modRoot && workspace.currentView === 'table' && tables.getCsvModState(modRoot)?.currentTab === tab;
 }

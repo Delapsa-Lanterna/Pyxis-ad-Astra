@@ -31,7 +31,7 @@
 - `src-tauri/src/services/mod.rs`：原生服务模块登记及查询、资源、保存业务函数的直接导出装配。
 - `src-tauri/tauri.conf.json`：应用标识、窗口与构建配置。
 - `src/app/App.vue`：主窗口根，以 main 模式包装唯一窗口壳并装配主窗口内容。
-- `src/app/AppContent.vue`：主窗口装配、活动保存与快捷键登记，以及完整目标绑定的页面懒挂载。
+- `src/app/AppContent.vue`：主窗口装配、明确文档保存与快捷键登记、窗口级 CSV 关联确认，以及完整目标绑定的 CSV 和 JSON 页面懒挂载。
 - `src/app/FileEditorApp.vue`：文件编辑器子窗口根，以 child 模式包装文件编辑器窗口内容。
 - `src/app/ImmersiveEditorApp.vue`：沉浸式子窗口根与统一窗口壳挂载。
 - `src/app/ImmersiveEditorContent.vue`：四类沉浸式组件、共同会话及业务事件装配。

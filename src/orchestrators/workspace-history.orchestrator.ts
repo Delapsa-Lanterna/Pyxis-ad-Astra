@@ -20,18 +20,23 @@ export async function dispatchWorkspaceHistoryCommand(direction: 'undo' | 'redo'
   const modRoot = workspace.activeModRoot;
   const sessionId = workspace.activeSessionId;
   const view = workspace.currentView;
-  const table = tables.currentTab;
+  const table = modRoot ? (tables.getCsvModState(modRoot)?.currentTab ?? 'ships') : 'ships';
   const page = workspace.jsonPage;
   const isCurrent = () =>
     workspace.activeModRoot === modRoot &&
     workspace.activeSessionId === sessionId &&
     workspace.currentView === view &&
-    (view !== 'table' || tables.currentTab === table) &&
+    (view !== 'table' || tables.getCsvModState(modRoot!)?.currentTab === table) &&
     (view !== 'json-editor' || workspace.jsonPage === page);
   const label = `${direction === 'undo' ? '撤销' : '重做'} ${view === 'json-editor' ? 'JSON' : 'CSV'} 编辑失败`;
   try {
-    const editor = view === 'json-editor' ? useJsonEditorStore().active : view === 'table' ? tables.activeEditor : null;
-    if (view === 'table' && tables.currentTableLocked) return;
+    const editor =
+      view === 'json-editor'
+        ? useJsonEditorStore().active
+        : view === 'table'
+          ? tables.getTableEditor({ sessionId: sessionId!, modRoot: modRoot!, table })
+          : null;
+    if (view === 'table' && tables.isTableLocked(modRoot!, table)) return;
     if (editor) {
       const result = await editor[direction]();
       if (!isCurrent()) return;
@@ -81,7 +86,7 @@ async function replayWorkspaceFileHistory(
   if (!plan) return false;
   confirmFileHistoryReplay(feedback, plan, async () => {
     try {
-      const tableTarget = { sessionId: plan.sessionId, modRoot: plan.modRoot, table: tables.currentTab };
+      const tableTarget = { sessionId: plan.sessionId, modRoot: plan.modRoot, table: tables.getCsvModState(plan.modRoot)!.currentTab };
       const result = await executeFileReplayPlan(plan, project);
       if (
         project.getSessionId(plan.modRoot) === plan.sessionId &&

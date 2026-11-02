@@ -81,7 +81,12 @@ const navigation = useWorkspaceNavigationActions();
 const sections = computed(() => buildModNavigationSections(workspace.activeManifest));
 
 function isActive(item: ModNavigationItem): boolean {
-  return isModNavigationItemActive(item, workspace.currentView, workspace.jsonPage, tables.currentTab);
+  return isModNavigationItemActive(
+    item,
+    workspace.currentView,
+    workspace.jsonPage,
+    workspace.activeModRoot ? (tables.getCsvModState(workspace.activeModRoot)?.currentTab ?? 'ships') : 'ships',
+  );
 }
 
 function navigate(item: ModNavigationItem) {

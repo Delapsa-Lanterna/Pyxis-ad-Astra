@@ -11,7 +11,8 @@ import { computed, onUnmounted, ref, watch } from 'vue';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
 import { useProjectStore } from '@/stores/project.store';
 import { useCsvEditorStore } from '@/stores/csv-editor.store';
-import { useWorkspaceStore } from '@/stores/workspace.store';
+import type { CsvEditorHost } from './csv-editor-context';
+import type { CsvEditorModel } from './use-csv-editor-model';
 import { createCsvGridColumns } from '@/domain/csv-editor/csv-grid-model';
 import { csvColumnSchemaFor } from '@/domain/csv-editor/csv-column-schema';
 import { mapSourceGroupsToSelectOptions, type SelectOption } from '@/domain/schema/schema-options';
@@ -22,10 +23,10 @@ import { hasResourceInvalidation } from '@/services/resource-media.service';
 import type { CsvRowPreviewTarget, ResourceRef, CsvSearchField, CsvDraftRow, SaveAcceptanceTask } from '@/shared/types';
 import { useFieldInputActions } from '@/app/composables/use-field-input-actions';
 
-export function useCsvTableViewModel() {
+export function useCsvTableViewModel(model: CsvEditorModel, host: CsvEditorHost) {
   const tables = useCsvEditorStore();
   const project = useProjectStore();
-  const workspace = useWorkspaceStore();
+  const view = model.view;
   const feedback = useAppFeedback();
   const reads = useQueryReadOwner();
   let pendingRows = new Map<string, Promise<void>>();
@@ -37,47 +38,37 @@ export function useCsvTableViewModel() {
   const searchPending = ref(false),
     windowReady = ref(false);
   const reorderDisabledReason = computed(() =>
-    tables.hasCurrentTableFilter
+    view.hasCurrentTableFilter
       ? '清空搜索和筛选后可调整行序'
-      : tables.currentTableLocked
+      : view.currentTableLocked
         ? '身份交接期间无法调整行序'
         : searchPending.value || !windowReady.value
           ? '数据准备完成后可调整行序'
           : '',
   );
   const reorderContext = computed(() =>
-    JSON.stringify([targetKey.value, tables.getCsvModState(tables.activeModRoot!)?.documents[tables.currentTab].baseVersions]),
+    JSON.stringify([targetKey.value, tables.getCsvModState(target.value!.modRoot)?.documents[view.currentTab].baseVersions]),
   );
   let disposed = false;
   let refreshAfterSave = false;
   let searchRevision = 0;
-  const target = computed(() =>
-    workspace.activeSessionId && tables.activeModRoot
-      ? {
-          sessionId: workspace.activeSessionId,
-          modRoot: tables.activeModRoot,
-          table: tables.currentTab,
-        }
-      : null,
-  );
+  const target = model.target;
   const targetKey = computed(() => (target.value ? JSON.stringify(target.value) : ''));
-  const columnWidthOverrides = computed(() =>
-    target.value ? (workspace.getColumnWidths(target.value.modRoot, target.value.table) ?? {}) : {},
-  );
+  const columnWidthOverrides = host.columnWidths;
   watch(
     targetKey,
     () => {
       searchRevision++;
-      if (workspace.entityLocation?.kind === 'ship') workspace.entityLocation = null;
+      if (host.entityLocation.value?.kind === 'ship') host.cancelEntityLocation(host.entityLocation.value);
     },
     { flush: 'sync' },
   );
   const { confirmDiscard } = useFieldInputActions(null);
   watch(
-    () => tables.selectedRowKey,
+    () => view.selectedRowKey,
     () => {
-      if (workspace.entityLocation?.kind === 'ship') {
-        workspace.entityLocation = null;
+      if (host.entityLocation.value?.kind === 'ship') {
+        host.cancelEntityLocation(host.entityLocation.value);
         reads.revoke('consumer', 'location');
       }
     },
@@ -85,7 +76,7 @@ export function useCsvTableViewModel() {
   );
   useContextMenuScope({
     identity: () => targetKey.value,
-    canRefresh: () => Boolean(target.value) && !tables.currentTableLocked,
+    canRefresh: () => Boolean(target.value) && !view.currentTableLocked,
     refresh: () => {
       const captured = target.value!;
       const tables = new Set([
@@ -97,7 +88,7 @@ export function useCsvTableViewModel() {
       ]);
       const targets = project.tableWriteTargets.filter((target) => target.sessionId === captured.sessionId && tables.has(target.table));
       const configPaths = [...visibleSourceIds()].filter(isConfigSource).map((source) => CONFIG_OPTION_SOURCES[source]);
-      const coreSources = workspace.activeManifest!.coreAvailable
+      const coreSources = host.manifest.value!.coreAvailable
         ? [...targets.map((target) => relativePathFromRoot(captured.modRoot, target.path)), ...configPaths].map((relPath) => ({
             source: 'core' as const,
             relPath,
@@ -128,7 +119,7 @@ export function useCsvTableViewModel() {
     searchPending.value = true;
     try {
       if (!captured || !(await commitTableInput()) || !accepts()) return;
-      if (text === tables.searchText && windowReady.value) await loadIndex(Boolean(text.trim()), 0);
+      if (text === view.searchText && windowReady.value) await loadIndex(Boolean(text.trim()), 0);
       else if (accepts()) tables.setSearchText(captured, text);
     } catch (error) {
       feedback.error(error);
@@ -149,13 +140,13 @@ export function useCsvTableViewModel() {
   }
 
   const columnModel = computed(() =>
-    createCsvGridColumns(tables.currentTab, tables.visibleColumns, widthSample.value, loadedSourceOptions.value),
+    createCsvGridColumns(view.currentTab, view.visibleColumns, widthSample.value, loadedSourceOptions.value),
   );
   const sourceIndex = computed(() => columnModel.value.sourceIndex);
   const gridModel = computed(() => ({
     ...columnModel.value,
-    rowKeys: tables.rowKeys,
-    rowsByKey: tables.rowsByKey,
+    rowKeys: view.rowKeys,
+    rowsByKey: view.rowsByKey,
     sourceIndex: sourceIndex.value,
   }));
 
@@ -189,9 +180,9 @@ export function useCsvTableViewModel() {
     { immediate: true },
   );
   watch(
-    () => [tables.searchText, tables.searchField] as const,
+    () => [view.searchText, view.searchField] as const,
     () => {
-      if (windowReady.value) void loadIndex(Boolean(tables.searchText.trim()), 0);
+      if (windowReady.value) void loadIndex(Boolean(view.searchText.trim()), 0);
       else void initializeIndex();
     },
   );
@@ -206,16 +197,15 @@ export function useCsvTableViewModel() {
 
   function setColumnWidth(key: string, width: number) {
     const captured = target.value;
-    if (captured)
-      workspace.setColumnWidths(captured.modRoot, captured.table, { ...columnWidthOverrides.value, [key]: Math.max(40, width) });
+    if (captured) host.setColumnWidth(captured, key, Math.max(40, width));
   }
 
   const stopQueryInvalidation = observeSavedContent(
     (event) => {
-      const projection = saveProjection(event, workspace.activeSessionId);
+      const projection = saveProjection(event, target.value?.sessionId);
       if (!projection) return;
       const tasks: SaveAcceptanceTask[] = [];
-      if (hasTableInvalidation(projection.invalidation, 'csv-table-window', tables.currentTab)) {
+      if (hasTableInvalidation(projection.invalidation, 'csv-table-window', view.currentTab)) {
         tasks.push(async () => {
           const captured = target.value!;
           reads.revoke();
@@ -224,10 +214,10 @@ export function useCsvTableViewModel() {
             captured.sessionId,
             captured.table,
             Math.max(lastRange.count, 240),
-            tables.searchText || null,
-            tables.searchField,
+            view.searchText || null,
+            view.searchField,
           );
-          tables.acceptSavedTableIndex(captured, index, Boolean(tables.searchText.trim()));
+          tables.acceptSavedTableIndex(captured, index, Boolean(view.searchText.trim()));
           refreshAfterSave = false;
           widthSample.value = cloneQuerySnapshot<CsvDraftRow[]>(index.rows);
           windowReady.value = true;
@@ -242,12 +232,12 @@ export function useCsvTableViewModel() {
       return tasks;
     },
     (sessionId) => {
-      if (sessionId === workspace.activeSessionId) reads.revoke('session');
+      if (sessionId === target.value?.sessionId) reads.revoke('session');
     },
   );
 
   watch(
-    () => tables.saving || tables.currentTableLocked,
+    () => view.saving || view.currentTableLocked,
     (saving) => {
       clearRowQueue();
       if (saving) {
@@ -296,7 +286,7 @@ export function useCsvTableViewModel() {
         if (disposed || targetKey.value !== captured) return;
         void reloadCurrentTableWindow();
       },
-      tables.hasTableDirtyChanges(tables.currentTab),
+      tables.hasTableDirtyChanges(target.value!),
       () => targetKey.value,
       tables.getCsvModState(target.value!.modRoot)!.documents[target.value!.table].baseVersions.map((version) => version.path),
     );
@@ -305,7 +295,7 @@ export function useCsvTableViewModel() {
   function lockColumnWidthsForLoadedModel() {
     const model = columnModel.value;
     const hasLoadedRows = widthSample.value.length > 0;
-    if (!hasLoadedRows && tables.filteredRowCount > 0) return;
+    if (!hasLoadedRows && view.filteredRowCount > 0) return;
     if ([...visibleSourceIds()].some((source) => !loadedSourceOptions.value.has(source))) return;
     const hasLocked = Object.keys(lockedColumnWidths.value).length > 0;
     if (!hasLocked) {
@@ -323,8 +313,8 @@ export function useCsvTableViewModel() {
     const state = tables.getCsvModState(captured.modRoot);
     if (!state) return;
     const generation = tables.tableReadGeneration(captured.modRoot, captured.table);
-    const search = filtered ? tables.searchText : null;
-    const field = tables.searchField;
+    const search = filtered ? view.searchText : null;
+    const field = view.searchField;
     const document = state.documents[captured.table];
     const order = filtered ? [...document.rowOrder] : [];
     const drafts = filtered
@@ -340,8 +330,8 @@ export function useCsvTableViewModel() {
           if (
             state !== tables.getCsvModState(captured.modRoot) ||
             generation !== tables.tableReadGeneration(captured.modRoot, captured.table) ||
-            tables.saving ||
-            tables.currentTableLocked
+            view.saving ||
+            view.currentTableLocked
           )
             return;
           tables.applyTableIndex(
@@ -367,7 +357,7 @@ export function useCsvTableViewModel() {
     return accepted;
   }
   async function locateRequestedRow() {
-    const location = workspace.entityLocation,
+    const location = host.entityLocation.value,
       captured = target.value;
     if (
       !location ||
@@ -378,36 +368,41 @@ export function useCsvTableViewModel() {
       !windowReady.value
     )
       return;
-    if (!tables.rowKeys.includes(location.rowKey!)) return;
-    if (!tables.rowsByKey[location.rowKey!]) {
+    if (!view.rowKeys.includes(location.rowKey!)) return;
+    if (!view.rowsByKey[location.rowKey!]) {
       const accepted = await reads.consume(
         'location',
         location,
         (signal) => queryTableRows(captured.sessionId, 'ships', [location.rowKey!], signal),
         {
           ready: (rows) => {
-            if (workspace.entityLocation === location && targetKey.value === JSON.stringify(captured))
+            if (host.entityLocation.value === location && targetKey.value === JSON.stringify(captured))
               tables.applyTableRows(captured, rows);
           },
-          error: (error) => feedback.error(error, '加载定位船体失败'),
+          error: (error) => {
+            if (host.entityLocation.value === location && targetKey.value === JSON.stringify(captured))
+              feedback.error(error, '加载定位船体失败');
+          },
         },
       );
-      if (!accepted || workspace.entityLocation !== location || targetKey.value !== JSON.stringify(captured)) return;
+      if (!accepted || host.entityLocation.value !== location || targetKey.value !== JSON.stringify(captured)) return;
     }
     tables.selectRowByKey(captured, location.rowKey!);
-    workspace.entityLocation = null;
+    host.completeEntityLocation(location);
   }
   watch(
-    () => workspace.entityLocation,
+    () => host.entityLocation.value,
     () => {
+      reads.revoke('consumer', 'location');
       void locateRequestedRow();
     },
+    { flush: 'sync' },
   );
   async function initializeIndex() {
     const identity = targetKey.value;
     const hasSearch = target.value && tables.getCsvModState(target.value.modRoot)!.documents[target.value.table].queryRowKeys;
     const accepted = await loadIndex(false, 240);
-    if (accepted && !disposed && identity === targetKey.value && tables.searchText.trim() && !hasSearch) await loadIndex(true, 0);
+    if (accepted && !disposed && identity === targetKey.value && view.searchText.trim() && !hasSearch) await loadIndex(true, 0);
   }
   function drainRows() {
     while (rowReads < 2 && rowQueue.length) {
@@ -423,7 +418,7 @@ export function useCsvTableViewModel() {
   }
   function loadTableWindow(start: number, count: number): Promise<void> {
     lastRange = { start, count };
-    return loadRows(tables.rowKeys.slice(start, start + count));
+    return loadRows(view.rowKeys.slice(start, start + count));
   }
   function loadRows(requested: string[]): Promise<void> {
     const captured = target.value;
@@ -450,8 +445,8 @@ export function useCsvTableViewModel() {
                     if (
                       state === tables.getCsvModState(captured.modRoot) &&
                       generation === tables.tableReadGeneration(captured.modRoot, captured.table) &&
-                      !tables.saving &&
-                      !tables.currentTableLocked
+                      !view.saving &&
+                      !view.currentTableLocked
                     )
                       tables.applyTableRows(captured, rows);
                   },
@@ -497,9 +492,9 @@ export function useCsvTableViewModel() {
   }
 
   async function reloadVisibleSourceOptions(required = false) {
-    const sessionId = workspace.activeSessionId;
+    const sessionId = target.value?.sessionId;
     if (!sessionId) return;
-    const table = tables.currentTab;
+    const table = view.currentTab;
     const sources = [...visibleSourceIds()];
     await reads.consume(
       'sources',
@@ -526,7 +521,7 @@ export function useCsvTableViewModel() {
   }
 
   function visibleSourceIds(): Set<string> {
-    return new Set(tables.visibleColumns.map((column) => csvColumnSchemaFor(tables.currentTab, column)?.source).filter(isSourceId));
+    return new Set(view.visibleColumns.map((column) => csvColumnSchemaFor(view.currentTab, column)?.source).filter(isSourceId));
   }
 
   function loadedSourceResourceRefs(): ResourceRef[] {
@@ -543,7 +538,7 @@ export function useCsvTableViewModel() {
   }
 
   return {
-    tables,
+    model,
     target,
     targetKey,
     setSearchText,

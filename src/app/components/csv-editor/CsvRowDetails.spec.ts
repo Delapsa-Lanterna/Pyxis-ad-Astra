@@ -1,3 +1,5 @@
+import { computed } from 'vue';
+import { useCsvEditorModel } from '@/app/composables/csv-editor/use-csv-editor-model';
 import { csvTableIndex } from '@/test/fixtures/csv-row';
 import { mount, type VueWrapper } from '@vue/test-utils';
 import { createPinia, getActivePinia, setActivePinia } from 'pinia';
@@ -85,6 +87,10 @@ function activateProject() {
 function mountPane() {
   wrapper = mount(CsvRowDetails, {
     props: {
+      model: useCsvEditorModel(
+        computed(() => ({ sessionId: 'sess-1', modRoot: 'M:/mod', table: useCsvEditorStore().getCsvModState('M:/mod')!.currentTab })),
+      ),
+      starsectorRoot: null,
       queryRowPreview: vi.fn(async () => ''),
       sourceIndex: { optionsBySource: new Map(), valueIndexBySource: new Map(), valueSetsBySource: new Map() },
     },

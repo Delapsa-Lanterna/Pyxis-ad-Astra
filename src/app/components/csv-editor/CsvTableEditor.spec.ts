@@ -6,6 +6,7 @@ import CsvTableEditor from './CsvTableEditor.vue';
 import CsvGrid from './CsvGrid.vue';
 import type { CsvTableViewModel } from '@/app/composables/csv-editor/use-csv-table-view-model';
 import { createFieldInputs } from '@/shared/runtime/field-inputs';
+import { useCsvEditorStore } from '@/stores/csv-editor.store';
 import { createPinia, setActivePinia } from 'pinia';
 import { initializeSettingsStore } from '@/stores/settings.store';
 import { createSettingsFixture } from '@/test/fixtures/settings';
@@ -28,20 +29,22 @@ function tableVmFixture(overrides: { tables?: Record<string, unknown>; loadExter
     reorderDisabledReason: ref(''),
     reorderContext: ref('fixture'),
     loadExternalTableUpdate: overrides.loadExternalTableUpdate ?? vi.fn(),
-    tables: {
-      hasCurrentTableExternalUpdate: false,
-      filteredRowCount: 0,
-      totalRowCount: 0,
-      rows: [],
-      visibleColumns: ['id'],
-      editing: null,
-      isDirty: () => false,
-      selectedRowKey: null,
-      selectRowByKey: vi.fn(),
-      getTableInputs: () => createFieldInputs(),
-      updateCellValue: vi.fn(),
-      setActiveCell: vi.fn(),
-      ...overrides.tables,
+    model: {
+      view: {
+        hasCurrentTableExternalUpdate: false,
+        filteredRowCount: 0,
+        totalRowCount: 0,
+        rows: [],
+        visibleColumns: ['id'],
+        editing: null,
+        isDirty: () => false,
+        selectedRowKey: null,
+        selectRowByKey: vi.fn(),
+        getTableInputs: () => createFieldInputs(),
+        updateCellValue: vi.fn(),
+        setActiveCell: vi.fn(),
+        ...overrides.tables,
+      },
     },
   } as unknown as CsvTableViewModel;
 }
@@ -49,6 +52,9 @@ function tableVmFixture(overrides: { tables?: Record<string, unknown>; loadExter
 function mountTable(vm: CsvTableViewModel) {
   setActivePinia(createPinia());
   initializeSettingsStore(createSettingsFixture());
+  const tables = useCsvEditorStore();
+  vi.spyOn(tables, 'getTableInputs').mockImplementation(() => createFieldInputs());
+  vi.spyOn(tables, 'setActiveCell').mockImplementation(vi.fn());
   wrapper = mount(CsvTableEditor, {
     props: { csvTable: vm },
     global: {
@@ -81,11 +87,12 @@ describe('CsvTableEditor', () => {
   });
   it('copies through its captured table target', async () => {
     const copyRows = vi.fn();
-    const fixture = tableVmFixture({ tables: { copyRows } });
+    const fixture = tableVmFixture();
     const currentTarget = ref(fixture.target.value);
     const vm = { ...fixture, target: computed(() => currentTarget.value) };
     const target = vm.target.value;
     const mounted = mountTable(vm);
+    vi.spyOn(useCsvEditorStore(), 'copyRows').mockImplementation(copyRows);
     currentTarget.value = { sessionId: 'other', modRoot: 'M:/other', table: 'weapons' };
     await mounted.get('.copy-fixture').trigger('click');
     expect(copyRows).toHaveBeenCalledExactlyOnceWith(target, ['source'], 3);

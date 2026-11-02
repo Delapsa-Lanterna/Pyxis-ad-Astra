@@ -25,6 +25,15 @@ export function frontendDependencyFailure(current, target, edge) {
     (target.path === 'src/stores/workspace.store.ts' || (target.layer === 'orchestrators' && target.domain?.startsWith('workspace-')))
   )
     return { message: 'JSON editors consume explicit page targets and host actions', expected: 'JSON editor host contract' };
+  const csvEditor =
+    /^src\/(?:app\/(?:components|composables)\/csv-editor\/|domain\/csv-editor\/|stores\/csv-editor\.store\.ts$|orchestrators\/csv-save\.orchestrator\.ts$|services\/csv-table\.service\.ts$)/.test(
+      current.path,
+    );
+  if (
+    csvEditor &&
+    (target.path === 'src/stores/workspace.store.ts' || (target.layer === 'orchestrators' && target.domain?.startsWith('workspace-')))
+  )
+    return { message: 'CSV editors consume explicit table targets and host actions', expected: 'CSV editor host contract' };
   const browser =
     current.path.includes('/mod-file-browser/') ||
     current.path === 'src/stores/mod-file-browser.store.ts' ||

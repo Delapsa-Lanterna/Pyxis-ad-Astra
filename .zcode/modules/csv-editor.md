@@ -30,6 +30,7 @@ CSV 文档编辑模块管理整表文件的领域规则、运行态、展示、�
 - `src-tauri/src/services/project/session/csv_writes.rs`：表格暂存与成功应用后的正式状态接纳。
 - `src-tauri/src/services/project/write/entity_write.rs`：实体关联规格与描述的实际文件写入。
 - `src-tauri/src/services/project/write/entity_write/associated_spec_preparation.rs`：关联文件实际来源、目标准备与匹配版本。
+- `src/app/composables/csv-editor/csv-editor-context.ts`：表格目标、清单、列宽及实体定位的宿主契约。
 - `src/domain/csv-editor/csv-dirty.ts`：保存快照消费的表格行脏标记。
 - `src/domain/csv-editor/csv-table-draft.ts`：提交后的表格基线、行序、行键映射及 dirty 接纳。
 - `src/domain/edit-session.ts`：历史双栈原语与正式保存后保留后续草稿的接纳规则。
@@ -47,7 +48,6 @@ CSV 文档编辑模块管理整表文件的领域规则、运行态、展示、�
 - `src/shared/types/tables.types.ts`：CSV 行、单元格目标、窗口与预览契约。
 - `src/shared/types/write-commit.types.ts`：公共保存回执、提交同步、行键映射与正式内容交付。
 - `src/stores/project.store.ts`：指定 Mod 的正式清单与 session 查询，异步动作消费捕获目标。
-- `src/stores/workspace.store.ts`：当前 Mod、清单与 session 投影，以及按 Mod、表与列持有的持久化列宽。
 - `src/test/fixtures/csv-row.ts`：CSV 草稿行的测试构造。
 - `src/test/unit/csv-input-host.ts`：CSV 输入提交的组件测试宿主。
 
@@ -67,7 +67,7 @@ CSV 文档编辑模块管理整表文件的领域规则、运行态、展示、�
 
 ## 边界
 
-- ViewModel 拥有窗口接纳、搜索和过滤，workspace 提供活动身份。
+- 工作区宿主交付完整表格目标、清单、有效游戏根、持久列宽和定位动作；CSV model 派生所属内存状态，ViewModel 维护窗口接纳、搜索和过滤。
 - 保存归表格编排，草稿撤销重做归所属表运行态，身份交接锁由所属运行态提供。
 - 列语义来自 schema 加载器，持久化列宽归 workspace 的 Mod、表、列上下文。
 - 双栈结构消费编辑会话原语，CSV 操作反演、行数和行序维护归表格领域。
@@ -178,6 +178,8 @@ CSV 文档编辑模块管理整表文件的领域规则、运行态、展示、�
 
 ## 规范
 
+- CSV 实现必须消费明确表格目标和宿主契约；内存投影必须派生同一目标的运行态，实际导航和持久列宽写入必须经宿主交付。
+- 页面动作必须随所属页面结束；关联规格确认必须由窗口交付全部表文档保存，输入、保存等待、引用结果和错误必须共同核对原目标及导航意图。
 - 关联保存必须逐文件选择处理方式并只展示所选内容来源、目标、完整诊断及旧文件移除结果，保存按钮必须统一；搜索必须直接消费本次草稿，搜索操作必须保留未保存修改与草稿历史。
 - 单元格选择与编辑必须分别维护，组合输入必须完整保留首字及组字过程，保存行键映射必须保留选中列及所属行身份。
 - 区域动作必须等待所需行完整读取后一次提交，单次动作只允许登记一条包含前后值与新增行的历史；搜索隐藏行必须保留原内容，批量成员必须消费保存后的行键映射。

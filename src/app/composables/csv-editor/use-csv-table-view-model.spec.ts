@@ -1,3 +1,6 @@
+import { useWorkspaceCsvEditorHost } from '@/app/composables/use-workspace-csv-editor-host';
+import { useCsvEditorModel } from './use-csv-editor-model';
+import { csvEditorView } from '@/app/composables/csv-editor/tests/csv-editor-view';
 import type { AppFeedback } from '@/shared/types';
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
@@ -41,7 +44,8 @@ function harness() {
   let vm!: ReturnType<typeof useCsvTableViewModel>;
   wrapper = mount({
     setup() {
-      vm = useCsvTableViewModel();
+      const host = useWorkspaceCsvEditorHost(() => null);
+      vm = useCsvTableViewModel(useCsvEditorModel(host.target), host);
       return () => null;
     },
   });
@@ -81,7 +85,7 @@ describe('CSV index and keyed content owner', () => {
     tables.updateCellValue({ ...target, rowKey: 'key-0', column: 'id' }, 'local');
     tables.updateCellValue({ ...target, rowKey: 'key-1', column: 'id' }, 'local');
     tables.deleteRows(target, ['key-2']);
-    const created = tables.addNewRow()!.rowKey;
+    const created = tables.addNewRow(target)!.rowKey;
     tables.updateCellValue({ ...target, rowKey: created, column: 'id' }, 'local');
     tables.moveRows(target, [created], 0);
     const order = [...document.rowOrder],
@@ -163,19 +167,19 @@ describe('CSV index and keyed content owner', () => {
     expect(vm.gridModel.value.rowKeys).toHaveLength(1000);
   });
   it('locates an unloaded exact row and keeps an existing draft', async () => {
-    const vm = harness();
+    harness();
     await flushPromises();
-    vm.tables.updateCellValue({ ...target, rowKey: 'key-0', column: 'name' }, 'Local');
+    useCsvEditorStore().updateCellValue({ ...target, rowKey: 'key-0', column: 'name' }, 'Local');
     useWorkspaceStore().entityLocation = { ...target, kind: 'ship', id: 'id-900', rowKey: 'key-900' };
     await flushPromises();
     expect(mocks.rows).toHaveBeenCalledWith('session', 'ships', ['key-900'], expect.any(AbortSignal));
-    expect(vm.tables.selectedRowKey).toBe('key-900');
-    expect(vm.tables.rowsByKey['key-900']?.data.id).toBe('id-900');
-    expect(vm.tables.rowsByKey['key-0']?.data.name).toBe('Local');
+    expect(csvEditorView(target).selectedRowKey).toBe('key-900');
+    expect(csvEditorView(target).rowsByKey['key-900']?.data.id).toBe('id-900');
+    expect(csvEditorView(target).rowsByKey['key-0']?.data.name).toBe('Local');
     expect(useWorkspaceStore().entityLocation).toBeNull();
   });
   it.each(['selection', 'table', 'newer'] as const)('invalidates a late location after %s changes', async (reason) => {
-    const vm = harness();
+    harness();
     await flushPromises();
     let finish!: (value: CsvTableRowsRead) => void;
     mocks.rows.mockImplementationOnce(
@@ -187,13 +191,13 @@ describe('CSV index and keyed content owner', () => {
     const workspace = useWorkspaceStore();
     workspace.entityLocation = { ...target, kind: 'ship', id: 'id-900', rowKey: 'key-900' };
     await flushPromises();
-    if (reason === 'selection') vm.tables.selectRowByKey(target, 'key-10');
-    else if (reason === 'table') vm.tables.switchTab(target.modRoot, 'wings');
+    if (reason === 'selection') useCsvEditorStore().selectRowByKey(target, 'key-10');
+    else if (reason === 'table') useCsvEditorStore().switchTab(target.modRoot, 'wings');
     else workspace.entityLocation = { ...target, kind: 'ship', id: 'id-800', rowKey: 'key-800' };
     await flushPromises();
     finish(readRows(['key-900']));
     await flushPromises();
-    expect(vm.tables.selectedRowKey).toBe(reason === 'selection' ? 'key-10' : reason === 'newer' ? 'key-800' : null);
+    expect(csvEditorView(target).selectedRowKey).toBe(reason === 'selection' ? 'key-10' : reason === 'newer' ? 'key-800' : null);
     expect(workspace.entityLocation).toBeNull();
   });
   it('reports a location read error through table feedback', async () => {
@@ -269,7 +273,7 @@ describe('CSV index and keyed content owner', () => {
     useCsvEditorStore().moveRows(target, ['key-900'], 0);
     await vm.loadTableWindow(0, 40);
     expect(mocks.rows).toHaveBeenLastCalledWith('session', 'ships', ['key-900'], expect.any(AbortSignal));
-    expect(useCsvEditorStore().rows[0]?.rowKey).toBe('key-900');
+    expect(csvEditorView(target).rows[0]?.rowKey).toBe('key-900');
   });
   it('reuses loaded range contents without another row, index or source read', async () => {
     const vm = harness();
@@ -302,7 +306,7 @@ describe('CSV index and keyed content owner', () => {
     await loading;
     expect(vm.gridModel.value.rowsByKey['key-600']?.rowKey).toBe('key-600');
     expect(vm.gridModel.value.rowsByKey['key-0']?.data.name).toBe('Local');
-    expect(useCsvEditorStore().hasCurrentTableExternalUpdate).toBe(false);
+    expect(csvEditorView(target).hasCurrentTableExternalUpdate).toBe(false);
   });
   it('releases failed row requests for a later retry', async () => {
     const vm = harness();
@@ -328,7 +332,7 @@ describe('CSV index and keyed content owner', () => {
     if (completion === 'resolve') finish(csvTableIndex(rows.slice(0, 2)));
     else fail(new Error('Old index'));
     await flushPromises();
-    expect(useCsvEditorStore().rows[0]?.data.id).toBe('local');
+    expect(csvEditorView(target).rows[0]?.data.id).toBe('local');
     expect(mocks.error).not.toHaveBeenCalled();
   });
   it.each(['index', 'rows'] as const)('ends a late %s read after its Mod runtime is removed', async (kind) => {
@@ -382,7 +386,7 @@ describe('CSV index and keyed content owner', () => {
   it('filters identities while retaining loaded content and column widths', async () => {
     const vm = harness();
     await flushPromises();
-    const first = useCsvEditorStore().rows[0],
+    const first = csvEditorView(target).rows[0],
       columns = vm.effectiveColumns.value;
     await vm.setSearchText('id-99');
     await flushPromises();
@@ -390,7 +394,7 @@ describe('CSV index and keyed content owner', () => {
     expect(vm.gridModel.value.rowKeys).toContain('key-990');
     await vm.setSearchText('');
     await flushPromises();
-    expect(useCsvEditorStore().rows[0]).toBe(first);
+    expect(csvEditorView(target).rows[0]).toBe(first);
     expect(vm.effectiveColumns.value).toBe(columns);
   });
   it('persists independent column overrides and delegates row preview reads', async () => {

@@ -1,3 +1,4 @@
+import { csvEditorView } from '@/app/composables/csv-editor/tests/csv-editor-view';
 import { beforeEach, describe, expect, it, onTestFinished } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
 import { effectScope } from 'vue';
@@ -54,7 +55,7 @@ describe('workspace JSON host', () => {
     workspace.activateModJson('M:/one', 'skins');
     host.locateBaseHull(origin, { id: 'hull', rowKey: 'row' });
     expect(workspace.currentView).toBe('table');
-    expect(useCsvEditorStore().currentTab).toBe('ships');
+    expect(csvEditorView({ sessionId: 's1', modRoot: 'M:/one', table: 'ships' }).currentTab).toBe('ships');
     expect(workspace.entityLocation).toEqual({ sessionId: 's1', modRoot: 'M:/one', kind: 'ship', id: 'hull', rowKey: 'row' });
   });
   it.each(['page', 'session', 'released'] as const)('ends actions from a %s host', (boundary) => {

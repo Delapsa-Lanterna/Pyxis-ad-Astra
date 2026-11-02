@@ -1,3 +1,4 @@
+import { csvEditorView } from '@/app/composables/csv-editor/tests/csv-editor-view';
 import { dialogText } from '@/test/unit/dialog-text';
 import { miscConfigDocumentValue, miscConfigDocumentContent } from '@/domain/json-editor/json-document-definitions';
 import { dispatchProjectChangeFixture, committedChangeFixture } from '@/test/unit/project-changes';
@@ -602,7 +603,7 @@ describe('JSON common workspace and form', () => {
     await flushPromises();
     expect(mocks.hullTarget).toHaveBeenCalledWith('s1', 'ship', 'hull', expect.any(AbortSignal));
     expect(useWorkspaceStore().currentView).toBe('table');
-    expect(useCsvEditorStore().currentTab).toBe('ships');
+    expect(csvEditorView({ sessionId: 's1', modRoot: 'M:/one', table: 'ships' }).currentTab).toBe('ships');
     expect(useWorkspaceStore().entityLocation).toMatchObject({
       sessionId: 's1',
       modRoot: 'M:/one',

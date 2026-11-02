@@ -1,6 +1,6 @@
-import { h, ref, watch } from 'vue';
+import { computed, onScopeDispose, watch } from 'vue';
 
-import type { AppFeedback } from '@/shared/types';
+import type { AppFeedback, CsvTableTarget } from '@/shared/types';
 
 import { openEntityImmersiveEditor } from '@/orchestrators/immersive-editor.orchestrator';
 import { openSpecEditorWindow } from '@/windows/spec-editor.window';
@@ -8,31 +8,42 @@ import { openWeaponFirePreviewWindow } from '@/windows/weapon-fire-preview.windo
 import { useProjectStore } from '@/stores/project.store';
 
 import { useCsvEditorStore } from '@/stores/csv-editor.store';
-import type { AssociatedSpecCandidate } from '@/domain/csv-editor/associated-spec-candidates';
 import type { TableDetailAction } from '@/domain/csv-editor/table-detail-actions';
 import { openFileEditorWindow, type FileEditorRequest } from '@/windows/file-editor.window';
 
-import { useWorkspaceStore } from '@/stores/workspace.store';
 import { querySessionEntityEditTarget } from '@/services/entity-query.service';
 import { resolveWingReference } from '@/orchestrators/joint-edit.orchestrator';
 import { useSaveCommandStore } from '@/stores/save-command.store';
 import { useQueryReadOwner } from '@/app/composables/use-query-read-owner';
-import { navigateToModTable, navigateToModJson } from '@/orchestrators/workspace-navigation.orchestrator';
 import { AppError } from '@/shared/lib/errors';
 
-export function useCsvEditorActions(feedback: AppFeedback) {
+import type { CsvEditorModel } from './use-csv-editor-model';
+import type { CsvEditorHost } from './csv-editor-context';
+
+export function useCsvEditorActions(model: CsvEditorModel, host: CsvEditorHost, feedback: AppFeedback) {
   const project = useProjectStore();
   const tables = useCsvEditorStore();
-  const workspace = useWorkspaceStore();
+  const view = model.view;
+  const key = computed(() => JSON.stringify(model.target.value));
+  let disposed = false;
+  let contextRevision = 0;
+  onScopeDispose(() => {
+    disposed = true;
+  });
+  const active = () => !disposed && Boolean(model.state.value) && key.value === JSON.stringify(host.target.value);
+  const matches = (target: CsvTableTarget) => active() && key.value === JSON.stringify(target);
   const reads = useQueryReadOwner();
   watch(
-    () => [workspace.activeSessionId, workspace.activeModRoot, tables.currentTab, tables.selectedRowKey],
-    () => reads.revoke(),
+    () => [key.value, view.selectedRowKey],
+    () => {
+      contextRevision++;
+      reads.revoke();
+    },
     { flush: 'sync' },
   );
   async function save() {
     try {
-      const result = await tables.activeEditor!.save();
+      const result = await model.document.value!.save();
       if (result.status === 'noop') feedback.info('没有需要保存的修改');
       return result;
     } catch (error) {
@@ -41,76 +52,11 @@ export function useCsvEditorActions(feedback: AppFeedback) {
     return undefined;
   }
 
-  async function selectAssociatedSpecs(candidates: AssociatedSpecCandidate[]) {
-    const { default: AssociatedSpecSaveDialog } = await import('@/app/components/AssociatedSpecSaveDialog.vue');
-    const choices = ref(candidates);
-    const warning = candidates.some(
-      ({ change, preparation, mode }) =>
-        change.action !== 'delete' &&
-        (preparation!.destination.version.fingerprint ||
-          preparation!.original?.problem ||
-          (change.create.kind === 'weapon' &&
-            mode !== 'read' &&
-            !(preparation!.original?.version.fingerprint && !preparation!.original.problem))),
-    );
-    const selectedKeys = ref(
-      new Set(
-        candidates
-          .filter(
-            (candidate) =>
-              !candidate.preparation?.destination.version.fingerprint ||
-              !candidate.preparation.destination.problem ||
-              (candidate.preparation.original?.version.fingerprint && !candidate.preparation.original.problem),
-          )
-          .map((candidate) => candidate.key),
-      ),
-    );
-    const choice = await feedback.choose({
-      title: '保存 CSV？',
-      type: warning ? 'warning' : 'info',
-      content: () =>
-        h(AssociatedSpecSaveDialog, {
-          candidates: choices.value,
-          selectedKeys: selectedKeys.value,
-          'onUpdate:candidates': (value) => {
-            choices.value = value;
-          },
-          onSelect: (key, checked) => {
-            if (checked) selectedKeys.value.add(key);
-            else selectedKeys.value.delete(key);
-          },
-        }),
-      choices: [
-        {
-          label: '保存',
-          value: 'save',
-          type: warning ? 'warning' : 'primary',
-        },
-      ],
-      cancelText: '返回编辑',
-    });
-    if (choice !== 'save') return null;
-    return choices.value
-      .filter((candidate) => selectedKeys.value.has(candidate.key))
-      .map((candidate) => ({
-        change: candidate.change,
-        target: candidate.preparation!.target,
-        resolution:
-          candidate.change.action === 'delete'
-            ? null
-            : {
-                mode: candidate.mode!,
-                original: candidate.preparation!.original,
-                destination: candidate.preparation!.destination,
-              },
-      }));
-  }
-
   const undoCurrentTableEdit = () => replay('undo');
   const redoCurrentTableEdit = () => replay('redo');
   async function replay(direction: 'undo' | 'redo') {
     try {
-      const result = await tables.activeEditor?.[direction]();
+      const result = await model.document.value?.[direction]();
       if (result === false) feedback.error(direction === 'undo' ? '撤销 CSV 编辑失败' : '重做 CSV 编辑失败');
     } catch (error) {
       feedback.error(error, direction === 'undo' ? '撤销 CSV 编辑失败' : '重做 CSV 编辑失败');
@@ -118,56 +64,52 @@ export function useCsvEditorActions(feedback: AppFeedback) {
   }
 
   async function addNewRow() {
-    if (!workspace.activeManifest) return;
-    const root = tables.activeModRoot;
-    const table = tables.currentTab;
+    const target = model.target.value!,
+      state = model.state.value;
     try {
-      if ((await commitCurrentInput()) === false || root !== tables.activeModRoot || table !== tables.currentTab) return;
-      tables.addNewRow();
-    } catch (err) {
-      feedback.error(err, '新建 CSV 行失败');
+      if ((await tables.getTableInputs(target.modRoot, target.table).commit()) === false || !matches(target) || model.state.value !== state)
+        return;
+      tables.addNewRow(target);
+    } catch (error) {
+      if (active()) feedback.error(error, '新建 CSV 行失败');
     }
   }
-
   async function deleteSelectedRow() {
-    if (!workspace.activeManifest || !tables.selectedRowKey) return;
-    const root = tables.activeModRoot;
-    const table = tables.currentTab;
-    const rowKey = tables.selectedRowKey;
+    const target = model.target.value!,
+      state = model.state.value,
+      rowKey = view.selectedRowKey;
+    if (!rowKey) return;
     try {
-      const target = tables.editing;
-      if (target?.rowKey === tables.selectedRowKey) {
+      const editing = view.editing;
+      if (editing?.rowKey === rowKey) {
         tables.getTableInputs(target.modRoot, target.table).cancel();
         tables.setActiveCell(null, target.modRoot);
-      } else if ((await commitCurrentInput()) === false) return;
-      if (root !== tables.activeModRoot || table !== tables.currentTab || rowKey !== tables.selectedRowKey) return;
-      tables.deleteSelected();
-    } catch (err) {
-      feedback.error(err, '删除 CSV 行失败');
+      } else if ((await tables.getTableInputs(target.modRoot, target.table).commit()) === false) return;
+      if (!matches(target) || model.state.value !== state || view.selectedRowKey !== rowKey) return;
+      tables.deleteSelectedRow(target);
+    } catch (error) {
+      if (active()) feedback.error(error, '删除 CSV 行失败');
     }
   }
-
-  function commitCurrentInput() {
-    const root = tables.activeModRoot;
-    return root ? tables.getTableInputs(root, tables.currentTab).commit() : undefined;
-  }
-
-  async function navigateWing(action: Extract<TableDetailAction, { type: 'wing-navigation' }>) {
+  async function navigateToWingReference(action: Extract<TableDetailAction, { type: 'wing-navigation' }>) {
     const commands = useSaveCommandStore(),
-      sequence = commands.beginTransition();
+      sequence = commands.beginTransition(),
+      revision = contextRevision;
     const current = () =>
+      contextRevision === revision &&
       commands.isTransitionCurrent(sequence) &&
-      workspace.activeSessionId === action.sessionId &&
-      workspace.activeModRoot === action.modRoot &&
-      tables.currentTab === 'wings' &&
-      tables.selectedRowKey === action.rowKey;
+      active() &&
+      model.target.value?.sessionId === action.sessionId &&
+      model.target.value.modRoot === action.modRoot &&
+      view.currentTab === 'wings' &&
+      view.selectedRowKey === action.rowKey;
     try {
       const waiting = commands.waitForSaves();
       if ((waiting && !(await waiting)) || !current()) return;
       const inputs = tables.getTableInputs(action.modRoot, 'wings'),
         admitted = inputs.captureContext();
       if ((await inputs.commit()) === false || !current() || !admitted()) return;
-      const id = String(tables.selectedRow!.variant ?? '').trim();
+      const id = String(view.selectedRow!.variant ?? '').trim();
       await reads.consume(
         'wing-navigation',
         { action, id },
@@ -175,7 +117,7 @@ export function useCsvEditorActions(feedback: AppFeedback) {
           resolveWingReference({ sessionId: action.sessionId, modRoot: action.modRoot, kind: 'variant', id }, action.destination, signal),
         {
           ready: (target) => {
-            if (!current() || !admitted() || inputs.dirty.value || String(tables.selectedRow!.variant ?? '').trim() !== id) return;
+            if (!current() || !admitted() || inputs.dirty.value || String(view.selectedRow!.variant ?? '').trim() !== id) return;
             const { kind } = target;
             const label = { ship: '船体', skin: '舰船皮肤', variant: '装配' }[kind];
             if (target.source === 'core') {
@@ -184,15 +126,7 @@ export function useCsvEditorActions(feedback: AppFeedback) {
             }
             if (!target.source)
               throw new AppError('当前 Mod 没有' + label + '记录「' + target.id + '」', { action: 'navigate-wing-reference' });
-            if (kind === 'ship') navigateToModTable(action.modRoot, 'ships');
-            else navigateToModJson(action.modRoot, kind === 'skin' ? 'skins' : 'variants');
-            workspace.entityLocation = {
-              sessionId: action.sessionId,
-              modRoot: action.modRoot,
-              kind,
-              id: target.id,
-              ...(target.rowKey ? { rowKey: target.rowKey } : {}),
-            };
+            host.locateWingReference(action, { kind, id: target.id, ...(target.rowKey ? { rowKey: target.rowKey } : {}) });
           },
           error: (error) => {
             if (current()) feedback.error(error, '跳转联队引用失败');
@@ -205,7 +139,7 @@ export function useCsvEditorActions(feedback: AppFeedback) {
   }
   function handleDetailAction(action: TableDetailAction) {
     if (action.type === 'wing-navigation') {
-      void navigateWing(action);
+      void navigateToWingReference(action);
     } else if (action.type === 'immersive-editor') {
       const csvTarget = project.tableWriteTargets.find(
         (target) =>
@@ -260,7 +194,6 @@ export function useCsvEditorActions(feedback: AppFeedback) {
   }
 
   return {
-    selectAssociatedSpecs,
     addNewRow,
     deleteSelectedRow,
     handleDetailAction,

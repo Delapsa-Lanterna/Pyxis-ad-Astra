@@ -108,13 +108,23 @@ export function useWorkspaceNavigationActions() {
 
   function confirmIdleNavigation(action: () => void, sequence: number, fields: Record<string, string>) {
     const modRoot = workspace.activeModRoot;
-    const inputs = modRoot && workspace.currentView === 'table' ? tables.activeEditor?.inputs : useJsonEditorStore().active?.inputs;
+    const target =
+      modRoot && workspace.currentView === 'table'
+        ? { sessionId: workspace.activeSessionId!, modRoot, table: tables.getCsvModState(modRoot)!.currentTab }
+        : null;
+    const inputs = target ? tables.getTableEditor(target).inputs : useJsonEditorStore().active?.inputs;
     if (inputs) {
       const pending = inputs.commit();
       if (pending) {
         void pending
           .then((accepted) => {
-            if (accepted && workspace.activeModRoot === modRoot && useSaveCommandStore().isTransitionCurrent(sequence)) {
+            if (
+              accepted &&
+              workspace.activeModRoot === modRoot &&
+              (!target ||
+                (workspace.activeSessionId === target.sessionId && tables.getCsvModState(target.modRoot)?.currentTab === target.table)) &&
+              useSaveCommandStore().isTransitionCurrent(sequence)
+            ) {
               debugLog('navigation.accepted', () => fields);
               action();
             }

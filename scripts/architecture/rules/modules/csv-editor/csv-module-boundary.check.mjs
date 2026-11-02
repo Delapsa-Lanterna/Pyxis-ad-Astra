@@ -5,7 +5,7 @@ import { csvModuleBoundaryRule } from './csv-module-boundary.mjs';
 
 test('table workspace search fields consume the toolbar select outside the grid', () => {
   const files = architectureFixtures({
-    'src/app/components/csv-editor/CsvEditorWorkspace.vue':
+    'src/app/components/csv-editor/CsvEditorPage.vue':
       '<template><n-select :options="searchOptions" @update:value="csvTable.setSearchField" /></template>' +
       "<script setup>import { csvSearchOptions } from '@/domain/csv-editor/csv-search';</script>",
   });

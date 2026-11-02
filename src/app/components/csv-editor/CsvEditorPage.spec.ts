@@ -1,13 +1,13 @@
+import { csvEditorView } from '@/app/composables/csv-editor/tests/csv-editor-view';
 import { csvTableIndex } from '@/test/fixtures/csv-row';
 import { enableAutoUnmount, flushPromises, mount, type VueWrapper } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 import { defineComponent, h, ref } from 'vue';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import CsvEditorWorkspace from './CsvEditorWorkspace.vue';
+import CsvEditorPage from './CsvEditorPage.vue';
 import { NInput } from 'naive-ui/es/input';
 import { NDropdown } from 'naive-ui/es/dropdown';
-import { useCsvEditorActions } from '@/app/composables/csv-editor/use-csv-editor-actions';
-import type { AppFeedback } from '@/shared/types';
+import { useWorkspaceCsvEditorHost } from '@/app/composables/use-workspace-csv-editor-host';
 import { useCsvEditorStore } from '@/stores/csv-editor.store';
 import { useProjectStore } from '@/stores/project.store';
 import { useWorkspaceStore } from '@/stores/workspace.store';
@@ -17,7 +17,6 @@ import { createSettingsFixture } from '@/test/fixtures/settings';
 import { sessionUpdateFixture } from '@/test/fixtures/write-result';
 import { editorUiStubs } from '@/test/unit/ui-stubs';
 import type { CsvTableIndex } from '@/shared/types';
-import { mountSetup } from '@/test/unit/mount-setup';
 
 enableAutoUnmount(afterEach);
 
@@ -55,11 +54,19 @@ beforeEach(() => {
 });
 afterEach(() => wrapper?.unmount());
 async function mountWorkspace() {
-  wrapper = mount(CsvEditorWorkspace, {
-    props: { actions: mountSetup(() => useCsvEditorActions({ error: mocks.error } as unknown as AppFeedback)).value },
-    attachTo: document.body,
-    global: { stubs: { ...editorUiStubs, 'n-input': NInput, CsvTableEditor: true, CsvRowDetails: true } },
-  });
+  wrapper = mount(
+    defineComponent({
+      setup() {
+        const host = useWorkspaceCsvEditorHost(() => null);
+        return () =>
+          host.target.value ? h(CsvEditorPage, { key: JSON.stringify(host.target.value), target: host.target.value, host }) : null;
+      },
+    }),
+    {
+      attachTo: document.body,
+      global: { stubs: { ...editorUiStubs, 'n-input': NInput, CsvTableEditor: true, CsvRowDetails: true } },
+    },
+  );
   await flushPromises();
 }
 describe('table workspace search controls', () => {
@@ -73,7 +80,7 @@ describe('table workspace search controls', () => {
     expect(wrapper.get('[aria-controls]').attributes('aria-expanded')).toBe('false');
     expect(wrapper.getComponent({ name: 'CsvRowDetails' }).isVisible()).toBe(false);
     expect(wrapper.getComponent({ name: 'CsvTableEditor' }).element).toBe(table);
-    expect(tables.selectedRowKey).toBe('row');
+    expect(csvEditorView(target).selectedRowKey).toBe('row');
     await wrapper.get('[aria-controls]').trigger('click');
     expect(wrapper.get('[aria-controls]').attributes('aria-expanded')).toBe('true');
     expect(wrapper.getComponent({ name: 'CsvRowDetails' }).element).toBe(pane);
@@ -86,11 +93,13 @@ describe('table workspace search controls', () => {
     wrapper = mount(
       defineComponent({
         setup() {
-          const actions = useCsvEditorActions({ error: mocks.error } as unknown as AppFeedback);
+          const host = useWorkspaceCsvEditorHost(() => null);
           return () =>
-            shown.value
-              ? h(CsvEditorWorkspace, {
-                  actions,
+            shown.value && host.target.value
+              ? h(CsvEditorPage, {
+                  target: host.target.value,
+                  host,
+                  key: JSON.stringify(host.target.value),
                   detailPaneExpanded: expanded.value,
                   'onUpdate:detailPaneExpanded': (value: boolean) => {
                     expanded.value = value;
@@ -127,8 +136,8 @@ describe('table workspace search controls', () => {
     ] as const) {
       menu.vm.$emit('select', field);
       await flushPromises();
-      expect(useCsvEditorStore().searchField).toBe(field);
-      expect(useCsvEditorStore().searchText).toBe('Alpha');
+      expect(csvEditorView(target).searchField).toBe(field);
+      expect(csvEditorView(target).searchText).toBe('Alpha');
       expect(wrapper.getComponent(NInput).props('placeholder')).toBe(`搜索 ${label}`);
       expect(mocks.query).toHaveBeenLastCalledWith(target.sessionId, 'ships', 0, 'Alpha', field, expect.any(AbortSignal));
     }
@@ -144,7 +153,7 @@ describe('table workspace search controls', () => {
         .props('options')!
         .map((option) => option.label),
     ).toEqual(['ID/名称', 'ID']);
-    expect(tables.currentHeader).toEqual(['id']);
+    expect(csvEditorView(target).currentHeader).toEqual(['id']);
   });
   it('binds input and search-field locking to the current editing target', async () => {
     await mountWorkspace();
@@ -173,8 +182,8 @@ describe('table workspace search controls', () => {
     await wrapper.get('input').trigger('focus');
     await wrapper.get('.n-base-clear__clear').trigger('click');
     await flushPromises();
-    expect(useCsvEditorStore().searchText).toBe('');
-    expect(useCsvEditorStore().searchField).toBe('id-name');
+    expect(csvEditorView(target).searchText).toBe('');
+    expect(csvEditorView(target).searchField).toBe('id-name');
     await wrapper.get('[aria-label="选择搜索项"]').trigger('click');
     await flushPromises();
     navigateToModTable(target.modRoot, 'weapons');
@@ -192,7 +201,7 @@ describe('table workspace search controls', () => {
     await wrapper.get('input').trigger('focus');
     await wrapper.get('.n-base-clear__clear').trigger('click');
     await flushPromises();
-    expect(useCsvEditorStore().searchText).toBe('Alpha');
+    expect(csvEditorView(target).searchText).toBe('Alpha');
     expect(focus).toHaveBeenCalledOnce();
     expect(mocks.error).toHaveBeenCalledOnce();
   });

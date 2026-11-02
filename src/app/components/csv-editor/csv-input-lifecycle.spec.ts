@@ -1,3 +1,4 @@
+import { csvEditorView } from '@/app/composables/csv-editor/tests/csv-editor-view';
 import { csvTableIndex } from '@/test/fixtures/csv-row';
 import { flushPromises, mount } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
@@ -80,7 +81,9 @@ function mountTable(control: CsvColumnControl = 'number', extraColumns = 0, coun
   const inputs = tables.getTableInputs(root, 'ships');
   const update = vi.spyOn(tables, 'updateCellValue');
   tables.getCsvModState(root)!.documents.ships.nextRowKey = 1;
-  const load = vi.fn(async (keys: string[]) => keys.every((key) => Boolean(tables.rowsByKey[key])));
+  const load = vi.fn(async (keys: string[]) =>
+    keys.every((key) => Boolean(csvEditorView({ sessionId: 'sA', modRoot: 'M:/A', table: 'ships' }).rowsByKey[key])),
+  );
   const writeRange = vi.fn((keys: string[], columns: string[], values: string[][]) => tables.updateRange(target, keys, columns, values));
   const rowActions = {
     move: vi.fn((keys: string[], boundary: number) => tables.moveRows(target, keys, boundary)),
@@ -102,10 +105,14 @@ function mountTable(control: CsvColumnControl = 'number', extraColumns = 0, coun
     const model = createCsvGridColumns(
       'ships',
       header,
-      tables.rows.filter((row) => row !== null),
+      csvEditorView({ sessionId: 'sA', modRoot: 'M:/A', table: 'ships' }).rows.filter((row) => row !== null),
     );
     model.columns[0]!.schema = { key: 'width', control, imageDirectories: control === 'path-image' ? ['graphics/test'] : undefined };
-    return { ...model, rowKeys: tables.rowKeys, rowsByKey: tables.rowsByKey };
+    return {
+      ...model,
+      rowKeys: csvEditorView({ sessionId: 'sA', modRoot: 'M:/A', table: 'ships' }).rowKeys,
+      rowsByKey: csvEditorView({ sessionId: 'sA', modRoot: 'M:/A', table: 'ships' }).rowsByKey,
+    };
   });
   const wrapper = mount(
     {
@@ -119,7 +126,9 @@ function mountTable(control: CsvColumnControl = 'number', extraColumns = 0, coun
             load,
             update: writeRange,
             revision: () => JSON.stringify(tables.getCsvModState(root)!.documents.ships.baseVersions),
-            disabled: () => tables.saving || tables.currentTableLocked,
+            disabled: () =>
+              csvEditorView({ sessionId: 'sA', modRoot: 'M:/A', table: 'ships' }).saving ||
+              csvEditorView({ sessionId: 'sA', modRoot: 'M:/A', table: 'ships' }).currentTableLocked,
             ...rowActions,
             position: (key, after = false) => tables.getCsvModState(root)!.documents.ships.rowOrder.indexOf(key) + Number(after),
           },
@@ -127,9 +136,9 @@ function mountTable(control: CsvColumnControl = 'number', extraColumns = 0, coun
         return () =>
           h(CsvGrid, {
             model: grid.value,
-            editing: tables.editing,
-            selectedRowKey: tables.selectedRowKey,
-            isDirty: tables.isDirty,
+            editing: csvEditorView({ sessionId: 'sA', modRoot: 'M:/A', table: 'ships' }).editing,
+            selectedRowKey: csvEditorView({ sessionId: 'sA', modRoot: 'M:/A', table: 'ships' }).selectedRowKey,
+            isDirty: csvEditorView({ sessionId: 'sA', modRoot: 'M:/A', table: 'ships' }).isDirty,
             onSelectRow: (rowKey: string | null) => tables.selectRowByKey(target, rowKey),
           });
       },
@@ -172,15 +181,15 @@ describe('CSV input, target and row lifecycle', () => {
     await input.trigger('keydown', { key: 'Enter' });
     await flushPromises();
     expect(update).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ column: 'width' }), 'FALSE');
-    expect(tables.selectedRowKey).toBe('ships:new:0');
+    expect(csvEditorView({ sessionId: 'sA', modRoot: 'M:/A', table: 'ships' }).selectedRowKey).toBe('ships:new:0');
     expect(tables.getCsvModState('M:/A')!.documents.ships.history.undoStack).toHaveLength(1);
     expect(wrapper.find('.csv-cell-picker').exists()).toBe(false);
-    await tables.activeEditor!.undo();
-    expect(tables.rows[0]!.data.width).toBe('1');
+    await tables.getTableEditor({ sessionId: 'sA', modRoot: 'M:/A', table: 'ships' }).undo();
+    expect(csvEditorView({ sessionId: 'sA', modRoot: 'M:/A', table: 'ships' }).rows[0]!.data.width).toBe('1');
     wrapper.unmount();
   });
   it.each(['Enter', 'Tab', 'Escape', 'Control+Enter'])('returns to raw input or settles pending navigation through %s', async (key) => {
-    const { wrapper, tables, update, writeRange } = mountTable('boolean', 1, 2);
+    const { wrapper, update, writeRange } = mountTable('boolean', 1, 2);
     useSettingsStore().setEditMode('smart');
     await vi.waitFor(() => expect(wrapper.find('[data-csv-picker]').exists()).toBe(true));
     await wrapper.get('[data-column-key="width"]').trigger('dblclick');
@@ -190,10 +199,12 @@ describe('CSV input, target and row lifecycle', () => {
     if (key === 'Enter') await input.setValue(' literal ');
     await input.trigger('keydown', { key: key.replace('Control+', ''), ctrlKey: key.startsWith('Control+') });
     await flushPromises();
-    expect(tables.rows[0]!.data.width).toBe(key === 'Escape' ? '1' : key === 'Enter' ? ' literal ' : '');
+    expect(csvEditorView({ sessionId: 'sA', modRoot: 'M:/A', table: 'ships' }).rows[0]!.data.width).toBe(
+      key === 'Escape' ? '1' : key === 'Enter' ? ' literal ' : '',
+    );
     expect(update).toHaveBeenCalledTimes(key === 'Enter' || key === 'Tab' ? 1 : 0);
     expect(writeRange).toHaveBeenCalledTimes(key === 'Control+Enter' ? 1 : 0);
-    if (key === 'Enter') expect(tables.selectedRowKey).toBe('ships:row:1');
+    if (key === 'Enter') expect(csvEditorView({ sessionId: 'sA', modRoot: 'M:/A', table: 'ships' }).selectedRowKey).toBe('ships:row:1');
     wrapper.unmount();
   });
   it.each(['tags', 'multi'] as const)('toggles keyboard %s candidates and submits the complete edit once', async (control) => {
@@ -210,7 +221,7 @@ describe('CSV input, target and row lifecycle', () => {
     await wrapper.get('.csv-cell-picker-action').trigger('click');
     await flushPromises();
     expect(update).toHaveBeenCalledTimes(1);
-    expect(tables.rows[0]!.data.width).toBe('alpha');
+    expect(csvEditorView({ sessionId: 'sA', modRoot: 'M:/A', table: 'ships' }).rows[0]!.data.width).toBe('alpha');
     expect(tables.getCsvModState('M:/A')!.documents.ships.history.undoStack).toHaveLength(1);
     wrapper.unmount();
   });
@@ -268,12 +279,12 @@ describe('CSV input, target and row lifecycle', () => {
       await input.trigger('keydown', { key: 'Enter' });
       await flushPromises();
       expect(update).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ rowKey: 'ships:new:0', column: 'width' }), value);
-      expect(tables.selectedRowKey).toBe('ships:row:1');
+      expect(csvEditorView({ sessionId: 'sA', modRoot: 'M:/A', table: 'ships' }).selectedRowKey).toBe('ships:row:1');
       expect(tables.getCsvModState('M:/A')!.documents.ships.history.undoStack).toHaveLength(1);
-      await tables.activeEditor!.undo();
-      expect(tables.rows[0]!.data.width).toBe('1');
-      await tables.activeEditor!.redo();
-      expect(tables.rows[0]!.data.width).toBe(value);
+      await tables.getTableEditor({ sessionId: 'sA', modRoot: 'M:/A', table: 'ships' }).undo();
+      expect(csvEditorView({ sessionId: 'sA', modRoot: 'M:/A', table: 'ships' }).rows[0]!.data.width).toBe('1');
+      await tables.getTableEditor({ sessionId: 'sA', modRoot: 'M:/A', table: 'ships' }).redo();
+      expect(csvEditorView({ sessionId: 'sA', modRoot: 'M:/A', table: 'ships' }).rows[0]!.data.width).toBe(value);
       expect(update).toHaveBeenCalledTimes(1);
       wrapper.unmount();
     });
@@ -290,7 +301,7 @@ describe('CSV input, target and row lifecycle', () => {
     expect(update).toHaveBeenCalledTimes(0);
     await wrapper.get('.csv-cell-picker-action').trigger('click');
     await flushPromises();
-    expect(tables.rows[0]!.data.width).toBe('alpha');
+    expect(csvEditorView({ sessionId: 'sA', modRoot: 'M:/A', table: 'ships' }).rows[0]!.data.width).toBe('alpha');
     expect(update).toHaveBeenCalledTimes(1);
     expect(tables.getCsvModState('M:/A')!.documents.ships.history.undoStack).toHaveLength(1);
     wrapper.unmount();
@@ -318,9 +329,10 @@ describe('CSV input, target and row lifecycle', () => {
       await flushPromises();
       expect(update).toHaveBeenCalledTimes(entry === 'Escape' ? 0 : 1);
       expect(tables.getCsvModState(root)!.documents.ships.history.undoStack).toHaveLength(entry === 'Escape' ? 0 : 1);
-      expect(tables.rows[1]!.data.width).toBe(entry === 'Escape' ? '2' : '');
+      expect(csvEditorView({ sessionId: 'sA', modRoot: 'M:/A', table: 'ships' }).rows[1]!.data.width).toBe(entry === 'Escape' ? '2' : '');
       if (entry === 'save') expect(update).toHaveBeenCalledExactlyOnceWith({ ...target, rowKey: 'ships:row:9', column: 'width' }, '');
-      if (entry === 'Shift+Enter') expect(tables.selectedRowKey).toBe('ships:new:0');
+      if (entry === 'Shift+Enter')
+        expect(csvEditorView({ sessionId: 'sA', modRoot: 'M:/A', table: 'ships' }).selectedRowKey).toBe('ships:new:0');
       if (entry === 'Tab' || entry === 'Shift+Tab') expect(wrapper.get('.csv-cell-selected').attributes('data-column-key')).toBe('field0');
       wrapper.unmount();
     },
@@ -348,10 +360,13 @@ describe('CSV input, target and row lifecycle', () => {
     );
     expect(tables.getCsvModState('M:/A')!.documents.ships.history.undoStack).toHaveLength(1);
     expect(wrapper.findAll('.csv-cell-in-range')).toHaveLength(4);
-    await tables.activeEditor!.undo();
-    expect(tables.rows.map((row) => row!.data.width)).toEqual(['1', '2']);
-    await tables.activeEditor!.redo();
-    expect(tables.rows.map((row) => row!.data.width)).toEqual([' alpha,  beta ', ' alpha,  beta ']);
+    await tables.getTableEditor({ sessionId: 'sA', modRoot: 'M:/A', table: 'ships' }).undo();
+    expect(csvEditorView({ sessionId: 'sA', modRoot: 'M:/A', table: 'ships' }).rows.map((row) => row!.data.width)).toEqual(['1', '2']);
+    await tables.getTableEditor({ sessionId: 'sA', modRoot: 'M:/A', table: 'ships' }).redo();
+    expect(csvEditorView({ sessionId: 'sA', modRoot: 'M:/A', table: 'ships' }).rows.map((row) => row!.data.width)).toEqual([
+      ' alpha,  beta ',
+      ' alpha,  beta ',
+    ]);
     expect(writeRange).toHaveBeenCalledTimes(1);
     wrapper.unmount();
   });
@@ -366,7 +381,7 @@ describe('CSV input, target and row lifecycle', () => {
     await input.setValue('changed');
     await input.trigger('keydown', { key: 'Enter' });
     await flushPromises();
-    expect(tables.rows[0]!.data.width).toBe('changed');
+    expect(csvEditorView({ sessionId: 'sA', modRoot: 'M:/A', table: 'ships' }).rows[0]!.data.width).toBe('changed');
     expect(tables.getCsvModState('M:/A')!.documents.ships.history.undoStack).toHaveLength(1);
     wrapper.unmount();
   });
@@ -389,10 +404,15 @@ describe('CSV input, target and row lifecycle', () => {
     expect(ctrl ? rowActions.copy : rowActions.move).toHaveBeenCalledExactlyOnceWith(['ships:new:0', 'ships:row:2'], 4);
     expect(ctrl ? rowActions.move : rowActions.copy).not.toHaveBeenCalled();
     expect(load).toHaveBeenCalledTimes(ctrl ? 1 : 0);
-    expect(tables.totalRowCount).toBe(ctrl ? 6 : 4);
+    expect(csvEditorView({ sessionId: 'sA', modRoot: 'M:/A', table: 'ships' }).totalRowCount).toBe(ctrl ? 6 : 4);
     expect(tables.getCsvModState('M:/A')!.documents.ships.history.undoStack).toHaveLength(1);
-    await tables.activeEditor!.undo();
-    expect(tables.rows.map((row) => row!.data.width)).toEqual(['1', '2', '3', '4']);
+    await tables.getTableEditor({ sessionId: 'sA', modRoot: 'M:/A', table: 'ships' }).undo();
+    expect(csvEditorView({ sessionId: 'sA', modRoot: 'M:/A', table: 'ships' }).rows.map((row) => row!.data.width)).toEqual([
+      '1',
+      '2',
+      '3',
+      '4',
+    ]);
     wrapper.unmount();
   });
   it('selects disjoint complete rows and copies them once in display order', async () => {
@@ -411,11 +431,11 @@ describe('CSV input, target and row lifecycle', () => {
     wrapper.unmount();
   });
   it('toggles the last selected row off and clears its highlight', async () => {
-    const { wrapper, tables } = mountTable();
+    const { wrapper } = mountTable();
     await vi.waitFor(() => expect(wrapper.find('.csv-row-handle').exists()).toBe(true));
     await clickRow(wrapper, 'ships:new:0');
     await clickRow(wrapper, 'ships:new:0', { ctrlKey: true });
-    expect(tables.selectedRowKey).toBeNull();
+    expect(csvEditorView({ sessionId: 'sA', modRoot: 'M:/A', table: 'ships' }).selectedRowKey).toBeNull();
     expect(wrapper.findAll('.csv-cell-in-range')).toHaveLength(0);
     wrapper.unmount();
   });
@@ -429,16 +449,21 @@ describe('CSV input, target and row lifecycle', () => {
     await flushPromises();
     expect(load).toHaveBeenCalledExactlyOnceWith(['ships:new:0', 'ships:row:2']);
     expect(rowActions.remove).toHaveBeenCalledExactlyOnceWith(['ships:new:0', 'ships:row:2']);
-    expect(tables.totalRowCount).toBe(2);
-    expect(tables.rows.map((row) => row!.data.width)).toEqual(['2', '4']);
+    expect(csvEditorView({ sessionId: 'sA', modRoot: 'M:/A', table: 'ships' }).totalRowCount).toBe(2);
+    expect(csvEditorView({ sessionId: 'sA', modRoot: 'M:/A', table: 'ships' }).rows.map((row) => row!.data.width)).toEqual(['2', '4']);
     expect(tables.getCsvModState('M:/A')!.documents.ships.history.undoStack).toHaveLength(1);
-    await tables.activeEditor!.undo();
-    expect(tables.rows.map((row) => row!.data.width)).toEqual(['1', '2', '3', '4']);
+    await tables.getTableEditor({ sessionId: 'sA', modRoot: 'M:/A', table: 'ships' }).undo();
+    expect(csvEditorView({ sessionId: 'sA', modRoot: 'M:/A', table: 'ships' }).rows.map((row) => row!.data.width)).toEqual([
+      '1',
+      '2',
+      '3',
+      '4',
+    ]);
     expect(rowActions.remove).toHaveBeenCalledTimes(1);
     wrapper.unmount();
   });
   it('keeps selected records when Delete clears their fields', async () => {
-    const { wrapper, tables, rowActions, writeRange } = mountTable('number', 1, 3);
+    const { wrapper, rowActions, writeRange } = mountTable('number', 1, 3);
     await vi.waitFor(() => expect(wrapper.find('[data-row-key="ships:row:2"]').exists()).toBe(true));
     await clickRow(wrapper, 'ships:new:0');
     await clickRow(wrapper, 'ships:row:2', { ctrlKey: true });
@@ -453,19 +478,23 @@ describe('CSV input, target and row lifecycle', () => {
       ],
     );
     expect(rowActions.remove).not.toHaveBeenCalled();
-    expect(tables.totalRowCount).toBe(3);
-    expect(tables.rows[1]!.data.width).toBe('2');
+    expect(csvEditorView({ sessionId: 'sA', modRoot: 'M:/A', table: 'ships' }).totalRowCount).toBe(3);
+    expect(csvEditorView({ sessionId: 'sA', modRoot: 'M:/A', table: 'ships' }).rows[1]!.data.width).toBe('2');
     wrapper.unmount();
   });
   it('retains overwrite semantics when pasting after complete-row selection', async () => {
-    const { wrapper, tables, rowActions } = mountTable('number', 1, 3);
+    const { wrapper, rowActions } = mountTable('number', 1, 3);
     bulkMocks.read.mockResolvedValueOnce('A\tB\nC\tD');
     await vi.waitFor(() => expect(wrapper.find('[data-row-key="ships:row:2"]').exists()).toBe(true));
     await clickRow(wrapper, 'ships:new:0');
     await wrapper.get('.csv-cell-selection-input').trigger('keydown', { key: 'v', ctrlKey: true });
     await flushPromises();
-    expect(tables.totalRowCount).toBe(3);
-    expect(tables.rows.slice(0, 2).map((row) => row!.data)).toEqual([
+    expect(csvEditorView({ sessionId: 'sA', modRoot: 'M:/A', table: 'ships' }).totalRowCount).toBe(3);
+    expect(
+      csvEditorView({ sessionId: 'sA', modRoot: 'M:/A', table: 'ships' })
+        .rows.slice(0, 2)
+        .map((row) => row!.data),
+    ).toEqual([
       { width: 'A', field0: 'B' },
       { width: 'C', field0: 'D' },
     ]);
@@ -473,10 +502,10 @@ describe('CSV input, target and row lifecycle', () => {
     wrapper.unmount();
   });
   it('copies raw rectangular values once without submitting an edit', async () => {
-    const { wrapper, tables, load, writeRange, inputs } = mountTable('number', 1, 3);
+    const { wrapper, load, writeRange, inputs } = mountTable('number', 1, 3);
     const commit = vi.spyOn(inputs, 'commit');
     await vi.waitFor(() => expect(wrapper.find('[data-row-key="ships:row:1"] [data-column-key="field0"]').exists()).toBe(true));
-    tables.rowsByKey['ships:new:0']!.data.field0 = '001';
+    csvEditorView({ sessionId: 'sA', modRoot: 'M:/A', table: 'ships' }).rowsByKey['ships:new:0']!.data.field0 = '001';
     await wrapper.get('[data-column-key="width"]').trigger('click');
     await wrapper.get('[data-row-key="ships:row:1"] [data-column-key="field0"]').trigger('click', { shiftKey: true });
     await wrapper.get('.csv-cell-selection-input').trigger('keydown', { key: 'c', ctrlKey: true });
@@ -497,23 +526,27 @@ describe('CSV input, target and row lifecycle', () => {
     expect(bulkMocks.read).toHaveBeenCalledOnce();
     expect(load).toHaveBeenCalledExactlyOnceWith(['ships:row:1']);
     expect(writeRange).toHaveBeenCalledOnce();
-    expect(tables.totalRowCount).toBe(4);
-    expect(tables.rows.slice(1).map((row) => row?.data)).toEqual([
+    expect(csvEditorView({ sessionId: 'sA', modRoot: 'M:/A', table: 'ships' }).totalRowCount).toBe(4);
+    expect(
+      csvEditorView({ sessionId: 'sA', modRoot: 'M:/A', table: 'ships' })
+        .rows.slice(1)
+        .map((row) => row?.data),
+    ).toEqual([
       { width: '001', field0: 'A' },
       { width: '002', field0: 'B', field1: '' },
       { width: '003', field0: 'C', field1: '' },
     ]);
     expect(tables.getCsvModState('M:/A')!.documents.ships.history.undoStack).toHaveLength(1);
     await vi.waitFor(() => expect(wrapper.findAll('.csv-cell-in-range')).toHaveLength(6));
-    await tables.activeEditor!.undo();
-    expect(tables.totalRowCount).toBe(2);
-    await tables.activeEditor!.redo();
-    expect(tables.totalRowCount).toBe(4);
+    await tables.getTableEditor({ sessionId: 'sA', modRoot: 'M:/A', table: 'ships' }).undo();
+    expect(csvEditorView({ sessionId: 'sA', modRoot: 'M:/A', table: 'ships' }).totalRowCount).toBe(2);
+    await tables.getTableEditor({ sessionId: 'sA', modRoot: 'M:/A', table: 'ships' }).redo();
+    expect(csvEditorView({ sessionId: 'sA', modRoot: 'M:/A', table: 'ships' }).totalRowCount).toBe(4);
     expect(writeRange).toHaveBeenCalledOnce();
     wrapper.unmount();
   });
   it('pastes one cell into the top-left without repeating it across a larger selection', async () => {
-    const { wrapper, tables, writeRange } = mountTable('number', 1, 2);
+    const { wrapper, writeRange } = mountTable('number', 1, 2);
     bulkMocks.read.mockResolvedValueOnce('500');
     await vi.waitFor(() => expect(wrapper.find('[data-column-key="width"]').exists()).toBe(true));
     await wrapper.get('[data-column-key="width"]').trigger('click');
@@ -521,21 +554,23 @@ describe('CSV input, target and row lifecycle', () => {
     await wrapper.get('.csv-cell-selection-input').trigger('keydown', { key: 'v', ctrlKey: true });
     await flushPromises();
     expect(writeRange).toHaveBeenCalledExactlyOnceWith(['ships:new:0'], ['width'], [['500']]);
-    expect(tables.rows[1]!.data.width).toBe('2');
+    expect(csvEditorView({ sessionId: 'sA', modRoot: 'M:/A', table: 'ships' }).rows[1]!.data.width).toBe('2');
     expect(wrapper.findAll('.csv-cell-in-range')).toHaveLength(1);
     wrapper.unmount();
   });
   it.each(['Delete', 'd', 'r'])('applies %s to one batch and restores the original values', async (key) => {
     const { wrapper, tables, writeRange } = mountTable('number', 1, 2);
     await vi.waitFor(() => expect(wrapper.find('[data-column-key="width"]').exists()).toBe(true));
-    tables.rowsByKey['ships:new:0']!.data.field0 = 'X';
-    tables.rowsByKey['ships:row:1']!.data.field0 = 'Y';
+    csvEditorView({ sessionId: 'sA', modRoot: 'M:/A', table: 'ships' }).rowsByKey['ships:new:0']!.data.field0 = 'X';
+    csvEditorView({ sessionId: 'sA', modRoot: 'M:/A', table: 'ships' }).rowsByKey['ships:row:1']!.data.field0 = 'Y';
     await wrapper.get('[data-column-key="width"]').trigger('click');
     await wrapper.get('[data-row-key="ships:row:1"] [data-column-key="field0"]').trigger('click', { shiftKey: true });
     await wrapper.get('.csv-cell-selection-input').trigger('keydown', { key, ctrlKey: key !== 'Delete' });
     await flushPromises();
     expect(writeRange).toHaveBeenCalledOnce();
-    expect(tables.rows.map((row) => [row!.data.width, row!.data.field0])).toEqual(
+    expect(
+      csvEditorView({ sessionId: 'sA', modRoot: 'M:/A', table: 'ships' }).rows.map((row) => [row!.data.width, row!.data.field0]),
+    ).toEqual(
       key === 'Delete'
         ? [
             ['', ''],
@@ -551,8 +586,10 @@ describe('CSV input, target and row lifecycle', () => {
               ['2', '2'],
             ],
     );
-    await tables.activeEditor!.undo();
-    expect(tables.rows.map((row) => [row!.data.width, row!.data.field0])).toEqual([
+    await tables.getTableEditor({ sessionId: 'sA', modRoot: 'M:/A', table: 'ships' }).undo();
+    expect(
+      csvEditorView({ sessionId: 'sA', modRoot: 'M:/A', table: 'ships' }).rows.map((row) => [row!.data.width, row!.data.field0]),
+    ).toEqual([
       ['1', 'X'],
       ['2', 'Y'],
     ]);
@@ -614,7 +651,7 @@ describe('CSV input, target and row lifecycle', () => {
     wrapper.unmount();
   });
   it('preserves later text typed while a fill waits for its rows', async () => {
-    const { wrapper, tables, load, writeRange } = mountTable('number', 1, 2);
+    const { wrapper, load, writeRange } = mountTable('number', 1, 2);
     let finish!: (value: boolean) => void;
     load.mockImplementationOnce(
       () =>
@@ -633,22 +670,22 @@ describe('CSV input, target and row lifecycle', () => {
     finish(true);
     await flushPromises();
     expect(writeRange).not.toHaveBeenCalled();
-    expect(tables.rows[1]!.data.field0).toBeUndefined();
+    expect(csvEditorView({ sessionId: 'sA', modRoot: 'M:/A', table: 'ships' }).rows[1]!.data.field0).toBeUndefined();
     expect(input.element.value).toBe('later');
     expect(wrapper.find('.csv-cell-editor').exists()).toBe(true);
     wrapper.unmount();
   });
   it.each(['d', 'r'])('fills a single cell using its neighbor with Ctrl+%s', async (key) => {
-    const { wrapper, tables, load, writeRange } = mountTable('number', 1, 2);
+    const { wrapper, load, writeRange } = mountTable('number', 1, 2);
     await vi.waitFor(() => expect(wrapper.find('[data-row-key="ships:row:1"] [data-column-key="field0"]').exists()).toBe(true));
-    tables.rowsByKey['ships:new:0']!.data.field0 = 'source';
+    csvEditorView({ sessionId: 'sA', modRoot: 'M:/A', table: 'ships' }).rowsByKey['ships:new:0']!.data.field0 = 'source';
     await wrapper.get('[data-row-key="ships:row:1"] [data-column-key="field0"]').trigger('click');
     await wrapper.get('.csv-cell-selection-input').trigger('keydown', { key, ctrlKey: true });
     await flushPromises();
     expect(load).toHaveBeenCalledTimes(1);
     expect(writeRange).toHaveBeenCalledTimes(1);
     expect(writeRange.mock.calls[0]).toEqual([['ships:row:1'], ['field0'], [[key === 'd' ? 'source' : '2']]]);
-    expect(tables.rows[1]!.data.field0).toBe(key === 'd' ? 'source' : '2');
+    expect(csvEditorView({ sessionId: 'sA', modRoot: 'M:/A', table: 'ships' }).rows[1]!.data.field0).toBe(key === 'd' ? 'source' : '2');
     wrapper.unmount();
   });
   it('uses only filtered rows and appends overflow to the complete table end', async () => {
@@ -669,7 +706,7 @@ describe('CSV input, target and row lifecycle', () => {
     wrapper.unmount();
   });
   it('cycles both ways inside a rectangle and extends from the original anchor', async () => {
-    const { wrapper, tables } = mountTable('number', 1, 2);
+    const { wrapper } = mountTable('number', 1, 2);
     await vi.waitFor(() => expect(wrapper.find('[data-row-key="ships:row:1"] [data-column-key="field0"]').exists()).toBe(true));
     await wrapper.get('[data-column-key="width"]').trigger('click');
     for (const key of ['ArrowRight', 'ArrowDown'])
@@ -683,7 +720,7 @@ describe('CSV input, target and row lifecycle', () => {
     ] as const) {
       await wrapper.get('.csv-cell-selection-input').trigger('keydown', { key, shiftKey });
       await flushPromises();
-      expect(tables.selectedRowKey).toBe(row);
+      expect(csvEditorView({ sessionId: 'sA', modRoot: 'M:/A', table: 'ships' }).selectedRowKey).toBe(row);
       expect(wrapper.get('.csv-cell-selected').attributes('data-column-key')).toBe(col);
       expect(wrapper.findAll('.csv-cell-in-range')).toHaveLength(4);
     }
@@ -717,13 +754,13 @@ describe('CSV input, target and row lifecycle', () => {
   it.each(['number', 'text', 'reference', 'boolean', 'enum', 'tags', 'multi', 'path-image'] as const)(
     'selects %s before F2 edits its raw value',
     async (control) => {
-      const { wrapper, tables } = mountTable(control);
+      const { wrapper } = mountTable(control);
       useSettingsStore().setEditMode('smart');
       await vi.waitFor(() => expect(wrapper.find('[data-column-key="width"]').exists()).toBe(true));
       await wrapper.get('[data-column-key="width"]').trigger('click');
       expect(wrapper.get('[data-column-key="width"]').attributes('aria-selected')).toBe('true');
       expect(wrapper.find('.csv-cell-editor').exists()).toBe(false);
-      expect(tables.editing).toBeNull();
+      expect(csvEditorView({ sessionId: 'sA', modRoot: 'M:/A', table: 'ships' }).editing).toBeNull();
       await wrapper.get('.csv-cell-selection-input').trigger('keydown', { key: 'F2' });
       const input = wrapper.get<HTMLInputElement | HTMLTextAreaElement>('.csv-cell-input, .csv-cell-text-input, .csv-cell-picker-search');
       expect(input.element.value).toBe('1');
@@ -731,7 +768,7 @@ describe('CSV input, target and row lifecycle', () => {
       expect(wrapper.find('.csv-cell-picker').exists()).toBe(!['number', 'text'].includes(control));
       await input.setValue('001.50');
       await input.trigger('keydown', { key: 'Escape' });
-      expect(tables.rows[0]?.data.width).toBe('1');
+      expect(csvEditorView({ sessionId: 'sA', modRoot: 'M:/A', table: 'ships' }).rows[0]?.data.width).toBe('1');
       expect(wrapper.find('.csv-cell-editor').exists()).toBe(false);
       wrapper.unmount();
     },
@@ -781,29 +818,29 @@ describe('CSV input, target and row lifecycle', () => {
     await wrapper.get('[data-column-key="field0"]').trigger('click');
     await wrapper.get('.csv-cell-selection-input').trigger('keydown', { key: 'Tab' });
     await flushPromises();
-    expect(tables.selectedRowKey).toBe('ships:row:1');
+    expect(csvEditorView({ sessionId: 'sA', modRoot: 'M:/A', table: 'ships' }).selectedRowKey).toBe('ships:row:1');
     expect(wrapper.get('.csv-cell-selected').attributes('data-column-key')).toBe('width');
     await wrapper.get('.csv-cell-selection-input').trigger('keydown', { key: 'Tab', shiftKey: true });
     await flushPromises();
-    expect(tables.selectedRowKey).toBe('ships:new:0');
+    expect(csvEditorView({ sessionId: 'sA', modRoot: 'M:/A', table: 'ships' }).selectedRowKey).toBe('ships:new:0');
     await wrapper.get('[data-column-key="width"]').trigger('click');
     await wrapper.get('.csv-cell-selection-input').trigger('keydown', { key: 'F2' });
     await wrapper.get('.csv-cell-input').setValue('001');
     await wrapper.get('.csv-cell-input').trigger('keydown', { key: 'Enter' });
     await flushPromises();
-    expect(tables.rows[0]?.data.width).toBe('001');
-    expect(tables.selectedRowKey).toBe('ships:row:1');
+    expect(csvEditorView({ sessionId: 'sA', modRoot: 'M:/A', table: 'ships' }).rows[0]?.data.width).toBe('001');
+    expect(csvEditorView({ sessionId: 'sA', modRoot: 'M:/A', table: 'ships' }).selectedRowKey).toBe('ships:row:1');
     expect(tables.getCsvModState('M:/A')!.documents.ships.history.undoStack).toHaveLength(1);
     wrapper.unmount();
   });
   it('keeps the table boundaries and leaves shortcuts in other inputs', async () => {
-    const { wrapper, tables } = mountTable('number', 1, 2);
+    const { wrapper } = mountTable('number', 1, 2);
     await vi.waitFor(() => expect(wrapper.find('[data-row-key="ships:row:1"] [data-column-key="field0"]').exists()).toBe(true));
     await wrapper.get('[data-row-key="ships:row:1"] [data-column-key="field0"]').trigger('click');
     for (const key of ['Tab', 'Enter', 'ArrowRight', 'ArrowDown'])
       await wrapper.get('.csv-cell-selection-input').trigger('keydown', { key });
     await flushPromises();
-    expect(tables.selectedRowKey).toBe('ships:row:1');
+    expect(csvEditorView({ sessionId: 'sA', modRoot: 'M:/A', table: 'ships' }).selectedRowKey).toBe('ships:row:1');
     expect(wrapper.get('.csv-cell-selected').attributes('data-column-key')).toBe('field0');
     const outside = document.createElement('input');
     document.body.append(outside);
@@ -827,13 +864,13 @@ describe('CSV input, target and row lifecycle', () => {
     await search.setValue('unconfirmed');
     await search.trigger('keydown', { key: 'Tab' });
     await flushPromises();
-    expect(tables.rows[0]?.data.width).toBe('1, Alpha, Beta');
+    expect(csvEditorView({ sessionId: 'sA', modRoot: 'M:/A', table: 'ships' }).rows[0]?.data.width).toBe('1, Alpha, Beta');
     expect(tables.getCsvModState('M:/A')!.documents.ships.history.undoStack).toHaveLength(1);
     expect(wrapper.get('.csv-cell-selected').attributes('data-column-key')).toBe('field0');
     wrapper.unmount();
   });
   it('retains composition until its completed text starts a single replacement edit', async () => {
-    const { wrapper, tables } = mountTable();
+    const { wrapper } = mountTable();
     await vi.waitFor(() => expect(wrapper.find('[data-column-key="width"]').exists()).toBe(true));
     await wrapper.get('[data-column-key="width"]').trigger('click');
     const sink = wrapper.get<HTMLTextAreaElement>('.csv-cell-selection-input');
@@ -844,12 +881,12 @@ describe('CSV input, target and row lifecycle', () => {
     await sink.trigger('compositionend');
     const input = wrapper.get<HTMLInputElement>('.csv-cell-input');
     expect(input.element.value).toBe('中文');
-    expect(tables.rows[0]?.data.width).toBe('1');
+    expect(csvEditorView({ sessionId: 'sA', modRoot: 'M:/A', table: 'ships' }).rows[0]?.data.width).toBe('1');
     await input.trigger('keydown', { key: 'Enter', isComposing: true });
-    expect(tables.rows[0]?.data.width).toBe('1');
+    expect(csvEditorView({ sessionId: 'sA', modRoot: 'M:/A', table: 'ships' }).rows[0]?.data.width).toBe('1');
     await input.trigger('keydown', { key: 'Enter' });
     await flushPromises();
-    expect(tables.rows[0]?.data.width).toBe('中文');
+    expect(csvEditorView({ sessionId: 'sA', modRoot: 'M:/A', table: 'ships' }).rows[0]?.data.width).toBe('中文');
     wrapper.unmount();
   });
   it('accepts a keyboard target loaded after navigation and maps its selection on save', async () => {
@@ -858,7 +895,7 @@ describe('CSV input, target and row lifecycle', () => {
     await wrapper.get('[data-column-key="width"]').trigger('click');
     await wrapper.get('.csv-cell-selection-input').trigger('keydown', { key: 'ArrowDown' });
     await flushPromises();
-    expect(tables.selectedRowKey).toBe('ships:row:1');
+    expect(csvEditorView({ sessionId: 'sA', modRoot: 'M:/A', table: 'ships' }).selectedRowKey).toBe('ships:row:1');
     tables.applyTableRows(target, {
       table: 'ships',
       baseVersions: [],
@@ -901,18 +938,18 @@ describe('CSV input, target and row lifecycle', () => {
     const input = wrapper.get('input.csv-cell-input');
     const editor = wrapper.get('.csv-cell-editor').element;
     await input.setValue('0012');
-    const next = tables.addNewRow()!;
+    const next = tables.addNewRow({ sessionId: 'sA', modRoot: 'M:/A', table: 'ships' })!;
     await vi.waitFor(() => expect(wrapper.find(`[data-row-key="${next.rowKey}"]`).exists()).toBe(true));
     await wrapper.get(`[data-row-key="${next.rowKey}"] [data-column-key="width"]`).trigger('dblclick');
-    await vi.waitFor(() => expect(tables.editing?.rowKey).toBe(next.rowKey));
-    expect(tables.rowsByKey['ships:row:9']?.data.width).toBe('0012');
+    await vi.waitFor(() => expect(csvEditorView({ sessionId: 'sA', modRoot: 'M:/A', table: 'ships' }).editing?.rowKey).toBe(next.rowKey));
+    expect(csvEditorView({ sessionId: 'sA', modRoot: 'M:/A', table: 'ships' }).rowsByKey['ships:row:9']?.data.width).toBe('0012');
     expect(wrapper.get('input.csv-cell-input').element).toBe(input.element);
     expect(wrapper.get('.csv-cell-editor').element).toBe(editor);
     expect(wrapper.findAll('.csv-cell-editor')).toHaveLength(1);
     expect(inputs.dirty.value).toBe(false);
     await wrapper.get('input.csv-cell-input').setValue('canceled');
     await wrapper.get('input.csv-cell-input').trigger('keydown', { key: 'Escape' });
-    expect(tables.rowsByKey[next.rowKey]?.data.width).toBe('');
+    expect(csvEditorView({ sessionId: 'sA', modRoot: 'M:/A', table: 'ships' }).rowsByKey[next.rowKey]?.data.width).toBe('');
     expect(wrapper.find('.csv-cell-editor').exists()).toBe(false);
     expect(inputs.commit()).toBeUndefined();
     wrapper.unmount();
@@ -940,7 +977,7 @@ describe('CSV input, target and row lifecycle', () => {
     const input = wrapper.get('input.csv-cell-input');
     await input.setValue('0012');
     expect(useDraftSessionsStore().hasUnsavedWorkForMod(root)).toBe(true);
-    expect(tables.rows[0]?.data.width).toBe('1');
+    expect(csvEditorView({ sessionId: 'sA', modRoot: 'M:/A', table: 'ships' }).rows[0]?.data.width).toBe('1');
     const mapping = [{ previousKey: 'ships:new:0', nextKey: 'ships:row:9', rowIndex: 9 }];
     applySavedCsvRowKeyMapDraft(tables.getCsvModState(root)!.documents.ships, mapping);
     tables.applySavedRowKeyMap(root, 'ships', mapping);
@@ -950,15 +987,15 @@ describe('CSV input, target and row lifecycle', () => {
     await inputs.commit();
     expect(wrapper.get('input.csv-cell-input').element).toBe(input.element);
     expect(wrapper.get('[data-column-key="width"]').classes()).toContain('dirty');
-    expect(tables.rows[0]?.rowKey).toBe('ships:row:9');
-    expect(tables.rows[0]?.data.width).toBe('0012');
-    expect(await tables.activeEditor!.undo()).toBe(true);
+    expect(csvEditorView({ sessionId: 'sA', modRoot: 'M:/A', table: 'ships' }).rows[0]?.rowKey).toBe('ships:row:9');
+    expect(csvEditorView({ sessionId: 'sA', modRoot: 'M:/A', table: 'ships' }).rows[0]?.data.width).toBe('0012');
+    expect(await tables.getTableEditor({ sessionId: 'sA', modRoot: 'M:/A', table: 'ships' }).undo()).toBe(true);
     await nextTick();
     expect(wrapper.get('input.csv-cell-input').element).toBe(input.element);
     expect((input.element as HTMLInputElement).value).toBe('1');
     expect(wrapper.get('[data-column-key="width"]').classes()).not.toContain('dirty');
-    expect(tables.rows[0]?.data.width).toBe('1');
-    expect(tables.activeEditor!.canUndo.value).toBe(false);
+    expect(csvEditorView({ sessionId: 'sA', modRoot: 'M:/A', table: 'ships' }).rows[0]?.data.width).toBe('1');
+    expect(tables.getTableEditor({ sessionId: 'sA', modRoot: 'M:/A', table: 'ships' }).canUndo.value).toBe(false);
     wrapper.unmount();
   });
 
@@ -976,12 +1013,12 @@ describe('CSV input, target and row lifecycle', () => {
         totalRows: 1,
       }),
     );
-    expect(tables.rows[0]?.data.width).toBe('1');
-    expect(tables.hasCurrentTableExternalUpdate).toBe(true);
+    expect(csvEditorView({ sessionId: 'sA', modRoot: 'M:/A', table: 'ships' }).rows[0]?.data.width).toBe('1');
+    expect(csvEditorView({ sessionId: 'sA', modRoot: 'M:/A', table: 'ships' }).hasCurrentTableExternalUpdate).toBe(true);
     await wrapper.get('.table-panel').trigger('scroll');
     await nextTick();
-    expect(tables.rows[0]?.data.width).toBe('1');
-    expect(tables.editing?.column).toBe('width');
+    expect(csvEditorView({ sessionId: 'sA', modRoot: 'M:/A', table: 'ships' }).rows[0]?.data.width).toBe('1');
+    expect(csvEditorView({ sessionId: 'sA', modRoot: 'M:/A', table: 'ships' }).editing?.column).toBe('width');
     expect(inputs.dirty.value).toBe(true);
     expect((wrapper.get('input.csv-cell-input').element as HTMLInputElement).value).toBe('later');
     wrapper.unmount();

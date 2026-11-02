@@ -19,6 +19,7 @@
 - `src/app/components/workspace/WorkspaceModOverview.vue`：Mod 信息、目录、资源和数据摘要展示。
 - `src/app/composables/use-main-window-shortcuts.ts`：主窗口保存与工作区历史命令装配。
 - `src/app/composables/use-mod-navigation-panel.ts`：Mod 导航面板的宽窄布局、展开、焦点和监听释放。
+- `src/app/composables/use-workspace-csv-editor-host.ts`：当前 CSV 完整目标、有效游戏根、持久列宽与实体定位交接。
 - `src/app/composables/use-workspace-file-history-view-model.ts`：工作区历史页的读取寿命、菜单、确认及用户动作。
 - `src/app/composables/use-workspace-json-editor-host.ts`：当前 JSON 页面目标、定位完成回执及已解析基础船体的导航交接。
 - `src/app/composables/use-workspace-mod-creation.ts`：总览创建目的地、对话框状态及创建结果的工作区接纳。
@@ -117,6 +118,7 @@
 
 ## 规范
 
+- CSV 宿主必须派生完整 session、Mod 根及表格目标，定位完成与取消必须核对原请求，联队引用导航必须消费原行与确定目标。
 - JSON 宿主必须交付完整 session、Mod 根及页面目标；定位完成必须核对原请求对象，实际船体导航必须消费原皮肤范围及正式行键。
 - 文件回放必须列正式摘要的全部路径及准确数量；清空历史必须说明所属 Mod、目录及实际撤销和重做数量，磁盘内容必须保留。
 - 同路径 JSON 组合查询必须消费引用来源层交付的有序来源，原版必须始终可引用，当前 Mod 只允许接纳前序可引用 Mod 的已保存内容。

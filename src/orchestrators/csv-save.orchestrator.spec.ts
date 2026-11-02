@@ -1,3 +1,4 @@
+import { csvEditorView } from '@/app/composables/csv-editor/tests/csv-editor-view';
 import { savedWriteFixture } from '@/test/fixtures/write-result';
 import { savedContentWorks } from '@/test/unit/project-changes';
 import { replaceCsvTableDraft, markCsvTableSavedDraft } from '@/domain/csv-editor/csv-table-draft';
@@ -182,7 +183,8 @@ describe('table-save orchestrator', () => {
     expect(select).toHaveBeenCalledTimes(1);
     expect(writeCsvPatch).toHaveBeenCalledTimes(choice === 'cancel' ? 0 : 1);
     if (choice === 'csv') expect(writeCsvPatch.mock.lastCall![4]).toEqual([]);
-    if (choice === 'cancel') expect(useCsvEditorStore().hasCurrentTableChanges).toBe(true);
+    if (choice === 'cancel')
+      expect(csvEditorView({ sessionId: SESSION_ID, modRoot: MOD_ROOT, table: 'ships' }).hasCurrentTableChanges).toBe(true);
   });
   beforeEach(() => setActivePinia(createPinia()));
 
@@ -211,23 +213,24 @@ describe('table-save orchestrator', () => {
       );
       const saving = saveCsvChanges({ table: 'ships', manifest, selectAssociatedSpecs: async () => [] });
       expect(writeCsvPatch.mock.lastCall![7]).toEqual([2, 0, 1].map(rowKey));
-      if (later === 'undo') await tables.activeEditor!.undo();
+      if (later === 'undo') await tables.getTableEditor({ sessionId: SESSION_ID, modRoot: MOD_ROOT, table: 'ships' }).undo();
       if (later === 'edit') tables.updateCellValue({ ...target, rowKey: 'ships:row:1', column: 'id' }, 'edited');
-      if (later === 'create') tables.addNewRow();
+      if (later === 'create') tables.addNewRow({ sessionId: SESSION_ID, modRoot: MOD_ROOT, table: 'ships' });
       if (later === 'delete') {
         tables.selectRowByKey(target, 'ships:row:0');
-        tables.deleteSelected();
+        tables.deleteSelectedRow({ sessionId: SESSION_ID, modRoot: MOD_ROOT, table: 'ships' });
       }
       finish(writeResult());
       await saving;
       expect(csvRows(state, true).map((row) => row?.data.id)).toEqual(['c', 'a', 'b']);
       expect(state.documents.ships.baselineRowOrder).toEqual([2, 0, 1].map(rowKey));
-      if (later === 'none') expect(tables.hasCurrentTableChanges).toBe(false);
-      else expect(tables.hasCurrentTableChanges).toBe(true);
+      if (later === 'none')
+        expect(csvEditorView({ sessionId: SESSION_ID, modRoot: MOD_ROOT, table: 'ships' }).hasCurrentTableChanges).toBe(false);
+      else expect(csvEditorView({ sessionId: SESSION_ID, modRoot: MOD_ROOT, table: 'ships' }).hasCurrentTableChanges).toBe(true);
       if (later === 'undo') {
         expect(state.documents.ships.rowOrder).toEqual([0, 1, 2].map(rowKey));
-        await tables.activeEditor!.redo();
-        expect(tables.hasCurrentTableChanges).toBe(false);
+        await tables.getTableEditor({ sessionId: SESSION_ID, modRoot: MOD_ROOT, table: 'ships' }).redo();
+        expect(csvEditorView({ sessionId: SESSION_ID, modRoot: MOD_ROOT, table: 'ships' }).hasCurrentTableChanges).toBe(false);
       }
       if (later === 'edit') expect(csvRows(state)[2]?.data.id).toBe('edited');
       if (later === 'create') expect(csvRows(state)[1]!.rowKey).toContain(':new:');
@@ -248,7 +251,7 @@ describe('table-save orchestrator', () => {
     markCsvTableSavedDraft(state.documents.ships);
     state.documents.ships.totalRowCount = state.documents.ships.filteredRowCount = 2;
     tables.moveRows({ sessionId: SESSION_ID, modRoot: MOD_ROOT, table: 'ships' }, ['ships:row:1'], 0);
-    const added = tables.addNewRow()!;
+    const added = tables.addNewRow({ sessionId: SESSION_ID, modRoot: MOD_ROOT, table: 'ships' })!;
     let finish!: (result: WriteResult) => void;
     writeCsvPatch.mockImplementationOnce(
       () =>
@@ -257,14 +260,14 @@ describe('table-save orchestrator', () => {
         }),
     );
     const saving = saveCsvChanges({ table: 'ships', manifest, selectAssociatedSpecs: async () => [] });
-    await tables.activeEditor!.undo();
+    await tables.getTableEditor({ sessionId: SESSION_ID, modRoot: MOD_ROOT, table: 'ships' }).undo();
     finish(writeResult({ keyMap: [{ previousKey: added.rowKey, nextKey: 'ships:row:2', rowIndex: 1 }] }));
     await saving;
     expect(state.documents.ships.rowOrder).toEqual([1, 0].map(rowKey));
     expect(state.documents.ships.dirty['ships:row:2']).toEqual({ action: 'delete' });
-    await tables.activeEditor!.redo();
+    await tables.getTableEditor({ sessionId: SESSION_ID, modRoot: MOD_ROOT, table: 'ships' }).redo();
     expect(state.documents.ships.rowOrder).toEqual([1, 2, 0].map(rowKey));
-    expect(tables.hasCurrentTableChanges).toBe(false);
+    expect(csvEditorView({ sessionId: SESSION_ID, modRoot: MOD_ROOT, table: 'ships' }).hasCurrentTableChanges).toBe(false);
   });
 
   it('restores a submitted deletion as a new row when its undo also reverses the submitted order', async () => {
@@ -281,7 +284,7 @@ describe('table-save orchestrator', () => {
     state.documents.ships.totalRowCount = state.documents.ships.filteredRowCount = 3;
     const target = { sessionId: SESSION_ID, modRoot: MOD_ROOT, table: 'ships' as const };
     tables.selectRowByKey(target, 'ships:row:0');
-    tables.deleteSelected();
+    tables.deleteSelectedRow({ sessionId: SESSION_ID, modRoot: MOD_ROOT, table: 'ships' });
     tables.moveRows(target, ['ships:row:2'], 0);
     let finish!: (result: WriteResult) => void;
     writeCsvPatch.mockImplementationOnce(
@@ -291,18 +294,18 @@ describe('table-save orchestrator', () => {
         }),
     );
     const saving = saveCsvChanges({ table: 'ships', manifest, selectAssociatedSpecs: async () => [] });
-    await tables.activeEditor!.undo();
-    await tables.activeEditor!.undo();
+    await tables.getTableEditor({ sessionId: SESSION_ID, modRoot: MOD_ROOT, table: 'ships' }).undo();
+    await tables.getTableEditor({ sessionId: SESSION_ID, modRoot: MOD_ROOT, table: 'ships' }).undo();
     finish(writeResult());
     await saving;
     const restored = csvRows(state)[0]!;
     expect(restored.rowKey).toContain(':new:');
     expect(restored).toMatchObject({ data: { id: 'a' } });
     expect(state.documents.ships.rowOrder).toEqual([restored.rowKey, rowKey(1), rowKey(2)]);
-    await tables.activeEditor!.redo();
-    await tables.activeEditor!.redo();
+    await tables.getTableEditor({ sessionId: SESSION_ID, modRoot: MOD_ROOT, table: 'ships' }).redo();
+    await tables.getTableEditor({ sessionId: SESSION_ID, modRoot: MOD_ROOT, table: 'ships' }).redo();
     expect(state.documents.ships.rowOrder).toEqual([2, 1].map(rowKey));
-    expect(tables.hasCurrentTableChanges).toBe(false);
+    expect(csvEditorView({ sessionId: SESSION_ID, modRoot: MOD_ROOT, table: 'ships' }).hasCurrentTableChanges).toBe(false);
   });
 
   it('keeps the insertion boundary of a later undone creation after an ordered save', async () => {
@@ -326,11 +329,11 @@ describe('table-save orchestrator', () => {
         }),
     );
     const saving = saveCsvChanges({ table: 'ships', manifest, selectAssociatedSpecs: async () => [] });
-    const pending = tables.addNewRow()!;
-    await tables.activeEditor!.undo();
+    const pending = tables.addNewRow({ sessionId: SESSION_ID, modRoot: MOD_ROOT, table: 'ships' })!;
+    await tables.getTableEditor({ sessionId: SESSION_ID, modRoot: MOD_ROOT, table: 'ships' }).undo();
     finish(writeResult());
     await saving;
-    await tables.activeEditor!.redo();
+    await tables.getTableEditor({ sessionId: SESSION_ID, modRoot: MOD_ROOT, table: 'ships' }).redo();
     expect(state.documents.ships.rowOrder[1]).toBe(pending.rowKey);
     expect(state.documents.ships.rowOrder).toEqual([rowKey(2), pending.rowKey, rowKey(0), rowKey(1)]);
   });
@@ -349,11 +352,11 @@ describe('table-save orchestrator', () => {
     const tables = useCsvEditorStore();
     const target = { sessionId: SESSION_ID, modRoot: MOD_ROOT, table: 'ships' as const };
     tables.selectRowByKey(target, 'ships:row:1');
-    const first = tables.addNewRow()!;
+    const first = tables.addNewRow({ sessionId: SESSION_ID, modRoot: MOD_ROOT, table: 'ships' })!;
     tables.selectRowByKey(target, 'ships:row:1');
-    const second = tables.addNewRow()!;
+    const second = tables.addNewRow({ sessionId: SESSION_ID, modRoot: MOD_ROOT, table: 'ships' })!;
     tables.selectRowByKey(target, 'ships:row:0');
-    tables.deleteSelected();
+    tables.deleteSelectedRow({ sessionId: SESSION_ID, modRoot: MOD_ROOT, table: 'ships' });
     writeCsvPatch.mockResolvedValueOnce(
       writeResult({
         keyMap: [
@@ -388,7 +391,7 @@ describe('table-save orchestrator', () => {
     markCsvTableSavedDraft(state.documents.ships);
     const tables = useCsvEditorStore();
     tables.selectRowByKey({ sessionId: SESSION_ID, modRoot: MOD_ROOT, table: 'ships' }, 'ships:row:7');
-    const created = tables.addNewRow()!;
+    const created = tables.addNewRow({ sessionId: SESSION_ID, modRoot: MOD_ROOT, table: 'ships' })!;
     writeCsvPatch.mockResolvedValueOnce(writeResult({ keyMap: [{ previousKey: created.rowKey, nextKey: 'ships:row:20', rowIndex: 8 }] }));
     await saveCsvChanges({ table: 'ships', manifest, selectAssociatedSpecs: async () => [] });
     expect(writeCsvPatch.mock.lastCall![7][8]).toBe(created.rowKey);
@@ -411,7 +414,7 @@ describe('table-save orchestrator', () => {
     const target = { sessionId: SESSION_ID, modRoot: MOD_ROOT, table: 'ships' as const };
     for (const rowKey of ['ships:row:0', 'ships:row:1']) {
       tables.selectRowByKey(target, rowKey);
-      tables.deleteSelected();
+      tables.deleteSelectedRow({ sessionId: SESSION_ID, modRoot: MOD_ROOT, table: 'ships' });
     }
     let finish!: (result: WriteResult) => void;
     writeCsvPatch.mockImplementationOnce(
@@ -421,8 +424,8 @@ describe('table-save orchestrator', () => {
         }),
     );
     const saving = saveCsvChanges({ table: 'ships', manifest, selectAssociatedSpecs: async () => [] });
-    await tables.activeEditor!.undo();
-    await tables.activeEditor!.undo();
+    await tables.getTableEditor({ sessionId: SESSION_ID, modRoot: MOD_ROOT, table: 'ships' }).undo();
+    await tables.getTableEditor({ sessionId: SESSION_ID, modRoot: MOD_ROOT, table: 'ships' }).undo();
     finish(writeResult());
     await saving;
     expect(
@@ -458,7 +461,7 @@ describe('table-save orchestrator', () => {
     const tables = useCsvEditorStore();
     const target = { sessionId: SESSION_ID, modRoot: MOD_ROOT, table: 'ships' as const };
     tables.selectRowByKey(target, 'ships:r1');
-    const submitted = tables.addNewRow()!;
+    const submitted = tables.addNewRow({ sessionId: SESSION_ID, modRoot: MOD_ROOT, table: 'ships' })!;
     let finish!: (result: WriteResult) => void;
     writeCsvPatch.mockImplementationOnce(
       () =>
@@ -468,14 +471,14 @@ describe('table-save orchestrator', () => {
     );
     const saving = saveCsvChanges({ table: 'ships', manifest, selectAssociatedSpecs: async () => [] });
     if (before) tables.selectRowByKey(target, 'ships:r1');
-    const pending = tables.addNewRow()!;
-    if (undone) await tables.activeEditor!.undo();
+    const pending = tables.addNewRow({ sessionId: SESSION_ID, modRoot: MOD_ROOT, table: 'ships' })!;
+    if (undone) await tables.getTableEditor({ sessionId: SESSION_ID, modRoot: MOD_ROOT, table: 'ships' }).undo();
     finish(writeResult({ keyMap: [{ previousKey: submitted.rowKey, nextKey: 'ships:row:2', rowIndex: 1 }] }));
     await saving;
-    if (undone) await tables.activeEditor!.redo();
+    if (undone) await tables.getTableEditor({ sessionId: SESSION_ID, modRoot: MOD_ROOT, table: 'ships' }).redo();
     expect(state.documents.ships.rowOrder.indexOf(pending.rowKey)).toBe(before ? 1 : 2);
-    await tables.activeEditor!.undo();
-    await tables.activeEditor!.redo();
+    await tables.getTableEditor({ sessionId: SESSION_ID, modRoot: MOD_ROOT, table: 'ships' }).undo();
+    await tables.getTableEditor({ sessionId: SESSION_ID, modRoot: MOD_ROOT, table: 'ships' }).redo();
     expect(state.documents.ships.rowOrder.indexOf(pending.rowKey)).toBe(before ? 1 : 2);
     writeCsvPatch.mockResolvedValueOnce(
       writeResult({ keyMap: [{ previousKey: pending.rowKey, nextKey: 'ships:row:3', rowIndex: before ? 1 : 2 }] }),
@@ -508,7 +511,7 @@ describe('table-save orchestrator', () => {
     expect(writeCsvPatch.mock.lastCall![3][0]).toMatchObject({ row: { id: '#quoted', hullName: 'Written' }, isComment: false });
     expect(csvRows(state, true)[0]).toMatchObject({ data: { id: '#quoted', hullName: 'Written' }, isComment: false });
     expect(csvRows(state)[0]).toMatchObject({ data: { id: '#disabled' }, isComment: true });
-    expect(await tables.activeEditor!.undo()).toBeTruthy();
+    expect(await tables.getTableEditor({ sessionId: SESSION_ID, modRoot: MOD_ROOT, table: 'ships' }).undo()).toBeTruthy();
     expect(csvRows(state)[0]?.isComment).toBe(false);
     expect(state.documents.ships.dirty).toEqual({});
   });
@@ -568,7 +571,7 @@ describe('table-save orchestrator', () => {
         });
       },
     });
-    expect(tables.saving).toBe(true);
+    expect(csvEditorView({ sessionId: SESSION_ID, modRoot: MOD_ROOT, table: 'ships' }).saving).toBe(true);
     tables.updateCellValue(cellTarget, 'later');
     state.documents.ships.baseVersions[0]!.fingerprint = 'later-version';
     await flushPromises();
@@ -587,9 +590,9 @@ describe('table-save orchestrator', () => {
     expect(call[4][0].change.create.id).toBe('submitted');
     expect(call[6]).toEqual([{ path: 'ships.csv', fingerprint: 'base' }]);
     expect(csvRows(state)[0]?.data.id).toBe('later');
-    expect(await tables.activeEditor!.undo()).toBeTruthy();
+    expect(await tables.getTableEditor({ sessionId: SESSION_ID, modRoot: MOD_ROOT, table: 'ships' }).undo()).toBeTruthy();
     expect(csvRows(state)[0]?.data.id).toBe('submitted');
-    expect(tables.saving).toBe(false);
+    expect(csvEditorView({ sessionId: SESSION_ID, modRoot: MOD_ROOT, table: 'ships' }).saving).toBe(false);
   });
 
   it('retains the input and ends preparation after a rejected commit', async () => {
@@ -612,8 +615,8 @@ describe('table-save orchestrator', () => {
     });
     expect(focus).toHaveBeenCalledTimes(1);
     expect(writeCsvPatch).not.toHaveBeenCalled();
-    expect(tables.saving).toBe(false);
-    expect(tables.hasCurrentTableChanges).toBe(true);
+    expect(csvEditorView({ sessionId: SESSION_ID, modRoot: MOD_ROOT, table: 'ships' }).saving).toBe(false);
+    expect(csvEditorView({ sessionId: SESSION_ID, modRoot: MOD_ROOT, table: 'ships' }).hasCurrentTableChanges).toBe(true);
   });
 
   it('is a noop when nothing is dirty', async () => {
@@ -648,7 +651,7 @@ describe('table-save orchestrator', () => {
     expect(state.documents.ships.baseVersions).toEqual(result.baseVersions);
     expect(state.documents.ships.dirty).toEqual({});
     expect(tables.tableReadGeneration(MOD_ROOT, 'ships')).toBeGreaterThan(generation);
-    expect(tables.saving).toBe(false);
+    expect(csvEditorView({ sessionId: SESSION_ID, modRoot: MOD_ROOT, table: 'ships' }).saving).toBe(false);
     expect(result.keyMap).toEqual([]);
     await savedContentWorks.at(-1)!.retryContent();
     expect(writeCsvPatch).toHaveBeenCalledOnce();
@@ -755,10 +758,10 @@ describe('table-save orchestrator', () => {
     expect(csvRows(state, true)[0]?.data.hullName).toBe('B');
     expect(csvRows(state)[0]?.data.hullName).toBe('C');
     expect(state.documents.ships.dirty['ships:r1']).toEqual({ action: 'upsert', cells: { hullName: 'C' } });
-    expect(await tables.activeEditor!.undo()).toBeTruthy();
+    expect(await tables.getTableEditor({ sessionId: SESSION_ID, modRoot: MOD_ROOT, table: 'ships' }).undo()).toBeTruthy();
     expect(csvRows(state)[0]?.data.hullName).toBe('B');
     expect(state.documents.ships.dirty['ships:r1']).toBeUndefined();
-    expect(useCsvEditorStore().activeEditor!.canUndo.value).toBe(false);
+    expect(useCsvEditorStore().getTableEditor({ sessionId: SESSION_ID, modRoot: MOD_ROOT, table: 'ships' }).canUndo.value).toBe(false);
   });
 
   it('keeps a return to the old baseline dirty when the submitted version was written', async () => {
@@ -784,11 +787,11 @@ describe('table-save orchestrator', () => {
     const state = hydrateActiveTable();
     state.documents.ships.header = ['id', 'hullName'];
     const tables = useCsvEditorStore();
-    const created = tables.addNewRow()!;
+    const created = tables.addNewRow({ sessionId: SESSION_ID, modRoot: MOD_ROOT, table: 'ships' })!;
     let resolveWrite!: (result: WriteResult) => void;
     writeCsvPatch.mockImplementationOnce(() => new Promise<WriteResult>((resolve) => (resolveWrite = resolve)));
     const pending = saveCsvChanges({ table: 'ships', manifest: project.getManifest(MOD_ROOT), selectAssociatedSpecs: async () => [] });
-    tables.deleteSelected();
+    tables.deleteSelectedRow({ sessionId: SESSION_ID, modRoot: MOD_ROOT, table: 'ships' });
     resolveWrite(
       writeResult({
         identityChanges: [],
@@ -803,8 +806,8 @@ describe('table-save orchestrator', () => {
     );
     await pending;
     expect(state.documents.ships.dirty['ships:row:2']).toEqual({ action: 'delete' });
-    expect(useCsvEditorStore().activeEditor!.canUndo.value).toBe(true);
-    await tables.activeEditor!.undo();
+    expect(useCsvEditorStore().getTableEditor({ sessionId: SESSION_ID, modRoot: MOD_ROOT, table: 'ships' }).canUndo.value).toBe(true);
+    await tables.getTableEditor({ sessionId: SESSION_ID, modRoot: MOD_ROOT, table: 'ships' }).undo();
     expect(csvRows(state).some((row) => row?.rowKey === 'ships:row:2')).toBe(true);
     expect(state.documents.ships.dirty['ships:row:2']).toBeUndefined();
   });
@@ -819,7 +822,7 @@ describe('table-save orchestrator', () => {
     await saveCsvChanges({ table: 'ships', manifest: project.getManifest(MOD_ROOT), selectAssociatedSpecs: async () => [] });
     expect(state.documents.ships.dirty['ships:r1']).toBeUndefined();
     expect(csvRows(state, true)[0]?.data.hullName).toBe('B');
-    expect(useCsvEditorStore().activeEditor!.canUndo.value).toBe(false);
+    expect(useCsvEditorStore().getTableEditor({ sessionId: SESSION_ID, modRoot: MOD_ROOT, table: 'ships' }).canUndo.value).toBe(false);
   });
 
   it('rebases a deletion undone during saving into an insert at the original position', async () => {
@@ -830,7 +833,7 @@ describe('table-save orchestrator', () => {
     markCsvTableSavedDraft(state.documents.ships);
     const tables = useCsvEditorStore();
     tables.selectRowByKey({ sessionId: SESSION_ID, modRoot: MOD_ROOT, table: 'ships' }, 'ships:r1');
-    tables.deleteSelected();
+    tables.deleteSelectedRow({ sessionId: SESSION_ID, modRoot: MOD_ROOT, table: 'ships' });
     let release!: (result: WriteResult) => void;
     writeCsvPatch.mockImplementationOnce(
       () =>
@@ -839,7 +842,7 @@ describe('table-save orchestrator', () => {
         }),
     );
     const saving = saveCsvChanges({ table: 'ships', manifest: project.getManifest(MOD_ROOT), selectAssociatedSpecs: async () => [] });
-    await tables.activeEditor!.undo();
+    await tables.getTableEditor({ sessionId: SESSION_ID, modRoot: MOD_ROOT, table: 'ships' }).undo();
     release(writeResult());
     await saving;
     const restoredKey = csvRows(state)[0]!.rowKey;

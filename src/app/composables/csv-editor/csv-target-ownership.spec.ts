@@ -1,3 +1,6 @@
+import { useWorkspaceCsvEditorHost } from '@/app/composables/use-workspace-csv-editor-host';
+import { useCsvEditorModel } from './use-csv-editor-model';
+import { csvEditorView } from '@/app/composables/csv-editor/tests/csv-editor-view';
 import { csvTableIndex } from '@/test/fixtures/csv-row';
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
@@ -39,11 +42,17 @@ function windowRecord(): CsvTableIndex {
     totalRows: 1,
   });
 }
+function currentCsvTarget() {
+  const workspace = useWorkspaceStore(),
+    modRoot = workspace.activeModRoot!;
+  return { sessionId: workspace.activeSessionId!, modRoot, table: useCsvEditorStore().getCsvModState(modRoot)!.currentTab };
+}
 function harness() {
   let vm!: ReturnType<typeof useCsvTableViewModel>;
   wrapper = mount({
     setup() {
-      vm = useCsvTableViewModel();
+      const host = useWorkspaceCsvEditorHost(() => null);
+      vm = useCsvTableViewModel(useCsvEditorModel(host.target), host);
       return () => null;
     },
   });
@@ -84,10 +93,10 @@ describe('CSV explicit targets and column ownership', () => {
     });
     navigateToModTable(a.modRoot, table);
     tables.applyTableIndex(target, record);
-    expect(tables.visibleColumns).toEqual([...keys, 'custom-z', 'custom-a']);
-    expect(tables.currentHeader).toEqual(header);
+    expect(csvEditorView(currentCsvTarget()).visibleColumns).toEqual([...keys, 'custom-z', 'custom-a']);
+    expect(csvEditorView(currentCsvTarget()).currentHeader).toEqual(header);
     tables.applyTableIndex(target, { ...record, header: [] });
-    expect(tables.visibleColumns).toEqual([...keys, 'custom-z', 'custom-a']);
+    expect(csvEditorView(currentCsvTarget()).visibleColumns).toEqual([...keys, 'custom-z', 'custom-a']);
   });
   async function orderedHarness() {
     const record = windowRecord();
@@ -121,10 +130,10 @@ describe('CSV explicit targets and column ownership', () => {
       Array.from({ length: 79 }, (_, index) => 'row-' + (240 + index)),
       expect.any(AbortSignal),
     );
-    expect(tables.rows[0]?.rowKey).toBe('row-400');
-    expect(tables.rows[1]?.data.id).toBe('local');
-    expect(tables.rows[241]?.rowKey).toBe('row-240');
-    expect(tables.hasCurrentTableExternalUpdate).toBe(false);
+    expect(csvEditorView(currentCsvTarget()).rows[0]?.rowKey).toBe('row-400');
+    expect(csvEditorView(currentCsvTarget()).rows[1]?.data.id).toBe('local');
+    expect(csvEditorView(currentCsvTarget()).rows[241]?.rowKey).toBe('row-240');
+    expect(csvEditorView(currentCsvTarget()).hasCurrentTableExternalUpdate).toBe(false);
   });
   it('retains the complete ordered draft and its history while searching', async () => {
     const tables = useCsvEditorStore(),
@@ -136,16 +145,16 @@ describe('CSV explicit targets and column ownership', () => {
     await flushPromises();
     expect(mocks.choose).not.toHaveBeenCalled();
     expect(document.rowOrder).toEqual(order);
-    expect(tables.rowsByKey.row!.data.name).toBe('draft');
-    expect(tables.hasCurrentTableChanges).toBe(true);
-    expect(tables.activeEditor!.canUndo.value).toBe(true);
+    expect(csvEditorView(currentCsvTarget()).rowsByKey.row!.data.name).toBe('draft');
+    expect(csvEditorView(currentCsvTarget()).hasCurrentTableChanges).toBe(true);
+    expect(tables.getTableEditor(currentCsvTarget()).canUndo.value).toBe(true);
     await vm.setSearchText('');
     await flushPromises();
-    expect(tables.rowKeys).toEqual(order);
-    expect(await tables.activeEditor!.undo()).toBe(true);
-    expect(tables.rowsByKey.row!.data.name).toBe('Name');
-    expect(await tables.activeEditor!.redo()).toBe(true);
-    expect(tables.rowsByKey.row!.data.name).toBe('draft');
+    expect(csvEditorView(currentCsvTarget()).rowKeys).toEqual(order);
+    expect(await tables.getTableEditor(currentCsvTarget()).undo()).toBe(true);
+    expect(csvEditorView(currentCsvTarget()).rowsByKey.row!.data.name).toBe('Name');
+    expect(await tables.getTableEditor(currentCsvTarget()).redo()).toBe(true);
+    expect(csvEditorView(currentCsvTarget()).rowsByKey.row!.data.name).toBe('draft');
   });
   it('preserves reordering while clearing and changing a search', async () => {
     const vm = await orderedHarness();
@@ -155,8 +164,8 @@ describe('CSV explicit targets and column ownership', () => {
     expect(vm.reorderDisabledReason.value).toBe('');
     await vm.setSearchText('value');
     await flushPromises();
-    expect(useCsvEditorStore().searchText).toBe('value');
-    expect(useCsvEditorStore().hasCurrentRowOrderChanges).toBe(true);
+    expect(csvEditorView(currentCsvTarget()).searchText).toBe('value');
+    expect(csvEditorView(currentCsvTarget()).hasCurrentRowOrderChanges).toBe(true);
     expect(mocks.choose).not.toHaveBeenCalled();
   });
   it('revokes a late search index across an A-B-A target handoff', async () => {
@@ -176,25 +185,25 @@ describe('CSV explicit targets and column ownership', () => {
     await flushPromises();
     finish({ ...windowRecord(), rowKeys: ['obsolete'], rows: [] });
     await flushPromises();
-    expect(useCsvEditorStore().rowKeys).not.toContain('obsolete');
-    expect(useCsvEditorStore().hasCurrentRowOrderChanges).toBe(true);
+    expect(csvEditorView(currentCsvTarget()).rowKeys).not.toContain('obsolete');
+    expect(csvEditorView(currentCsvTarget()).hasCurrentRowOrderChanges).toBe(true);
     expect(vm.searchPending.value).toBe(false);
   });
   it('reloads the first window with the selected search field and retains the text', async () => {
     const vm = harness();
     await flushPromises();
-    const tables = useCsvEditorStore();
+
     await vm.setSearchText('Alpha');
     await flushPromises();
     await vm.setSearchField('name');
     await flushPromises();
-    expect(tables.searchText).toBe('Alpha');
-    expect(tables.searchField).toBe('name');
+    expect(csvEditorView(currentCsvTarget()).searchText).toBe('Alpha');
+    expect(csvEditorView(currentCsvTarget()).searchField).toBe('name');
     expect(mocks.query).toHaveBeenLastCalledWith(a.sessionId, 'ships', 0, 'Alpha', 'name', expect.any(AbortSignal));
     navigateToModTable(a.modRoot, 'weapons');
     await flushPromises();
-    expect(tables.searchText).toBe('');
-    expect(tables.searchField).toBe('id-name');
+    expect(csvEditorView(currentCsvTarget()).searchText).toBe('');
+    expect(csvEditorView(currentCsvTarget()).searchField).toBe('id-name');
   });
 
   it('commits the active input before changing search fields and preserves its dirty edit', async () => {
@@ -203,7 +212,7 @@ describe('CSV explicit targets and column ownership', () => {
     const tables = useCsvEditorStore();
     const dirty = ref(true);
     const commit = vi.fn(() => {
-      expect(tables.searchField).toBe('id-name');
+      expect(csvEditorView(currentCsvTarget()).searchField).toBe('id-name');
       tables.updateCellValue({ ...a, rowKey: 'row', column: 'name' }, 'Unblurred draft');
       dirty.value = false;
       return null;
@@ -219,9 +228,9 @@ describe('CSV explicit targets and column ownership', () => {
     await vm.setSearchField('name');
     await flushPromises();
     expect(commit).toHaveBeenCalledTimes(1);
-    expect(tables.searchField).toBe('name');
-    expect(tables.rows[0]?.data.name).toBe('Unblurred draft');
-    expect(tables.hasCurrentTableChanges).toBe(true);
+    expect(csvEditorView(currentCsvTarget()).searchField).toBe('name');
+    expect(csvEditorView(currentCsvTarget()).rows[0]?.data.name).toBe('Unblurred draft');
+    expect(csvEditorView(currentCsvTarget()).hasCurrentTableChanges).toBe(true);
     unregister();
   });
 
@@ -242,7 +251,7 @@ describe('CSV explicit targets and column ownership', () => {
     const calls = mocks.query.mock.calls.length;
     await vm.setSearchField('tags');
     await flushPromises();
-    expect(tables.searchField).toBe('id-name');
+    expect(csvEditorView(currentCsvTarget()).searchField).toBe('id-name');
     expect(dirty.value).toBe(true);
     expect(focus).toHaveBeenCalledTimes(1);
     expect(mocks.error).toHaveBeenCalledTimes(1);
@@ -266,8 +275,8 @@ describe('CSV explicit targets and column ownership', () => {
     if (completion === 'resolve') resolve({ ...windowRecord(), rows: [{ ...windowRecord().rows[0]!, data: { id: 'obsolete' } }] });
     else reject(new Error('obsolete search'));
     await flushPromises();
-    expect(useCsvEditorStore().rows[0]?.data.id).toBe('demo');
-    expect(useCsvEditorStore().searchField).toBe('name');
+    expect(csvEditorView(currentCsvTarget()).rows[0]?.data.id).toBe('demo');
+    expect(csvEditorView(currentCsvTarget()).searchField).toBe('name');
     expect(mocks.error).not.toHaveBeenCalled();
   });
   it('measures and persists prototype-named columns as ordinary header keys', async () => {
@@ -299,7 +308,7 @@ describe('CSV explicit targets and column ownership', () => {
     vm.setColumnWidth('name', 300);
     expect(useWorkspaceStore().getColumnWidths(a.modRoot, 'ships')?.name).toBe(120);
     expect(useWorkspaceStore().getColumnWidths(b.modRoot, 'ships')?.name).toBe(300);
-    if (dirty) expect(tables.rows[0]?.data.name).toBe('B draft');
+    if (dirty) expect(csvEditorView(currentCsvTarget()).rows[0]?.data.name).toBe('B draft');
   });
 
   it('applies captured table state to its owner across workspace navigation', async () => {
@@ -310,13 +319,13 @@ describe('CSV explicit targets and column ownership', () => {
     navigateToModTable(b.modRoot, 'ships');
     tables.applyTableIndex(a, windowRecord());
     tables.markTableExternalUpdate(a);
-    expect(tables.searchText).toBe('');
-    expect(tables.searchField).toBe('id-name');
-    expect(tables.selectedRowKey).toBeNull();
+    expect(csvEditorView(currentCsvTarget()).searchText).toBe('');
+    expect(csvEditorView(currentCsvTarget()).searchField).toBe('id-name');
+    expect(csvEditorView(currentCsvTarget()).selectedRowKey).toBeNull();
     navigateToModTable(a.modRoot, 'ships');
-    expect(tables.searchText).toBe('A search');
-    expect(tables.searchField).toBe('name');
-    expect(tables.hasCurrentTableExternalUpdate).toBe(true);
+    expect(csvEditorView(currentCsvTarget()).searchText).toBe('A search');
+    expect(csvEditorView(currentCsvTarget()).searchField).toBe('name');
+    expect(csvEditorView(currentCsvTarget()).hasCurrentTableExternalUpdate).toBe(true);
   });
 
   it.each(['resolve', 'reject'] as const)('releases the prior Mod window %s after switching to a same-name table', async (completion) => {
@@ -335,7 +344,7 @@ describe('CSV explicit targets and column ownership', () => {
     if (completion === 'resolve') resolve({ ...windowRecord(), rows: [{ ...windowRecord().rows[0]!, data: { id: 'old' } }] });
     else reject(new Error('Old Mod query'));
     await flushPromises();
-    expect(useCsvEditorStore().rows[0]?.data.id).toBe('demo');
+    expect(csvEditorView(currentCsvTarget()).rows[0]?.data.id).toBe('demo');
     expect(mocks.error).not.toHaveBeenCalled();
   });
 });

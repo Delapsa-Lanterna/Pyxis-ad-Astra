@@ -1,3 +1,4 @@
+import { useProjectStore } from '@/stores/project.store';
 import { useProjectSyncStore } from '@/stores/project-sync.store';
 import type { DocumentEditorActions } from '@/shared/runtime/document-editor';
 import {
@@ -23,7 +24,6 @@ import {
   type CsvTableTarget,
   TABLE_KEYS,
   type CsvRowKeyMapping,
-  type CsvTableRows,
   type CsvTableIndex,
   type CsvTableRowsRead,
   type CsvModState,
@@ -41,9 +41,6 @@ import { createFieldInputs, type FieldInputs } from '@/shared/runtime/field-inpu
 
 import { normalizeFsPath } from '@/shared/lib/paths';
 
-import { csvColumnsForTable } from '@/domain/csv-editor/csv-column-schema';
-import { useWorkspaceStore } from '@/stores/workspace.store';
-import { csvDirtyCells } from '@/domain/csv-editor/csv-dirty';
 import { DEFAULT_CSV_SEARCH_FIELD } from '@/domain/csv-editor/csv-search';
 import { useDraftSessionsStore } from '@/stores/draft-sessions.store';
 import {
@@ -52,7 +49,6 @@ import {
   acceptSavedCsvTableIndex,
   acceptSavedCsvTableRows,
   applyCsvTableRowsDraft,
-  csvVisibleRowKeys,
   clearCsvTableExternalUpdateDraft,
   createCsvRowDraft,
   deleteCsvRowDraft,
@@ -68,9 +64,7 @@ import {
   csvRowTargetOf,
   type CsvDraftResult,
   type CsvRowTarget,
-  hasCsvRowOrderChanges,
 } from '@/domain/csv-editor/csv-table-draft';
-import { isLoadedCsvTableRow } from '@/domain/csv-editor/csv-table-rows';
 
 interface CsvTableRuntime extends CsvTableState {
   inputs: Raw<FieldInputs>;
@@ -120,9 +114,9 @@ function createCsvModRuntime(target: { sessionId: string; modRoot: string }, lim
   };
 }
 
-function applyManifestSummaries(state: CsvModState, manifest: ProjectManifest) {
+function applyTableSummaries(state: CsvModState, summaries: ProjectManifest['tableSummaries']) {
   for (const key of TABLE_KEYS) {
-    const summary = manifest.tableSummaries[key];
+    const summary = summaries[key];
     state.documents[key].header = summary.header;
     if (summary.totalRows !== null) {
       state.documents[key].totalRowCount = summary.totalRows;
@@ -132,77 +126,10 @@ function applyManifestSummaries(state: CsvModState, manifest: ProjectManifest) {
 }
 
 export const useCsvEditorStore = defineStore('csv-editor', () => {
-  const workspace = useWorkspaceStore();
   const historyLimit = ref(100);
   const stateMap = reactive<Map<string, CsvModRuntime>>(new Map());
   const identityLocks = shallowReactive(new Map<string, { target: CsvTableTarget; owner: string }>());
   const lockKey = (root: string, table: CsvTableKey) => JSON.stringify([normalizeFsPath(root), table]);
-  const activeModRoot = computed(() => workspace.activeModRoot);
-  const currentTab = computed(() => getActiveState()?.currentTab ?? 'ships');
-  const saving = computed(() => getActiveState()?.documents[currentTab.value].saving ?? false);
-  const currentTableLocked = computed(() => (activeModRoot.value ? isTableLocked(activeModRoot.value, currentTab.value) : false));
-  const searchField = computed(() => getActiveState()?.searchField ?? DEFAULT_CSV_SEARCH_FIELD);
-  const currentHeader = computed(() => getActiveState()?.documents[currentTab.value].header ?? []);
-  const searchText = computed(() => getActiveState()?.searchText ?? '');
-  const selectedRowKey = computed(() => getActiveState()?.selectedRowKey ?? null);
-  const editing = computed(() => getActiveState()?.editing ?? null);
-  const rows = computed(() => rowsFor(currentTab.value));
-  const visibleColumns = computed(() => {
-    const headerColumns = csvColumnsForTable(currentTab.value, currentHeader.value);
-    if (headerColumns.length > 0) return headerColumns;
-    const seen = new Set<string>();
-    const inferred: string[] = [];
-    for (const row of rows.value.filter(isLoadedCsvTableRow).slice(0, 50)) {
-      for (const key of Object.keys(row.data)) {
-        if (!seen.has(key)) {
-          seen.add(key);
-          inferred.push(key);
-        }
-      }
-    }
-    return csvColumnsForTable(currentTab.value, inferred);
-  });
-  const rowKeys = computed(() => {
-    const state = getActiveState();
-    return state ? csvVisibleRowKeys(state.documents[currentTab.value]) : [];
-  });
-  const rowsByKey = computed(() => getActiveState()?.documents[currentTab.value].rows ?? {});
-  const totalRowCount = computed(() => getActiveState()?.documents[currentTab.value].totalRowCount ?? 0);
-  const filteredRowCount = computed(() => getActiveState()?.documents[currentTab.value].filteredRowCount ?? 0);
-  const hasCurrentTableFilter = computed(
-    () => Boolean(searchText.value.trim()) || filteredRowCount.value !== (getActiveState()?.documents[currentTab.value].totalRowCount ?? 0),
-  );
-  const selectedRowRecord = computed(() =>
-    selectedRowKey.value ? getActiveState()?.documents[currentTab.value].rows[selectedRowKey.value] : undefined,
-  );
-  const selectedRow = computed(() => selectedRowRecord.value?.data);
-  const tableInfo = computed(() => {
-    const state = getActiveState();
-    if (!state) return '显示 0 / 0 行';
-    return `显示 ${state.documents[state.currentTab].filteredRowCount} / ${state.documents[state.currentTab].totalRowCount} 行`;
-  });
-  const hasCurrentRowOrderChanges = computed(() => {
-    const state = getActiveState();
-    return state ? hasCsvRowOrderChanges(state.documents[currentTab.value]) : false;
-  });
-  const hasCurrentTableChanges = computed(() => {
-    const state = getActiveState();
-    if (!state) return false;
-    return hasTableDirtyChanges(state.currentTab);
-  });
-  const hasCurrentTableExternalUpdate = computed(() => {
-    const state = getActiveState();
-    return state ? state.documents[state.currentTab].externalUpdatePending : false;
-  });
-  const isDirty = computed(() => {
-    const table = getActiveState()?.documents[currentTab.value].dirty ?? {};
-    return (rowKey: string, col: string) => csvDirtyCells(table[rowKey])?.[col] !== undefined;
-  });
-  const activeEditor = computed(() =>
-    workspace.activeSessionId && activeModRoot.value && stateMap.has(activeModRoot.value)
-      ? getTableEditor({ sessionId: workspace.activeSessionId, modRoot: activeModRoot.value, table: currentTab.value })
-      : null,
-  );
 
   function isTableLocked(root: string, table: CsvTableKey) {
     return identityLocks.has(lockKey(root, table));
@@ -218,19 +145,10 @@ export const useCsvEditorStore = defineStore('csv-editor', () => {
     }
   }
 
-  function getActiveState(): CsvModRuntime | undefined {
-    return activeModRoot.value ? stateMap.get(activeModRoot.value) : undefined;
-  }
-
   function hasModDirtyChanges(modRoot: string): boolean {
     const state = stateMap.get(modRoot);
     if (!state) return false;
     return TABLE_KEYS.some((key) => state.documents[key].inputs.dirty.value || hasCsvTableDraftChanges(state.documents[key]));
-  }
-
-  function rowsFor(tab: CsvTableKey): CsvTableRows {
-    const state = getActiveState();
-    return state ? csvVisibleRowKeys(state.documents[tab]).map((key) => state.documents[tab].rows[key] ?? null) : [];
   }
 
   function switchTab(modRoot: string, tab: CsvTableKey) {
@@ -269,12 +187,18 @@ export const useCsvEditorStore = defineStore('csv-editor', () => {
     );
   }
 
-  function hasTableDirtyChanges(tab: CsvTableKey): boolean {
-    const state = getActiveState();
+  function hasTableDirtyChanges(target: CsvTableTarget): boolean {
+    const state = stateMap.get(target.modRoot);
     if (!state) return false;
-    return getTableInputs(activeModRoot.value!, tab).dirty.value || hasCsvTableDraftChanges(state.documents[tab]);
+    return getTableInputs(target.modRoot, target.table).dirty.value || hasCsvTableDraftChanges(state.documents[target.table]);
   }
 
+  function canSaveTable(target: CsvTableTarget) {
+    return (
+      !useProjectSyncStore().isWaiting(target.modRoot) &&
+      (hasTableDirtyChanges(target) || !useProjectStore().getManifest(target.modRoot)!.tableSummaries[target.table].available)
+    );
+  }
   function markTableExternalUpdate(target: CsvTableTarget) {
     markCsvTableExternalUpdateDraft(stateMap.get(target.modRoot)!.documents[target.table]);
   }
@@ -323,13 +247,13 @@ export const useCsvEditorStore = defineStore('csv-editor', () => {
     );
   }
 
-  function addNewRow(): CsvRowTarget | null {
-    if (currentTableLocked.value) return null;
-    const state = getActiveState();
+  function addNewRow(target: CsvTableTarget): CsvRowTarget | null {
+    if (isTableLocked(target.modRoot, target.table)) return null;
+    const state = stateMap.get(target.modRoot);
     if (!state) return null;
-    const result = createCsvRowDraft(state.documents[state.currentTab], state.selectedRowKey, Date.now());
+    const result = createCsvRowDraft(state.documents[target.table], state.selectedRowKey, Date.now());
     state.selectedRowKey = csvRowTargetOf(result)!.rowKey;
-    pushCsvDraftResult(state.currentTab, result);
+    pushCsvDraftResult(target.table, result, target.modRoot);
     return csvRowTargetOf(result);
   }
 
@@ -384,15 +308,15 @@ export const useCsvEditorStore = defineStore('csv-editor', () => {
     if (state.currentTab === target.table && keys.includes(state.selectedRowKey!)) state.selectedRowKey = null;
   }
 
-  function deleteSelected(): CsvRowTarget | null {
-    if (currentTableLocked.value) return null;
-    const state = getActiveState();
+  function deleteSelectedRow(target: CsvTableTarget): CsvRowTarget | null {
+    if (isTableLocked(target.modRoot, target.table)) return null;
+    const state = stateMap.get(target.modRoot);
     if (!state) return null;
     if (!state.selectedRowKey) return null;
-    const result = deleteCsvRowDraft(state.documents[state.currentTab], state.selectedRowKey);
+    const result = deleteCsvRowDraft(state.documents[target.table], state.selectedRowKey);
     state.selectedRowKey = null;
     state.editing = null;
-    pushCsvDraftResult(state.currentTab, result);
+    pushCsvDraftResult(target.table, result, target.modRoot);
     return csvRowTargetOf(result);
   }
 
@@ -418,7 +342,7 @@ export const useCsvEditorStore = defineStore('csv-editor', () => {
     }
   }
 
-  function pushCsvDraftResult(table: CsvTableKey, result: CsvDraftResult, modRoot = activeModRoot.value) {
+  function pushCsvDraftResult(table: CsvTableKey, result: CsvDraftResult, modRoot: string) {
     if (!modRoot || !result.historyOperation || !result.historyLabel) return;
     pushCsvTableOperation(modRoot, table, result.historyOperation, result.historyLabel);
   }
@@ -636,13 +560,13 @@ export const useCsvEditorStore = defineStore('csv-editor', () => {
     }
     const state = createCsvModRuntime(target, historyLimit.value);
     stateMap.get(target.modRoot) && Object.values(stateMap.get(target.modRoot)!.documents).forEach((document) => document.inputs.release());
-    applyManifestSummaries(state, target.manifest);
+    applyTableSummaries(state, target.manifest.tableSummaries);
     stateMap.set(target.modRoot, state);
   }
 
-  function activateFor(modRoot: string | null, manifest?: ProjectManifest | null) {
-    const state = modRoot ? stateMap.get(modRoot) : undefined;
-    if (state && manifest) applyManifestSummaries(state, manifest);
+  function acceptTableSummaries(modRoot: string, summaries: ProjectManifest['tableSummaries']) {
+    const state = stateMap.get(modRoot);
+    if (state) applyTableSummaries(state, summaries);
   }
 
   function removeModState(modRoot: string) {
@@ -656,48 +580,20 @@ export const useCsvEditorStore = defineStore('csv-editor', () => {
   useDraftSessionsStore().registerDirtySource(hasModDirtyChanges);
 
   return {
-    activeModRoot,
-    currentTab,
-    activeEditor,
+    getTableEditor,
     bindSaveActions,
     getCsvModState,
 
-    rows,
-    rowKeys,
-    rowsByKey,
-    totalRowCount,
-    filteredRowCount,
-    selectedRow,
-    selectedRowRecord,
-    selectedRowKey,
-    currentHeader,
-    visibleColumns,
-    tableInfo,
-    searchText,
-    searchField,
-    hasCurrentTableFilter,
-    isDirty,
-
-    currentTableLocked,
     isTableLocked,
-    canSaveCurrentTable: computed(
-      () =>
-        !useProjectSyncStore().isWaiting(workspace.activeModRoot) &&
-        (hasCurrentTableChanges.value ||
-          Boolean(workspace.activeManifest && !workspace.activeManifest.tableSummaries[currentTab.value].available)),
-    ),
-    hasCurrentTableChanges,
-    hasCurrentRowOrderChanges,
-    hasCurrentTableExternalUpdate,
     hasTableDirtyChanges,
+    canSaveTable,
 
     getTableInputs,
-    editing,
     setActiveCell,
     updateCellValue,
     updateRange,
     addNewRow,
-    deleteSelected,
+    deleteSelectedRow,
     moveRows,
     copyRows,
     insertRows,
@@ -709,7 +605,6 @@ export const useCsvEditorStore = defineStore('csv-editor', () => {
     lockTable,
     releaseTableLock,
 
-    saving,
     setSaving,
     isTableSaving,
     applySavedRowKeyMap,
@@ -719,7 +614,7 @@ export const useCsvEditorStore = defineStore('csv-editor', () => {
     setHistoryLimit,
 
     initializeModTables,
-    activateFor,
+    acceptTableSummaries,
     removeModState,
     tableReadGeneration,
     revokeTableReads,

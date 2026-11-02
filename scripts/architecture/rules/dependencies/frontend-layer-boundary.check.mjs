@@ -183,3 +183,32 @@ test('JSON editors consume explicit host inputs across implementation layers and
   });
   assert.deepEqual(frontendLayerBoundaryRule.check(context), []);
 });
+
+test('CSV editors consume explicit host inputs across implementation layers and import aliases', () => {
+  for (const source of [
+    'src/app/components/csv-editor/CsvEditorPage.vue',
+    'src/app/composables/csv-editor/use-csv-table-view-model.ts',
+    'src/domain/csv-editor/csv-table-draft.ts',
+    'src/stores/csv-editor.store.ts',
+    'src/orchestrators/csv-save.orchestrator.ts',
+    'src/services/csv-table.service.ts',
+  ]) {
+    for (const target of ['src/stores/workspace.store.ts', 'src/orchestrators/workspace-navigation.orchestrator.ts']) {
+      const code = 'import { value as own } from "@/' + target.slice(4, -3) + '"; own();';
+      const context = architectureFixtures({
+        [source]: source.endsWith('.vue') ? '<script setup lang="ts">' + code + '</script>' : code,
+        [target]: 'export function value() {}',
+      });
+      const diagnostics = frontendLayerBoundaryRule.check(context).filter((item) => item.target === target);
+      assert.equal(diagnostics.length, 1, source + ' -> ' + target);
+      assert.equal(diagnostics[0]?.target, target);
+    }
+  }
+  const context = architectureFixtures({
+    'src/app/composables/use-workspace-csv-editor-host.ts': 'import type {Host} from "@/app/composables/csv-editor/csv-editor-context";',
+    'src/app/composables/csv-editor/csv-editor-context.ts': 'export interface Host {}',
+    'src/app/composables/csv-editor/use-csv-table-view-model.ts': 'import type {Location} from "@/shared/types/workspace.types";',
+    'src/shared/types/workspace.types.ts': 'export interface Location {}',
+  });
+  assert.deepEqual(frontendLayerBoundaryRule.check(context), []);
+});

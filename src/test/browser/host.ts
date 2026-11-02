@@ -11,7 +11,8 @@ import { useProjectStore } from '@/stores/project.store';
 import { useWorkspaceStore } from '@/stores/workspace.store';
 import { useJsonEditorStore } from '@/stores/json-editor.store';
 import { useSaveCommandStore } from '@/stores/save-command.store';
-import { useCsvEditorActions } from '@/app/composables/csv-editor/use-csv-editor-actions';
+import { selectCsvAssociatedSpecs } from '@/app/composables/csv-editor/csv-associated-spec-selection';
+import { useWorkspaceCsvEditorHost } from '@/app/composables/use-workspace-csv-editor-host';
 import { useCsvSaveParticipants } from '@/app/composables/csv-editor/use-csv-save-participants';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
 import { projectVariantPanel } from '@/domain/immersive/variant/variant-panel';
@@ -94,7 +95,7 @@ export function createBrowserHost(element: HTMLElement) {
       if (model.scene === 'fields') return (await import('./FieldGallery.vue')).default;
       if (model.scene === 'resources') return (await import('./ResourceGallery.vue')).default;
       if (model.scene === 'feedback') return (await import('./FeedbackGallery.vue')).default;
-      if (model.scene === 'csv') return (await import('@/app/components/csv-editor/CsvEditorWorkspace.vue')).default;
+      if (model.scene === 'csv') return (await import('@/app/components/csv-editor/CsvEditorPage.vue')).default;
       if (immersiveKinds.includes(model.scene as (typeof immersiveKinds)[number]))
         return (await import('@/app/ImmersiveEditorContent.vue')).default;
       if (model.scene === 'hullmods') return (await import('@/app/components/immersive/variant/VariantHullmodPicker.vue')).default;
@@ -113,9 +114,12 @@ export function createBrowserHost(element: HTMLElement) {
           tables.initializeModTables({ sessionId: model.sessionId, modRoot: model.manifest.modRoot, manifest: model.manifest });
           workspace.activateModTable(model.manifest.modRoot);
           const feedback = useAppFeedback();
-          const actions = useCsvEditorActions(feedback);
-          useCsvSaveParticipants(feedback, actions.selectAssociatedSpecs);
-          return () => h(SceneContent, { detailPaneExpanded: false, actions });
+          const host = useWorkspaceCsvEditorHost(() => settings.starsectorRoot ?? null);
+          useCsvSaveParticipants(feedback, (candidates) => selectCsvAssociatedSpecs(feedback, candidates));
+          return () =>
+            host.target.value
+              ? h(SceneContent, { key: JSON.stringify(host.target.value), target: host.target.value, host, detailPaneExpanded: false })
+              : null;
         }
         const graph = model.graph('variant');
         const inputs = provideFieldInputs();
@@ -166,7 +170,14 @@ export function createBrowserHost(element: HTMLElement) {
     close,
     unmount,
     async save() {
-      if (model.scene === 'csv') await tables.activeEditor!.save();
+      if (model.scene === 'csv')
+        await tables
+          .getTableEditor({
+            sessionId: model.sessionId,
+            modRoot: model.manifest.modRoot,
+            table: tables.getCsvModState(model.manifest.modRoot)!.currentTab,
+          })
+          .save();
       else await useJsonEditorStore(pinia!).active!.save();
     },
     get remainingSessions() {

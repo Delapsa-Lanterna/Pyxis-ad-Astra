@@ -15,10 +15,12 @@
       @load-mod="actions.loadOverviewMod" /><SettingsPage v-else-if="workspace.currentView === 'settings'" /><AboutPage
       v-else-if="workspace.currentView === 'about'" /><ModFileBrowser
       :target="workspace.activeManifest"
-      v-else-if="workspace.currentView === 'mod-files' && workspace.activeManifest" /><CsvEditorWorkspace
-      v-else-if="workspace.currentView === 'table' && workspace.activeManifest"
-      v-model:detail-pane-expanded="detailPaneExpanded"
-      :actions="csvActions" /><WorkspaceModOverview
+      v-else-if="workspace.currentView === 'mod-files' && workspace.activeManifest" /><CsvEditorPage
+      v-else-if="csvHost.target.value"
+      :key="JSON.stringify(csvHost.target.value)"
+      :target="csvHost.target.value"
+      :host="csvHost"
+      v-model:detail-pane-expanded="detailPaneExpanded" /><WorkspaceModOverview
       v-else-if="workspace.currentView === 'mod-overview' && workspace.activeManifest" /><WorkspaceFileHistory
       v-else-if="workspace.currentView === 'file-history' && workspace.activeManifest" />
     <section
@@ -40,7 +42,8 @@
 <script setup lang="ts">
 import { useJsonEditorStore } from '@/stores/json-editor.store';
 import { useCsvEditorStore } from '@/stores/csv-editor.store';
-import { useCsvEditorActions } from '@/app/composables/csv-editor/use-csv-editor-actions';
+import { selectCsvAssociatedSpecs } from '@/app/composables/csv-editor/csv-associated-spec-selection';
+import { useWorkspaceCsvEditorHost } from '@/app/composables/use-workspace-csv-editor-host';
 import { useContextMenuScope } from '@/app/composables/use-context-menu';
 import { computed, defineAsyncComponent, onMounted, onUnmounted, provide, ref, watch } from 'vue';
 import { createModNavigationPanel, modNavigationPanelKey } from '@/app/composables/use-mod-navigation-panel';
@@ -66,7 +69,7 @@ import { setRuntimeErrorContext } from '@/app/runtime-error-monitor';
 const OverviewPage = defineAsyncComponent(() => import('@/app/components/OverviewPage.vue'));
 const SettingsPage = defineAsyncComponent(() => import('@/app/components/SettingsPage.vue'));
 const AboutPage = defineAsyncComponent(() => import('@/app/components/AboutPage.vue'));
-const CsvEditorWorkspace = defineAsyncComponent(() => import('@/app/components/csv-editor/CsvEditorWorkspace.vue'));
+const CsvEditorPage = defineAsyncComponent(() => import('@/app/components/csv-editor/CsvEditorPage.vue'));
 const ModFileBrowser = defineAsyncComponent(() => import('@/app/components/mod-file-browser/ModFileBrowser.vue'));
 const WorkspaceModOverview = defineAsyncComponent(() => import('@/app/components/workspace/WorkspaceModOverview.vue'));
 const WorkspaceFileHistory = defineAsyncComponent(() => import('@/app/components/workspace/WorkspaceFileHistory.vue'));
@@ -77,19 +80,21 @@ provide(modNavigationPanelKey, modNavigationPanel);
 const settings = useSettingsStore();
 const workspace = useWorkspaceStore();
 const jsonHost = useWorkspaceJsonEditorHost();
+const csvHost = useWorkspaceCsvEditorHost(() => settings.starsectorRoot ?? null);
+const tables = useCsvEditorStore();
+const currentCsvTab = computed(() => (workspace.activeModRoot ? tables.getCsvModState(workspace.activeModRoot)?.currentTab : null));
 const project = useProjectStore();
 const draftSessions = useDraftSessionsStore();
 const feedback = useAppFeedback();
 const actions = useWorkspaceShellActions(feedback);
-const csvActions = useCsvEditorActions(feedback);
-useWorkspaceShellLifecycle(feedback, csvActions.selectAssociatedSpecs);
+useWorkspaceShellLifecycle(feedback, (candidates) => selectCsvAssociatedSpecs(feedback, candidates));
 const saveCommand = useSaveCommandStore();
 useMainWindowShortcuts(feedback);
 const hasUnsavedMainWindowChanges = computed(() => workspace.loadedModList.some((mod) => draftSessions.hasUnsavedWorkForMod(mod.modRoot)));
 const releaseRuntimeErrorContext = setRuntimeErrorContext(() => ({
   page: workspace.currentView,
   jsonPage: workspace.currentView === 'json-editor' ? workspace.jsonPage : null,
-  csvTab: workspace.currentView === 'table' ? useCsvEditorStore().currentTab : null,
+  csvTab: workspace.currentView === 'table' ? currentCsvTab.value : null,
   modRoot: workspace.activeModRoot,
   sessionId: workspace.activeSessionId,
   targetId: useJsonEditorStore().active?.target.value?.id ?? null,
@@ -115,7 +120,9 @@ const closeParticipant = useWindowCloseParticipant({
 });
 const activeDocument = computed(() =>
   workspace.currentView === 'table'
-    ? useCsvEditorStore().activeEditor
+    ? csvHost.target.value
+      ? tables.getTableEditor(csvHost.target.value)
+      : null
     : workspace.currentView === 'json-editor'
       ? useJsonEditorStore().active
       : null,
@@ -149,7 +156,7 @@ watch(
 );
 
 watch(
-  () => [workspace.currentView, workspace.jsonPage, workspace.activeModRoot, useCsvEditorStore().currentTab],
+  () => [workspace.currentView, workspace.jsonPage, workspace.activeModRoot, currentCsvTab.value],
   (identity, previous) => {
     debugLog('page.entered', () => ({ identity: JSON.stringify(identity), previous: JSON.stringify(previous ?? []) }));
   },

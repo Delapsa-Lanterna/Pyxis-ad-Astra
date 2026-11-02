@@ -19,7 +19,14 @@ const mocks = vi.hoisted(() => ({
   csv: { undo: vi.fn(), redo: vi.fn() },
   json: { undo: vi.fn(), redo: vi.fn() },
   workspace: { activeModRoot: 'M:/alpha', activeSessionId: 's1', currentView: 'table' as WorkspaceView, jsonPage: 'mod-info' },
-  tables: { currentTab: 'ships', currentTableLocked: false, activeEditor: null as unknown },
+  tables: {
+    getCsvModState: () => mocks.tables,
+    getTableEditor: () => mocks.tables.activeEditor,
+    isTableLocked: () => mocks.tables.currentTableLocked,
+    currentTab: 'ships',
+    currentTableLocked: false,
+    activeEditor: null as unknown,
+  },
 }));
 vi.mock('@/orchestrators/file-history-replay.orchestrator', () => ({
   createFileReplayPlan: (_project: unknown, direction: string) => {

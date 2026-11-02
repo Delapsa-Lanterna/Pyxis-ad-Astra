@@ -1,7 +1,7 @@
 <template>
   <aside class="detail-pane ui-layout-grid ui-content-scroll ui-content-surface-muted">
     <div class="panel-section-title ui-text-muted">详情栏</div>
-    <template v-if="tables.selectedRow">
+    <template v-if="view.selectedRow">
       <section class="panel-card detail-card record-card ui-layout-grid ui-layout-shrink ui-control-border ui-content-surface">
         <div class="detail-thumbnail ui-control-center ui-layout-clip ui-layout-stretch ui-control-border">
           <n-image
@@ -93,9 +93,8 @@
 <script setup lang="ts">
 import { computed, watch } from 'vue';
 import { useCsvRowPreview } from '@/app/composables/csv-editor/use-csv-row-preview';
-import { useCsvEditorStore } from '@/stores/csv-editor.store';
+import type { CsvEditorModel } from '@/app/composables/csv-editor/use-csv-editor-model';
 import { useSettingsStore } from '@/stores/settings.store';
-import { useWorkspaceStore } from '@/stores/workspace.store';
 import { useSchemaSelectMedia } from '@/app/composables/use-schema-select-media';
 import { cell, MODULE_LABELS, rowDisplayId } from '@/shared/lib/starsector';
 import { detailActionKey, detailActionLabel, detailActionsForRow, type TableDetailAction } from '@/domain/csv-editor/table-detail-actions';
@@ -116,60 +115,51 @@ import type { CsvRowPreviewTarget, RowData, CsvTableKey } from '@/shared/types';
 const props = defineProps<{
   queryRowPreview: (target: CsvRowPreviewTarget, signal?: AbortSignal) => Promise<string>;
   sourceIndex: CsvSourceIndex;
+  model: CsvEditorModel;
+  starsectorRoot: string | null;
 }>();
 
 defineEmits<{
   'detail-action': [request: TableDetailAction];
 }>();
 
-const tables = useCsvEditorStore();
+const view = props.model.view;
 const { schemaSelectSprite, replaceSchemaSelectSprites } = useSchemaSelectMedia();
 const settings = useSettingsStore();
-const workspace = useWorkspaceStore();
 const showReferenceDecorations = computed(() => settings.editMode === 'smart');
 
 const displayName = computed(() => {
-  if (!tables.selectedRow) return '';
-  if ((tables.currentTab === 'wings' || tables.currentTab === 'simOpponents') && !isCommentRow.value) {
-    const variant = cell(tables.selectedRow.variant ?? tables.selectedRow['variant id']);
+  if (!view.selectedRow) return '';
+  if ((view.currentTab === 'wings' || view.currentTab === 'simOpponents') && !isCommentRow.value) {
+    const variant = cell(view.selectedRow.variant ?? view.selectedRow['variant id']);
     return findSourceOption('csv:variants.variantId', variant).option?.label || variant || '未指定装配';
   }
-  return cell(tables.selectedRow.name) || cell(tables.selectedRow.designation) || '未命名记录';
+  return cell(view.selectedRow.name) || cell(view.selectedRow.designation) || '未命名记录';
 });
 
-const selectedDisplayId = computed(() => (tables.selectedRow ? rowDisplayId(tables.selectedRow) : ''));
-const isCommentRow = computed(() => isCsvCommentRow(tables.selectedRowRecord));
+const selectedDisplayId = computed(() => (view.selectedRow ? rowDisplayId(view.selectedRow) : ''));
+const isCommentRow = computed(() => isCsvCommentRow(view.selectedRowRecord));
 const hasActions = computed(() => detailActions.value.length > 0);
-const schemaColumns = computed(() => csvColumnSchemasForTable(tables.currentTab));
+const schemaColumns = computed(() => csvColumnSchemasForTable(view.currentTab));
 const previewSrc = useCsvRowPreview({
   target: () =>
-    workspace.activeSessionId && tables.selectedRowKey && tables.selectedRow && !isCommentRow.value
-      ? { sessionId: workspace.activeSessionId, table: tables.currentTab, rowKey: tables.selectedRowKey }
+    props.model.target.value?.sessionId && view.selectedRowKey && view.selectedRow && !isCommentRow.value
+      ? { sessionId: props.model.target.value?.sessionId, table: view.currentTab, rowKey: view.selectedRowKey }
       : null,
   query: (target, signal) => props.queryRowPreview(target, signal),
 });
 const summaryItems = computed<SchemaPreviewItem[]>(() => {
-  const row = tables.selectedRow;
+  const row = view.selectedRow;
   if (!row) return [];
-  return tables.visibleColumns.slice(0, 8).map((column) => {
+  return view.visibleColumns.slice(0, 8).map((column) => {
     const schema = schemaColumns.value.find((item) => item.key === column);
     return schema ? schemaPreviewItem(schema, row) : plainPreviewItem(column, row);
   });
 });
 const detailActions = computed<TableDetailAction[]>(() => {
-  const row = tables.selectedRowRecord;
-  const data = workspace.activeManifest;
-  return data
-    ? detailActionsForRow(
-        {
-          modRoot: data.modRoot,
-          sessionId: data.sessionId,
-          starsectorRoot: data.starsectorRoot ?? workspace.gameOverview?.starsectorRoot ?? settings.starsectorRoot ?? null,
-        },
-        tables.currentTab,
-        row,
-      )
-    : [];
+  const row = view.selectedRowRecord;
+  const target = props.model.target.value;
+  return target ? detailActionsForRow({ ...target, starsectorRoot: props.starsectorRoot }, view.currentTab, row) : [];
 });
 
 interface SchemaPreviewItem {
@@ -192,24 +182,24 @@ interface PreviewState {
 }
 
 const previewState = computed<PreviewState>(() => {
-  const row = tables.selectedRow;
-  if (!row) return noPreview(tables.currentTab);
+  const row = view.selectedRow;
+  if (!row) return noPreview(view.currentTab);
   if (isCommentRow.value) return commentPreview();
   if (previewSrc.value) {
     return {
-      alt: selectedDisplayId.value || MODULE_LABELS[tables.currentTab],
+      alt: selectedDisplayId.value || MODULE_LABELS[view.currentTab],
       detail: '',
       src: previewSrc.value,
       title: '',
     };
   }
-  return noPreview(tables.currentTab);
+  return noPreview(view.currentTab);
 });
 
 const summaryResources = computed(() => {
-  const row = tables.selectedRow;
+  const row = view.selectedRow;
   return row && showReferenceDecorations.value
-    ? tables.visibleColumns.slice(0, 8).flatMap((column) => {
+    ? view.visibleColumns.slice(0, 8).flatMap((column) => {
         const schema = schemaColumns.value.find((entry) => entry.key === column);
         const resource =
           schema && isCsvReferenceControl(schema.control) ? findSourceOption(schema.source, cell(row[column])).option?.resourceRef : null;
@@ -218,7 +208,7 @@ const summaryResources = computed(() => {
     : [];
 });
 watch(
-  () => [workspace.activeSessionId, summaryResources.value] as const,
+  () => [props.model.target.value?.sessionId, summaryResources.value] as const,
   ([sessionId, resources]) => {
     void replaceSchemaSelectSprites(sessionId, 'summary', resources);
   },
@@ -262,7 +252,7 @@ function schemaPreviewItem(schema: CsvColumnSchema, row: RowData): SchemaPreview
     if (match.option) {
       base.display = match.option.label;
       base.meta = match.group ? `${csvColumnControlLabel(schema.control)} · ${match.group}` : csvColumnControlLabel(schema.control);
-      const sid = workspace.activeSessionId ?? undefined;
+      const sid = props.model.target.value?.sessionId ?? undefined;
       if (match.option.resourceRef && sid) {
         base.sprite = schemaSelectSprite(sid, match.option.resourceRef) ?? '';
       }
