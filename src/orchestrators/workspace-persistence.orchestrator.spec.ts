@@ -1,5 +1,5 @@
 import { createPinia, setActivePinia } from 'pinia';
-import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, afterEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 import type { PersistedWorkspace, ProjectManifest, WorkspaceView } from '@/shared/types';
 
 const mocks = vi.hoisted(() => ({
@@ -242,6 +242,20 @@ describe('restorePersistedWorkspace', () => {
 });
 
 describe('watchWorkspacePersistence', () => {
+  let changeReleasedWorkspace: () => void;
+  it.fails('releases its watcher when an assertion ends the test early', () => {
+    const workspace = useWorkspaceStore(),
+      watcher = watchWorkspacePersistence();
+    onTestFinished(watcher.stop);
+    changeReleasedWorkspace = () =>
+      workspace.registerMod({ modRoot: 'M:/released', displayName: 'Released', version: '', status: 'ready' });
+    throw new Error('Expected fixture assertion failure');
+  });
+  it('keeps a failed workspace fixture out of the following save calls', async () => {
+    changeReleasedWorkspace();
+    await vi.advanceTimersByTimeAsync(600);
+    expect(mocks.savePersistedWorkspace).not.toHaveBeenCalled();
+  });
   beforeEach(() => {
     setActivePinia(createPinia());
     vi.clearAllMocks();
@@ -255,6 +269,7 @@ describe('watchWorkspacePersistence', () => {
   it('debounces workspace changes into a single save', async () => {
     const workspace = useWorkspaceStore();
     const watcher = watchWorkspacePersistence();
+    onTestFinished(watcher.stop);
     workspace.registerMod({ modRoot: 'C:/mods/alpha', displayName: 'Alpha', version: '', status: 'ready' });
     workspace.showSettings();
     await vi.advanceTimersByTimeAsync(200);
@@ -262,12 +277,12 @@ describe('watchWorkspacePersistence', () => {
     await vi.advanceTimersByTimeAsync(600);
 
     expect(mocks.savePersistedWorkspace).toHaveBeenCalledTimes(1);
-    watcher.stop();
   });
 
   it('suppresses saves while a restore is in progress', async () => {
     const workspace = useWorkspaceStore();
     const watcher = watchWorkspacePersistence();
+    onTestFinished(watcher.stop);
     watcher.beginRestore();
     workspace.showSettings();
     await vi.advanceTimersByTimeAsync(800);
@@ -275,13 +290,12 @@ describe('watchWorkspacePersistence', () => {
 
     await watcher.finishRestore(true);
     expect(mocks.savePersistedWorkspace).toHaveBeenCalledTimes(1);
-    watcher.stop();
   });
 
   it('skips the final save when the restore failed', async () => {
     const watcher = watchWorkspacePersistence();
+    onTestFinished(watcher.stop);
     await watcher.finishRestore(false);
     expect(mocks.savePersistedWorkspace).not.toHaveBeenCalled();
-    watcher.stop();
   });
 });

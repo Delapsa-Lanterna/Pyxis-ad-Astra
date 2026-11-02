@@ -60,6 +60,7 @@
   </section>
 </template>
 <script setup lang="ts">
+import { dialogBody, dialogFiles } from '@/shared/ui/dialog-content';
 import { computed, h, ref } from 'vue';
 import { miscConfigDefinition } from '@/domain/misc-config';
 import { provideFieldInputs } from '@/shared/runtime/field-inputs';
@@ -102,30 +103,60 @@ async function replay(direction: 'undo' | 'redo') {
     feedback.error(error, 'JSON 历史操作失败');
   }
 }
-function confirmDelete() {
-  const record = props.document.record.value;
-  const removeSource = ref(false);
-  const indexed = props.definition.kind === 'faction' || props.definition.kind === 'mission';
-  const missingFileSource = Boolean(props.definition.file && props.document.sourceMissing.value);
-  feedback.confirmDanger({
-    title: '删除' + props.definition.label,
-    content: indexed
-      ? () =>
-          h(JsonDeleteSourceDialog, {
-            id: record.target.id,
-            label: props.definition.kind === 'faction' ? '同时删除势力文件' : '同时删除战役目录',
+async function confirmDelete() {
+  const record = props.document.record.value,
+    target = record.target,
+    removeSource = ref(false);
+  const missing = Boolean(props.definition.file && props.document.sourceMissing.value);
+  const indexed = !missing && (target.kind === 'mission' || (target.kind === 'faction' && target.entity!.linkedRecord?.kind === 'index'));
+  const path = target.entity?.write.path ?? target.modRoot + '/' + miscConfigDefinition(target.id).path;
+  const label = props.definition.label,
+    item = target.kind === 'misc-config' ? '配置文件' : target.kind === 'skin' ? '皮肤' : label + (target.kind === 'faction' ? '文件' : '');
+  const removeAction = indexed ? (target.kind === 'mission' ? '目录' : '文件') : item;
+  const choice = await feedback.choose({
+    title: missing ? '放弃这份文档的编辑？' : indexed ? '移除这个' + label + '的登记？' : '删除这个' + item + '？',
+    content: () =>
+      indexed
+        ? h(JsonDeleteSourceDialog, {
+            id: target.id,
+            label,
+            path,
+            indexPath:
+              target.entity?.linkedRecord?.kind === 'index'
+                ? target.modRoot + '/' + target.entity.linkedRecord.path
+                : target.modRoot + '/data/missions/mission_list.csv',
             checked: removeSource.value,
             'onUpdate:checked': (value: boolean) => {
               removeSource.value = value;
             },
           })
-      : missingFileSource
-        ? '源文件已不存在，确定放弃' + props.definition.label + ' "' + record.target.id + '" 的草稿并移除当前编辑目标吗？'
-        : '确定要删除' + props.definition.label + ' "' + record.target.id + '"，并放弃该文档的草稿与历史吗？',
-    actionText: '删除',
-    onConfirm: async () => {
-      await props.remove(record, removeSource.value);
-    },
+        : dialogBody(
+            missing
+              ? '这份文档的源文件已缺失。继续后放弃保留的草稿与历史，并移除当前编辑目标。'
+              : `删除 ${label} ${target.id} 的文件，并放弃当前草稿和草稿历史。`,
+            dialogFiles([path]),
+            ...(!missing && props.document.composition.value?.layers.length
+              ? [
+                  '删除后，这个路径继续采用基础来源提供的内容。',
+                  ...props.document.composition.value.layers.map((layer) => dialogFiles([layer.source.path])),
+                ]
+              : []),
+          ),
+    choices: [
+      {
+        get label() {
+          return missing
+            ? '放弃编辑'
+            : indexed
+              ? '移除登记' + (removeSource.value ? '并删除' + removeAction : '')
+              : '删除' + (target.kind === 'faction' ? '文件' : item);
+        },
+        value: 'delete',
+        type: 'warning',
+      },
+    ],
+    cancelText: missing ? '继续编辑' : '取消',
   });
+  if (choice === 'delete') await props.remove(record, removeSource.value);
 }
 </script>

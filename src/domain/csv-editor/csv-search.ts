@@ -1,4 +1,4 @@
-import type { CsvSearchField, CsvTableKey } from '@/shared/types';
+import type { CsvSearchField, CsvTableKey, CsvDraftRow } from '@/shared/types';
 
 export const DEFAULT_CSV_SEARCH_FIELD: CsvSearchField = 'id-name';
 
@@ -21,4 +21,23 @@ export function csvSearchOptions(table: CsvTableKey, header: readonly string[]):
 
 export function csvSearchPlaceholder(field: CsvSearchField): string {
   return `搜索 ${SEARCH_LABELS[field]}`;
+}
+
+export function csvDraftSearchKeys(
+  table: CsvTableKey,
+  order: readonly string[],
+  drafts: readonly CsvDraftRow[],
+  matches: readonly string[],
+  search: string,
+  field: CsvSearchField,
+) {
+  const selected = new Set(matches),
+    query = search.trim().toLowerCase();
+  const id = table === 'simOpponents' ? 'variant id' : 'id';
+  const fields = field === 'id-name' ? [id, 'name'] : [field === 'id' ? id : field];
+  for (const row of drafts) {
+    if (fields.some((key) => typeof row.data[key] === 'string' && row.data[key].toLowerCase().includes(query))) selected.add(row.rowKey);
+    else selected.delete(row.rowKey);
+  }
+  return order.filter((key) => selected.has(key));
 }

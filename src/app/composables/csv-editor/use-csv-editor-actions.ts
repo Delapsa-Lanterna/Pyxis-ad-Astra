@@ -66,7 +66,7 @@ export function useCsvEditorActions(feedback: AppFeedback) {
       ),
     );
     const choice = await feedback.choose({
-      title: '保存 CSV',
+      title: '保存 CSV？',
       type: warning ? 'warning' : 'info',
       content: () =>
         h(AssociatedSpecSaveDialog, {
@@ -80,7 +80,14 @@ export function useCsvEditorActions(feedback: AppFeedback) {
             else selectedKeys.value.delete(key);
           },
         }),
-      choices: [{ label: '保存', value: 'save', type: warning ? 'warning' : 'primary' }],
+      choices: [
+        {
+          label: '保存',
+          value: 'save',
+          type: warning ? 'warning' : 'primary',
+        },
+      ],
+      cancelText: '返回编辑',
     });
     if (choice !== 'save') return null;
     return choices.value

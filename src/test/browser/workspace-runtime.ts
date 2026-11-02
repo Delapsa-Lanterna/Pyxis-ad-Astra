@@ -14,6 +14,8 @@ import { windowsPathCaseFixture } from '../fixtures/windows-path-case';
 import { cell, formatModVersion } from '@/shared/lib/starsector';
 import { stableDeepEqual } from '@/shared/lib/stable-compare';
 import { miscConfigDefinition } from '@/domain/misc-config';
+import { composeJson } from '@/domain/schema/json-composition';
+import { isRowData } from '@/shared/lib/row-data';
 
 type Handler = (event: { event: string; id: number; payload: unknown }) => void | Promise<void>;
 type DeliveryChannel = { onmessage: (delivery: T.SaveDelivery) => void };
@@ -88,6 +90,42 @@ export function createBrowserWorkspace(systemTheme: T.AppTheme = 'light') {
       projects[0]!,
     ].filter((entry, index, all) => all.indexOf(entry) === index);
   }
+  function presentEntity(receiver: ReturnType<typeof project>, entity: T.EntityData): T.EntityData {
+    if (!entity.composition || !isRowData(entity.data)) return entity;
+    const composition = entity.composition,
+      data = entity.data;
+    const result = structuredClone(entity);
+    const local = entity.kind === 'mission' && isRowData(data.descriptor) ? data.descriptor : data;
+    const effective = composeJson(local, composition);
+    const resourceData: T.RowData =
+      result.kind === 'mission' ? { icon: 'data/missions/' + result.id + '/' + String(effective.icon ?? '') } : effective;
+    const references = receiver.resources(result.kind, result.id, resourceData);
+    for (const [key, resource] of Object.entries(references)) {
+      const field = key === 'sprite' && ['ship', 'skin'].includes(result.kind) ? 'spriteName' : key;
+      if (Object.hasOwn(local, field)) continue;
+      const layer = composition.layers.findLast((entry) => Object.hasOwn(entry.data, field));
+      if (!layer) {
+        delete references[key];
+        continue;
+      }
+      const source = sourceList(receiver).find((entry) => normalizeFsPath(entry.manifest.modRoot) === normalizeFsPath(layer.source.root));
+      const inherited = source?.entities.get(source.entityKey(result.kind, result.id))?.resourceRefs[key];
+      if (inherited)
+        references[key] = {
+          ...inherited,
+          source: layer.source.source,
+          ...(layer.source.reference ? { reference: layer.source.reference } : {}),
+        };
+      else
+        references[key] = {
+          ...resource,
+          source: layer.source.source,
+          ...(layer.source.reference ? { reference: layer.source.reference } : {}),
+        };
+    }
+    result.resourceRefs = references;
+    return result;
+  }
   function findEntity(receiver: ReturnType<typeof project>, kind: T.EntityKind, id: string) {
     for (const source of sourceList(receiver)) {
       const entity = source.entities.get(source.entityKey(kind, id));
@@ -109,7 +147,7 @@ export function createBrowserWorkspace(systemTheme: T.AppTheme = 'light') {
           ]),
         );
       }
-      return result;
+      return presentEntity(receiver, result);
     }
     return null;
   }
@@ -353,7 +391,9 @@ export function createBrowserWorkspace(systemTheme: T.AppTheme = 'light') {
           warnings: [],
         };
       case 'query_entity_list':
-        return structuredClone([...receiver.entities.values()].filter((entity) => entity.kind === payload.kind));
+        return [...receiver.entities.values()]
+          .filter((entity) => entity.kind === payload.kind)
+          .map((entity) => presentEntity(receiver, structuredClone(entity)));
       case 'query_entity':
         return findEntity(receiver, payload.kind as T.EntityKind, String(payload.id));
       case 'query_draft_resources': {

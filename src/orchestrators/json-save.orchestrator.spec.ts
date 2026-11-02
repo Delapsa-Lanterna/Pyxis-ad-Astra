@@ -21,10 +21,6 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@/orchestrators/window-identity.orchestrator', () => ({
   reserveFileIdentityIntent: vi.fn(async () => {}),
 }));
-vi.mock('@/orchestrators/entity-write.orchestrator', async () => ({
-  ...(await vi.importActual('@/orchestrators/entity-write.orchestrator')),
-  chooseEntityFilename: vi.fn(async () => false),
-}));
 vi.mock('@/services/window.service', () => ({ releaseNativeWindowTargets: vi.fn(async () => {}) }));
 
 vi.mock('@/services/json-entity.service', async () => ({

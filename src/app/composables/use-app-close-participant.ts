@@ -1,3 +1,4 @@
+import { dialogBody, dialogFiles, dialogGroup } from '@/shared/ui/dialog-content';
 import { pauseQueryReads } from '@/app/composables/use-query-read-owner';
 import { inject, provide, nextTick, watch, type InjectionKey } from 'vue';
 import { useSaveCommandStore } from '@/stores/save-command.store';
@@ -86,8 +87,26 @@ export function useAppCloseParticipant(options: WindowCloseParticipantOptions) {
             accepted =
               (await feedback.choose({
                 choices: [{ label: '放弃修改并关闭', value: 'discard', type: 'warning' }],
-                content: options.content,
-                title: options.title,
+                cancelText: '继续编辑',
+                content: () => {
+                  const handles = commands
+                    .participantsForTargets(commands.editTargets)
+                    .filter(
+                      (handle) =>
+                        handle.editing?.dirty.value &&
+                        (intent.scope.kind !== 'sessions' ||
+                          handle.editing.targets.value.some(
+                            (target) => intent.scope.kind === 'sessions' && intent.scope.sessionIds.includes(target.sessionId),
+                          )),
+                    );
+                  return dialogBody(
+                    handles.length > 1 ? '以下文档有未保存修改，关闭后将丢弃这些修改：' : options.content,
+                    ...handles.map((handle) =>
+                      dialogGroup(handle.editing!.label, dialogFiles(handle.editing!.targets.value.map((target) => target.path))),
+                    ),
+                  );
+                },
+                title: intent.scope.kind === 'sessions' ? '关闭这个 Mod？' : '放弃修改并关闭？',
               })) === 'discard';
           }
           accepted = accepted && acceptsPreparedContent();

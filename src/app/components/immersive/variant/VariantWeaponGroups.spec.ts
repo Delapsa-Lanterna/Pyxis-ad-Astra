@@ -1,3 +1,5 @@
+import { dialogText, selectDialogOption } from '@/test/unit/dialog-text';
+import type { AppFeedback } from '@/shared/types';
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { mount, flushPromises } from '@vue/test-utils';
 import { h, ref, shallowRef } from 'vue';
@@ -8,9 +10,8 @@ import { jointObject } from '@/domain/joint-edit';
 import type { JointValue, RowData } from '@/shared/types';
 import type { useImmersiveVariantEditor } from '@/app/composables/immersive-editor/variant/use-immersive-variant-editor';
 import VariantWeaponGroups from './VariantWeaponGroups.vue';
-vi.mock('@/app/composables/use-app-feedback', () => ({
-  useAppFeedback: () => ({ error: vi.fn(), warning: vi.fn(), choose: vi.fn().mockResolvedValue('local') }),
-}));
+const feedback = vi.hoisted(() => ({ error: vi.fn(), warning: vi.fn(), choose: vi.fn<AppFeedback['choose']>() }));
+vi.mock('@/app/composables/use-app-feedback', () => ({ useAppFeedback: () => feedback }));
 const media = vi.hoisted(() => ({ replace: vi.fn() }));
 vi.mock('@/app/composables/use-resource-media-registry', () => ({
   useResourceMediaRegistry: () => ({ replaceCollection: media.replace, dataUrl: () => '' }),
@@ -42,6 +43,26 @@ function harness() {
   return { wrapper, inputs, applyVariantAction, values, vm, snapshotRef, group: wrapper.findComponent(VariantWeaponGroups) };
 }
 describe('variant weapon group confirmation', () => {
+  it.each(['local', 'current', null])('applies only the selected conflict result: %s', async (handling) => {
+    const own = harness();
+    await flushPromises();
+    await own.wrapper.find('[role=checkbox]').trigger('click');
+    own.values.value = { variant: { state: 'present', value: { ...jointObject(own.values.value.variant), weaponGroups: [] } } };
+    feedback.choose.mockImplementationOnce(async (options) => {
+      expect(options.choices.map((choice) => choice.label)).toEqual(['应用选择']);
+      expect(dialogText(options)).toContain('查看打开时及另一份分组');
+      await selectDialogOption(options, '采用哪份分组', handling ?? 'current');
+      expect(own.applyVariantAction).not.toHaveBeenCalled();
+      return handling ? 'apply' : null;
+    });
+    await own.wrapper.findAll('.variant-group-actions button')[0]!.trigger('click');
+    await flushPromises();
+    expect(own.applyVariantAction).toHaveBeenCalledTimes(handling === 'local' ? 1 : 0);
+    if (handling !== 'local') expect(own.inputs.dirty.value).toBe(handling === null);
+    else expect((jointObject(own.values.value.variant).weaponGroups as RowData[])[0]!.autofire).toBe(true);
+    expect(own.group.emitted('close')?.length ?? 0).toBe(handling ? 1 : 0);
+    own.wrapper.unmount();
+  });
   it('registers available frame and toggle media together while keeping fallback controls usable', async () => {
     const own = harness();
     for (const key of ['toggle20_on', 'toggle20_off', 'ui_border1_top_left'])

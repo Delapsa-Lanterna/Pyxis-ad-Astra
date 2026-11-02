@@ -1,7 +1,9 @@
+import type * as SettingsPersistence from './settings-persistence.orchestrator';
+import type * as WorkspaceSource from './workspace-core-source.orchestrator';
 import { createPinia, setActivePinia } from 'pinia';
 import { nextTick } from 'vue';
 import { flushPromises } from '@vue/test-utils';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 import { createSettingsFixture } from '@/test/fixtures/settings';
 import { initializeSettingsStore, useSettingsStore } from '@/stores/settings.store';
 import type { AppSettings, SettingsSnapshot } from '@/shared/types';
@@ -33,6 +35,8 @@ vi.mock('@/services/app-settings.service', () => ({
   listenSettingsChanged: api.listen,
 }));
 vi.mock('@/services/app-log.service', () => ({ recordLogBestEffort: vi.fn() }));
+let settingsRuntime: typeof SettingsPersistence;
+let switchSource: typeof WorkspaceSource.switchWorkspaceCoreSource;
 beforeEach(async () => {
   vi.resetModules();
   const { initializeWindowsPathCase } = await import('@/shared/lib/paths');
@@ -49,22 +53,36 @@ beforeEach(async () => {
   api.workspaceSave.mockResolvedValue(undefined);
   let revision = 1;
   api.save.mockImplementation(async (value: AppSettings) => ({ revision: ++revision, value }));
+  settingsRuntime = await import('./settings-persistence.orchestrator');
+  switchSource = (await import('./workspace-core-source.orchestrator')).switchWorkspaceCoreSource;
 });
 afterEach(() => window.dispatchEvent(new Event('pagehide')));
 async function setup() {
-  const runtime = await import('./settings-persistence.orchestrator');
-  const { switchWorkspaceCoreSource } = await import('./workspace-core-source.orchestrator');
+  const runtime = settingsRuntime;
   await runtime.initializeSettings();
+  onTestFinished(runtime.startSettingsPersistence(api.history));
   return {
     runtime,
-    stop: runtime.startSettingsPersistence(api.history),
     settings: useSettingsStore(),
-    switchSource: switchWorkspaceCoreSource,
+    switchSource,
   };
 }
 describe('formal settings commits', () => {
+  let changeReleasedSettings: () => void;
+  it.fails('releases persistence when an assertion ends the test early', async () => {
+    const { settings } = await setup();
+    changeReleasedSettings = () => settings.setGeneralFont('Released fixture font');
+    throw new Error('Expected fixture assertion failure');
+  });
+  it('keeps changes from a failed fixture out of the following save queue', async () => {
+    changeReleasedSettings();
+    await nextTick();
+    await flushPromises();
+    expect(api.save).not.toHaveBeenCalled();
+    expect(api.defaults).not.toHaveBeenCalled();
+  });
   it('saves toast durations and restores their defaults through reset', async () => {
-    const { runtime, stop, settings } = await setup();
+    const { runtime, settings } = await setup();
     settings.setToastDuration('success', 0);
     settings.setToastDuration('error', 3600);
     await runtime.flushSettings();
@@ -72,7 +90,6 @@ describe('formal settings commits', () => {
     await runtime.resetSettings(vi.fn());
     expect(settings.toastDurations).toEqual({ success: 5, info: 7, warning: 7, error: 0 });
     expect(api.save.mock.lastCall![0].toastDurations).toEqual(settings.toastDurations);
-    stop();
   });
   const stages = ['success', 'clear', 'reset', 'cancel', 'validate', 'close', 'save', 'open', 'overview', 'workspace'] as const;
   it.each(stages)('switches the whole source lifecycle: %s', async (stage) => {
@@ -80,7 +97,7 @@ describe('formal settings commits', () => {
     useSettingsStore().replaceSettings(previous);
     useSettingsStore().confirmSavedSettings(previous);
     api.read.mockResolvedValue({ revision: 1, value: previous });
-    const { runtime, stop, settings, switchSource } = await setup();
+    const { runtime, settings, switchSource } = await setup();
     const workspace = useWorkspaceStore();
     const overview = { starsectorRoot: 'G:/workspace', modsDir: 'G:/workspace/mods', coreAvailable: true, mods: [], warnings: [] };
     workspace.setGameOverview(overview);
@@ -126,11 +143,10 @@ describe('formal settings commits', () => {
     expect(api.workspaceSave.mock.calls.every(([state]) => state.mods.length === (stage === 'open' ? 0 : 1))).toBe(true);
     expect(api.defaults).toHaveBeenCalledTimes(stage === 'reset' ? 1 : 0);
     expect(api.workspaceSave).toHaveBeenCalledTimes(stage === 'validate' ? 0 : 1);
-    stop();
   });
 
   it.each(['save', 'reset'] as const)('commits a %s with the same formal root directly', async (action) => {
-    const { runtime, stop, settings } = await setup();
+    const { runtime, settings } = await setup();
     settings.setGeneralFont('Direct Font');
     await runtime.flushSettings();
     const changeSource = vi.fn();
@@ -139,10 +155,9 @@ describe('formal settings commits', () => {
     expect(changeSource).not.toHaveBeenCalled();
     expect(settings.generalFont).toBe(action === 'save' ? 'Direct Font' : createSettingsFixture().generalFont);
     expect(api.workspaceSave).not.toHaveBeenCalled();
-    stop();
   });
   it('waits for existing actions and actual directory openings before changing the source', async () => {
-    const { runtime, stop, settings, switchSource } = await setup();
+    const { runtime, settings, switchSource } = await setup();
     const commands = useSaveCommandStore();
     let finishAction!: () => void, finishOpen!: (value: ReturnType<typeof sessionUpdateFixture>['projection']['manifest']) => void;
     const action = commands.trackCloseAction(
@@ -164,6 +179,11 @@ describe('formal settings commits', () => {
       return { status: 'closed' as const, destroyedWindows: [], releasedSessions: ['before'], diagnostic: null };
     });
     const switching = runtime.saveStarsectorRoot('G:/selected', (root, commit) => switchSource(root, close, commit));
+    onTestFinished(async () => {
+      finishAction();
+      finishOpen(sessionUpdateFixture('before', 'M:/waiting').projection.manifest);
+      await Promise.all([action, opening, switching]);
+    });
     await flushPromises();
     expect(api.detect).not.toHaveBeenCalled();
     finishAction();
@@ -176,7 +196,6 @@ describe('formal settings commits', () => {
     expect(close).toHaveBeenCalledOnce();
     expect(useProjectStore().getSessionId('M:/waiting')).toBe('after');
     expect(settings.savedStarsectorRoot).toBe('G:/selected');
-    stop();
   });
   it.each([
     ['closed', false],
@@ -186,7 +205,7 @@ describe('formal settings commits', () => {
     ['error', false],
     ['error', true],
   ] as const)('holds closing through the final snapshot: %s, rejected=%s', async (status, rejected) => {
-    const { runtime, stop, settings, switchSource } = await setup();
+    const { runtime, settings, switchSource } = await setup();
     const commands = useSaveCommandStore();
     let finish!: () => void, fail!: (error: Error) => void;
     const finalError = new Error('final snapshot unavailable'),
@@ -209,6 +228,11 @@ describe('formal settings commits', () => {
         (value) => ({ value, error: null }),
         (error) => ({ value: null, error }),
       );
+    onTestFinished(async () => {
+      finish();
+      await switching;
+      await commands.settleCloseActions();
+    });
     await vi.waitFor(() => expect(api.workspaceSave).toHaveBeenCalledOnce());
     let settled = false;
     const closing = commands.settleCloseActions().then(
@@ -232,10 +256,9 @@ describe('formal settings commits', () => {
     expect(await closing).toBe(rejected ? finalError : null);
     expect(settings.savedStarsectorRoot).toBe(status === 'closed' ? 'G:/selected' : null);
     await commands.settleCloseActions();
-    stop();
   });
   it('saves the complete official defaults and applies committed budgets', async () => {
-    const { runtime, stop, settings } = await setup();
+    const { runtime, settings } = await setup();
     settings.setGeneralFont('Fixture Font');
     settings.setCacheLimit('mediaData', 'entries', 17);
     settings.setImmersiveFontDirectory('F:/fonts');
@@ -248,10 +271,9 @@ describe('formal settings commits', () => {
     expect(api.save).toHaveBeenCalledExactlyOnceWith(defaults);
     expect(settings.settingsSnapshot()).toEqual(defaults);
     expect((await import('@/shared/runtime/cache-limits')).windowCacheLimits()).toEqual(defaults.cacheLimits);
-    stop();
   });
   it.each(['read', 'save'] as const)('reports a reset %s failure and allows retry', async (stage) => {
-    const { runtime, stop, settings } = await setup();
+    const { runtime, settings } = await setup();
     settings.setGeneralFont('Fixture Font');
     await runtime.flushSettings();
     const before = settings.settingsSnapshot();
@@ -262,10 +284,9 @@ describe('formal settings commits', () => {
     expect(settings.settingsSnapshot()).toEqual(stage === 'read' ? before : createSettingsFixture());
     await runtime.resetSettings(vi.fn());
     expect(settings.settingsSnapshot()).toEqual(createSettingsFixture());
-    stop();
   });
   it('keeps edits made while the default snapshot is saving', async () => {
-    const { runtime, stop, settings } = await setup();
+    const { runtime, settings } = await setup();
     settings.setGeneralFont('Fixture Font');
     await runtime.flushSettings();
     let finish!: (snapshot: SettingsSnapshot) => void;
@@ -276,16 +297,19 @@ describe('formal settings commits', () => {
         }),
     );
     const resetting = runtime.resetSettings(vi.fn());
+    onTestFinished(async () => {
+      finish({ revision: 3, performanceMonitorActive: false, value: createSettingsFixture() });
+      await resetting;
+    });
     await vi.waitFor(() => expect(finish).toBeDefined());
     settings.setGeneralFont('Later Font');
     finish({ revision: 3, performanceMonitorActive: false, value: createSettingsFixture() });
     await resetting;
     expect(settings.generalFont).toBe('Later Font');
     expect(api.save.mock.calls.at(-1)![0].generalFont).toBe('Later Font');
-    stop();
   });
   it('listens before reading and flushes a same-turn edit once', async () => {
-    const { runtime, stop, settings } = await setup();
+    const { runtime, settings } = await setup();
     const { windowCacheLimits } = await import('@/shared/runtime/cache-limits');
     settings.setCacheLimit('mediaData', 'entries', 17);
     expect(windowCacheLimits().mediaData.entries).toBe(2048);
@@ -300,10 +324,9 @@ describe('formal settings commits', () => {
     );
     await runtime.flushSettings();
     expect(api.save).toHaveBeenCalledOnce();
-    stop();
   });
   it('preserves newer edits while accepting normalized values from the submitted snapshot', async () => {
-    const { runtime, stop, settings } = await setup();
+    const { runtime, settings } = await setup();
     let finish!: (snapshot: SettingsSnapshot) => void;
     api.save.mockImplementationOnce(
       () =>
@@ -312,6 +335,10 @@ describe('formal settings commits', () => {
         }),
     );
     settings.setLogDirectory('D:/fixture');
+    onTestFinished(async () => {
+      finish({ revision: 2, performanceMonitorActive: false, value: settings.settingsSnapshot() });
+      await runtime.flushSettings();
+    });
     await nextTick();
     await vi.waitFor(() => expect(finish).toBeDefined());
     const submitted = api.save.mock.calls[0]![0];
@@ -322,10 +349,9 @@ describe('formal settings commits', () => {
     expect(settings.logDirectory).toBe('D:/Fixture');
     expect(api.save).toHaveBeenCalledTimes(2);
     expect(api.save.mock.calls[1]![0].logDirectory).toBe('D:/Fixture');
-    stop();
   });
   it('retains a failed edit and retries its current snapshot', async () => {
-    const { runtime, stop, settings } = await setup();
+    const { runtime, settings } = await setup();
     api.save.mockRejectedValue(new Error('disk failure'));
     const { windowCacheLimits } = await import('@/shared/runtime/cache-limits');
     settings.setGeneralFont('Retry Font');
@@ -337,12 +363,11 @@ describe('formal settings commits', () => {
     api.save.mockImplementation(async (value: AppSettings) => ({ revision: 2, value }));
     await runtime.flushSettings();
     expect(windowCacheLimits().thumbnails.MiB).toBe(8);
-    stop();
   });
   it('accepts newer mirror revisions and rereads on focus', async () => {
     const runtime = await import('./settings-persistence.orchestrator');
     await runtime.initializeSettings();
-    const stop = runtime.startSettingsMirror();
+    onTestFinished(runtime.startSettingsMirror());
     const receive = api.listen.mock.calls[0]![0];
     const next = createSettingsFixture({ generalFont: 'Latest Font', expandFieldDescriptions: true, immersiveFontDirectory: 'F:/fonts' });
     next.cacheLimits.decodedImages.entries = 7;
@@ -357,16 +382,14 @@ describe('formal settings commits', () => {
     window.dispatchEvent(new Event('focus'));
     await nextTick();
     expect(api.read).toHaveBeenCalledTimes(2);
-    stop();
     window.dispatchEvent(new Event('pagehide'));
   });
   it('separates committed settings from history refresh diagnostics', async () => {
-    const { runtime, stop, settings } = await setup();
+    const { runtime, settings } = await setup();
     api.history.mockRejectedValue(new Error('history failure'));
     settings.setGeneralFont('Committed Font');
     await runtime.flushSettings();
     expect(api.save).toHaveBeenCalledOnce();
-    stop();
   });
   it.each(['registration', 'read', 'focus'] as const)('ends %s results with the owning page', async (stage) => {
     const runtime = await import('./settings-persistence.orchestrator');
@@ -381,6 +404,11 @@ describe('formal settings commits', () => {
     );
     const pending = stage === 'focus' ? Promise.resolve() : runtime.initializeSettings();
     const ended = stage === 'focus' ? pending : expect(pending).rejects.toMatchObject({ code: 'query.invalidated' });
+    onTestFinished(async () => {
+      finish(stage === 'registration' ? api.stop : { revision: 9, value: createSettingsFixture() });
+      await ended;
+      await flushPromises();
+    });
     if (stage === 'focus') window.dispatchEvent(new Event('focus'));
     await flushPromises();
     window.dispatchEvent(new Event('pagehide'));
@@ -418,6 +446,11 @@ describe('formal settings commits', () => {
     );
     const pending = stage === 'focus' ? Promise.resolve() : runtime.initializeSettings();
     const ended = pending.catch(() => {});
+    onTestFinished(async () => {
+      fail(new Error('released fixture'));
+      await ended;
+      await flushPromises();
+    });
     if (stage === 'focus') window.dispatchEvent(new Event('focus'));
     await flushPromises();
     window.dispatchEvent(new Event('pagehide'));

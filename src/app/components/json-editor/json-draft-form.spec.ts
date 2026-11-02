@@ -1,3 +1,4 @@
+import { dialogText } from '@/test/unit/dialog-text';
 import { miscConfigDocumentValue, miscConfigDocumentContent } from '@/domain/json-editor/json-document-definitions';
 import { dispatchProjectChangeFixture, committedChangeFixture } from '@/test/unit/project-changes';
 import { projectChangeFixture } from '@/test/unit/project-changes';
@@ -258,7 +259,7 @@ beforeEach(() => {
     const source = useProjectStore().getManifest(request.modRoot)!;
     return { request, missingPaths: [], baseVersions: source.baseVersions, currentSources: { file: source.modInfo }, resourceRefs: {} };
   });
-  mocks.feedback.choose.mockResolvedValue('follow');
+  mocks.feedback.choose.mockImplementation(async (options) => options.choices[0]?.value ?? null);
   mocks.feedback.confirmWarning.mockImplementation((options) => {
     void options.onConfirm();
   });
@@ -778,8 +779,8 @@ describe('JSON common workspace and form', () => {
       .findAll('button')
       .find((button) => button.text() === '删除')!
       .trigger('click');
-    expect(mocks.feedback.confirmDanger).toHaveBeenCalledOnce();
-    await mocks.feedback.confirmDanger.mock.lastCall![0].onConfirm();
+    expect(mocks.feedback.choose).toHaveBeenCalledOnce();
+    await flushPromises();
     await flushPromises();
     expect(mocks.miscDelete).toHaveBeenCalledOnce();
     expect(wrapper!.findComponent(JsonDocumentEditor).exists()).toBe(false);
@@ -974,18 +975,35 @@ describe('JSON common workspace and form', () => {
     await mountPage(page);
     await nameInput().setValue('Local');
     const host = wrapper!.getComponent(JsonDocumentEditor);
+    if (page === 'factions')
+      host.props('document').record.value.target.entity!.linkedRecord = {
+        kind: 'index',
+        path: 'data/world/factions/factions.csv',
+        rowIndex: 0,
+      };
     const remove = vi.fn(async () => true);
     const editor = mount(JsonDocumentEditor, { props: { ...host.props(), remove }, global: { stubs: editorUiStubs } });
     for (const removeSource of [false, true]) {
+      let finish!: (value: string) => void;
+      mocks.feedback.choose.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finish = resolve;
+          }),
+      );
       await editor
         .findAll('button')
         .find((button) => button.text() === '删除')!
         .trigger('click');
-      const confirmation = mocks.feedback.confirmDanger.mock.lastCall![0];
+      const confirmation = mocks.feedback.choose.mock.lastCall![0];
       const content = mount({ render: confirmation.content as () => VNode }, { global: { stubs: editorUiStubs } });
-      const checkbox = content.get('input[type="checkbox"]');
-      await checkbox.setValue(removeSource);
-      await confirmation.onConfirm();
+      const selection = content.get('select');
+      await selection.setValue(JSON.stringify(removeSource ? 'delete' : 'keep'));
+      expect(confirmation.choices[0]!.label).toBe(
+        removeSource ? (page === 'mission' ? '移除登记并删除目录' : '移除登记并删除文件') : '移除登记',
+      );
+      finish('delete');
+      await flushPromises();
       expect(remove).toHaveBeenLastCalledWith(host.props('document').record.value, removeSource);
       content.unmount();
     }
@@ -1067,8 +1085,8 @@ describe('JSON common workspace and form', () => {
       await flushPromises();
       void mocks.feedback.confirmWarning.mock.lastCall![0].onConfirm();
     } else {
-      expect(mocks.feedback.confirmDanger.mock.lastCall![0].content).toContain('源文件已不存在');
-      await mocks.feedback.confirmDanger.mock.lastCall![0].onConfirm();
+      expect(dialogText(mocks.feedback.choose.mock.lastCall![0])).toContain('源文件已缺失');
+      await flushPromises();
       expect(mocks.feedback.confirmWarning).not.toHaveBeenCalled();
     }
     await flushPromises();
@@ -1082,7 +1100,7 @@ describe('JSON common workspace and form', () => {
       .trigger('click');
     await flushPromises();
     if (action === 'discard') void mocks.feedback.confirmWarning.mock.lastCall![0].onConfirm();
-    else await mocks.feedback.confirmDanger.mock.lastCall![0].onConfirm();
+    else await flushPromises();
     await flushPromises();
     expect(wrapper!.find('[data-entity-id="a"]').exists()).toBe(false);
     expect(
@@ -1119,9 +1137,9 @@ describe('JSON common workspace and form', () => {
         .findAll('button')
         .find((button) => button.text() === '删除')!
         .trigger('click');
-      await mocks.feedback.confirmDanger.mock.lastCall![0].onConfirm();
       await flushPromises();
-      expect(mocks.feedback.confirmDanger).toHaveBeenCalledOnce();
+      await flushPromises();
+      expect(mocks.feedback.choose).toHaveBeenCalledOnce();
       expect(mocks.remove).toHaveBeenCalledOnce();
       expect(
         useJsonEditorStore()

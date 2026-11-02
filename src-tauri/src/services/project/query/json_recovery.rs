@@ -10,7 +10,7 @@ use crate::models::{
     JsonRecoveryRequest, JsonSourceIdentity,
 };
 use crate::services::project;
-use crate::services::project::definitions::entity_definitions;
+use crate::services::project::query::json_composition;
 use crate::{io, parsers};
 use serde_json::Value;
 use std::collections::BTreeMap;
@@ -139,12 +139,16 @@ pub fn prepare_json_source_recovery(request: JsonRecoveryRequest) -> AppResult<J
         let session = lock_session(&handle)?;
         let mission = serde_json::json!({"descriptor": current.get("descriptor")});
         let data = if target.kind == EntityKind::Mission {
-            &mission
+            Some(&mission)
         } else {
-            current.get("file").unwrap_or(&Value::Null)
+            current.get("file")
         };
-        let definition = entity_definitions::entity_definition(target.kind)?;
-        (definition.resources)(&session, &target.id, data)
+        data.map(|data| {
+            json_composition::entity_presentation(&session, target, data, None)
+                .map(|(_, resources)| resources)
+        })
+        .transpose()?
+        .unwrap_or_default()
     } else {
         BTreeMap::new()
     };

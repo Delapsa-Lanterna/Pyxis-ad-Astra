@@ -1,4 +1,3 @@
-import { markCsvTableSavedDraft } from '@/domain/csv-editor/csv-table-draft';
 import { csvTableIndex } from '@/test/fixtures/csv-row';
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
@@ -12,14 +11,14 @@ import { navigateToModTable } from '@/orchestrators/workspace-navigation.orchest
 import { sessionUpdateFixture } from '@/test/fixtures/write-result';
 import { initializeSettingsStore } from '@/stores/settings.store';
 import { createSettingsFixture } from '@/test/fixtures/settings';
-import { TABLE_KEYS, type CsvTableTarget, type CsvTableIndex } from '@/shared/types';
+import { TABLE_KEYS, type CsvTableTarget, type CsvTableIndex, type AppFeedback } from '@/shared/types';
 import { csvColumnSchemasForTable } from '@/domain/csv-editor/csv-column-schema';
 
 const mocks = vi.hoisted(() => ({
   query: vi.fn(),
   rows: vi.fn(),
   error: vi.fn(),
-  choose: vi.fn<() => Promise<string | null>>(async () => null),
+  choose: vi.fn<AppFeedback['choose']>(async () => null),
 }));
 vi.mock('@/services/csv-table.service', () => ({
   queryTableIndex: mocks.query,
@@ -40,11 +39,11 @@ function windowRecord(): CsvTableIndex {
     totalRows: 1,
   });
 }
-function harness(saveBeforeSearch = async () => true) {
+function harness() {
   let vm!: ReturnType<typeof useCsvTableViewModel>;
   wrapper = mount({
     setup() {
-      vm = useCsvTableViewModel(saveBeforeSearch);
+      vm = useCsvTableViewModel();
       return () => null;
     },
   });
@@ -90,13 +89,13 @@ describe('CSV explicit targets and column ownership', () => {
     tables.applyTableIndex(target, { ...record, header: [] });
     expect(tables.visibleColumns).toEqual([...keys, 'custom-z', 'custom-a']);
   });
-  async function orderedHarness(save = async () => true) {
+  async function orderedHarness() {
     const record = windowRecord();
     record.totalRows = 2;
     record.rowKeys.push('second');
     record.rows.push({ ...record.rows[0]!, rowKey: 'second', data: { id: 'second' } });
     mocks.query.mockResolvedValue(record);
-    const vm = harness(save);
+    const vm = harness();
     await flushPromises();
     useCsvEditorStore().moveRows(a, ['second'], 0);
     return vm;
@@ -127,67 +126,60 @@ describe('CSV explicit targets and column ownership', () => {
     expect(tables.rows[241]?.rowKey).toBe('row-240');
     expect(tables.hasCurrentTableExternalUpdate).toBe(false);
   });
-  it.each(['save', 'discard', null])('settles the complete ordered draft using %s before searching', async (choice) => {
-    const tables = useCsvEditorStore();
-    const save = vi.fn(async () => {
-      markCsvTableSavedDraft(tables.getCsvModState(a.modRoot)!.documents[a.table]);
-      return true;
-    });
-    const vm = await orderedHarness(save);
+  it('retains the complete ordered draft and its history while searching', async () => {
+    const tables = useCsvEditorStore(),
+      vm = await orderedHarness();
     tables.updateCellValue({ ...a, rowKey: 'row', column: 'name' }, 'draft');
-    mocks.choose.mockResolvedValueOnce(choice);
+    const document = tables.getCsvModState(a.modRoot)!.documents.ships,
+      order = [...document.rowOrder];
     await vm.setSearchText('second');
     await flushPromises();
-    expect(mocks.choose).toHaveBeenCalledOnce();
-    if (choice === null) {
-      expect(tables.searchText).toBe('');
-      expect(tables.hasCurrentRowOrderChanges).toBe(true);
-      expect(tables.rows.find((row) => row?.rowKey === 'row')?.data.name).toBe('draft');
-    } else {
-      expect(tables.searchText).toBe('second');
-      expect(tables.hasCurrentTableChanges).toBe(false);
-      expect(vm.reorderDisabledReason.value).toBe('清空搜索和筛选后可调整行序');
-    }
-    expect(save).toHaveBeenCalledTimes(choice === 'save' ? 1 : 0);
+    expect(mocks.choose).not.toHaveBeenCalled();
+    expect(document.rowOrder).toEqual(order);
+    expect(tables.rowsByKey.row!.data.name).toBe('draft');
+    expect(tables.hasCurrentTableChanges).toBe(true);
+    expect(tables.activeEditor!.canUndo.value).toBe(true);
+    await vm.setSearchText('');
+    await flushPromises();
+    expect(tables.rowKeys).toEqual(order);
+    expect(await tables.activeEditor!.undo()).toBe(true);
+    expect(tables.rowsByKey.row!.data.name).toBe('Name');
+    expect(await tables.activeEditor!.redo()).toBe(true);
+    expect(tables.rowsByKey.row!.data.name).toBe('draft');
   });
-  it('keeps an ordered draft when saving is cancelled and allows an empty search-field selection', async () => {
-    const vm = await orderedHarness(async () => false);
+  it('preserves reordering while clearing and changing a search', async () => {
+    const vm = await orderedHarness();
     await vm.setSearchField('name');
     await vm.setSearchText('   ');
     await flushPromises();
-    expect(mocks.choose).not.toHaveBeenCalled();
     expect(vm.reorderDisabledReason.value).toBe('');
-    mocks.choose.mockResolvedValueOnce('save');
     await vm.setSearchText('value');
     await flushPromises();
-    expect(useCsvEditorStore().searchText).toBe('   ');
+    expect(useCsvEditorStore().searchText).toBe('value');
     expect(useCsvEditorStore().hasCurrentRowOrderChanges).toBe(true);
+    expect(mocks.choose).not.toHaveBeenCalled();
   });
-  it('owns a single search intent and revokes it across an A-B-A target handoff', async () => {
+  it('revokes a late search index across an A-B-A target handoff', async () => {
     const vm = await orderedHarness();
-    let finish!: (choice: string) => void;
-    mocks.choose.mockImplementationOnce(
+    let finish!: (value: CsvTableIndex) => void;
+    mocks.query.mockImplementationOnce(
       () =>
         new Promise((resolve) => {
           finish = resolve;
         }),
     );
-    const searching = vm.setSearchText('first');
+    await vm.setSearchText('first');
     await flushPromises();
-    await vm.setSearchText('second');
-    expect(mocks.choose).toHaveBeenCalledOnce();
     navigateToModTable(b.modRoot, 'ships');
     await flushPromises();
     navigateToModTable(a.modRoot, 'ships');
     await flushPromises();
-    finish('discard');
-    await searching;
+    finish({ ...windowRecord(), rowKeys: ['obsolete'], rows: [] });
     await flushPromises();
-    expect(useCsvEditorStore().searchText).toBe('');
+    expect(useCsvEditorStore().rowKeys).not.toContain('obsolete');
     expect(useCsvEditorStore().hasCurrentRowOrderChanges).toBe(true);
     expect(vm.searchPending.value).toBe(false);
   });
-
   it('reloads the first window with the selected search field and retains the text', async () => {
     const vm = harness();
     await flushPromises();

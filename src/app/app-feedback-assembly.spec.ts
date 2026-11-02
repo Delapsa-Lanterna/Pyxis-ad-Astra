@@ -1,3 +1,4 @@
+import { selectDialogOption } from '@/test/unit/dialog-text';
 import { mount, flushPromises, type VueWrapper } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -236,6 +237,24 @@ function receipt(): WriteResult {
   };
 }
 describe('window recovery completion', () => {
+  it.each([true, false])('selects an encoding without writing until confirmation: %s', async (confirm) => {
+    const { dialogs } = showEncodingError();
+    dialogs.create.mockReturnValue({ destroy: vi.fn() });
+    await wrapper!.findAll('button')[1]!.trigger('click');
+    const options = dialogs.create.mock.lastCall![0];
+    expect(await selectDialogOption(options, '文件原编码', 'windows-1252')).toContain('按 Windows-1252 读取');
+    expect(mocks.transcode).not.toHaveBeenCalled();
+    const buttons = mount({ render: options.action });
+    expect(buttons.findAll('button').map((button) => button.text())).toEqual(['转换并写回', '返回']);
+    if (confirm) {
+      mocks.transcode.mockResolvedValueOnce(receipt());
+      await buttons.findAll('button')[0]!.trigger('click');
+    } else options.onClose();
+    await flushPromises();
+    expect(mocks.transcode).toHaveBeenCalledTimes(confirm ? 1 : 0);
+    if (confirm) expect(mocks.transcode).toHaveBeenLastCalledWith('s1', 'M:/mod', 'M:/mod/notes.txt', 'windows-1252');
+    buttons.unmount();
+  });
   it.each(['session', 'recovery'] as const)('transcodes the captured %s target and opens its latest file', async (mode) => {
     const { feedback, dialogs, messages } = feedbackHarness();
     const path = 'M:/mod/encoding.csv';
@@ -267,7 +286,7 @@ describe('window recovery completion', () => {
     expect(messages.success).toHaveBeenCalledTimes(0);
     wrapper!.unmount();
     wrapper = mount({ render: messages.info.mock.lastCall![0] });
-    expect(wrapper.text()).toBe('文件已是 UTF-8，可直接打开');
+    expect(wrapper.text()).toBe('文件已经是 UTF-8，可以直接打开。');
   });
   it('ends an encoding selection when its window begins closing', async () => {
     let accepting = true;
@@ -335,7 +354,7 @@ describe('window recovery completion', () => {
     expect(messages.success).not.toHaveBeenCalled();
     wrapper!.unmount();
     wrapper = mount({ render: messages.error.mock.lastCall![0] });
-    expect(wrapper.text()).toContain('转码为 UTF-8 失败');
+    expect(wrapper.text()).toContain('转换文件编码失败');
   });
   it('reports unfinished native completion and resumes the original save', async () => {
     const { dialogs, messages } = showEncodingError();
@@ -349,7 +368,7 @@ describe('window recovery completion', () => {
     expect(messages.success).not.toHaveBeenCalled();
     wrapper!.unmount();
     wrapper = mount({ render: messages.error.mock.lastCall![0] });
-    expect(wrapper.text()).toContain('转码为 UTF-8 失败');
+    expect(wrapper.text()).toContain('转换文件编码失败');
     await expect(mocks.sync()).resolves.toBeUndefined();
     expect(mocks.transcode).toHaveBeenCalledTimes(1);
     expect(mocks.sync).toHaveBeenCalledTimes(2);

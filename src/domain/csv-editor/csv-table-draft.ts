@@ -93,7 +93,7 @@ export function acceptSavedCsvTableRows(state: CsvTableState, rows: DeepReadonly
 
 export function acceptSavedCsvTableIndex(state: CsvTableState, index: DeepReadonly<CsvTableIndex>, filtered = false) {
   acceptSavedCsvTableRows(state, index.rows);
-  if (filtered) state.queryRowKeys = [...index.rowKeys];
+  if (filtered) state.queryRowKeys ??= [...index.rowKeys];
   else {
     const moved = hasCsvRowOrderChanges(state);
     const formal = new Set(index.rowKeys);

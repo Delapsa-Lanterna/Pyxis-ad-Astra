@@ -244,7 +244,13 @@ export const useCsvEditorStore = defineStore('csv-editor', () => {
 
   function applyTableIndex(target: CsvTableTarget, index: DeepReadonly<CsvTableIndex>, filtered = false) {
     const state = stateMap.get(target.modRoot)!;
-    applyCsvTableIndexDraft(state.documents[target.table], index, filtered, getTableInputs(target.modRoot, target.table).dirty.value);
+    const document = state.documents[target.table],
+      query = !filtered && state.searchText.trim() ? document.queryRowKeys : undefined;
+    applyCsvTableIndexDraft(document, index, filtered, getTableInputs(target.modRoot, target.table).dirty.value);
+    if (query) {
+      document.queryRowKeys = query;
+      document.filteredRowCount = query.length;
+    }
   }
 
   function acceptSavedTableIndex(target: CsvTableTarget, index: DeepReadonly<CsvTableIndex>, filtered = false) {

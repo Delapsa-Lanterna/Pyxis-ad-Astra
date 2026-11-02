@@ -1,5 +1,5 @@
 import { defineComponent, h } from 'vue';
-import { mount } from '@vue/test-utils';
+import { enableAutoUnmount, mount } from '@vue/test-utils';
 import { beforeEach, afterEach, expect, it, vi } from 'vitest';
 import { useResourceMediaRegistry } from './use-resource-media-registry';
 import { invalidateResourceMediaForSession, invalidateResourceMediaByProject, resourceMediaStats } from '@/services/resource-media.service';
@@ -37,6 +37,7 @@ async function settle(task: Promise<void>) {
   await vi.advanceTimersByTimeAsync(25);
   await task;
 }
+enableAutoUnmount(afterEach);
 beforeEach(() => vi.useFakeTimers());
 afterEach(() => {
   invalidateResourceMediaForSession('registry');

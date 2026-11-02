@@ -1,3 +1,5 @@
+import { ref } from 'vue';
+import { dialogBody, dialogFiles, dialogSelect } from '@/shared/ui/dialog-content';
 import type { JointEditRoot, JointEditSnapshot, JointValue } from '@/shared/types';
 import type { ImmersiveEditorRuntime } from '../use-immersive-editor-runtime';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
@@ -60,9 +62,10 @@ export function useImmersiveWingEditor(runtime: ImmersiveEditorRuntime) {
     }
     if (joint.dirty.value) {
       const choice = await feedback.choose({
-        title: '跟随战机联队重命名？',
-        content: '保留当前草稿、活动输入和历史，并接纳新的战机联队身份。',
+        title: '跟随战机联队改名？',
+        content: `战机联队 ID 已由 ${target.id} 改为 ${next.root.id}。\n\n${row.target.write.path}\n\n使用的装配：${jointObject(next.records.find((record) => record.key === next.bindings.csv)!.value).variant}。\n\n跟随后保留当前草稿、输入和草稿历史。`,
         choices: [{ label: '保留编辑并跟随', value: 'follow', type: 'primary' }],
+        cancelText: '稍后处理',
       });
       if (choice !== 'follow' || !runtime.isActive() || !joint.isTargetCurrent(target)) return;
     }
@@ -73,27 +76,50 @@ export function useImmersiveWingEditor(runtime: ImmersiveEditorRuntime) {
   async function createMissingSource(key: string) {
     const record = snapshot.value!.records.find((record) => record.key === key)!;
     if (record.target.kind !== 'spec') return;
+    const sourceTarget = record.target.target;
     let target = joint.currentTarget.value!;
     let baseline = snapshot.value;
     const current = () => runtime.isActive() && joint.isTargetCurrent(target) && snapshot.value === baseline;
     if (record.target.target.kind === 'variant') return runtime.toggleStat('hull-reference', true);
     if (record.target.target.kind === 'skin') return runtime.toggleStat('skin-base-reference', true);
     try {
+      const method = ref('ship');
       const choice = await feedback.choose({
-        title: '补全船体来源',
-        content: `引用 ID：${record.target.target.id}。选择创建战机船体或 Skin；Skin 需要选择基础船体。`,
+        title: '补全战机船体',
+        content: () =>
+          dialogBody(
+            '战机联队 ' + target.id + ' 引用的船体 ' + sourceTarget.id + ' 缺少来源。',
+            dialogFiles([sourceTarget.write.path]),
+            dialogSelect('创建方式', method, [
+              { label: '战机船体', value: 'ship' },
+              { label: '舰船皮肤', value: 'skin' },
+            ]),
+            method.value === 'ship' ? '使用默认战机船体内容创建并保存。' : '选择基础船体，再编辑皮肤内容。',
+            ...(joint.dirty.value
+              ? [
+                  method.value === 'ship' ? '同时保存以下文件中的当前修改：' : '先保存以下修改，再选择基础船体：',
+                  dialogFiles(snapshot.value!.baseVersions.map((version) => version.path)),
+                ]
+              : []),
+          ),
         choices: [
-          { label: '创建战机船体', value: 'ship', type: 'primary' },
-          { label: '创建 Skin', value: 'skin' },
+          {
+            get label() {
+              return method.value === 'ship' ? '创建并保存' : joint.dirty.value ? '保存并继续' : '继续创建皮肤';
+            },
+            value: 'continue',
+            type: 'primary',
+          },
         ],
+        cancelText: '返回编辑',
       });
-      if (!current() || (choice !== 'ship' && choice !== 'skin')) return;
+      if (!current() || choice === null) return;
       if (!(await joint.waitForSave()) || (await joint.inputs.commit()) === false || !current()) return;
-      if (choice === 'ship') {
+      if (method.value === 'ship') {
         const before = deepClone(joint.draftValue.value);
         const after = {
           ...before,
-          [key]: { state: 'present' as const, value: { ...createShipSpec(record.target.target.id), hullSize: 'FIGHTER' } },
+          [key]: { state: 'present' as const, value: { ...createShipSpec(sourceTarget.id), hullSize: 'FIGHTER' } },
         };
         joint.setDraft(after);
         history.push(before, after);
@@ -101,12 +127,6 @@ export function useImmersiveWingEditor(runtime: ImmersiveEditorRuntime) {
         return;
       }
       if (joint.dirty.value) {
-        const accepted = await feedback.choose({
-          title: '保存后补全来源？',
-          content: '保存当前相关编辑，再建立 Skin 来源。',
-          choices: [{ label: '保存并继续', value: 'save', type: 'primary' }],
-        });
-        if (accepted !== 'save' || !current()) return;
         const saved = await joint.saveDraft();
         if (!saved || joint.dirty.value) return;
         target = saved.target;
@@ -116,7 +136,7 @@ export function useImmersiveWingEditor(runtime: ImmersiveEditorRuntime) {
       const row = snapshot.value!.records.find((entry) => entry.key === snapshot.value!.bindings.csv)!;
       if (row.target.kind !== 'csv') return;
       const rowKey = row.target.rowKey;
-      const newSources = [...snapshot.value!.newSources, { kind: 'skin' as const, id: record.target.target.id }];
+      const newSources = [...snapshot.value!.newSources, { kind: 'skin' as const, id: sourceTarget.id }];
       referenceChanging.value = true;
       let captured: JointEditSnapshot | null = null;
       await reads.consume('creation', { target, newSources }, (signal) => queryJointEditRow(target, rowKey, signal, newSources), {

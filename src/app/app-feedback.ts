@@ -135,26 +135,37 @@ function renderToastContent(
 
 function showConfirm(dialog: DialogApiInjection, type: 'error' | 'warning', options: ConfirmOptions) {
   dialog[type]({
+    class: 'app-dialog',
+    showIcon: true,
     title: options.title,
-    content: options.content,
+    content: () => h('div', { class: 'dialog-text' }, [typeof options.content === 'function' ? options.content() : options.content]),
     positiveText: options.actionText,
-    negativeText: '取消',
+    negativeText: options.cancelText ?? '取消',
     onPositiveClick: () => options.onConfirm(),
     onNegativeClick: options.onCancel,
     onClose: options.onCancel,
+    onEsc: options.onCancel,
     onMaskClick: options.onCancel,
   });
 }
 
 function showChoose(dialog: DialogApiInjection, options: ChooseOptions): Promise<string | null> {
+  const type =
+    options.type ??
+    (options.choices.some((choice) => choice.type === 'error')
+      ? 'error'
+      : options.choices.some((choice) => choice.type === 'warning')
+        ? 'warning'
+        : 'info');
   return new Promise((resolve) => {
-    let resolved = false;
+    const cancel = () => resolve(null);
     const instance = dialog.create({
-      type: options.type ?? 'info',
+      class: 'app-dialog',
+      type,
       title: options.title,
-      content: options.content,
+      content: () => h('div', { class: 'dialog-text' }, [typeof options.content === 'function' ? options.content() : options.content]),
       closable: true,
-      showIcon: options.type === 'warning',
+      showIcon: true,
       action: () =>
         h(
           NSpace,
@@ -168,7 +179,6 @@ function showChoose(dialog: DialogApiInjection, options: ChooseOptions): Promise
                     type: choice.type ?? 'default',
                     size: 'small',
                     onClick: () => {
-                      resolved = true;
                       instance.destroy();
                       resolve(choice.value);
                     },
@@ -176,30 +186,29 @@ function showChoose(dialog: DialogApiInjection, options: ChooseOptions): Promise
                   { default: () => choice.label },
                 ),
               ),
-              h(
-                NButton,
-                {
-                  size: 'small',
-                  onClick: () => {
-                    resolved = true;
-                    instance.destroy();
-                    resolve(null);
+              options.cancelText !== null &&
+                h(
+                  NButton,
+                  {
+                    size: 'small',
+                    onClick: () => {
+                      instance.destroy();
+                      resolve(null);
+                    },
                   },
-                },
-                { default: () => '取消' },
-              ),
+                  { default: () => options.cancelText ?? '取消' },
+                ),
             ],
           },
         ),
-      onClose: () => {
-        if (!resolved) resolve(null);
+      onClose: cancel,
+      onEsc: () => {
+        cancel();
+        instance.destroy();
       },
       onMaskClick: () => {
-        if (!resolved) {
-          resolved = true;
-          instance.destroy();
-          resolve(null);
-        }
+        cancel();
+        instance.destroy();
       },
     });
   });

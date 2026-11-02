@@ -112,6 +112,7 @@ function createJsonDocumentSession(definition: JsonDocumentDefinition, record: J
       ? undefined
       : {
           kind: definition.kind,
+          label: definition.label,
           read: (target, id, signal) => loadJsonDocument({ ...target, id }, signal),
           map: (value, previous, next) => {
             if (jsonDocumentId(definition, value) !== previous) return value;
@@ -328,7 +329,12 @@ function createJsonDocumentSession(definition: JsonDocumentDefinition, record: J
     ),
     loadPendingExternal: async () => {
       if (await actions.waitForSave())
-        confirmDiscard(session.loadPendingExternal, session.dirty.value, () => session.currentTargetKey.value);
+        confirmDiscard(
+          session.loadPendingExternal,
+          session.dirty.value,
+          () => session.currentTargetKey.value,
+          session.baselineSnapshot.value!.baseVersions.map((version) => version.path),
+        );
     },
   };
 }

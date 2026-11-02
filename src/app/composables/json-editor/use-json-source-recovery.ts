@@ -42,13 +42,15 @@ export function useJsonSourceRecovery(options: {
             const prepared = plan.value!;
             if (!prepared.missingPaths.length) return;
             const choice = await feedback.choose({
-              title: '重新创建来源',
-              content: [
-                '按最后保存的字段基线恢复以下来源：',
-                ...prepared.missingPaths,
-                'JSON 文件使用标准排版；缓存持有解析后的字段，源文件原文已缺失。',
-              ].join('\n'),
+              title: prepared.missingPaths.length === 1 ? '重新创建这个文件？' : '重新创建这些文件？',
+              content:
+                '使用最后保存的内容重新创建' +
+                (prepared.missingPaths.length === 1 ? '这个文件' : '以下 ' + prepared.missingPaths.length + ' 个文件') +
+                '。当前草稿和输入继续保留。\n\n' +
+                prepared.missingPaths.map((path) => prepared.request.modRoot + '/' + path).join('\n') +
+                '\n\nJSON 文件采用标准排版。',
               choices: [{ label: '重新创建', value: 'recreate', type: 'primary' }],
+              cancelText: '返回编辑',
             });
             if (choice !== 'recreate') return;
             const baseline = deepClone(session.baselineSnapshot.value!);

@@ -30,7 +30,7 @@ import type { SaveCommandRequest } from '@/shared/runtime/command.runtime';
 import { runConfirmedJsonWrite } from '@/orchestrators/json-write-confirmation.orchestrator';
 
 import { reserveFileIdentityIntent } from '@/orchestrators/window-identity.orchestrator';
-import { confirmEntityIdChanges, chooseEntityFilename } from '@/orchestrators/entity-write.orchestrator';
+import { chooseEntityFilename } from '@/orchestrators/entity-write.orchestrator';
 import { focusEntityIdentityConflict } from '@/orchestrators/window-target-focus.orchestrator';
 import { releaseNativeWindowTargets } from '@/services/window.service';
 import { captureIdentityVersions } from '@/domain/project/entity-versions';
@@ -68,15 +68,13 @@ async function settledVersions(
     await focusEntityIdentityConflict(sessionId, modRoot, error);
     throw error;
   });
-  const keepFilename = await chooseEntityFilename(feedback, captured.info.target, captured.intent);
+  const keepFilename = await chooseEntityFilename(
+    feedback,
+    captured.info.target,
+    captured.intent,
+    content ? { before: content.original, after: content.data, composition: content.composition } : undefined,
+  );
   if (keepFilename === null) return null;
-  if (
-    content &&
-    !(await confirmEntityIdChanges(feedback, [
-      { target: captured.info.target, before: content.original, after: content.data, composition: content.composition, keepFilename },
-    ]))
-  )
-    return null;
   if (keepFilename) return { keepFilename, versions: await capturedVersions(sessionId, modRoot, kind, sourceId, sourceId, baseVersions) };
   await reserveFileIdentityIntent(sessionId, modRoot, captured.intent);
   return { keepFilename, versions: captureIdentityVersions(baseVersions, captured.intent.destinationVersion) };

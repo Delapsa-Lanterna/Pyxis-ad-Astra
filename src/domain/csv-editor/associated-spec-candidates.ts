@@ -1,5 +1,5 @@
 import type { AssociatedSpecChange, CsvTableState, CsvTableKey, AssociatedSpecPreparation } from '@/shared/types';
-import { rowSpecId } from '@/shared/lib/starsector';
+import { rowSpecId, MODULE_LABELS } from '@/shared/lib/starsector';
 import { isCsvDeletedRow } from '@/domain/csv-editor/csv-dirty';
 import { associatedSpecCreateParams } from '@/domain/csv-editor/associated-spec-creation';
 
@@ -26,7 +26,7 @@ export function getAssociatedSpecCandidates(state: CsvTableState, associatedSpec
         candidates.push({
           key: JSON.stringify([table, 'delete', previousId]),
           table,
-          label: `删除关联 spec ${previousId}`,
+          label: `删除${MODULE_LABELS[table]}规格 ${previousId}`,
           change: { action: 'delete', id: previousId },
         });
       continue;
@@ -39,7 +39,7 @@ export function getAssociatedSpecCandidates(state: CsvTableState, associatedSpec
     candidates.push({
       key: JSON.stringify([table, change.action, previousId, id]),
       table,
-      label: previousId ? `重命名关联 spec ${previousId} -> ${id}` : `创建关联 spec ${id}`,
+      label: previousId ? `更改规格文件名 ${previousId} 为 ${id}` : `创建${MODULE_LABELS[table]}规格 ${id}`,
       change,
     });
   }

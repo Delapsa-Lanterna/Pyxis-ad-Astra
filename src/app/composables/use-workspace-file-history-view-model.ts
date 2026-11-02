@@ -71,9 +71,9 @@ export function useWorkspaceFileHistoryViewModel() {
     const modData = activeMod.value;
     if (!modData || historyCount.value === 0) return;
     feedback.confirmWarning({
-      title: '清空文件历史',
-      content: '这会清空当前 Mod 的文件级 undo/redo 栈，不会修改任何磁盘文件。确认清空？',
-      actionText: '清空',
+      title: '清空文件历史？',
+      content: `清空 ${String(modData.modInfo?.name ?? modData.modRoot)} 的 ${[undoStack.value.length ? undoStack.value.length + ' 条撤销记录' : '', redoStack.value.length ? redoStack.value.length + ' 条重做记录' : ''].filter(Boolean).join('和')}。磁盘文件保留当前内容。\n\n${modData.modRoot}`,
+      actionText: '清空历史',
       onConfirm: async () => {
         try {
           const snapshot = await clearSavedFileHistory(modData.sessionId, modData.modRoot);
@@ -83,6 +83,7 @@ export function useWorkspaceFileHistoryViewModel() {
           feedback.error(error, '清空文件历史失败');
         }
       },
+      cancelText: '取消',
     });
   }
 

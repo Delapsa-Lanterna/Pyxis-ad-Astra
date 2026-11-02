@@ -1,4 +1,4 @@
-import { h } from 'vue';
+import { dialogBody, dialogFiles } from '@/shared/ui/dialog-content';
 import type { AppFeedback, FileHistoryEntrySummary } from '@/shared/types';
 import {
   createFileReplayPlan,
@@ -99,7 +99,7 @@ async function replayWorkspaceFileHistory(
 
 function confirmFileHistoryReplay(feedback: AppFeedback, plan: FileHistoryReplayPlan, onConfirm: () => Promise<void>) {
   feedback.confirmWarning({
-    title: `${plan.actionText}文件历史`,
+    title: plan.actionText + '这次文件操作？',
     content: () => renderConfirmContent(plan.entry, plan.actionText),
     actionText: plan.actionText,
     onConfirm,
@@ -108,14 +108,5 @@ function confirmFileHistoryReplay(feedback: AppFeedback, plan: FileHistoryReplay
 
 function renderConfirmContent(entry: FileHistoryEntrySummary, action: string) {
   const paths = entry.paths;
-  return h('div', { class: 'file-history-confirm' }, [
-    h('p', `${action}会直接写回磁盘。`),
-    h('p', `历史记录：${entry.label}`),
-    h('p', `涉及路径：${paths.length} 条`),
-    h(
-      'ul',
-      { class: 'file-history-confirm-list' },
-      paths.map((path) => h('li', { key: path }, path)),
-    ),
-  ]);
+  return dialogBody(action + ' "' + entry.label + '"，将直接写回以下 ' + paths.length + ' 个路径：', dialogFiles(paths));
 }

@@ -10,6 +10,7 @@ export interface FeedbackFileAction {
 export type FeedbackFileActions = (reference: FileReference, level: FeedbackLevel, code: string) => FeedbackFileAction[];
 
 export interface ConfirmOptions {
+  cancelText?: string;
   title: string;
   content?: string | (() => VNodeChild);
   actionText: string;
@@ -24,8 +25,9 @@ export interface ChoiceOption {
 }
 
 export interface ChooseOptions {
+  cancelText?: string | null;
   title: string;
-  type?: 'info' | 'warning';
+  type?: FeedbackLevel;
   content?: string | (() => VNodeChild);
   choices: ChoiceOption[];
 }

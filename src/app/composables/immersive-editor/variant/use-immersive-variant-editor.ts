@@ -1,3 +1,4 @@
+import { dialogBody, dialogFiles, dialogGroup } from '@/shared/ui/dialog-content';
 import { ref, watch } from 'vue';
 import { isExternalSource } from '@/shared/lib/resource-ref';
 import type { RowData } from '@/shared/types';
@@ -120,17 +121,28 @@ export function useImmersiveVariantEditor(runtime: ImmersiveEditorRuntime) {
           const entry = catalog.catalog.entries.find((entry) => entry.id === id);
           const spec = entry && isRowData(entry.spec) ? entry.spec : null;
           const reason = !entry
-            ? '武器目录来源缺失'
+            ? `找不到武器 ${id} 的目录记录。`
             : !spec
-              ? '武器规格来源缺失'
-              : isSystemWeapon(isRowData(entry.data) ? entry.data : {}, spec)
-                ? '武器带有SYSTEM标记'
-                : weaponSlotCompatibility(slot, spec);
+              ? `找不到武器 ${id} 的规格文件。`
+              : [
+                  isSystemWeapon(isRowData(entry.data) ? entry.data : {}, spec) ? '这件武器带有 SYSTEM 标记。' : '',
+                  weaponSlotCompatibility(slot, spec),
+                ]
+                  .filter(Boolean)
+                  .join('；');
           if (reason) {
             const choice = await feedback.choose({
-              title: '强制安装武器？',
-              content: `装配：${jointObject(before[key]).variantId}\n槽位：${slotId} · ${slot.type} · ${slot.size}\n武器：${id}\n${reason}\n来源：${entry?.specSource?.path ?? entry?.source.path ?? '来源缺失'}`,
-              choices: [{ label: '强制安装', value: 'install', type: 'warning' }],
+              title: '仍然安装此武器？',
+              content: () =>
+                dialogBody(
+                  `将装配 ${jointObject(before[key]).variantId} 的槽位 ${slotId} 中的 ${graph.variants[key]!.weapons[slotId] || '空槽位'} 换为 ${entry?.label ?? id} (${id})。`,
+                  '槽位：' + String(slot.size) + '，' + String(slot.type) + '。',
+                  ...reason.split('；'),
+                  '来源：',
+                  dialogFiles([entry?.specSource?.path ?? entry?.source.path ?? '来源缺失']),
+                ),
+              choices: [{ label: '仍然安装', value: 'install', type: 'warning' }],
+              cancelText: '返回选择',
             });
             if (choice !== 'install' || !current()) return null;
             const latest = await queryJointVariantCatalog(target, 'weapons', signal);
@@ -190,9 +202,16 @@ export function useImmersiveVariantEditor(runtime: ImmersiveEditorRuntime) {
           if (!current()) return false;
           if (candidate.reason) {
             const choice = await feedback.choose({
-              title: '强制引用模块装配？',
-              content: `装配：${jointObject(before[key]).variantId}\n槽位：${slotId}\n装配 ID：${id}\n${candidate.reason}\n来源：${candidate.source}`,
-              choices: [{ label: '强制引用', value: 'install', type: 'warning' }],
+              title: '仍然采用此模块？',
+              content: () =>
+                dialogBody(
+                  `将装配 ${jointObject(before[key]).variantId} 的模块槽位 ${slotId} 从 ${variantModuleEntries(jointObject(before[key]).modules).find(([slot]) => slot === slotId)?.[1] || '空槽位'} 换为 ${id}。`,
+                  candidate.reason!,
+                  '来源：',
+                  dialogFiles([candidate.source]),
+                ),
+              choices: [{ label: '仍然采用', value: 'install', type: 'warning' }],
+              cancelText: '返回选择',
             });
             if (choice !== 'install' || !current()) return false;
           }
@@ -264,23 +283,23 @@ export function useImmersiveVariantEditor(runtime: ImmersiveEditorRuntime) {
           captured = snapshot.value;
         const missing = keys.find((key) => !graph.variants[key]);
         if (missing) throw new AppError('装配缺少有效船体来源：' + missing, { action: 'strip-variant' });
-        const details = keys
-          .map((key) => {
-            const record = graph.records.find((record) => record.key === key)!;
-            const location = record.target.kind === 'spec' ? record.target.target.write.path : record.target.write.path;
-            return (
-              String(jointObject(before[key]).variantId) + '\n' + location + '\n共享引用：' + (record.referencedBy.join('、') || '当前装配')
-            );
-          })
-          .join('\n\n');
         const choice = await feedback.choose({
-          title: '清空装配？',
-          content:
-            '清空以下 ' +
-            keys.length +
-            ' 个装配的可编辑武器、战机联队、普通／永久／S 插件及幅能分配。确认后登记一次草稿历史，保存后写盘。\n\n' +
-            details,
-          choices: [{ label: '清空草稿', value: 'strip', type: 'warning' }],
+          title: keys.length === 1 ? '清空这个装配？' : '清空这 ' + keys.length + ' 个装配？',
+          content: () =>
+            dialogBody(
+              '清空以下装配的可编辑武器、战机联队、普通／永久／S 插件及幅能分配：',
+              ...keys.map((key) => {
+                const record = graph.records.find((record) => record.key === key)!;
+                return dialogGroup(
+                  String(jointObject(before[key]).variantId),
+                  dialogFiles([record.target.kind === 'spec' ? record.target.target.write.path : record.target.write.path]),
+                  ...(record.referencedBy.length > 1 ? ['这个装配同时被以下对象使用：', dialogFiles(record.referencedBy)] : []),
+                );
+              }),
+              '确认后共同登记一次草稿撤销，保存时写入文件。',
+            ),
+          choices: [{ label: keys.length === 1 ? '清空装配' : '清空这些装配', value: 'strip', type: 'warning' }],
+          cancelText: '返回编辑',
         });
         if (
           signal.aborted ||

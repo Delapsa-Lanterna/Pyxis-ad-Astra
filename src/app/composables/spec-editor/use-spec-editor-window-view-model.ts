@@ -1,3 +1,4 @@
+import { dialogBody, dialogFiles, dialogGroup, dialogSelect } from '@/shared/ui/dialog-content';
 import { releaseNativeWindowTargets } from '@/services/window.service';
 import { useProjectSyncStore } from '@/stores/project-sync.store';
 import { beginSavedWrite } from '@/orchestrators/project-sync.orchestrator';
@@ -12,7 +13,7 @@ import {
 } from '@/orchestrators/project-sync.orchestrator';
 import type { SpecEditorDefinition, SpecEditorTarget } from './spec-editor.types';
 import { isReadInvalidated } from '@/shared/runtime/read-request';
-import { computed, shallowReactive, shallowRef, watch } from 'vue';
+import { computed, ref, shallowReactive, shallowRef, watch } from 'vue';
 import { createSpecProblems } from './use-spec-problems';
 import { loadSpecEditorImport, saveSpecEditorSpecByKind } from '@/services/spec-editor.service';
 import type {
@@ -30,7 +31,6 @@ import { requireRowData } from '@/shared/lib/row-data';
 import { normalizeFsPath } from '@/shared/lib/paths';
 import { captureIdentityVersions } from '@/domain/project/entity-versions';
 
-import { confirmEntityIdChanges } from '@/orchestrators/entity-write.orchestrator';
 import { reserveEntityIntent, retargetEntityWindow } from '@/orchestrators/spec-editor-identity.orchestrator';
 import { composeJson, editComposedJson, compositionPath, compositionValue, takeReplaceBase } from '@/domain/schema/json-composition';
 
@@ -76,9 +76,23 @@ export function useSpecEditorWindowViewModel(
         const warnings = issues.filter((issue) => issue.severity === 'warning');
         if (!warnings.length) return true;
         const choice = await feedback.choose({
-          title: '仍有保存提醒',
-          content: warnings.map((issue) => issue.message).join('\n'),
+          title: '仍要保存吗？',
+          content: () =>
+            dialogBody(
+              '这份规格有 ' + warnings.length + ' 条保存提醒：',
+              dialogFiles([editorData.value!.target.write.path]),
+              ...warnings.map((issue) =>
+                dialogGroup(
+                  issue.path,
+                  compositionValue(editorData.value!.spec, compositionPath(issue.path)) === undefined
+                    ? '尚未填写此字段。'
+                    : '当前填写：' + JSON.stringify(compositionValue(editorData.value!.spec, compositionPath(issue.path))),
+                  issue.message,
+                ),
+              ),
+            ),
           choices: [{ label: '仍然保存', value: 'save', type: 'warning' }],
+          cancelText: '返回编辑',
         });
         return choice === 'save' && draftSession.context.value === context;
       },
@@ -86,17 +100,17 @@ export function useSpecEditorWindowViewModel(
         const submittedData = deepClone(editorData.value!);
         const replaced = takeReplaceBase(submitted);
         const draft = replaced.value;
-        const reserved = await reserveEntityIntent(target.sessionId, target.modRoot, submittedData.target, draft, feedback);
+        const reserved = await reserveEntityIntent(
+          target.sessionId,
+          target.modRoot,
+          submittedData.target,
+          draft,
+          feedback,
+          original,
+          submittedData.composition,
+        );
         if (!reserved) return;
         const { keepFilename, intent } = reserved;
-        if (
-          !(await confirmEntityIdChanges(feedback, [
-            { target: submittedData.target, before: original, after: draft, composition: submittedData.composition, keepFilename },
-          ]))
-        ) {
-          await releaseNativeWindowTargets();
-          return;
-        }
         const versions = intent ? captureIdentityVersions(baseVersions, intent.destinationVersion) : baseVersions;
         const result = await runConfirmedJsonWrite(
           feedback,
@@ -244,7 +258,7 @@ export function useSpecEditorWindowViewModel(
       if (!snapshot?.meta) return;
       const data = snapshot.meta.data;
       if (data.isNew && options.promptForMissing) {
-        const choice = await handleMissingSpec(params.kind, target);
+        const choice = await handleMissingSpec(params.kind, target, data);
         if (missingSpecIntent !== intent) return;
         if (choice.action === 'cancel') {
           await closeCurrentWindow();
@@ -264,17 +278,35 @@ export function useSpecEditorWindowViewModel(
     }
   }
 
-  async function handleMissingSpec(kind: SpecEditorKind, target: SpecEditorTarget): Promise<MissingSpecChoice> {
+  async function handleMissingSpec(kind: SpecEditorKind, target: SpecEditorTarget, data: SpecEditorData): Promise<MissingSpecChoice> {
+    const source = ref('create');
     const choice = await feedback.choose({
-      title: `找不到 ${target.id} 的 spec`,
-      content: '目标文件不存在，请选择操作：',
+      title: '找不到' + { ship: '舰船', weapon: '武器', projectile: '弹体', system: '战术系统' }[target.kind] + '规格',
+      content: () =>
+        dialogBody(
+          `找不到${{ ship: '舰船', weapon: '武器', projectile: '弹体', system: '战术系统' }[target.kind]} ${target.id} 的规格文件：`,
+          dialogFiles([data.target.write.path]),
+          dialogSelect('内容来源', source, [
+            { label: '使用默认内容', value: 'create' },
+            { label: '导入已有规格', value: 'import' },
+          ]),
+          source.value === 'create'
+            ? '使用默认内容建立草稿，随后可以继续编辑和保存。'
+            : '下一步选择已有规格，将其内容导入当前草稿，随后可以继续编辑和保存。',
+        ),
       choices: [
-        { label: '新建文件', value: 'create', type: 'primary' },
-        { label: '导入已有文件', value: 'import' },
+        {
+          get label() {
+            return source.value === 'create' ? '新建并编辑' : '选择文件并导入';
+          },
+          value: 'continue',
+          type: 'primary',
+        },
       ],
+      cancelText: '返回',
     });
     if (!choice) return { action: 'cancel' };
-    if (choice === 'import') {
+    if (source.value === 'import') {
       const path = await pickEditorSpecFile();
       if (!path) return { action: 'cancel' };
       try {
@@ -335,7 +367,12 @@ export function useSpecEditorWindowViewModel(
       });
       return;
     }
-    confirmDiscard(draftSession.loadPendingExternal, draftSession.dirty.value, () => draftSession.currentTargetKey.value);
+    confirmDiscard(
+      draftSession.loadPendingExternal,
+      draftSession.dirty.value,
+      () => draftSession.currentTargetKey.value,
+      editorData.value.baseVersions.map((version) => version.path),
+    );
   }
 
   let setup: Promise<void> | null = null;
@@ -384,9 +421,10 @@ export function useSpecEditorWindowViewModel(
     if (disposed || !sameEditorWindowTarget(target, editorWindowTarget())) return;
     if (draftSession.dirty.value) {
       const choice = await feedback.choose({
-        title: '跟随实体重命名？',
-        content: '保留当前草稿和活动输入，并接纳新的正式身份与文件基线。',
+        title: '跟随规格改名？',
+        content: `${{ ship: '舰船', weapon: '武器', projectile: '弹体', system: '战术系统' }[change.before.kind as SpecEditorKind]}规格的 ID 已由 ${change.before.id} 改为 ${change.after.id}。\n\n${change.before.write.path === change.after.write.path ? change.after.write.path : '原文件：\n' + change.before.write.path + '\n\n新文件：\n' + change.after.write.path}\n\n跟随后继续保留当前修改和输入，采用新文件作为最后保存的内容。`,
         choices: [{ label: '保留编辑并跟随', value: 'follow', type: 'primary' }],
+        cancelText: '稍后处理',
       });
       if (disposed || !sameEditorWindowTarget(target, editorWindowTarget())) return;
       if (choice !== 'follow')

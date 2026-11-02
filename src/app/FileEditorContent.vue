@@ -168,7 +168,7 @@ useManagedWindowRequests(async (request) => {
 });
 const showContextMessage = computed(() => Boolean(contextMessage.value && (isErrorContext.value || targetLine.value)));
 const closeParticipant = useWindowCloseParticipant({
-  content: '当前文件有未保存修改，关闭后这些修改将丢失。',
+  content: '这个文件有未保存修改，关闭后将丢弃这些修改。',
   dirty,
   title: '放弃未保存文件修改？',
 });

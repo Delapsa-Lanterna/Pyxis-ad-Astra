@@ -1,3 +1,4 @@
+import { dialogBody, dialogGroup, dialogFiles } from '@/shared/ui/dialog-content';
 import { debugLog, infoLog } from '@/shared/runtime/app-log-queue';
 import { logIdentity } from '@/shared/lib/log-fields';
 import { recordWindowEventHandlerError } from '@/orchestrators/window-event-errors.orchestrator';
@@ -225,9 +226,13 @@ async function consume(entry: PendingWriteSync): Promise<void> {
 
 async function confirmMissingSources(window: SaveConsumers, delivery: Extract<SaveDelivery, { kind: 'missing' }>) {
   const choice = await window.feedback?.choose({
-    title: '确认重建缺失文件',
-    content: ['以下文件已缺失，将使用已读取的完整内容及本次保存修改重新创建：', ...delivery.paths].join('\n'),
+    title: '重新创建文件并保存？',
+    content:
+      (delivery.paths.length === 1 ? '这个文件已缺失' : '以下 ' + delivery.paths.length + ' 个文件已缺失') +
+      '，将使用之前读取的内容加上本次修改重新创建。\n\n' +
+      delivery.paths.join('\n'),
     choices: [{ label: '重新创建并保存', value: 'recreate', type: 'warning' }],
+    cancelText: '返回编辑',
   });
   for (const path of delivery.paths)
     infoLog('save.source_rebuild_decided', () => ({
@@ -309,9 +314,21 @@ export async function settleProjectSaves(scope: CloseScope, feedback?: AppFeedba
       roots.some((root) => normalizeRelPath(root).toLowerCase() === normalizeRelPath(work.modRoot).toLowerCase()),
     );
     const choice = await feedback.choose({
-      title: '保存恢复尚未完成',
-      content: ['以下保存步骤尚未恢复，放弃后将保留磁盘当前内容：', ...pending.map((work) => work.diagnostic.message)].join('\n'),
-      choices: [{ label: '放弃恢复并继续关闭', value: 'abandon', type: 'warning' }],
+      title: '结束保存恢复并关闭？',
+      content: () =>
+        dialogBody(
+          '以下 ' + pending.length + ' 个保存任务仍有步骤需要恢复。继续关闭将结束这些恢复任务，并保留磁盘当前内容。',
+          ...pending.map((work) =>
+            dialogGroup(
+              work.modRoot,
+              work.diagnostic.message,
+              ...(work.diagnostic.location?.path ? ['涉及文件：', dialogFiles([work.diagnostic.location.path])] : []),
+              '请求：' + work.requestId,
+            ),
+          ),
+        ),
+      choices: [{ label: '结束恢复并关闭', value: 'abandon', type: 'warning' }],
+      cancelText: '返回处理',
     });
     for (const work of pending)
       infoLog('save.recovery_decided', () => ({

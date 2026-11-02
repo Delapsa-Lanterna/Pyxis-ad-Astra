@@ -19,6 +19,7 @@ import { configFactionListItems } from './json-config-entities';
 import { variantFileDefinition, skinFileDefinition, jsonFileTitle, type JsonFileDefinition } from './json-file-definitions';
 import { requireRowData } from '@/shared/lib/row-data';
 import { miscConfigDefinition } from '@/domain/misc-config';
+import { composeJson } from '@/domain/schema/json-composition';
 
 export type JsonDocumentKind = 'mod-info' | 'faction' | 'mission' | 'variant' | 'skin' | 'misc-config';
 export interface ConfigDocumentTarget {
@@ -136,7 +137,8 @@ export function jsonDocumentSummary(
   hullNames: Record<string, string> = {},
 ) {
   const { kind } = definition;
-  const data = kind === 'mission' ? ((draft.descriptor ?? draft.list) as RowData) : jsonDocumentContent(kind, draft);
+  const local = kind === 'mission' ? ((draft.descriptor ?? draft.list) as RowData) : jsonDocumentContent(kind, draft);
+  const data = composeJson(local, record.composition);
   const id = kind === 'misc-config' ? record.target.id : jsonDocumentId(definition, draft) || record.target.id;
   const file = definition.file;
   const title =
@@ -149,7 +151,7 @@ export function jsonDocumentSummary(
     id,
     title,
     color: kind === 'faction' ? configFactionListItems({ [record.target.id]: data })[0]!.colorCss : '',
-    companion: file ? String(jsonDocumentContent(kind, record.value)[file.companionField] ?? '') : '',
+    companion: file ? String(data[file.companionField] ?? '') : '',
   };
 }
 

@@ -47,7 +47,9 @@ describe('CSV editor actions', () => {
       const wrapper = mount({ render: options.content as () => VNode }, { global: { plugins: [installNaiveUi] } });
       await flushPromises();
       expect(wrapper.findAllComponents(AppSelect)).toHaveLength(fingerprint ? 1 : 0);
-      expect(wrapper.findAll('.page-path').map((path) => path.text())).toEqual([original.location.path, target.write.path]);
+      expect(wrapper.text()).toContain(original.location.path);
+      expect(wrapper.text()).toContain(target.write.path);
+      expect(options.choices.map((choice) => choice.label)).toEqual(['保存']);
       wrapper.unmount();
       return 'save';
     });

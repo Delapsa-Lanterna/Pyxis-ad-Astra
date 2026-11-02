@@ -5,8 +5,56 @@ import { formatModVersion } from '@/shared/lib/starsector';
 import { buildModNavigationSections } from '@/domain/workspace/mod-navigation';
 import { createBrowserWorkspace } from './workspace-runtime';
 import { createWorkspaceProject, coreRoot, gameRoot, workspaceRoots } from './workspace-project';
+import { jsonDocumentMedia, jsonDocumentRecord, jsonDocumentSummary } from '@/domain/json-editor/json-document-definitions';
+import { composeJson } from '@/domain/schema/json-composition';
 
 describe('complete browser workspace fixtures', () => {
+  it('keeps browser faction lists, details and inherited media aligned', async () => {
+    const workspace = createBrowserWorkspace(),
+      local = workspace.projects[1]!,
+      core = workspace.projects[0]!;
+    const faction = [...local.entities.values()].find((entity) => entity.kind === 'faction')!;
+    const source = [...core.entities.values()].find((entity) => entity.kind === 'faction')!;
+    const id = faction.id;
+    source.data = {
+      ...(source.data as T.RowData),
+      id,
+      displayName: 'Inherited faction',
+      logo: 'graphics/factions/inherited-logo.png',
+      crest: 'graphics/factions/inherited-crest.png',
+      color: [31, 97, 151, 255],
+    };
+    source.resourceRefs = core.resources('faction', id, source.data as T.RowData);
+    const layer = {
+      source: { ...source.target.write, source: 'core' as const },
+      version: { path: source.target.write.path, fingerprint: 'core-fixture' },
+      data: source.data as T.RowData,
+      replace: false,
+    };
+    faction.data = { id, localFlag: 'retained' };
+    faction.resourceRefs = {};
+    faction.composition = { layers: [layer], excluded: [], replace: false };
+    const query = (command: string, id: string) =>
+      workspace.invoke('main', command, { payload: { sessionId: local.manifest.sessionId, kind: 'faction', id } });
+    const list = await query('query_entity_list', '');
+    const row = (list as T.EntityData[]).find((entity) => entity.id === id)!;
+    const detail = (await query('query_entity', id)) as T.EntityData;
+    expect(row.data).toEqual(detail.data);
+    expect(row.data).toMatchObject({ id, localFlag: 'retained' });
+    expect(row.composition).toEqual(detail.composition);
+    expect(row.resourceRefs).toEqual(detail.resourceRefs);
+    expect(row.resourceRefs.crest).toMatchObject({ source: 'core', relPath: 'graphics/factions/inherited-crest.png' });
+    const summary = jsonDocumentSummary(
+      { kind: 'faction', label: 'Faction', directory: 'data/world/factions', idField: 'id', icon: '' },
+      jsonDocumentRecord(local.manifest.sessionId, local.manifest.modRoot, row),
+    );
+    expect(summary).toMatchObject({ title: 'Inherited faction', color: 'rgba(31, 97, 151, 1)' });
+    expect(jsonDocumentMedia(jsonDocumentRecord(local.manifest.sessionId, local.manifest.modRoot, row))).toMatchObject({
+      source: 'core',
+      relPath: 'graphics/factions/inherited-crest.png',
+    });
+    expect(composeJson(faction.data as T.RowData, row.composition)).toEqual({ ...(source.data as T.RowData), id, localFlag: 'retained' });
+  });
   it.each(['read', 'overwrite', 'csv'] as const)(
     'handles invalid original content and rejects stale files in browser mode %s',
     async (mode) => {

@@ -12,14 +12,16 @@ export function useJointEditActions() {
       prepared.conflicts.map((conflict) => ({ recordKey: conflict.recordKey, path: [...conflict.path], choice: 'disk' })),
     );
     const chosen = await feedback.choose({
-      title: '选择联合编辑冲突',
+      title: '选择要保存的内容',
       content: () =>
         h(JointEditConflictChoices, {
           conflicts: prepared.conflicts,
+          records: prepared.snapshot.records,
           choices: choices.value,
           'onUpdate:choices': (value) => (choices.value = value),
         }),
-      choices: [{ label: '按所选内容继续', value: 'continue', type: 'primary' }],
+      choices: [{ label: '按选择继续保存', value: 'continue', type: 'primary' }],
+      cancelText: '返回编辑',
     });
     return chosen === 'continue' ? choices.value : null;
   }

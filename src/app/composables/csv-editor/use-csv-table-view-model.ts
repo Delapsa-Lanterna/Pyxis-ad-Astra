@@ -1,3 +1,4 @@
+import { csvDraftSearchKeys } from '@/domain/csv-editor/csv-search';
 import { hasSourceInvalidation, querySourceOptionCatalog } from '@/services/source-options.service';
 import { hasTableInvalidation, queryTableRowPreviewDataUrl, queryTableIndex, queryTableRows } from '@/services/csv-table.service';
 import { relativePathFromRoot } from '@/shared/lib/paths';
@@ -21,7 +22,7 @@ import { hasResourceInvalidation } from '@/services/resource-media.service';
 import type { CsvRowPreviewTarget, ResourceRef, CsvSearchField, CsvDraftRow, SaveAcceptanceTask } from '@/shared/types';
 import { useFieldInputActions } from '@/app/composables/use-field-input-actions';
 
-export function useCsvTableViewModel(saveBeforeSearch: () => Promise<boolean>) {
+export function useCsvTableViewModel() {
   const tables = useCsvEditorStore();
   const project = useProjectStore();
   const workspace = useWorkspaceStore();
@@ -127,24 +128,8 @@ export function useCsvTableViewModel(saveBeforeSearch: () => Promise<boolean>) {
     searchPending.value = true;
     try {
       if (!captured || !(await commitTableInput()) || !accepts()) return;
-      if (text.trim() && tables.hasCurrentRowOrderChanges) {
-        const choice = await feedback.choose({
-          title: '处理当前表未保存修改后搜索？',
-          content: '此操作将处理当前表全部未保存修改，包括行序、字段内容、新建与删除。',
-          choices: [
-            { label: '保存并搜索', value: 'save', type: 'primary' },
-            { label: '放弃修改并搜索', value: 'discard', type: 'warning' },
-          ],
-        });
-        if (!accepts()) return;
-        if (choice === 'save') {
-          if (!(await saveBeforeSearch()) || !accepts() || tables.hasTableDirtyChanges(captured.table)) return;
-        } else if (choice === 'discard') {
-          tables.discardTableDraftForReload(captured);
-          useCsvEditorStore().clearCsvTableHistory(captured.modRoot, captured.table);
-        } else return;
-      }
-      if (accepts()) tables.setSearchText(captured, text);
+      if (text === tables.searchText && windowReady.value) await loadIndex(Boolean(text.trim()), 0);
+      else if (accepts()) tables.setSearchText(captured, text);
     } catch (error) {
       feedback.error(error);
     } finally {
@@ -313,6 +298,7 @@ export function useCsvTableViewModel(saveBeforeSearch: () => Promise<boolean>) {
       },
       tables.hasTableDirtyChanges(tables.currentTab),
       () => targetKey.value,
+      tables.getCsvModState(target.value!.modRoot)!.documents[target.value!.table].baseVersions.map((version) => version.path),
     );
   }
 
@@ -339,6 +325,11 @@ export function useCsvTableViewModel(saveBeforeSearch: () => Promise<boolean>) {
     const generation = tables.tableReadGeneration(captured.modRoot, captured.table);
     const search = filtered ? tables.searchText : null;
     const field = tables.searchField;
+    const document = state.documents[captured.table];
+    const order = filtered ? [...document.rowOrder] : [];
+    const drafts = filtered
+      ? cloneQuerySnapshot<CsvDraftRow[]>(Object.keys(document.dirty).flatMap((key) => (document.rows[key] ? [document.rows[key]!] : [])))
+      : [];
     let accepted = false;
     await reads.consume(
       'index',
@@ -353,7 +344,11 @@ export function useCsvTableViewModel(saveBeforeSearch: () => Promise<boolean>) {
             tables.currentTableLocked
           )
             return;
-          tables.applyTableIndex(captured, index, filtered);
+          tables.applyTableIndex(
+            captured,
+            filtered ? { ...index, rowKeys: csvDraftSearchKeys(captured.table, order, drafts, index.rowKeys, search!, field) } : index,
+            filtered,
+          );
           if (initialCount) widthSample.value = cloneQuerySnapshot<CsvDraftRow[]>(index.rows);
           windowReady.value = true;
           accepted = true;
@@ -410,8 +405,9 @@ export function useCsvTableViewModel(saveBeforeSearch: () => Promise<boolean>) {
   );
   async function initializeIndex() {
     const identity = targetKey.value;
+    const hasSearch = target.value && tables.getCsvModState(target.value.modRoot)!.documents[target.value.table].queryRowKeys;
     const accepted = await loadIndex(false, 240);
-    if (accepted && !disposed && identity === targetKey.value && tables.searchText.trim()) await loadIndex(true, 0);
+    if (accepted && !disposed && identity === targetKey.value && tables.searchText.trim() && !hasSearch) await loadIndex(true, 0);
   }
   function drainRows() {
     while (rowReads < 2 && rowQueue.length) {

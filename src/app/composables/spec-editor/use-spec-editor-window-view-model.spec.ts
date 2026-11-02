@@ -1,3 +1,5 @@
+import { selectDialogOption } from '@/test/unit/dialog-text';
+import { chooseEntityFilename } from '@/orchestrators/entity-write.orchestrator';
 import { savedWriteFixture } from '@/test/fixtures/write-result';
 import { projectChangeFixture, savedContentWorks } from '@/test/unit/project-changes';
 import { entityTargetFixture } from '@/test/fixtures/entity-target';
@@ -42,7 +44,7 @@ const mocks = vi.hoisted(() => ({
     error: vi.fn(),
     confirmDanger: vi.fn(),
     confirmWarning: vi.fn(),
-    choose: vi.fn(async () => null as string | null),
+    choose: vi.fn<AppFeedback['choose']>(async () => null),
   },
 }));
 
@@ -63,15 +65,24 @@ vi.mock('@/services/spec-weapon-editor.service', () => ({
 }));
 vi.mock('@/services/spec-projectile-editor.service', () => ({ querySpecProjectileEditorData: vi.fn() }));
 vi.mock('@/orchestrators/spec-editor-identity.orchestrator', () => ({
-  reserveEntityIntent: async (_session: string, _root: string, source: EntityEditTarget, draft: RowData) => ({
-    keepFilename: false,
-    intent: {
+  reserveEntityIntent: async (
+    _session: string,
+    _root: string,
+    source: EntityEditTarget,
+    draft: RowData,
+    feedback: AppFeedback,
+    original: RowData,
+    composition?: JsonComposition,
+  ) => {
+    const intent = {
       source,
-      nextId: draft.hullId ?? draft.id,
+      nextId: String(draft.hullId ?? draft.id ?? source.id),
       destinationVersion: { path: source.write.path, fingerprint: 'destination' },
       nextWrite: source.write,
-    },
-  }),
+    };
+    const keepFilename = await chooseEntityFilename(feedback, source, intent, { before: original, after: draft, composition });
+    return keepFilename === null ? null : { keepFilename, intent };
+  },
   retargetEntityWindow: vi.fn(async () => {}),
 }));
 vi.mock('@/orchestrators/project-sync.orchestrator', async () => ({
@@ -112,7 +123,7 @@ import { createWeaponSpec } from '@/domain/entity-write/spec-construction';
 import { createProjectileSpec } from '@/domain/entity-write/spec-construction';
 import { formatError } from '@/shared/lib/errors';
 import { useSaveCommandStore } from '@/stores/save-command.store';
-import type { CommittedWriteEvent } from '@/shared/types';
+import type { AppFeedback, JsonComposition, CommittedWriteEvent } from '@/shared/types';
 
 function shipBundleFixture(isNew = false): SpecEditorData<'ship'> {
   return {
@@ -775,7 +786,10 @@ describe('useSpecEditorWindowViewModel missing specs', () => {
 
   it('imports an existing file for a missing spec', async () => {
     mocks.querySpecEditorData.mockResolvedValue(shipBundleFixture(true));
-    mocks.feedback.choose.mockResolvedValue('import');
+    mocks.feedback.choose.mockImplementation(async (options) => {
+      await selectDialogOption(options, '内容来源', 'import');
+      return 'continue';
+    });
     mocks.pickEditorSpecFile.mockResolvedValue('C:/imports/XY.ship');
     mocks.loadSpecEditorImport.mockResolvedValue({ hullId: 'XY', hullName: 'Imported' });
     const viewModel = createViewModel();
@@ -1038,8 +1052,11 @@ describe.each(['ship', 'weapon'] as const)('%s draft resource lifecycle', (kind)
   });
 
   it('resolves imported image fields through the draft query', async () => {
-    mocks.querySpecEditorData.mockResolvedValue({ ...bundle('old.png'), isNew: true });
-    mocks.feedback.choose.mockResolvedValue('import');
+    mocks.querySpecEditorData.mockResolvedValue({ ...bundle('old.png'), target: entityTargetFixture(kind, 'XY'), isNew: true });
+    mocks.feedback.choose.mockImplementation(async (options) => {
+      await selectDialogOption(options, '内容来源', 'import');
+      return 'continue';
+    });
     mocks.pickEditorSpecFile.mockResolvedValue('M:/imported.spec');
     mocks.loadSpecEditorImport.mockResolvedValue(spec('imported.png'));
     const vm = createViewModel(kind);

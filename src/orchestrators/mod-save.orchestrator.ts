@@ -1,3 +1,4 @@
+import { dialogBody, dialogFiles, dialogGroup } from '@/shared/ui/dialog-content';
 import type { AppFeedback } from '@/shared/types';
 import type {
   ModSaveTarget,
@@ -138,22 +139,28 @@ export function createModSaveCoordinator(feedback: AppFeedback, closing: () => b
       const saved = reply.items.filter((item) => item.status === 'saved').length;
       const cancelled = reply.items.filter((item) => item.status === 'cancelled').length;
       const failures = reply.items.filter((item) => item.status === 'failed').length;
-      const summary = `Mod 保存完成：已保存 ${saved} 项，取消 ${cancelled} 项，失败 ${failures} 项`;
       if (cancelled + failures)
         await feedback.choose({
           title: 'Mod 保存结果',
           type: 'warning',
-          content:
-            summary +
-            '\n' +
-            reply.items
-              .filter((item) => item.status === 'failed' || item.status === 'cancelled')
-              .map((item) => `${item.label}\n${item.paths.join('\n')}\n${item.diagnostic ? formatError(item.diagnostic) : '已取消保存'}`)
-              .join('\n\n'),
-          choices: [{ label: '确定', value: 'ok' }],
+          content: () =>
+            dialogBody(
+              '已保存 ' + saved + ' 项，取消 ' + cancelled + ' 项，失败 ' + failures + ' 项。',
+              ...reply.items
+                .filter((item) => item.status === 'failed' || item.status === 'cancelled')
+                .map((item) =>
+                  dialogGroup(
+                    (item.status === 'failed' ? '失败：' : '已取消：') + item.label,
+                    dialogFiles(item.paths),
+                    item.diagnostic ? formatError(item.diagnostic) : '保存已取消。',
+                  ),
+                ),
+            ),
+          choices: [],
+          cancelText: '关闭',
         });
-      else if (saved) feedback.success(summary);
-      else feedback.info('当前 Mod 没有需要保存的修改');
+      else if (saved) feedback.success('已保存 ' + saved + ' 项。');
+      else feedback.info('当前 Mod 没有需要保存的修改。');
     } catch (error) {
       if (!disposed) feedback.error(error, '保存当前 Mod 失败');
     }

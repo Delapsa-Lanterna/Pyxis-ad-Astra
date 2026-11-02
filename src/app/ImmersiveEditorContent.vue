@@ -105,7 +105,9 @@ useInputEditMode(joint.inputs);
 const closeParticipant = useWindowCloseParticipant({
   dirty,
   title: '关闭沉浸式编辑器？',
-  content: `当前${label}有未保存草稿或活动输入，关闭前确认所属保存。`,
+  get content() {
+    return label + ' ' + joint.currentTarget.value!.id + ' 有未保存草稿或尚在输入的内容，关闭后将丢弃这些编辑。';
+  },
 });
 function closeWindow() {
   void closeCurrentWindow().catch((error) => feedback.error(error, '关闭窗口失败'));

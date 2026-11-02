@@ -114,10 +114,7 @@ const tableEditor = useTemplateRef<InstanceType<typeof CsvTableEditor>>('tableEd
 async function deleteRows() {
   if (!(await tableEditor.value!.deleteRows())) await actions.deleteSelectedRow();
 }
-const csvTable = useCsvTableViewModel(async () => {
-  const result = await actions.save();
-  return result?.status === 'saved' || result?.status === 'noop';
-});
+const csvTable = useCsvTableViewModel();
 
 const searchDisabled = computed(() => tables.currentTableLocked || csvTable.searchPending.value);
 const searchOptions = computed(() =>

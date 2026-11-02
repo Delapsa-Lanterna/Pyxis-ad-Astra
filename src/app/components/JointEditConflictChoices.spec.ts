@@ -17,9 +17,9 @@ describe('joint edit conflict selection component', () => {
     ];
     const choices: JointConflictChoice[] = [{ recordKey: 'ship', path: ['name'], choice: 'disk' }];
     const wrapper = mount(JointEditConflictChoices, { props: { conflicts, choices }, global: { stubs: editorUiStubs } });
-    expect(wrapper.text()).toContain('原基线');
-    expect(wrapper.text()).toContain('当前磁盘');
-    expect(wrapper.text()).toContain('本窗口');
+    expect(wrapper.text()).toContain('打开时');
+    expect(wrapper.text()).toContain('磁盘当前内容');
+    expect(wrapper.text()).toContain('本次编辑');
     await wrapper.get('select').setValue('"draft"');
     expect(wrapper.emitted('update:choices')![0]![0]).toEqual([{ recordKey: 'ship', path: ['name'], choice: 'draft' }]);
     expect(choices[0]!.choice).toBe('disk');
@@ -46,7 +46,8 @@ describe('joint edit conflict selection component', () => {
     );
     await wrapper.get('select').setValue('"draft"');
     expect(choices.value[0]!.choice).toBe('draft');
-    expect(wrapper.findAll('pre')).toHaveLength(3);
+    expect(wrapper.findAll('pre')).toHaveLength(4);
+    expect(wrapper.findAll('pre')[0]!.text()).toContain('ALTERNATING');
     wrapper.unmount();
   });
 });

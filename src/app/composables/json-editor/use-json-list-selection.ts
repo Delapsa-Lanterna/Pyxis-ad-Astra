@@ -71,15 +71,16 @@ export function useJsonListSelection(options: {
       };
       confirmations.add(finish);
       feedback.confirmWarning({
-        title: `交接${options.label}编辑？`,
-        content: `确认放弃当前${options.label}编辑并继续？`,
-        actionText: '放弃修改并继续',
+        title: '放弃当前编辑？',
+        content: `${options.label} ${selectedId.value} 的来源已缺失。\n\n${jsonEditors.active?.target.value?.entity?.write.path ?? ''}\n\n继续后放弃当前草稿和输入，${ids.length ? '并转到下一条可用记录。' : '并结束这份文档的编辑。'}`,
+        actionText: '放弃编辑并继续',
         onConfirm: () => {
           finish(true);
         },
         onCancel: () => {
           finish(false);
         },
+        cancelText: '继续编辑',
       });
     });
   }

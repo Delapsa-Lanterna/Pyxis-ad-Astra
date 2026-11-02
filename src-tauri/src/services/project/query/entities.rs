@@ -1,6 +1,5 @@
 use super::super::definitions::entity_definitions::entity_definition;
 use super::super::session::{lock_ready_session, session_handle};
-use crate::domain::json_composition as domain_json_composition;
 use crate::errors::AppResult;
 use crate::models::{EntityData, EntityKind};
 use crate::services::project::query::{entity_targets, json_composition as query_json_composition};
@@ -29,35 +28,9 @@ pub fn query_entity(session_id: &str, kind: EntityKind, id: &str) -> AppResult<O
     let Some(data) = data else {
         return Ok(None);
     };
-    let composition = query_json_composition::entity_composition(&session, &info.target)?;
-    let content = if matches!(kind, EntityKind::Weapon | EntityKind::Skill) {
-        &data["spec"]
-    } else {
-        &data
-    };
-    let effective = composition
-        .as_ref()
-        .map(|composition| domain_json_composition::compose_game_json(composition, content))
-        .transpose()?;
-    let mut resource_data = data.clone();
-    if let Some(effective) = &effective {
-        if matches!(kind, EntityKind::Weapon | EntityKind::Skill) {
-            resource_data["spec"] = effective.clone();
-        } else {
-            resource_data = effective.clone();
-        }
-    }
-    let mut resource_refs = (definition.resources)(&session, id, &resource_data);
-    if kind != EntityKind::Variant
-        && !(kind == EntityKind::Skin && data.get("spriteName").is_none())
-        && let Some(source) = &info.target.source
-    {
-        session.reference_resource(source, &mut resource_refs);
-    }
+    let (composition, resource_refs) =
+        query_json_composition::entity_presentation(&session, &info.target, &data, None)?;
     entity_targets::remember_edit_target(&mut session, &info.target);
-    if let Some(composition) = &composition {
-        query_json_composition::resource_origins(&mut resource_refs, content, composition);
-    }
     Ok(Some(EntityData {
         composition,
         target: info.target,
@@ -80,17 +53,23 @@ pub fn query_entity_list(session_id: &str, kind: EntityKind) -> AppResult<Vec<En
         .into_iter()
         .map(|projection| {
             let info = targets.describe(&session, &projection.id);
-            EntityData {
-                composition: None,
+            let (composition, resource_refs) = query_json_composition::entity_presentation(
+                &session,
+                &info.target,
+                &projection.data,
+                Some(projection.resource_refs),
+            )?;
+            Ok(EntityData {
+                composition,
                 target: info.target,
                 base_versions: info.base_versions,
                 kind: projection.kind,
                 id: projection.id,
                 data: projection.data,
-                resource_refs: projection.resource_refs,
-            }
+                resource_refs,
+            })
         })
-        .collect();
+        .collect::<AppResult<_>>()?;
     for record in &records {
         if matches!(
             kind,

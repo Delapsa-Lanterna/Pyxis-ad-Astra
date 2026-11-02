@@ -1,3 +1,4 @@
+import { dialogText, selectDialogOption } from '@/test/unit/dialog-text';
 import { projectChangeFixture, closeProjectChangeFixture, savedContentWorks } from '@/test/unit/project-changes';
 import { flushPromises, mount } from '@vue/test-utils';
 import { ref } from 'vue';
@@ -232,8 +233,8 @@ describe('variant joint actions', () => {
     const { vm, wrapper } = editor('variant');
     await vm.initialize();
     expect(await vm.variant!.installVariantWeapon('variant', 'WS2', 'test_weapon')).toBe(true);
-    expect(mocks.choose.mock.calls[0]![0].content).toContain('WS2 · BALLISTIC · MEDIUM');
-    expect(mocks.choose.mock.calls[0]![0].content).toContain('武器尺寸超过槽位');
+    expect(dialogText(mocks.choose.mock.calls[0]![0])).toContain('槽位：MEDIUM，BALLISTIC。');
+    expect(dialogText(mocks.choose.mock.calls[0]![0])).toContain('武器尺寸超过槽位');
     expect(jointObject(vm.joint.draftValue.value.variant).weaponGroups).toMatchObject([{ weapons: { WS2: 'test_weapon' } }]);
     await vm.undo();
     expect(jointObject(vm.joint.draftValue.value.variant).weaponGroups).toMatchObject([{ weapons: { WS2: 'chaingun' } }]);
@@ -335,7 +336,7 @@ describe('variant joint actions', () => {
       return vm.variant!.installVariantWeapon('variant', 'WS2', 'missing_weapon', true);
     }, 'manual');
     await vm.joint.saveDraft();
-    expect(mocks.choose.mock.calls[0]![0].content).toContain('武器目录来源缺失');
+    expect(dialogText(mocks.choose.mock.calls[0]![0])).toContain('找不到武器 missing_weapon 的目录记录。');
     expect(mocks.save.mock.calls[0]![0].values.variant.value.weaponGroups).toMatchObject([{ weapons: { WS2: 'missing_weapon' } }]);
     expect(snapshot.root.kind).toBe('variant');
     wrapper.unmount();
@@ -382,7 +383,7 @@ describe('variant joint actions', () => {
       mocks.save.mockRejectedValueOnce(new Error('expected save failure'));
       expect(await vm.variant!.installVariantModule('variant', 'M', 'missing', true)).toBe(false);
     }
-    expect(mocks.choose.mock.calls[0]![0].content).toContain('来源缺失');
+    expect(dialogText(mocks.choose.mock.calls[0]![0])).toContain('来源缺失');
     expect(jointObject(vm.joint.draftValue.value.variant).modules).toEqual({ M: 'module', N: 'module' });
     wrapper.unmount();
   });
@@ -441,7 +442,7 @@ describe('variant joint actions', () => {
     expect(await vm.variant!.stripVariantBranch('variant')).toBe(true);
     expect(vm.joint.draftValue.value.variant).toMatchObject({ state: 'present', value: { fluxCapacitors: 0, fluxVents: 0 } });
     expect(vm.joint.draftValue.value.module).toMatchObject({ state: 'present', value: { fluxCapacitors: 0, fluxVents: 0, hullMods: [] } });
-    expect(mocks.choose.mock.calls[0]![0].content).toContain('2 个装配');
+    expect(mocks.choose.mock.calls[0]![0].title).toBe('清空这 2 个装配？');
     await vm.undo();
     expect(jointObject(vm.joint.draftValue.value.module).fluxVents).toBe(8);
     expect(jointObject(vm.joint.draftValue.value.variant).fluxCapacitors).toBe(4);
@@ -769,7 +770,10 @@ describe('wing joint source handoff', () => {
     baseline.records.find((record) => record.key === 'spec')!.value = { state: 'missing' };
     const { vm, wrapper } = editor('wing');
     await vm.initialize();
-    mocks.choose.mockResolvedValueOnce('skin');
+    mocks.choose.mockImplementationOnce(async (options) => {
+      await selectDialogOption(options, '创建方式', 'skin');
+      return 'continue';
+    });
     const skinGraph = structuredClone(baseline);
     skinGraph.newSources = [{ kind: 'skin', id: 'sarissa' }];
     mocks.query.mockResolvedValueOnce(skinGraph);
@@ -794,7 +798,10 @@ describe('wing joint source handoff', () => {
       state: 'present',
       value: { id: 'next-wing', num: '4', variant: 'sarissa_Fighter' },
     };
-    mocks.choose.mockResolvedValueOnce('skin').mockResolvedValueOnce('save');
+    mocks.choose.mockImplementationOnce(async (options) => {
+      await selectDialogOption(options, '创建方式', 'skin');
+      return 'continue';
+    });
     mocks.save.mockResolvedValueOnce({ ...savedWriteFixture(), content: { target: { kind: 'joint', root: saved.root }, value: saved } });
     const graph = { ...saved, newSources: [{ kind: 'skin' as const, id: 'sarissa' }] };
     mocks.query.mockResolvedValueOnce(graph);
@@ -1055,22 +1062,22 @@ describe('immersive ship lifecycle and reference channels', () => {
     expect(mocks.error).toHaveBeenCalledExactlyOnceWith(error, '打开开火预览失败');
     wrapper.unmount();
   });
-  it('keeps the Core pulse source unchanged when branch selection is cancelled', async () => {
+  it('keeps the Core pulse source unchanged when the merged override review is cancelled', async () => {
     const snapshot = weaponJointFixture();
     snapshot.records[0]!.source = { ...snapshot.records[0]!.source!, source: 'core' };
     if (snapshot.records[0]!.value.state === 'present')
       snapshot.records[0]!.value.value = { id: 'chaingun', specClass: 'pulse', custom: 'retained' };
     mocks.query.mockResolvedValue(snapshot);
-    mocks.choose.mockResolvedValue(null);
+    mocks.save.mockResolvedValueOnce(null);
     const { vm, wrapper } = editor('weapon');
     await vm.initialize();
     await vm.createOverrides();
-    expect(mocks.save).not.toHaveBeenCalled();
+    expect(mocks.save.mock.lastCall![0].values.spec).toMatchObject({ value: { specClass: 'pulse' } });
     expect(vm.joint.draftValue.value.spec).toMatchObject({ state: 'present', value: { specClass: 'pulse', custom: 'retained' } });
     expect(vm.joint.dirty.value).toBe(false);
     wrapper.unmount();
   });
-  it('chooses a legal Core pulse branch before the explicit override save and accepts its corrected baseline', async () => {
+  it('submits the captured pulse source to the merged review and accepts its corrected baseline', async () => {
     const snapshot = weaponJointFixture();
     snapshot.records[0]!.source = { ...snapshot.records[0]!.source!, source: 'core' };
     if (snapshot.records[0]!.value.state === 'present')
@@ -1089,7 +1096,7 @@ describe('immersive ship lifecycle and reference channels', () => {
     await vm.createOverrides();
     expect(mocks.save.mock.calls[0]![0].values.spec).toMatchObject({
       state: 'present',
-      value: { specClass: 'beam', textureType: 'SMOOTH', custom: 'retained' },
+      value: { specClass: 'pulse', custom: 'retained' },
     });
     expect(mocks.save.mock.calls[0]![1]).toEqual(['spec']);
     expect(vm.joint.draftValue.value.spec).toEqual(actual.records[0]!.value);

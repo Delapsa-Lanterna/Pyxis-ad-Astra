@@ -1,7 +1,7 @@
 vi.mock('@/orchestrators/project-sync.orchestrator', async () => ({ ...(await import('@/test/unit/project-changes')) }));
 import { createPinia, setActivePinia } from 'pinia';
 import { effectScope, ref, type Ref } from 'vue';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 import { startCoreAssetsLoading, loadCoreFields, loadCoreGraphics, refreshCoreAssets } from '@/orchestrators/core-assets.orchestrator';
 import { useCoreAssetsStore } from '@/stores/core-assets.store';
 import { useCoreGraphics } from './use-core-assets';
@@ -38,6 +38,22 @@ afterEach(() => {
 });
 
 describe('Core asset ownership and acceptance', () => {
+  let changeReleasedRoot: () => void;
+  it.fails('releases a second loader when an assertion ends the test early', () => {
+    setActivePinia(createPinia());
+    const releasedRoot = ref<string | null>('D:/released');
+    onTestFinished(startCoreAssetsLoading(releasedRoot));
+    changeReleasedRoot = () => {
+      releasedRoot.value = 'D:/later';
+    };
+    throw new Error('Expected fixture assertion failure');
+  });
+  it('keeps a failed loader fixture out of the following read calls', async () => {
+    changeReleasedRoot();
+    await flushPromises();
+    expect(mocks.fields).not.toHaveBeenCalled();
+    expect(mocks.graphics).not.toHaveBeenCalled();
+  });
   it.each([false, true])('clears and reloads an unused Core root with a changed lifetime=%s', async (changed) => {
     await Promise.all([loadCoreFields(), loadCoreGraphics()]);
     let finish!: () => void;
@@ -47,6 +63,10 @@ describe('Core asset ownership and acceptance', () => {
       }),
     );
     const pending = refreshCoreAssets('D:/A');
+    onTestFinished(async () => {
+      finish();
+      await pending;
+    });
     if (changed) {
       root.value = 'D:/B';
       root.value = 'D:/A';
@@ -101,6 +121,10 @@ describe('Core asset ownership and acceptance', () => {
         }),
     );
     const old = loadCoreFields();
+    onTestFinished(async () => {
+      resolve(fields);
+      await old;
+    });
     await refresh('data/hulls/demo.ship');
     if (completion === 'resolve') resolve({});
     else reject(new Error('stale'));
@@ -131,6 +155,7 @@ describe('Core asset ownership and acceptance', () => {
     await loadCoreGraphics();
     setActivePinia(createPinia());
     const stopSecond = startCoreAssetsLoading(ref('D:/A'));
+    onTestFinished(stopSecond);
     const second = useCoreAssetsStore();
     await loadCoreGraphics();
     mocks.graphics.mockResolvedValue(['graphics/new.png']);
@@ -138,7 +163,6 @@ describe('Core asset ownership and acceptance', () => {
     expect(first.graphics.content).toEqual(['graphics/new.png']);
     expect(second.graphics.content).toEqual(['graphics/new.png']);
     expect(mocks.graphics).toHaveBeenCalledTimes(4);
-    stopSecond();
   });
   it('registers the root without reading until a consumer requests each resource', async () => {
     expect(useCoreAssetsStore().root).toBe('D:/A');
@@ -156,6 +180,10 @@ describe('Core asset ownership and acceptance', () => {
     const secondRoot = ref<string | null>('D:/second');
     const secondScope = effectScope();
     const stopSecond = secondScope.run(() => startCoreAssetsLoading(secondRoot))!;
+    onTestFinished(() => {
+      stopSecond();
+      secondScope.stop();
+    });
     const second = useCoreAssetsStore();
     await loadCoreGraphics();
     await firstPending;
@@ -165,8 +193,6 @@ describe('Core asset ownership and acceptance', () => {
     stop();
     expect(first.root).toBeNull();
     expect(second.root).toBe('D:/second');
-    stopSecond();
-    secondScope.stop();
   });
   it('projects loaded fields and graphics through reactive facades', async () => {
     const schema = useCoreSchema();
@@ -194,6 +220,10 @@ describe('Core asset ownership and acceptance', () => {
     );
     const first = loadCoreFields();
     const second = loadCoreFields();
+    onTestFinished(async () => {
+      resolve(fields);
+      await second;
+    });
     expect(second).toBe(first);
     expect(mocks.fields).toHaveBeenCalledTimes(1);
     resolve(fields);
@@ -211,6 +241,11 @@ describe('Core asset ownership and acceptance', () => {
         }),
     );
     root.value = 'D:/B';
+    const current = loadCoreFields();
+    onTestFinished(async () => {
+      resolve(fields);
+      await current;
+    });
     expect(useCoreAssetsStore().fields.content).toEqual({});
     expect(useCoreAssetsStore().fields.status).toBe('loading');
     await loadCoreGraphics();
@@ -230,6 +265,10 @@ describe('Core asset ownership and acceptance', () => {
         }),
     );
     const old = loadCoreFields();
+    onTestFinished(async () => {
+      resolve(fields);
+      await old;
+    });
     root.value = 'D:/B';
     root.value = 'D:/A';
     await loadCoreFields();
@@ -260,6 +299,10 @@ describe('Core asset ownership and acceptance', () => {
         }),
     );
     const pending = loadCoreFields();
+    onTestFinished(async () => {
+      resolve(fields);
+      await pending;
+    });
     if (action === 'clear') root.value = null;
     else stop();
     resolve(fields);

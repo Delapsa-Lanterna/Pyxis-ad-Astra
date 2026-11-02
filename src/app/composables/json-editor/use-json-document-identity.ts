@@ -9,6 +9,7 @@ import { AppError } from '@/shared/lib/errors';
 
 export interface JsonDocumentIdentity<TValue, TTarget, TMeta> {
   kind: EntityKind;
+  label: string;
   read: (target: TTarget, id: string, signal?: AbortSignal) => Promise<EditTargetSnapshot<TValue, TTarget, TMeta> | null>;
   map: (value: TValue, previousId: string, nextId: string) => TValue;
 }
@@ -34,10 +35,13 @@ export function useJsonDocumentIdentity<TValue, TTarget extends { sessionId: str
     asking = true;
     try {
       if (session.dirty.value) {
+        const previousPaths = session.baselineSnapshot.value!.baseVersions.map((version) => version.path).join('\n');
+        const nextPaths = handoff.snapshot.baseVersions.map((version) => version.path).join('\n');
         const choice = await feedback.choose({
-          title: '跟随实体重命名？',
-          content: '保留当前草稿、活动输入和历史，并接纳新的正式身份。',
+          title: '跟随文档改名？',
+          content: `这个${identity!.label}已在其他编辑入口保存为 ${handoff.nextId}，原 ID 是 ${handoff.previousId}。\n\n${previousPaths === nextPaths ? nextPaths : '原文件：\n' + previousPaths + '\n\n新文件：\n' + nextPaths}\n\n跟随后保留当前草稿、输入和草稿历史。`,
           choices: [{ label: '保留编辑并跟随', value: 'follow', type: 'primary' }],
+          cancelText: '稍后处理',
         });
         if (disposed || pending.value !== handoff || !active.value) return;
         if (choice !== 'follow')

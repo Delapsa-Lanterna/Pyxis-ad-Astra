@@ -4,7 +4,7 @@ import { reserveNativeWindowTargets, retargetNativeWindow } from '@/services/win
 import { focusEntityIdentityConflict } from '@/orchestrators/window-target-focus.orchestrator';
 import { chooseEntityFilename } from '@/orchestrators/entity-write.orchestrator';
 import { specEditorWindowTitle } from '@/domain/spec-editor/spec-editor-definitions';
-import type { AppFeedback, EntityEditTarget, SpecEditorKind, RowData, WindowIdentity } from '@/shared/types';
+import type { AppFeedback, EntityEditTarget, SpecEditorKind, RowData, WindowIdentity, JsonComposition } from '@/shared/types';
 
 export async function retargetEntityWindow(sessionId: string, modRoot: string, kind: SpecEditorKind, id: string) {
   const identity: WindowIdentity = { type: 'spec', sessionId, modRoot, kind, id };
@@ -21,12 +21,19 @@ export async function reserveEntityIntent(
   source: EntityEditTarget,
   draft: RowData,
   feedback: AppFeedback | undefined,
+  original?: RowData,
+  composition?: JsonComposition,
 ) {
   const intent = await querySpecEditorIdentityIntent(sessionId, source, draft).catch(async (error) => {
     await focusEntityIdentityConflict(sessionId, modRoot, error);
     throw error;
   });
-  const keepFilename = await chooseEntityFilename(feedback, source, intent);
+  const keepFilename = await chooseEntityFilename(
+    feedback,
+    source,
+    intent,
+    original ? { before: original, after: draft, composition } : undefined,
+  );
   if (keepFilename === null) return null;
   if (keepFilename) return { keepFilename, intent: null };
   const kind = source.kind as SpecEditorKind;

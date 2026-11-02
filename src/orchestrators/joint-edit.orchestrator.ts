@@ -1,3 +1,6 @@
+import { ref } from 'vue';
+import { changeWeaponSpecClass } from '@/domain/entity-write/spec-construction';
+import { dialogBody, dialogFiles, dialogSelect } from '@/shared/ui/dialog-content';
 import type {
   JointEditRoot,
   JointEditSnapshot,
@@ -8,11 +11,12 @@ import type {
   EditWriteTarget,
   JointEditPrepared,
   RowData,
+  WeaponSpecClass,
 } from '@/shared/types';
 import { queryJointEdit, queryJointEditRow, prepareJointEdit, saveJointEdit } from '@/services/joint-edit.service';
-import { confirmEntityIdChanges } from '@/orchestrators/entity-write.orchestrator';
+import { confirmEntityIdChanges, entityChangeContent, entityIdPresenceChanged } from '@/orchestrators/entity-write.orchestrator';
 import { runConfirmedJsonWrite } from '@/orchestrators/json-write-confirmation.orchestrator';
-import { applyJointConflictChoices, takeJointReplaceBase } from '@/domain/joint-edit';
+import { jointObject, applyJointConflictChoices, takeJointReplaceBase } from '@/domain/joint-edit';
 import { cloneQuerySnapshot } from '@/shared/lib/query-snapshot';
 import { infoLog } from '@/shared/runtime/app-log-queue';
 import { logIdentity } from '@/shared/lib/log-fields';
@@ -86,29 +90,26 @@ export async function submitJointEdit(
     }));
   if (choices === null) return null;
   const values = applyJointConflictChoices(prepared, choices);
-  if (
-    !(await confirmEntityIdChanges(
-      feedback,
-      prepared.snapshot.records.flatMap((record) => {
-        const next = values[record.key];
-        return record.target.kind === 'spec' && record.value.state === 'present' && next?.state === 'present'
-          ? [
-              {
-                target: record.target.target,
-                before: record.value.value as RowData,
-                after: next.value as RowData,
-                composition: record.composition,
-              },
-            ]
-          : [];
-      }),
-    ))
-  )
-    return null;
+  const identityChanges = prepared.snapshot.records
+    .flatMap((record) => {
+      const next = values[record.key];
+      return record.target.kind === 'spec' && record.value.state === 'present' && next?.state === 'present'
+        ? [
+            {
+              target: record.target.target,
+              before: record.value.value as RowData,
+              after: next.value as RowData,
+              composition: record.composition,
+            },
+          ]
+        : [];
+    })
+    .filter(entityIdPresenceChanged);
   const overrides = prepared.snapshot.records.filter(
     (record) =>
       Object.hasOwn(values, record.key) &&
-      record.source?.source === 'core' &&
+      record.source &&
+      record.source.source !== 'mod' &&
       (createOverrides.includes(record.key) || JSON.stringify(values[record.key]) !== JSON.stringify(record.value)),
   );
   const shared = prepared.snapshot.records.filter(
@@ -117,22 +118,60 @@ export async function submitJointEdit(
       record.referencedBy.length > 1 &&
       JSON.stringify(values[record.key]) !== JSON.stringify(record.value),
   );
-  if (overrides.length + shared.length > 0) {
-    const confirmed = await feedback.choose({
-      title: '确认共享目标与 Mod 覆盖',
-      content: [...new Set([...overrides, ...shared])]
-        .map(
-          (record) =>
-            `${record.target.kind === 'spec' ? record.target.target.write.path : record.target.write.path}\n来源：${record.source?.path ?? '新建记录'}\n关联：${record.referencedBy.join('、')}`,
-        )
-        .join('\n'),
-      choices: [{ label: '保存到上述目标', value: 'save', type: 'warning' }],
-    });
+  const branches = overrides
+    .filter(
+      (record) =>
+        record.target.kind === 'spec' && record.target.target.kind === 'weapon' && jointObject(values[record.key]).specClass === 'pulse',
+    )
+    .map((record) => ({ record, selected: ref<WeaponSpecClass>('projectile') }));
+  const affected = prepared.snapshot.records.filter(
+    (record) =>
+      overrides.includes(record) ||
+      shared.includes(record) ||
+      identityChanges.some((change) => record.target.kind === 'spec' && change.target.write.path === record.target.target.write.path),
+  );
+  const confirmed = await confirmEntityIdChanges(
+    feedback,
+    [],
+    affected.map((record) => () => {
+      const path = record.target.kind === 'spec' ? record.target.target.write.path : record.target.write.path;
+      const change = identityChanges.find((change) => change.target.write.path === path),
+        branch = branches.find((branch) => branch.record === record);
+      return dialogBody(
+        ...(change ? [entityChangeContent(change)] : []),
+        ...(overrides.includes(record)
+          ? [
+              '将原文件的修改保存到当前 Mod：',
+              '原文件：',
+              dialogFiles([record.source!.path]),
+              ...(change ? [] : ['保存位置：', dialogFiles([path])]),
+            ]
+          : change
+            ? []
+            : [dialogFiles([path])]),
+        ...(record.referencedBy.length > 1
+          ? ['保存后会影响以下 ' + record.referencedBy.length + ' 个对象：', dialogFiles(record.referencedBy)]
+          : []),
+        ...(branch
+          ? [
+              `武器 ${record.target.kind === 'spec' ? record.target.target.id : record.key} 当前使用 pulse 分支，请选择本地覆盖采用的分支。`,
+              dialogSelect('武器分支', branch.selected, [
+                { label: '弹体武器', value: 'projectile' },
+                { label: '光束武器', value: 'beam' },
+              ]),
+              '按' + (branch.selected.value === 'beam' ? '光束' : '弹体') + '武器分支调整当前内容，并保存到上述本地文件。',
+            ]
+          : []),
+      );
+    }),
+    branches.length ? '创建本地覆盖' : '保存',
+  );
+  if (affected.length) {
     infoLog('joint.targets_decided', () => ({
       ...context,
-      status: confirmed === 'save' ? 'confirmed' : 'cancelled',
+      status: confirmed ? 'confirmed' : 'cancelled',
       targets: JSON.stringify(
-        [...new Set([...overrides, ...shared])].map((record) => ({
+        affected.map((record) => ({
           recordKey: record.key,
           ...logIdentity(record.target),
           referencedBy: record.referencedBy,
@@ -140,8 +179,11 @@ export async function submitJointEdit(
         })),
       ),
     }));
-    if (confirmed !== 'save') return null;
   }
+  if (!confirmed) return null;
+  for (const { record, selected } of branches)
+    values[record.key] = { state: 'present', value: changeWeaponSpecClass(jointObject(values[record.key]), selected.value) };
+
   infoLog('joint.targets_submitted', () => ({
     ...context,
     targets: JSON.stringify(

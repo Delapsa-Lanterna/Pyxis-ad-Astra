@@ -131,6 +131,7 @@ export function createFieldInputs(targetKey: Readonly<Ref<string | null>> = ref(
   }
   return {
     targetKey,
+    pending: computed(() => [...fields].filter((field) => field.dirty.value).map((field) => ({ label: field.label, path: field.path }))),
     dirty,
     errors,
     documentProblems,

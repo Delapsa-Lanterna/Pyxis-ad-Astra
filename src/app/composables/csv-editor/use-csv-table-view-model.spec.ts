@@ -1,3 +1,4 @@
+import type { AppFeedback } from '@/shared/types';
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -10,11 +11,13 @@ import { createSettingsFixture } from '@/test/fixtures/settings';
 import { sessionUpdateFixture, savedWriteFixture } from '@/test/fixtures/write-result';
 import { dispatchProjectChangeFixture, committedChangeFixture } from '@/test/unit/project-changes';
 import { csvDraftRow, csvTableIndex } from '@/test/fixtures/csv-row';
+import { deepClone } from '@/shared/lib/starsector';
 import type { CsvDraftRow, CsvTableIndex, CsvTableRowsRead } from '@/shared/types';
 const mocks = vi.hoisted(() => ({
   index: vi.fn(),
   rows: vi.fn(),
   error: vi.fn(),
+  choose: vi.fn<AppFeedback['choose']>(),
   sources: vi.fn(),
   preview: vi.fn(async () => 'preview'),
   affected: vi.fn(() => false),
@@ -27,7 +30,7 @@ vi.mock('@/services/csv-table.service', () => ({
 }));
 vi.mock('@/orchestrators/project-sync.orchestrator', () => import('@/test/unit/project-changes'));
 vi.mock('@/services/source-options.service', () => ({ querySourceOptionCatalog: mocks.sources, hasSourceInvalidation: () => false }));
-vi.mock('@/app/composables/use-app-feedback', () => ({ useAppFeedback: () => ({ error: mocks.error }) }));
+vi.mock('@/app/composables/use-app-feedback', () => ({ useAppFeedback: () => ({ error: mocks.error, choose: mocks.choose }) }));
 const target = { sessionId: 'session', modRoot: 'M:/mod', table: 'ships' as const };
 let wrapper: VueWrapper, rows: CsvDraftRow[];
 const versions = [{ path: 'ships.csv', fingerprint: 'base' }];
@@ -38,7 +41,7 @@ function harness() {
   let vm!: ReturnType<typeof useCsvTableViewModel>;
   wrapper = mount({
     setup() {
-      vm = useCsvTableViewModel(async () => true);
+      vm = useCsvTableViewModel();
       return () => null;
     },
   });
@@ -70,6 +73,80 @@ beforeEach(() => {
 });
 afterEach(() => wrapper?.unmount());
 describe('CSV index and keyed content owner', () => {
+  it('searches sparse drafts including added, removed and moved rows without saving', async () => {
+    const vm = harness();
+    await flushPromises();
+    const tables = useCsvEditorStore(),
+      document = tables.getCsvModState(target.modRoot)!.documents.ships;
+    tables.updateCellValue({ ...target, rowKey: 'key-0', column: 'id' }, 'local');
+    tables.updateCellValue({ ...target, rowKey: 'key-1', column: 'id' }, 'local');
+    tables.deleteRows(target, ['key-2']);
+    const created = tables.addNewRow()!.rowKey;
+    tables.updateCellValue({ ...target, rowKey: created, column: 'id' }, 'local');
+    tables.moveRows(target, [created], 0);
+    const order = [...document.rowOrder],
+      dirty = deepClone(document.dirty);
+    mocks.index.mockClear();
+    mocks.rows.mockClear();
+    await vm.setSearchText('local');
+    await flushPromises();
+    expect(vm.gridModel.value.rowKeys).toEqual([created, 'key-0', 'key-1']);
+    expect(document.rowOrder).toEqual(order);
+    expect(document.dirty).toEqual(dirty);
+    expect(mocks.choose).not.toHaveBeenCalled();
+    expect(mocks.index).toHaveBeenCalledExactlyOnceWith('session', 'ships', 0, 'local', 'id-name', expect.any(AbortSignal));
+    expect(mocks.rows).not.toHaveBeenCalled();
+    await vm.setSearchText('id-');
+    await flushPromises();
+    expect(vm.gridModel.value.rowKeys).not.toContain('key-0');
+    expect(vm.gridModel.value.rowKeys).not.toContain('key-2');
+    await vm.setSearchText('');
+    await flushPromises();
+    expect(vm.gridModel.value.rowKeys).toEqual(order);
+    expect(document.dirty).toEqual(dirty);
+  });
+  it('keeps the selected rows after edits, save acceptance and returning to the page', async () => {
+    let vm = harness();
+    await flushPromises();
+    await vm.setSearchText('id-0');
+    await flushPromises();
+    const tables = useCsvEditorStore();
+    mocks.index.mockClear();
+    tables.updateCellValue({ ...target, rowKey: 'key-0', column: 'id' }, 'edited');
+    tables.updateCellValue({ ...target, rowKey: 'key-1', column: 'id' }, 'id-0');
+    await flushPromises();
+    expect(vm.gridModel.value.rowKeys).toEqual(['key-0']);
+    expect(mocks.index).not.toHaveBeenCalled();
+    rows[0]!.data.id = 'edited';
+    mocks.affected.mockReturnValueOnce(true);
+    await dispatchProjectChangeFixture(committedChangeFixture(savedWriteFixture(), target.sessionId, target.modRoot));
+    expect(vm.gridModel.value.rowKeys).toEqual(['key-0']);
+    wrapper.unmount();
+    vm = harness();
+    await flushPromises();
+    expect(vm.gridModel.value.rowKeys).toEqual(['key-0']);
+    await vm.setSearchText('id-0');
+    await flushPromises();
+    expect(vm.gridModel.value.rowKeys).toEqual(['key-1']);
+  });
+  it('binds search membership to the draft captured before its query completes', async () => {
+    const vm = harness();
+    await flushPromises();
+    let finish!: (value: CsvTableIndex) => void;
+    mocks.index.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+    await vm.setSearchText('id-0');
+    await flushPromises();
+    useCsvEditorStore().updateCellValue({ ...target, rowKey: 'key-0', column: 'id' }, 'later');
+    finish(csvTableIndex([], { rowKeys: ['key-0'], header: ['id', 'name'], baseVersions: versions }));
+    await flushPromises();
+    expect(vm.gridModel.value.rowKeys).toEqual(['key-0']);
+    expect(vm.gridModel.value.rowsByKey['key-0']!.data.id).toBe('later');
+  });
   it('accepts its saved index once and completes saving without a second viewport read', async () => {
     const vm = harness();
     await flushPromises();

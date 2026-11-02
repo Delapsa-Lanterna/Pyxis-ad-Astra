@@ -130,3 +130,39 @@
   align-items: center;
   gap: 8px;
 }
+
+.app-dialog.n-dialog {
+  display: flex;
+  flex-direction: column;
+  width: min(600px, calc(100vw - 32px));
+  max-height: calc(100dvh - 32px);
+}
+.app-dialog .n-dialog__content {
+  min-height: 0;
+  overflow: auto;
+}
+.dialog-body,
+.dialog-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.dialog-body p,
+.dialog-files {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.dialog-files {
+  padding-left: 20px;
+}
+.dialog-files code {
+  font-family: var(--font-mono);
+}
+.dialog-group + .dialog-group {
+  margin-top: 4px;
+}
+.dialog-text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

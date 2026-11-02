@@ -1,3 +1,7 @@
+import { h } from 'vue';
+import { mount } from '@vue/test-utils';
+import { editorUiStubs, nSelect } from '@/test/unit/ui-stubs';
+import { weaponJointFixture } from '@/test/fixtures/joint-edit/weapon-joint-edit';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { shipJointFixture } from '@/test/fixtures/joint-edit/ship-joint-edit';
 import { jointFixtureValues } from '@/test/fixtures/joint-edit/joint-record';
@@ -124,5 +128,35 @@ describe('joint local identity presence', () => {
       expect(await submitJointEdit({ baseline: snapshot, values }, feedback, async () => [])).toBeNull();
       expect(mocks.save).toHaveBeenCalledTimes(count);
     }
+  });
+});
+describe('merged weapon override review', () => {
+  it.each([null, 'projectile', 'beam'] as const)('settles the branch and all shared effects once: %s', async (branch) => {
+    const snapshot = weaponJointFixture(),
+      record = snapshot.records[0]!;
+    record.source = { ...record.source!, source: 'core' };
+    record.value = { state: 'present', value: { id: snapshot.root.id, specClass: 'pulse', custom: 'retained' } };
+    record.referencedBy = ['assembly-a', 'assembly-b'];
+    const values = { spec: record.value };
+    mocks.prepare.mockResolvedValue({ snapshot, values, conflicts: [] });
+    mocks.save.mockResolvedValue({ ...savedWriteFixture(), content: { target: { kind: 'joint', root: snapshot.root }, value: snapshot } });
+    vi.mocked(feedback.choose).mockImplementationOnce(async (options) => {
+      const body = mount(
+        { render: () => h('div', [typeof options.content === 'function' ? options.content() : options.content]) },
+        { global: { stubs: { ...editorUiStubs, Select: nSelect } } },
+      );
+      expect(body.text()).toContain(record.source!.path);
+      expect(body.text()).toContain('assembly-a');
+      expect(body.text()).toContain('assembly-b');
+      expect(options.choices[0]!.label).toBe('创建本地覆盖');
+      if (branch) await body.get('select').setValue(JSON.stringify(branch));
+      body.unmount();
+      return branch ? 'save' : null;
+    });
+    await submitJointEdit({ baseline: snapshot, values }, feedback, async () => [], ['spec']);
+    expect(feedback.choose).toHaveBeenCalledOnce();
+    if (branch) expect(mocks.save.mock.lastCall![0].values.spec).toMatchObject({ value: { specClass: branch, custom: 'retained' } });
+    else expect(mocks.save).not.toHaveBeenCalled();
+    expect(record.value).toMatchObject({ value: { specClass: 'pulse' } });
   });
 });

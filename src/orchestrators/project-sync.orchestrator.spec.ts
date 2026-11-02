@@ -1,3 +1,4 @@
+import { dialogText } from '@/test/unit/dialog-text';
 import { createPinia, setActivePinia } from 'pinia';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { flushPromises } from '@vue/test-utils';
@@ -167,14 +168,14 @@ describe('ordered save consumption', () => {
       await expect(result).rejects.toBe(error);
       expect(mocks.abandon).not.toHaveBeenCalled();
     }
-    expect(choose.mock.calls[0]![0].content).toContain('restore unavailable');
+    expect(dialogText(choose.mock.calls[0]![0])).toContain('restore unavailable');
   });
   it.each(['recreate', null])('asks about exact missing sources and returns the user choice %s', async (choice) => {
     const choose = vi.fn().mockResolvedValue(choice);
     await startProjectSync({ choose } as unknown as AppFeedback);
     mocks.receive!({ kind: 'missing', requestId: 'missing', paths: ['C:/mods/queue/notes.txt'] });
     await flushPromises();
-    expect(choose.mock.calls[0]![0].content).toContain('C:/mods/queue/notes.txt');
+    expect(dialogText(choose.mock.calls[0]![0])).toContain('C:/mods/queue/notes.txt');
     expect(mocks.resolve).toHaveBeenCalledExactlyOnceWith('missing', ['C:/mods/queue/notes.txt'], choice === 'recreate');
   });
 

@@ -1,3 +1,5 @@
+import { ref } from 'vue';
+import { dialogBody, dialogFiles, dialogSelect } from '@/shared/ui/dialog-content';
 import { useSaveCommandStore } from '@/stores/save-command.store';
 import type { DialogApiInjection } from 'naive-ui/es/dialog/src/DialogProvider';
 import type { MessageApiInjection } from 'naive-ui/es/message/src/MessageProvider';
@@ -78,23 +80,32 @@ async function transcodeReference(
   session: Omit<FeedbackFileTarget, 'path'>,
   accepting: () => boolean,
 ): Promise<void> {
-  const encoding = await feedback.choose({
-    title: '转码为 UTF-8',
-    content: '该文件不是有效的 UTF-8。选择其当前编码，解码结果将以 UTF-8 写回且不可逆。',
-    choices: [
-      { label: 'GBK / GB18030 (简体中文)', value: 'gb18030', type: 'primary' },
-      { label: 'Windows-1252 (西文)', value: 'windows-1252' },
-    ],
+  const encoding = ref('gb18030');
+  const choice = await feedback.choose({
+    title: '选择文件的原编码',
+    content: () =>
+      dialogBody(
+        '这个文件无法按 UTF-8 读取：',
+        dialogFiles([reference.path]),
+        dialogSelect('文件原编码', encoding, [
+          { label: 'GBK / GB18030', value: 'gb18030' },
+          { label: 'Windows-1252', value: 'windows-1252' },
+        ]),
+        `按 ${encoding.value === 'gb18030' ? 'GBK / GB18030' : 'Windows-1252'} 读取这个文件，并写回 UTF-8。`,
+        '转换记录进入文件历史，可通过对应文件操作撤销。',
+      ),
+    choices: [{ label: '转换并写回', value: 'convert', type: 'warning' }],
+    cancelText: '返回',
   });
-  if (encoding === null || !accepting()) return;
+  if (choice === null || !accepting()) return;
   try {
-    await transcodeFileToUtf8(session.sessionId, session.modRoot, reference.path, encoding);
+    await transcodeFileToUtf8(session.sessionId, session.modRoot, reference.path, encoding.value);
   } catch (error) {
     if (errorCodeOf(error) === 'text.transcode_not_needed') {
-      feedback.info('文件已是 UTF-8，可直接打开');
+      feedback.info('文件已经是 UTF-8，可以直接打开。');
       return;
     }
-    feedback.error(error, '转码为 UTF-8 失败');
+    feedback.error(error, '转换文件编码失败');
     return;
   }
   feedback.success('已转码为 UTF-8：' + reference.path);

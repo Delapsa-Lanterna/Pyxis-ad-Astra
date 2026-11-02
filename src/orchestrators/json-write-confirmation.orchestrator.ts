@@ -1,6 +1,6 @@
+import { dialogBody, dialogFiles } from '@/shared/ui/dialog-content';
 import type { AppFeedback, JsonSourceConfirmation, JsonWriteOptions } from '@/shared/types';
 import { infoLog } from '@/shared/runtime/app-log-queue';
-import { h } from 'vue';
 import { commandErrorCode, errorContextOf } from '@/shared/lib/errors';
 import { useSettingsStore } from '@/stores/settings.store';
 
@@ -43,16 +43,14 @@ export async function runConfirmedJsonWrite<T>(
       const files = rewriteFiles(error);
       if (!files?.length) throw error;
       const choice = await feedback.choose({
-        title: '确认重排 JSON 文件',
+        title: '重排这些 JSON 文件并保存？',
+        cancelText: '返回编辑',
         content: () =>
-          h('div', [
-            h('p', '以下文件需要整体重排；原有排版将改变，已有注释会被移除：'),
-            h(
-              'ul',
-              files.map((file) => h('li', { key: file.path }, `${file.path}：${file.reason}`)),
-            ),
-          ]),
-        choices: [{ label: '确认重排并保存', value: 'rewrite', type: 'warning' }],
+          dialogBody(
+            (files.length === 1 ? '这个文件' : '以下 ' + files.length + ' 个文件') + '需要整体重排。保存后采用标准排版，并移除已有注释。',
+            ...files.map((file) => dialogBody(dialogFiles([file.path]), '原因：' + file.reason)),
+          ),
+        choices: [{ label: '重排并保存', value: 'rewrite', type: 'warning' }],
       });
       for (const file of files)
         infoLog('save.json_rewrite_decided', () => ({

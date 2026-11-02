@@ -190,6 +190,8 @@
   </ImmersiveGameFrame>
 </template>
 <script setup lang="ts">
+import { dialogBody, dialogGroup, dialogSelect, dialogDisclosure } from '@/shared/ui/dialog-content';
+
 import { computed, ref, onMounted, onScopeDispose, watch } from 'vue';
 import type { RowData, JsonValue } from '@/shared/types';
 import type { VariantProjection, VariantWeapon } from '@/domain/immersive/variant/variant-panel';
@@ -319,23 +321,52 @@ function cancel() {
   groups.value = deepClone(baseline);
   emit('close');
 }
+function groupText(group: RowData) {
+  const weapons =
+    Object.entries(groupWeapons(group))
+      .map(([slot, id]) => String(id) + ' (' + slot + ')')
+      .join('、') || '空组';
+  return `武器 ${weapons}；${group.mode === 'ALTERNATING' ? '交替' : '齐射'}；自动开火${group.autofire ? '开启' : '关闭'}。`;
+}
 async function confirm() {
   try {
     const current = sevenWeaponGroups(jointEffectiveObject(props.vm.snapshot.value!, props.vm.joint.draftValue.value, props.recordKey));
     if (!stableDeepEqual(current, baseline)) {
+      const handling = ref('local');
       const choice = await feedback.choose({
-        title: '武器组来源已变化',
-        content: '核对当前草稿分组与本次临时调整后选择接纳内容。',
-        choices: [
-          { label: '使用本次调整', value: 'local', type: 'primary' },
-          { label: '使用当前草稿', value: 'current' },
-        ],
+        title: '选择要采用的武器组调整',
+        content: () =>
+          dialogBody(
+            '编辑期间，当前装配的武器组又发生了修改。',
+            '装配：' + props.variant.id + '。',
+            dialogSelect('采用哪份分组', handling, [
+              { label: '本次调整', value: 'local' },
+              { label: '当前草稿', value: 'current' },
+            ]),
+            handling.value === 'local' ? '将下面的分组应用到装配草稿。' : '结束本次临时调整，继续使用下面的当前草稿分组。',
+            ...(handling.value === 'local' ? groups.value : current).map((group, index) =>
+              dialogGroup('第 ' + (index + 1) + ' 组', groupText(group)),
+            ),
+            dialogDisclosure(
+              '查看打开时及另一份分组',
+              ...baseline.map((group, index) =>
+                dialogGroup(
+                  '第 ' + (index + 1) + ' 组',
+                  '打开时：' + groupText(group),
+                  (handling.value === 'local' ? '当前草稿：' : '本次调整：') +
+                    groupText((handling.value === 'local' ? current : groups.value)[index]!),
+                ),
+              ),
+            ),
+          ),
+        choices: [{ label: '应用选择', value: 'apply', type: 'primary' }],
+        cancelText: '返回分组编辑',
       });
-      if (choice === 'current') {
+      if (choice === null) return;
+      if (handling.value === 'current') {
         cancel();
         return;
       }
-      if (choice !== 'local') return;
       baseline = deepClone(current);
     }
     await inputs.commit(prefix);

@@ -16,6 +16,7 @@ afterEach(() => {
 function harness(actions: FeedbackFileActions = () => [], durations = createSettingsFixture().toastDurations) {
   const messages = { error: vi.fn(), warning: vi.fn(), success: vi.fn(), info: vi.fn() };
   const dialogs = { warning: vi.fn(), error: vi.fn(), create: vi.fn() };
+  dialogs.create.mockImplementation(() => ({ destroy: vi.fn() }));
   for (const create of Object.values(messages)) create.mockImplementation(() => ({ destroy: vi.fn() }));
   return {
     messages,
@@ -29,12 +30,32 @@ function harness(actions: FeedbackFileActions = () => [], durations = createSett
   };
 }
 describe('window feedback presentation', () => {
-  it.each([undefined, 'warning'] as const)('applies the requested choice dialog theme %s', (type) => {
+  it.each([undefined, 'info', 'success', 'warning', 'error'] as const)('applies the requested choice dialog theme %s', (type) => {
     const { feedback, dialogs } = harness();
     void feedback.choose({ title: '保存', type, choices: [] });
     const options = dialogs.create.mock.lastCall![0];
     expect(options.type).toBe(type ?? 'info');
-    expect(options.showIcon).toBe(type === 'warning');
+    expect(options.showIcon).toBe(true);
+    options.onClose();
+  });
+  it.each([
+    [['primary'], 'info'],
+    [['warning'], 'warning'],
+    [['warning', 'error'], 'error'],
+  ] as const)('uses action severity when the dialog omits its level: %s', (types, expected) => {
+    const { feedback, dialogs } = harness();
+    void feedback.choose({ title: '确认', choices: types.map((type) => ({ label: type, value: type, type })) });
+    const options = dialogs.create.mock.lastCall![0];
+    expect(options.type).toBe(expected);
+    expect(options.showIcon).toBe(true);
+    options.onClose();
+  });
+  it('preserves the explicit dialog level when an action uses another color', () => {
+    const { feedback, dialogs } = harness();
+    void feedback.choose({ title: '结果', type: 'info', choices: [{ label: '继续', value: 'continue', type: 'warning' }] });
+    const options = dialogs.create.mock.lastCall![0];
+    expect(options.type).toBe('info');
+    expect(options.showIcon).toBe(true);
     options.onClose();
   });
   it.each(['success', 'info', 'warning', 'error'] as const)('captures %s duration and expires the corresponding message', async (level) => {
@@ -152,9 +173,37 @@ describe('window feedback presentation', () => {
       onCancel = vi.fn();
     feedback[kind]({ title: '交接', actionText: '继续', onConfirm, onCancel });
     const options = (kind === 'confirmWarning' ? dialogs.warning : dialogs.error).mock.lastCall![0];
+    expect(options.showIcon).toBe(true);
     options.onPositiveClick();
     expect(onConfirm).toHaveBeenCalledOnce();
     for (const event of ['onNegativeClick', 'onClose', 'onMaskClick']) options[event]();
     expect(onCancel).toHaveBeenCalledTimes(3);
+  });
+});
+describe('text confirmation actions', () => {
+  it.each(['onClose', 'onEsc', 'onMaskClick'] as const)('cancels a choice through %s', async (route) => {
+    const { feedback, dialogs } = harness();
+    const pending = feedback.choose({
+      title: '保存？',
+      content: '第一段\n\nM:/example/source.json',
+      choices: [{ label: '保存', value: 'save' }],
+      cancelText: '返回编辑',
+    });
+    const options = dialogs.create.mock.lastCall![0];
+    wrapper = mount({ render: options.content });
+    expect(wrapper.get('.dialog-text').text()).toContain('第一段\n\nM:/example/source.json');
+    wrapper.unmount();
+    wrapper = mount({ render: options.action });
+    expect(wrapper.findAll('button').map((button) => button.text())).toEqual(['保存', '返回编辑']);
+    options[route]();
+    expect(await pending).toBeNull();
+  });
+  it('shows one close action on a result', async () => {
+    const { feedback, dialogs } = harness();
+    const pending = feedback.choose({ title: '保存结果', choices: [], cancelText: '关闭' });
+    wrapper = mount({ render: dialogs.create.mock.lastCall![0].action });
+    expect(wrapper.findAll('button').map((button) => button.text())).toEqual(['关闭']);
+    await wrapper.get('button').trigger('click');
+    expect(await pending).toBeNull();
   });
 });

@@ -128,10 +128,10 @@ export function useSettingsViewModel(onReset?: () => void) {
 
   function confirmResetSettings() {
     feedback.confirmDanger({
-      title: '重置为默认配置？',
+      title: '恢复默认配置？',
       content:
-        '游戏目录、外观、字体、编辑偏好、缓存限制、日志及性能调试设置将恢复默认值。工作区记录、Mod 内容和已有日志继续保留。性能监视开关在重启后生效。',
-      actionText: '重置',
+        '游戏目录、外观、字体、编辑偏好、缓存、日志及性能调试设置将恢复默认值。\n\n工作区记录、Mod 内容和已有日志继续保留。\n\n性能监视开关在重启后生效。',
+      actionText: '恢复默认配置',
       onConfirm: async () => {
         try {
           if (!(await resetSettings(changeSource))) return;
@@ -142,14 +142,15 @@ export function useSettingsViewModel(onReset?: () => void) {
           feedback.error(error, '重置配置失败');
         }
       },
+      cancelText: '取消',
     });
   }
 
   function confirmClearLog() {
     feedback.confirmDanger({
-      title: '清除 log 文件',
-      content: '将清空当前 log 文件内容。确认清除？',
-      actionText: '清除',
+      title: '清空日志？',
+      content: '清空这个日志文件中的全部记录。后续日志仍会继续写入。\n\n' + logPath.value,
+      actionText: '清空日志',
       onConfirm: async () => {
         try {
           reads.revoke('consumer', 'log-status');
@@ -165,6 +166,7 @@ export function useSettingsViewModel(onReset?: () => void) {
           feedback.error(error, '清除 log 文件失败');
         }
       },
+      cancelText: '取消',
     });
   }
 

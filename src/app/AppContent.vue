@@ -103,7 +103,7 @@ const closeParticipant = useWindowCloseParticipant({
           (manifest) => scope.sessionIds.includes(manifest.sessionId) && draftSessions.hasUnsavedWorkForMod(manifest.modRoot),
         )
       : hasUnsavedMainWindowChanges.value,
-  content: '主窗口中仍有未保存修改，关闭后这些修改将丢失。',
+  content: '以下文档有未保存修改，关闭后将丢弃这些修改：',
   dirty: hasUnsavedMainWindowChanges,
   title: '放弃未保存修改并关闭？',
 });

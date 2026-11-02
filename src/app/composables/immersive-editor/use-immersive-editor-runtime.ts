@@ -1,3 +1,4 @@
+import { dialogBody, dialogFiles } from '@/shared/ui/dialog-content';
 import { useProjectSyncStore } from '@/stores/project-sync.store';
 import { isExternalSource } from '@/shared/lib/resource-ref';
 import { hasSourceInvalidation } from '@/services/source-options.service';
@@ -18,10 +19,10 @@ import { useResourceMediaRegistry } from '../use-resource-media-registry';
 import { useSettingsStore } from '@/stores/settings.store';
 import type { ImmersiveEditorDefinition, ImmersivePanelState } from '@/domain/immersive/fields';
 
-import { updateImmersiveField, type ImmersiveField, type ImmersiveFieldChange } from '@/domain/immersive/fields';
+import { immersiveFieldValue, updateImmersiveField, type ImmersiveField, type ImmersiveFieldChange } from '@/domain/immersive/fields';
 import type { SchemaFieldUpdate } from '@/domain/schema/schema.types';
 import type { SchemaRuntimeContext } from '@/domain/schema/schema-runtime';
-import { mapJointDraftIdentity, rebaseJointDraft } from '@/domain/joint-edit';
+import { jointWriteTargets, mapJointDraftIdentity, rebaseJointDraft } from '@/domain/joint-edit';
 import { queryJointEdit, queryJointEditRow, queryJointEditProjection } from '@/services/joint-edit.service';
 import { querySourceOptionCatalog } from '@/services/source-options.service';
 
@@ -295,9 +296,24 @@ export function useImmersiveEditorRuntime<TPanel extends ImmersivePanelState>(
       if (!active || joint.currentTargetKey.value !== key) return undefined;
       if (!submitting && joint.dirty.value) {
         const choice = await feedback.choose({
-          title: '保存后切换关联来源？',
-          content: `保存当前${definition.label}及关联来源的编辑，再接入所选来源。`,
+          title: '保存并切换引用？',
+          content: () =>
+            dialogBody(
+              '将更新以下引用：',
+              ...changes.map(
+                ({ field, update }) =>
+                  field.schema.label +
+                  '：' +
+                  String(immersiveFieldValue(joint.draftValue.value, field) ?? '空引用') +
+                  (update.kind === 'set' ? ' 改为 ' + String(update.value) : '，移除当前引用') +
+                  '。',
+              ),
+              '当前修改会先保存到：',
+              dialogFiles(jointWriteTargets(snapshot.value!, definition.editableRecords(snapshot.value!)).map((target) => target.path)),
+              '然后保存新的引用，并载入对应内容。',
+            ),
           choices: [{ label: '保存并切换', value: 'save', type: 'primary' }],
+          cancelText: '返回编辑',
         });
         if (choice !== 'save' || !active || joint.currentTargetKey.value !== key) return undefined;
         if (!(await joint.saveDraft()) || joint.dirty.value || !active || joint.currentTargetKey.value !== key) return undefined;
@@ -399,7 +415,7 @@ export function useImmersiveEditorRuntime<TPanel extends ImmersivePanelState>(
         !joint.acceptsSaveDelivery(target, event.result.requestId)
       )
         return;
-      const change = event.result.identityChanges.find(
+      const changes = event.result.identityChanges.filter(
         (change) =>
           change.before.kind === root.kind &&
           change.before.id !== change.after.id &&
@@ -413,13 +429,21 @@ export function useImmersiveEditorRuntime<TPanel extends ImmersivePanelState>(
                   definition.editableRecords(snapshot.value!).includes(record.key),
               ))),
       );
+      const change = changes[0];
       if (!change) return;
       if (!joint.acceptsSaveDelivery(target, event.result.requestId)) return;
       if (joint.dirty.value) {
         const choice = await feedback.choose({
-          title: `跟随${definition.label}重命名？`,
-          content: '保留当前草稿、活动输入和历史，并接纳新的正式身份。',
+          title: '跟随' + (change.before.id === target.id ? definition.label : '模块装配') + '改名？',
+          content:
+            changes
+              .map(
+                (change) =>
+                  `${change.before.id === target.id ? '当前' + definition.label : '当前编辑使用的模块装配'}已由 ${change.before.id} 改为 ${change.after.id}。\n\n原文件：\n${change.before.write.path}\n\n新文件：\n${change.after.write.path}`,
+              )
+              .join('\n\n') + '\n\n跟随后保留当前草稿、输入和草稿历史。',
           choices: [{ label: '保留编辑并跟随', value: 'follow', type: 'primary' }],
+          cancelText: '稍后处理',
         });
         if (!joint.acceptsSaveDelivery(target, event.result.requestId)) return;
         if (choice !== 'follow')
@@ -505,8 +529,12 @@ export function useImmersiveEditorRuntime<TPanel extends ImmersivePanelState>(
     const key = joint.currentTargetKey.value;
     feedback.confirmWarning({
       title: '载入外部版本？',
-      content: '载入外部版本并重新建立当前编辑基线。',
-      actionText: '载入',
+      content:
+        '放弃当前编辑中的未保存修改，并载入以下来源的外部版本：\n\n' +
+        jointWriteTargets(snapshot.value!, definition.editableRecords(snapshot.value!))
+          .map((target) => target.path)
+          .join('\n'),
+      actionText: '放弃修改并载入',
       onConfirm: async () => {
         if (!(await joint.waitForSave())) return;
         if (active && joint.currentTargetKey.value === key) {
@@ -514,6 +542,7 @@ export function useImmersiveEditorRuntime<TPanel extends ImmersivePanelState>(
           joint.loadPendingExternal();
         }
       },
+      cancelText: '返回编辑',
     });
   }
   return {

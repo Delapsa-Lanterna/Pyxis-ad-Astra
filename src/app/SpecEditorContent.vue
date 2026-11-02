@@ -198,7 +198,11 @@ useManagedWindowRequests(async () => {
   if (!(await windowModel.waitForSave())) throw new Error('所属保存尚未完成');
 });
 const closeParticipant = useWindowCloseParticipant({
-  content: '当前 spec 有未保存修改，关闭后这些修改将丢失。',
+  get content() {
+    return (
+      '这份' + { ship: '舰船', weapon: '武器', projectile: '弹体', system: '战术系统' }[kind] + '规格有未保存修改，关闭后将丢弃这些修改。'
+    );
+  },
   dirty: draftDirty,
   title: '放弃未保存编辑？',
 });

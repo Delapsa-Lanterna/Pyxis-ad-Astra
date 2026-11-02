@@ -269,6 +269,7 @@ export function useFileEditorViewModel(params: FileEditorViewModelParams) {
         },
         draftSession.dirty.value,
         () => draftSession.currentTargetKey.value,
+        [draftSession.currentTarget.value!.filePath],
       );
     };
     if (draftSession.saving.value)
@@ -299,9 +300,14 @@ export function useFileEditorViewModel(params: FileEditorViewModelParams) {
     const preserve = draftSession.dirty.value;
     if (preserve && !pendingIdentity) {
       const choice = await feedback.choose({
-        title: '跟随文件重命名？',
-        content: '保留当前文本，并接纳新的文件路径和基线。',
+        title: change.before.write.path === change.after.write.path ? '跟随文件中的 ID 修改？' : '跟随文件改名？',
+        content:
+          (change.before.write.path === change.after.write.path
+            ? '这份文件中的实体 ID 已由 ' + change.before.id + ' 改为 ' + change.after.id + '。\n\n' + change.after.write.path
+            : '当前文件已被重命名。\n\n原路径：\n' + change.before.write.path + '\n\n新路径：\n' + change.after.write.path) +
+          '\n\n跟随后保留当前文本，按新的文件身份继续编辑。',
         choices: [{ label: '保留文本并跟随', value: 'follow', type: 'primary' }],
+        cancelText: '稍后处理',
       });
       if (disposed || fileEditorTargetKey(target) !== draftSession.currentTargetKey.value) return;
       if (choice !== 'follow')

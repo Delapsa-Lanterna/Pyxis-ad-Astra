@@ -1,4 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { dialogText } from '@/test/unit/dialog-text';
+import { beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
 import { ref } from 'vue';
 import { flushPromises } from '@vue/test-utils';
@@ -88,6 +89,14 @@ function editor(name: string, sessionId = 'a') {
   const release = useSaveCommandStore().registerSaveSession(handle);
   return { handle, save, dirty, inputs, targetKey, release };
 }
+function coordinatorFixture(...args: Parameters<typeof createModSaveCoordinator>) {
+  const coordinator = createModSaveCoordinator(...args);
+  onTestFinished(async () => {
+    coordinator.dispose();
+    await flushPromises();
+  });
+  return coordinator;
+}
 beforeEach(() => {
   setActivePinia(createPinia());
   wire.label = 'main';
@@ -118,12 +127,11 @@ describe('Mod save coordination', () => {
       },
     });
     const output = feedback(),
-      coordinator = createModSaveCoordinator(output, () => false);
+      coordinator = coordinatorFixture(output, () => false);
     await coordinator.save();
     expect(own.save).toHaveBeenCalledOnce();
     expect(other.save).not.toHaveBeenCalled();
-    expect(output.success).toHaveBeenCalledWith('Mod 保存完成：已保存 1 项，取消 0 项，失败 0 项');
-    coordinator.dispose();
+    expect(output.success).toHaveBeenCalledWith('已保存 1 项。');
   });
   it('continues after cancellation and failure and reports concrete outcomes', async () => {
     const cancelled = editor('a'),
@@ -132,32 +140,28 @@ describe('Mod save coordination', () => {
     cancelled.handle.editing.save = vi.fn(async () => ({ status: 'cancelled' as const }));
     failed.save.mockRejectedValueOnce(new Error('fixture failure'));
     const output = feedback(),
-      coordinator = createModSaveCoordinator(output, () => false);
+      coordinator = coordinatorFixture(output, () => false);
     await coordinator.save();
     expect(saved.save).toHaveBeenCalledOnce();
-    expect(output.choose).toHaveBeenCalledWith(
-      expect.objectContaining({ type: 'warning', content: expect.stringContaining('已保存 1 项，取消 1 项，失败 1 项') }),
-    );
-    expect(vi.mocked(output.choose).mock.calls[0]![0].content).toContain('M:/a/b');
-    coordinator.dispose();
+    expect(dialogText(vi.mocked(output.choose).mock.lastCall![0])).toContain('已保存 1 项，取消 1 项，失败 1 项');
+    expect(output.choose).toHaveBeenCalledWith(expect.objectContaining({ type: 'warning', cancelText: '关闭', choices: [] }));
+    expect(dialogText(vi.mocked(output.choose).mock.calls[0]![0])).toContain('M:/a/b');
   });
   it('saves the triggering child Mod before its main-window documents', async () => {
     const a = editor('a', 'a'),
-      b = editor('main-b', 'b'),
-      main = createModSaveCoordinator(feedback(), () => false);
+      b = editor('main-b', 'b');
+    coordinatorFixture(feedback(), () => false);
     setActivePinia(createPinia());
     wire.label = 'child';
     wire.context.value = { identity: { type: 'file', sessionId: 'b', modRoot: 'M:/b', path: 'M:/b/file' } } as ManagedWindowContext;
     const child = editor('child-b', 'b'),
-      coordinator = createModSaveCoordinator(feedback(), () => false);
+      coordinator = coordinatorFixture(feedback(), () => false);
     wire.owners = ['main', 'child'];
     await coordinator.save();
     expect(wire.order).toEqual(['child-b', 'main-b']);
     expect(a.save).not.toHaveBeenCalled();
     expect(b.save).toHaveBeenCalledOnce();
     expect(child.save).toHaveBeenCalledOnce();
-    main.dispose();
-    coordinator.dispose();
   });
   it('coalesces repeated triggers and queues different Mods with captured targets', async () => {
     const a = editor('a'),
@@ -169,19 +173,22 @@ describe('Mod save coordination', () => {
           finish = () => resolve({ status: 'saved', receipt: savedWriteFixture() });
         }),
     );
-    const coordinator = createModSaveCoordinator(feedback(), () => false);
+    const coordinator = coordinatorFixture(feedback(), () => false);
     const first = coordinator.save();
     expect(coordinator.save()).toBe(first);
     await flushPromises();
     wire.active = 'b';
     const second = coordinator.save();
+    onTestFinished(async () => {
+      finish();
+      await Promise.all([first, second]);
+    });
     await flushPromises();
     expect(b.save).not.toHaveBeenCalled();
     finish();
     await Promise.all([first, second]);
     expect(a.save).toHaveBeenCalledOnce();
     expect(b.save).toHaveBeenCalledOnce();
-    coordinator.dispose();
   });
   it.each(['release', 'retarget', 'closing'])('preserves drafts when a captured editor is %s', async (change) => {
     const first = editor('a'),
@@ -193,10 +200,9 @@ describe('Mod save coordination', () => {
       else closing = true;
       return { status: 'saved', receipt: savedWriteFixture() };
     });
-    const coordinator = createModSaveCoordinator(feedback(), () => closing);
+    const coordinator = coordinatorFixture(feedback(), () => closing);
     await coordinator.save();
     expect(next.save).not.toHaveBeenCalled();
     expect(next.dirty.value).toBe(true);
-    coordinator.dispose();
   });
 });

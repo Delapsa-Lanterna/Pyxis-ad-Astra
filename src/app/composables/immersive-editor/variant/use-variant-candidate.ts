@@ -18,7 +18,7 @@ export async function readModuleCandidateIssue(root: JointEditRoot, id: string, 
     (record) => record.target.kind === 'spec' && record.target.target.kind === 'variant' && record.target.target.id === id,
   );
   return {
-    reason: !candidate.hull ? '装配或船体来源缺失' : candidate.hull.hints.includes('MODULE') ? '' : '船体未标记 MODULE',
+    reason: !candidate.hull ? '找不到此装配或其船体的来源。' : candidate.hull.hints.includes('MODULE') ? '' : '此船体没有 MODULE 标记。',
     source: record?.source?.path ?? '来源缺失',
   };
 }
