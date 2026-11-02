@@ -12,6 +12,7 @@ import type {
   SkinFile,
   WriteResult,
   RowData,
+  JsonComposition,
 } from '@/shared/types';
 
 import {
@@ -29,7 +30,7 @@ import type { SaveCommandRequest } from '@/shared/runtime/command.runtime';
 import { runConfirmedJsonWrite } from '@/orchestrators/json-write-confirmation.orchestrator';
 
 import { reserveFileIdentityIntent } from '@/orchestrators/window-identity.orchestrator';
-import { chooseEntityFilename } from '@/orchestrators/entity-write.orchestrator';
+import { confirmEntityIdChanges, chooseEntityFilename } from '@/orchestrators/entity-write.orchestrator';
 import { focusEntityIdentityConflict } from '@/orchestrators/window-target-focus.orchestrator';
 import { releaseNativeWindowTargets } from '@/services/window.service';
 import { captureIdentityVersions } from '@/domain/project/entity-versions';
@@ -61,6 +62,7 @@ async function settledVersions(
   nextId: string,
   baseVersions: FileVersion[],
   feedback: AppFeedback | undefined,
+  content?: { original: RowData; data: RowData; composition?: JsonComposition },
 ) {
   const captured = await captureConfigIdentityIntent(sessionId, kind, sourceId, nextId).catch(async (error) => {
     await focusEntityIdentityConflict(sessionId, modRoot, error);
@@ -68,6 +70,13 @@ async function settledVersions(
   });
   const keepFilename = await chooseEntityFilename(feedback, captured.info.target, captured.intent);
   if (keepFilename === null) return null;
+  if (
+    content &&
+    !(await confirmEntityIdChanges(feedback, [
+      { target: captured.info.target, before: content.original, after: content.data, composition: content.composition, keepFilename },
+    ]))
+  )
+    return null;
   if (keepFilename) return { keepFilename, versions: await capturedVersions(sessionId, modRoot, kind, sourceId, sourceId, baseVersions) };
   await reserveFileIdentityIntent(sessionId, modRoot, captured.intent);
   return { keepFilename, versions: captureIdentityVersions(baseVersions, captured.intent.destinationVersion) };
@@ -111,6 +120,7 @@ export async function saveIndexedEntityAction(
   original?: RowData,
   request?: SaveCommandRequest,
   replacePaths: string[] = [],
+  composition?: JsonComposition,
 ): Promise<SavedConfig<IndexedConfigEntityData> | null> {
   const settled = await settledVersions(
     write.sessionId,
@@ -120,6 +130,9 @@ export async function saveIndexedEntityAction(
     write.nextId,
     write.baseVersions,
     feedback,
+    original && write.kind === 'faction'
+      ? { original: original.file as RowData, data: write.entityData.file as RowData, composition }
+      : undefined,
   );
   if (!settled) return null;
   const { keepFilename, versions } = settled;
@@ -173,8 +186,18 @@ export async function saveJsonFileAction(
   original?: RowData,
   request?: SaveCommandRequest,
   replacePaths: string[] = [],
+  composition?: JsonComposition,
 ): Promise<SavedConfig<JsonEntityFile> | null> {
-  const settled = await settledVersions(sessionId, modRoot, kind, previousId ?? id, id, baseVersions, feedback);
+  const settled = await settledVersions(
+    sessionId,
+    modRoot,
+    kind,
+    previousId ?? id,
+    id,
+    baseVersions,
+    feedback,
+    original ? { original, data, composition } : undefined,
+  );
   if (!settled) return null;
   const { keepFilename } = settled;
   baseVersions = settled.versions;

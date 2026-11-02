@@ -102,7 +102,7 @@ export async function saveJsonDocument(
   data = replaced.value;
   const replacePaths = replaced.replace ? [kind === 'misc-config' ? miscConfigDefinition(id).path : target.entity!.write.relPath] : [];
   // The saved file now replaces its base layers, so the editor composes the saved content alone.
-  const replacedComposition = replaced.replace && composition ? { composition: { ...composition, replace: true } } : {};
+  if (replaced.replace && composition) composition = { ...composition, replace: true };
   if (kind === 'misc-config') {
     const content = miscConfigDocumentContent(data);
     const receipt = await runConfirmedJsonWrite(
@@ -128,7 +128,7 @@ export async function saveJsonDocument(
       target,
       value: miscConfigDocumentValue(receipt.content!.value),
       baseVersions: receipt.baseVersions,
-      meta: { receipt, ...replacedComposition },
+      meta: { receipt, composition },
       requestId: receipt.requestId,
     };
   }
@@ -172,6 +172,7 @@ export async function saveJsonDocument(
       original,
       request,
       replacePaths,
+      composition,
     );
     if (!result) return;
     receipt = result.receipt;
@@ -193,6 +194,7 @@ export async function saveJsonDocument(
       kind === 'faction' ? { file: original.file! } : { descriptor: original.descriptor!, text: original.text! },
       request,
       replacePaths,
+      composition,
     );
     if (!result) return;
     receipt = result.receipt;
@@ -207,11 +209,15 @@ export async function saveJsonDocument(
   }
   const entity =
     kind === 'mod-info' ? null : receipt.identityChanges.find((change) => change.before.kind === kind && change.before.id === id)!.after;
+  if (entity && entity.write.relPath !== target.entity!.write.relPath) {
+    const saved = await querySessionEntity(sessionId, entity.kind, entity.id);
+    composition = saved!.composition ? cloneQuerySnapshot<JsonComposition>(saved!.composition) : undefined;
+  }
   return {
     target: { ...target, id: kind === 'mod-info' ? id : nextId, entity },
     value,
     baseVersions: receipt.baseVersions,
-    meta: { receipt, ...replacedComposition },
+    meta: { receipt, composition },
     requestId: receipt.requestId,
   };
 }

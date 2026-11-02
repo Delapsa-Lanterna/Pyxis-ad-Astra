@@ -30,6 +30,7 @@ import { requireRowData } from '@/shared/lib/row-data';
 import { normalizeFsPath } from '@/shared/lib/paths';
 import { captureIdentityVersions } from '@/domain/project/entity-versions';
 
+import { confirmEntityIdChanges } from '@/orchestrators/entity-write.orchestrator';
 import { reserveEntityIntent, retargetEntityWindow } from '@/orchestrators/spec-editor-identity.orchestrator';
 import { composeJson, editComposedJson, compositionPath, compositionValue, takeReplaceBase } from '@/domain/schema/json-composition';
 
@@ -88,6 +89,14 @@ export function useSpecEditorWindowViewModel(
         const reserved = await reserveEntityIntent(target.sessionId, target.modRoot, submittedData.target, draft, feedback);
         if (!reserved) return;
         const { keepFilename, intent } = reserved;
+        if (
+          !(await confirmEntityIdChanges(feedback, [
+            { target: submittedData.target, before: original, after: draft, composition: submittedData.composition, keepFilename },
+          ]))
+        ) {
+          await releaseNativeWindowTargets();
+          return;
+        }
         const versions = intent ? captureIdentityVersions(baseVersions, intent.destinationVersion) : baseVersions;
         const result = await runConfirmedJsonWrite(
           feedback,
@@ -134,11 +143,16 @@ export function useSpecEditorWindowViewModel(
         await releaseNativeWindowTargets();
       },
     });
+  const partial = computed(() =>
+    Boolean(
+      draftSession.baselineSnapshot.value?.meta.data.composition && !String(draftSession.draftValue.value[definition.idField] ?? '').trim(),
+    ),
+  );
   const problems = createSpecProblems(draftSession.inputs, () => {
     const sources = draftSession.baselineSnapshot.value?.meta.data.composition;
     const value = composeJson(draftSession.draftValue.value, sources);
     return (definition.validate?.(value) ?? []).filter(
-      (issue) => !sources || sources.layers.length || compositionValue(value, compositionPath(issue.path)) !== undefined,
+      (issue) => !sources || !partial.value || compositionValue(value, compositionPath(issue.path)) !== undefined,
     );
   });
   watch(draftSession.context, () => problems.clearFailure(), { flush: 'sync' });
@@ -188,6 +202,7 @@ export function useSpecEditorWindowViewModel(
       runtime = { modRoot: currentTarget.value.modRoot, sessionId: currentTarget.value.sessionId };
     return {
       ...runtime,
+      partial: partial.value,
       sourceContextKey: JSON.stringify([currentTarget.value.modRoot, currentTarget.value.kind, currentTarget.value.id]),
       querySourceOptions: async (source: string, signal?: AbortSignal) => {
         try {

@@ -58,57 +58,63 @@ pub(super) fn stage_faction_index(
     target: &EntityEditTarget,
     next_id: &str,
     next_rel: &str,
-) -> AppResult<()> {
+) -> AppResult<Option<EntityLinkedRecord>> {
     if target.kind == EntityKind::Faction
-        && (target.linked_record.is_some() || target.state == EntityTargetState::Create)
+        && (target.linked_record.is_some()
+            || target.state == EntityTargetState::Create
+            || next_rel != target.write.rel_path)
     {
         let index_rel = "data/world/factions/factions.csv";
         let mut index = csv_tables::read_retained_csv(session, index_rel)?;
-        if let Some(EntityLinkedRecord::Index { row_index, .. }) = &target.linked_record {
-            let entries = io::faction_index_entries(boundary, &index)?;
-            let entry = entries
-                .iter()
-                .find(|entry| entry.row_index == *row_index)
-                .expect("loaded faction index entry");
-            parsers::update_faction_index_row(
-                &mut index.rows[*row_index].data,
-                entry,
-                next_id,
-                next_rel,
-            );
-        } else {
-            if index.header.is_empty() {
-                index.header = vec!["faction".into()];
-            }
-            let field = index
-                .header
-                .iter()
-                .find(|field| field.eq_ignore_ascii_case("faction"))
-                .or_else(|| {
-                    index
-                        .header
-                        .iter()
-                        .find(|field| field.eq_ignore_ascii_case("id"))
-                })
-                .unwrap_or(&index.header[0]);
-            let mut row = Map::new();
-            if field.eq_ignore_ascii_case("id") {
-                row.insert(field.clone(), Value::String(next_id.to_string()));
-                if let Some(file) = index
+        let row_index =
+            if let Some(EntityLinkedRecord::Index { row_index, .. }) = &target.linked_record {
+                let entries = io::faction_index_entries(boundary, &index)?;
+                let entry = entries
+                    .iter()
+                    .find(|entry| entry.row_index == *row_index)
+                    .expect("loaded faction index entry");
+                parsers::update_faction_index_row(
+                    &mut index.rows[*row_index].data,
+                    entry,
+                    next_id,
+                    next_rel,
+                );
+                *row_index
+            } else {
+                if index.header.is_empty() {
+                    index.header = vec!["faction".into()];
+                }
+                let field = index
                     .header
                     .iter()
-                    .find(|field| field.eq_ignore_ascii_case("file"))
-                {
-                    row.insert(file.clone(), Value::String(next_rel.to_string()));
+                    .find(|field| field.eq_ignore_ascii_case("faction"))
+                    .or_else(|| {
+                        index
+                            .header
+                            .iter()
+                            .find(|field| field.eq_ignore_ascii_case("id"))
+                    })
+                    .unwrap_or(&index.header[0]);
+                let mut row = Map::new();
+                if field.eq_ignore_ascii_case("id") {
+                    row.insert(field.clone(), Value::String(next_id.to_string()));
+                    if let Some(file) = index
+                        .header
+                        .iter()
+                        .find(|field| field.eq_ignore_ascii_case("file"))
+                    {
+                        row.insert(file.clone(), Value::String(next_rel.to_string()));
+                    }
+                } else {
+                    row.insert(field.clone(), Value::String(next_rel.to_string()));
                 }
-            } else {
-                row.insert(field.clone(), Value::String(next_rel.to_string()));
-            }
-            index.rows.push(CsvRow {
-                data: row,
-                is_comment: false,
-            });
-        }
+                let row_index = index.rows.len();
+                index.rows.push(CsvRow {
+                    data: row,
+                    is_comment: false,
+                });
+                row_index
+            };
         let text = render_csv_text(
             &index.header,
             &index
@@ -118,6 +124,10 @@ pub(super) fn stage_faction_index(
                 .collect::<Vec<_>>(),
         )?;
         builder.text_file(index_rel, Some(text))?;
+        return Ok(Some(EntityLinkedRecord::Index {
+            path: index_rel.into(),
+            row_index,
+        }));
     }
-    Ok(())
+    Ok(target.linked_record.clone())
 }

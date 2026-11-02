@@ -1,7 +1,7 @@
 <template>
-  <SchemaFieldRow :field="field" :path="fieldPath">
+  <SchemaFieldRow :field="active" :path="fieldPath">
     <SchemaValueInput
-      :field="field"
+      :field="active"
       :value="value"
       :runtime-context="runtimeContext"
       :input-key="inputKey"
@@ -19,7 +19,7 @@
 <script setup lang="ts">
 import SchemaFieldRow from './SchemaFieldRow.vue';
 import SchemaValueInput from '@/app/components/schema/SchemaValueInput.vue';
-import type { SchemaRuntimeContext } from '@/domain/schema/schema-runtime';
+import { schemaContextField, type SchemaRuntimeContext } from '@/domain/schema/schema-runtime';
 import type { FieldSchema, SchemaFieldUpdate } from '@/domain/schema/schema.types';
 import { computed } from 'vue';
 import { compositionOrigin, compositionPath } from '@/domain/schema/json-composition';
@@ -31,6 +31,7 @@ const props = defineProps<{
   inputKey?: string;
   fieldPath?: string;
 }>();
+const active = computed(() => schemaContextField(props.field, props.runtimeContext));
 const path = computed(() => compositionPath(props.fieldPath ?? props.field.key));
 const origin = computed(() => {
   const context = props.runtimeContext?.composition;

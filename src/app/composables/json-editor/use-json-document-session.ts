@@ -93,6 +93,13 @@ function createJsonDocumentSession(definition: JsonDocumentDefinition, record: J
     },
   });
   session.loadBaseForTarget({ ...record, meta: { receipt: null, resources: record.resources, composition: record.composition } });
+  watch(
+    () => session.baselineSnapshot.value?.meta.composition,
+    (next) => {
+      if (next) composition.value = next;
+    },
+    { flush: 'sync' },
+  );
   const history = useSnapshotHistory<RowData>(
     session.context,
     computed(() => settings.editHistoryLimit),
@@ -162,19 +169,19 @@ function createJsonDocumentSession(definition: JsonDocumentDefinition, record: J
   }
   async function refresh() {
     const target = session.currentTarget.value!;
-    if (composition.value)
+    const plan = await recovery.refresh();
+    if (composition.value && plan && !recovery.missing.value)
       await reads.consume('composition', target, (signal) => loadJsonDocument(target, signal), {
         ready: (latest) => {
           composition.value = latest.meta.composition;
         },
       });
-    const plan = await recovery.refresh();
     if (plan && active.value && !recovery.missing.value && !identity.pending.value)
       session.applyExternalForTarget({
         target,
         value: jsonRecoveryValue(target, plan, session.baselineSnapshot.value!.value),
         baseVersions: plan.baseVersions,
-        meta: { receipt: null, resources: plan.resourceRefs },
+        meta: { receipt: null, resources: plan.resourceRefs, composition: composition.value },
       });
   }
   const actions: DocumentEditorActions<ConfigDocumentTarget> = {
@@ -245,7 +252,7 @@ function createJsonDocumentSession(definition: JsonDocumentDefinition, record: J
                 value: jsonRecoveryValue(target, plan, session.baselineSnapshot.value!.value),
                 baseVersions: receipt!.baseVersions,
                 requestId: receipt!.requestId,
-                meta: { receipt: null, resources: plan.resourceRefs },
+                meta: { receipt: null, resources: plan.resourceRefs, composition: composition.value },
               },
               true,
             );
@@ -311,6 +318,7 @@ function createJsonDocumentSession(definition: JsonDocumentDefinition, record: J
     handoffLocked: computed(() => false),
     record: computed<JsonDocumentRecord>(() => ({
       target: session.currentTarget.value!,
+      composition: composition.value,
       value: session.baselineSnapshot.value!.value,
       baseVersions: session.baselineSnapshot.value!.baseVersions,
       resources: session.baselineSnapshot.value!.meta.resources ?? record.resources,

@@ -1,7 +1,13 @@
 import type { ProjectSessionId, ResourceRef, SourceOptionGroup, RowData, JsonComposition, JsonValue } from '@/shared/types';
 import type { DeepReadonly } from '@/shared/types';
+import type { FieldSchema } from './schema.types';
+
+export function schemaContextField<T extends FieldSchema>(field: T, context?: SchemaRuntimeContext | null): T {
+  return context?.partial ? { ...field, required: false, requiredWhen: undefined, partial: true } : field;
+}
 
 export interface SchemaRuntimeContext {
+  partial?: boolean;
   composition?: {
     local: () => RowData;
     sources: () => JsonComposition | undefined;

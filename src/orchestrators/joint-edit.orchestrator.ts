@@ -7,8 +7,10 @@ import type {
   AppFeedback,
   EditWriteTarget,
   JointEditPrepared,
+  RowData,
 } from '@/shared/types';
 import { queryJointEdit, queryJointEditRow, prepareJointEdit, saveJointEdit } from '@/services/joint-edit.service';
+import { confirmEntityIdChanges } from '@/orchestrators/entity-write.orchestrator';
 import { runConfirmedJsonWrite } from '@/orchestrators/json-write-confirmation.orchestrator';
 import { applyJointConflictChoices, takeJointReplaceBase } from '@/domain/joint-edit';
 import { cloneQuerySnapshot } from '@/shared/lib/query-snapshot';
@@ -84,6 +86,25 @@ export async function submitJointEdit(
     }));
   if (choices === null) return null;
   const values = applyJointConflictChoices(prepared, choices);
+  if (
+    !(await confirmEntityIdChanges(
+      feedback,
+      prepared.snapshot.records.flatMap((record) => {
+        const next = values[record.key];
+        return record.target.kind === 'spec' && record.value.state === 'present' && next?.state === 'present'
+          ? [
+              {
+                target: record.target.target,
+                before: record.value.value as RowData,
+                after: next.value as RowData,
+                composition: record.composition,
+              },
+            ]
+          : [];
+      }),
+    ))
+  )
+    return null;
   const overrides = prepared.snapshot.records.filter(
     (record) =>
       Object.hasOwn(values, record.key) &&

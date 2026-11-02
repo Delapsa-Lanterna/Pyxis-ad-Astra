@@ -13,6 +13,7 @@
           "key": "skinHullId",
           "type": "string",
           "label": "皮肤 ID",
+          "identity": true,
           "required": true
         },
         {

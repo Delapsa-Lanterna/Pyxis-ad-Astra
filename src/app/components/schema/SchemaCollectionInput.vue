@@ -230,7 +230,7 @@ const rows = computed<Row[]>((previous) => {
         : {}),
       ...(array.value ? { key: '', label: schemaCollection(resolved) ? `${resolved.label} ${index + 1}` : `#${index + 1}` } : {}),
       ...(props.field.editable === false ? { editable: false } : {}),
-      ...(props.field.partial ? { required: false } : {}),
+      ...(props.field.partial || props.runtimeContext?.partial ? { required: false, requiredWhen: undefined, partial: true } : {}),
     };
     const group = props.field.presentation === 'groups' ? !variable || field.type === 'object' : variable && schemaCollection(field);
     const row: Row = {

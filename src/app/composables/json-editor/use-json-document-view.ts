@@ -13,7 +13,7 @@ import { queryBuiltInWeaponSlotOptions, hasHullReferencesInvalidation } from '@/
 
 import { hasResourceInvalidation } from '@/services/resource-media.service';
 import { queryFactionPreviewImages, queryMissionDraftIcon } from '@/services/json-entity.service';
-import { jsonDocumentContent } from '@/domain/json-editor/json-document-definitions';
+import { jsonDocumentId, jsonDocumentContent } from '@/domain/json-editor/json-document-definitions';
 import { AppError } from '@/shared/lib/errors';
 import { isExternalSource } from '@/shared/lib/resource-ref';
 import type { JsonDocumentSession } from './use-json-document-session';
@@ -27,16 +27,22 @@ export function useJsonDocumentView(document: JsonDocumentSession, definition: J
   const reads = useQueryReadOwner();
   const commands = useSaveCommandStore();
   const workspace = useWorkspaceStore();
-  const previews = ref<Record<string, string>>({});
+  const previews = ref<Record<string, string>>(
+    definition.kind === 'faction' ? { logoSrc: '', crestSrc: '' } : definition.kind === 'mission' ? { icon: '' } : {},
+  );
   const revision = ref(0);
   const canNavigateHull = computed(
     () => definition.kind === 'skin' && String(document.draftValue.value.baseHullId ?? '').trim().length > 0,
+  );
+  const partial = computed(() =>
+    Boolean(document.composition.value && definition.kind !== 'variant' && !jsonDocumentId(definition, document.draftValue.value)),
   );
   const schemaRuntimeContext = computed<SchemaRuntimeContext>(() => {
     const target = document.target.value!;
     const context = {
       modRoot: target.modRoot,
       sessionId: target.sessionId,
+      partial: partial.value,
       composition: document.composition.value
         ? {
             local: () => document.draftValue.value,
@@ -81,29 +87,33 @@ export function useJsonDocumentView(document: JsonDocumentSession, definition: J
           : observeSchemaSourceOptions(context, source, resources, listener),
     };
   });
+  const previewContent = computed(() =>
+    definition.kind === 'faction' || definition.kind === 'mission'
+      ? composeJson(jsonDocumentContent(definition.kind, document.draftValue.value), document.composition.value)
+      : {},
+  );
   watch(
-    () => {
-      if (definition.kind !== 'faction' && definition.kind !== 'mission') return [];
-      const data = composeJson(jsonDocumentContent(definition.kind, document.draftValue.value), document.composition.value);
-      return [data.logo, data.crest, data.icon, revision.value, document.active.value];
-    },
+    [
+      () => (definition.kind === 'faction' ? previewContent.value.logo : undefined),
+      () => (definition.kind === 'faction' ? previewContent.value.crest : undefined),
+      () => (definition.kind === 'mission' ? previewContent.value.icon : undefined),
+      revision,
+      document.active,
+      document.targetKey,
+    ],
     async () => {
-      previews.value = {};
-      reads.revoke();
+      reads.revoke('consumer', 'previews');
       if (!document.active.value || (definition.kind !== 'faction' && definition.kind !== 'mission')) return;
       const target = document.target.value!;
+      const draft =
+        definition.kind === 'faction' ? previewContent.value : { ...document.draftValue.value, descriptor: previewContent.value };
       await reads.consume(
         'previews',
         target,
         async (signal) =>
           definition.kind === 'faction'
-            ? queryFactionPreviewImages(
-                target.sessionId,
-                target.id,
-                composeJson(jsonDocumentContent(definition.kind, document.draftValue.value), document.composition.value),
-                signal,
-              )
-            : { icon: await queryMissionDraftIcon(target.sessionId, target.id, document.draftValue.value, signal) },
+            ? queryFactionPreviewImages(target.sessionId, target.id, draft, signal)
+            : { icon: await queryMissionDraftIcon(target.sessionId, target.id, draft, signal) },
         {
           ready: (images) => {
             previews.value = { ...images };

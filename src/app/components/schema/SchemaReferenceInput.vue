@@ -154,7 +154,10 @@ const reference =
         text: () => (['enum', 'path-image'].includes(props.field.type) ? strVal.value : ''),
         convert: (text) => {
           if (!['enum', 'path-image'].includes(props.field.type)) return { kind: 'value', value: text };
-          if (text === '') return props.field.required ? { kind: 'error', message: '必填字段不能为空' } : { kind: 'remove' };
+          if (text === '')
+            return props.runtimeContext?.composition || !props.field.required
+              ? { kind: 'remove' }
+              : { kind: 'error', message: '必填字段不能为空' };
           const result = convertSchemaScalarInput(text, props.field);
           return result.kind === 'set' ? { kind: 'value', value: String(result.value) } : result;
         },

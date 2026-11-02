@@ -30,7 +30,7 @@ import { focusExistingEntityWindow } from '@/orchestrators/window-target-focus.o
 import { warningNotice } from '@/shared/lib/errors';
 import { startPerformance } from '@/shared/runtime/performance';
 import type { SelectOption } from '@/domain/schema/schema-options';
-import type { DeepReadonly, JsonValue, MiscConfigEntry } from '@/shared/types';
+import type { DeepReadonly, JsonValue, MiscConfigEntry, JsonComposition } from '@/shared/types';
 
 export function useJsonEditorViewModel(definition: JsonDocumentDefinition, context: JsonEditorContext) {
   const feedback = useAppFeedback();
@@ -250,6 +250,7 @@ export function useJsonEditorViewModel(definition: JsonDocumentDefinition, conte
             value: miscConfigDocumentValue(cloneQuerySnapshot<JsonValue>(file.data)),
             baseVersions: [...file.baseVersions],
             resources: {},
+            composition: file.composition ? cloneQuerySnapshot<JsonComposition>(file.composition) : undefined,
           };
           formal.value = [...formal.value, bindRecord(record)];
           activateRecord(record, true);
@@ -353,14 +354,19 @@ export function useJsonEditorViewModel(definition: JsonDocumentDefinition, conte
     () => {
       reads.revoke('consumer', 'selected');
       const record = records.value.find((record) => record.target.id === selectedId.value);
-      if (record && kind === 'mission' && !documents.value.some((document) => document.target.value!.id === record.target.id)) {
+      if (
+        record &&
+        kind !== 'mod-info' &&
+        kind !== 'misc-config' &&
+        !documents.value.some((document) => document.target.value!.id === record.target.id)
+      ) {
         activateRecord();
         const target = record.target;
         void reads.consume('selected', target, (signal) => querySessionEntity(target.sessionId, kind, target.id, signal), {
           ready: (entity) => {
-            if (entity) activateRecord(jsonDocumentRecord(target.sessionId, target.modRoot, entity));
+            if (entity) activateRecord(jsonDocumentRecord(target.sessionId, target.modRoot, entity), true);
           },
-          error: (error) => feedback.error(error, '读取战役失败'),
+          error: (error) => feedback.error(error, '读取' + definition.label + '失败'),
         });
       } else activateRecord(record);
     },

@@ -20,7 +20,6 @@ use std::collections::BTreeSet;
 use std::path::Path;
 
 pub fn validate_skin_engine_changes(session_id: &str, data: &Value) -> AppResult<()> {
-    schema::validate_document(parsers::bundled_schema("skin"), data)?;
     if data
         .get("engineSlotChanges")
         .and_then(Value::as_object)
@@ -184,7 +183,11 @@ pub fn save_json_entity_file(
             ),
         ));
     }
-    if data.get(definition.id_field).is_some() {
+    if data
+        .get(definition.id_field)
+        .and_then(Value::as_str)
+        .is_some_and(|id| !id.is_empty())
+    {
         data[definition.id_field] = Value::String(next_id.clone());
     }
     let mod_root = Path::new(mod_root);

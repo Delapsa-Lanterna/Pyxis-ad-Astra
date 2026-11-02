@@ -1,4 +1,4 @@
-use crate::domain::json_composition;
+use crate::domain::{json_composition, schema};
 use crate::errors::AppError;
 use crate::models::{
     EntityIdentityChange, EntityKind, JsonFileDelete, JsonFileSave, SaveEdit, WriteResult,
@@ -7,7 +7,7 @@ use crate::services::{
     JsonEntityFileInput, config_entity, create_json_entity_file, delete_json_entity_file, project,
     save_json_entity_file, spec_entity_definition,
 };
-use crate::{io, models, services};
+use crate::{io, models, parsers, services};
 use serde_json::Value;
 use std::path::Path;
 
@@ -72,6 +72,7 @@ pub(crate) fn create_entity_request(
     kind: EntityKind,
 ) -> Result<WriteResult<Value>, AppError> {
     if kind == EntityKind::Skin {
+        schema::validate_document(parsers::bundled_schema("skin"), &payload.data)?;
         services::validate_skin_engine_changes(&payload.session_id, &payload.data)?;
     }
     services::require_entity_version_scope(
@@ -148,6 +149,17 @@ pub fn write_skin_request(payload: JsonFileSave) -> Result<WriteResult<Value>, A
     let mut composition = project::composition_for_session(&payload.session_id, relative)?;
     composition.replace |= payload.json_write.replaces(relative);
     let effective = json_composition::compose_game_json(&composition, &payload.data)?;
+    let schema = parsers::bundled_schema("skin");
+    if payload
+        .data
+        .get("skinHullId")
+        .and_then(Value::as_str)
+        .is_some_and(|id| !id.is_empty())
+    {
+        schema::validate_document(schema, &effective)?;
+    } else {
+        schema::validate_partial_document(schema, &payload.data)?;
+    }
     if effective.get("baseHullId").is_some() {
         services::validate_skin_engine_changes(&payload.session_id, &effective)?;
     }

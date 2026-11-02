@@ -6,7 +6,8 @@ use crate::io;
 use crate::models::{CsvSearchField, CsvTableKey, EntityKind, FileChangeReplayDirection};
 #[cfg(test)]
 use crate::models::{
-    EntityLinkedRecord, EntityTargetState, ResourceSource, SaveAction, SpecSave, TextSave,
+    EntityLinkedRecord, EntityTargetState, IndexedConfigKind, IndexedConfigSave, JsonWriteOptions,
+    ResourceSource, SaveAction, SpecSave, TextSave,
 };
 use crate::services::project;
 #[cfg(test)]
@@ -448,4 +449,221 @@ fn spec_save_requires_the_complete_loaded_version_scope() {
     );
     project::close_project_session(manifest.session_id).unwrap();
     root.close().unwrap();
+}
+
+#[test]
+fn partial_identity_preserves_nested_omissions_and_empty_id_through_reopen() {
+    for (kind, relative) in [
+        (EntityKind::Faction, "data/world/factions/sample.faction"),
+        (EntityKind::Projectile, "data/weapons/proj/sample.proj"),
+    ] {
+        for id in [None, Some("")] {
+            let root = project_workspace("partial_identity_fields");
+            let path = root.join(relative);
+            fs::create_dir_all(path.parent().unwrap()).unwrap();
+            let mut data = if kind == EntityKind::Faction {
+                json!({"knownShips":{}})
+            } else {
+                json!({"width":1,"engineSlots":[{}]})
+            };
+            if let Some(id) = id {
+                data["id"] = json!(id);
+            }
+            fs::write(&path, data.to_string()).unwrap();
+            let manifest = project::open_project_session_traced(
+                &root,
+                None,
+                &mut PerformanceTrace::new("partial.open"),
+            )
+            .unwrap();
+            let entity = entities::query_entity(&manifest.session_id, kind, "sample")
+                .unwrap()
+                .unwrap();
+            data["displayNameLong"] = json!("Partial");
+            let save = |data| {
+                project_save::execute_save_action(SaveAction::SaveEditorSpec(SpecSave {
+                    session_id: manifest.session_id.clone(),
+                    mod_root: manifest.mod_root.clone(),
+                    target: entity.target.clone(),
+                    base_versions: entity.base_versions.clone(),
+                    data,
+                    json_write: Default::default(),
+                    ordered_json: None,
+                }))
+            };
+            let mut invalid = data.clone();
+            if kind == EntityKind::Faction {
+                invalid["color"] = json!([999, 0, 0, 255]);
+            } else {
+                invalid["width"] = json!(false);
+            }
+            assert_eq!(save(invalid).unwrap_err().code(), "config.shape_invalid");
+            save(data.clone()).unwrap();
+            assert_eq!(io::read_json_file(&path).unwrap(), data);
+            project::close_project_session(manifest.session_id).unwrap();
+            let reopened = project::open_project_session_traced(
+                &root,
+                None,
+                &mut PerformanceTrace::new("partial.reopen"),
+            )
+            .unwrap();
+            assert_eq!(
+                entities::query_entity(&reopened.session_id, kind, "sample")
+                    .unwrap()
+                    .unwrap()
+                    .data,
+                data
+            );
+            project::close_project_session(reopened.session_id).unwrap();
+            root.close().unwrap();
+        }
+    }
+}
+
+#[test]
+fn inherited_faction_filename_choices_commit_index_and_history_together() {
+    for layout in ["missing", "unrelated", "linked"] {
+        for keep in [false, true] {
+            let work = project_workspace("inherited_faction_rename");
+            let root = work.join("mods/overlay");
+            let relative = "data/world/factions/sample.faction";
+            let source = root.join(relative);
+            let core = work.join("starsector-core").join(relative);
+            fs::create_dir_all(source.parent().unwrap()).unwrap();
+            fs::create_dir_all(core.parent().unwrap()).unwrap();
+            let base = json!({"id":"sample","displayName":"Base","displayNameWithArticle":"Base",
+                "logo":"logo.png","crest":"crest.png","color":[1,2,3,255],
+                "knownShips":{},"knownFighters":{},"knownWeapons":{},
+                "factionDoctrine":{"warships":1,"carriers":1,"phaseShips":1,"officerQuality":1,
+                    "shipQuality":1,"numShips":1,"shipSize":1,"aggression":1}});
+            fs::write(&core, base.to_string()).unwrap();
+            fs::write(&source, "{}").unwrap();
+            let index = root.join("data/world/factions/factions.csv");
+            let original = match layout {
+                "unrelated" => Some("faction\ndata/world/factions/other.faction\n"),
+                "linked" => Some(
+                    "id,file,note\n#comment,,keep\nsample,data/world/factions/sample.faction,retained\n",
+                ),
+                _ => None,
+            };
+            if let Some(original) = original {
+                fs::write(&index, original).unwrap();
+            }
+            let manifest = project::open_project_session_traced(
+                &root,
+                Some(&work),
+                &mut PerformanceTrace::new("rename.open"),
+            )
+            .unwrap();
+            let info = entity_targets::query_entity_edit_target(
+                &manifest.session_id,
+                EntityKind::Faction,
+                "sample",
+            )
+            .unwrap();
+            let intent = entity_targets::query_entity_identity_intent(
+                &manifest.session_id,
+                &info.target,
+                "next",
+            )
+            .unwrap();
+            assert!(intent.inherits);
+            assert!(!intent.filename_taken);
+            let mut versions = info.base_versions.clone();
+            if !keep {
+                versions.push(intent.destination_version);
+            }
+            let save = |data| {
+                project_save::execute_save_action(SaveAction::SaveIndexedConfigEntity(
+                    IndexedConfigSave {
+                        session_id: manifest.session_id.clone(),
+                        mod_root: manifest.mod_root.clone(),
+                        base_versions: versions.clone(),
+                        kind: IndexedConfigKind::Faction,
+                        previous_id: Some("sample".into()),
+                        next_id: "next".into(),
+                        index_row: Default::default(),
+                        entity_data: json!({"file":data}),
+                        json_write: JsonWriteOptions {
+                            keep_filename: keep,
+                            ..Default::default()
+                        },
+                        ordered_json: None,
+                    },
+                ))
+            };
+            let partial = json!({"id":"next","displayName":"Saved"});
+            if !keep {
+                assert_eq!(
+                    save(partial.clone()).unwrap_err().code(),
+                    "config.shape_invalid"
+                );
+                assert_eq!(fs::read_to_string(&source).unwrap(), "{}");
+                assert_eq!(fs::read_to_string(&index).ok().as_deref(), original);
+            }
+            let mut complete = base.clone();
+            complete["id"] = json!("next");
+            let submitted = if keep { partial } else { complete };
+            let saved = save(submitted.clone()).unwrap();
+            let next = entity_targets::query_entity_edit_target(
+                &manifest.session_id,
+                EntityKind::Faction,
+                "next",
+            )
+            .unwrap();
+            let next_path = root.join(if keep {
+                relative
+            } else {
+                "data/world/factions/next.faction"
+            });
+            assert_eq!(io::read_json_file(&next_path).unwrap(), submitted);
+            assert_eq!(saved.identity_changes[0].after, next.target);
+            let detail = entities::query_entity(&manifest.session_id, EntityKind::Faction, "next")
+                .unwrap()
+                .unwrap();
+            assert_eq!(detail.composition.unwrap().layers.len(), usize::from(keep));
+            assert_eq!(io::read_json_file(&core).unwrap(), base);
+            let touches_index = !keep || layout == "linked";
+            assert_eq!(saved.changes.len(), 1 + usize::from(touches_index));
+            if touches_index {
+                let table = io::read_csv_data(&index).unwrap();
+                assert_eq!(table.rows.len(), if layout == "missing" { 1 } else { 2 });
+                let row = table.rows.last().unwrap();
+                assert!(row.data.values().any(|value| value
+                    == if keep {
+                        relative
+                    } else {
+                        "data/world/factions/next.faction"
+                    }));
+                if layout == "linked" {
+                    assert_eq!(row.data["id"], "next");
+                    assert_eq!(row.data["note"], "retained");
+                    assert!(table.rows[0].is_comment);
+                }
+            } else {
+                assert_eq!(fs::read_to_string(&index).ok().as_deref(), original);
+            }
+            let undo = write_transactions::replay(
+                &manifest.session_id,
+                &manifest.mod_root,
+                FileChangeReplayDirection::Undo,
+                saved.history.undo_stack.last().unwrap().id,
+                saved.history.revision,
+            )
+            .unwrap();
+            assert_eq!(fs::read_to_string(&source).unwrap(), "{}");
+            assert_eq!(fs::read_to_string(&index).ok().as_deref(), original);
+            write_transactions::replay(
+                &manifest.session_id,
+                &manifest.mod_root,
+                FileChangeReplayDirection::Redo,
+                undo.history.redo_stack.last().unwrap().id,
+                undo.history.revision,
+            )
+            .unwrap();
+            assert_eq!(io::read_json_file(&next_path).unwrap(), submitted);
+            project::close_project_session(manifest.session_id).unwrap();
+            work.close().unwrap();
+        }
+    }
 }

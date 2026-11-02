@@ -75,7 +75,7 @@ const { raw, invalid, update, commit, cancel } = useRawFieldInput<unknown>({
               ? schemaPlainBooleanText(props.value)
               : cell(props.value),
   convert: (text) => {
-    if (props.runtimeContext?.composition && text === '') return { kind: 'remove' };
+    if ((props.runtimeContext?.composition || props.field.identity) && text === '') return { kind: 'remove' };
     if (props.field.type === 'json') return parseJsonInput(text, props.shape ?? 'json');
     if (props.field.type === 'string-array' || props.field.type === 'tag-select')
       return {
@@ -103,11 +103,11 @@ onMounted(() => {
 });
 defineExpose({ commit });
 const inputs = useFieldInputs();
-if (inputs && (props.field.required || props.field.requiredWhen))
+if (inputs)
   onScopeDispose(
     inputs.registerFinalizer(async (validate) => {
       if (!validate || inputs.hasDocumentValidation.value) return;
-      if (props.field.required && raw.value.trim() === '' && !props.runtimeContext?.composition) {
+      if (props.field.required && raw.value.trim() === '' && !props.runtimeContext?.partial) {
         await focusFieldInput((multiline ? input.value?.textareaElRef : input.value?.inputElRef) ?? null);
         input.value?.focus();
         throw new AppError(`${props.field.label}：必填字段不能为空`, { action: 'commit-field-inputs' });

@@ -6,6 +6,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { FieldSchema } from '@/domain/schema/schema.types';
 import { initializeSettingsStore, useSettingsStore } from '@/stores/settings.store';
 import { createSettingsFixture } from '@/test/fixtures/settings';
+import FieldLabel from '@/shared/ui/FieldLabel.vue';
+import type { SchemaRuntimeContext } from '@/domain/schema/schema-runtime';
+import SchemaFormRenderer from './SchemaFormRenderer.vue';
 import SchemaFieldRenderer from './SchemaFieldRenderer.vue';
 import { editorUiStubs } from '@/test/unit/ui-stubs';
 import { nSelect, nSwitch } from '@/test/unit/ui-stubs';
@@ -67,7 +70,7 @@ function mountField(field: FieldSchema, value: unknown, props: Record<string, un
   return wrapper!;
 }
 
-function mountBoundField(field: FieldSchema, initial: unknown, runtimeContext?: { sessionId: string; modRoot: string }) {
+function mountBoundField(field: FieldSchema, initial: unknown, runtimeContext?: SchemaRuntimeContext) {
   const inputs = createFieldInputs();
   const value = ref(initial);
   wrapper = mount(
@@ -868,5 +871,98 @@ describe('SchemaFieldRenderer plain mode', () => {
     await wrapper.get('input').setValue('');
     await session.saveDraft();
     expect(save).toHaveBeenCalledWith('one', {}, [], { count: 4 }, { id: 'fixture-save' });
+  });
+});
+
+describe('partial composition field completeness', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia());
+    initializeSettingsStore(createSettingsFixture({ editMode: 'smart' }));
+  });
+  it.each(['string', 'text', 'float', 'enum', 'path-image', 'object', 'array'] as const)('allows an omitted required %s', async (type) => {
+    const { inputs } = mountBoundField(fieldFixture(type, { required: true }), undefined, {
+      sessionId: 'partial',
+      modRoot: 'M:/partial',
+      partial: true,
+    });
+    expect((await inputs.commit(undefined, true)) ?? true).toBe(true);
+    expect(wrapper!.findAllComponents(FieldLabel).every((label) => !label.props('required'))).toBe(true);
+  });
+  it('switches recursive labels and save finalizers when local identity appears', async () => {
+    const partial = ref(true),
+      inputs = createFieldInputs();
+    const field = fieldFixture('object', { nested: [{ key: 'name', label: 'Name', type: 'string', required: true }] });
+    wrapper = mount(
+      {
+        setup() {
+          provideFieldInputs(inputs);
+          return () =>
+            h(SchemaFieldRenderer, {
+              field,
+              value: {},
+              runtimeContext: { sessionId: 'partial', modRoot: 'M:/partial', partial: partial.value },
+            });
+        },
+      },
+      { global: { stubs: editorUiStubs }, attachTo: document.body },
+    );
+    expect((await inputs.commit(undefined, true)) ?? true).toBe(true);
+    partial.value = false;
+    await nextTick();
+    await expect(inputs.commit(undefined, true)).rejects.toMatchObject({ action: 'commit-field-inputs' });
+    expect(wrapper!.findAllComponents(FieldLabel).some((label) => label.props('required'))).toBe(true);
+    partial.value = true;
+    await nextTick();
+    expect((await inputs.commit(undefined, true)) ?? true).toBe(true);
+  });
+  it('derives required fields from the draft while retaining the identity declaration', async () => {
+    const inputs = createFieldInputs(),
+      content = ref<RowData>({ id: 'sample', name: 'Saved' });
+    const schema = {
+      id: 'partial',
+      sections: [
+        {
+          id: 'main',
+          label: 'Main',
+          fields: [
+            { key: 'id', label: 'ID', type: 'string' as const, required: true, identity: true },
+            { key: 'name', label: 'Name', type: 'string' as const, required: true },
+          ],
+        },
+      ],
+    };
+    wrapper = mount(
+      {
+        setup() {
+          provideFieldInputs(inputs);
+          return () =>
+            h(SchemaFormRenderer, {
+              schema,
+              modelValue: content.value,
+              runtimeContext: { sessionId: 'partial', modRoot: 'M:/partial', partial: !content.value.id },
+              'onUpdate:modelValue': (value: RowData) => {
+                content.value = value;
+              },
+            });
+        },
+      },
+      { global: { stubs: editorUiStubs } },
+    );
+    await wrapper.findAll('input')[0]!.setValue('');
+    await inputs.commit(undefined, true);
+    expect(content.value).toEqual({ name: 'Saved' });
+    expect(wrapper.findAllComponents(FieldLabel).every((label) => !label.props('required'))).toBe(true);
+    expect(schema.sections[0]!.fields[0]!.required).toBe(true);
+  });
+
+  it('retains range errors for a supplied partial value', async () => {
+    const { inputs, value } = mountBoundField(fieldFixture('float', { required: true, max: 4 }), 2, {
+      sessionId: 'partial',
+      modRoot: 'M:/partial',
+      partial: true,
+    });
+    await wrapper!.get('input').setValue('5');
+    await expect(inputs.commit(undefined, true)).rejects.toMatchObject({ action: 'commit-field-inputs' });
+    expect(value.value).toBe(2);
   });
 });

@@ -8,7 +8,7 @@ use crate::models::{
 use crate::parsers::render_csv_text;
 use crate::services::project::query::{csv_window, json_recovery};
 use crate::services::recreate_json_sources as recreate_sources_via_service;
-use crate::{io, parsers};
+use crate::{io, models, parsers};
 use serde_json::{Map, Value};
 use std::path::Path;
 
@@ -40,7 +40,9 @@ pub fn recreate_json_sources(
         } else {
             &baseline["file"]
         };
-        if file.get(definition.id_field).and_then(Value::as_str) != Some(target.id.as_str()) {
+        if models::file_content_id(file, definition.id_field, Path::new(&target.write.path))
+            != target.id
+        {
             return Err(AppError::message(
                 "spec.id_mismatch",
                 "重建基线与原文档身份不一致",

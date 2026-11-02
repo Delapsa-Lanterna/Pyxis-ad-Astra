@@ -1,5 +1,6 @@
 use super::super::super::definitions::entity_definitions::entity_definition;
 use super::super::super::query::entity_targets::describe_entity_target;
+use super::super::super::query::json_composition as query_composition;
 use super::super::super::session::csv_writes::CsvTableDraft;
 use super::super::super::session::{lock_session, session_handle};
 use crate::domain::entity_definitions::entity_spec_definition;
@@ -34,15 +35,30 @@ pub fn save_entity_spec(
     let mut composition = composition_for_session(session_id, &target.write.rel_path)?;
     composition.replace |= options.replaces(&target.write.rel_path);
     let effective = json_composition::compose_game_json(&composition, &data)?;
-    if let Some(schema) = match target.kind {
-        EntityKind::Variant => Some("variant"),
+    if let Some(schema_id) = match target.kind {
         EntityKind::Faction => Some("faction"),
         EntityKind::Skin => Some("skin"),
+        EntityKind::Variant => Some("variant"),
         _ => None,
     } {
-        schema::validate_partial_document(parsers::bundled_schema(schema), &data)?;
+        let field = entity_spec_definition(target.kind)
+            .expect("JSON entity format")
+            .id_field;
+        if data
+            .get(field)
+            .and_then(Value::as_str)
+            .is_some_and(|id| !id.is_empty())
+        {
+            schema::validate_document(parsers::bundled_schema(schema_id), &effective)?;
+        }
     }
-    if target.kind == EntityKind::Weapon && effective.get("specClass").is_some() {
+    if target.kind == EntityKind::Weapon
+        && data
+            .get("id")
+            .and_then(Value::as_str)
+            .is_some_and(|id| !id.is_empty())
+        && effective.get("specClass").is_some()
+    {
         entity_construction::validate_weapon_editor_spec(
             &effective,
             Path::new(&target.write.path),
@@ -130,10 +146,32 @@ pub(in crate::services::project) fn stage_entity_content(
 ) -> AppResult<StagedEntityWrite> {
     let definition = entity_spec_definition(target.kind)
         .ok_or_else(|| AppError::message("spec.kind_unknown", "实体规格格式不存在"))?;
+    let schema_id = match target.kind {
+        EntityKind::Faction => Some("faction"),
+        EntityKind::Skin => Some("skin"),
+        EntityKind::Variant => Some("variant"),
+        EntityKind::Ship => Some("spec-ship"),
+        EntityKind::Weapon => Some("spec-weapon"),
+        EntityKind::Projectile => Some("spec-projectile"),
+        EntityKind::System => Some("spec-system"),
+        _ => None,
+    };
+    if data
+        .get(definition.id_field)
+        .and_then(Value::as_str)
+        .is_none_or(str::is_empty)
+        && let Some(schema_id) = schema_id
+    {
+        schema::validate_partial_document(parsers::bundled_schema(schema_id), &data)?;
+    }
     let next_id =
         models::file_content_id(&data, definition.id_field, Path::new(&target.write.path));
     let next_id = validate_entity_id(&next_id, definition.invalid_id_message)?.to_string();
-    if data.get(definition.id_field).is_some() {
+    if data
+        .get(definition.id_field)
+        .and_then(Value::as_str)
+        .is_some_and(|id| !id.is_empty())
+    {
         data[definition.id_field] = Value::String(next_id.clone());
     }
     if target.kind == EntityKind::Variant {
@@ -183,6 +221,32 @@ pub(in crate::services::project) fn stage_entity_content(
     } else {
         target.write.rel_path.clone()
     };
+    if next_rel != target.write.rel_path
+        && let Some(schema_id) = schema_id
+    {
+        let previous = query_composition::json_composition(session, &target.write.rel_path)?;
+        if !previous.replace && !previous.layers.is_empty() {
+            let effective = json_composition::compose_game_json(
+                &query_composition::json_composition(session, &next_rel)?,
+                &data,
+            )?;
+            let schema = parsers::bundled_schema(schema_id);
+            schema::validate_document(schema, &effective)?;
+            // A renamed override must satisfy the destination's own required fields.
+            for field in schema["sections"]
+                .as_array()
+                .expect("bundled sections")
+                .iter()
+                .flat_map(|section| section["fields"].as_array().expect("bundled fields"))
+            {
+                let key = field["key"].as_str().expect("bundled field key");
+                let key = key.strip_prefix("file.").unwrap_or(key);
+                if field["required"] == true && effective.get(key).is_none() {
+                    schema::validate_field(field, &Value::Null, key, true)?;
+                }
+            }
+        }
+    }
     let destination = boundary.resolve_relative_target(&next_rel, "entity target")?;
     match target.kind {
         EntityKind::Variant => {
@@ -235,8 +299,11 @@ pub(in crate::services::project) fn stage_entity_content(
         row.data.insert("id".into(), Value::String(next_id.clone()));
         linked_csv = Some(csv);
     }
-    faction_index::stage_faction_index(session, &boundary, builder, target, &next_id, &next_rel)?;
+    let linked_record = faction_index::stage_faction_index(
+        session, &boundary, builder, target, &next_id, &next_rel,
+    )?;
     let mut next = target.clone();
+    next.linked_record = linked_record;
     next.id = next_id;
     next.write.rel_path = next_rel;
     next.write.path = destination.to_string_lossy().to_string();

@@ -6,8 +6,8 @@ use crate::io::{
     read_versioned_csv, read_versioned_json,
 };
 use crate::models::{
-    EntityEditTarget, EntityKind, JsonDocumentOrigin, JsonRecoveryPlan, JsonRecoveryRequest,
-    JsonSourceIdentity,
+    EntityEditTarget, EntityKind, EntityLinkedRecord, JsonDocumentOrigin, JsonRecoveryPlan,
+    JsonRecoveryRequest, JsonSourceIdentity,
 };
 use crate::services::project;
 use crate::services::project::definitions::entity_definitions;
@@ -26,6 +26,10 @@ pub fn prepare_json_source_recovery(request: JsonRecoveryRequest) -> AppResult<J
             Some(json_recovery_origin(&request.session_id, target)?)
         }
     };
+    // Index versions protect the save scope; only an owned registration is a recovery source.
+    let owns_index = original.as_ref().is_some_and(|target| {
+        matches!(target.linked_record, Some(EntityLinkedRecord::Index { .. }))
+    });
     let paths = match original.as_ref() {
         None => vec![(
             "file",
@@ -75,7 +79,9 @@ pub fn prepare_json_source_recovery(request: JsonRecoveryRequest) -> AppResult<J
             .try_exists()
             .map_err(|error| AppError::from(error).at_path(&path))?
         {
-            missing.push(relative.clone());
+            if key != "index" || owns_index {
+                missing.push(relative.clone());
+            }
             file_version(&path)?
         } else if key == "index" {
             let (version, table) = read_versioned_csv(&path)?;
@@ -112,7 +118,7 @@ pub fn prepare_json_source_recovery(request: JsonRecoveryRequest) -> AppResult<J
             EntityKind::Mission => Some("data/missions/mission_list.csv"),
             _ => None,
         };
-        if let (Some(index_path), Some(table)) = (index_path, index.as_ref()) {
+        if owns_index && let (Some(index_path), Some(table)) = (index_path, index.as_ref()) {
             let linked = if target.kind == EntityKind::Faction {
                 io::faction_index_entries(&boundary, table)?
                     .iter()

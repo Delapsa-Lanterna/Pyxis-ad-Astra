@@ -88,7 +88,7 @@ import NumberValueInput from '@/shared/ui/NumberValueInput.vue';
 import { useInputEditMode } from '@/app/composables/use-input-edit-mode';
 import { schemaCollection, schemaFieldVariant, schemaJsonInputShape } from '@/domain/schema/schema-values';
 import type { FieldSchema, SchemaFieldUpdate } from '@/domain/schema/schema.types';
-import type { SchemaRuntimeContext } from '@/domain/schema/schema-runtime';
+import { schemaContextField, type SchemaRuntimeContext } from '@/domain/schema/schema-runtime';
 import type { JsonValue } from '@/shared/types';
 const props = defineProps<{
   field: FieldSchema;
@@ -124,7 +124,9 @@ const inherited = computed(() => {
     sources = context?.sources();
   return context && sources && compositionOrigin(context.local(), sources, compositionPath(props.fieldPath ?? props.field.key)) !== null;
 });
-const active = computed(() => (props.field.variants ? schemaFieldVariant(props.field, props.value) : props.field));
+const active = computed(() =>
+  schemaContextField(props.field.variants ? schemaFieldVariant(props.field, props.value) : props.field, props.runtimeContext),
+);
 const booleanValue = computed(() => (props.value === undefined ? active.value.default : props.value));
 const scalar = computed<FieldSchema>(() =>
   schemaCollection(active.value) || active.value.type.startsWith('color-') ? { ...active.value, type: 'json' } : active.value,

@@ -57,6 +57,7 @@ import SchemaValueInput from '@/app/components/schema/SchemaValueInput.vue';
 import { specSchemaContext } from '@/app/composables/spec-editor/spec-schema-context';
 import FieldRow from '@/shared/ui/FieldRow.vue';
 import { toOptions } from '@/domain/editors/lib/editor-constants';
+import { schemaContextField } from '@/domain/schema/schema-runtime';
 import { schemaCollection, schemaFieldRequired } from '@/domain/schema/schema-values';
 import { specFieldParent, type SpecField } from '@/domain/spec-editor/spec-fields';
 import type { JsonValue, RowData } from '@/shared/types';
@@ -69,12 +70,14 @@ const schemaRuntime = inject(specSchemaContext, null);
 const fieldRuntime = computed(() => (schemaRuntime?.value ? { ...schemaRuntime.value, readValue: () => props.content } : null));
 const fields = computed(() =>
   props.fields.map((field) =>
-    field.requiredWhen
-      ? {
-          ...field,
-          required: schemaFieldRequired(field, (key) => stored({ key }) ?? props.fields.find((item) => item.key === key)?.default),
-        }
-      : field,
+    fieldRuntime.value?.partial
+      ? schemaContextField(field, fieldRuntime.value)
+      : field.requiredWhen
+        ? {
+            ...field,
+            required: schemaFieldRequired(field, (key) => stored({ key }) ?? props.fields.find((item) => item.key === key)?.default),
+          }
+        : field,
   ),
 );
 const emit = defineEmits<{ update: [path: string, value: JsonValue]; remove: [path: string]; change: [path: string] }>();

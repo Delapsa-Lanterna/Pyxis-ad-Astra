@@ -6,17 +6,18 @@ use crate::io;
 #[cfg(test)]
 use crate::models::FileChangeReplayDirection;
 use crate::models::{
-    EntityKind, JsonDocumentOrigin, JsonRecoveryPlan, JsonRecoveryRequest, JsonSourceIdentity,
-    JsonSourceRestore, SaveAction, WriteResult,
+    EntityKind, IndexedConfigKind, IndexedConfigSave, JsonDocumentOrigin, JsonFileSave,
+    JsonRecoveryPlan, JsonRecoveryRequest, JsonSourceIdentity, JsonSourceRestore, SaveAction,
+    WriteResult,
 };
 use crate::services::project::PerformanceTrace;
 use crate::services::project::test_support::project_workspace;
 #[cfg(test)]
 use crate::services::write_transactions;
 use crate::services::{project, project_save, query_entity};
-use crate::test_support::TestWorkspace;
 #[cfg(test)]
 use crate::test_support::work_counts;
+use crate::test_support::{self, TestWorkspace};
 use serde_json::{Value, json};
 use std::fs;
 
@@ -293,4 +294,217 @@ fn repair_faction_reference() {
         result.content.unwrap().value.current_sources["file"]["displayName"],
         "External"
     );
+}
+
+#[test]
+fn directory_sources_preserve_registration_and_sparse_identity() {
+    if test_support::isolated_test() {
+        return;
+    }
+    for (kind, relative, field) in [
+        (
+            EntityKind::Faction,
+            "data/world/factions/sample.faction",
+            "id",
+        ),
+        (
+            EntityKind::Skin,
+            "data/hulls/skins/sample.skin",
+            "skinHullId",
+        ),
+    ] {
+        for foundation in ["local", "core", "reference"] {
+            for id in [None, Some(""), Some("sample")] {
+                for index_present in [false, true]
+                    .into_iter()
+                    .take(if kind == EntityKind::Faction { 2 } else { 1 })
+                {
+                    let work = project_workspace("directory_source_recovery");
+                    let root = work.join("overlay");
+                    let file = root.join(relative);
+                    fs::create_dir_all(file.parent().unwrap()).unwrap();
+                    let mut data = if kind == EntityKind::Faction {
+                        json!({"knownShips":{"tags":["overlay"]}})
+                    } else {
+                        json!({"hullName":"Overlay"})
+                    };
+                    if let Some(id) = id {
+                        data[field] = json!(id);
+                    }
+                    fs::write(&file, data.to_string()).unwrap();
+                    let index_path = root.join("data/world/factions/factions.csv");
+                    if index_present {
+                        fs::write(
+                            &index_path,
+                            "faction\ndata/world/factions/unrelated.faction\n",
+                        )
+                        .unwrap();
+                    }
+                    let index_before = fs::read(&index_path).ok();
+                    let base_root = work.join(if foundation == "core" {
+                        "starsector-core"
+                    } else {
+                        "reference"
+                    });
+                    let base_file = base_root.join(relative);
+                    let base = if kind == EntityKind::Faction {
+                        json!({"id":"base","displayName":"Base"})
+                    } else {
+                        json!({"skinHullId":"base","baseHullId":"hull"})
+                    };
+                    if foundation != "local" {
+                        fs::create_dir_all(base_file.parent().unwrap()).unwrap();
+                        fs::write(&base_file, base.to_string()).unwrap();
+                        if kind == EntityKind::Faction {
+                            fs::write(
+                                base_root.join("data/world/factions/factions.csv"),
+                                format!("faction\n{relative}\n"),
+                            )
+                            .unwrap();
+                        }
+                    }
+                    let reference = if foundation == "reference" {
+                        Some(
+                            project::open_project_session_traced(
+                                &base_root,
+                                None,
+                                &mut PerformanceTrace::new("recovery.reference"),
+                            )
+                            .unwrap(),
+                        )
+                    } else {
+                        None
+                    };
+                    let manifest = project::open_project_session_traced(
+                        &root,
+                        (foundation == "core").then_some(&*work),
+                        &mut PerformanceTrace::new("recovery.overlay"),
+                    )
+                    .unwrap();
+                    if let Some(reference) = &reference {
+                        let ids = vec![reference.session_id.clone(), manifest.session_id.clone()];
+                        project::set_reference_order(ids.clone()).unwrap();
+                        project::set_reference_sources(ids).unwrap();
+                    }
+                    let record = query_entity(&manifest.session_id, kind, "sample")
+                        .unwrap()
+                        .unwrap();
+                    assert!(record.target.linked_record.is_none());
+                    assert_eq!(
+                        record.composition.as_ref().unwrap().layers.len(),
+                        usize::from(foundation != "local")
+                    );
+                    let request = JsonRecoveryRequest {
+                        session_id: manifest.session_id.clone(),
+                        mod_root: manifest.mod_root.clone(),
+                        origin: entity(kind, relative),
+                    };
+                    let before = work_counts::count("read", &file);
+                    let plan = prepare_json_source_recovery(request.clone()).unwrap();
+                    assert!(plan.missing_paths.is_empty());
+                    assert_eq!(work_counts::count("read", &file) - before, 1);
+                    if kind == EntityKind::Faction {
+                        assert!(
+                            plan.base_versions
+                                .contains(&io::file_version(&index_path).unwrap())
+                        );
+                    }
+                    data[if kind == EntityKind::Faction {
+                        "displayNameLong"
+                    } else {
+                        "hullName"
+                    }] = json!("Saved");
+                    let action = if kind == EntityKind::Faction {
+                        SaveAction::SaveIndexedConfigEntity(IndexedConfigSave {
+                            session_id: manifest.session_id.clone(),
+                            mod_root: manifest.mod_root.clone(),
+                            base_versions: plan.base_versions,
+                            kind: IndexedConfigKind::Faction,
+                            previous_id: Some("sample".into()),
+                            next_id: "sample".into(),
+                            index_row: Default::default(),
+                            entity_data: json!({"file":data}),
+                            json_write: Default::default(),
+                            ordered_json: None,
+                        })
+                    } else {
+                        SaveAction::SaveSkinEntity(JsonFileSave {
+                            session_id: manifest.session_id.clone(),
+                            mod_root: manifest.mod_root.clone(),
+                            base_versions: plan.base_versions,
+                            previous_id: Some("sample".into()),
+                            next_id: "sample".into(),
+                            data: data.clone(),
+                            rel_path: Some(relative.into()),
+                            json_write: Default::default(),
+                            ordered_json: None,
+                        })
+                    };
+                    project_save::execute_save_action(action).unwrap();
+                    assert_eq!(io::read_json_file(&file).unwrap(), data);
+                    fs::remove_file(&file).unwrap();
+                    let plan = prepare_json_source_recovery(request.clone()).unwrap();
+                    assert_eq!(plan.missing_paths, [relative]);
+                    let baseline = if kind == EntityKind::Faction {
+                        json!({"file":data})
+                    } else {
+                        data.clone()
+                    };
+                    let restored = project_save::execute_typed_save::<JsonRecoveryPlan>(
+                        SaveAction::RecreateJsonSources(JsonSourceRestore {
+                            session_id: manifest.session_id.clone(),
+                            mod_root: manifest.mod_root.clone(),
+                            plan,
+                            baseline,
+                        }),
+                    )
+                    .unwrap();
+                    assert_eq!(restored.changes.len(), 1);
+                    assert!(restored.content.unwrap().value.missing_paths.is_empty());
+                    assert_eq!(io::read_json_file(&file).unwrap(), data);
+                    assert_eq!(fs::read(&index_path).ok(), index_before);
+                    assert_eq!(
+                        query_entity(&manifest.session_id, kind, "sample")
+                            .unwrap()
+                            .unwrap()
+                            .data,
+                        data
+                    );
+                    if foundation != "local" {
+                        assert_eq!(io::read_json_file(&base_file).unwrap(), base);
+                    }
+                    if reference.is_some() {
+                        project::set_reference_sources(Vec::new()).unwrap();
+                    }
+                    project::close_project_session(manifest.session_id).unwrap();
+                    if let Some(reference) = reference {
+                        project::close_project_session(reference.session_id).unwrap();
+                    }
+                    work.close().unwrap();
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn recovery_rejects_an_explicit_identity_change() {
+    for kind in ["faction", "skin"] {
+        let mut fixture = Fixture::new(kind);
+        let path = fixture.root.join(&fixture.paths[0]);
+        fs::remove_file(&path).unwrap();
+        let plan = prepare_json_source_recovery(fixture.request.clone()).unwrap();
+        if kind == "faction" {
+            fixture.baseline["file"]["id"] = json!("different");
+        } else {
+            fixture.baseline["skinHullId"] = json!("different");
+        }
+        assert_eq!(
+            fixture.restore(plan).unwrap_err().code(),
+            "spec.id_mismatch"
+        );
+        assert!(!path.exists());
+        project::close_project_session(fixture.request.session_id).unwrap();
+        fixture.root.close().unwrap();
+    }
 }

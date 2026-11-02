@@ -732,4 +732,23 @@ describe('complete JSON document runtime', () => {
     expect(a.dirty.value).toBe(false);
     expect(b.dirty.value).toBe(true);
   });
+  it.each([false, true])('adopts the actual composition after saving with path change=%s', async (renamed) => {
+    const definition = JSON_DOCUMENT_DEFINITIONS.factions;
+    const initial = record(definition);
+    initial.composition = { layers: [], excluded: ['retained'], replace: false };
+    const doc = useJsonDocumentSession(definition, initial, feedback);
+    const writer = mocks.saveIndexed.getMockImplementation()!;
+    mocks.saveIndexed.mockImplementationOnce(async (write: IndexedConfigSave) => {
+      const saved = await writer(write);
+      entities.get(write.sessionId + ':faction:' + write.nextId)!.composition = { layers: [], excluded: [], replace: false };
+      if (!renamed) {
+        saved.receipt.identityChanges[0]!.after.write = { ...initial.target.entity!.write };
+      }
+      return saved;
+    });
+    edit(doc, definition, 'Saved', 'next');
+    expect((await doc.save()).status).toBe('saved');
+    expect(mocks.read).toHaveBeenCalledTimes(Number(renamed));
+    expect(doc.composition.value?.excluded).toEqual(renamed ? [] : ['retained']);
+  });
 });

@@ -46,6 +46,7 @@ const mocks = vi.hoisted(() => ({
   prepare: vi.fn(),
   slots: vi.fn(),
   previews: vi.fn(),
+  missionPreview: vi.fn(),
   miscRead: vi.fn(),
   miscList: vi.fn(),
   miscSave: vi.fn(),
@@ -143,7 +144,7 @@ vi.mock('@/services/misc-config.service', async (original) => ({
 vi.mock('@/services/json-entity.service', () => ({
   deleteIndexedConfigEntity: mocks.remove,
   queryFactionPreviewImages: mocks.previews,
-  queryMissionDraftIcon: async () => '',
+  queryMissionDraftIcon: mocks.missionPreview,
 }));
 vi.mock('@/services/hull-reference.service', () => ({
   querySessionHullReferences: async () => ({ hullNames: {} }),
@@ -262,6 +263,7 @@ beforeEach(() => {
     void options.onConfirm();
   });
   mocks.previews.mockResolvedValue({ logoSrc: '', crestSrc: '' });
+  mocks.missionPreview.mockResolvedValue('');
   mocks.slots.mockResolvedValue([]);
   mocks.miscList.mockResolvedValue([
     { kind: 'strings', path: 'M:/one/data/strings/strings.json', relPath: 'data/strings/strings.json', state: 'missing', error: null },
@@ -275,6 +277,148 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 describe('JSON common workspace and form', () => {
+  it.each(pages)('%s retains editor, form, input, focus and scroll through ordinary edits', async (page) => {
+    mocks.previews.mockResolvedValue({ logoSrc: 'logo-image', crestSrc: 'crest-image' });
+    mocks.missionPreview.mockResolvedValue('mission-image');
+    await mountPage(page);
+    const editor = wrapper!.getComponent(JsonDocumentEditor),
+      form = editor.getComponent(SchemaFormRenderer);
+    const input = nameInput(),
+      scroll = editor.get('.editor-fields').element;
+    const images = editor.findAll('.json-image-preview img').map((image) => image.element);
+    const counts = [
+      mocks.previews.mock.calls.length,
+      mocks.missionPreview.mock.calls.length,
+      mocks.read.mock.calls.length,
+      mocks.list.mock.calls.length,
+    ];
+    scroll.scrollTop = 137;
+    input.element.focus();
+    for (const value of ['First', 'Second', 'Third']) {
+      await input.setValue(value);
+      await useJsonEditorStore().active!.inputs.commit();
+      if (page === 'factions' || page === 'mission') {
+        const doc = editor.props('document'),
+          source = page === 'factions' ? 'file' : 'descriptor';
+        doc.draftValue.value = {
+          ...doc.draftValue.value,
+          [source]: { ...(doc.draftValue.value[source] as RowData), [page === 'factions' ? 'icon' : 'logo']: value },
+        };
+      }
+      await flushPromises();
+      expect(wrapper!.getComponent(JsonDocumentEditor).vm.$.uid).toBe(editor.vm.$.uid);
+      expect(editor.getComponent(SchemaFormRenderer).vm.$.uid).toBe(form.vm.$.uid);
+      expect(nameInput().element).toBe(input.element);
+      expect(document.activeElement).toBe(input.element);
+      expect(scroll.scrollTop).toBe(137);
+      expect(editor.findAll('.json-image-preview img').map((image) => image.element)).toEqual(images);
+      expect([
+        mocks.previews.mock.calls.length,
+        mocks.missionPreview.mock.calls.length,
+        mocks.read.mock.calls.length,
+        mocks.list.mock.calls.length,
+      ]).toEqual(counts);
+    }
+  });
+  it.each(['factions', 'mission'] as const)(
+    '%s updates image sources without replacing nodes and rejects obsolete results',
+    async (page) => {
+      const faction = page === 'factions',
+        query = faction ? mocks.previews : mocks.missionPreview;
+      const result = (value: string) => (faction ? { logoSrc: value, crestSrc: value } : value);
+      const resource = {
+        source: 'mod' as const,
+        relPath: 'graphics/preview.png',
+        ownerKind: faction ? ('faction' as const) : ('mission' as const),
+        ownerId: 'a',
+        key: faction ? 'logo' : 'icon',
+      };
+      entities.get(key('s1', faction ? 'faction' : 'mission', 'a'))!.resourceRefs = { preview: resource };
+      query.mockResolvedValue(result('original-image'));
+      await mountPage(page);
+      const editor = wrapper!.getComponent(JsonDocumentEditor),
+        doc = editor.props('document');
+      const image = editor.get('.json-image-preview img').element;
+      const panel = image.closest('.panel-card'),
+        scroll = editor.get('.editor-fields').element;
+      scroll.scrollTop = 137;
+      const initialCalls = query.mock.calls.length;
+      await projectChangeFixture('s1', {
+        ...savedWriteFixture().invalidation,
+        resources: [{ source: 'mod', relPath: 'graphics/unrelated.png' }],
+      });
+      await flushPromises();
+      expect(query).toHaveBeenCalledTimes(initialCalls);
+      query.mockResolvedValueOnce(result('refreshed-image'));
+      await projectChangeFixture('s1', { ...savedWriteFixture().invalidation, resources: [resource] });
+      await flushPromises();
+      expect(query).toHaveBeenCalledTimes(initialCalls + 1);
+      expect(editor.get('.json-image-preview img').element).toBe(image);
+      expect(image.getAttribute('src')).toBe('refreshed-image');
+      const update = async (path: string) => {
+        const key = faction ? 'file' : 'descriptor';
+        doc.draftValue.value = {
+          ...doc.draftValue.value,
+          [key]: { ...(doc.draftValue.value[key] as RowData), [faction ? 'logo' : 'icon']: path },
+        };
+        await flushPromises();
+      };
+      let finishOld!: (value: unknown) => void, finishNew!: (value: unknown) => void;
+      const calls = query.mock.calls.length;
+      query.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finishOld = resolve;
+          }),
+      );
+      await update('graphics/old.png');
+      expect(image.getAttribute('src')).toBe('refreshed-image');
+      expect(editor.get('.panel-card').element).toBe(panel);
+      query.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finishNew = resolve;
+          }),
+      );
+      await update('graphics/new.png');
+      finishNew(result('new-image'));
+      await flushPromises();
+      finishOld(result('obsolete-image'));
+      await flushPromises();
+      expect(query).toHaveBeenCalledTimes(calls + 2);
+      expect(editor.get('.json-image-preview img').element).toBe(image);
+      expect(image.getAttribute('src')).toBe('new-image');
+      query.mockRejectedValueOnce(new Error('image read failed'));
+      await update('graphics/failed.png');
+      expect(image.getAttribute('src')).toBe('new-image');
+      expect(mocks.feedback.error).toHaveBeenCalledWith(expect.any(Error), '刷新 JSON 预览失败');
+      query.mockResolvedValueOnce(result(''));
+      await update('');
+      expect(editor.find('.json-image-preview img').element).toBe(image);
+      expect(editor.find('.panel-card').element).toBe(panel);
+      expect((panel as HTMLElement).style.display).toBe('none');
+      query.mockResolvedValueOnce(result('restored-image'));
+      await update('graphics/restored.png');
+      expect(editor.get('.json-image-preview img').element).toBe(image);
+      expect(image.getAttribute('src')).toBe('restored-image');
+      expect(scroll.scrollTop).toBe(137);
+      query.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finishOld = resolve;
+          }),
+      );
+      await update('graphics/late.png');
+      await wrapper!.getComponent(JsonDocumentList).get('[data-entity-id="b"]').trigger('click');
+      await flushPromises();
+      const next = wrapper!.getComponent(JsonDocumentEditor);
+      finishOld(result('late-image'));
+      await flushPromises();
+      expect(next.props('document').target.value!.id).toBe('b');
+      expect(next.text()).not.toContain('late-image');
+      expect(next.get('.json-image-preview img').attributes('src')).toBe('original-image');
+    },
+  );
   it.each(['variants', 'skins', 'factions', 'mission', 'misc-config'] as const)('%s filters its displayed summaries', async (page) => {
     await mountPage(page);
     const list = wrapper!.getComponent(JsonDocumentList),
@@ -1019,5 +1163,32 @@ describe('JSON common workspace and form', () => {
       expect.stringContaining('local'),
       expect.stringContaining('b'),
     ]);
+  });
+});
+
+describe('composed JSON detail adoption', () => {
+  it('loads one faction detail with sparse local content and saves it through the form', async () => {
+    const entity = entities.get(key('s1', 'faction', 'a'))!;
+    entity.data = { knownShips: {} };
+    entity.baseVersions.unshift({ path: 'M:/one/data/world/factions/factions.csv', fingerprint: 'index' });
+    entity.composition = { layers: [], excluded: [], replace: false };
+    await mountPage('factions');
+    const doc = useJsonEditorStore().active!;
+    expect(mocks.read.mock.calls.map((call) => call.slice(0, 3))).toEqual([['s1', 'faction', 'a']]);
+    const renderer = wrapper!.getComponent(SchemaFormRenderer);
+    expect(renderer.props('runtimeContext')!.partial).toBe(true);
+    expect(wrapper!.get('.editor-header .page-path').text()).toBe(entity.target.write.relPath);
+    expect(wrapper!.get('.editor-fields > .ui-text-muted').text()).toBe('待组合文件');
+    await nameInput().setValue('Saved override');
+    expect((await doc.save()).status).toBe('saved');
+    expect(mocks.saveIndexed.mock.lastCall![0].entityData.file).toEqual({ knownShips: {}, displayName: 'Saved override' });
+    expect(mocks.feedback.choose).not.toHaveBeenCalled();
+    expect(doc.dirty.value).toBe(false);
+    expect(renderer.props('runtimeContext')!.composition).toBeDefined();
+    await wrapper!.findAll('.schema-section input')[1]!.setValue('local');
+    await doc.inputs.commit();
+    expect(wrapper!.get('.editor-fields > .ui-text-muted').text()).toBe('自持文件');
+    await doc.undo();
+    expect(wrapper!.get('.editor-fields > .ui-text-muted').text()).toBe('待组合文件');
   });
 });

@@ -2,6 +2,8 @@ import { savedWriteFixture } from '@/test/fixtures/write-result';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { entityTargetFixture } from '@/test/fixtures/entity-target';
 import { createPinia, setActivePinia } from 'pinia';
+import { initializeSettingsStore } from '@/stores/settings.store';
+import { createSettingsFixture } from '@/test/fixtures/settings';
 
 const mocks = vi.hoisted(() => ({
   writeModInfo: vi.fn(),
@@ -19,7 +21,8 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@/orchestrators/window-identity.orchestrator', () => ({
   reserveFileIdentityIntent: vi.fn(async () => {}),
 }));
-vi.mock('@/orchestrators/entity-write.orchestrator', () => ({
+vi.mock('@/orchestrators/entity-write.orchestrator', async () => ({
+  ...(await vi.importActual('@/orchestrators/entity-write.orchestrator')),
   chooseEntityFilename: vi.fn(async () => false),
 }));
 vi.mock('@/services/window.service', () => ({ releaseNativeWindowTargets: vi.fn(async () => {}) }));
@@ -57,7 +60,7 @@ import {
 } from '@/orchestrators/json-save.orchestrator';
 import { deleteJsonDocument } from '@/app/composables/json-editor/json-document-capabilities';
 import { createDefaultVariant } from '@/domain/entity-write/spec-construction';
-import type { EntityKind } from '@/shared/types';
+import type { AppFeedback, RowData, EntityKind } from '@/shared/types';
 
 const MOD_ROOT = 'M:\\test-mod';
 const SESSION_ID = 'sess-1';
@@ -95,6 +98,8 @@ function indexedEntity(entityId: string) {
 
 beforeEach(() => {
   setActivePinia(createPinia());
+  initializeSettingsStore(createSettingsFixture());
+  vi.clearAllMocks();
   for (const mock of Object.values(mocks)) mock.mockResolvedValue(writeResult());
 });
 
@@ -346,5 +351,32 @@ describe('JSON save orchestrator', () => {
       },
       undefined,
     );
+  });
+});
+
+describe('JSON local identity presence', () => {
+  it.each([
+    [false, false],
+    [true, true],
+    [false, true],
+    [true, false],
+  ])('saves local presence %s -> %s', async (beforeId, afterId) => {
+    const choose = vi.fn<AppFeedback['choose']>(async () => 'save');
+    const feedback = { choose } as Pick<AppFeedback, 'choose'> as AppFeedback;
+    const before: RowData = beforeId ? { skinHullId: 'sample' } : {};
+    const after: RowData = afterId ? { skinHullId: 'sample' } : {};
+    const target = entityTargetFixture('skin', 'sample');
+    mocks.writeSkinEntity.mockResolvedValue(writeResult({ skinHullId: 'sample', data: after }));
+    const save = () =>
+      saveJsonFileAction('skin', SESSION_ID, MOD_ROOT, 'sample', after, 'sample', target.write.relPath, feedback, [], before);
+    expect(await save()).not.toBeNull();
+    expect(choose).toHaveBeenCalledTimes(Number(beforeId !== afterId));
+    expect(mocks.writeSkinEntity.mock.lastCall![0].data).toEqual(after);
+    if (beforeId !== afterId) {
+      choose.mockResolvedValueOnce('cancel');
+      const count = mocks.writeSkinEntity.mock.calls.length;
+      expect(await save()).toBeNull();
+      expect(mocks.writeSkinEntity).toHaveBeenCalledTimes(count);
+    }
   });
 });

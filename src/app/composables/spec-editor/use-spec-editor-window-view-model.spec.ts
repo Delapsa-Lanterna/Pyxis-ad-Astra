@@ -1159,3 +1159,71 @@ describe.each(['ship', 'weapon'] as const)('%s draft resource lifecycle', (kind)
     expect(mocks.feedback.error).not.toHaveBeenCalled();
   });
 });
+
+describe('Spec local identity presence', () => {
+  it.each([
+    [false, false],
+    [true, true],
+    [false, true],
+    [true, false],
+  ])('saves local presence %s -> %s', async (beforeId, afterId) => {
+    vi.clearAllMocks();
+    mocks.feedback.choose.mockResolvedValue('save');
+    const bundle: SpecEditorData<'projectile'> = {
+      kind: 'projectile',
+      target: entityTargetFixture('projectile', 'XY'),
+      baseVersions: [],
+      isNew: false,
+      spec: beforeId ? { id: 'XY', width: 2 } : { width: 2 },
+      composition: { layers: [], excluded: [], replace: false },
+    };
+    const vm = await initializedViewModel('projectile', bundle);
+    const after: RowData = afterId ? { id: 'XY', width: 3 } : { width: 3 };
+    mocks.saveSpecEditorSpecByKind.mockResolvedValue({
+      ...savedWriteFixture(),
+      identityChanges: [{ before: bundle.target, after: bundle.target }],
+      content: { target: { kind: 'spec', target: bundle.target }, value: after },
+    });
+    vm.updateEditorDraft(after);
+    expect(vm.schemaRuntimeContext.value!.partial).toBe(!afterId);
+    await vm.saveEditorData();
+    expect(mocks.feedback.choose).toHaveBeenCalledTimes(Number(beforeId !== afterId));
+    expect(mocks.saveSpecEditorSpecByKind.mock.lastCall![3]).toEqual(after);
+    await vm.saveEditorData();
+    expect(mocks.feedback.choose).toHaveBeenCalledTimes(Number(beforeId !== afterId));
+  });
+  it('preserves later identity edits while confirming a captured removal', async () => {
+    vi.clearAllMocks();
+    const bundle: SpecEditorData<'projectile'> = {
+      kind: 'projectile',
+      target: entityTargetFixture('projectile', 'XY'),
+      baseVersions: [],
+      isNew: false,
+      spec: { id: 'XY', width: 2 },
+      composition: { layers: [], excluded: [], replace: false },
+    };
+    const vm = await initializedViewModel('projectile', bundle);
+    let answer!: (choice: string) => void;
+    mocks.feedback.choose.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          answer = resolve;
+        }),
+    );
+    mocks.saveSpecEditorSpecByKind.mockResolvedValue({
+      ...savedWriteFixture(),
+      identityChanges: [{ before: bundle.target, after: bundle.target }],
+      content: { target: { kind: 'spec', target: bundle.target }, value: { width: 3 } },
+    });
+    vm.updateEditorDraft({ width: 3 });
+    const pending = vm.saveEditorData();
+    await flushPromises();
+    expect(mocks.feedback.choose).toHaveBeenCalledOnce();
+    vm.updateEditorDraft({ id: 'Later', width: 4 });
+    answer('save');
+    await pending;
+    expect(mocks.saveSpecEditorSpecByKind.mock.lastCall![3]).toEqual({ width: 3 });
+    expect(vm.draftValue.value).toEqual({ id: 'Later', width: 4 });
+    expect(vm.draftDirty.value).toBe(true);
+  });
+});

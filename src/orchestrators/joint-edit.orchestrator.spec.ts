@@ -99,3 +99,30 @@ describe('joint declared editing scope confirmation', () => {
     expect(records.find((entry) => entry.code === 'joint.targets_submitted')!.fields?.requestId).toBe(mocks.save.mock.calls[0]![1].id);
   });
 });
+
+describe('joint local identity presence', () => {
+  it.each([
+    [false, false],
+    [true, true],
+    [false, true],
+    [true, false],
+  ])('saves local presence %s -> %s after conflict choice', async (beforeId, afterId) => {
+    const snapshot = shipJointFixture();
+    const record = snapshot.records.find((item) => item.key === 'spec')!;
+    record.value = { state: 'present', value: beforeId ? { hullId: 'sample' } : {} };
+    const values: JointEditDraft['values'] = {
+      spec: { state: 'present' as const, value: afterId ? { hullId: 'sample', hullName: 'Saved' } : { hullName: 'Saved' } },
+    };
+    mocks.prepare.mockResolvedValue({ snapshot, values, conflicts: [] });
+    mocks.save.mockResolvedValue({ ...savedWriteFixture(), content: { target: { kind: 'joint', root: snapshot.root }, value: snapshot } });
+    expect(await submitJointEdit({ baseline: snapshot, values }, feedback, async () => [])).not.toBeNull();
+    expect(feedback.choose).toHaveBeenCalledTimes(Number(beforeId !== afterId));
+    expect(mocks.save.mock.lastCall![0].values).toEqual(values);
+    if (beforeId !== afterId) {
+      vi.mocked(feedback.choose).mockResolvedValueOnce('cancel');
+      const count = mocks.save.mock.calls.length;
+      expect(await submitJointEdit({ baseline: snapshot, values }, feedback, async () => [])).toBeNull();
+      expect(mocks.save).toHaveBeenCalledTimes(count);
+    }
+  });
+});
