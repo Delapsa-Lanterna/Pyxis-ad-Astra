@@ -63,10 +63,11 @@
 .field-control-line > .ui-field-number {
   flex: 0 1 120px;
 }
-.field-group > .field-control {
-  overflow-x: auto;
-}
 .field-group > .field-control > .field-control-line {
+  overflow-x: auto;
+  min-height: 0;
+}
+.field-group > .field-control > .field-control-line > .schema-form:has(> :is(.schema-field, .schema-section):not(.ui-retained-hidden)) {
   min-width: calc(2 * var(--field-label-width, 112px) + 12px);
 }
 .ui-field-stack,
