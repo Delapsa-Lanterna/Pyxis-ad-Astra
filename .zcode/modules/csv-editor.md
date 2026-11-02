@@ -9,8 +9,6 @@ CSV 文档编辑模块管理整表文件的领域规则、运行态、展示、�
 ### 拥有
 
 - `src-tauri/src/commands/tables.rs`：CSV 读取与 patch command。
-- `src-tauri/src/services/project/definitions/table_definitions.rs`：表格实体列、摘要、图标及来源选项映射。
-- `src-tauri/src/services/project/query/csv_associated_specs.rs`：关联文件批量准备、实际来源与匹配版本。
 - `src-tauri/src/services/project/query/csv_window.rs`：CSV 窗口行、搜索与单行预览查询。
 - `src-tauri/src/services/project/write/csv_patch.rs`：CSV patch、关联规格、行键及同根 changeset 装配。
 - `src/app/components/AssociatedSpecSaveDialog.vue`：关联规格选择与武器创建类型的异步确认内容。
@@ -26,10 +24,12 @@ CSV 文档编辑模块管理整表文件的领域规则、运行态、展示、�
 - `src-tauri/src/domain/csv_column_order.rs`：字段模式所属的标准列与补列顺序。
 - `src-tauri/src/models/table_save.rs`：CSV 保存请求、行修改、关联规格动作与写入目标。
 - `src-tauri/src/models/tables.rs`：CSV 查询请求、解析记录、搜索与窗口结果。
+- `src-tauri/src/services/project/model.rs`：正式表格路径、身份列、摘要来源与 Core 要求。
+- `src-tauri/src/services/project/resources/table_references.rs`：行预览与来源选项的授权图片及显示名称。
 - `src-tauri/src/services/project/session/csv_tables.rs`：正式表格内容、稳定行身份与来源版本。
 - `src-tauri/src/services/project/session/csv_writes.rs`：表格暂存与成功应用后的正式状态接纳。
-- `src-tauri/src/services/project/sources/`：表格消费的带版本读取与已解析内容交接。
 - `src-tauri/src/services/project/write/entity_write.rs`：实体关联规格与描述的实际文件写入。
+- `src-tauri/src/services/project/write/entity_write/associated_spec_preparation.rs`：关联文件实际来源、目标准备与匹配版本。
 - `src/domain/csv-editor/csv-dirty.ts`：保存快照消费的表格行脏标记。
 - `src/domain/csv-editor/csv-table-draft.ts`：提交后的表格基线、行序、行键映射及 dirty 接纳。
 - `src/domain/edit-session.ts`：历史双栈原语与正式保存后保留后续草稿的接纳规则。

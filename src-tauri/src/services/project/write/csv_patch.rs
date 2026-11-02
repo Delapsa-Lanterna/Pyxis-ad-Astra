@@ -26,9 +26,9 @@ use crate::services::{
     require_entity_version_scope,
 };
 
-#[cfg(test)]
-use crate::services::project::query::csv_associated_specs;
 use crate::services::project::query::entity_targets;
+#[cfg(test)]
+use crate::services::project::write::entity_write::associated_spec_preparation;
 use crate::services::project::write::entity_write::{associated_specs, descriptions};
 use serde_json::Value;
 use std::collections::HashMap;
@@ -73,7 +73,7 @@ pub(in crate::services::project) fn prepared_spec_write(
     table: CsvTableKey,
     change: AssociatedSpecChange,
 ) -> AppResult<AssociatedSpecWrite> {
-    let prepared = csv_associated_specs::prepare_csv_associated_specs(
+    let prepared = associated_spec_preparation::prepare_csv_associated_specs(
         session_id,
         table,
         slice::from_ref(&change),
@@ -396,6 +396,8 @@ pub fn write_csv_request(payload: CsvSave) -> Result<WriteResult<Value>, AppErro
 
 #[cfg(test)]
 mod tests {
+    use crate::services::project_sync::release_project_session;
+
     use super::*;
     #[cfg(test)]
     use crate::io;
@@ -414,7 +416,7 @@ mod tests {
     use crate::services::project::query::csv_window::query_csv_table_window;
     #[cfg(test)]
     use crate::services::project::query::{csv_window, entity_targets, source_options};
-    use crate::services::project::session::{close_project_session, open_project_session_traced};
+    use crate::services::project::session::open_project_session_traced;
     use crate::services::project::test_support::project_workspace;
     #[cfg(test)]
     use crate::services::project::{PerformanceTrace as ProjectPerformanceTrace, model, session};
@@ -497,7 +499,7 @@ mod tests {
                 .unwrap();
             assert_eq!(read_utf8_no_bom(&csv_path).unwrap(), csv);
             assert_eq!(read_json_file(&spec_path).unwrap(), expected);
-            close_project_session(manifest.session_id).unwrap();
+            release_project_session(manifest.session_id).unwrap();
             root.close().unwrap();
         }
     }
@@ -628,7 +630,7 @@ mod tests {
             )
             .unwrap();
             assert_eq!(actual_name(), format!("{next_id}.wpn"));
-            close_project_session(manifest.session_id).unwrap();
+            release_project_session(manifest.session_id).unwrap();
             root.close().unwrap();
         }
     }
@@ -677,7 +679,7 @@ mod tests {
         assert_eq!(read_utf8_no_bom(&csv_path).unwrap(), csv);
         assert_eq!(read_utf8_no_bom(&spec_path).unwrap(), spec);
         assert!(!root.join("data/weapons/new.wpn").exists());
-        close_project_session(manifest.session_id).unwrap();
+        release_project_session(manifest.session_id).unwrap();
         root.close().unwrap();
     }
 
@@ -786,7 +788,7 @@ mod tests {
         )
         .unwrap();
         assert_eq!(read_utf8_no_bom(&path).unwrap(), text);
-        close_project_session(manifest.session_id).unwrap();
+        release_project_session(manifest.session_id).unwrap();
         root.close().unwrap();
     }
 
@@ -922,11 +924,11 @@ mod tests {
         .unwrap();
         assert_eq!(replayed.rows[1].data["name"], "#edited");
         assert!(!replayed.rows[1].is_comment);
-        close_project_session(manifest.session_id).unwrap();
+        release_project_session(manifest.session_id).unwrap();
         let mut reopened_trace = ProjectPerformanceTrace::new("project.openSession");
         let reopened = open_project_session_traced(&root, None, &mut reopened_trace).unwrap();
         assert_eq!(reopened.table_entity_summaries[&CsvTableKey::Ships], 5);
-        close_project_session(reopened.session_id).unwrap();
+        release_project_session(reopened.session_id).unwrap();
         root.close().unwrap();
     }
 
@@ -968,7 +970,7 @@ mod tests {
             path_string(root.join("data/hulls/new_ship.ship")),
         ];
 
-        let _ = close_project_session(session_id);
+        let _ = release_project_session(session_id);
         assert_eq!(change_paths(&result.changes), expected_paths);
         assert_eq!(result.invalidation.paths, change_paths(&result.changes));
         assert!(matches!(result.changes[0].kind, FileChangeKind::File));
@@ -1069,7 +1071,7 @@ mod tests {
         assert_eq!(window.rows[4].data["id"], "b");
         assert_eq!(window.rows[4].row_key, duplicate_key);
         assert_eq!(window.rows[5].row_key, new_key);
-        close_project_session(manifest.session_id).unwrap();
+        release_project_session(manifest.session_id).unwrap();
         root.close().unwrap();
     }
 
@@ -1122,7 +1124,7 @@ mod tests {
             path_string(root.join("data/weapons/old_weapon.wpn")),
         ];
 
-        let _ = close_project_session(manifest.session_id);
+        let _ = release_project_session(manifest.session_id);
         assert_eq!(change_paths(&result.changes), expected_paths);
         assert_eq!(result.invalidation.paths, change_paths(&result.changes));
         assert!(!result.changes[1].after_exists);
@@ -1186,7 +1188,7 @@ mod tests {
             path_string(root.join("data/weapons/new_weapon.wpn")),
         ];
 
-        let _ = close_project_session(manifest.session_id);
+        let _ = release_project_session(manifest.session_id);
         assert_eq!(change_paths(&result.changes), expected_paths);
         assert_eq!(result.invalidation.paths, change_paths(&result.changes));
         assert!(result.changes[1].before_exists);
@@ -1254,7 +1256,7 @@ mod tests {
         assert!(renamed.contains("# note"));
         assert!(renamed.find("weaponType").unwrap() < renamed.find("id:").unwrap());
         assert!(!root.join("data/weapons/old_weapon.wpn").exists());
-        let _ = close_project_session(manifest.session_id);
+        let _ = release_project_session(manifest.session_id);
         root.close().unwrap();
     }
 
@@ -1309,7 +1311,7 @@ mod tests {
         assert_eq!(read_utf8_no_bom(&csv_path).unwrap(), csv_before);
         assert_eq!(read_utf8_no_bom(&spec_path).unwrap(), spec_before);
         assert!(!root.join("data/weapons/new_weapon.wpn").exists());
-        let _ = close_project_session(manifest.session_id);
+        let _ = release_project_session(manifest.session_id);
         root.close().unwrap();
     }
 
@@ -1361,7 +1363,7 @@ mod tests {
             path_string(root.join("data/weapons/new_weapon.wpn")),
         ];
 
-        let _ = close_project_session(manifest.session_id);
+        let _ = release_project_session(manifest.session_id);
         assert_eq!(change_paths(&result.changes), expected_paths);
         assert_eq!(result.invalidation.paths, change_paths(&result.changes));
         assert!(!result.changes[1].before_exists);
@@ -1395,7 +1397,7 @@ mod tests {
         .unwrap_err()
         .to_string();
 
-        let _ = close_project_session(manifest.session_id);
+        let _ = release_project_session(manifest.session_id);
         assert!(error.contains("CSV upsert row key does not exist"));
         root.close().unwrap();
     }

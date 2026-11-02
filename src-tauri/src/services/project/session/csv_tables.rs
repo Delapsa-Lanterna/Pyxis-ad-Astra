@@ -9,12 +9,30 @@ use crate::io;
 use crate::io::read_versioned_csv;
 #[cfg(test)]
 use crate::io::{csv_files, faction_index};
-use crate::models::{CsvRow, CsvTable, CsvTableKey};
+use crate::models::{CsvRow, CsvTable, CsvTableKey, EntitySummaries};
 use crate::services::project::model;
+use crate::services::project::sources::SourceReader;
 use serde_json::{Map, Value};
 use std::collections::{BTreeMap, VecDeque};
 use std::path::Path;
 use std::sync::Arc;
+
+pub(in crate::services::project) fn build_table_entity_summaries_from(
+    sources: &mut SourceReader,
+    entity_summaries: &EntitySummaries,
+) -> AppResult<BTreeMap<CsvTableKey, usize>> {
+    model::csv_table_specs()
+        .iter()
+        .map(|spec| {
+            let count = if let Some(summary) = spec.entity_summary {
+                summary(entity_summaries)
+            } else {
+                sources.count(&sources.path(spec.rel_path)?, spec.entity_id_field)?
+            };
+            Ok((spec.key, count))
+        })
+        .collect()
+}
 
 pub(in crate::services::project) fn read_table_snapshot(
     session: &ProjectSession,

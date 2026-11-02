@@ -1,3 +1,4 @@
+use super::associated_spec_preparation::verify_associated_spec_file;
 use crate::domain::entity_construction::{create_associated_spec, validate_weapon_spec_class};
 use crate::domain::entity_identity;
 use crate::errors::{AppError, AppResult};
@@ -9,7 +10,6 @@ use crate::models::{
 };
 use crate::services::project::definitions::entity_definitions::associated_spec_definition;
 use crate::services::project::model::ProjectSession;
-use crate::services::project::query::csv_associated_specs;
 use crate::services::project::sources::core;
 use crate::services::project::sources::documents::LoadedSpecRecord;
 use crate::services::project::write::entity_write::descriptions;
@@ -70,7 +70,7 @@ pub(in crate::services::project) fn stage_associated_spec(
                     "关联目标不属于当前 Mod",
                 ));
             }
-            csv_associated_specs::verify_file(&resolution.destination)?;
+            verify_associated_spec_file(&resolution.destination)?;
             let original = resolution.original.as_ref();
             if let Some(original) = original {
                 let core_source = original.location.source == ResourceSource::Core
@@ -102,7 +102,7 @@ pub(in crate::services::project) fn stage_associated_spec(
                         ));
                     }
                 }
-                csv_associated_specs::verify_file(original)?;
+                verify_associated_spec_file(original)?;
             }
             let usable = original
                 .filter(|file| file.version.fingerprint.is_some() && file.problem.is_none());

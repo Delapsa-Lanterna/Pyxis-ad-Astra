@@ -1234,6 +1234,8 @@ pub(crate) fn session_has_windows(session: &str) -> AppResult<bool> {
 
 #[cfg(test)]
 mod tests {
+    use crate::services::project_sync::release_project_session;
+
     use super::*;
     #[cfg(test)]
     use crate::io::FsRootBoundary;
@@ -1308,7 +1310,7 @@ mod tests {
             assert_eq!(mod_name, "Named Mod");
             release_window(&label).unwrap();
         }
-        project::close_project_session(manifest.session_id).unwrap();
+        release_project_session(manifest.session_id).unwrap();
         root.close().unwrap();
     }
 

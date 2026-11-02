@@ -1,4 +1,8 @@
 #![cfg(test)]
+use crate::services::file_history::query_file_history;
+#[cfg(test)]
+use crate::services::project_sync::release_project_session;
+
 use crate::errors::AppResult;
 use crate::io::{read_csv_data, read_json_file, write_utf8_no_bom};
 use crate::models::{
@@ -203,7 +207,7 @@ fn default_description_command_rename() {
                 .data["id"],
             "new"
         );
-        project::close_project_session(manifest.session_id).unwrap();
+        release_project_session(manifest.session_id).unwrap();
         root.close().unwrap();
     }
 }
@@ -223,7 +227,7 @@ fn explicit_description_commands() {
             "old"
         );
         assert_eq!(receipt.changes.len(), 2);
-        project::close_project_session(manifest.session_id).unwrap();
+        release_project_session(manifest.session_id).unwrap();
         root.close().unwrap();
     }
 }
@@ -232,7 +236,7 @@ fn explicit_description_commands() {
 fn description_collision_is_atomic() {
     for mode in ["csv", "spec", "joint"] {
         let (root, manifest) = fixture(false);
-        project::close_project_session(manifest.session_id).unwrap();
+        release_project_session(manifest.session_id).unwrap();
         let path = root.join("data/strings/descriptions.csv");
         let text = fs::read_to_string(&path).unwrap() + "new,SHIP,Occupied,,keep\n";
         write_utf8_no_bom(&path, &text).unwrap();
@@ -244,12 +248,12 @@ fn description_collision_is_atomic() {
         assert!(!root.join("data/hulls/new.ship").exists());
         assert_eq!(fs::read_to_string(&path).unwrap(), text);
         assert!(
-            write_transactions::query_history(&manifest.session_id, &manifest.mod_root)
+            query_file_history(&manifest.session_id, &manifest.mod_root)
                 .unwrap()
                 .undo_stack
                 .is_empty()
         );
-        project::close_project_session(manifest.session_id).unwrap();
+        release_project_session(manifest.session_id).unwrap();
         root.close().unwrap();
     }
 }
@@ -285,7 +289,7 @@ fn description_version_conflict() {
     assert!(root.join("data/hulls/old.ship").exists());
     assert!(!root.join("data/hulls/new.ship").exists());
     assert_eq!(fs::read_to_string(path).unwrap(), text);
-    project::close_project_session(manifest.session_id).unwrap();
+    release_project_session(manifest.session_id).unwrap();
     root.close().unwrap();
 }
 
@@ -293,7 +297,7 @@ fn description_version_conflict() {
 fn missing_description_stays_missing() {
     for mode in ["csv", "spec", "joint"] {
         let (root, manifest) = fixture(false);
-        project::close_project_session(manifest.session_id).unwrap();
+        release_project_session(manifest.session_id).unwrap();
         let path = root.join("data/strings/descriptions.csv");
         fs::remove_file(&path).unwrap();
         let mut trace = PerformanceTrace::new("description.absent");
@@ -301,7 +305,7 @@ fn missing_description_stays_missing() {
         let receipt = rename(&root, &manifest, mode).unwrap();
         assert!(!path.exists());
         assert_eq!(receipt.changes.len(), 2);
-        project::close_project_session(manifest.session_id).unwrap();
+        release_project_session(manifest.session_id).unwrap();
         root.close().unwrap();
     }
 }
@@ -309,7 +313,7 @@ fn missing_description_stays_missing() {
 #[test]
 fn core_description_copy_rename() {
     let (root, manifest) = fixture(false);
-    project::close_project_session(manifest.session_id).unwrap();
+    release_project_session(manifest.session_id).unwrap();
     let path = root.join("data/strings/descriptions.csv");
     fs::remove_file(&path).unwrap();
     let game = project_workspace("default_description_core");
@@ -337,7 +341,7 @@ fn core_description_copy_rename() {
         .find(|record| record["key"] == key)
         .unwrap();
     assert_eq!(record["value"]["value"]["id"], "new");
-    project::close_project_session(manifest.session_id).unwrap();
+    release_project_session(manifest.session_id).unwrap();
     root.close().unwrap();
     game.close().unwrap();
 }

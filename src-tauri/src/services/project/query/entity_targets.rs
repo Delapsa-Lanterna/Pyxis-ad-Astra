@@ -471,6 +471,8 @@ pub(crate) fn location(root: &str, rel_path: &str) -> EntityFileLocation {
 #[cfg(test)]
 #[cfg(windows)]
 mod tests {
+    use crate::services::project_sync::release_project_session;
+
     use super::*;
     #[cfg(test)]
     use crate::models::{JointEditKind, JointEditRoot, JsonFileSave, SaveAction};
@@ -571,7 +573,7 @@ mod tests {
             );
             fs::write(parent, original).unwrap();
         }
-        project::close_project_session(manifest.session_id).unwrap();
+        release_project_session(manifest.session_id).unwrap();
         work.close().unwrap();
         assert_eq!(files.len(), 3);
         assert_eq!(

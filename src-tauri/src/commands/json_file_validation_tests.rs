@@ -7,6 +7,8 @@ use crate::services::project::PerformanceTrace;
 #[cfg(test)]
 use crate::services::project::test_support::project_workspace;
 #[cfg(test)]
+use crate::services::project_sync::release_project_session;
+#[cfg(test)]
 use crate::services::{project, project_save};
 use serde_json::json;
 #[cfg(test)]
@@ -60,6 +62,6 @@ fn skin_engine_index_save() {
         .unwrap()
         .unwrap();
     assert_eq!(saved.data["engineSlotChanges"]["0"]["width"], 2.5);
-    project::close_project_session(manifest.session_id).unwrap();
+    release_project_session(manifest.session_id).unwrap();
     root.close().unwrap();
 }

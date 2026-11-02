@@ -69,6 +69,8 @@ pub fn save_faction_entity(
 
 #[cfg(test)]
 mod tests {
+    use crate::services::project_sync::release_project_session;
+
     use super::*;
     #[cfg(test)]
     use crate::io;
@@ -170,7 +172,7 @@ mod tests {
         assert_eq!(result.changes.len(), 2);
         assert!(!root.join("data/custom/nested/next.faction").exists());
         assert_eq!(io::read_csv_data(&index).unwrap().rows.len(), 1);
-        project::close_project_session(manifest.session_id).unwrap();
+        release_project_session(manifest.session_id).unwrap();
         root.close().unwrap();
     }
 }

@@ -1,4 +1,8 @@
 #![cfg(test)]
+use crate::services::file_history::query_file_history;
+#[cfg(test)]
+use crate::services::project_sync::release_project_session;
+
 #[cfg(test)]
 use crate::domain::entity_definitions;
 #[cfg(test)]
@@ -13,7 +17,7 @@ use crate::services::project;
 #[cfg(test)]
 use crate::services::project::PerformanceTrace;
 #[cfg(test)]
-use crate::services::project::definitions::table_definitions;
+use crate::services::project::model::csv_table_spec;
 #[cfg(test)]
 use crate::services::project::query::{csv_window, entities, entity_targets};
 use crate::services::project::test_support::project_workspace;
@@ -52,7 +56,7 @@ fn spec_rename_updates_the_registered_row_and_preserves_a_comment_with_the_same_
         content[definition.id_field] = "old".into();
         let source = root.join(format!("{directory}/old{}", definition.extension));
         io::write_utf8_no_bom(&source, &content.to_string()).unwrap();
-        let csv = root.join(table_definitions::csv_table_definition(table).spec.rel_path);
+        let csv = root.join(csv_table_spec(table).rel_path);
         let original = "a,id,name\n# retained note,old,Comment\nactive,old,Original\n";
         io::write_utf8_no_bom(&csv, original).unwrap();
         let mut trace = PerformanceTrace::new("project.openSession");
@@ -123,7 +127,7 @@ fn spec_rename_updates_the_registered_row_and_preserves_a_comment_with_the_same_
         )
         .unwrap();
         assert_eq!(io::read_csv_data(&csv).unwrap().rows[1].data["id"], "next");
-        project::close_project_session(manifest.session_id).unwrap();
+        release_project_session(manifest.session_id).unwrap();
         root.close().unwrap();
     }
 }
@@ -218,7 +222,7 @@ fn loaded_nested_target_renames_with_its_csv_row_and_replays_identity() {
     )
     .unwrap();
     assert!(root.join("data/hulls/nested/new.ship").is_file());
-    project::close_project_session(manifest.session_id).unwrap();
+    release_project_session(manifest.session_id).unwrap();
     root.close().unwrap();
 }
 
@@ -242,7 +246,7 @@ fn missing_spec_import_uses_content_identity() {
     .unwrap();
     assert_eq!(result.identity_changes[0].after.id, "imported");
     assert!(root.join("data/hulls/imported.ship").exists());
-    project::close_project_session(manifest.session_id).unwrap();
+    release_project_session(manifest.session_id).unwrap();
     root.close().unwrap();
 }
 
@@ -286,7 +290,7 @@ fn text_save_writes_submitted_text_without_identity_changes() {
             .data["id"],
         "old"
     );
-    project::close_project_session(manifest.session_id).unwrap();
+    release_project_session(manifest.session_id).unwrap();
     root.close().unwrap();
 }
 
@@ -368,7 +372,7 @@ fn core_projectile_saves_to_mod_override_and_keeps_core_source() {
             .data["width"],
         8
     );
-    project::close_project_session(manifest.session_id).unwrap();
+    release_project_session(manifest.session_id).unwrap();
     game.close().unwrap();
 }
 
@@ -402,12 +406,12 @@ fn linked_csv_version_conflict_keeps_loaded_spec_and_history() {
     assert_eq!(failed.code(), "write.version_conflict");
     assert_eq!(io::read_json_file(&file).unwrap()["hullId"], "demo");
     assert!(
-        write_transactions::query_history(&manifest.session_id, &manifest.mod_root)
+        query_file_history(&manifest.session_id, &manifest.mod_root)
             .unwrap()
             .undo_stack
             .is_empty()
     );
-    project::close_project_session(manifest.session_id).unwrap();
+    release_project_session(manifest.session_id).unwrap();
     root.close().unwrap();
 }
 
@@ -442,12 +446,12 @@ fn spec_save_requires_the_complete_loaded_version_scope() {
         assert_eq!(io::read_json_file(&path).unwrap()["hullId"], "demo");
     }
     assert!(
-        write_transactions::query_history(&manifest.session_id, &manifest.mod_root)
+        query_file_history(&manifest.session_id, &manifest.mod_root)
             .unwrap()
             .undo_stack
             .is_empty()
     );
-    project::close_project_session(manifest.session_id).unwrap();
+    release_project_session(manifest.session_id).unwrap();
     root.close().unwrap();
 }
 
@@ -500,7 +504,7 @@ fn partial_identity_preserves_nested_omissions_and_empty_id_through_reopen() {
             assert_eq!(save(invalid).unwrap_err().code(), "config.shape_invalid");
             save(data.clone()).unwrap();
             assert_eq!(io::read_json_file(&path).unwrap(), data);
-            project::close_project_session(manifest.session_id).unwrap();
+            release_project_session(manifest.session_id).unwrap();
             let reopened = project::open_project_session_traced(
                 &root,
                 None,
@@ -514,7 +518,7 @@ fn partial_identity_preserves_nested_omissions_and_empty_id_through_reopen() {
                     .data,
                 data
             );
-            project::close_project_session(reopened.session_id).unwrap();
+            release_project_session(reopened.session_id).unwrap();
             root.close().unwrap();
         }
     }
@@ -662,7 +666,7 @@ fn inherited_faction_filename_choices_commit_index_and_history_together() {
             )
             .unwrap();
             assert_eq!(io::read_json_file(&next_path).unwrap(), submitted);
-            project::close_project_session(manifest.session_id).unwrap();
+            release_project_session(manifest.session_id).unwrap();
             work.close().unwrap();
         }
     }

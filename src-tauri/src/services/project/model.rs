@@ -35,8 +35,7 @@ pub(super) const WEAPON_SPRITE_FIELDS: [&str; 8] = [
     "hardpointGlowSprite",
 ];
 
-/// Pure per-table metadata shared by every project layer; extraction behavior
-/// stays in `table_definitions` and joins onto these specs.
+/// Formal table paths, identity fields and summary sources used by project consumers.
 
 #[derive(Clone, Copy)]
 pub(super) struct CsvTableSpec {
@@ -392,6 +391,15 @@ mod tests {
     fn csv_table_spec_covers_every_table_key() {
         for spec in csv_table_specs() {
             assert_eq!(csv_table_spec(spec.key).key, spec.key);
+            assert_eq!(CsvTableKey::from_key(spec.key.as_str()), Some(spec.key));
+            assert_eq!(
+                spec.entity_id_field,
+                if spec.key == CsvTableKey::SimOpponents {
+                    "variant id"
+                } else {
+                    "id"
+                }
+            );
         }
     }
 

@@ -23,7 +23,6 @@ pub mod windows;
 pub mod workspace_persistence;
 pub mod write_transactions;
 
-pub(crate) use project::query::csv_associated_specs::prepare_csv_associated_specs;
 #[cfg(test)]
 pub(crate) use project::query::csv_window::query_csv_table_window;
 pub(crate) use project::query::csv_window::read_project_csv;
@@ -55,6 +54,7 @@ pub(crate) use project::resources::fonts::query_original_font;
 pub(crate) use project::resources::sprites::resolve_mod_relative_path;
 pub(crate) use project::write::csv_patch::save_csv_patch_snapshot;
 pub(crate) use project::write::csv_patch::{prepare_csv_save, write_csv_request};
+pub(crate) use project::write::entity_write::associated_spec_preparation::prepare_csv_associated_specs;
 pub(crate) use project::write::entity_write::content::save_entity_spec;
 pub(crate) use project::write::entity_write::content::{prepare_spec_save, write_spec_request};
 pub(crate) use project::write::entity_write::faction_index::delete_faction_entity;

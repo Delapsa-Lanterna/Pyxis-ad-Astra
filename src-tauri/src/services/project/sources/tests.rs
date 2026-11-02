@@ -1,4 +1,7 @@
 #![cfg(test)]
+#[cfg(test)]
+use crate::services::project_sync::release_project_session;
+
 use super::*;
 #[cfg(test)]
 use crate::io::csv_files;
@@ -15,8 +18,7 @@ use crate::services::project::resources::core_assets;
 use crate::services::project::test_support::project_workspace;
 #[cfg(test)]
 use crate::services::project::{
-    PerformanceTrace, close_project_session, open_project_session_traced, refresh_project_sources,
-    resources,
+    PerformanceTrace, open_project_session_traced, refresh_project_sources, resources,
 };
 #[cfg(test)]
 use crate::test_support;
@@ -128,7 +130,7 @@ fn resolved_source_drives_session_fields_graphics_and_media() {
             hull_references::query_hull_references(&manifest.session_id, &["example".into()])
                 .unwrap();
         assert!(references.sprites.contains_key("example"));
-        close_project_session(manifest.session_id).unwrap();
+        release_project_session(manifest.session_id).unwrap();
     }
     assert_eq!(
         resolve_core_root(None, Some(&game_text), Some(&isolated)).unwrap(),
@@ -301,7 +303,7 @@ fn core_refresh_keeps_mod_baseline() {
             .unwrap()
             .contains_key("updated")
     );
-    close_project_session(manifest.session_id).unwrap();
+    release_project_session(manifest.session_id).unwrap();
     core::invalidate_core_cache(&game.to_string_lossy()).unwrap();
     root.close().unwrap();
 }
@@ -348,6 +350,6 @@ fn joint_parent_version_matches() {
     assert_eq!(expected, &file_version(&parent).unwrap());
     assert!(record.base_versions.contains(expected));
     verify_versions(&manifest.mod_root, &snapshot.base_versions).unwrap();
-    close_project_session(manifest.session_id).unwrap();
+    release_project_session(manifest.session_id).unwrap();
     root.close().unwrap();
 }

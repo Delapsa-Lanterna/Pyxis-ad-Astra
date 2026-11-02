@@ -9,6 +9,7 @@ import { useSaveCommandStore } from '@/stores/save-command.store';
 import { savedWriteFixture } from '@/test/fixtures/write-result';
 import type { DocumentSaveResult } from '@/shared/runtime/document-editor';
 import { createModSaveCoordinator } from './mod-save.orchestrator';
+import { registerWindowSaveReceiver, unregisterWindowSaveReceiver, queryEditTargetOwners } from '@/services/window.service';
 const wire = vi.hoisted(() => ({
   label: 'main',
   context: { value: null as ManagedWindowContext | null },
@@ -128,7 +129,7 @@ describe('Mod save coordination', () => {
     });
     const output = feedback(),
       coordinator = coordinatorFixture(output, () => false);
-    await coordinator.save();
+    await coordinator.saveCurrentMod();
     expect(own.save).toHaveBeenCalledOnce();
     expect(other.save).not.toHaveBeenCalled();
     expect(output.success).toHaveBeenCalledWith('已保存 1 项。');
@@ -141,7 +142,7 @@ describe('Mod save coordination', () => {
     failed.save.mockRejectedValueOnce(new Error('fixture failure'));
     const output = feedback(),
       coordinator = coordinatorFixture(output, () => false);
-    await coordinator.save();
+    await coordinator.saveCurrentMod();
     expect(saved.save).toHaveBeenCalledOnce();
     expect(dialogText(vi.mocked(output.choose).mock.lastCall![0])).toContain('已保存 1 项，取消 1 项，失败 1 项');
     expect(output.choose).toHaveBeenCalledWith(expect.objectContaining({ type: 'warning', cancelText: '关闭', choices: [] }));
@@ -157,7 +158,7 @@ describe('Mod save coordination', () => {
     const child = editor('child-b', 'b'),
       coordinator = coordinatorFixture(feedback(), () => false);
     wire.owners = ['main', 'child'];
-    await coordinator.save();
+    await coordinator.saveCurrentMod();
     expect(wire.order).toEqual(['child-b', 'main-b']);
     expect(a.save).not.toHaveBeenCalled();
     expect(b.save).toHaveBeenCalledOnce();
@@ -174,11 +175,11 @@ describe('Mod save coordination', () => {
         }),
     );
     const coordinator = coordinatorFixture(feedback(), () => false);
-    const first = coordinator.save();
-    expect(coordinator.save()).toBe(first);
+    const first = coordinator.saveCurrentMod();
+    expect(coordinator.saveCurrentMod()).toBe(first);
     await flushPromises();
     wire.active = 'b';
-    const second = coordinator.save();
+    const second = coordinator.saveCurrentMod();
     onTestFinished(async () => {
       finish();
       await Promise.all([first, second]);
@@ -201,8 +202,40 @@ describe('Mod save coordination', () => {
       return { status: 'saved', receipt: savedWriteFixture() };
     });
     const coordinator = coordinatorFixture(feedback(), () => closing);
-    await coordinator.save();
+    await coordinator.saveCurrentMod();
     expect(next.save).not.toHaveBeenCalled();
     expect(next.dirty.value).toBe(true);
+  });
+  it('releases the registered generation when registration finishes after disposal', async () => {
+    let complete!: (generation: number) => void;
+    vi.mocked(registerWindowSaveReceiver).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          complete = resolve;
+        }),
+    );
+    const coordinator = createModSaveCoordinator(feedback(), () => false);
+    onTestFinished(async () => {
+      complete(31);
+      await flushPromises();
+    });
+    coordinator.dispose();
+    complete(31);
+    await coordinator.ready;
+    await flushPromises();
+    expect(unregisterWindowSaveReceiver).toHaveBeenCalledExactlyOnceWith(31);
+  });
+  it('releases a failed batch before accepting another request for the same Mod', async () => {
+    const own = editor('csv'),
+      output = feedback(),
+      coordinator = coordinatorFixture(output, () => false);
+    vi.mocked(queryEditTargetOwners).mockRejectedValueOnce(new Error('fixture owner query failure'));
+    await coordinator.saveCurrentMod();
+    expect(output.error).toHaveBeenCalledOnce();
+    expect(wire.replies.size).toBe(0);
+    await coordinator.saveCurrentMod();
+    expect(own.save).toHaveBeenCalledOnce();
+    expect(output.success).toHaveBeenCalledWith('已保存 1 项。');
+    expect(wire.replies.size).toBe(0);
   });
 });

@@ -1,4 +1,7 @@
 #![cfg(test)]
+#[cfg(test)]
+use crate::services::project_sync::release_project_session;
+
 use super::super::model::csv_table_specs;
 use crate::domain::csv_column_order::standard_csv_columns;
 use crate::io::read_csv_data;
@@ -71,7 +74,7 @@ fn csv_headers_and_first_save() {
             assert_eq!(saved.header, expected, "{}: {source}", spec.key.as_str());
             assert!(saved.rows.is_empty());
             assert_eq!(result.changes.len(), 1);
-            project::close_project_session(manifest.session_id).unwrap();
+            release_project_session(manifest.session_id).unwrap();
             project::invalidate_core_cache(&game.to_string_lossy()).unwrap();
             root.close().unwrap();
         }

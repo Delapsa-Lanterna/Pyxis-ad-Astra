@@ -12,7 +12,6 @@ use super::entity_resources::{
     skin_entity_resource_refs, system_resource_refs, variant_resource_refs, weapon_resource_refs,
 };
 use super::factions;
-use super::table_definitions::csv_table_icon_resource_ref;
 use crate::domain::entity_definitions::{
     EntitySpecDefinition, FACTION_SPEC_DEFINITION, PROJECTILE_SPEC_DEFINITION,
     SHIP_SPEC_DEFINITION, SKILL_SPEC_DEFINITION, SKIN_SPEC_DEFINITION, SYSTEM_SPEC_DEFINITION,
@@ -30,6 +29,7 @@ use crate::models::{
     ResourceOwnerKind, ResourceRef, ResourceSource, SkinFile, VariantFile,
 };
 use crate::services::project::definitions::projectiles;
+use crate::services::project::resources::table_references::csv_icon_resource_ref;
 use crate::services::project::session::source_projection::capture_projection_versions;
 
 use crate::services::project::sources::core::load_core_variant_files;
@@ -479,7 +479,7 @@ fn skill_resources(
 ) -> BTreeMap<String, ResourceRef> {
     data.get("csvRow")
         .and_then(Value::as_object)
-        .and_then(|row| csv_table_icon_resource_ref(ResourceSource::Mod, CsvTableKey::Skills, row))
+        .and_then(|row| csv_icon_resource_ref(ResourceSource::Mod, CsvTableKey::Skills, row))
         .map(|resource| BTreeMap::from([("icon".to_string(), resource)]))
         .unwrap_or_default()
 }

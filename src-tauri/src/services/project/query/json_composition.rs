@@ -201,6 +201,8 @@ fn source_layer(session: &ProjectSession, relative: &str) -> AppResult<Option<Js
 
 #[cfg(test)]
 mod tests {
+    use crate::services::project_sync::release_project_session;
+
     #[cfg(test)]
     use crate::domain::json_composition;
     use crate::models::*;
@@ -367,7 +369,7 @@ mod tests {
             }
             assert_eq!(count("read", &core_file), 1);
             assert_eq!(count("parse", &core_file), 1);
-            project::close_project_session(manifest.session_id).unwrap();
+            release_project_session(manifest.session_id).unwrap();
             work.close().unwrap();
         }
     }
@@ -502,7 +504,7 @@ mod tests {
             .unwrap();
             assert_eq!(io::read_json_file(&root.join(relative)).unwrap(), data);
         }
-        project::close_project_session(manifest.session_id).unwrap();
+        release_project_session(manifest.session_id).unwrap();
         let reopened = project::open_project_session_traced(
             &root,
             Some(&work),
@@ -516,7 +518,7 @@ mod tests {
                     .is_some()
             );
         }
-        project::close_project_session(reopened.session_id).unwrap();
+        release_project_session(reopened.session_id).unwrap();
         work.close().unwrap();
     }
 
@@ -620,7 +622,7 @@ mod tests {
             .unwrap();
         assert!(detached.composition.unwrap().layers.is_empty());
         for manifest in [base, local, later] {
-            project::close_project_session(manifest.session_id).unwrap();
+            release_project_session(manifest.session_id).unwrap();
         }
         work.close().unwrap();
     }
@@ -700,7 +702,7 @@ mod tests {
                 .unwrap()
                 .is_some()
         );
-        project::close_project_session(manifest.session_id).unwrap();
+        release_project_session(manifest.session_id).unwrap();
         work.close().unwrap();
     }
 }

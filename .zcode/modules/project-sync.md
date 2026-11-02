@@ -20,6 +20,8 @@
 
 - `src-tauri/src/models/save_action.rs`：统一保存入口消费的请求与业务动作。
 - `src-tauri/src/models/write_commit.rs`：实际保存结果、窗口交付及公共写入协议。
+- `src-tauri/src/services/file_history.rs`：最后同根项目注销后的历史释放。
+- `src-tauri/src/services/project/mod.rs`：原子注销事实、会话内容清理及引用状态交接。
 - `src-tauri/src/services/windows.rs`：窗口范围、关闭及释放。
 - `src/services/project-projection.service.ts`：正式读取门控。
 - `src/services/query-cache.service.ts`：所属查询和在途读取失效。
@@ -66,7 +68,7 @@
 ### 完整项目释放
 
 1. 应用生命周期或迟到打开清理交付实际 session，完整释放捕获引用代次。
-2. 会话底层撤销登记，释放所属媒体及最后同根历史并更新引用状态。
+2. 注册表原子注销并返回最后同根事实，项目同步释放所属历史，再交付会话媒体与引用清理。
 3. 引用变化经所属快照交付存活订阅，交付错误进入诊断，随后释放窗口目标登记。
 4. 调用方接纳实际释放结果，前端内容消费者与工作区释放各自运行态。
 
@@ -90,5 +92,5 @@
 - 内容读取失败后的新保存交付必须更新当前内容，严禁迟到重试接纳较早内容。
 - 项目及工具关闭的恢复放弃确认必须归主窗口统一处理，单窗关闭必须归所属窗口处理。
 - 窗口及项目关闭必须等待所属保存工作并保留失败诊断。
-- 完整释放必须依次撤销会话、交付引用变化并清理窗口目标登记；前端本窗口内容释放必须通过 releaseProjectContentConsumers 交付。
+- 完整释放必须依次原子注销会话、释放最后同根历史、清理会话内容、交付引用变化并清理窗口目标登记；前端本窗口内容释放必须通过 releaseProjectContentConsumers 交付。
 - 读取接纳必须服从所属票据和会话寿命。

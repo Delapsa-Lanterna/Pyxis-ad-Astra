@@ -29,7 +29,7 @@ vi.mock('./app-feedback-assembly', async (original) => {
 vi.mock('@/orchestrators/project-sync.orchestrator', () => ({ startProjectSync: mocks.listen, pauseProjectDisplay: vi.fn() }));
 vi.mock('@/services/window.service', () => ({ updateEditTargetRegistration: mocks.register }));
 vi.mock('@/orchestrators/mod-save.orchestrator', () => ({
-  createModSaveCoordinator: () => ({ ready: Promise.resolve(1), save: vi.fn(), dispose: vi.fn() }),
+  createModSaveCoordinator: () => ({ ready: Promise.resolve(1), saveCurrentMod: vi.fn(), dispose: vi.fn() }),
 }));
 vi.mock('@/services/app-log.service', () => ({ recordLogBestEffort: mocks.log }));
 vi.mock('@/app/composables/use-core-assets', () => ({ useCoreAssetsLifecycle: vi.fn() }));

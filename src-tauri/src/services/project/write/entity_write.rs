@@ -1,3 +1,4 @@
+pub(in crate::services) mod associated_spec_preparation;
 pub(in crate::services::project) mod associated_specs;
 pub(in crate::services) mod content;
 #[cfg(test)]

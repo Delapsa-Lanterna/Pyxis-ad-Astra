@@ -1,11 +1,12 @@
 use super::*;
 use crate::domain::joint_hull::hull_field_value;
 use crate::services::project::PerformanceTrace;
+use crate::services::project_sync::release_project_session;
 use std::fs;
 
 pub(super) fn skin_fixture() -> (TestWorkspace, JointEditRoot) {
     let (dir, mut root) = fixture();
-    project::close_project_session(root.session_id).unwrap();
+    release_project_session(root.session_id).unwrap();
     fs::create_dir_all(dir.join("data/hulls/skins")).unwrap();
     write_utf8_no_bom(&dir.join("data/hulls/ship_data.csv"),
         "id,name,fleet pts,base value,max speed,supplies/rec,supplies/mo,fighter bays\na,Base,4,800,120,2,1,1\n").unwrap();

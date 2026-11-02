@@ -2,7 +2,7 @@
 
 ## 定义
 
-保存提交模块提供按项目顺序执行的文件事务、文件历史和未完成投影恢复。
+保存提交模块提供按项目顺序执行的文件事务、历史登记和未完成投影恢复。
 
 ## 参考
 
@@ -10,7 +10,7 @@
 
 - `src-tauri/src/domain/save_edits.rs`：当前正式内容的字段修改应用。
 - `src-tauri/src/services/write_transactions.rs`：根租约、实际写入结果、历史登记、回放及正式投影提交。
-- `src-tauri/src/services/write_transactions/committed.rs`：未完成投影及恢复期间的内容持有。
+- `src-tauri/src/services/write_transactions/session_updates.rs`：已提交 changeset 的正式会话投影更新、pending 标记及重试交接。
 - `src/domain/project/save-edits.ts`：本次保存的实际字段赋值、移除及数组整体修改提取。
 - `src/orchestrators/json-write-confirmation.orchestrator.ts`：JSON 原文保留、逐源重排确认及版本绑定的写入重试。
 

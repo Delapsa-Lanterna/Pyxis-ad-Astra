@@ -306,6 +306,8 @@ fn path_escapes_resource_root(path: &Path) -> bool {
 
 #[cfg(test)]
 mod tests {
+    use crate::services::project_sync::release_project_session;
+
     use super::*;
     #[cfg(test)]
     use crate::models::ResourceOwnerKind;
@@ -315,9 +317,7 @@ mod tests {
 
     use crate::services::project::test_support::project_workspace;
     #[cfg(test)]
-    use crate::services::project::{
-        PerformanceTrace, close_project_session, open_project_session_traced, session,
-    };
+    use crate::services::project::{PerformanceTrace, open_project_session_traced, session};
     use crate::test_support::TestWorkspace;
     use std::fs;
 
@@ -455,7 +455,7 @@ mod tests {
         let handle = session_handle(&manifest.session_id).unwrap();
         session::lock_session(&handle).unwrap().projection_pending = true;
         assert!(SpriteReadBatch::new(&manifest.session_id).is_err());
-        close_project_session(manifest.session_id.clone()).unwrap();
+        release_project_session(manifest.session_id.clone()).unwrap();
         assert!(SpriteReadBatch::new(&manifest.session_id).is_err());
         let late = ResourceRef {
             rel_path: "late.png".into(),

@@ -51,7 +51,7 @@ export function useAppLifecycleAssembly(feedback: AppFeedback) {
   const closing = provideWindowCloseState({ requestClose, createParticipant: useAppCloseParticipant });
   const modSave = createModSaveCoordinator(feedback, () => closing.value);
   void modSave.ready.catch((error) => feedback.error(error, '登记 Mod 保存入口失败'));
-  useWindowShortcuts({ commands: { saveMod: () => void modSave.save() } });
+  useWindowShortcuts({ commands: { saveMod: () => void modSave.saveCurrentMod() } });
   onScopeDispose(modSave.dispose);
   return closing;
 }

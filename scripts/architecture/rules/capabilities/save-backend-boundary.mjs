@@ -25,8 +25,8 @@ const commandServices = new Map([
   ['transcode_file_to_utf8', 'file_editor'],
   ['follow_text_identity', 'file_editor'],
   ['apply_file_change_set', 'write_transactions'],
-  ['query_file_history', 'write_transactions'],
-  ['clear_file_history', 'write_transactions'],
+  ['query_file_history', 'file_history'],
+  ['clear_file_history', 'file_history'],
 ]);
 
 export const saveBackendBoundaryRule = defineRule(
@@ -39,7 +39,7 @@ export const saveBackendBoundaryRule = defineRule(
       for (const fn of file.rust.functions) {
         const owner = commandServices.get(fn.name);
         if (!owner) continue;
-        const allowed = new Set([owner, 'project', 'write_transactions']);
+        const allowed = new Set(owner === 'file_history' ? [owner] : [owner, 'project', 'write_transactions']);
         for (const edge of file.rust.references) {
           if (edge.offset < fn.start || edge.offset >= fn.end) continue;
           const parts = edge.target;

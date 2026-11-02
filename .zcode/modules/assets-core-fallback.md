@@ -17,6 +17,7 @@
 - `src-tauri/src/services/project/resources/mod.rs`：资源实现模块登记及内部引用能力。
 - `src-tauri/src/services/project/resources/refs.rs`：媒体资源身份键、业务引用构造和船体引用解析。
 - `src-tauri/src/services/project/resources/sprites.rs`：批次来源边界、媒体读取、缓存接纳和相对路径解析。
+- `src-tauri/src/services/project/resources/table_references.rs`：表格行与来源引用的图片、图标及显示名称投影。
 - `src/app/components/media/`：授权图片与配置选项消费的缩略图展示。
 - `src/app/composables/editors/use-resource-reference.ts`：贴图引用选择。
 - `src/app/composables/use-resource-images.ts`：场景与图片展示的解码引用和迟到接纳。
@@ -100,6 +101,7 @@
 
 ## 规范
 
+- 表格图片、默认图标与引用名称必须由资源能力解析，表格身份和路径必须消费正式表定义。
 - 媒体路径键必须消费公共 Windows 字符映射，来源、所属根和实际资源路径必须分别保留。
 - 批量媒体结果必须按请求顺序保留完整资源身份，成功必须交付 nullable 图片内容，失败必须逐项交付原始诊断；同一物理资源必须复用本批读取结果。
 - 媒体消费者必须接纳本批成功项，失败项必须保留可重试状态；同批错误必须共享一个错误对象并经所属窗口汇总一次反馈、逐项记录原始诊断。

@@ -1,4 +1,8 @@
 #![cfg(test)]
+use crate::services::file_history::query_file_history;
+#[cfg(test)]
+use crate::services::project_sync::release_project_session;
+
 use super::*;
 #[cfg(test)]
 use crate::domain::entity_construction;
@@ -102,7 +106,7 @@ fn submit(payload: &JointEditSubmission) -> AppResult<WriteResult<JointEditSnaps
     transaction.commit(save_joint_edit(payload)?, "联合测试")
 }
 fn cleanup(dir: TestWorkspace, root: &JointEditRoot) {
-    project::close_project_session(root.session_id.clone()).unwrap();
+    release_project_session(root.session_id.clone()).unwrap();
     dir.close().unwrap();
 }
 
@@ -169,7 +173,7 @@ fn queued_joint_save_graph_builds() {
 fn mod_only_joint_save_survives_missing_game_and_core_directories() {
     for remove_game in [false, true] {
         let (dir, mut root) = fixture();
-        project::close_project_session(root.session_id.clone()).unwrap();
+        release_project_session(root.session_id.clone()).unwrap();
         let game = project_workspace("joint_missing_original");
         fs::create_dir(game.join("starsector-core")).unwrap();
         root.session_id = project::open_project_session_traced(
@@ -288,7 +292,7 @@ fn variant_modules_atomic_history() {
         r#"{"variantId":"module","hullId":"a","fluxVents":1,"unknown":true}"#,
     )
     .unwrap();
-    project::close_project_session(root.session_id.clone()).unwrap();
+    release_project_session(root.session_id.clone()).unwrap();
     let mut trace = PerformanceTrace::new("variant.modules");
     root.session_id = project::open_project_session_traced(&dir, None, &mut trace)
         .unwrap()
@@ -356,7 +360,7 @@ fn variant_rename_all_mod_parents() {
         )
         .unwrap();
     }
-    project::close_project_session(root.session_id.clone()).unwrap();
+    release_project_session(root.session_id.clone()).unwrap();
     let mut trace = PerformanceTrace::new("variant.rename.parents");
     root.session_id = project::open_project_session_traced(&dir, None, &mut trace)
         .unwrap()
@@ -412,7 +416,7 @@ fn joint_variant_rename_parents() {
         r#"{"variantId":"parent","hullId":"a","modules":[{"M":"var"}],"displayName":"keep"}"#,
     )
     .unwrap();
-    project::close_project_session(root.session_id.clone()).unwrap();
+    release_project_session(root.session_id.clone()).unwrap();
     let mut trace = PerformanceTrace::new("variant.joint.rename");
     root.session_id = project::open_project_session_traced(&dir, None, &mut trace)
         .unwrap()
@@ -447,7 +451,7 @@ fn variant_skin_slots_and_sources() {
         r#"{"variantId":"var","hullId":"skin","fluxVents":2}"#,
     )
     .unwrap();
-    project::close_project_session(root.session_id.clone()).unwrap();
+    release_project_session(root.session_id.clone()).unwrap();
     let mut trace = PerformanceTrace::new("variant.skin");
     root.session_id = project::open_project_session_traced(&dir, None, &mut trace)
         .unwrap()
@@ -487,7 +491,7 @@ fn variant_skin_slots_and_sources() {
 #[test]
 fn module_variant_catalog_lightweight_sources_and_skins() {
     let (dir, mut root) = fixture();
-    project::close_project_session(root.session_id.clone()).unwrap();
+    release_project_session(root.session_id.clone()).unwrap();
     let game = project_workspace("module_catalog");
     for (relative, content) in [
         (
@@ -647,7 +651,7 @@ fn variant_weapon_catalog_sources() {
 #[test]
 fn weapon_render_hints_skin_chain() {
     let (dir, mut root) = fixture();
-    project::close_project_session(root.session_id.clone()).unwrap();
+    release_project_session(root.session_id.clone()).unwrap();
     fs::create_dir_all(dir.join("data/hulls/skins")).unwrap();
     write_utf8_no_bom(
         &dir.join("data/hulls/ship_data.csv"),
@@ -719,7 +723,7 @@ fn variant_wing_catalog_core_reference() {
         "id,variant,num\nwing,fighter_var,3\n",
     )
     .unwrap();
-    project::close_project_session(root.session_id.clone()).unwrap();
+    release_project_session(root.session_id.clone()).unwrap();
     let mut trace = PerformanceTrace::new("variant.wing.catalog");
     root.session_id = project::open_project_session_traced(&dir, Some(&game), &mut trace)
         .unwrap()
@@ -812,7 +816,7 @@ fn four_roots_capture_versions() {
 
 fn wing_fixture() -> (TestWorkspace, JointEditRoot) {
     let (dir, root) = fixture();
-    project::close_project_session(root.session_id).unwrap();
+    release_project_session(root.session_id).unwrap();
     write_utf8_no_bom(&dir.join("data/hulls/ship_data.csv"),"name,id,hitpoints,armor rating,min crew,max speed,shield type,custom\nShip,a,750,200,3,140,NONE,007\nOther,b,1000,300,4,90,NONE,008\n").unwrap();
     write_utf8_no_bom(&dir.join("data/hulls/a.ship"),r#"{"hullId":"a","hullSize":"FIGHTER","spriteName":"graphics/a.png","weaponSlots":[{"id":"one"},{"id":"two"}],"builtInWeapons":{"one":"weapon"},"custom":"keep"}"#).unwrap();
     write_utf8_no_bom(
@@ -873,7 +877,7 @@ fn wing_sources_and_fitted_weapons() {
 #[test]
 fn wing_skin_sources_and_slots() {
     let (dir, mut root) = wing_fixture();
-    project::close_project_session(root.session_id).unwrap();
+    release_project_session(root.session_id).unwrap();
     fs::create_dir_all(dir.join("data/hulls/skins")).unwrap();
     write_utf8_no_bom(&dir.join("data/hulls/skins/skin.skin"),r#"{"skinHullId":"skin","baseHullId":"a","hullName":"Skin Name","maxSpeed":190,"tech":"Midline","descriptionId":"a","removeWeaponSlots":["one"],"builtInWeapons":{"two":"special"},"spriteName":"graphics/skin.png"}"#).unwrap();
     write_utf8_no_bom(&dir.join("data/variants/var.variant"),r#"{"variantId":"var","hullId":"skin","weaponGroups":[{"weapons":{"one":"weapon","two":"weapon"}}]}"#).unwrap();
@@ -1017,7 +1021,7 @@ fn wing_reference_and_graph() {
 #[test]
 fn wing_creates_skin_and_versions() {
     let (dir, mut root) = wing_fixture();
-    project::close_project_session(root.session_id).unwrap();
+    release_project_session(root.session_id).unwrap();
     write_utf8_no_bom(
         &dir.join("data/variants/var.variant"),
         r#"{"variantId":"var","hullId":"new_skin","weaponGroups":[]}"#,
@@ -1138,7 +1142,7 @@ fn weapon_projection_icons_and_source() {
 #[test]
 fn loaded_missile_resource_projection() {
     let (dir, root) = fixture();
-    project::close_project_session(root.session_id.clone()).unwrap();
+    release_project_session(root.session_id.clone()).unwrap();
     fs::create_dir_all(dir.join("data/weapons/proj")).unwrap();
     write_utf8_no_bom(&dir.join("data/weapons/proj/rocket.proj"),r#"{"id":"rocket","specClass":"missile","sprite":"graphics/rocket.png","size":[12,24],"center":[6,12]}"#).unwrap();
     write_utf8_no_bom(&dir.join("data/weapons/weapon.wpn"),r#"{"id":"weapon","specClass":"projectile","type":"MISSILE","size":"SMALL","projectileSpecId":"rocket","renderHints":["RENDER_LOADED_MISSILES"]}"#).unwrap();
@@ -1284,7 +1288,7 @@ fn ui_and_engine_resource_versions() {
 #[test]
 fn hullmod_catalog_ui_icons() {
     let (dir, root) = fixture();
-    project::close_project_session(root.session_id.clone()).unwrap();
+    release_project_session(root.session_id.clone()).unwrap();
     let game = project_workspace("joint_hullmod_catalog");
     let core = game.join("starsector-core");
     for path in [
@@ -1446,7 +1450,7 @@ fn late_change_rejects_confirmed_write() {
         "Ship"
     );
     assert!(
-        write_transactions::query_history(&root.session_id, &root.mod_root)
+        query_file_history(&root.session_id, &root.mod_root)
             .unwrap()
             .undo_stack
             .is_empty()
@@ -1592,7 +1596,7 @@ fn core_override_keeps_original() {
             let error = submit(&input).unwrap_err();
             assert_eq!(error.code(), "write.version_conflict", "{relative}");
             assert!(
-                write_transactions::query_history(&root.session_id, &root.mod_root)
+                query_file_history(&root.session_id, &root.mod_root)
                     .unwrap()
                     .undo_stack
                     .is_empty()
@@ -1693,7 +1697,7 @@ fn skin_modules_and_shared_sources() {
     )
     .unwrap();
     write_utf8_no_bom(&dir.join("data/variants/var.variant"),r#"{"variantId":"var","hullId":"skin","modules":{"slot":"module"},"weaponGroups":[],"wings":[]}"#).unwrap();
-    project::close_project_session(root.session_id.clone()).unwrap();
+    release_project_session(root.session_id.clone()).unwrap();
     let mut trace = PerformanceTrace::new("joint.skin");
     let manifest = project::open_project_session_traced(&dir, None, &mut trace).unwrap();
     let root = JointEditRoot {
@@ -1728,7 +1732,7 @@ fn builtin_wings_and_single_user() {
         r#"{"hullId":"a","builtInWings":["wing"]}"#,
     )
     .unwrap();
-    project::close_project_session(root.session_id.clone()).unwrap();
+    release_project_session(root.session_id.clone()).unwrap();
     let mut trace = PerformanceTrace::new("joint.builtin");
     let manifest = project::open_project_session_traced(&dir, None, &mut trace).unwrap();
     let root = JointEditRoot {
@@ -1778,7 +1782,7 @@ fn core_system_uses_actual_source() {
         "id,name,system id\na,Ship,drive\n",
     )
     .unwrap();
-    project::close_project_session(root.session_id.clone()).unwrap();
+    release_project_session(root.session_id.clone()).unwrap();
     let mut trace = PerformanceTrace::new("joint.system");
     let manifest = project::open_project_session_traced(&dir, Some(&game), &mut trace).unwrap();
     let root = JointEditRoot {
@@ -1885,7 +1889,7 @@ fn csv_identity_and_draft_system() {
         "id,name,system id\na,Ship,one\n",
     )
     .unwrap();
-    project::close_project_session(root.session_id.clone()).unwrap();
+    release_project_session(root.session_id.clone()).unwrap();
     let mut trace = PerformanceTrace::new("joint.projection");
     let manifest = project::open_project_session_traced(&dir, None, &mut trace).unwrap();
     let root = JointEditRoot {
@@ -1948,7 +1952,7 @@ fn csv_identity_and_draft_system() {
 #[test]
 fn missing_ship_uses_construction() {
     let (dir, root) = fixture();
-    project::close_project_session(root.session_id.clone()).unwrap();
+    release_project_session(root.session_id.clone()).unwrap();
     fs::remove_file(dir.join("data/hulls/a.ship")).unwrap();
     let mut trace = PerformanceTrace::new("joint.missing");
     let manifest = project::open_project_session_traced(&dir, None, &mut trace).unwrap();
@@ -1983,7 +1987,7 @@ fn missing_ship_uses_construction() {
 #[test]
 fn missing_weapon_uses_construction() {
     let (dir, root) = fixture();
-    project::close_project_session(root.session_id.clone()).unwrap();
+    release_project_session(root.session_id.clone()).unwrap();
     fs::remove_file(dir.join("data/weapons/weapon.wpn")).unwrap();
     let mut trace = PerformanceTrace::new("joint.weapon.missing");
     let manifest = project::open_project_session_traced(&dir, None, &mut trace).unwrap();
@@ -2088,7 +2092,7 @@ fn core_pulse_requires_legal_override() {
 #[test]
 fn core_header_and_sensor_sources() {
     let (dir, root) = fixture();
-    project::close_project_session(root.session_id.clone()).unwrap();
+    release_project_session(root.session_id.clone()).unwrap();
     let game = project_workspace("joint_reference_core");
     let core = game.join("starsector-core");
     fs::create_dir_all(core.join("data/config")).unwrap();
@@ -2174,7 +2178,7 @@ fn core_header_and_sensor_sources() {
 #[test]
 fn variant_catalog_core_repeated_reads() {
     let (dir, mut root) = fixture();
-    project::close_project_session(root.session_id.clone()).unwrap();
+    release_project_session(root.session_id.clone()).unwrap();
     let game = project_workspace("variant_catalog_core_reads");
     let core = game.join("starsector-core");
     for (relative, content) in [

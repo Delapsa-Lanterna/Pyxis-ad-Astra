@@ -1,8 +1,8 @@
-use super::entity_targets::describe_entity_target;
 use crate::domain::entity_definitions;
 use crate::errors::{AppError, AppResult};
 use crate::io::{FsRootBoundary, read_versioned_bytes};
 use crate::models::*;
+use crate::services::project::query::entity_targets::describe_entity_target;
 use crate::services::project::session::{lock_ready_session, session_handle};
 
 use crate::services::project::sources::{SourceReader, core, documents};
@@ -14,12 +14,15 @@ use std::collections::BTreeMap;
 use std::path::Path;
 use std::{iter, slice};
 
-type FileReads = BTreeMap<String, (FileVersion, Result<Value, String>)>;
+type AssociatedSpecReads = BTreeMap<String, (FileVersion, Result<Value, String>)>;
 #[cfg(test)]
-#[path = "csv_associated_specs_tests.rs"]
+#[path = "associated_spec_preparation_tests.rs"]
 mod tests;
 
-fn read_file(location: &EntityFileLocation, reads: &mut FileReads) -> AppResult<()> {
+fn read_associated_spec_once(
+    location: &EntityFileLocation,
+    reads: &mut AssociatedSpecReads,
+) -> AppResult<()> {
     if reads.contains_key(&windows_path_key(&location.path)) {
         return Ok(());
     }
@@ -42,13 +45,13 @@ fn read_file(location: &EntityFileLocation, reads: &mut FileReads) -> AppResult<
     Ok(())
 }
 
-fn file(
+fn prepare_associated_spec_file(
     location: EntityFileLocation,
     id: &str,
     field: &str,
-    reads: &mut FileReads,
+    reads: &mut AssociatedSpecReads,
 ) -> AppResult<AssociatedSpecFile> {
-    read_file(&location, reads)?;
+    read_associated_spec_once(&location, reads)?;
     let (version, value) = &reads[&windows_path_key(&location.path)];
     let problem = match value {
         Ok(value)
@@ -77,7 +80,7 @@ pub fn prepare_csv_associated_specs(
     let definition = entity_definitions::associated_spec_definition(table)
         .ok_or_else(|| AppError::message("table.no_associated_spec", "该表没有关联规格"))?;
     let root = session.manifest.mod_root.clone();
-    let mut reads = FileReads::new();
+    let mut reads = AssociatedSpecReads::new();
     let mut local = BTreeMap::new();
     let known: BTreeMap<_, _> = session
         .spec_records(definition.entity_kind)
@@ -104,7 +107,7 @@ pub fn prepare_csv_associated_specs(
         let id = if let Some(id) = known.get(&windows_path_key(&location.path)) {
             Some(id.clone())
         } else {
-            read_file(&location, &mut reads)?;
+            read_associated_spec_once(&location, &mut reads)?;
             reads[&windows_path_key(&location.path)]
                 .1
                 .as_ref()
@@ -185,7 +188,9 @@ pub fn prepare_csv_associated_specs(
                     .or_else(|| target.source.clone())
                     .or_else(|| core.get(id).map(|record| record.location.clone()))
                     .or(Some(fallback))
-                    .map(|location| file(location, id, definition.id_field, &mut reads))
+                    .map(|location| {
+                        prepare_associated_spec_file(location, id, definition.id_field, &mut reads)
+                    })
                     .transpose()?
             } else {
                 None
@@ -216,7 +221,12 @@ pub fn prepare_csv_associated_specs(
                         source: ResourceSource::Mod,
                         reference: None,
                     });
-            let destination = file(destination, change.id(), definition.id_field, &mut reads)?;
+            let destination = prepare_associated_spec_file(
+                destination,
+                change.id(),
+                definition.id_field,
+                &mut reads,
+            )?;
             let mut base_versions = info.base_versions;
             for file in original
                 .iter()
@@ -238,7 +248,9 @@ pub fn prepare_csv_associated_specs(
         .collect()
 }
 
-pub(in crate::services::project) fn verify_file(file: &AssociatedSpecFile) -> AppResult<()> {
+pub(in crate::services::project) fn verify_associated_spec_file(
+    file: &AssociatedSpecFile,
+) -> AppResult<()> {
     let boundary = FsRootBoundary::new(Path::new(&file.location.root), "associated source")?;
     let path = boundary.resolve_relative_target(&file.location.rel_path, "associated file")?;
     if !io::same_physical_path(&path, Path::new(&file.location.path))

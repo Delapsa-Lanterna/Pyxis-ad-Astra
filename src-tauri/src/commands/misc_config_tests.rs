@@ -1,4 +1,7 @@
 #![cfg(test)]
+#[cfg(test)]
+use crate::services::project_sync::release_project_session;
+
 use crate::commands::{
     prepare_json_source_recovery, query_misc_config_file, query_misc_config_files,
 };
@@ -519,7 +522,7 @@ fn merged_config_save_validation() {
     )
     .unwrap();
     fs::write(config.join("sounds.json"), json!({"sample":{"sounds":[{"file":"sounds/sample.ogg"}],"FRIGATE":{"pitch":1,"volume":1,"sounds":[0]}}}).to_string()).unwrap();
-    project::close_project_session(f.scope.session_id.clone()).unwrap();
+    release_project_session(f.scope.session_id.clone()).unwrap();
     let manifest = project::open_project_session_traced(
         &f.root,
         Some(&game),

@@ -4,15 +4,15 @@ use crate::io::{
     FsRootBoundary, RootWriteLock, acquire_root_write_lock, verify_versions, version_after_change,
 };
 use crate::models::{
-    EntityIdentityChange, FileChangeKind, FileChangeRecord, FileChangeReplayDirection,
-    FileHistorySnapshot, FileVersion, SessionModScope, WriteResult, windows_path_key,
+    EntityIdentityChange, FileChangeKind, FileChangeRecord, FileChangeReplayDirection, FileVersion,
+    SessionModScope, WriteResult, windows_path_key,
 };
 use crate::services::{app_settings, project};
 use crate::{diagnostics, io, models, services};
 use serde_json::json;
 use std::path::Path;
 
-mod committed;
+mod session_updates;
 
 pub struct WriteTransaction {
     root: String,
@@ -98,8 +98,12 @@ impl WriteTransaction {
         versions.sort_by(|left, right| left.path.cmp(&right.path));
         result.base_versions = versions;
         if self.session_id.is_some() {
-            result.history =
-                file_history::record(&self.root, &result.changes, &result.identity_changes, label)?;
+            result.history = file_history::record_write(
+                &self.root,
+                &result.changes,
+                &result.identity_changes,
+                label,
+            )?;
         }
         diagnostics::debug("save.history_registered", || {
             format!(
@@ -107,8 +111,11 @@ impl WriteTransaction {
                 self.root, self.session_id, result.history.revision
             )
         });
-        result.session_updates =
-            committed::project_commit(&self.root, self.session_id.as_deref(), &result.changes)?;
+        result.session_updates = session_updates::refresh_committed_sessions(
+            &self.root,
+            self.session_id.as_deref(),
+            &result.changes,
+        )?;
         if let Some(session_id) = &self.session_id
             && !result.identity_changes.is_empty()
         {
@@ -134,20 +141,6 @@ impl WriteTransaction {
         }
         Ok(result)
     }
-}
-
-pub fn query_history(session_id: &str, root: &str) -> AppResult<FileHistorySnapshot> {
-    project::ensure_project_session_mod_root(session_id, root)?;
-    let root = FsRootBoundary::new(Path::new(root), "history root")?
-        .root()
-        .to_string_lossy()
-        .into_owned();
-    file_history::query(&root)
-}
-
-pub fn clear_history(session_id: &str, root: &str) -> AppResult<FileHistorySnapshot> {
-    let transaction = acquire(root, Some(session_id))?;
-    file_history::clear(&transaction.root)
 }
 
 pub fn replay(
@@ -207,8 +200,11 @@ pub fn replay(
         })
         .collect();
     result.history = file_history::accept_replay(&transaction.root, direction, entry)?;
-    result.session_updates =
-        committed::project_commit(&transaction.root, Some(session_id), &result.changes)?;
+    result.session_updates = session_updates::refresh_committed_sessions(
+        &transaction.root,
+        Some(session_id),
+        &result.changes,
+    )?;
     if !result.identity_changes.is_empty() {
         let mut versions = Vec::new();
         for identity in &result.identity_changes {
@@ -239,6 +235,9 @@ fn versions_for_changes(changes: &[FileChangeRecord]) -> AppResult<Vec<FileVersi
 
 #[cfg(test)]
 mod tests {
+    use crate::services::file_history::query_file_history;
+    use crate::services::project_sync::release_project_session;
+
     use super::*;
     #[cfg(test)]
     use crate::commands;
@@ -330,7 +329,7 @@ mod tests {
                     Some(&serde_json::json!("next"))
                 );
                 assert_eq!(
-                    query_history(&check_session, &check_root.to_string_lossy())?
+                    query_file_history(&check_session, &check_root.to_string_lossy())?
                         .undo_stack
                         .len(),
                     1
@@ -370,7 +369,7 @@ mod tests {
                 .is_some()
         );
         assert_eq!(
-            query_history(&manifest.session_id, &manifest.mod_root)
+            query_file_history(&manifest.session_id, &manifest.mod_root)
                 .unwrap()
                 .undo_stack
                 .len(),
@@ -548,7 +547,7 @@ mod tests {
             fs::read(root.join(format!("data/missions/{next_id}/extra.bin"))).unwrap(),
             [0, 255, 128]
         );
-        project::close_project_session(manifest.session_id).unwrap();
+        release_project_session(manifest.session_id).unwrap();
         root.close().unwrap();
     }
 
@@ -605,7 +604,7 @@ mod tests {
             )
             .is_err()
         );
-        project::close_project_session(manifest.session_id).unwrap();
+        release_project_session(manifest.session_id).unwrap();
         root.close().unwrap();
     }
 
@@ -627,7 +626,7 @@ mod tests {
             let _transaction = begin(&payload, &payload.base_versions).unwrap();
         }
         assert!(
-            query_history(&manifest.session_id, &manifest.mod_root)
+            query_file_history(&manifest.session_id, &manifest.mod_root)
                 .unwrap()
                 .undo_stack
                 .is_empty()
@@ -645,7 +644,7 @@ mod tests {
                 .len(),
             1
         );
-        project::close_project_session(manifest.session_id).unwrap();
+        release_project_session(manifest.session_id).unwrap();
         assert!(begin(&payload, &payload.base_versions).is_err());
         root.close().unwrap();
     }
@@ -714,12 +713,12 @@ mod tests {
             .is_err()
         );
         assert_eq!(
-            query_history(&manifest.session_id, &manifest.mod_root)
+            query_file_history(&manifest.session_id, &manifest.mod_root)
                 .unwrap()
                 .revision,
             undone.history.revision
         );
-        project::close_project_session(manifest.session_id).unwrap();
+        release_project_session(manifest.session_id).unwrap();
         root.close().unwrap();
     }
 }

@@ -9,6 +9,8 @@ mod validation_tests;
 
 #[cfg(test)]
 mod tests {
+    use crate::services::project_sync::release_project_session;
+
     use super::*;
     use crate::io::write_utf8_no_bom;
     #[cfg(test)]
@@ -74,7 +76,7 @@ mod tests {
             assert!(
                 !json_file_save_context(&manifest.session_id, kind, None, "new", None).unwrap()
             );
-            project::close_project_session(manifest.session_id).unwrap();
+            release_project_session(manifest.session_id).unwrap();
             root.close().unwrap();
         }
     }

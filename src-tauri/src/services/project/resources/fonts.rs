@@ -2,7 +2,7 @@ use crate::errors::{AppError, AppResult};
 use crate::io::{FsRootBoundary, read_utf8_no_bom};
 use crate::models::font::{FontId, OriginalFontPage, OriginalFontResult};
 #[cfg(test)]
-use crate::services::project::session::{close_project_session, open_project_session_traced};
+use crate::services::project::session::open_project_session_traced;
 use crate::services::project::session::{lock_session, session_handle};
 
 #[cfg(test)]
@@ -96,6 +96,8 @@ fn read_font_directory(directory: &Path, font_id: FontId) -> AppResult<OriginalF
 
 #[cfg(test)]
 mod tests {
+    use crate::services::project_sync::release_project_session;
+
     use super::*;
     use crate::io::write_utf8_no_bom;
     #[cfg(test)]
@@ -259,7 +261,7 @@ mod tests {
                 .is_err()
             );
         }
-        close_project_session(manifest.session_id.clone()).unwrap();
+        release_project_session(manifest.session_id.clone()).unwrap();
         assert!(
             query_original_font(&manifest.session_id, FontId::Orbitron12condensed, None).is_err()
         );

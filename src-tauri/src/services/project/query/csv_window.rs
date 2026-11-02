@@ -1,5 +1,5 @@
-use super::super::definitions::table_definitions::csv_table_row_resource_ref;
 use super::super::model::SessionCsvRow;
+use super::super::resources::table_references::csv_row_resource_ref;
 use super::super::session::csv_tables::{
     ensure_registered_table_rows, loaded_registered_csv_rows, registered_session_table,
 };
@@ -145,7 +145,7 @@ pub fn query_csv_row_preview(
     Ok(CsvRowPreview {
         resource_ref: row
             .filter(|row| !row.is_comment)
-            .and_then(|row| csv_table_row_resource_ref(&session, table, &row.data)),
+            .and_then(|row| csv_row_resource_ref(&session, table, &row.data)),
     })
 }
 
@@ -175,14 +175,14 @@ fn csv_row_matches(
 
 #[cfg(test)]
 mod tests {
+    use crate::services::project_sync::release_project_session;
+
     use super::*;
     #[cfg(test)]
     use crate::models::{CsvSave, CsvTableRowsPayload, ResourceOwnerKind, SaveAction};
     use crate::services::project::test_support::project_workspace;
     #[cfg(test)]
-    use crate::services::project::{
-        PerformanceTrace, close_project_session, open_project_session_traced,
-    };
+    use crate::services::project::{PerformanceTrace, open_project_session_traced};
     #[cfg(test)]
     use crate::services::project_save;
     #[cfg(test)]
@@ -271,7 +271,7 @@ mod tests {
             )
             .is_err()
         );
-        close_project_session(manifest.session_id).unwrap();
+        release_project_session(manifest.session_id).unwrap();
         root.close().unwrap();
     }
 
@@ -360,7 +360,7 @@ mod tests {
         assert_eq!(resource.owner_kind, ResourceOwnerKind::Ship);
         assert_eq!(resource.owner_id, "ship_a");
         assert_eq!(resource.key, "thumbnail");
-        close_project_session(manifest.session_id).unwrap();
+        release_project_session(manifest.session_id).unwrap();
         root.close().unwrap();
     }
 
@@ -432,7 +432,7 @@ mod tests {
             assert_eq!(window.row_keys.len(), count);
             assert_eq!(window.rows.len(), count);
         }
-        close_project_session(manifest.session_id).unwrap();
+        release_project_session(manifest.session_id).unwrap();
         root.close().unwrap();
     }
 }

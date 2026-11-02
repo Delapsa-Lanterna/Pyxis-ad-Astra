@@ -40,10 +40,10 @@ test('dependency rejection follows layer, responsibility and capability ownershi
   const context = architectureFixtures({
     'src/app/composables/use-edit-target-draft-session.ts': "\nimport {saveCsvPatch} from '@/services/csv-table.service';",
     'src/services/csv-table.service.ts': 'export function saveCsvPatch(){}',
-    'src-tauri/src/services/file_history.rs': '\nuse crate::services::project::query_entity;',
+    'src-tauri/src/services/file_history/records.rs': '\nuse crate::services::project::query_entity;',
   });
   const frontend = checkArchitecture(context).filter((d) => d.file === 'src/app/composables/use-edit-target-draft-session.ts');
-  const rust = checkArchitecture(context).filter((d) => d.file.endsWith('file_history.rs'));
+  const rust = checkArchitecture(context).filter((d) => d.file.endsWith('file_history/records.rs'));
   assert.equal(frontend.length, 2);
   assert.equal(rust.length, 2);
   assert.deepEqual(frontend.map((diagnostic) => diagnostic.ruleId).sort(), ['capability-boundary', 'draft-session-boundary']);

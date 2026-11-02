@@ -72,6 +72,7 @@
 - 联合与沉浸式编辑：ship、weapon、wing 或 variant 的 `JointEditRoot` → `query_joint_edit` → 规格、CSV、描述、Skin 与模块来源图 → `JointEditSnapshot` → 所属字段、装备、场景与关联编辑器动作 → 联合草稿
 - 文件浏览与文本打开：宿主交付 session 与正式 Mod 根 → Mod 文件页 → 目录查询或全目录搜索 → 按 session 接纳条目 → `query_mod_text_file_target` 核对路径与内容 → 完整文件窗口请求 → 文本加载与行列定位
 - 文本编辑：`EditableFileData` 与版本 → 文本 Draft Session → 原文、dirty 及文本撤销栈 → 保存时捕获文本与目标 → 实际写盘文本接纳基线 → 保留后续输入；外部差异进入待载入版本
+- Mod 整体保存：`Ctrl+Shift+S` 捕获 `sessionId + modRoot` → 主窗口捕获各窗口文档参与者 → 所属输入提交与文档保存 → 串行批次汇总实际结果 → 发起窗口反馈与请求释放
 - 项目保存：编辑面提交输入并捕获 `SaveRequest` → `save_project` → 项目同步 FIFO → 所属业务准备 → `write_transactions::begin` 与版本复核 → 业务 changeset → 历史及正式投影登记 → 发布 `WriteResult` 并释放项目工作
 - 联合冲突与提交：联合基线、磁盘与提交草稿 → `submitJointEdit` 请求后端三方比较 → 独立修改合并与冲突选择 → 共享影响、Mod 覆盖和目标协调 → 确认版本复核 → 同根 changeset 与一次历史登记 → 实际联合快照
 - 实体身份联动：正式实体目标、内容与文件名选择 → 实体写入能力 → 主文件、关联规格、描述、势力索引与父装配引用暂存 → 同根 changeset 应用 → 会话表格接纳 → 实际内容、行键与身份变化
@@ -81,6 +82,7 @@
 - 文件修改失败恢复：根租约内写入失败 → 实际 before 字节、路径与存在状态 → 逆序恢复已执行及部分执行步骤 → 受阻位置保留项目工作 → 恢复或明确放弃 → 所属请求结束与后续队列推进
 - 正式登记恢复：文件及历史已登记后的投影构建失败 → session 投影标记 `pending` 并保留所属项目工作 → `project_sync::retry` 继续未完成投影登记 → 完整正式结果发布 → 释放项目工作
 - 内容接纳重试：窗口内容处理失败 → `PendingWriteSync` 保留未完成步骤 → 所属重试入口 → 当前有效身份、基线或必要读取接纳 → 释放已完成步骤并结束所属待办
+- 文件历史读取与清空：捕获 `sessionId + modRoot` → 历史 service 核对范围 → 根历史摘要或根租约内清空双栈 → revision → 所属读取寿命与项目身份接纳
 - 草稿历史与文件回放：workspace history dispatch → 当前 JSON 或 CSV 草稿历史 → 草稿耗尽时构造 File History replay plan → 影响文件确认 → 项目队列复核当前路径、版本与授权 → changeset replay → 历史及窗口内容交付
 - 来源刷新：所属业务根刷新动作 → 保存等待与活动输入交接 → `refreshProjectSourcePaths` → 项目队列按实际来源重读 → 正式投影及失效交付 → 所属内容接纳或 dirty 外部版本暂存
 - Core 生命周期：`WindowShell` 有效原版根 → `startCoreAssetsLoading` → fields 与 graphics 独立读取并复用所属在途任务 → 后端 Core 产品 → 根与产品代次接纳 → Core store；根清空或窗口释放撤销所属读取

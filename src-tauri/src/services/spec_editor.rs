@@ -11,6 +11,8 @@ use crate::services;
 #[cfg(test)]
 use crate::services::project::PerformanceTrace;
 #[cfg(test)]
+use crate::services::project_sync::release_project_session;
+#[cfg(test)]
 use crate::services::{project, project_save};
 use serde_json::Value;
 use std::path::Path;
@@ -51,7 +53,7 @@ pub fn save_editor_spec_with_json_options(
             ordered_json: ordered_json.map(str::to_string),
         }))
     })();
-    project::close_project_session(manifest.session_id)?;
+    release_project_session(manifest.session_id)?;
     result
 }
 
@@ -83,6 +85,9 @@ fn validate_imported_editor_spec_path(
 
 #[cfg(test)]
 mod tests {
+    use crate::services::file_history::query_file_history;
+    use crate::services::project_sync::release_project_session;
+
     use super::*;
     #[cfg(test)]
     use crate::domain::entity_construction;
@@ -97,7 +102,7 @@ mod tests {
     use crate::services::project::PerformanceTrace;
     use crate::services::project::test_support::project_workspace;
     #[cfg(test)]
-    use crate::services::{project, project_save, write_transactions};
+    use crate::services::{project, project_save};
     use crate::test_support::TestWorkspace;
     use std::fs;
     use std::path::PathBuf;
@@ -144,7 +149,7 @@ mod tests {
                 assert_eq!(error.code(), code);
                 assert_eq!(read_utf8_no_bom(&path).unwrap(), original);
                 assert!(
-                    write_transactions::query_history(&manifest.session_id, &manifest.mod_root)
+                    query_file_history(&manifest.session_id, &manifest.mod_root)
                         .unwrap()
                         .undo_stack
                         .is_empty()
@@ -155,7 +160,7 @@ mod tests {
             assert_eq!(read_json_file(&path).unwrap(), valid);
             assert_eq!(saved.content.map(|content| content.value), Some(valid));
             assert_eq!(saved.history.undo_stack.len(), 1);
-            project::close_project_session(manifest.session_id).unwrap();
+            release_project_session(manifest.session_id).unwrap();
             root.close().unwrap();
         }
     }

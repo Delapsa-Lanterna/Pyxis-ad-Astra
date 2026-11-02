@@ -15,7 +15,7 @@
 - `src-tauri/src/services/project/definitions/config_sources.rs`：配置引用目录的来源名称、固定路径与对象分组登记。
 - `src-tauri/src/services/project/definitions/entity_definitions.rs`：实体来源、读取准备、刷新与摘要的登记规则。
 - `src-tauri/src/services/project/definitions/factions.rs`：势力来源装载、诊断与蓝图标签。
-- `src-tauri/src/services/project/definitions/mod.rs`：会话实体与表格定义的模块登记。
+- `src-tauri/src/services/project/definitions/mod.rs`：实体、配置来源与资源定义的模块登记。
 - `src-tauri/src/services/project/definitions/projectiles.rs`：Mod 弹体及 Core 回退的正式读取。
 - `src-tauri/src/services/project/invalidation.rs`：提交路径到会话投影、实体与资源失效的更新。
 - `src-tauri/src/services/project/mod.rs`：会话生命周期、授权、投影、缓存配置与性能入口。
@@ -24,7 +24,7 @@
 - `src-tauri/src/services/project/root.rs`：任务索引统计行为验证。
 - `src-tauri/src/services/project/session.rs`：会话打开、关闭、投影与内部登记及就绪访问能力交付。
 - `src-tauri/src/services/project/session/access.rs`：捕获引用快照后锁定并交付所属就绪会话。
-- `src-tauri/src/services/project/session/csv_tables.rs`：正式表格内容、稳定行身份、来源保留及加载版本。
+- `src-tauri/src/services/project/session/csv_tables.rs`：正式表格内容、稳定行身份、来源保留、加载版本及实体计数构建。
 - `src-tauri/src/services/project/session/csv_writes.rs`：表格写入缓冲、最终文本与实际应用后的正式状态接纳。
 - `src-tauri/src/services/project/session/references.rs`：有序引用来源、代次、共享快照与按需表格视图。
 - `src-tauri/src/services/project/session/registry.rs`：会话存活登记、句柄与投影就绪门控。
@@ -73,7 +73,7 @@
 - 前端 project store 必须持有全部 manifest 和正式清单，工作区必须按根查询，项目同步必须顺序交付完整投影。
 - 势力及蓝图包提供 tags 元数据，来源变化参与全部相关表的失效。
 - 后端 query 消费会话索引并返回只读结果，write 发布 changeset 和结构化投影。
-- 正式 CSV 内容、稳定行身份、来源版本和缺失来源保留归会话表格能力。
+- 正式 CSV 定义、内容、稳定行身份、来源版本、缺失来源保留及实体计数归会话表格能力。
 - 表格写入缓冲持有候选行和最终文本，实际变更集应用成功后由会话能力接纳正式状态。
 - 媒体和查询等待按 session 释放，投影恢复归事务与提交同步入口。
 - 持久化来源成果由来源读取交付，query 消费所属会话投影。
@@ -115,13 +115,15 @@
 
 ### 关闭 session
 
-1. 项目同步的完整释放能力调用底层会话关闭。
-2. 后端从注册表移除条目，释放所属媒体、最后同根历史并更新引用状态。
+1. 项目同步请求注册表原子注销，注册表交付最后同根注销的已登记根。
+2. 项目同步释放所属历史，再调用会话内容清理释放媒体并更新引用状态。
 3. 在途操作自然完成；后续进入的未知 session 请求被拒绝。
 4. 前端按生命周期清理用例移除对应缓存与状态。
 
 ## 规范
 
+- 会话注册表必须在同一锁内移除登记并核对同根剩余 session，历史释放必须由项目同步消费注销结果。
+- 表格路径、身份列、摘要来源与 Core 要求必须消费唯一正式表定义，正式表状态严禁依赖 CSV 编辑实现。
 - 实体定义必须分别登记默认目录与来源目录；默认目录必须用于新建目标，全部来源目录必须共同参与首次装载、刷新、版本捕获与实体失效。
 - 引用来源必须来自已打开会话，来源快照必须在锁定接收方前取得，只读视图必须按引用范围版本共享，严禁交叉持有多个会话的可变锁。
 - 会话存活与投影就绪必须归会话登记维护，引用来源必须交付独立快照，会话读取必须先捕获引用快照再锁定接收方并交付就绪内容。
@@ -147,7 +149,7 @@
 - 已写盘提交的投影恢复必须经所属 FIFO 根租约；正常 ready 结果只允许直接接纳，窗口交接重试必须继续尚未完成的处理。
 - 已登记 session 必须保留至显式关闭；应用关闭必须占有新会话登记入口并等待已开始的建立动作；会话释放必须清理对应媒体缓存。
 - 异步刷新必须验证捕获 session 和读取寿命；已关闭 session 的响应严禁覆盖新会话 manifest。
-- 会话释放必须消费登记的项目身份，目录缺失时必须清理所属历史、媒体和窗口登记。
+- 会话注销必须消费登记的项目身份并交付最后同根事实；内容释放必须由完整项目释放调用，目录缺失时必须保留释放依据。
 - 项目会话内的 query、write、cache、history、window 与事件必须消费捕获的 `sessionId` 及所属正式 `modRoot`。
 - 所有 Mod 缓存与索引必须按 session 隔离，严禁跨 session 复用。
 - 手动刷新必须按所属 Mod／Core 来源授权并保留 session 与 CSV 行身份；完整读取成功后必须更新正式投影和版本。

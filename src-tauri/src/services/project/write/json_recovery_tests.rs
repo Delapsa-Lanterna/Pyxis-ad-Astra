@@ -1,4 +1,7 @@
 #![cfg(test)]
+#[cfg(test)]
+use crate::services::project_sync::release_project_session;
+
 use crate::commands::prepare_json_source_recovery;
 use crate::errors::AppError;
 #[cfg(test)]
@@ -476,9 +479,9 @@ fn directory_sources_preserve_registration_and_sparse_identity() {
                     if reference.is_some() {
                         project::set_reference_sources(Vec::new()).unwrap();
                     }
-                    project::close_project_session(manifest.session_id).unwrap();
+                    release_project_session(manifest.session_id).unwrap();
                     if let Some(reference) = reference {
-                        project::close_project_session(reference.session_id).unwrap();
+                        release_project_session(reference.session_id).unwrap();
                     }
                     work.close().unwrap();
                 }
@@ -504,7 +507,7 @@ fn recovery_rejects_an_explicit_identity_change() {
             "spec.id_mismatch"
         );
         assert!(!path.exists());
-        project::close_project_session(fixture.request.session_id).unwrap();
+        release_project_session(fixture.request.session_id).unwrap();
         fixture.root.close().unwrap();
     }
 }

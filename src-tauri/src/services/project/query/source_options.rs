@@ -1,10 +1,8 @@
 use super::super::definitions::config_sources::CONFIG_OPTION_SOURCES;
 use super::super::definitions::entity_definitions::entity_definitions;
-use super::super::definitions::table_definitions::{
-    csv_table_source_display_name, csv_table_source_resource_ref,
-};
 use super::super::model::{ProjectSession, string_from_row};
 use super::super::resources::HullReferenceResolver;
+use super::super::resources::table_references::{csv_source_display_name, csv_source_resource_ref};
 use super::super::session::csv_tables::{
     ensure_registered_table_rows, loaded_csv_rows, loaded_registered_csv_rows,
 };
@@ -129,9 +127,11 @@ pub fn query_image_source_options(
 
 #[cfg(test)]
 mod image_tests {
+    use crate::services::project_sync::release_project_session;
+
     use super::*;
     use crate::services::project::PerformanceTrace;
-    use crate::services::project::session::{close_project_session, open_project_session_traced};
+    use crate::services::project::session::open_project_session_traced;
     #[cfg(test)]
     use crate::services::project::test_support;
     use crate::services::project::test_support::project_workspace;
@@ -222,7 +222,7 @@ mod image_tests {
             query_image_source_options(&manifest.session_id, &[".".into()], Some("../outside"))
                 .is_err()
         );
-        close_project_session(manifest.session_id.clone()).unwrap();
+        release_project_session(manifest.session_id.clone()).unwrap();
         assert!(query_image_source_options(&manifest.session_id, &directories, None).is_err());
         root.close().unwrap();
     }
@@ -240,7 +240,7 @@ mod image_tests {
             query_image_source_options(&manifest.session_id, &["graphics/icons".into()], None)
                 .is_err()
         );
-        close_project_session(manifest.session_id).unwrap();
+        release_project_session(manifest.session_id).unwrap();
         root.close().unwrap();
     }
 }
@@ -804,7 +804,7 @@ fn source_option_from_row(
     context: SourceOptionResourceContext<'_>,
 ) -> AppResult<SourceOption> {
     let resource_ref = if column == "id" {
-        csv_table_source_resource_ref(
+        csv_source_resource_ref(
             resource_source,
             context.table,
             value,
@@ -842,7 +842,7 @@ fn source_option_label_for_row(
     context: SourceOptionResourceContext<'_>,
 ) -> AppResult<String> {
     if column == "id" {
-        if let Some(display_name) = csv_table_source_display_name(
+        if let Some(display_name) = csv_source_display_name(
             resource_source,
             context.table,
             value,
@@ -1035,7 +1035,9 @@ fn add_faction_blueprint_metadata(
 
 #[cfg(test)]
 mod tests {
-    use super::super::super::session::{close_project_session, open_project_session_traced};
+    use crate::services::project_sync::release_project_session;
+
+    use super::super::super::session::open_project_session_traced;
     use super::*;
     #[cfg(test)]
     use crate::errors::AppError;
@@ -1079,7 +1081,7 @@ mod tests {
             project::open_project_session_traced(&local, Some(&root), &mut trace).unwrap();
         let groups =
             services::query_csv_source_options(&manifest.session_id, "csv:projectiles.id").unwrap();
-        project::close_project_session(manifest.session_id).unwrap();
+        release_project_session(manifest.session_id).unwrap();
         assert_eq!(groups.len(), 2);
         assert_eq!(groups[0].origin, ResourceSource::Mod);
         assert_eq!(groups[1].origin, ResourceSource::Core);
@@ -1172,7 +1174,7 @@ mod tests {
                 .unwrap()
                 .ends_with("settings.json")
         );
-        close_project_session(manifest.session_id).unwrap();
+        release_project_session(manifest.session_id).unwrap();
         root.close().unwrap();
     }
 
@@ -1195,7 +1197,7 @@ mod tests {
         let manifest = open_project_session_traced(&root, None, &mut trace).unwrap();
         let groups = query_csv_source_options(&manifest.session_id, "csv:ships.id").unwrap();
 
-        let _ = close_project_session(manifest.session_id);
+        let _ = release_project_session(manifest.session_id);
         let option = groups
             .iter()
             .flat_map(|group| group.options.iter())
@@ -1237,7 +1239,7 @@ mod tests {
         let manifest = open_project_session_traced(&mod_root, Some(&root), &mut trace).unwrap();
         let groups = query_csv_source_options(&manifest.session_id, "csv:commodities.id").unwrap();
 
-        let _ = close_project_session(manifest.session_id);
+        let _ = release_project_session(manifest.session_id);
         assert_eq!(groups.len(), 2);
         assert_eq!(groups[0].origin, ResourceSource::Mod);
         assert_eq!(groups[0].options.len(), 501);
@@ -1306,7 +1308,7 @@ mod tests {
         let manifest = open_project_session_traced(&root, None, &mut trace).unwrap();
         let groups = query_csv_source_options(&manifest.session_id, "csv:ships.id").unwrap();
 
-        let _ = close_project_session(manifest.session_id);
+        let _ = release_project_session(manifest.session_id);
         let option = groups
             .iter()
             .find(|group| group.origin == ResourceSource::Mod)
@@ -1346,7 +1348,7 @@ mod tests {
         let manifest = open_project_session_traced(&mod_root, Some(&root), &mut trace).unwrap();
         let groups = query_csv_source_options(&manifest.session_id, "csv:ships.id").unwrap();
 
-        let _ = close_project_session(manifest.session_id);
+        let _ = release_project_session(manifest.session_id);
         let option = groups
             .iter()
             .find(|group| group.origin == ResourceSource::Core)
@@ -1395,7 +1397,7 @@ mod tests {
         let manifest = open_project_session_traced(&mod_root, Some(&root), &mut trace).unwrap();
         let groups = query_csv_source_options(&manifest.session_id, "csv:ships.id").unwrap();
 
-        let _ = close_project_session(manifest.session_id);
+        let _ = release_project_session(manifest.session_id);
         assert_eq!(
             source_option_label_from_groups(&groups, "mod_ship").as_deref(),
             Some("Mod Fallback (mod_ship)")
@@ -1428,7 +1430,7 @@ mod tests {
         let id_groups = query_csv_source_options(&manifest.session_id, "csv:wings.id").unwrap();
         let tag_groups = query_csv_source_options(&manifest.session_id, "csv:wings.tags").unwrap();
 
-        let _ = close_project_session(manifest.session_id);
+        let _ = release_project_session(manifest.session_id);
         assert_eq!(
             source_option_label_from_groups(&id_groups, "talon_wing").as_deref(),
             Some("截击机 (talon_wing)")
@@ -1465,7 +1467,7 @@ mod tests {
             .unwrap_err()
             .to_string();
 
-        let _ = close_project_session(manifest.session_id);
+        let _ = release_project_session(manifest.session_id);
         assert!(error.contains("bad.skin"));
         root.close().unwrap();
     }
@@ -1497,7 +1499,7 @@ mod tests {
         let manifest = open_project_session_traced(&mod_root, Some(&root), &mut trace).unwrap();
         let groups = query_csv_source_options(&manifest.session_id, "csv:wings.id").unwrap();
 
-        let _ = close_project_session(manifest.session_id);
+        let _ = release_project_session(manifest.session_id);
         let option = groups
             .iter()
             .find(|group| group.origin == ResourceSource::Core)
@@ -1546,7 +1548,7 @@ mod tests {
         let groups =
             query_csv_source_options(&manifest.session_id, "csv:variants.variantId").unwrap();
 
-        let _ = close_project_session(manifest.session_id);
+        let _ = release_project_session(manifest.session_id);
 
         assert_eq!(groups.len(), 2);
         assert_eq!(groups[0].origin, ResourceSource::Mod);
@@ -1586,7 +1588,7 @@ mod tests {
         let error =
             query_csv_source_options(&manifest.session_id, "csv:nonexistent.foo").unwrap_err();
 
-        let _ = close_project_session(manifest.session_id);
+        let _ = release_project_session(manifest.session_id);
         assert!(matches!(
             error,
             AppError::Message {
@@ -1623,7 +1625,7 @@ mod tests {
         let manifest = open_project_session_traced(&mod_root, Some(&root), &mut trace).unwrap();
         let groups = query_csv_source_options(&manifest.session_id, "csv:weapons.id").unwrap();
 
-        let _ = close_project_session(manifest.session_id);
+        let _ = release_project_session(manifest.session_id);
         let option = groups
             .iter()
             .find(|group| group.origin == ResourceSource::Core)
@@ -1662,7 +1664,7 @@ mod tests {
             .unwrap_err()
             .to_string();
 
-        let _ = close_project_session(manifest.session_id);
+        let _ = release_project_session(manifest.session_id);
         assert!(error.contains("csv source column does not exist: ships.missing"));
         root.close().unwrap();
     }
@@ -1682,7 +1684,7 @@ mod tests {
         let groups =
             query_csv_source_options(&manifest.session_id, "csv:commodities.tags").unwrap();
 
-        let _ = close_project_session(manifest.session_id);
+        let _ = release_project_session(manifest.session_id);
         let option = groups
             .iter()
             .flat_map(|group| group.options.iter())
@@ -1709,7 +1711,7 @@ mod tests {
         let hint_groups =
             query_csv_source_options(&manifest.session_id, "csv:weapons.hints").unwrap();
 
-        let _ = close_project_session(manifest.session_id);
+        let _ = release_project_session(manifest.session_id);
         let tag_label = source_option_label_from_groups(&tag_groups, "no_drop");
         let hint_label = source_option_label_from_groups(&hint_groups, "PD");
         assert_eq!(
@@ -1747,7 +1749,7 @@ mod tests {
         let groups =
             query_csv_source_options(&manifest.session_id, "csv:commodities.tags").unwrap();
 
-        let _ = close_project_session(manifest.session_id);
+        let _ = release_project_session(manifest.session_id);
         let tag_label = source_option_label_from_groups(&groups, "lowtech_bp");
         let tag_description = source_option_description_from_groups(&groups, "lowtech_bp");
         assert_eq!(
@@ -1787,7 +1789,7 @@ mod tests {
         let groups =
             query_csv_source_options(&manifest.session_id, "csv:commodities.tags").unwrap();
 
-        let _ = close_project_session(manifest.session_id);
+        let _ = release_project_session(manifest.session_id);
         let tag_label = source_option_label_from_groups(&groups, "demo_bp");
         let tag_description = source_option_description_from_groups(&groups, "demo_bp");
         assert_eq!(tag_label.as_deref(), Some("demo_bp (#Old Package)"));
@@ -1812,7 +1814,7 @@ mod tests {
         let hint_groups =
             query_csv_source_options(&manifest.session_id, "csv:weapons.hints").unwrap();
 
-        let _ = close_project_session(manifest.session_id);
+        let _ = release_project_session(manifest.session_id);
         assert_eq!(
             source_option_label_from_groups(&tag_groups, "codex_unlockable").as_deref(),
             Some("codex_unlockable (数据百科待解锁)")

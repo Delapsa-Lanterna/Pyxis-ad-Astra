@@ -1,4 +1,6 @@
 #![cfg(test)]
+#[cfg(test)]
+use crate::services::project_sync::release_project_session;
 
 use crate::models;
 use crate::services::project::session;
@@ -33,7 +35,7 @@ pub(crate) fn release_workspace(root: &Path) -> Vec<String> {
         Err(error) => return vec![format!("release test sessions {}: {error}", root.display())],
     };
     for id in sessions {
-        if let Err(error) = session::close_project_session(id) {
+        if let Err(error) = release_project_session(id) {
             errors.push(format!("close test session {}: {error}", root.display()));
         }
     }

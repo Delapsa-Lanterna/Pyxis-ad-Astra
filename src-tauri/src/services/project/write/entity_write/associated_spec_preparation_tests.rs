@@ -9,6 +9,8 @@ use crate::services::project::PerformanceTrace;
 use crate::services::project::model;
 use crate::services::project::query::csv_window;
 use crate::services::project::test_support::project_workspace;
+#[cfg(test)]
+use crate::services::project_sync::release_project_session;
 use crate::services::{project, project_save, write_transactions};
 #[cfg(test)]
 use crate::test_support::work_counts;
@@ -214,7 +216,7 @@ fn weapon_source_directory_survives_rename_delete_and_default_creation() {
         io::read_json_file(&root.join("data/weapons/fresh.wpn")).unwrap()["id"],
         "fresh"
     );
-    project::close_project_session(manifest.session_id).unwrap();
+    release_project_session(manifest.session_id).unwrap();
     root.close().unwrap();
 }
 
@@ -339,7 +341,7 @@ fn all_formats_read_and_replace_existing_targets_with_one_reversible_save() {
                     )
                     .unwrap();
                     assert!(!rename || !old.exists());
-                    project::close_project_session(manifest.session_id).unwrap();
+                    release_project_session(manifest.session_id).unwrap();
                     root.close().unwrap();
                 }
             }
@@ -380,7 +382,7 @@ fn preparation_shares_actual_reads_and_keeps_invalid_files_as_choices() {
     let result = project_save::execute_save_action(SaveAction::SaveCsvPatch(input)).unwrap();
     assert_eq!(result.changes.len(), 2);
     assert_eq!(io::read_json_file(&path).unwrap()["hullId"], "next");
-    project::close_project_session(manifest.session_id).unwrap();
+    release_project_session(manifest.session_id).unwrap();
     root.close().unwrap();
 }
 
@@ -407,12 +409,12 @@ fn confirmed_versions_reject_replaced_and_deleted_files_before_any_csv_write() {
         assert_eq!(error.code(), "write.version_conflict");
         assert_eq!(read_utf8_no_bom(&csv).unwrap(), "id,name\n");
         assert!(
-            file_history::query(&manifest.mod_root)
+            file_history::snapshot_for_root(&manifest.mod_root)
                 .unwrap()
                 .undo_stack
                 .is_empty()
         );
-        project::close_project_session(manifest.session_id).unwrap();
+        release_project_session(manifest.session_id).unwrap();
         root.close().unwrap();
     }
 }
@@ -486,9 +488,9 @@ fn inherited_originals_supply_all_formats_without_changing_their_sources() {
             );
             project::set_reference_sources(Vec::new()).unwrap();
             if let Some(session) = external_session {
-                project::close_project_session(session).unwrap();
+                release_project_session(session).unwrap();
             }
-            project::close_project_session(manifest.session_id).unwrap();
+            release_project_session(manifest.session_id).unwrap();
             root.close().unwrap();
         }
     }
@@ -530,7 +532,7 @@ fn reading_targets_retains_descriptions_and_overwriting_uses_existing_collision_
             assert!(root.join("data/hulls/old.ship").exists());
         }
         assert_eq!(read_utf8_no_bom(&description).unwrap(), text);
-        project::close_project_session(manifest.session_id).unwrap();
+        release_project_session(manifest.session_id).unwrap();
         root.close().unwrap();
     }
 }
@@ -589,7 +591,7 @@ fn invalid_originals_allow_target_reuse_template_replacement_and_csv_only() {
                 "{hullId:'next',custom:true}"
             );
         }
-        project::close_project_session(manifest.session_id).unwrap();
+        release_project_session(manifest.session_id).unwrap();
         root.close().unwrap();
     }
 }

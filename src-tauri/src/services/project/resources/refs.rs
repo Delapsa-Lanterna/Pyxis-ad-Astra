@@ -217,7 +217,7 @@ mod tests {
     use super::*;
     #[cfg(test)]
     use crate::models::CsvTableKey;
-    use crate::services::project::definitions::table_definitions;
+    use crate::services::project::resources::table_references;
     use serde_json::{Map, Value};
 
     #[test]
@@ -301,11 +301,8 @@ mod tests {
             Value::String("graphics/icons/skill.png".to_string()),
         );
 
-        let resource = table_definitions::csv_table_icon_resource_ref(
-            ResourceSource::Mod,
-            CsvTableKey::Skills,
-            &row,
-        );
+        let resource =
+            table_references::csv_icon_resource_ref(ResourceSource::Mod, CsvTableKey::Skills, &row);
 
         assert!(resource.is_none());
     }

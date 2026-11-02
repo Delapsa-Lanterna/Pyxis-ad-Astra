@@ -9,14 +9,17 @@
 ### 拥有
 
 - `src-tauri/src/commands/file_history.rs`：文件历史查询与清空 command。
-- `src-tauri/src/services/file_history.rs`：文件历史内存状态，按 canonical Mod 根持有快照、双栈与版本。
+- `src-tauri/src/services/file_history.rs`：历史查询与清空的正式范围授权、根租约及内部记录能力交付。
+- `src-tauri/src/services/file_history/`：按实际 Mod 根持有 changeset、双栈、revision、容量及回放交接。
 - `src/orchestrators/file-history-replay.orchestrator.ts`：明确目标的历史摘要刷新、回放计划、复核、执行及实际结果交付。
 - `src/services/file-history.service.ts`：历史读取、清空与按条目回放能力包装。
 - `src/stores/file-history.store.ts`：带版本的历史摘要投影。
 
 ### 消费
 
+- `src-tauri/src/io/file_changes.rs`：历史清空消费的根写入租约。
 - `src-tauri/src/models/file_history.rs`：历史查询、清空与回放请求、条目摘要及双栈快照。
+- `src-tauri/src/services/project/mod.rs`：历史读取与清空消费的 session 及根归属核对。
 - `src/orchestrators/project-sync.orchestrator.ts`：回放消费的提交同步入口，交付历史摘要与会话投影。
 - `src/shared/types/file-history.types.ts`：历史查询、清空与回放请求、条目摘要及双栈快照契约。
 - `src/shared/types/write-commit.types.ts`：公共保存回执、提交同步、行键映射与正式内容交付。
@@ -46,6 +49,13 @@
 3. 保存必须在历史与正式内容登记完成后返回结果并发布历史摘要。
 4. 所属编辑会话必须沿内容接纳入口更新保存基线并保留后续草稿。
 
+### 查询与清空
+
+1. 历史 command 交付捕获的 session 与 Mod 根。
+2. 历史服务核对范围并读取摘要；投影 pending 期间沿用所属 session 的历史。
+3. 清空先取得根租约，再核对 session 与根，清除双栈并推进 revision。
+4. 所属前端按读取寿命、项目身份及历史版本接纳结果。
+
 ### 回放计划
 
 1. 工作区动作捕获 Mod 根与 session，读取后端最新历史摘要。
@@ -73,12 +83,12 @@
 - commit 与 replay 必须共用正式结果登记；磁盘与历史已完成时，投影失败必须由当前项目工作继续处理。
 - dirty 文件编辑器只允许暂存回放文本并提示，严禁覆盖当前输入。
 - 历史列表必须消费 `FileHistoryEntrySummary`；摘要必须只包含条目 ID、标签、时间与路径，完整变更必须归后端历史记录。
-- 历史双栈与 revision 必须只由文件历史模块修改，事务必须消费登记、查询、清空及回放交接接口。
+- 历史双栈与 revision 必须只由记录状态修改；历史服务必须维护查询与清空授权，事务必须消费登记及回放交接接口。
 - 历史只允许记录后端实际写盘 changeset，回放前必须重新核对全部路径与父链。
 - 历史必须保存身份变化与双路径记录；回放必须按实际方向返回身份变化、目标版本及路径范围。
-- 历史读取与通知必须按 session 和历史版本接纳；迟到通知严禁改变较新的历史投影，最后一个同根 session 关闭后必须释放历史。
+- 历史读取与通知必须按 session 和历史版本接纳；迟到通知严禁改变较新的历史投影，项目同步必须按最后同根注销事实释放历史。
 - 历史页面初载与右键刷新必须共用所属读取票据，目标交接与释放必须撤销接纳，成功必须按 Mod 根、session 和历史 revision 更新摘要。
-- 双栈 limit 必须由后端应用设置的 `fileHistoryLimit` 输入；设置加载和保存必须立即裁剪最早的 undo，redo 必须保留，历史清空必须经后端队列执行。
+- 双栈 limit 必须由后端应用设置的 `fileHistoryLimit` 输入；设置加载和保存必须立即裁剪最早的 undo，redo 必须保留，历史清空必须在所属根租约内核对 session 后执行。
 - 回放必须复用首次保存的 before/after 快照，严禁重新计算。
 - 回放摘要读取、计划、确认及执行必须消费发起时捕获的 Mod 根与 session。
 - 回放确认必须显式展示影响文件集合，严禁静默执行。

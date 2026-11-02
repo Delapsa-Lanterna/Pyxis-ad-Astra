@@ -1,4 +1,4 @@
-use super::definitions::{entity_definitions, table_definitions};
+use super::definitions::entity_definitions;
 use super::model::ProjectSession;
 use crate::errors::{AppError, AppResult};
 use crate::io::{FsRootBoundary, parse_csv_text, relative_path_contains};
@@ -122,7 +122,7 @@ fn invalidate_files(
     let table_counts = summary_tables
         .iter()
         .map(|table| {
-            let definition = table_definitions::csv_table_definition(*table);
+            let definition = model::csv_table_spec(*table);
             let state = &session.csv_tables[table.as_str()];
             let accepted_rows = state.rows.as_ref().filter(|_| {
                 state.saved_text.is_some()
@@ -130,23 +130,22 @@ fn invalidate_files(
                         .iter()
                         .any(|file| file.path == state.path && file.after_text == state.saved_text)
             });
-            let count = table_definitions::csv_table_entity_summary(*table, &summaries)
+            let count = definition
+                .entity_summary
+                .map(|summary| summary(&summaries))
                 .map(Ok)
                 .unwrap_or_else(|| match accepted_rows {
                     Some(rows) => Ok(rows
                         .iter()
                         .filter(|row| {
                             !row.is_comment
-                                && model::string_from_row(
-                                    &row.data,
-                                    definition.spec.entity_id_field,
-                                )
-                                .is_some()
+                                && model::string_from_row(&row.data, definition.entity_id_field)
+                                    .is_some()
                         })
                         .count()),
                     None => sources.count(
-                        &sources.path(definition.spec.rel_path)?,
-                        definition.spec.entity_id_field,
+                        &sources.path(definition.rel_path)?,
+                        definition.entity_id_field,
                     ),
                 });
             count.map(|count| (*table, count))
@@ -506,7 +505,7 @@ fn csv_entity_ids(
     table: CsvTableKey,
     file: &ChangedProjectFile,
 ) -> Vec<InvalidatedEntityRef> {
-    let id_field = table_definitions::csv_table_entity_id_field(table);
+    let id_field = model::csv_table_spec(table).entity_id_field;
     let Some(before) = snapshot_csv_rows(file.before_text.as_deref(), &file.path, id_field) else {
         return vec![invalidated_entity(kind, None)];
     };
@@ -589,8 +588,8 @@ fn query_scopes_for_invalidation(
             .iter()
             .any(|entity| entity.kind == EntityKind::Faction)
     {
-        for definition in table_definitions::csv_table_definitions() {
-            let source = format!("{}.tags", definition.spec.key.as_str());
+        for definition in model::csv_table_specs() {
+            let source = format!("{}.tags", definition.key.as_str());
             push_source_option_query_scope(&mut scopes, source.clone());
             push_source_option_query_scope(&mut scopes, format!("csv:{source}"));
         }
@@ -712,10 +711,10 @@ fn push_query_scope(scopes: &mut Vec<InvalidatedQueryScope>, scope: InvalidatedQ
 }
 
 fn affected_csv_tables(path: &str) -> Vec<CsvTableKey> {
-    table_definitions::csv_table_definitions()
+    model::csv_table_specs()
         .iter()
         .filter_map(|definition| {
-            relative_path_contains(path, definition.spec.rel_path).then_some(definition.spec.key)
+            relative_path_contains(path, definition.rel_path).then_some(definition.key)
         })
         .collect()
 }
@@ -1051,8 +1050,8 @@ mod tests {
             ),
         ] {
             let scopes = query_scopes_for_invalidation(&tables, &entities, &[]).unwrap();
-            for definition in table_definitions::csv_table_definitions() {
-                let source = format!("{}.tags", definition.spec.key.as_str());
+            for definition in model::csv_table_specs() {
+                let source = format!("{}.tags", definition.key.as_str());
                 for source in [source.clone(), format!("csv:{source}")] {
                     assert!(
                         scopes
@@ -1317,8 +1316,8 @@ mod tests {
             let Some(table) = definition.csv_table else {
                 continue;
             };
-            let id_field = table_definitions::csv_table_entity_id_field(table);
-            let path = table_definitions::csv_table_definition(table).spec.rel_path;
+            let id_field = model::csv_table_spec(table).entity_id_field;
+            let path = model::csv_table_spec(table).rel_path;
             let target = ChangedProjectPath::classify(path);
             let create = format!("{id_field},name\r\nnew,New\r\n");
             let delete = format!("{id_field},name\r\nold,Old\r\n");
@@ -1369,9 +1368,7 @@ mod tests {
 
     #[test]
     fn csv_snapshot_ignores_rows_without_an_entity_id() {
-        let path = table_definitions::csv_table_definition(CsvTableKey::Weapons)
-            .spec
-            .rel_path;
+        let path = model::csv_table_spec(CsvTableKey::Weapons).rel_path;
         let target = ChangedProjectPath::classify(path);
         let before = "id,type,number\r\n,ENERGY,69\r\ndemo_weapon,ENERGY,70\r\n";
         let after = "id,type,number\r\n,ENERGY,69\r\ndemo_weapon,BALLISTIC,70\r\n";

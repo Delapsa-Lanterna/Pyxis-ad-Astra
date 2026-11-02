@@ -471,6 +471,8 @@ pub fn prepare_json_entity_save(
 
 #[cfg(test)]
 mod tests {
+    use crate::services::project_sync::release_project_session;
+
     use super::*;
     #[cfg(test)]
     use crate::io;
@@ -501,7 +503,7 @@ mod tests {
         let mut trace = PerformanceTrace::new("project.openSession");
         let manifest = project::open_project_session_traced(Path::new(root), None, &mut trace)?;
         let result = action(&manifest);
-        project::close_project_session(manifest.session_id)?;
+        release_project_session(manifest.session_id)?;
         result
     }
 
@@ -676,7 +678,7 @@ mod tests {
             read_csv_data(&index).unwrap().rows[2].data["mission"],
             "old"
         );
-        project::close_project_session(manifest.session_id).unwrap();
+        release_project_session(manifest.session_id).unwrap();
         root.close().unwrap();
     }
 

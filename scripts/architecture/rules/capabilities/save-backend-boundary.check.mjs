@@ -48,9 +48,8 @@ for (const business of ['entity_write/descriptions', 'entity_write/content', 'cs
       const files = architectureFixtures({
         'src-tauri/src/services/project/session/csv_writes.rs': source,
       });
-      const message = messages(rustProjectLayerBoundaryRule.check(files))[0];
-      assert.ok(message);
-      assert.match(message, /CSV draft and staging/);
+      const failures = messages(rustProjectLayerBoundaryRule.check(files));
+      assert.ok(failures.some((message) => /CSV draft and staging/.test(message)));
     });
   }
 }
@@ -219,4 +218,19 @@ test('settings runtime history configuration belongs to lifecycle assembly', () 
     'src-tauri/src/commands/app_lifecycle.rs': 'fn run() { crate::services::file_history::release_history(); }',
   });
   assert.equal(messages(rustProjectLayerBoundaryRule.check(history)).length, 1);
+});
+
+test('history commands consume only the history facade', () => {
+  for (const command of ['query_file_history', 'clear_file_history']) {
+    const allowed = architectureFixtures({
+      'src-tauri/src/commands/file_history.rs': 'fn ' + command + '() { crate::services::file_history::' + command + '(session, root); }',
+    });
+    assert.deepEqual(saveBackendBoundaryRule.check(allowed), []);
+    for (const backend of ['project', 'write_transactions']) {
+      const denied = architectureFixtures({
+        'src-tauri/src/commands/file_history.rs': 'fn ' + command + '() { crate::services::' + backend + '::run(); }',
+      });
+      assert.equal(saveBackendBoundaryRule.check(denied).length, 1);
+    }
+  }
 });

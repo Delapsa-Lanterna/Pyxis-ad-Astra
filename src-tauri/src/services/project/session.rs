@@ -1,5 +1,5 @@
 use super::cache;
-use super::definitions::{factions, projectiles, table_definitions};
+use super::definitions::{factions, projectiles};
 use super::model::{
     MISSION_LIST_REL_PATH, MISSION_LIST_TABLE_KEY, ProjectSession, SessionCsvTable, SpecBundle,
 };
@@ -13,7 +13,6 @@ use crate::models::{
     EntitySummaries, FileChangeRecord, InvalidatedResourceScope, ProjectInvalidation,
     ProjectManifest, ProjectSessionInvalidationResult, ResourceSource, TableSummary,
 };
-use crate::services::file_history;
 use crate::services::project::definitions::entity_definitions;
 use crate::services::project::model::{ProjectContent, SessionCsvRow};
 use crate::services::project::sources::json_documents::{
@@ -32,7 +31,7 @@ mod access;
 pub(in crate::services::project) mod csv_tables;
 pub(in crate::services::project) mod csv_writes;
 pub(super) mod references;
-mod registry;
+pub(super) mod registry;
 pub(in crate::services::project) mod source_projection;
 
 pub(crate) use access::lock_ready_session;
@@ -66,19 +65,9 @@ pub fn registered_session_ids() -> AppResult<Vec<String>> {
     Ok(lock_registry()?.keys().cloned().collect())
 }
 
-pub fn close_project_session(session_id: String) -> AppResult<()> {
-    let removed = lock_registry()?.remove(&session_id);
-    if let Some(registered) = removed {
-        let root = registered.root;
-        let same_root = lock_registry()?
-            .values()
-            .any(|registered| registered.root == root);
-        if !same_root {
-            file_history::release_history(&root)?;
-        }
-    }
-    cache::clear_sprite_media_for_session(&session_id);
-    references::reference_sources_changed(Some(&session_id))?;
+pub(crate) fn release_session_content(session_id: &str) -> AppResult<()> {
+    cache::clear_sprite_media_for_session(session_id);
+    references::reference_sources_changed(Some(session_id))?;
     Ok(())
 }
 
@@ -260,22 +249,17 @@ pub(super) fn build_project_session(
         spec_bundle,
         table_entity_summaries,
     } = content;
-    let table_summaries = table_definitions::csv_table_definitions()
+    let table_summaries = model::csv_table_specs()
         .iter()
         .map(|definition| {
-            let table = csv_tables
-                .get(definition.spec.key.as_str())
-                .ok_or_else(|| {
-                    AppError::message(
-                        "table.unknown",
-                        format!(
-                            "missing registered CSV table: {}",
-                            definition.spec.key.as_str()
-                        ),
-                    )
-                })?;
+            let table = csv_tables.get(definition.key.as_str()).ok_or_else(|| {
+                AppError::message(
+                    "table.unknown",
+                    format!("missing registered CSV table: {}", definition.key.as_str()),
+                )
+            })?;
             Ok((
-                definition.spec.key,
+                definition.key,
                 TableSummary {
                     path: table.path.clone(),
                     header: table.header.clone(),
@@ -385,7 +369,7 @@ fn load_project_content(
         skills: spec_bundle.skill_files.len(),
     };
     let table_entity_summaries =
-        table_definitions::build_table_entity_summaries_from(sources, &entity_summaries)?;
+        csv_tables::build_table_entity_summaries_from(sources, &entity_summaries)?;
     let content = ProjectContent {
         mod_info,
         faction_files,
@@ -398,15 +382,15 @@ fn load_project_content(
 }
 
 pub(super) fn build_registered_session_csv_tables() -> BTreeMap<String, SessionCsvTable> {
-    let mut tables: BTreeMap<String, SessionCsvTable> = table_definitions::csv_table_definitions()
+    let mut tables: BTreeMap<String, SessionCsvTable> = model::csv_table_specs()
         .iter()
         .map(|definition| {
             (
-                definition.spec.key.as_str().to_string(),
+                definition.key.as_str().to_string(),
                 SessionCsvTable {
                     row_index: None,
                     header: Vec::new(),
-                    path: definition.spec.rel_path.to_string(),
+                    path: definition.rel_path.to_string(),
                     rows: None,
                     next_row_seq: 0,
                     saved_text: None,
@@ -547,6 +531,8 @@ pub(super) fn load_spec_bundle(
 
 #[cfg(test)]
 mod tests {
+    use crate::services::project_sync::release_project_session;
+
     use super::*;
     use crate::io::write_utf8_no_bom;
     #[cfg(test)]
@@ -583,7 +569,7 @@ mod tests {
         }
         let handle = session_handle(&manifests[0].session_id).unwrap();
         for manifest in &manifests {
-            close_project_session(manifest.session_id.clone()).unwrap();
+            release_project_session(manifest.session_id.clone()).unwrap();
             assert!(session_handle(&manifest.session_id).is_err());
         }
         assert_eq!(
@@ -676,7 +662,7 @@ mod tests {
             .unwrap_err()
             .to_string();
 
-        let _ = close_project_session(manifest.session_id);
+        let _ = release_project_session(manifest.session_id);
         assert!(error.contains("does not own mod root"));
         right.close().unwrap();
         left.close().unwrap();
@@ -774,7 +760,7 @@ mod tests {
         let mut trace = PerformanceTrace::new("project.openSession");
         let manifest = open_project_session_traced(&root, None, &mut trace).unwrap();
         assert_eq!(manifest.entity_summaries.skins, 1);
-        close_project_session(manifest.session_id).unwrap();
+        release_project_session(manifest.session_id).unwrap();
         root.close().unwrap();
     }
 
@@ -970,7 +956,7 @@ mod tests {
             )
             .unwrap();
             assert_eq!(window.total_rows, 1 + WRITES_PER_SESSION);
-            close_project_session(session_id.clone()).unwrap();
+            release_project_session(session_id.clone()).unwrap();
             roots[session_index].clone().close().unwrap();
         }
     }
@@ -994,6 +980,8 @@ pub fn refresh_project_sources(
 
 #[cfg(test)]
 mod source_refresh_tests {
+    use crate::services::project_sync::release_project_session;
+
     use super::*;
     #[cfg(test)]
     use crate::models::{CsvSearchField, EntityKind};
@@ -1040,7 +1028,7 @@ mod source_refresh_tests {
                 .unwrap()
                 .ends_with("ship_data.csv")
         );
-        close_project_session(manifest.session_id).unwrap();
+        release_project_session(manifest.session_id).unwrap();
         root.close().unwrap();
     }
     #[test]
@@ -1092,7 +1080,7 @@ mod source_refresh_tests {
             rel_path: "../outside".into(),
         };
         assert!(refresh_project_sources(&manifest.session_id, vec![invalid]).is_err());
-        close_project_session(manifest.session_id).unwrap();
+        release_project_session(manifest.session_id).unwrap();
         root.close().unwrap();
     }
 }

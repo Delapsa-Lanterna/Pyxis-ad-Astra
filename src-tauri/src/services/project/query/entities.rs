@@ -83,9 +83,11 @@ pub fn query_entity_list(session_id: &str, kind: EntityKind) -> AppResult<Vec<En
 
 #[cfg(test)]
 mod tests {
+    use crate::services::project_sync::release_project_session;
+
     use super::super::super::definitions::entity_definitions::registered_mission_rows;
     use super::super::super::model::MISSION_LIST_TABLE_KEY;
-    use super::super::super::session::{close_project_session, open_project_session_traced};
+    use super::super::super::session::open_project_session_traced;
     use super::*;
     #[cfg(test)]
     use crate::io::faction_index;
@@ -145,7 +147,7 @@ mod tests {
             &list[0].target.linked_record,
             Some(EntityLinkedRecord::Index { row_index: 0, .. })
         ));
-        close_project_session(manifest.session_id).unwrap();
+        release_project_session(manifest.session_id).unwrap();
         root.close().unwrap();
     }
 
@@ -176,7 +178,7 @@ mod tests {
             .unwrap()
             .unwrap();
 
-        let _ = close_project_session(manifest.session_id);
+        let _ = release_project_session(manifest.session_id);
         assert_eq!(list.len(), 1);
         assert_eq!(list[0].id, "demo");
         assert_eq!(entity.data["list"]["mission"], "demo");
@@ -206,7 +208,7 @@ mod tests {
         let manifest = open_project_session_traced(&root, None, &mut trace).unwrap();
         let entity = query_entity(&manifest.session_id, EntityKind::Mission, "missing").unwrap();
 
-        let _ = close_project_session(manifest.session_id);
+        let _ = release_project_session(manifest.session_id);
         assert!(entity.is_none());
         root.close().unwrap();
     }
@@ -228,7 +230,7 @@ mod tests {
             .unwrap_err()
             .to_string();
 
-        let _ = close_project_session(manifest.session_id);
+        let _ = release_project_session(manifest.session_id);
         assert!(error.contains("descriptor.json"));
         root.close().unwrap();
     }
@@ -302,7 +304,7 @@ mod tests {
         let manifest = open_project_session_traced(&root, None, &mut trace).unwrap();
         let entities = query_entity_list(&manifest.session_id, EntityKind::Mission).unwrap();
 
-        let _ = close_project_session(manifest.session_id);
+        let _ = release_project_session(manifest.session_id);
         assert_eq!(entities.len(), 1);
         assert_eq!(entities[0].id, "demo");
         root.close().unwrap();
@@ -329,7 +331,7 @@ mod tests {
             .unwrap()
             .unwrap();
 
-        let _ = close_project_session(manifest.session_id);
+        let _ = release_project_session(manifest.session_id);
         assert_eq!(entity.data["spec"]["specClass"], "beam");
         assert_eq!(entity.data["csvRow"]["range"], "700");
         assert_eq!(
@@ -358,7 +360,7 @@ mod tests {
             .unwrap()
             .unwrap();
 
-        let _ = close_project_session(manifest.session_id);
+        let _ = release_project_session(manifest.session_id);
         assert_eq!(entity.data["spec"], Value::Object(Map::new()));
         assert_eq!(entity.data["csvRow"]["range"], "700");
         root.close().unwrap();
@@ -383,7 +385,7 @@ mod tests {
         let manifest = open_project_session_traced(&root, None, &mut trace).unwrap();
         let entities = query_entity_list(&manifest.session_id, EntityKind::Weapon).unwrap();
 
-        let _ = close_project_session(manifest.session_id);
+        let _ = release_project_session(manifest.session_id);
         assert_eq!(entities.len(), 2);
         assert_eq!(entities[0].id, "csv_weapon");
         assert_eq!(entities[0].data["csvRow"]["range"], "700");
@@ -405,7 +407,7 @@ mod tests {
         let manifest = open_project_session_traced(&root, None, &mut trace).unwrap();
         let entities = query_entity_list(&manifest.session_id, EntityKind::Weapon).unwrap();
 
-        let _ = close_project_session(manifest.session_id);
+        let _ = release_project_session(manifest.session_id);
         assert_eq!(entities.len(), 1);
         assert_eq!(entities[0].id, "demo_weapon");
         root.close().unwrap();
@@ -430,7 +432,7 @@ mod tests {
         let manifest = open_project_session_traced(&root, None, &mut trace).unwrap();
         let entity = query_entity(&manifest.session_id, EntityKind::Weapon, "demo_weapon").unwrap();
 
-        let _ = close_project_session(manifest.session_id);
+        let _ = release_project_session(manifest.session_id);
         assert_eq!(entity.unwrap().data["spec"]["specClass"], "beam");
         root.close().unwrap();
     }
@@ -459,7 +461,7 @@ mod tests {
         let manifest = open_project_session_traced(&root, None, &mut trace).unwrap();
         let entities = query_entity_list(&manifest.session_id, EntityKind::Skill).unwrap();
 
-        let _ = close_project_session(manifest.session_id);
+        let _ = release_project_session(manifest.session_id);
         assert_eq!(entities.len(), 2);
         assert_eq!(entities[0].id, "skill_one");
         assert_eq!(entities[0].data["spec"]["effect"], "demo");
@@ -490,7 +492,7 @@ mod tests {
             .unwrap()
             .unwrap();
 
-        let _ = close_project_session(manifest.session_id);
+        let _ = release_project_session(manifest.session_id);
         assert_eq!(entity.data["spec"], Value::Object(Map::new()));
         assert_eq!(entity.data["csvRow"]["name"], "Skill One");
         assert!(!entity.resource_refs.contains_key("icon"));
@@ -516,7 +518,7 @@ mod tests {
         let manifest = open_project_session_traced(&root, None, &mut trace).unwrap();
         let entity = query_entity(&manifest.session_id, EntityKind::Skill, "missing").unwrap();
 
-        let _ = close_project_session(manifest.session_id);
+        let _ = release_project_session(manifest.session_id);
         assert_eq!(entity.unwrap().data["spec"]["id"], "missing");
         root.close().unwrap();
     }
@@ -535,7 +537,7 @@ mod tests {
         let manifest = open_project_session_traced(&root, None, &mut trace).unwrap();
         let entities = query_entity_list(&manifest.session_id, EntityKind::Skill).unwrap();
 
-        let _ = close_project_session(manifest.session_id);
+        let _ = release_project_session(manifest.session_id);
         assert_eq!(entities.len(), 1);
         assert_eq!(entities[0].id, "skill_one");
         root.close().unwrap();

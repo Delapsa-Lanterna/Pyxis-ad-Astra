@@ -68,6 +68,7 @@
 
 ### 消费
 
+- `src/orchestrators/mod-save.orchestrator.ts`：所属窗口的 Mod 保存协调实例与结果交付。
 - `src/services/app-settings.service.ts`：启动消费的主窗口 settings 读取能力。
 - `src/stores/csv-editor.store.ts`：窗口装配消费的历史容量正式输入入口。
 - `src/stores/settings.store.ts`：窗口装配消费的当前编辑历史偏好。

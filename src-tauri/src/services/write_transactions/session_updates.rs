@@ -4,7 +4,7 @@ use crate::models::{CommittedSessionUpdate, FileChangeRecord};
 use crate::services::project;
 use std::sync::Arc;
 
-pub(super) fn project_commit(
+pub(super) fn refresh_committed_sessions(
     root: &str,
     session_id: Option<&str>,
     changes: &[FileChangeRecord],

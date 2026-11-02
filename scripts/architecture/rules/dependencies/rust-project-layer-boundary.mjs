@@ -22,6 +22,23 @@ export const rustProjectLayerBoundaryRule = defineRule(
               ? 'project-root'
               : rustLayerFromCratePath(reference);
         if (!to) continue;
+        const csvEditorTarget =
+          parts.slice(0, 2).join('::') === 'services::project' &&
+          ((parts[2] === 'query' && ['csv_window', 'csv_associated_specs'].includes(parts[3] ?? '')) ||
+            (parts[2] === 'write' && parts[3] === 'csv_patch') ||
+            (parts[2] === 'definitions' && parts[3] === 'table_definitions'));
+        if (
+          csvEditorTarget &&
+          (modulePath.slice(0, 4).join('::') === 'services::project::write::entity_write' ||
+            ['project-session', 'project-model', 'project-root'].includes(from)) &&
+          !rejected.has('csv-editor')
+        ) {
+          report(file, edge, 'entity writes and formal table state must consume their own capabilities', {
+            target: reference,
+            expected: 'session table state, entity preparation or resource references',
+          });
+          rejected.add('csv-editor');
+        }
         const writeTarget = parts.slice(0, 3).join('::') === 'services::project::write' ? parts[3] : null;
         if (
           (modulePath.slice(3, 5).join('::') === 'entity_write::descriptions' &&
@@ -43,6 +60,25 @@ export const rustProjectLayerBoundaryRule = defineRule(
             });
           rejected.add('payload');
           continue;
+        }
+        const historyCommand =
+          modulePath.join('::') === 'commands::file_history' && parts.slice(0, 2).join('::') === 'services::file_history';
+        const historyScope =
+          file.rel === 'src-tauri/src/services/file_history.rs' &&
+          reference === 'crate::services::project::ensure_project_session_mod_root';
+        const sessionRelease = [
+          'crate::services::project::unregister_project_session',
+          'crate::services::project::release_session_content',
+        ].includes(reference);
+        if (
+          sessionRelease &&
+          modulePath.slice(0, 2).join('::') !== 'services::project_sync' &&
+          !['project-session', 'session-entry'].includes(from)
+        ) {
+          report(file, edge, 'session release stages must be coordinated by project sync', {
+            target: reference,
+            expected: 'complete project release',
+          });
         }
         const runtimeSettings =
           modulePath.join('::') === 'commands::app_lifecycle' && reference === 'crate::services::file_history::set_history_limit';
@@ -69,6 +105,8 @@ export const rustProjectLayerBoundaryRule = defineRule(
             'crate::services::project::session::source_projection::capture_projection_versions',
           ].includes(reference);
         if (
+          !historyCommand &&
+          !historyScope &&
           !runtimeSettings &&
           !runtimeMonitor &&
           !sessionAccess &&
@@ -154,7 +192,7 @@ function validRustDependency(from, to) {
   if (from === 'project-resources') return ['project-model', 'project-cache', 'domain', 'io', 'parsers', 'models', 'services'].includes(to);
   if (from === 'project-cache') return ['project-model', 'domain', 'io', 'parsers', 'models'].includes(to);
   if (from === 'project-session')
-    return ['project-model', 'project-cache', 'project-root', 'file-history', 'domain', 'io', 'parsers', 'models'].includes(to);
+    return ['project-model', 'project-cache', 'project-root', 'domain', 'io', 'parsers', 'models'].includes(to);
   if (from === 'project-model') return ['domain', 'models'].includes(to);
   if (from === 'project-root')
     return ['project-cache', 'project-resources', 'project-model', 'domain', 'io', 'parsers', 'models'].includes(to);

@@ -4,7 +4,7 @@ use crate::models::{
     CommittedSessionUpdate, CommittedWriteEvent, EntityIdentityChange, FileVersion,
     ReferenceSources, SaveDelivery, WriteResult, windows_path_key,
 };
-use crate::services::{project, windows};
+use crate::services::{file_history, project, windows};
 #[cfg(test)]
 use crate::test_support::TestWorkspace;
 use crate::{diagnostics, io};
@@ -577,7 +577,10 @@ fn execute<T: Serialize>(
 
 pub fn release_project_session(session_id: String) -> AppResult<()> {
     let revision = project::reference_revision();
-    project::close_project_session(session_id.clone())?;
+    if let Some(root) = project::unregister_project_session(&session_id)? {
+        file_history::release_root_history(&root)?;
+    }
+    project::release_session_content(&session_id)?;
     if revision != project::reference_revision() {
         let delivery = project::reference_sources()
             .and_then(|snapshot| publish_references(snapshot, project::reference_updates()?));
@@ -594,6 +597,9 @@ pub fn release_project_session(session_id: String) -> AppResult<()> {
 
 #[cfg(test)]
 mod tests {
+    use crate::services::file_history::query_file_history;
+    use crate::services::project_sync::release_project_session;
+
     use super::*;
     #[cfg(test)]
     use crate::models::*;
@@ -665,7 +671,7 @@ mod tests {
             }
             release_project_session(manifest.session_id.clone()).unwrap();
             assert_eq!(
-                file_history::query(&manifest.mod_root)
+                file_history::snapshot_for_root(&manifest.mod_root)
                     .unwrap()
                     .undo_stack
                     .len(),
@@ -678,7 +684,7 @@ mod tests {
                     .contains(&manifest.session_id)
             );
             assert!(
-                file_history::query(&manifest.mod_root)
+                file_history::snapshot_for_root(&manifest.mod_root)
                     .unwrap()
                     .undo_stack
                     .is_empty()
@@ -1120,7 +1126,7 @@ mod tests {
             delivery_for_request(receiver, "blocked", "multifile");
         }
         assert_eq!(
-            write_transactions::query_history(&manifest.session_id, &manifest.mod_root)
+            query_file_history(&manifest.session_id, &manifest.mod_root)
                 .unwrap()
                 .undo_stack
                 .len(),
@@ -1147,7 +1153,7 @@ mod tests {
         release_window("multifile-first").unwrap();
         release_window("multifile-second").unwrap();
         unrelated.close().unwrap();
-        project::close_project_session(manifest.session_id).unwrap();
+        release_project_session(manifest.session_id).unwrap();
         root.close().unwrap();
     }
 }

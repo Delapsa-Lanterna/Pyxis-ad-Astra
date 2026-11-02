@@ -1,4 +1,8 @@
 #![cfg(test)]
+use crate::services::file_history::query_file_history;
+#[cfg(test)]
+use crate::services::project_sync::release_project_session;
+
 use crate::errors::AppResult;
 use crate::io::{read_csv_data, read_json_file, write_utf8_no_bom};
 use crate::models::{
@@ -198,7 +202,7 @@ fn weapon_description_replay() {
                 .data["id"],
             "new"
         );
-        project::close_project_session(manifest.session_id).unwrap();
+        release_project_session(manifest.session_id).unwrap();
         root.close().unwrap();
     }
 }
@@ -215,12 +219,12 @@ fn weapon_description_collision() {
         assert!(!root.join("data/weapons/new.wpn").exists());
         assert_eq!(fs::read(&path).unwrap(), before);
         assert!(
-            write_transactions::query_history(&manifest.session_id, &manifest.mod_root)
+            query_file_history(&manifest.session_id, &manifest.mod_root)
                 .unwrap()
                 .undo_stack
                 .is_empty()
         );
-        project::close_project_session(manifest.session_id).unwrap();
+        release_project_session(manifest.session_id).unwrap();
         root.close().unwrap();
     }
 }

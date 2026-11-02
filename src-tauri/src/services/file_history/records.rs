@@ -1,0 +1,413 @@
+use crate::errors::{AppError, AppResult};
+use crate::io;
+use crate::models::{
+    AppSettings, EntityIdentityChange, FileChangeKind, FileChangeRecord, FileChangeReplayDirection,
+    FileHistoryEntrySummary, FileHistorySnapshot, FileSnapshot, windows_path_key,
+};
+#[cfg(test)]
+use crate::test_support::TestWorkspace;
+use chrono::Utc;
+use std::collections::{BTreeMap, BTreeSet};
+use std::path::Path;
+use std::sync::{LazyLock, Mutex, MutexGuard};
+
+#[derive(Default)]
+struct RootHistory {
+    revision: u64,
+    undo: Vec<HistoryEntry>,
+    redo: Vec<HistoryEntry>,
+}
+
+#[derive(Clone)]
+pub(crate) struct HistoryEntry {
+    pub(crate) identity_changes: Vec<EntityIdentityChange>,
+    pub(crate) summary: FileHistoryEntrySummary,
+    pub(crate) changes: Vec<FileChangeRecord>,
+}
+
+static ROOT_HISTORIES: LazyLock<Mutex<BTreeMap<String, RootHistory>>> =
+    LazyLock::new(|| Mutex::new(BTreeMap::new()));
+static HISTORY_LIMIT: LazyLock<Mutex<usize>> =
+    LazyLock::new(|| Mutex::new(AppSettings::default().file_history_limit as usize));
+
+pub fn release_root_history(root: &str) -> AppResult<()> {
+    let root = windows_path_key(root);
+    lock_histories()?.remove(&root);
+    Ok(())
+}
+
+pub fn set_history_limit(limit: usize) -> AppResult<()> {
+    *HISTORY_LIMIT.lock().map_err(|_| history_error())? = limit;
+    for history in lock_histories()?.values_mut() {
+        if history.undo.len() > limit {
+            trim_history(history, limit);
+            history.revision += 1;
+        }
+    }
+    Ok(())
+}
+
+fn snapshot(history: &RootHistory) -> FileHistorySnapshot {
+    FileHistorySnapshot {
+        revision: history.revision,
+        undo_stack: history
+            .undo
+            .iter()
+            .map(|entry| entry.summary.clone())
+            .collect(),
+        redo_stack: history
+            .redo
+            .iter()
+            .map(|entry| entry.summary.clone())
+            .collect(),
+    }
+}
+
+fn trim_history(history: &mut RootHistory, limit: usize) {
+    let remove = history.undo.len().saturating_sub(limit);
+    history.undo.drain(..remove);
+}
+
+fn history_limit() -> AppResult<usize> {
+    HISTORY_LIMIT
+        .lock()
+        .map(|limit| *limit)
+        .map_err(|_| history_error())
+}
+fn lock_histories() -> AppResult<MutexGuard<'static, BTreeMap<String, RootHistory>>> {
+    ROOT_HISTORIES.lock().map_err(|_| history_error())
+}
+fn history_error() -> AppError {
+    AppError::message("history.lock_poisoned", "file history lock poisoned")
+}
+
+pub(crate) fn record_write(
+    root: &str,
+    changes: &[FileChangeRecord],
+    identities: &[EntityIdentityChange],
+    label: &str,
+) -> AppResult<FileHistorySnapshot> {
+    let mut histories = lock_histories()?;
+    let history = histories.entry(windows_path_key(root)).or_default();
+    if !changes.is_empty() {
+        history.revision += 1;
+        history.undo.push(HistoryEntry {
+            identity_changes: identities.to_vec(),
+            summary: FileHistoryEntrySummary {
+                id: history.revision,
+                label: label.to_string(),
+                timestamp: Utc::now().timestamp_millis(),
+                paths: changes
+                    .iter()
+                    .flat_map(|change| [change.before_path.clone(), change.after_path.clone()])
+                    .collect::<BTreeSet<_>>()
+                    .into_iter()
+                    .collect(),
+            },
+            changes: history_changes(changes),
+        });
+        history.redo.clear();
+        trim_history(history, history_limit()?);
+    }
+    Ok(snapshot(history))
+}
+
+pub(crate) fn snapshot_for_root(root: &str) -> AppResult<FileHistorySnapshot> {
+    Ok(lock_histories()?
+        .get(&windows_path_key(root))
+        .map(snapshot)
+        .unwrap_or_default())
+}
+
+pub(crate) fn clear_root_history(root: &str) -> AppResult<FileHistorySnapshot> {
+    let mut histories = lock_histories()?;
+    let history = histories.entry(windows_path_key(root)).or_default();
+    history.revision += 1;
+    history.undo.clear();
+    history.redo.clear();
+    Ok(snapshot(history))
+}
+
+pub(crate) fn prepare_replay(
+    root: &str,
+    direction: FileChangeReplayDirection,
+    entry_id: u64,
+    revision: u64,
+) -> AppResult<HistoryEntry> {
+    let histories = lock_histories()?;
+    let history = histories
+        .get(&windows_path_key(root))
+        .ok_or_else(history_conflict)?;
+    let stack = match direction {
+        FileChangeReplayDirection::Undo => &history.undo,
+        FileChangeReplayDirection::Redo => &history.redo,
+    };
+    stack
+        .last()
+        .filter(|entry| entry.summary.id == entry_id && history.revision == revision)
+        .cloned()
+        .ok_or_else(history_conflict)
+}
+
+pub(crate) fn accept_replay(
+    root: &str,
+    direction: FileChangeReplayDirection,
+    entry: HistoryEntry,
+) -> AppResult<FileHistorySnapshot> {
+    let mut histories = lock_histories()?;
+    let history = histories
+        .get_mut(&windows_path_key(root))
+        .expect("queued history remains registered");
+    match direction {
+        FileChangeReplayDirection::Undo => {
+            history.undo.pop();
+            history.redo.push(entry);
+        }
+        FileChangeReplayDirection::Redo => {
+            history.redo.pop();
+            history.undo.push(entry);
+        }
+    }
+    history.revision += 1;
+    trim_history(history, history_limit()?);
+    Ok(snapshot(history))
+}
+
+fn history_changes(changes: &[FileChangeRecord]) -> Vec<FileChangeRecord> {
+    let mut normalized = Vec::new();
+    for change in changes {
+        if changes.iter().any(|parent| {
+            matches!(parent.kind, FileChangeKind::Directory)
+                && parent.after_path != change.after_path
+                && Path::new(&change.after_path).starts_with(&parent.after_path)
+        }) {
+            continue;
+        }
+        let mut combined = change.clone();
+        if matches!(combined.kind, FileChangeKind::Directory) && combined.after_exists {
+            for child in changes {
+                if matches!(child.kind, FileChangeKind::File)
+                    && let Ok(relative) =
+                        Path::new(&child.after_path).strip_prefix(&combined.after_path)
+                {
+                    let relative = io::forward_slash_path(relative);
+                    combined
+                        .after_files
+                        .retain(|file| file.rel_path != relative);
+                    if child.after_exists {
+                        combined.after_files.push(FileSnapshot {
+                            rel_path: relative,
+                            text: child.after_text.clone(),
+                            data_base64: child.after_data_base64.clone(),
+                        });
+                    }
+                }
+            }
+            combined
+                .after_files
+                .sort_by(|left, right| left.rel_path.cmp(&right.rel_path));
+        }
+        normalized.push(combined);
+    }
+    normalized
+}
+
+fn history_conflict() -> AppError {
+    AppError::message("history.version_conflict", "文件历史已更新，请重新确认回放")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::io;
+    #[cfg(test)]
+    use crate::models;
+    #[cfg(windows)]
+    #[cfg(test)]
+    use std::fs;
+    #[cfg(test)]
+    use std::slice;
+
+    #[test]
+    fn history_identity_is_shared_by_every_entry_point() {
+        let directory = TestWorkspace::new("history_path_identity");
+        let root = directory
+            .canonicalize()
+            .unwrap()
+            .to_string_lossy()
+            .into_owned();
+        let aliases = [
+            root.clone(),
+            root.replace('\\', "/"),
+            models::windows_path_key(&root),
+            root.to_uppercase(),
+        ];
+        let change =
+            io::build_text_change(&directory.join("entry.txt"), Some("saved".into())).unwrap();
+        for alias in aliases {
+            let saved = record_write(&root, slice::from_ref(&change), &[], "entry").unwrap();
+            let queried = snapshot_for_root(&alias).unwrap();
+            assert_eq!(queried.undo_stack.len(), 1);
+            assert_eq!(queried.revision, saved.revision);
+            let prepared = prepare_replay(
+                &alias,
+                FileChangeReplayDirection::Undo,
+                saved.undo_stack[0].id,
+                saved.revision,
+            )
+            .unwrap();
+            let undone = accept_replay(&alias, FileChangeReplayDirection::Undo, prepared).unwrap();
+            assert_eq!(snapshot_for_root(&root).unwrap().redo_stack.len(), 1);
+            let prepared = prepare_replay(
+                &root,
+                FileChangeReplayDirection::Redo,
+                undone.redo_stack[0].id,
+                undone.revision,
+            )
+            .unwrap();
+            accept_replay(&alias, FileChangeReplayDirection::Redo, prepared).unwrap();
+            assert_eq!(snapshot_for_root(&root).unwrap().undo_stack.len(), 1);
+            clear_root_history(&alias).unwrap();
+            assert!(snapshot_for_root(&root).unwrap().undo_stack.is_empty());
+            record_write(&alias, slice::from_ref(&change), &[], "entry").unwrap();
+            release_root_history(&root).unwrap();
+            let released = snapshot_for_root(&alias).unwrap();
+            assert_eq!(released.revision, 0);
+            assert!(released.undo_stack.is_empty());
+        }
+        directory.close().unwrap();
+    }
+
+    #[test]
+    #[cfg(windows)]
+    fn windows_unicode_history_roots_remain_independent() {
+        let work = TestWorkspace::new("windows_unicode_history");
+        let roots = [work.join("İ"), work.join("i\u{307}")];
+        for (index, root) in roots.iter().enumerate() {
+            fs::create_dir(root).unwrap();
+            let change =
+                io::build_text_change(&root.join("entry.txt"), Some(index.to_string())).unwrap();
+            record_write(&root.to_string_lossy(), &[change], &[], &index.to_string()).unwrap();
+        }
+        for (index, root) in roots.iter().enumerate() {
+            assert_eq!(
+                snapshot_for_root(&root.to_string_lossy())
+                    .unwrap()
+                    .undo_stack[0]
+                    .label,
+                index.to_string()
+            );
+        }
+        release_root_history(&roots[0].to_string_lossy()).unwrap();
+        assert_eq!(
+            snapshot_for_root(&roots[1].to_string_lossy())
+                .unwrap()
+                .undo_stack
+                .len(),
+            1
+        );
+        release_root_history(&roots[1].to_string_lossy()).unwrap();
+        work.close().unwrap();
+    }
+
+    #[test]
+    fn recorded_writes_replay_and_clear_through_the_history_owner() {
+        let directory = TestWorkspace::new("history_owner");
+        let root = directory.to_string_lossy().to_lowercase();
+        let change =
+            io::build_text_change(&directory.join("entry.txt"), Some("saved".into())).unwrap();
+        let saved = record_write(&root, &[change], &[], "save entry").unwrap();
+        assert_eq!(saved.undo_stack.len(), 1);
+        assert_eq!(saved.undo_stack[0].label, "save entry");
+        let prepared = prepare_replay(
+            &root,
+            FileChangeReplayDirection::Undo,
+            saved.undo_stack[0].id,
+            saved.revision,
+        )
+        .unwrap();
+        let undone = accept_replay(&root, FileChangeReplayDirection::Undo, prepared).unwrap();
+        assert!(undone.undo_stack.is_empty());
+        assert_eq!(undone.redo_stack.len(), 1);
+        let unchanged = record_write(&root, &[], &[], "unchanged").unwrap();
+        assert_eq!(unchanged.revision, undone.revision);
+        assert_eq!(unchanged.redo_stack[0].id, undone.redo_stack[0].id);
+        let prepared = prepare_replay(
+            &root,
+            FileChangeReplayDirection::Redo,
+            undone.redo_stack[0].id,
+            undone.revision,
+        )
+        .unwrap();
+        let redone = accept_replay(&root, FileChangeReplayDirection::Redo, prepared).unwrap();
+        assert_eq!(redone.undo_stack.len(), 1);
+        assert!(redone.redo_stack.is_empty());
+        let cleared = clear_root_history(&root).unwrap();
+        assert_eq!(cleared.revision, redone.revision + 1);
+        assert!(cleared.undo_stack.is_empty());
+        assert!(snapshot_for_root(&root).unwrap().redo_stack.is_empty());
+        release_root_history(&root).unwrap();
+        directory.close().unwrap();
+    }
+
+    #[test]
+    fn stale_replay_credentials_preserve_the_current_history() {
+        let directory = TestWorkspace::new("history_owner_stale");
+        let root = directory.to_string_lossy().to_lowercase();
+        let change =
+            io::build_text_change(&directory.join("entry.txt"), Some("saved".into())).unwrap();
+        let saved = record_write(&root, &[change], &[], "save entry").unwrap();
+        for (id, revision) in [
+            (saved.undo_stack[0].id + 1, saved.revision),
+            (saved.undo_stack[0].id, saved.revision + 1),
+        ] {
+            assert_eq!(
+                prepare_replay(&root, FileChangeReplayDirection::Undo, id, revision)
+                    .err()
+                    .unwrap()
+                    .code(),
+                "history.version_conflict"
+            );
+        }
+        assert_eq!(snapshot_for_root(&root).unwrap().revision, saved.revision);
+        assert_eq!(
+            snapshot_for_root(&root).unwrap().undo_stack[0].id,
+            saved.undo_stack[0].id
+        );
+        release_root_history(&root).unwrap();
+        directory.close().unwrap();
+    }
+
+    fn entry(id: u64) -> HistoryEntry {
+        HistoryEntry {
+            identity_changes: vec![],
+            changes: vec![],
+            summary: FileHistoryEntrySummary {
+                id,
+                label: format!("save {id}"),
+                timestamp: id as i64,
+                paths: vec![],
+            },
+        }
+    }
+
+    #[test]
+    fn shrinking_retains_latest_undo_and_all_redo_per_root() {
+        let mut first = RootHistory {
+            revision: 4,
+            undo: vec![entry(1), entry(2), entry(3)],
+            redo: vec![entry(4)],
+        };
+        let second = RootHistory {
+            revision: 1,
+            undo: vec![entry(1)],
+            redo: vec![],
+        };
+        trim_history(&mut first, 1);
+        assert_eq!(snapshot(&first).undo_stack[0].id, 3);
+        assert_eq!(snapshot(&first).redo_stack[0].id, 4);
+        assert_eq!(snapshot(&second).undo_stack[0].id, 1);
+        trim_history(&mut first, 1000);
+        assert_eq!(first.undo.len(), 1);
+    }
+}

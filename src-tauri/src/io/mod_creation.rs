@@ -106,6 +106,8 @@ fn mod_id(info: &Value) -> Option<&str> {
 
 #[cfg(test)]
 mod tests {
+    use crate::services::project_sync::release_project_session;
+
     use super::*;
     use crate::domain::mod_creation::{
         ValidatedNewModTemplate, render_initial_mod_info, validate_new_mod_template,
@@ -115,7 +117,6 @@ mod tests {
     use crate::io::{read_json_file, read_text_bytes_no_bom, write_utf8_no_bom};
     use crate::models::NewModTemplate;
     #[cfg(test)]
-    use crate::services::project;
     use crate::services::project::test_support::project_workspace;
     use crate::services::project::{PerformanceTrace, open_project_session_traced};
     use std::fs;
@@ -144,7 +145,7 @@ mod tests {
                 "{relative_directory}"
             );
         }
-        let _ = project::close_project_session(manifest.session_id);
+        let _ = release_project_session(manifest.session_id);
         parent.close().unwrap();
     }
 

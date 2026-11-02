@@ -10,11 +10,12 @@ use crate::errors::{AppError, AppResult};
 use crate::io;
 use crate::io::{FsRootBoundary, file_version};
 use crate::models::*;
-use crate::services::project::definitions::{entity_resources, table_definitions};
+use crate::services::project::definitions::entity_resources;
 use crate::services::project::model::SessionCsvRow;
 use crate::services::project::query::{
     entity_targets, hull_references, json_composition as query_json_composition,
 };
+use crate::services::project::resources::table_references;
 use crate::services::project::sources::documents::LoadedSpecRecord;
 use crate::services::project::sources::{core, documents};
 use crate::services::project::{ensure_project_session_mod_root, resources, versions};
@@ -475,7 +476,7 @@ fn variant_catalog(
         } else {
             None
         };
-        if let Some(resource) = table_definitions::csv_table_source_resource_ref(
+        if let Some(resource) = table_references::csv_source_resource_ref(
             spec_source
                 .as_ref()
                 .map(|location| location.source)
@@ -1159,7 +1160,7 @@ impl JointGraph<'_> {
         };
         if table == CsvTableKey::Hullmods
             && let Some(data) = value.as_ref().and_then(Value::as_object)
-            && let Some(icon) = table_definitions::csv_table_icon_resource_ref(
+            && let Some(icon) = table_references::csv_icon_resource_ref(
                 source
                     .as_ref()
                     .map(|location| location.source)

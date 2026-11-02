@@ -424,7 +424,9 @@ fn hull_reference_label(hull_id: &str, name: Option<String>) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::super::super::session::{close_project_session, open_project_session_traced};
+    use crate::services::project_sync::release_project_session;
+
+    use super::super::super::session::open_project_session_traced;
     use super::*;
     use crate::io::write_utf8_no_bom;
     #[cfg(test)]
@@ -762,7 +764,7 @@ mod tests {
                 .map(|resource| resource.rel_path.as_str()),
             Some("graphics/ships/mod_ship.png")
         );
-        let _ = close_project_session(manifest.session_id);
+        let _ = release_project_session(manifest.session_id);
         root.close().unwrap();
     }
 
@@ -789,7 +791,7 @@ mod tests {
                     .code(),
                 "skin.base_cycle"
             );
-            close_project_session(manifest.session_id).unwrap();
+            release_project_session(manifest.session_id).unwrap();
             root.close().unwrap();
         }
     }

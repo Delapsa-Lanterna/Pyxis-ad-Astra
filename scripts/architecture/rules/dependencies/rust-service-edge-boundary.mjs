@@ -15,6 +15,7 @@ const allowedServiceEdges = new Set([
   'project_session -> project',
   'project_sync -> windows',
   'project_sync -> project',
+  'project_sync -> file_history',
   'file_editor -> project',
   'config_entity -> project',
   'json_file -> project',
@@ -48,7 +49,10 @@ export const rustServiceEdgeBoundaryRule = defineRule(
         const parts = edge.target;
         if (parts[0] !== 'services' || parts.length < 2) continue;
         const to = parts[1];
-        if (to === from || allowedServiceEdges.has(from + ' -> ' + to) || rejected.has(to)) continue;
+        const historyScope =
+          file.rel === 'src-tauri/src/services/file_history.rs' &&
+          parts.join('::') === 'services::project::ensure_project_session_mod_root';
+        if (historyScope || to === from || allowedServiceEdges.has(from + ' -> ' + to) || rejected.has(to)) continue;
         report(file, edge, 'backend service ' + from + ' must not depend on service ' + to, {
           target: 'crate::' + parts.join('::'),
           expected: from,

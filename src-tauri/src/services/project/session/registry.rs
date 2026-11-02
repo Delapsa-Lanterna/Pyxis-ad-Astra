@@ -64,3 +64,46 @@ pub(super) fn lock_projected_session(
     }
     Ok(session)
 }
+
+/// Unregister a session and return its root only when no same-root registrations remain.
+pub(crate) fn unregister_project_session(session_id: &str) -> AppResult<Option<String>> {
+    let mut registered = lock_registry()?;
+    let removed = registered.remove(session_id);
+    let last_for_root = removed
+        .as_ref()
+        .is_some_and(|removed| !registered.values().any(|entry| entry.root == removed.root));
+    drop(registered);
+    Ok(removed.filter(|_| last_for_root).map(|entry| entry.root))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::services::project::test_support::project_workspace;
+    use crate::services::project::{
+        PerformanceTrace, open_project_session_traced, release_session_content,
+    };
+
+    #[test]
+    fn unregister_returns_only_the_last_registered_root_and_keeps_captured_handles() {
+        let root = project_workspace("unregister_root");
+        let mut trace = PerformanceTrace::new("unregister.fixture");
+        let first = open_project_session_traced(&root, None, &mut trace).unwrap();
+        let second = open_project_session_traced(&root, None, &mut trace).unwrap();
+        let captured = session_handle(&first.session_id).unwrap();
+        let first_result = unregister_project_session(&first.session_id).unwrap();
+        release_session_content(&first.session_id).unwrap();
+        let duplicate = unregister_project_session(&first.session_id).unwrap();
+        let last_result = unregister_project_session(&second.session_id).unwrap();
+        release_session_content(&second.session_id).unwrap();
+        assert!(first_result.is_none());
+        assert!(duplicate.is_none());
+        assert_eq!(last_result, Some(first.mod_root));
+        assert_eq!(
+            lock_session(&captured).unwrap().manifest.session_id,
+            first.session_id
+        );
+        assert!(session_handle(&first.session_id).is_err());
+        root.close().unwrap();
+    }
+}

@@ -11,7 +11,7 @@
 - `schemas/spec-defaults.json`：实体规格及嵌套对象的初始内容模板。
 - `src-tauri/src/domain/entity_construction.rs`：规格构造与武器内容校验。
 - `src-tauri/src/services/project/write/entity_write.rs`：业务模块登记和正式能力接口。
-- `src-tauri/src/services/project/write/entity_write/`：实体内容、关联规格、描述、父引用、单文件和势力索引写入。
+- `src-tauri/src/services/project/write/entity_write/`：实体内容、关联规格准备与复核、描述、父引用、单文件和势力索引写入。
 - `src/domain/entity-write/`：前端规格、装配和皮肤构造及分支补全。
 - `src/orchestrators/entity-write.orchestrator.ts`：实体 ID 修改后的文件名选择。
 
@@ -30,6 +30,7 @@
 
 ## 边界
 
+- 关联规格准备持有同批次实际来源、目标、问题与匹配版本，写入消费确认后的选择及同一组凭据。
 - 实体写入持有实际内容、文件路径、关联表、描述、父引用及身份结果。
 - 所属编辑动作决定本次提交的内容及明确关联动作。
 - 项目会话持有正式表格、稳定行身份和来源版本。
@@ -50,6 +51,7 @@
 
 ## 规范
 
+- 关联规格文件准备与提交前复核必须由实体写入维护，正式调用必须消费实际实现的服务导出。
 - 同次保存的本地 ID、文件名和势力 CSV 登记必须共同确认；文件名处理必须通过下拉选择并只展示所选结果，保存按钮必须统一，空字符串必须单独说明覆盖后果。
 - 皮肤引擎校验只允许维护槽位与船体约束；文档完整性必须由所属 JSON 入口按本地草稿身份校验。
 - 支持缺省身份的规格必须按本地 ID 有无选择局部覆盖或组合内容的完整性校验；缺省与空字符串身份必须保留所属本地形态。

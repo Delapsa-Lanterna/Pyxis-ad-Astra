@@ -272,6 +272,8 @@ pub fn execute_typed_save<T: DeserializeOwned>(action: SaveAction) -> AppResult<
 
 #[cfg(test)]
 mod tests {
+    use crate::services::project_sync::release_project_session;
+
     use super::*;
     #[cfg(test)]
     use crate::io;
@@ -677,7 +679,7 @@ mod tests {
             }
             project_sync::wait_projects(&[manifest.mod_root]).unwrap();
             project_sync::release_window(&owner).unwrap();
-            project::close_project_session(manifest.session_id).unwrap();
+            release_project_session(manifest.session_id).unwrap();
             root.close().unwrap();
         }
     }

@@ -133,3 +133,60 @@ test('project definitions consume projection capture while session lifecycle sta
   assert.ok(diagnostic);
   assert.equal(diagnostic.line, 2);
 });
+
+test('entity preparation and formal table state keep CSV editor consumption one-way', () => {
+  for (const consumer of ['write/entity_write/associated_specs.rs', 'session/csv_tables.rs', 'model.rs', 'invalidation.rs']) {
+    for (const target of [
+      'query::csv_associated_specs::verify_file',
+      'query::csv_window::query_csv_table_rows',
+      'write::csv_patch::save_csv_patch_snapshot',
+      'definitions::table_definitions::csv_table_definition',
+    ]) {
+      const file = 'src-tauri/src/services/project/' + consumer;
+      const context = architectureFixtures({ [file]: '\nfn run() { crate::services::project::' + target + '(); }' });
+      const diagnostics = rustProjectLayerBoundaryRule
+        .check(context)
+        .filter((item) => item.message.includes('entity writes and formal table state'));
+      assert.equal(diagnostics.length, 1);
+      assert.equal(diagnostics[0]?.file, file);
+      assert.equal(diagnostics[0]?.line, 2);
+    }
+  }
+  for (const [consumer, target] of [
+    ['write/entity_write/associated_spec_preparation.rs', 'query::entity_targets::describe_entity_target'],
+    ['write/entity_write/associated_specs.rs', 'write::entity_write::associated_spec_preparation::verify_associated_spec_file'],
+    ['session/csv_tables.rs', 'model::csv_table_specs'],
+    ['query/source_options.rs', 'resources::table_references::csv_source_resource_ref'],
+  ]) {
+    const context = architectureFixtures({
+      ['src-tauri/src/services/project/' + consumer]: 'fn run() { crate::services::project::' + target + '(); }',
+    });
+    assert.deepEqual(rustProjectLayerBoundaryRule.check(context), []);
+  }
+});
+
+test('history scope authorization belongs to its facade while records remain independent', () => {
+  const target = 'crate::services::project::ensure_project_session_mod_root';
+  const facade = architectureFixtures({ 'src-tauri/src/services/file_history.rs': 'fn read() { ' + target + '(session, root); }' });
+  assert.deepEqual(rustProjectLayerBoundaryRule.check(facade), []);
+  assert.deepEqual(rustServiceEdgeBoundaryRule.check(facade), []);
+  const records = architectureFixtures({
+    'src-tauri/src/services/file_history/records.rs': 'fn read() { ' + target + '(session, root); }',
+  });
+  assert.equal(rustProjectLayerBoundaryRule.check(records).length, 1);
+  assert.equal(rustServiceEdgeBoundaryRule.check(records).length, 1);
+  for (const target of ['unregister_project_session', 'release_session_content']) {
+    const allowed = architectureFixtures({
+      'src-tauri/src/services/project_sync.rs': 'fn release() { crate::services::project::' + target + '(id); }',
+    });
+    assert.deepEqual(rustProjectLayerBoundaryRule.check(allowed), []);
+    const denied = architectureFixtures({
+      'src-tauri/src/services/file_editor.rs': 'fn release() { crate::services::project::' + target + '(id); }',
+    });
+    assert.equal(rustProjectLayerBoundaryRule.check(denied).length, 1);
+  }
+  const session = architectureFixtures({
+    'src-tauri/src/services/project/session.rs': 'fn release() { crate::services::file_history::release_root_history(root); }',
+  });
+  assert.equal(rustProjectLayerBoundaryRule.check(session).length, 1);
+});

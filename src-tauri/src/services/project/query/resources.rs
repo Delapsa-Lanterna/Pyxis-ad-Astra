@@ -151,6 +151,8 @@ pub fn query_draft_resources(
 
 #[cfg(test)]
 mod tests {
+    use crate::services::project_sync::release_project_session;
+
     #[cfg(test)]
     use crate::io;
     #[cfg(test)]
@@ -167,7 +169,7 @@ mod tests {
 
     use super::super::super::resources::media_resource_key;
     use super::super::super::resources::sprites::sprite_read_count;
-    use super::super::super::session::{close_project_session, open_project_session_traced};
+    use super::super::super::session::open_project_session_traced;
     use super::*;
     use crate::models::{ResourceOwnerKind, ResourceRef, ResourceSource};
     use crate::services::project::cache::media::cached_sprite_media_contains;
@@ -208,7 +210,7 @@ mod tests {
             result.entries[9].error.as_ref().unwrap().code,
             "reference.unavailable"
         );
-        close_project_session(manifest.session_id).unwrap();
+        release_project_session(manifest.session_id).unwrap();
         root.close().unwrap();
     }
 
@@ -283,7 +285,7 @@ mod tests {
                 .code(),
             "parse.json_syntax"
         );
-        close_project_session(manifest.session_id.clone()).unwrap();
+        release_project_session(manifest.session_id.clone()).unwrap();
         assert!(query_engine_render_assets(&manifest.session_id, &[]).is_err());
         root.close().unwrap();
     }
@@ -323,7 +325,7 @@ mod tests {
         )
         .unwrap();
 
-        let _ = close_project_session(manifest.session_id);
+        let _ = release_project_session(manifest.session_id);
         assert_eq!(result.entries.len(), 2);
         assert_eq!(result.entries[0].key, "ship");
         assert_eq!(result.entries[0].owner_kind, ResourceOwnerKind::Ship);
@@ -394,7 +396,7 @@ mod tests {
         assert_eq!(cached.entries[0].data_url, result.entries[0].data_url);
         assert_eq!(sprite_read_count(&sprite) - before, 1);
 
-        close_project_session(manifest.session_id).unwrap();
+        release_project_session(manifest.session_id).unwrap();
         root.close().unwrap();
     }
 
@@ -435,7 +437,7 @@ mod tests {
         .unwrap();
 
         assert_ne!(result.entries[0].data_url, result.entries[1].data_url);
-        close_project_session(manifest.session_id).unwrap();
+        release_project_session(manifest.session_id).unwrap();
         root.close().unwrap();
     }
 
@@ -464,7 +466,7 @@ mod tests {
             .message
             .clone();
 
-        let _ = close_project_session(manifest.session_id);
+        let _ = release_project_session(manifest.session_id);
         assert!(error.contains("core resource requires starsector root"));
         root.close().unwrap();
     }
@@ -496,7 +498,7 @@ mod tests {
         )
         .unwrap();
 
-        let _ = close_project_session(manifest.session_id);
+        let _ = release_project_session(manifest.session_id);
         assert!(result.entries[0].data_url.is_some());
         root.close().unwrap();
     }
@@ -526,7 +528,7 @@ mod tests {
             .message
             .clone();
 
-        let _ = close_project_session(manifest.session_id);
+        let _ = release_project_session(manifest.session_id);
         assert!(error.contains("sprite path is outside resource root"));
         root.close().unwrap();
     }
@@ -552,7 +554,7 @@ mod tests {
             }],
         );
 
-        let _ = close_project_session(manifest.session_id);
+        let _ = release_project_session(manifest.session_id);
         assert!(result.unwrap().entries[0].error.is_some());
         root.close().unwrap();
     }
@@ -604,7 +606,7 @@ mod tests {
         query_resource_data_urls(&session_id, vec![repeat]).unwrap();
         assert_eq!(sprite_read_count(&sprite) - before, 2);
 
-        close_project_session(session_id).unwrap();
+        release_project_session(session_id).unwrap();
         assert_ne!(first, second);
         assert!(first.ends_with(&general_purpose_base64(&[1u8])));
         assert!(second.ends_with(&general_purpose_base64(&[7u8, 7, 7])));
@@ -674,7 +676,7 @@ mod tests {
         query_resource_data_urls(&manifest.session_id, vec![oldest.clone()]).unwrap();
         query_resource_data_urls(&manifest.session_id, vec![oldest]).unwrap();
         assert_eq!(sprite_read_count(&path), 2);
-        close_project_session(manifest.session_id).unwrap();
+        release_project_session(manifest.session_id).unwrap();
         root.close().unwrap();
     }
 
@@ -702,7 +704,7 @@ mod tests {
             &media_resource_key(&resource)
         ));
 
-        close_project_session(session_id.clone()).unwrap();
+        release_project_session(session_id.clone()).unwrap();
 
         assert!(!cached_sprite_media_contains(
             &session_id,
@@ -714,7 +716,7 @@ mod tests {
         query_resource_data_urls(&reopened.session_id, vec![resource.clone()]).unwrap();
         query_resource_data_urls(&reopened.session_id, vec![resource]).unwrap();
         assert_eq!(sprite_read_count(&path), 2);
-        close_project_session(reopened.session_id).unwrap();
+        release_project_session(reopened.session_id).unwrap();
         root.close().unwrap();
     }
 
@@ -734,7 +736,7 @@ mod tests {
         assert_eq!(resources["turretSprite"].rel_path, "graphics/draft.png");
         assert_eq!(resources["turretSprite"].owner_id, "weapon");
         assert_eq!(resources["turretSprite"].key, "turretSprite");
-        close_project_session(manifest.session_id).unwrap();
+        release_project_session(manifest.session_id).unwrap();
         assert!(
             query_draft_resources("closed", DraftResourceEntityKind::Weapon, "weapon", &draft)
                 .is_err()
@@ -765,7 +767,7 @@ mod tests {
             assert_eq!(resources[field].owner_id, "shot");
             assert_eq!(resources[field].owner_kind, EntityKind::Projectile.into());
         }
-        close_project_session(manifest.session_id.clone()).unwrap();
+        release_project_session(manifest.session_id.clone()).unwrap();
         assert!(
             query_draft_resources(
                 &manifest.session_id,
@@ -800,7 +802,7 @@ mod tests {
         )
         .unwrap();
         assert_eq!(mission["icon"].rel_path, "data/missions/mission/new.png");
-        close_project_session(manifest.session_id).unwrap();
+        release_project_session(manifest.session_id).unwrap();
         root.close().unwrap();
     }
 }

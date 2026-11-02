@@ -23,20 +23,20 @@ import {
 import { AppError, errorDiagnosticOf, formatError } from '@/shared/lib/errors';
 
 export function createModSaveCoordinator(feedback: AppFeedback, closing: () => boolean) {
-  const commands = useSaveCommandStore(),
+  const saveCommands = useSaveCommandStore(),
     project = useProjectStore(),
     workspace = useWorkspaceStore();
   const label = currentWindowLabel(),
-    batches = new Map<string, Promise<WindowSaveReply>>();
-  let tail: Promise<unknown> = Promise.resolve(),
+    pendingBatches = new Map<string, Promise<WindowSaveReply>>();
+  let batchTail: Promise<unknown> = Promise.resolve(),
     disposed = false;
-  const participants = (target: ModSaveTarget) => commands.participantsForSession(target.sessionId, target.modRoot);
+  const participants = (target: ModSaveTarget) => saveCommands.participantsForSession(target.sessionId, target.modRoot);
   const failed = (entry: Pick<WindowSaveItem, 'label' | 'paths'>, error: unknown): WindowSaveItem => ({
     ...entry,
     status: 'failed',
     diagnostic: errorDiagnosticOf(error),
   });
-  async function local(request: WindowSaveRequest): Promise<WindowSaveReply> {
+  async function handleLocalSaveRequest(request: WindowSaveRequest): Promise<WindowSaveReply> {
     const { target, action } = request;
     if (action.kind === 'list')
       return {
@@ -47,7 +47,7 @@ export function createModSaveCoordinator(feedback: AppFeedback, closing: () => b
               handle.editing!.dirty.value ||
               handle.editing!.draftSession.inputs.dirty.value ||
               handle.saving.value ||
-              commands.isSaveQueued(handle),
+              saveCommands.isSaveQueued(handle),
           )
           .map(({ id, handle }) => ({
             id,
@@ -56,7 +56,7 @@ export function createModSaveCoordinator(feedback: AppFeedback, closing: () => b
             paths: handle.editing!.targets.value.map((own) => own.path),
           })),
       };
-    if (action.kind !== 'save') return batch(target);
+    if (action.kind !== 'save') return enqueueBatch(target);
     const entry = action.participant;
     const item: WindowSaveItem = { label: entry.label, paths: entry.paths, status: 'cancelled', diagnostic: null };
     const handle = participants(target).find(({ id }) => id === entry.id)?.handle;
@@ -67,18 +67,18 @@ export function createModSaveCoordinator(feedback: AppFeedback, closing: () => b
       handle.targetKey.value === entry.targetKey &&
       participants(target).some((own) => own.id === entry.id && own.handle === handle);
     try {
-      if (!accepts() || !(await commands.waitForSession(handle!)) || !accepts())
+      if (!accepts() || !(await saveCommands.waitForSession(handle!)) || !accepts())
         throw new AppError('保存目标已变化或保存尚未完成', { action: 'save-mod' });
       const committed = await handle!.editing!.draftSession.inputs.commit();
       if (committed !== false && accepts()) {
-        item.status = handle!.editing!.dirty.value ? (await commands.requestSave(handle!)).status : 'noop';
+        item.status = handle!.editing!.dirty.value ? (await saveCommands.requestSave(handle!)).status : 'noop';
       }
     } catch (error) {
       return { kind: 'results', items: [failed(entry, error)] };
     }
     return { kind: 'results', items: [item] };
   }
-  async function run(target: ModSaveTarget): Promise<WindowSaveReply> {
+  async function saveParticipants(target: ModSaveTarget): Promise<WindowSaveReply> {
     const items: WindowSaveItem[] = [],
       captured: { receiver: string; participant: WindowSaveParticipant }[] = [];
     const receivers = await queryEditTargetOwners([{ ...target, path: target.modRoot }]);
@@ -86,7 +86,7 @@ export function createModSaveCoordinator(feedback: AppFeedback, closing: () => b
     for (const receiver of receivers) {
       try {
         const request: WindowSaveRequest = { target, action: { kind: 'list' } };
-        const reply = receiver === label ? await local(request) : await requestWindowSave(receiver, request);
+        const reply = receiver === label ? await handleLocalSaveRequest(request) : await requestWindowSave(receiver, request);
         if (reply.kind === 'participants') captured.push(...reply.participants.map((participant) => ({ receiver, participant })));
       } catch (error) {
         items.push(failed({ label: receiver, paths: [target.modRoot] }, error));
@@ -97,7 +97,7 @@ export function createModSaveCoordinator(feedback: AppFeedback, closing: () => b
         if (project.getManifest(target.modRoot)?.sessionId !== target.sessionId)
           throw new AppError('保存项目已关闭或重新打开', { action: 'save-mod' });
         const request: WindowSaveRequest = { target, action: { kind: 'save', participant } };
-        const reply = receiver === label ? await local(request) : await requestWindowSave(receiver, request);
+        const reply = receiver === label ? await handleLocalSaveRequest(request) : await requestWindowSave(receiver, request);
         if (reply.kind === 'results') items.push(...reply.items);
       } catch (error) {
         items.push(failed(participant, error));
@@ -105,33 +105,33 @@ export function createModSaveCoordinator(feedback: AppFeedback, closing: () => b
     }
     return { kind: 'results', items };
   }
-  function batch(target: ModSaveTarget): Promise<WindowSaveReply> {
+  function enqueueBatch(target: ModSaveTarget): Promise<WindowSaveReply> {
     const key = JSON.stringify(target);
-    const pending = batches.get(key);
+    const pending = pendingBatches.get(key);
     if (pending) return pending;
-    const result = tail.then(() => run(target)).finally(() => batches.delete(key));
-    batches.set(key, result);
-    tail = result.catch(() => undefined);
+    const result = batchTail.then(() => saveParticipants(target)).finally(() => pendingBatches.delete(key));
+    pendingBatches.set(key, result);
+    batchTail = result.catch(() => undefined);
     return result;
   }
-  async function receive(message: WindowSaveMessage) {
+  async function handleSaveMessage(message: WindowSaveMessage) {
     let result: WindowSaveReply | null = null,
       diagnostic = null;
     try {
       if (disposed || closing()) throw new AppError('窗口正在关闭', { action: 'save-mod' });
-      result = await local(message.request);
+      result = await handleLocalSaveRequest(message.request);
     } catch (error) {
       diagnostic = errorDiagnosticOf(error);
     }
     await replyWindowSave(message, result, diagnostic);
   }
   const ready = registerWindowSaveReceiver((message) => {
-    void receive(message).catch((error) => {
+    void handleSaveMessage(message).catch((error) => {
       if (!disposed) feedback.error(error, '交付 Mod 保存结果失败');
     });
   });
-  const triggers = new Map<string, Promise<void>>();
-  async function execute(target: ModSaveTarget) {
+  const pendingRequests = new Map<string, Promise<void>>();
+  async function requestBatchSave(target: ModSaveTarget) {
     try {
       await ready;
       const reply = await requestWindowSave('main', { target, action: { kind: 'batch' } });
@@ -165,7 +165,7 @@ export function createModSaveCoordinator(feedback: AppFeedback, closing: () => b
       if (!disposed) feedback.error(error, '保存当前 Mod 失败');
     }
   }
-  function save(): Promise<void> {
+  function saveCurrentMod(): Promise<void> {
     const identity = managedWindowContext.value?.identity;
     const manifest = label === 'main' ? workspace.activeManifest : null;
     const target = manifest
@@ -179,15 +179,15 @@ export function createModSaveCoordinator(feedback: AppFeedback, closing: () => b
       return Promise.resolve();
     }
     const key = JSON.stringify(target),
-      pending = triggers.get(key);
+      pending = pendingRequests.get(key);
     if (pending) return pending;
-    const result = execute(target).finally(() => triggers.delete(key));
-    triggers.set(key, result);
+    const result = requestBatchSave(target).finally(() => pendingRequests.delete(key));
+    pendingRequests.set(key, result);
     return result;
   }
   function dispose() {
     disposed = true;
     void ready.then(unregisterWindowSaveReceiver).catch((error) => feedback.error(error, '释放 Mod 保存登记失败'));
   }
-  return { save, dispose, ready };
+  return { saveCurrentMod, dispose, ready };
 }

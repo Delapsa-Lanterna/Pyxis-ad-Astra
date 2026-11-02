@@ -198,6 +198,8 @@ fn binary_content(bytes: &[u8]) -> bool {
 }
 #[cfg(test)]
 mod tests {
+    use crate::services::project_sync::release_project_session;
+
     use super::*;
     #[cfg(test)]
     use crate::services::file_editor;
@@ -350,7 +352,7 @@ mod tests {
         );
         assert!(query_mod_text_file_target(&manifest.session_id, "../external.txt").is_err());
         assert!(query_mod_directory(&manifest.session_id, Some("../external")).is_err());
-        session::close_project_session(manifest.session_id.clone()).unwrap();
+        release_project_session(manifest.session_id.clone()).unwrap();
         assert_eq!(
             query_mod_directory(&manifest.session_id, None)
                 .unwrap_err()

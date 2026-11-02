@@ -18,12 +18,12 @@ pub(super) fn version_for_path(session: &ProjectSession, path: &str) -> FileVers
 
 #[cfg(test)]
 mod tests {
+    use crate::services::project_sync::release_project_session;
+
     use crate::models::EntityKind;
     use crate::services::project::test_support::project_workspace;
     #[cfg(test)]
-    use crate::services::project::{
-        PerformanceTrace, close_project_session, open_project_session_traced,
-    };
+    use crate::services::project::{PerformanceTrace, open_project_session_traced};
     #[cfg(test)]
     use crate::{io, services};
     #[cfg(test)]
@@ -87,7 +87,7 @@ mod tests {
         io::verify_versions(&manifest.mod_root, &mission).unwrap();
         fs::write(root.join("data/missions/demo/new.txt"), "external").unwrap();
         assert!(io::verify_versions(&manifest.mod_root, &mission).is_err());
-        close_project_session(manifest.session_id).unwrap();
+        release_project_session(manifest.session_id).unwrap();
         root.close().unwrap();
     }
 }

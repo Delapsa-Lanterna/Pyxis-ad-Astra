@@ -816,6 +816,9 @@ thread_local! {
 
 #[cfg(test)]
 mod tests {
+    use crate::services::file_history::query_file_history;
+    use crate::services::project_sync::release_project_session;
+
     use super::*;
     #[cfg(windows)]
     #[cfg(test)]
@@ -829,7 +832,7 @@ mod tests {
     use crate::services::project::PerformanceTrace;
     use crate::services::project::test_support::project_workspace;
     #[cfg(test)]
-    use crate::services::{project, project_save, write_transactions};
+    use crate::services::{project, project_save};
     #[cfg(windows)]
     #[cfg(test)]
     use crate::test_support;
@@ -1005,7 +1008,7 @@ mod tests {
         assert_eq!(fs::read(&csv).unwrap(), original_csv.as_bytes());
         assert!(!root.join("data/hulls/saved.ship").exists());
         assert!(
-            write_transactions::query_history(&manifest.session_id, &manifest.mod_root)
+            query_file_history(&manifest.session_id, &manifest.mod_root)
                 .unwrap()
                 .undo_stack
                 .is_empty()
@@ -1017,7 +1020,7 @@ mod tests {
         );
         let saved = project_save::execute_save_action(action).unwrap();
         assert_eq!(saved.history.undo_stack.len(), 1);
-        project::close_project_session(manifest.session_id).unwrap();
+        release_project_session(manifest.session_id).unwrap();
         root.close().unwrap();
     }
 

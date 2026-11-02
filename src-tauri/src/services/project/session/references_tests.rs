@@ -6,6 +6,8 @@ use crate::services::project::query::{hull_references, joint_edit, resources};
 #[cfg(test)]
 use crate::services::project::test_support as project_test_support;
 use crate::services::project::{PerformanceTrace, session};
+#[cfg(test)]
+use crate::services::project_sync::release_project_session;
 use crate::test_support::TestWorkspace;
 #[cfg(test)]
 use crate::{io, test_support};
@@ -406,7 +408,7 @@ fn reference_priority_content_and_lifecycle() {
         entity(&a, EntityKind::Weapon, "shared").data["spec"]["tag"],
         "gamma"
     );
-    session::close_project_session(c.session_id).unwrap();
+    release_project_session(c.session_id).unwrap();
     assert_eq!(
         entity(&a, EntityKind::Weapon, "shared").data["spec"]["tag"],
         "beta"
@@ -417,7 +419,7 @@ fn reference_priority_content_and_lifecycle() {
         entity_source(&entity(&a, EntityKind::Weapon, "shared")).session_id,
         reopened.session_id
     );
-    session::close_project_session(reopened.session_id).unwrap();
+    release_project_session(reopened.session_id).unwrap();
     set_reference_sources(Vec::new()).unwrap();
     assert_eq!(
         resources::query_resource_data_urls(&a.session_id, vec![image])
@@ -433,7 +435,7 @@ fn reference_priority_content_and_lifecycle() {
         owner(&options(&a, "csv:weapons.id"), "shared"),
         ResourceSource::Core
     );
-    session::close_project_session(a.session_id.clone()).unwrap();
+    release_project_session(a.session_id.clone()).unwrap();
     assert_eq!(
         session::session_handle(&a.session_id).err().unwrap().code(),
         "session.unknown"
@@ -445,7 +447,7 @@ fn reference_priority_content_and_lifecycle() {
             .session_id,
         a.session_id
     );
-    session::close_project_session(b.session_id).unwrap();
+    release_project_session(b.session_id).unwrap();
     root.close().unwrap();
 }
 
@@ -509,7 +511,7 @@ fn mutual_references_share_views_and_refresh_official_content() {
         "reenabled"
     );
     set_reference_sources(Vec::new()).unwrap();
-    session::close_project_session(a.session_id).unwrap();
-    session::close_project_session(b.session_id).unwrap();
+    release_project_session(a.session_id).unwrap();
+    release_project_session(b.session_id).unwrap();
     root.close().unwrap();
 }
