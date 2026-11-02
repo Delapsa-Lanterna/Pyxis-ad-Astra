@@ -171,7 +171,6 @@ pub fn run() {
                     commands::scan_core_graphics,
                     commands::query_original_font,
                     commands::load_editable_file,
-                    commands::query_text_identity_intent,
                     commands::follow_text_identity,
                     commands::load_imported_editor_spec_file,
                 ]);

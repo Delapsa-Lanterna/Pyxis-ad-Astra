@@ -210,7 +210,7 @@ fn missing_spec_import_uses_content_identity() {
 }
 
 #[test]
-fn text_identity_save_preserves_source_and_updates_linked_row() {
+fn text_save_writes_submitted_text_without_identity_changes() {
     let root = project_workspace("text_identity_source");
     fs::create_dir_all(root.join("data/hulls/nested")).unwrap();
     let old = root.join("data/hulls/nested/filename.ship");
@@ -229,10 +229,8 @@ fn text_identity_save_preserves_source_and_updates_linked_row() {
     )
     .unwrap();
     assert_eq!(loaded.entity.as_ref().unwrap().target.id, "old");
-    assert_eq!(loaded.base_versions.len(), 2);
     let text = "{hullId:'new', # keep\n hullName:'Edited', extra:{'_key':1}}\n";
     let saved = project_save::execute_save_action(SaveAction::SaveTextFile(TextSave {
-        json_write: Default::default(),
         session_id: Some(manifest.session_id.clone()),
         mod_root: manifest.mod_root.clone(),
         path: loaded.path,
@@ -241,17 +239,15 @@ fn text_identity_save_preserves_source_and_updates_linked_row() {
     }))
     .unwrap();
     assert_eq!(saved.content.unwrap().value["text"], text);
-    assert_eq!(
-        fs::read_to_string(root.join("data/hulls/nested/new.ship")).unwrap(),
-        text
-    );
-    assert!(!old.exists());
+    assert!(saved.identity_changes.is_empty());
+    assert_eq!(fs::read_to_string(&old).unwrap(), text);
+    assert!(!root.join("data/hulls/nested/new.ship").exists());
     assert_eq!(
         io::read_csv_data(&root.join("data/hulls/ship_data.csv"))
             .unwrap()
             .rows[0]
             .data["id"],
-        "new"
+        "old"
     );
     project::close_project_session(manifest.session_id).unwrap();
     root.close().unwrap();
@@ -414,39 +410,6 @@ fn spec_save_requires_the_complete_loaded_version_scope() {
             .undo_stack
             .is_empty()
     );
-    project::close_project_session(manifest.session_id).unwrap();
-    root.close().unwrap();
-}
-
-#[test]
-fn text_identity_normalization_changes_only_the_root_id_value() {
-    let root = project_workspace("text_identity_normalized");
-    fs::create_dir_all(root.join("data/hulls")).unwrap();
-    let path = root.join("data/hulls/demo.ship");
-    fs::write(&path, "{hullId:'demo'}").unwrap();
-    fs::write(root.join("data/hulls/ship_data.csv"), "id,name\ndemo,Old\n").unwrap();
-    let mut trace = PerformanceTrace::new("project.openSession");
-    let manifest = project::open_project_session_traced(&root, None, &mut trace).unwrap();
-    let info =
-        entity_targets::query_entity_edit_target(&manifest.session_id, EntityKind::Ship, "demo")
-            .unwrap();
-    let text = "{hullId:' next ', # keep\n extra:{hullId:' untouched '}}\n";
-    let saved = project_save::execute_save_action(SaveAction::SaveTextFile(TextSave {
-        json_write: Default::default(),
-        session_id: Some(manifest.session_id.clone()),
-        mod_root: manifest.mod_root.clone(),
-        path: path.to_string_lossy().to_string(),
-        text: text.to_string(),
-        base_versions: info.base_versions,
-    }))
-    .unwrap();
-    let expected = "{hullId:\"next\", # keep\n extra:{hullId:' untouched '}}\n";
-    assert_eq!(saved.content.unwrap().value["text"], expected);
-    assert_eq!(
-        fs::read_to_string(root.join("data/hulls/next.ship")).unwrap(),
-        expected
-    );
-    assert_eq!(saved.identity_changes[0].after.id, "next");
     project::close_project_session(manifest.session_id).unwrap();
     root.close().unwrap();
 }

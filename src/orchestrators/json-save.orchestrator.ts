@@ -52,6 +52,27 @@ async function capturedVersions(
   return captureIdentityVersions(versions, captured.intent.destinationVersion);
 }
 
+/** Settles the file name of an ID change and captures the versions of the chosen destination. */
+async function settledVersions(
+  sessionId: string,
+  modRoot: string,
+  kind: EntityKind,
+  sourceId: string,
+  nextId: string,
+  baseVersions: FileVersion[],
+  feedback: AppFeedback | undefined,
+) {
+  const captured = await captureConfigIdentityIntent(sessionId, kind, sourceId, nextId).catch(async (error) => {
+    await focusEntityIdentityConflict(sessionId, modRoot, error);
+    throw error;
+  });
+  const keepFilename = await chooseEntityFilename(feedback, captured.info.target, captured.intent);
+  if (keepFilename === null) return null;
+  if (keepFilename) return { keepFilename, versions: await capturedVersions(sessionId, modRoot, kind, sourceId, sourceId, baseVersions) };
+  await reserveFileIdentityIntent(sessionId, modRoot, captured.intent);
+  return { keepFilename, versions: captureIdentityVersions(baseVersions, captured.intent.destinationVersion) };
+}
+
 async function retainConfigReservation<T>(write: Promise<T>): Promise<T> {
   try {
     const result = await write;
@@ -89,31 +110,30 @@ export async function saveIndexedEntityAction(
   feedback?: AppFeedback,
   original?: RowData,
   request?: SaveCommandRequest,
+  replacePaths: string[] = [],
 ): Promise<SavedConfig<IndexedConfigEntityData> | null> {
-  const { info: source } = await captureConfigIdentityIntent(
-    write.sessionId,
-    write.kind,
-    write.previousId ?? write.nextId,
-    write.previousId ?? write.nextId,
-  );
-  const keepFilename = await chooseEntityFilename(feedback, source.target, write.nextId);
-  if (keepFilename === null) return null;
-  const versions = await capturedVersions(
+  const settled = await settledVersions(
     write.sessionId,
     write.modRoot,
     write.kind,
     write.previousId ?? write.nextId,
-    keepFilename ? source.target.id : write.nextId,
+    write.nextId,
     write.baseVersions,
+    feedback,
   );
+  if (!settled) return null;
+  const { keepFilename, versions } = settled;
   const result = await retainConfigReservation(
-    runConfirmedJsonWrite(feedback, (options) =>
-      saveIndexedConfigEntity(
-        { ...write, baseVersions: versions },
-        keepFilename ? { ...options, keepFilename } : options,
-        original,
-        request,
-      ),
+    runConfirmedJsonWrite(
+      feedback,
+      (options) =>
+        saveIndexedConfigEntity(
+          { ...write, baseVersions: versions },
+          keepFilename ? { ...options, keepFilename } : options,
+          original,
+          request,
+        ),
+      replacePaths,
     ),
   );
   if (!result) return null;
@@ -152,20 +172,24 @@ export async function saveJsonFileAction(
   baseVersions: FileVersion[] = [],
   original?: RowData,
   request?: SaveCommandRequest,
+  replacePaths: string[] = [],
 ): Promise<SavedConfig<JsonEntityFile> | null> {
-  const { info: source } = await captureConfigIdentityIntent(sessionId, kind, previousId ?? id, previousId ?? id);
-  const keepFilename = await chooseEntityFilename(feedback, source.target, id);
-  if (keepFilename === null) return null;
+  const settled = await settledVersions(sessionId, modRoot, kind, previousId ?? id, id, baseVersions, feedback);
+  if (!settled) return null;
+  const { keepFilename } = settled;
+  baseVersions = settled.versions;
   const saveEntity = kind === 'variant' ? saveVariantEntity : saveSkinEntity;
-  baseVersions = await capturedVersions(sessionId, modRoot, kind, previousId ?? id, keepFilename ? source.target.id : id, baseVersions);
   const result = await retainConfigReservation(
-    runConfirmedJsonWrite<WriteResult<VariantFile | SkinFile>>(feedback, (options) =>
-      saveEntity(
-        { baseVersions, sessionId, modRoot, previousId, nextId: id, data, relPath },
-        keepFilename ? { ...options, keepFilename } : options,
-        original,
-        request,
-      ),
+    runConfirmedJsonWrite<WriteResult<VariantFile | SkinFile>>(
+      feedback,
+      (options) =>
+        saveEntity(
+          { baseVersions, sessionId, modRoot, previousId, nextId: id, data, relPath },
+          keepFilename ? { ...options, keepFilename } : options,
+          original,
+          request,
+        ),
+      replacePaths,
     ),
   );
   return result ? { entity: jsonEntitySavedData(result), receipt: result } : null;

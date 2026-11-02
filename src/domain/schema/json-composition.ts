@@ -4,8 +4,29 @@ import { AppError } from '@/shared/lib/errors';
 import { stableDeepEqual } from '@/shared/lib/stable-compare';
 import { captureSaveEdits } from '@/domain/project/save-edits';
 import { deepClone } from '@/shared/lib/starsector';
+import { isRowData } from '@/shared/lib/row-data';
+
+// Local-only marker: the object replaces its base layers and keeps the sparse draft it replaced for undo.
+export const REPLACE_BASE_KEY = '__replaceBase';
+const REPLACE_NOTICE = '已修改继承列表中的已有项，当前文件改为整体取代基础内容；保存时会将路径写入 mod_info.json 的 replace，可撤销。';
+const REPLACE_UNSUPPORTED = 'settings.json 不支持整体取代，无法修改继承列表中的已有项。';
+
+function withoutReplaceBase(value: RowData): RowData {
+  const rest = { ...value };
+  delete rest[REPLACE_BASE_KEY];
+  return rest;
+}
+
+export function replacesBase(local: JsonValue | undefined): boolean {
+  if (!isRowData(local)) return false;
+  return (
+    Object.hasOwn(local, REPLACE_BASE_KEY) ||
+    Object.values(local).some((value) => isRowData(value) && Object.hasOwn(value, REPLACE_BASE_KEY))
+  );
+}
 
 export function composeJson(local: RowData, composition?: JsonComposition): RowData {
+  if (Object.hasOwn(local, REPLACE_BASE_KEY)) return withoutReplaceBase(local);
   if (!composition || composition.replace) return local;
   const override = composition.layers.findLast((layer) => layer.replace);
   if (override) return deepClone(override.data);
@@ -15,24 +36,29 @@ export function composeJson(local: RowData, composition?: JsonComposition): RowD
   return result;
 }
 
-// LoadingUtils preserves the clear sentinel and stringifies supplemental scalars.
+// Mirrors LoadingUtils array and object merging; supplemental scalars keep their written type.
 function mergeJson(target: RowData, source: RowData, excluded: string[]) {
   for (const [key, value] of Object.entries(source)) {
     if (excluded.includes(key)) continue;
     if (Array.isArray(value)) {
       const current = target[key] ?? [];
       if (!Array.isArray(current)) throw new AppError(`合并字段 ${key} 需要数组`, { code: 'json.merge_type' });
-      const name = key.toLowerCase();
-      const replace = value[0] === 'core_clearArray' || (current.length === 4 && /color|button/.test(name)) || name.startsWith('music_');
-      target[key] = [...(replace ? [] : current), ...deepClone(value)];
-    } else if (value !== null && typeof value === 'object') {
+      target[key] = [...(arrayReplaces(key, current, value) ? [] : current), ...deepClone(value)];
+    } else if (isRowData(value)) {
       const current = target[key] ?? {};
-      if (typeof current !== 'object' || current === null || Array.isArray(current))
-        throw new AppError(`合并字段 ${key} 需要对象`, { code: 'json.merge_type' });
-      target[key] = current;
-      mergeJson(current, value, excluded);
-    } else target[key] = typeof value === 'string' ? value : JSON.stringify(value);
+      if (!isRowData(current)) throw new AppError(`合并字段 ${key} 需要对象`, { code: 'json.merge_type' });
+      if (Object.hasOwn(value, REPLACE_BASE_KEY)) target[key] = withoutReplaceBase(deepClone(value));
+      else {
+        target[key] = current;
+        mergeJson(current, value, excluded);
+      }
+    } else target[key] = value;
   }
+}
+
+function arrayReplaces(key: string, current: readonly JsonValue[], value: readonly JsonValue[]) {
+  const name = key.toLowerCase();
+  return value[0] === 'core_clearArray' || (current.length === 4 && /color|button/.test(name)) || name.startsWith('music_');
 }
 
 export function compositionValue(value: RowData, path: readonly string[]): JsonValue | undefined {
@@ -58,6 +84,7 @@ export function setCompositionValue(local: RowData, path: readonly string[], val
 }
 
 export function compositionOrigin(local: RowData, composition: JsonComposition, path: string[]): string | null {
+  if (replacesBase(local)) return null;
   const arrayIndex = path.findIndex((key) => /^\d+$/.test(key));
   if (arrayIndex >= 0 && !composition.replace) {
     const parent = path.slice(0, arrayIndex),
@@ -73,8 +100,7 @@ export function compositionOrigin(local: RowData, composition: JsonComposition, 
     for (const input of inputs) {
       const value = compositionValue(input.data, parent);
       if (!Array.isArray(value)) continue;
-      const name = parent.at(-1)!.toLowerCase();
-      if (value[0] === 'core_clearArray' || (labels.length === 4 && /color|button/.test(name)) || name.startsWith('music_')) labels = [];
+      if (arrayReplaces(parent.at(-1)!, labels as JsonValue[], value)) labels = [];
       labels.push(...value.map(() => input.label));
     }
     return labels[index] ?? null;
@@ -84,27 +110,56 @@ export function compositionOrigin(local: RowData, composition: JsonComposition, 
   return source ? (source.source.source === 'core' ? '原版' : source.source.root.split(/[/\\]/).at(-1)!) : null;
 }
 
-// Only changed paths become local values; inherited objects stay outside the draft.
-export function editComposedJson(local: RowData, before: RowData, after: RowData): RowData {
+/**
+ * Converts an edit of the composed value into the local draft. Arrays can only extend inherited items;
+ * any other change of inherited array items switches the file object at `root` to whole-file replacement.
+ */
+export function editComposedJson(
+  local: RowData,
+  before: RowData,
+  after: RowData,
+  composition: JsonComposition | undefined,
+  root: readonly string[] = [],
+  normalize: (value: RowData) => RowData = (value) => value,
+): ComposedJsonEdit {
+  if (!composition) return { value: after, notice: null, rejected: false };
+  const own = compositionValue(local, root);
+  if (isRowData(own) && Object.hasOwn(own, REPLACE_BASE_KEY)) {
+    // Returning to the content that was replaced restores the sparse draft, so undo leaves replacement mode.
+    const restored = setCompositionValue(local, root, own[REPLACE_BASE_KEY] as RowData);
+    if (stableDeepEqual(normalize(composeJson(restored, composition)), after)) return { value: restored, notice: null, rejected: false };
+    const replaced = { ...(compositionValue(after, root) as RowData), [REPLACE_BASE_KEY]: own[REPLACE_BASE_KEY]! };
+    return { value: setCompositionValue(local, root, replaced), notice: null, rejected: false };
+  }
   let result = local;
   for (const edit of captureSaveEdits(before, after)) {
-    if (!edit.path.length) return after;
+    if (!edit.path.length) return { value: after, notice: null, rejected: false };
     let value = edit.kind === 'set' ? edit.value : undefined;
     if (Array.isArray(value)) {
-      const previous = compositionValue(before, edit.path);
-      const own = compositionValue(local, edit.path);
-      const name = edit.path.at(-1)!.toLowerCase();
-      const atomic = (Array.isArray(previous) && previous.length === 4 && /color|button/.test(name)) || name.startsWith('music_');
-      if (
-        Array.isArray(previous) &&
-        (!own || (Array.isArray(own) && !own.includes('core_clearArray'))) &&
-        stableDeepEqual(value.slice(0, previous.length), previous)
-      )
-        value = [...(Array.isArray(own) ? own : []), ...value.slice(previous.length)];
-      else if (!atomic && Array.isArray(previous) && previous.length && value[0] !== 'core_clearArray')
-        value = ['core_clearArray', ...value];
+      const inherited = compositionValue(composeJson(setCompositionValue(local, edit.path, undefined), composition), edit.path);
+      if (Array.isArray(inherited) && inherited.length && !arrayReplaces(edit.path.at(-1)!, inherited, value)) {
+        if (!stableDeepEqual(value.slice(0, inherited.length), inherited)) {
+          if (composition.excluded.length) return { value: local, notice: REPLACE_UNSUPPORTED, rejected: true };
+          const replaced = { ...(compositionValue(after, root) as RowData), [REPLACE_BASE_KEY]: isRowData(own) ? own : {} };
+          return { value: setCompositionValue(local, root, replaced), notice: REPLACE_NOTICE, rejected: false };
+        }
+        value = value.length > inherited.length ? value.slice(inherited.length) : undefined;
+      }
     }
     result = setCompositionValue(result, edit.path, value);
   }
-  return result;
+  return { value: result, notice: null, rejected: false };
+}
+
+export interface ComposedJsonEdit {
+  value: RowData;
+  notice: string | null;
+  rejected: boolean;
+}
+
+/** Removes the local replacement marker and reports whether the save must add the file to `replace`. */
+export function takeReplaceBase(value: RowData, root: readonly string[] = []): { value: RowData; replace: boolean } {
+  const own = compositionValue(value, root);
+  if (!isRowData(own) || !Object.hasOwn(own, REPLACE_BASE_KEY)) return { value, replace: false };
+  return { value: setCompositionValue(value, root, withoutReplaceBase(own)), replace: true };
 }

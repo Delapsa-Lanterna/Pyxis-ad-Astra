@@ -10,7 +10,7 @@ import {
 } from '@/orchestrators/project-sync.orchestrator';
 import { computed, ref, watch } from 'vue';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
-import { loadEditableFileData, writeEditableFileText, queryFileTextIdentityIntent, followFileTextIdentity } from '@/services/files.service';
+import { loadEditableFileData, writeEditableFileText, followFileTextIdentity } from '@/services/files.service';
 import { committedFileText } from '@/orchestrators/file-editor-window.orchestrator';
 import { isAbsoluteFsPath, joinRootRelativePath, normalizeFsPath, pathBelongsToRoot } from '@/shared/lib/paths';
 import { useEditTargetDraftSession, type EditTargetDraftSession } from '@/app/composables/use-edit-target-draft-session';
@@ -18,16 +18,12 @@ import { useSnapshotHistory } from '@/app/composables/use-snapshot-history';
 import { useSettingsStore } from '@/stores/settings.store';
 import { useFieldInputActions } from '@/app/composables/use-field-input-actions';
 import { useSaveCommandStore } from '@/stores/save-command.store';
-import { reserveFileIdentityIntent, retargetFileWindow } from '@/orchestrators/window-identity.orchestrator';
-import { chooseEntityFilename } from '@/orchestrators/entity-write.orchestrator';
-import { focusEntityIdentityConflict } from '@/orchestrators/window-target-focus.orchestrator';
+import { retargetFileWindow } from '@/orchestrators/window-identity.orchestrator';
 
 import type { CommittedWriteEvent, FileWindowLocation } from '@/shared/types';
 import type { EntityIdentityChange, WriteResult, EntityEditInfo } from '@/shared/types';
 import { formatError, errorDiagnosticOf, errorCodeOf, AppError } from '@/shared/lib/errors';
 import { waitForRead } from '@/shared/runtime/read-request';
-
-import { captureIdentityVersions } from '@/domain/project/entity-versions';
 
 export interface FileEditorViewModelParams {
   mode: 'session' | 'recovery';
@@ -91,32 +87,14 @@ export function useFileEditorViewModel(params: FileEditorViewModelParams) {
         throw error;
       }
     },
+    // Text saves write the file in place; entity identity is re-read like an external modification.
     save: async (target, draft, baseVersions, _original, request) => {
-      const entity = draftSession.baselineSnapshot.value!.meta.entity;
-      let versions = baseVersions;
-      let keepFilename = false;
-      if (entity && target.sessionId) {
-        const intent = await queryFileTextIdentityIntent(target.sessionId, entity.target, draft).catch(async (error) => {
-          await focusEntityIdentityConflict(target.sessionId!, target.modRoot, error);
-          throw error;
-        });
-        const choice = await chooseEntityFilename(feedback, entity.target, intent.nextId);
-        if (choice === null) return;
-        keepFilename = choice;
-        if (!keepFilename) {
-          await reserveFileIdentityIntent(target.sessionId, target.modRoot, intent);
-          versions = captureIdentityVersions(baseVersions, intent.destinationVersion);
-        }
-      }
-      const result = await writeEditableFileText(target.sessionId, target.modRoot, target.filePath, draft, versions, request, {
-        keepFilename,
-      });
-      const change = result.identityChanges[0];
+      const result = await writeEditableFileText(target.sessionId, target.modRoot, target.filePath, draft, baseVersions, request);
       return {
-        target: { ...target, filePath: change?.after.write.path ?? target.filePath },
+        target,
         value: typeof result.content?.value?.text === 'string' ? result.content?.value.text : draft,
         baseVersions: result.baseVersions,
-        meta: { entity: change ? { target: change.after, baseVersions: result.baseVersions } : entity, receipt: result },
+        meta: { entity: draftSession.baselineSnapshot.value!.meta.entity, receipt: result },
         requestId: result.requestId,
       };
     },

@@ -2,8 +2,7 @@
 use crate::errors::AppResult;
 use crate::io::{read_csv_data, read_json_file, write_utf8_no_bom};
 use crate::models::{
-    CsvSave, JointEditSnapshot, JsonDocumentOrigin, SaveAction, SpecSave, TextSave,
-    WriteContentTarget, *,
+    CsvSave, JointEditSnapshot, JsonDocumentOrigin, SaveAction, SpecSave, WriteContentTarget, *,
 };
 use crate::services;
 use crate::services::project::PerformanceTrace;
@@ -56,14 +55,6 @@ fn rename(root: &Path, manifest: &ProjectManifest, mode: &str) -> AppResult<Writ
             data,
             json_write: Default::default(),
             ordered_json: None,
-        })),
-        "text" => project_save::execute_save_action(SaveAction::SaveTextFile(TextSave {
-            json_write: Default::default(),
-            session_id: Some(manifest.session_id.clone()),
-            mod_root: manifest.mod_root.clone(),
-            path: root.join("data/hulls/old.ship").to_string_lossy().into(),
-            base_versions: info.base_versions,
-            text: data.to_string(),
         })),
         "csv" => {
             let EntityLinkedRecord::Csv { row_key, .. } =
@@ -150,7 +141,7 @@ fn rename(root: &Path, manifest: &ProjectManifest, mode: &str) -> AppResult<Writ
 
 #[test]
 fn default_description_command_rename() {
-    for mode in ["csv", "spec", "text", "joint"] {
+    for mode in ["csv", "spec", "joint"] {
         let (root, manifest) = fixture(false);
         let shared = fs::read(root.join("data/hulls/other.ship")).unwrap();
         csv_writes::take_render_counts();
@@ -219,7 +210,7 @@ fn default_description_command_rename() {
 
 #[test]
 fn explicit_description_commands() {
-    for mode in ["csv", "spec", "text", "joint"] {
+    for mode in ["csv", "spec", "joint"] {
         let (root, manifest) = fixture(true);
         let before = fs::read(root.join("data/strings/descriptions.csv")).unwrap();
         let receipt = rename(&root, &manifest, mode).unwrap();
@@ -239,7 +230,7 @@ fn explicit_description_commands() {
 
 #[test]
 fn description_collision_is_atomic() {
-    for mode in ["csv", "spec", "text", "joint"] {
+    for mode in ["csv", "spec", "joint"] {
         let (root, manifest) = fixture(false);
         project::close_project_session(manifest.session_id).unwrap();
         let path = root.join("data/strings/descriptions.csv");
@@ -300,7 +291,7 @@ fn description_version_conflict() {
 
 #[test]
 fn missing_description_stays_missing() {
-    for mode in ["csv", "spec", "text", "joint"] {
+    for mode in ["csv", "spec", "joint"] {
         let (root, manifest) = fixture(false);
         project::close_project_session(manifest.session_id).unwrap();
         let path = root.join("data/strings/descriptions.csv");

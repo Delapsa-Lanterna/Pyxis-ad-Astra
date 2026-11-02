@@ -1,6 +1,13 @@
 import { describe, it, expect } from 'vitest';
 import cases from '@/test/fixtures/json-composition.json';
-import { composeJson, compositionOrigin, compositionPath, editComposedJson, setCompositionValue } from './json-composition';
+import {
+  composeJson,
+  compositionOrigin,
+  compositionPath,
+  editComposedJson,
+  setCompositionValue,
+  takeReplaceBase,
+} from './json-composition';
 import type { JsonComposition, RowData } from '@/shared/types';
 import { requireRowData } from '@/shared/lib/row-data';
 
@@ -31,12 +38,40 @@ describe('game JSON composition', () => {
     expect(compositionOrigin(local, composition, ['weights', 'A'])).toBe('base');
     expect(compositionOrigin(local, composition, ['ships', '0'])).toBe('base');
     expect(compositionOrigin(local, composition, ['ships', '2'])).toBe(null);
-    const draft = editComposedJson(local, before, { ...before, weights: { A: 0 }, enabled: false });
+    const draft = editComposedJson(local, before, { ...before, weights: { A: 0 }, enabled: false }, composition).value;
     expect(draft).toEqual({ ships: ['C'], weights: { A: 0 }, enabled: false });
     const restored = setCompositionValue(draft, ['weights', 'A'], undefined);
     expect(composeJson(restored, composition).weights).toEqual({ A: 10 });
-    expect(editComposedJson(local, before, { ...before, ships: [...(before.ships as string[]), 'D'] })).toEqual({ ships: ['C', 'D'] });
+    expect(editComposedJson(local, before, { ...before, ships: [...(before.ships as string[]), 'D'] }, composition).value).toEqual({
+      ships: ['C', 'D'],
+    });
     expect(compositionPath('file.shipRoles["combat.small"]["A"]')).toEqual(['file', 'shipRoles', 'combat.small', 'A']);
+  });
+  it('replaces the whole file when inherited array items change and leaves replacement through undo', () => {
+    const composition = sources({ turretOffsets: [10, -3, 10, 3], name: 'base' });
+    const local = { range: 500 },
+      before = composeJson(local, composition);
+    expect(before.turretOffsets).toEqual([10, -3, 10, 3]);
+    const moved = { ...before, turretOffsets: [12, -3, 10, 3] };
+    const edit = editComposedJson(local, before, moved, composition);
+    expect(edit.notice).toContain('replace');
+    expect(edit.rejected).toBe(false);
+    expect(JSON.stringify(edit.value)).not.toContain('core_clearArray');
+    expect(composeJson(edit.value, composition)).toEqual(moved);
+    expect(compositionOrigin(edit.value, composition, ['turretOffsets', '0'])).toBe(null);
+    const saved = takeReplaceBase(edit.value);
+    expect(saved).toEqual({ value: moved, replace: true });
+    const restored = editComposedJson(edit.value, moved, before, composition);
+    expect(restored.value).toEqual(local);
+    expect(takeReplaceBase(restored.value).replace).toBe(false);
+  });
+  it('drops an unchanged inherited prefix and rejects replacement of excluded settings files', () => {
+    const composition = sources({ ships: ['A', 'B'] });
+    const before = composeJson({}, composition);
+    expect(editComposedJson({}, before, { ships: ['A', 'B'] }, composition).value).toEqual({});
+    const settings = { ...composition, excluded: ['devMode'] };
+    const rejected = editComposedJson({}, before, { ships: ['B'] }, settings);
+    expect(rejected).toMatchObject({ value: {}, rejected: true });
   });
   it('applies full replacement and retains explicit empty strings', () => {
     const composition = sources({ name: 'base' });

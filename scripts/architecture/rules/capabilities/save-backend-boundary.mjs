@@ -23,7 +23,6 @@ const commandServices = new Map([
   ['load_editable_file', 'file_editor'],
   ['save_text_file', 'file_editor'],
   ['transcode_file_to_utf8', 'file_editor'],
-  ['query_text_identity_intent', 'file_editor'],
   ['follow_text_identity', 'file_editor'],
   ['apply_file_change_set', 'write_transactions'],
   ['query_file_history', 'write_transactions'],

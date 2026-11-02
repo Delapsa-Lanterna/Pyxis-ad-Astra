@@ -6,6 +6,8 @@ export interface SchemaRuntimeContext {
     local: () => RowData;
     sources: () => JsonComposition | undefined;
     apply: (path: string[], value: JsonValue | undefined) => void;
+    /** Path of the composed file object inside the local value; empty when the value is the file itself. */
+    root?: string[];
   };
   modRoot: string;
   sessionId: ProjectSessionId;

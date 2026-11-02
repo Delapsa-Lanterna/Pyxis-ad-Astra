@@ -9,6 +9,19 @@ pub struct JsonWriteOptions {
     pub preserve_original_json: bool,
     #[serde(default)]
     pub confirmed_sources: Vec<JsonSourceConfirmation>,
+    /// Mod-relative JSON paths that this write adds to the `mod_info.json` replace list.
+    #[serde(default)]
+    pub replace_paths: Vec<String>,
+}
+
+impl JsonWriteOptions {
+    /// Whether this write turns `relative` into a whole-file replacement of its base layers.
+    pub fn replaces(&self, relative: &str) -> bool {
+        let relative = relative.replace('\\', "/");
+        self.replace_paths
+            .iter()
+            .any(|path| path.replace('\\', "/") == relative)
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -1,9 +1,11 @@
 use super::super::model::ProjectSession;
+use crate::domain::entity_definitions;
 use crate::errors::{AppError, AppResult};
 use crate::io;
 use crate::io::FsRootBoundary;
 use crate::models::{
-    EntityFileLocation, EntityKind, JsonComposition, JsonSourceLayer, ResourceRef, ResourceSource,
+    EntityEditTarget, EntityFileLocation, EntityKind, JsonComposition, JsonSourceLayer,
+    ResourceRef, ResourceSource,
 };
 use crate::services::project::session::{lock_ready_session, session_handle};
 
@@ -41,6 +43,23 @@ pub(in crate::services) fn composition_for_session(
     let handle = session_handle(session_id)?;
     let session = lock_ready_session(&handle)?;
     json_composition(&session, relative)
+}
+
+/// Composition of a local entity file. The game merges every entity file it loads through
+/// `LoadingUtils.readJSON` (all spec kinds, including variants); `loadJSON` files such as
+/// `mod_info.json` and mission descriptors are read alone and have no spec definition here.
+pub(in crate::services::project) fn entity_composition(
+    session: &ProjectSession,
+    target: &EntityEditTarget,
+) -> AppResult<Option<JsonComposition>> {
+    let local = target
+        .source
+        .as_ref()
+        .is_some_and(|source| source.source == ResourceSource::Mod);
+    if !local || entity_definitions::entity_spec_definition(target.kind).is_none() {
+        return Ok(None);
+    }
+    json_composition(session, &target.write.rel_path).map(Some)
 }
 
 pub(in crate::services::project) fn json_composition(

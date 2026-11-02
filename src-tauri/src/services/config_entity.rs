@@ -704,6 +704,7 @@ mod tests {
                 index_row: Map::new(),
                 entity_data: serde_json::json!({"file":{"displayName":"New","id":"demo"}}),
                 json_write: JsonWriteOptions {
+                    replace_paths: Vec::new(),
                     keep_filename: false,
                     preserve_original_json: true,
                     confirmed_sources: Vec::new(),
@@ -932,6 +933,7 @@ mod tests {
             &root.to_string_lossy(),
             serde_json::json!({"id":"demo"}),
             JsonWriteOptions {
+                replace_paths: Vec::new(),
                 keep_filename: false,
                 preserve_original_json: true,
                 confirmed_sources: Vec::new(),

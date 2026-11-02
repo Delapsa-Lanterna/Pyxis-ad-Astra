@@ -2,8 +2,7 @@ use super::super::definitions::entity_definitions::entity_definition;
 use super::super::session::{lock_ready_session, session_handle};
 use crate::domain::json_composition as domain_json_composition;
 use crate::errors::AppResult;
-use crate::models::{EntityData, EntityKind, ResourceSource};
-use crate::services::project::json_composition;
+use crate::models::{EntityData, EntityKind};
 use crate::services::project::query::{entity_targets, json_composition as query_json_composition};
 
 pub fn query_entity(session_id: &str, kind: EntityKind, id: &str) -> AppResult<Option<EntityData>> {
@@ -30,18 +29,7 @@ pub fn query_entity(session_id: &str, kind: EntityKind, id: &str) -> AppResult<O
     let Some(data) = data else {
         return Ok(None);
     };
-    let composition = definition
-        .spec
-        .filter(|_| {
-            kind != EntityKind::Variant
-                && info
-                    .target
-                    .source
-                    .as_ref()
-                    .is_some_and(|source| source.source == ResourceSource::Mod)
-        })
-        .map(|_| json_composition(&session, &info.target.write.rel_path))
-        .transpose()?;
+    let composition = query_json_composition::entity_composition(&session, &info.target)?;
     let content = if matches!(kind, EntityKind::Weapon | EntityKind::Skill) {
         &data["spec"]
     } else {

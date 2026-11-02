@@ -1,14 +1,4 @@
-import type {
-  LoadEditableFilePayload,
-  TextSave,
-  TextTranscode,
-  TextIdentityIntentPayload,
-  FollowTextIdentityPayload,
-  JsonWriteOptions,
-  EntityEditTarget,
-  EntityIdentityIntent,
-  EntityKind,
-} from '@/shared/types';
+import type { LoadEditableFilePayload, TextSave, TextTranscode, FollowTextIdentityPayload, EntityKind } from '@/shared/types';
 import { invokeCommand, invokeSaveCommand, type SaveCommandRequest } from '@/shared/runtime/command.runtime';
 import type { EditableFileData, FileVersion, WriteResult } from '@/shared/types';
 
@@ -23,14 +13,8 @@ export function writeEditableFileText(
   text: string,
   baseVersions: FileVersion[],
   request?: SaveCommandRequest,
-  jsonWrite?: JsonWriteOptions,
 ): Promise<WriteResult> {
-  return invokeSaveCommand(
-    'save_text_file',
-    { payload: { baseVersions, sessionId, modRoot, path, text, ...(jsonWrite ? { jsonWrite } : {}) } satisfies TextSave },
-    [],
-    request,
-  );
+  return invokeSaveCommand('save_text_file', { payload: { baseVersions, sessionId, modRoot, path, text } satisfies TextSave }, [], request);
 }
 
 export function transcodeFileToUtf8(
@@ -43,10 +27,6 @@ export function transcodeFileToUtf8(
   return invokeSaveCommand('transcode_file_to_utf8', {
     payload: { baseVersions, sessionId, modRoot, path, encoding } satisfies TextTranscode,
   });
-}
-
-export function queryFileTextIdentityIntent(sessionId: string, source: EntityEditTarget, text: string): Promise<EntityIdentityIntent> {
-  return invokeCommand('query_text_identity_intent', { payload: { sessionId, source, text } satisfies TextIdentityIntentPayload });
 }
 
 export function followFileTextIdentity(kind: EntityKind, text: string, nextId: string): Promise<string> {

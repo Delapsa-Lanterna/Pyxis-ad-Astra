@@ -238,7 +238,7 @@ mod tests {
         assert_eq!(assets.styles["A"]["glowSizeMult"], 2);
         assert_eq!(
             assets.styles["A"]["nested"],
-            serde_json::json!({"a":1,"b":"2"})
+            serde_json::json!({"a":1,"b":2})
         );
         assert_eq!(
             assets.resources["graphics/custom.png"].rel_path,

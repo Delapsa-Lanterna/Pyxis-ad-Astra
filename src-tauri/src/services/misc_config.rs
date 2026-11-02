@@ -127,14 +127,15 @@ pub fn save_misc_config(
     let path = target_path(&payload.mod_root, payload.kind)?;
     require_version(&path, &payload.base_versions)?;
     validate_misc_config(payload.kind, &payload.data).map_err(|error| error.at_path(&path))?;
-    let composition =
+    let mut composition =
         project::composition_for_session(&payload.session_id, misc_config_path(payload.kind))?;
+    composition.replace |= payload.json_write.replaces(misc_config_path(payload.kind));
     let effective = json_composition::compose_game_json(&composition, &payload.data)?;
     schema::validate_field(
         config_schema(payload.kind),
         &effective,
         misc_config_path(payload.kind),
-        !composition.layers.is_empty(),
+        !composition.layers.is_empty() || composition.replace,
     )
     .map_err(|error| error.at_path(&path))?;
     if payload.kind == MiscConfigKind::Sounds {
@@ -142,9 +143,10 @@ pub fn save_misc_config(
     }
     let mut json = JsonWriteBatch::new(payload.json_write);
     let text = json.render(&path, &payload.data, Some(&payload.ordered_json))?;
-    json.finish()?;
     let mut builder = FileChangeSetBuilder::new(Path::new(&payload.mod_root))?;
     builder.text_file(misc_config_path(payload.kind), Some(text))?;
+    json.stage_replace_paths(&mut builder)?;
+    json.finish()?;
     Ok(WriteResult::from_content(
         builder.apply()?,
         WriteContentTarget::Json {

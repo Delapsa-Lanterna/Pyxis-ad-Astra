@@ -100,6 +100,10 @@ export interface EntityIdentityIntent {
   nextId: string;
   nextWrite: EntityFileLocation;
   destinationVersion: FileVersion;
+  /** Another file already uses the renamed file name. */
+  filenameTaken?: boolean;
+  /** The current file composes same-path base layers that a rename would stop inheriting. */
+  inherits?: boolean;
 }
 
 export interface EntityIdentityChange {

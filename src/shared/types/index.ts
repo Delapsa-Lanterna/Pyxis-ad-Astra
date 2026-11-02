@@ -201,7 +201,6 @@ export type {
   TextSave,
   TextTranscode,
   LoadEditableFilePayload,
-  TextIdentityIntentPayload,
   FollowTextIdentityPayload,
 } from '@/shared/types/file-editor.types';
 export { SPEC_EDITOR_KINDS } from '@/shared/types/spec-editor.types';

@@ -1242,6 +1242,7 @@ mod tests {
                 },
             }],
             JsonWriteOptions {
+                replace_paths: Vec::new(),
                 keep_filename: false,
                 preserve_original_json: true,
                 confirmed_sources: Vec::new(),
@@ -1298,6 +1299,7 @@ mod tests {
                 },
             }],
             JsonWriteOptions {
+                replace_paths: Vec::new(),
                 keep_filename: false,
                 preserve_original_json: true,
                 confirmed_sources: Vec::new(),

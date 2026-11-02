@@ -2,8 +2,7 @@
 use crate::errors::AppResult;
 use crate::io::{read_csv_data, read_json_file, write_utf8_no_bom};
 use crate::models::{
-    CsvSave, JointEditSnapshot, JsonDocumentOrigin, SaveAction, SpecSave, TextSave,
-    WriteContentTarget, *,
+    CsvSave, JointEditSnapshot, JsonDocumentOrigin, SaveAction, SpecSave, WriteContentTarget, *,
 };
 use crate::services;
 use crate::services::project::PerformanceTrace;
@@ -53,14 +52,6 @@ fn rename(root: &Path, manifest: &ProjectManifest, mode: &str) -> AppResult<Writ
             data,
             json_write: Default::default(),
             ordered_json: None,
-        })),
-        "text" => project_save::execute_save_action(SaveAction::SaveTextFile(TextSave {
-            json_write: Default::default(),
-            session_id: Some(manifest.session_id.clone()),
-            mod_root: manifest.mod_root.clone(),
-            path: root.join("data/weapons/old.wpn").to_string_lossy().into(),
-            base_versions: info.base_versions,
-            text: data.to_string(),
         })),
         "csv" => {
             let EntityLinkedRecord::Csv { row_key, .. } =
@@ -153,7 +144,7 @@ fn rename(root: &Path, manifest: &ProjectManifest, mode: &str) -> AppResult<Writ
 
 #[test]
 fn weapon_description_replay() {
-    for mode in ["csv", "spec", "text", "joint"] {
+    for mode in ["csv", "spec", "joint"] {
         let (root, manifest) = fixture(false);
         csv_writes::take_render_counts();
         let receipt = rename(&root, &manifest, mode).unwrap();
@@ -214,7 +205,7 @@ fn weapon_description_replay() {
 
 #[test]
 fn weapon_description_collision() {
-    for mode in ["csv", "spec", "text", "joint"] {
+    for mode in ["csv", "spec", "joint"] {
         let (root, manifest) = fixture(true);
         let path = root.join("data/strings/descriptions.csv");
         let before = fs::read(&path).unwrap();

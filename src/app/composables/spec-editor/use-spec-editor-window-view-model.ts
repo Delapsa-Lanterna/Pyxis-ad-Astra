@@ -31,9 +31,7 @@ import { normalizeFsPath } from '@/shared/lib/paths';
 import { captureIdentityVersions } from '@/domain/project/entity-versions';
 
 import { reserveEntityIntent, retargetEntityWindow } from '@/orchestrators/spec-editor-identity.orchestrator';
-import { chooseEntityFilename } from '@/orchestrators/entity-write.orchestrator';
-import { entityContentIdField } from '@/domain/project/entity-definitions';
-import { composeJson, editComposedJson, compositionPath, compositionValue } from '@/domain/schema/json-composition';
+import { composeJson, editComposedJson, compositionPath, compositionValue, takeReplaceBase } from '@/domain/schema/json-composition';
 
 import { runConfirmedJsonWrite } from '@/orchestrators/json-write-confirmation.orchestrator';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
@@ -83,24 +81,28 @@ export function useSpecEditorWindowViewModel(
         });
         return choice === 'save' && draftSession.context.value === context;
       },
-      save: async (target, draft, baseVersions, original, request) => {
+      save: async (target, submitted, baseVersions, original, request) => {
         const submittedData = deepClone(editorData.value!);
-        const nextId = String(draft[entityContentIdField(target.kind)] ?? submittedData.target.id);
-        const keepFilename = await chooseEntityFilename(feedback, submittedData.target, nextId);
-        if (keepFilename === null) return;
-        const intent = keepFilename ? null : await reserveEntityIntent(target.sessionId, target.modRoot, submittedData.target, draft);
+        const replaced = takeReplaceBase(submitted);
+        const draft = replaced.value;
+        const reserved = await reserveEntityIntent(target.sessionId, target.modRoot, submittedData.target, draft, feedback);
+        if (!reserved) return;
+        const { keepFilename, intent } = reserved;
         const versions = intent ? captureIdentityVersions(baseVersions, intent.destinationVersion) : baseVersions;
-        const result = await runConfirmedJsonWrite(feedback, (options) =>
-          saveSpecEditorSpecByKind(
-            target.sessionId,
-            target.modRoot,
-            submittedData.target,
-            draft,
-            keepFilename ? { ...options, keepFilename } : options,
-            versions,
-            original,
-            request,
-          ),
+        const result = await runConfirmedJsonWrite(
+          feedback,
+          (options) =>
+            saveSpecEditorSpecByKind(
+              target.sessionId,
+              target.modRoot,
+              submittedData.target,
+              draft,
+              keepFilename ? { ...options, keepFilename } : options,
+              versions,
+              original,
+              request,
+            ),
+          replaced.replace ? [submittedData.target.write.relPath] : [],
         );
         if (!result) return;
         const value = result.content!.value;
@@ -117,6 +119,7 @@ export function useSpecEditorWindowViewModel(
               target: savedTarget,
               isNew: false,
               baseVersions: result.baseVersions,
+              ...(replaced.replace && submittedData.composition ? { composition: { ...submittedData.composition, replace: true } } : {}),
             },
             receipt: result,
           },
@@ -297,11 +300,15 @@ export function useSpecEditorWindowViewModel(
   function updateEditorDraft(data: RowData): void {
     const target = editorWindowTarget();
     if (!target || !editorData.value) return;
-    draftSession.setDraft(
-      editorData.value.composition
-        ? editComposedJson(draftSession.draftValue.value, definition.normalize?.(editorData.value.spec) ?? editorData.value.spec, data)
-        : data,
-    );
+    const composition = editorData.value.composition;
+    if (!composition) {
+      draftSession.setDraft(data);
+      return;
+    }
+    const normalize = (value: RowData) => definition.normalize?.(value) ?? value;
+    const edit = editComposedJson(draftSession.draftValue.value, normalize(editorData.value.spec), data, composition, [], normalize);
+    if (edit.notice) feedback.info(edit.notice);
+    if (!edit.rejected) draftSession.setDraft(edit.value);
   }
 
   function loadPendingExternalSpec(): void {

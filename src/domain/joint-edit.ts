@@ -12,14 +12,57 @@ import type {
   JointEditRecord,
 } from '@/shared/types';
 import { deepClone } from '@/shared/lib/starsector';
+import { AppError } from '@/shared/lib/errors';
 import { formatJsonInput } from '@/shared/lib/json-input';
 import { entityContentIdField } from '@/domain/project/entity-definitions';
 import { isRowData } from '@/shared/lib/row-data';
 import { stableDeepEqual } from '@/shared/lib/stable-compare';
 import { renameVariantModules } from '@/shared/lib/starsector/variant-modules';
+import { composeJson, editComposedJson, takeReplaceBase } from '@/domain/schema/json-composition';
 
 export function jointObject(value: DeepReadonly<JointValue> | undefined): Readonly<RowData> {
   return value?.state === 'present' && isRowData(value.value) ? value.value : {};
+}
+
+/** Effective record content: composed records include their same-path base layers. */
+export function jointEffectiveObject(snapshot: JointEditSnapshot, values: Readonly<Record<string, JointValue>>, key: string): RowData {
+  const data = jointObject(values[key]) as RowData;
+  const composition = snapshot.records.find((record) => record.key === key)?.composition;
+  return composition ? composeJson(data, composition) : data;
+}
+
+/** Applies a transform of the effective record content and keeps only the local difference in the draft. */
+export function transformJointRecord(
+  snapshot: JointEditSnapshot,
+  values: Readonly<Record<string, JointValue>>,
+  key: string,
+  transform: (data: Readonly<RowData>) => RowData,
+): { value: JointValue; notice: string | null } {
+  const composition = snapshot.records.find((record) => record.key === key)?.composition;
+  if (!composition) return { value: { state: 'present', value: transform(jointObject(values[key])) }, notice: null };
+  const local = jointObject(values[key]) as RowData,
+    before = composeJson(local, composition);
+  const edit = editComposedJson(local, before, transform(before), composition);
+  if (edit.rejected) throw new AppError(edit.notice!, { action: 'update-joint-record', code: 'json.replace_unsupported' });
+  return { value: { state: 'present', value: edit.value }, notice: edit.notice };
+}
+
+/** Removes local replacement markers and returns the record files whose save must join the `replace` list. */
+export function takeJointReplaceBase(
+  snapshot: JointEditSnapshot,
+  values: Record<string, JointValue>,
+): { values: Record<string, JointValue>; replacePaths: string[] } {
+  const result = { ...values },
+    replacePaths: string[] = [];
+  for (const record of snapshot.records) {
+    const value = result[record.key];
+    if (record.target.kind !== 'spec' || value?.state !== 'present' || !isRowData(value.value)) continue;
+    const taken = takeReplaceBase(value.value);
+    if (!taken.replace) continue;
+    result[record.key] = { state: 'present', value: taken.value };
+    replacePaths.push(record.target.target.write.relPath);
+  }
+  return { values: result, replacePaths };
 }
 
 export function conflictValueText(value: JointValue): string {

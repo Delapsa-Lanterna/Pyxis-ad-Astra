@@ -42,13 +42,14 @@ export function useJsonDocumentView(document: JsonDocumentSession, definition: J
             local: () => document.draftValue.value,
             sources: () => {
               const sources = document.composition.value!;
-              return definition.kind === 'skin'
+              return definition.kind === 'skin' || definition.kind === 'variant'
                 ? sources
                 : { ...sources, layers: sources.layers.map((layer) => ({ ...layer, data: { file: layer.data } })) };
             },
             apply: (path: string[], value: JsonValue | undefined) => {
               document.draftValue.value = setCompositionValue(document.draftValue.value, path, value);
             },
+            root: definition.kind === 'skin' || definition.kind === 'variant' ? [] : ['file'],
           }
         : undefined,
     };

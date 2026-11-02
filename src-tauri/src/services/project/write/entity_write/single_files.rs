@@ -233,14 +233,16 @@ pub fn save_json_entity_file(
     let boundary = FsRootBoundary::new(mod_root, "mod root")?;
     let source_path = boundary.resolve_relative(source_rel_path, "实体源路径")?;
     let preserve_original_json = json_write.preserve_original_json;
+    let replacing = !json_write.replace_paths.is_empty();
     let mut json = JsonWriteBatch::new(json_write);
     let rendered = json.render(&source_path, &data, ordered_json)?;
-    json.finish()?;
     let unchanged = preserve_original_json
+        && !replacing
         && source_rel_path == next_rel_path
         && source_path.exists()
         && io::read_utf8_no_bom(&source_path)? == rendered;
     let changes = if unchanged {
+        json.finish()?;
         Vec::new()
     } else {
         let mut builder = FileChangeSetBuilder::new_with_lock(mod_root, write_lock)?;
@@ -249,6 +251,8 @@ pub fn save_json_entity_file(
         } else {
             builder.text_file(&next_rel_path, Some(rendered))?;
         }
+        json.stage_replace_paths(&mut builder)?;
+        json.finish()?;
         builder.apply()?
     };
 

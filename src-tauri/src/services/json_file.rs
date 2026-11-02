@@ -144,10 +144,9 @@ pub fn write_variant_request(payload: JsonFileSave) -> Result<WriteResult<Value>
 }
 
 pub fn write_skin_request(payload: JsonFileSave) -> Result<WriteResult<Value>, AppError> {
-    let composition = project::composition_for_session(
-        &payload.session_id,
-        payload.rel_path.as_deref().expect("skin source path"),
-    )?;
+    let relative = payload.rel_path.as_deref().expect("skin source path");
+    let mut composition = project::composition_for_session(&payload.session_id, relative)?;
+    composition.replace |= payload.json_write.replaces(relative);
     let effective = json_composition::compose_game_json(&composition, &payload.data)?;
     if effective.get("baseHullId").is_some() {
         services::validate_skin_engine_changes(&payload.session_id, &effective)?;

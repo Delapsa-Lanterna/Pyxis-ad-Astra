@@ -210,7 +210,7 @@ import {
   groupTableHeight,
 } from '@/domain/immersive/variant/variant-weapon-groups';
 import type { useImmersiveVariantEditor } from '@/app/composables/immersive-editor/variant/use-immersive-variant-editor';
-import { jointObject } from '@/domain/joint-edit';
+import { jointEffectiveObject } from '@/domain/joint-edit';
 import { useFieldInputs } from '@/shared/runtime/field-inputs';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
 import { useResourceMediaRegistry } from '@/app/composables/use-resource-media-registry';
@@ -222,7 +222,7 @@ const emit = defineEmits<{ close: [] }>();
 const feedback = useAppFeedback(),
   inputs = useFieldInputs()!;
 const surface = ref<HTMLElement | null>(null);
-let baseline = sevenWeaponGroups(jointObject(props.vm.joint.draftValue.value[props.recordKey]));
+let baseline = sevenWeaponGroups(jointEffectiveObject(props.vm.snapshot.value!, props.vm.joint.draftValue.value, props.recordKey));
 const groups = ref<RowData[]>(deepClone(baseline));
 const dirty = computed(() => !stableDeepEqual(groups.value, baseline));
 const equipped = computed(() => sortedGroupWeapons(props.variant.weapons));
@@ -278,7 +278,10 @@ onScopeDispose(
     label: '武器组',
     dirty,
     commit: () =>
-      stableDeepEqual(sevenWeaponGroups(jointObject(props.vm.joint.draftValue.value[props.recordKey])), baseline)
+      stableDeepEqual(
+        sevenWeaponGroups(jointEffectiveObject(props.vm.snapshot.value!, props.vm.joint.draftValue.value, props.recordKey)),
+        baseline,
+      )
         ? null
         : '分组来源已变化，请取消并重新打开核对',
     cancel,
@@ -318,7 +321,7 @@ function cancel() {
 }
 async function confirm() {
   try {
-    const current = sevenWeaponGroups(jointObject(props.vm.joint.draftValue.value[props.recordKey]));
+    const current = sevenWeaponGroups(jointEffectiveObject(props.vm.snapshot.value!, props.vm.joint.draftValue.value, props.recordKey));
     if (!stableDeepEqual(current, baseline)) {
       const choice = await feedback.choose({
         title: '武器组来源已变化',

@@ -3,6 +3,7 @@ use super::super::model::{MISSION_LIST_TABLE_KEY, ProjectSession, string_from_ro
 use super::super::session::csv_tables::{ensure_registered_table_rows, ensure_session_table_rows};
 use super::super::session::{lock_ready_session, session_handle};
 use super::super::versions::version_for_path;
+use super::json_composition;
 use crate::domain::{entity_definitions, entity_identity, variant_modules};
 use crate::errors::{AppError, AppResult};
 use crate::io;
@@ -161,13 +162,23 @@ pub fn query_entity_identity_intent(
     let destination = boundary.resolve_relative_target(&relative, "entity intent target")?;
     let same_file = io::same_physical_path(Path::new(&source.write.path), &destination);
     let next_target = describe_entity_target(&mut session, source.kind, next_id)?.target;
-    if (destination.exists() && (source.state == EntityTargetState::Create || !same_file))
+    // An occupied file name of an existing single-file entity is a choice, not an identity conflict.
+    let filename_taken = destination.exists()
+        && !same_file
+        && source.state == EntityTargetState::Existing
+        && definition.is_some();
+    if (destination.exists()
+        && (source.state == EntityTargetState::Create || !same_file)
+        && !filename_taken)
         || (next_id != source.id && next_target.state == EntityTargetState::Existing)
     {
         return Err(AppError::EntityTargetExists {
             target: Box::new(next_target),
         });
     }
+    let inherits = next_id != source.id
+        && json_composition::entity_composition(&session, source)?
+            .is_some_and(|composition| !composition.layers.is_empty() && !composition.replace);
     let mut next_write = source.write.clone();
     next_write.rel_path = relative;
     next_write.path = destination.to_string_lossy().to_string();
@@ -176,6 +187,8 @@ pub fn query_entity_identity_intent(
         next_id: next_id.to_string(),
         destination_version: io::file_version(&destination)?,
         next_write,
+        filename_taken,
+        inherits,
     })
 }
 

@@ -10,7 +10,7 @@ import type {
 } from '@/shared/types';
 import { queryJointEdit, queryJointEditRow, prepareJointEdit, saveJointEdit } from '@/services/joint-edit.service';
 import { runConfirmedJsonWrite } from '@/orchestrators/json-write-confirmation.orchestrator';
-import { applyJointConflictChoices } from '@/domain/joint-edit';
+import { applyJointConflictChoices, takeJointReplaceBase } from '@/domain/joint-edit';
 import { cloneQuerySnapshot } from '@/shared/lib/query-snapshot';
 import { AppError } from '@/shared/lib/errors';
 import type { SaveCommandRequest } from '@/shared/runtime/command.runtime';
@@ -61,6 +61,8 @@ export async function submitJointEdit(
   createOverrides: string[] = [],
   request?: SaveCommandRequest,
 ): Promise<JointEditWriteResult | null> {
+  const replaced = takeJointReplaceBase(draft.baseline, draft.values);
+  draft = { ...draft, values: replaced.values };
   const prepared = cloneQuerySnapshot<JointEditPrepared>(await prepareJointEdit(draft));
   const choices = prepared.conflicts.length > 0 ? await chooseConflicts(prepared) : [];
   if (choices === null) return null;
@@ -90,17 +92,20 @@ export async function submitJointEdit(
     });
     if (confirmed !== 'save') return null;
   }
-  const result = await runConfirmedJsonWrite(feedback, (jsonWrite) =>
-    saveJointEdit(
-      {
-        snapshot: prepared.snapshot,
-        values,
-        baseVersions: prepared.snapshot.baseVersions,
-        jsonWrite,
-        createOverrides,
-      },
-      request,
-    ),
+  const result = await runConfirmedJsonWrite(
+    feedback,
+    (jsonWrite) =>
+      saveJointEdit(
+        {
+          snapshot: prepared.snapshot,
+          values,
+          baseVersions: prepared.snapshot.baseVersions,
+          jsonWrite,
+          createOverrides,
+        },
+        request,
+      ),
+    replaced.replacePaths,
   );
   if (!result) return null;
   return result;

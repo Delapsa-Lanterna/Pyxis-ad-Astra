@@ -228,6 +228,12 @@ pub struct EntityIdentityIntent {
     pub next_id: String,
     pub next_write: EntityFileLocation,
     pub destination_version: FileVersion,
+    /// Another file already uses the renamed file name; keeping the current name avoids it.
+    #[serde(default)]
+    pub filename_taken: bool,
+    /// The current file composes same-path base layers that a rename would stop inheriting.
+    #[serde(default)]
+    pub inherits: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

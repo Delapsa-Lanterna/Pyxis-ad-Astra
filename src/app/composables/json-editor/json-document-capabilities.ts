@@ -7,6 +7,7 @@ import { prepareJsonSourceRecovery } from '@/services/json-recovery.service';
 import { deleteIndexedConfigEntity } from '@/services/json-entity.service';
 import { deleteVariantEntity, deleteSkinEntity } from '@/services/json-file.service';
 import { runConfirmedJsonWrite } from '@/orchestrators/json-write-confirmation.orchestrator';
+import { takeReplaceBase } from '@/domain/schema/json-composition';
 import type { FileSchema } from '@/domain/schema/schema.types';
 import { useProjectStore } from '@/stores/project.store';
 import { querySessionEntity } from '@/services/entity-query.service';
@@ -93,32 +94,41 @@ export async function saveJsonDocument(
   baseVersions: FileVersion[],
   original: RowData,
   request?: SaveCommandRequest,
+  composition?: JsonComposition,
 ): Promise<JsonDocumentSnapshot | void> {
   const { kind, file } = definition;
   const { sessionId, modRoot, id } = target;
+  const replaced = takeReplaceBase(data, kind === 'variant' || kind === 'skin' ? [] : ['file']);
+  data = replaced.value;
+  const replacePaths = replaced.replace ? [kind === 'misc-config' ? miscConfigDefinition(id).path : target.entity!.write.relPath] : [];
+  // The saved file now replaces its base layers, so the editor composes the saved content alone.
+  const replacedComposition = replaced.replace && composition ? { composition: { ...composition, replace: true } } : {};
   if (kind === 'misc-config') {
     const content = miscConfigDocumentContent(data);
-    const receipt = await runConfirmedJsonWrite(feedback, (jsonWrite) =>
-      saveMiscConfig(
-        {
-          sessionId,
-          modRoot,
-          kind: miscConfigDefinition(id).kind,
-          baseVersions,
-          data: content,
-          jsonWrite,
-          orderedJson: JSON.stringify(content),
-        },
-        miscConfigDocumentContent(original),
-        request,
-      ),
+    const receipt = await runConfirmedJsonWrite(
+      feedback,
+      (jsonWrite) =>
+        saveMiscConfig(
+          {
+            sessionId,
+            modRoot,
+            kind: miscConfigDefinition(id).kind,
+            baseVersions,
+            data: content,
+            jsonWrite,
+            orderedJson: JSON.stringify(content),
+          },
+          miscConfigDocumentContent(original),
+          request,
+        ),
+      replacePaths,
     );
     if (!receipt) return;
     return {
       target,
       value: miscConfigDocumentValue(receipt.content!.value),
       baseVersions: receipt.baseVersions,
-      meta: { receipt },
+      meta: { receipt, ...replacedComposition },
       requestId: receipt.requestId,
     };
   }
@@ -161,6 +171,7 @@ export async function saveJsonDocument(
       baseVersions,
       original,
       request,
+      replacePaths,
     );
     if (!result) return;
     receipt = result.receipt;
@@ -181,6 +192,7 @@ export async function saveJsonDocument(
       feedback,
       kind === 'faction' ? { file: original.file! } : { descriptor: original.descriptor!, text: original.text! },
       request,
+      replacePaths,
     );
     if (!result) return;
     receipt = result.receipt;
@@ -199,7 +211,7 @@ export async function saveJsonDocument(
     target: { ...target, id: kind === 'mod-info' ? id : nextId, entity },
     value,
     baseVersions: receipt.baseVersions,
-    meta: { receipt },
+    meta: { receipt, ...replacedComposition },
     requestId: receipt.requestId,
   };
 }

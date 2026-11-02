@@ -39,6 +39,7 @@ fn variant_rename_preserves_old_file_comments_and_key_order() {
             target_exists_in_index: false,
             data: json!({"hullId":"demo","variantId":"new"}),
             json_write: JsonWriteOptions {
+                replace_paths: Vec::new(),
                 keep_filename: false,
                 preserve_original_json: true,
                 confirmed_sources: Vec::new(),
@@ -286,6 +287,7 @@ fn spec_edits_preserve_selected_filename_and_rename_with_replay() {
             "old",
             JsonEntityFileInput {
                 json_write: JsonWriteOptions {
+                    replace_paths: Vec::new(),
                     keep_filename: false,
                     preserve_original_json: true,
                     confirmed_sources: Vec::new(),
@@ -305,6 +307,7 @@ fn spec_edits_preserve_selected_filename_and_rename_with_replay() {
             "new",
             JsonEntityFileInput {
                 json_write: JsonWriteOptions {
+                    replace_paths: Vec::new(),
                     keep_filename: false,
                     preserve_original_json: true,
                     confirmed_sources: Vec::new(),

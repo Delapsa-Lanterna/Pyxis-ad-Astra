@@ -73,11 +73,14 @@ function createJsonDocumentSession(definition: JsonDocumentDefinition, record: J
   const session = useEditTargetDraftSession<RowData, ConfigDocumentTarget, JsonDocumentMeta>({
     emptyValue: {},
     beginSave: beginSavedWrite,
-    savedContent: (snapshot) => ({ ...snapshot, meta: { ...snapshot.meta, receipt: null, recovery: undefined } }),
+    savedContent: (snapshot) => {
+      if (snapshot.meta.composition) composition.value = snapshot.meta.composition;
+      return { ...snapshot, meta: { ...snapshot.meta, receipt: null, recovery: undefined } };
+    },
     targetKey: configDocumentKey,
     load: loadJsonDocument,
     save: (target, draft, versions, original, request) =>
-      saveJsonDocument(definition, schema.value, feedback, target, draft, versions, original, request),
+      saveJsonDocument(definition, schema.value, feedback, target, draft, versions, original, request, composition.value),
     acceptSaved: async (snapshot) => {
       if (snapshot.meta.recovery) {
         recovery.accept(snapshot.meta.recovery);

@@ -47,7 +47,6 @@ const deleteJsonEntity: JsonFileDelete = {
 const readCommands = new Set([
   'load_editable_file',
   'load_imported_editor_spec_file',
-  'query_text_identity_intent',
   'follow_text_identity',
   'query_file_history',
   'clear_file_history',
@@ -62,11 +61,6 @@ const edits: Record<string, SaveEdit[]> = {
 const cases: Array<[string, () => Promise<unknown>, object]> = [
   ['load_editable_file', () => fileService.loadEditableFileData(null, modRoot, path), { sessionId: null, modRoot, path }],
   ['load_imported_editor_spec_file', () => editor.loadSpecEditorImport('ship', path), { kind: 'ship', path }],
-  [
-    'query_text_identity_intent',
-    () => fileService.queryFileTextIdentityIntent(sessionId, target, '{}'),
-    { sessionId, source: target, text: '{}' },
-  ],
   ['follow_text_identity', () => fileService.followFileTextIdentity('ship', '{}', id), { kind: 'ship', text: '{}', nextId: id }],
   [
     'save_csv_patch',

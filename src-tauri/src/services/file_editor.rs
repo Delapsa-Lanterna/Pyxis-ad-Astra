@@ -5,9 +5,8 @@ use crate::io::{
     read_text_bytes_no_bom, read_utf8_no_bom,
 };
 use crate::models::{
-    EditableFileData, EntityEditTarget, EntityIdentityChange, EntityIdentityIntent, EntityKind,
-    FileChangeReplayDirection, FileVersion, JsonWriteOptions, TextSave, WriteContentTarget,
-    WriteResult,
+    EditableFileData, EntityIdentityChange, EntityKind, FileChangeReplayDirection, TextSave,
+    WriteContentTarget, WriteResult,
 };
 use crate::services::project;
 use crate::{io, models, parsers, services};
@@ -39,51 +38,22 @@ pub fn load_project_editable_file(
     Ok(loaded)
 }
 
+/// Text saves write the submitted text at its own path. Entity files are not renamed and linked
+/// records are not rewritten; the committed change is re-read like any external modification.
 pub fn save_project_text_file(
-    session_id: Option<&str>,
     mod_root: &str,
     path: &str,
     text: String,
-    versions: &[FileVersion],
-    options: JsonWriteOptions,
 ) -> AppResult<WriteResult<Value>> {
     let path = FsRootBoundary::new(Path::new(mod_root), "mod root")?
         .resolve_absolute(Path::new(path), "file path")?;
     let path = path.to_string_lossy();
-    if let Some(session_id) = session_id
-        && let Some(info) = services::query_file_entity_target(session_id, &path)?
-    {
-        services::require_entity_version_scope(
-            session_id,
-            info.target.kind,
-            &info.target.id,
-            versions,
-        )?;
-        services::save_entity_text(session_id, &info.target, text, options)
-    } else {
-        Ok(save_text_file(mod_root, &path, text.clone())?.with_content(
-            WriteContentTarget::Text {
-                path: path.to_string(),
-            },
-            serde_json::json!({"text":text}),
-        ))
-    }
-}
-
-pub fn query_text_identity_intent(
-    session_id: &str,
-    source: &EntityEditTarget,
-    text: &str,
-) -> AppResult<EntityIdentityIntent> {
-    let content = parsers::parse_starsector_json(text).map_err(|error| {
-        AppError::context(format!("解析 JSON 文件失败 ({})", source.write.path), error)
-            .at_path(&source.write.path)
-    })?;
-    let definition = entity_definitions::entity_spec_definition(source.kind)
-        .expect("recognized file has spec definition");
-    let next =
-        models::file_content_id(&content, definition.id_field, Path::new(&source.write.path));
-    services::query_entity_identity_intent(session_id, source, &next)
+    Ok(save_text_file(mod_root, &path, text.clone())?.with_content(
+        WriteContentTarget::Text {
+            path: path.to_string(),
+        },
+        serde_json::json!({"text":text}),
+    ))
 }
 
 pub fn prepare_text_save(

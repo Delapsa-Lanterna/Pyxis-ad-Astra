@@ -1,5 +1,5 @@
 use crate::errors::{AppError, AppResult, JsonRewriteFile};
-use crate::io::{decode_text, read_utf8_no_bom, read_versioned_bytes};
+use crate::io::{FileChangeSetBuilder, decode_text, read_utf8_no_bom, read_versioned_bytes};
 use crate::models::{FileVersion, JsonWriteOptions};
 use crate::parsers::{PreserveResult, json_root_tail, parse_starsector_json, preserve_json_text};
 #[cfg(test)]
@@ -97,6 +97,49 @@ impl JsonWriteBatch {
         }
     }
 
+    /// Stages the requested `replace` entries of the root `mod_info.json` into the same changeset.
+    pub fn stage_replace_paths(&mut self, builder: &mut FileChangeSetBuilder) -> AppResult<()> {
+        if self.options.replace_paths.is_empty() {
+            return Ok(());
+        }
+        let path = builder.root().join("mod_info.json");
+        let mut info = read_json_file(&path)?;
+        let object = info.as_object_mut().ok_or_else(|| {
+            AppError::message("json.mod_info_shape", "mod_info.json 必须是 JSON 对象")
+                .at_path(&path)
+        })?;
+        let list = object
+            .entry("replace")
+            .or_insert_with(|| Value::Array(Vec::new()))
+            .as_array_mut()
+            .ok_or_else(|| {
+                AppError::message("json.mod_info_shape", "mod_info.json 的 replace 必须是数组")
+                    .at_path(&path)
+            })?;
+        let mut changed = false;
+        for relative in &self.options.replace_paths {
+            let relative = relative.replace('\\', "/");
+            if relative.ends_with("settings.json") {
+                return Err(AppError::message(
+                    "json.replace_unsupported",
+                    "settings.json 不支持整体取代",
+                ));
+            }
+            if !list.iter().any(|item| {
+                item.as_str()
+                    .is_some_and(|item| item.replace('\\', "/") == relative)
+            }) {
+                list.push(Value::String(relative));
+                changed = true;
+            }
+        }
+        if changed {
+            let text = self.render(&path, &info, None)?;
+            builder.text_file("mod_info.json", Some(text))?;
+        }
+        Ok(())
+    }
+
     pub fn finish(self) -> AppResult<()> {
         if self.pending.is_empty() {
             Ok(())
@@ -158,6 +201,7 @@ mod tests {
         let path = dir.join("demo.json");
         io::write_utf8_no_bom(&path, "{a:[1,,2], # keep\n b:3}\nEND").unwrap();
         let mut batch = JsonWriteBatch::new(JsonWriteOptions {
+            replace_paths: Vec::new(),
             keep_filename: false,
             preserve_original_json: true,
             confirmed_sources: Vec::new(),
@@ -176,6 +220,7 @@ mod tests {
         );
 
         let mut confirmed = JsonWriteBatch::new(JsonWriteOptions {
+            replace_paths: Vec::new(),
             keep_filename: false,
             preserve_original_json: true,
             confirmed_sources: vec![JsonSourceConfirmation {
@@ -205,6 +250,7 @@ mod tests {
             .push(serde_json::json!({"mode":"LINKED","weapons":{}}));
         let ordered = serde_json::to_string(&value).unwrap();
         let mut batch = JsonWriteBatch::new(JsonWriteOptions {
+            replace_paths: Vec::new(),
             keep_filename: false,
             preserve_original_json: true,
             confirmed_sources: Vec::new(),
@@ -226,6 +272,7 @@ mod tests {
         io::write_utf8_no_bom(&path, "{a:[1,,2]}").unwrap();
         let value = serde_json::json!({"a":[1,null,3]});
         let mut batch = JsonWriteBatch::new(JsonWriteOptions {
+            replace_paths: Vec::new(),
             keep_filename: false,
             preserve_original_json: true,
             confirmed_sources: Vec::new(),
@@ -237,6 +284,7 @@ mod tests {
         };
         io::write_utf8_no_bom(&path, "{a:[1,,2], b:4}").unwrap();
         let mut retry = JsonWriteBatch::new(JsonWriteOptions {
+            replace_paths: Vec::new(),
             keep_filename: false,
             preserve_original_json: true,
             confirmed_sources: vec![JsonSourceConfirmation {

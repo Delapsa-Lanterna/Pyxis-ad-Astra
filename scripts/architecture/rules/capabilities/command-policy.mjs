@@ -56,7 +56,7 @@ export const commandOwners = {
     'query_csv_row_preview',
     'prepare_csv_associated_specs',
   ],
-  'src/services/files.service.ts': ['load_editable_file', 'query_text_identity_intent', 'follow_text_identity'],
+  'src/services/files.service.ts': ['load_editable_file', 'follow_text_identity'],
   'src/services/spec-editor.service.ts': ['load_imported_editor_spec_file'],
   'src/services/json-recovery.service.ts': ['prepare_json_source_recovery'],
   'src/services/file-history.service.ts': ['query_file_history', 'clear_file_history'],

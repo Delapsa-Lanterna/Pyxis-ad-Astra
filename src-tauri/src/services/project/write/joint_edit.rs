@@ -209,7 +209,6 @@ pub fn save_joint_edit(payload: &JointEditSubmission) -> AppResult<WriteResult<J
                     target,
                     data.clone(),
                     None,
-                    None,
                 )?;
                 if let Some(rename) = staged.description_rename {
                     description_renames.push(rename);
@@ -237,6 +236,11 @@ pub fn save_joint_edit(payload: &JointEditSubmission) -> AppResult<WriteResult<J
                     target: staged.identity.after.clone(),
                 };
                 next.source = Some(staged.identity.after.write.clone());
+                if payload.json_write.replaces(&target.write.rel_path)
+                    && let Some(composition) = &mut next.composition
+                {
+                    composition.replace = true;
+                }
                 next.value = JointValue::Present(staged.data);
                 if let JointValue::Present(data) = &next.value {
                     next.resource_refs = match staged.identity.after.kind {
@@ -429,6 +433,7 @@ pub fn save_joint_edit(payload: &JointEditSubmission) -> AppResult<WriteResult<J
         }
         staged_tables.insert(table, draft.stage(&session, &mut builder)?);
     }
+    json.stage_replace_paths(&mut builder)?;
     json.finish()?;
     for identity in &mut identities {
         if let Some(table) = entity_definitions::entity_spec_definition(identity.after.kind)

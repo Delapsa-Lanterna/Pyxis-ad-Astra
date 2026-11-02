@@ -54,8 +54,10 @@ import { applySchemaFieldUpdate, getNestedValue, setNestedValue } from '@/domain
 import SchemaFieldRenderer from '@/app/components/schema/SchemaFieldRenderer.vue';
 import SchemaValueInput from '@/app/components/schema/SchemaValueInput.vue';
 import { useInputEditMode } from '@/app/composables/use-input-edit-mode';
+import { useAppFeedback } from '@/app/composables/use-app-feedback';
 
 const mode = useInputEditMode();
+const feedback = useAppFeedback();
 
 const props = defineProps<{
   schema: FileSchema;
@@ -67,7 +69,14 @@ const modelValue = computed({
   get: () =>
     props.runtimeContext?.composition ? composeJson(localValue.value, props.runtimeContext.composition.sources()) : localValue.value,
   set: (next) => {
-    localValue.value = props.runtimeContext?.composition ? editComposedJson(localValue.value, modelValue.value, next) : next;
+    const composition = props.runtimeContext?.composition;
+    if (!composition) {
+      localValue.value = next;
+      return;
+    }
+    const edit = editComposedJson(localValue.value, modelValue.value, next, composition.sources(), composition.root);
+    if (edit.notice) feedback.info(edit.notice);
+    if (!edit.rejected) localValue.value = edit.value;
   },
 });
 

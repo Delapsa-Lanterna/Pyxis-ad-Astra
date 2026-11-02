@@ -23,7 +23,6 @@
 - `src-tauri/src/services/project/write/entity_write.rs`：已识别实体文本的身份及关联写入。
 - `src/app/composables/use-window-close-state.ts`：窗口内容关闭登记及操作锁。
 - `src/domain/project/entity-versions.ts`：保存目标版本捕获与关联表凭据交接。
-- `src/orchestrators/entity-write.orchestrator.ts`：实体文本保存的文件名选择。
 - `src/orchestrators/window-identity.orchestrator.ts`：正式文件身份预约及窗口交接。
 - `src/shared/types/file-editor.types.ts`：文本读取、保存、转码与身份请求协议。
 - `src/shared/types/write-commit.types.ts`：公共保存回执、提交同步、行键映射与正式内容交付。
@@ -85,7 +84,7 @@
 
 ## 规范
 
-- 局部文件身份必须在内容缺省 ID 时从实际文件名推断，原始文本保存必须保留局部内容；修改 ID 后必须确认联动改名、保留文件名或取消保存。
+- 局部文件身份必须在内容缺省 ID 时从实际文件名推断，原始文本保存必须保留局部内容；文本保存必须按原路径写入提交文本，严禁改名或联动关联记录，保存后的身份变化按外部修改接纳。
 - Escape 关闭必须与标题栏关闭走同一守卫语义。
 - 保存期间文本域必须保持可编辑，后续文本必须按实际写盘基线计算 dirty；本地保存必须保留文本快照历史。
 - 保存解析失败必须保留原文并定位行列；未完成文本跟随改名时必须保持待交接身份，文本可解析后必须接纳新路径、ID 与基线。

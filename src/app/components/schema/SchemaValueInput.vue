@@ -78,14 +78,7 @@
 </template>
 <script setup lang="ts">
 import { computed } from 'vue';
-import {
-  compositionValue,
-  compositionPath,
-  composeJson,
-  setCompositionValue,
-  editComposedJson,
-  compositionOrigin,
-} from '@/domain/schema/json-composition';
+import { compositionPath, composeJson, setCompositionValue, editComposedJson, compositionOrigin } from '@/domain/schema/json-composition';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
 import SchemaCollectionInput from './SchemaCollectionInput.vue';
 import SchemaReferenceInput from './SchemaReferenceInput.vue';
@@ -118,24 +111,11 @@ function publish(update: SchemaFieldUpdate) {
     return;
   }
   const local = context.local(),
-    before = composeJson(local, context.sources());
-  const next = editComposedJson(local, before, setCompositionValue(before, path, update.value as JsonValue));
-  const apply = () => context.apply([], next);
-  const own = compositionValue(local, path);
-  if (
-    Array.isArray(update.value) &&
-    Array.isArray(props.value) &&
-    props.value.length &&
-    (!Array.isArray(own) || own[0] !== 'core_clearArray') &&
-    (compositionValue(next, path) as JsonValue[])[0] === 'core_clearArray'
-  )
-    feedback.confirmWarning({
-      title: '替换整个列表？',
-      content: '当前修改需要清空基础列表并保存完整本地列表。',
-      actionText: '替换整个列表',
-      onConfirm: apply,
-    });
-  else apply();
+    sources = context.sources(),
+    before = composeJson(local, sources);
+  const edit = editComposedJson(local, before, setCompositionValue(before, path, update.value as JsonValue), sources, context.root);
+  if (edit.notice) feedback.info(edit.notice);
+  if (!edit.rejected) context.apply([], edit.value);
 }
 const mode = useInputEditMode();
 const fieldInputKey = computed(() => props.inputKey ?? props.field.key);

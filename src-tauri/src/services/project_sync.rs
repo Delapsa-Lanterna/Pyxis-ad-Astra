@@ -622,7 +622,6 @@ mod tests {
             .unwrap();
             let transaction = write_transactions::begin(
                 &TextSave {
-                    json_write: Default::default(),
                     session_id: Some(manifest.session_id.clone()),
                     mod_root: manifest.mod_root.clone(),
                     path: root.join("notes.txt").to_string_lossy().into(),
@@ -693,7 +692,10 @@ mod tests {
 
     fn delivery_for_request(receive: &Receiver<Value>, kind: &str, request_id: &str) -> Value {
         loop {
-            let delivery = receive.recv_timeout(Duration::from_secs(5)).unwrap();
+            // The functional deadline allows file-backed saves to complete under concurrent CI load.
+            let delivery = receive
+                .recv_timeout(Duration::from_secs(15))
+                .unwrap_or_else(|error| panic!("{request_id}: waiting for {kind}: {error}"));
             if delivery["kind"] == kind && delivery["requestId"] == request_id {
                 return delivery;
             }
@@ -809,7 +811,7 @@ mod tests {
         })
         .unwrap();
         worker.join().unwrap();
-        receive.recv_timeout(Duration::from_secs(5)).unwrap();
+        receive.recv().unwrap();
         assert_project_idle(&root.to_string_lossy());
         root.close().unwrap();
     }

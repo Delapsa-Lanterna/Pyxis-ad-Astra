@@ -17,9 +17,7 @@ use crate::services::project::query::{
 };
 use crate::services::project::sources::documents::LoadedSpecRecord;
 use crate::services::project::sources::{core, documents};
-use crate::services::project::{
-    ensure_project_session_mod_root, json_composition, resources, versions,
-};
+use crate::services::project::{ensure_project_session_mod_root, resources, versions};
 use serde_json::{Map, Value};
 #[cfg(test)]
 use std::cell::Cell;
@@ -1229,13 +1227,7 @@ impl JointGraph<'_> {
         let source_version = source_read.as_ref().map(|(version, _)| version.clone());
         let value = source_read.map(|(_, value)| value);
         let value = self.projected_value(&key, value);
-        let composition = (kind != EntityKind::Variant
-            && target
-                .source
-                .as_ref()
-                .is_some_and(|source| source.source == ResourceSource::Mod))
-        .then(|| json_composition(self.session, &target.write.rel_path))
-        .transpose()?;
+        let composition = query_json_composition::entity_composition(self.session, &target)?;
         let effective = value
             .as_ref()
             .map(|value| {

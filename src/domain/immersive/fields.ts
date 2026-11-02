@@ -17,6 +17,8 @@ import type { ImmersiveFontRole } from './font-roles';
 import { parseInputNumber } from '@/shared/lib/input-number';
 import { createDefaultVariant, createDefaultSkin } from '@/domain/entity-write/spec-construction';
 import { setVariantModule, variantModuleEntries } from '@/shared/lib/starsector/variant-modules';
+import { composeJson, editComposedJson } from '@/domain/schema/json-composition';
+import { AppError } from '@/shared/lib/errors';
 
 export interface ImmersivePanelState {
   kind: JointEditKind;
@@ -94,10 +96,16 @@ export function updateImmersiveField(
         value: setVariantModule(data, field.moduleSlot, update.kind === 'set' ? schemaStringValue(update.value) : ''),
       },
     };
-  return {
-    ...values,
-    [record.key]: { state: 'present', value: applySchemaFieldUpdate(data, field.schema.key, converted) as Record<string, JsonValue> },
-  };
+  if (!record.composition)
+    return {
+      ...values,
+      [record.key]: { state: 'present', value: applySchemaFieldUpdate(data, field.schema.key, converted) as Record<string, JsonValue> },
+    };
+  // Composed records edit the effective value; only the local difference enters the draft.
+  const before = composeJson(data as RowData, record.composition);
+  const edit = editComposedJson(data as RowData, before, applySchemaFieldUpdate(before, field.schema.key, converted), record.composition);
+  if (edit.rejected) throw new AppError(edit.notice!, { action: 'update-immersive-field', code: 'json.replace_unsupported' });
+  return { ...values, [record.key]: { state: 'present', value: edit.value } };
 }
 
 export function immersiveNumber(csv: Readonly<RowData>, key: string, fallback: number): number {

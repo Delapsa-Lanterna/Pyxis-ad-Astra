@@ -53,13 +53,7 @@
             :title="section.title"
             :name="section.name"
           >
-            <SpecFieldList
-              :content="document"
-              :fields="section.fields"
-              :readonly-fields="['id']"
-              @remove="actions.removeField"
-              @update="actions.setProperty"
-            />
+            <SpecFieldList :content="document" :fields="section.fields" @remove="actions.removeField" @update="actions.setProperty" />
             <template v-if="section.name === 'missileVisual'">
               <FieldRow label="实际图片尺寸"
                 ><span>{{ view.spriteSize[0] }} × {{ view.spriteSize[1] }}</span></FieldRow

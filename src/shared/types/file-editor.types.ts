@@ -1,5 +1,4 @@
-import type { EntityEditInfo, FileVersion, EntityEditTarget, EntityKind } from '@/shared/types/project-identity.types';
-import type { JsonWriteOptions } from './json-write.types';
+import type { EntityEditInfo, FileVersion, EntityKind } from '@/shared/types/project-identity.types';
 export interface EditableFileData {
   entity: EntityEditInfo | null;
   path: string;
@@ -8,7 +7,6 @@ export interface EditableFileData {
 }
 
 export interface TextSave {
-  jsonWrite?: JsonWriteOptions;
   baseVersions: FileVersion[];
   sessionId: string | null;
   modRoot: string;
@@ -28,12 +26,6 @@ export interface LoadEditableFilePayload {
   sessionId: string | null;
   modRoot: string;
   path: string;
-}
-
-export interface TextIdentityIntentPayload {
-  sessionId: string;
-  source: EntityEditTarget;
-  text: string;
 }
 
 export interface FollowTextIdentityPayload {

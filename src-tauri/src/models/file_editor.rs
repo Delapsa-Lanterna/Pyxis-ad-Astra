@@ -1,8 +1,6 @@
 use super::ProjectSessionId;
 use super::serde_fields::deserialize_nullable;
-use crate::models::{
-    EntityEditInfo, EntityEditTarget, EntityKind, FileVersion, JsonWriteOptions, project_identity,
-};
+use crate::models::{EntityEditInfo, EntityKind, FileVersion, project_identity};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize)]
@@ -17,8 +15,6 @@ pub struct EditableFileData {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TextSave {
-    #[serde(default)]
-    pub json_write: JsonWriteOptions,
     pub base_versions: Vec<FileVersion>,
     #[serde(deserialize_with = "deserialize_nullable")]
     pub session_id: Option<ProjectSessionId>,
@@ -45,14 +41,6 @@ pub struct LoadEditableFilePayload {
     pub session_id: Option<ProjectSessionId>,
     pub mod_root: String,
     pub path: String,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct TextIdentityIntentPayload {
-    pub session_id: ProjectSessionId,
-    pub source: EntityEditTarget,
-    pub text: String,
 }
 
 #[derive(Debug, Deserialize)]

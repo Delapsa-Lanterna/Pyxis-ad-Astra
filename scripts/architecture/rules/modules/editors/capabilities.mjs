@@ -151,7 +151,7 @@ export const editorsCapabilities = [
     },
     {
       capability: 'text-read',
-      names: ['loadEditableFileData', 'queryFileTextIdentityIntent', 'followFileTextIdentity'],
+      names: ['loadEditableFileData', 'followFileTextIdentity'],
       owners: readOwners,
     },
   ]),

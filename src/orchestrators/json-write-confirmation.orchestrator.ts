@@ -28,12 +28,13 @@ function rewriteFiles(error: unknown): RewriteFile[] | null {
 export async function runConfirmedJsonWrite<T>(
   feedback: AppFeedback | undefined,
   write: (options: JsonWriteOptions) => Promise<T>,
+  replacePaths: string[] = [],
 ): Promise<T | null> {
   const preserveOriginalJson = feedback ? useSettingsStore().preserveOriginalJson : false;
   let confirmedSources: JsonSourceConfirmation[] = [];
   for (;;) {
     try {
-      return await write({ preserveOriginalJson, confirmedSources });
+      return await write({ preserveOriginalJson, confirmedSources, ...(replacePaths.length ? { replacePaths } : {}) });
     } catch (error) {
       if (!preserveOriginalJson || !feedback) throw error;
       const files = rewriteFiles(error);

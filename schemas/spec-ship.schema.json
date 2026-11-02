@@ -6,7 +6,7 @@
       "id": "basic",
       "label": "船体属性",
       "fields": [
-        { "key": "hullId", "label": "船体 ID", "type": "string", "default": "", "required": true, "identity": true },
+        { "key": "hullId", "label": "船体 ID", "type": "string", "default": "", "required": true, "editable": false, "identity": true },
         { "key": "hullName", "label": "船体名称", "type": "string", "default": "" },
         {
           "key": "hullSize",

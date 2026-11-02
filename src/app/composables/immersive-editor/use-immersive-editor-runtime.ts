@@ -36,7 +36,11 @@ import { querySessionHullReferences } from '@/services/hull-reference.service';
 import { hullReferenceSourceGroups } from '@/domain/resources/hull-references';
 import { recordLogBestEffort } from '@/services/app-log.service';
 import { logFields } from '@/shared/lib/log-fields';
-import { composeJson } from '@/domain/schema/json-composition';
+import { composeJson, replacesBase } from '@/domain/schema/json-composition';
+
+function jointValueData(value: JointValue | undefined) {
+  return value?.state === 'present' ? value.value : undefined;
+}
 
 export function useImmersiveEditorRuntime<TPanel extends ImmersivePanelState>(
   root: JointEditRoot & { rowKey?: string },
@@ -228,10 +232,17 @@ export function useImmersiveEditorRuntime<TPanel extends ImmersivePanelState>(
     if (changes.some((change) => change.field.handoff)) return switchReference(changes).then(() => undefined);
     const before = deepClone(joint.draftValue.value);
     let after = before;
-    for (const { field, update } of changes) {
-      const record = snapshot.value!.records.find((record) => record.key === field.recordKey)!;
-      after = (definition.updateField ?? updateImmersiveField)(after, record, field, update);
+    try {
+      for (const { field, update } of changes) {
+        const record = snapshot.value!.records.find((record) => record.key === field.recordKey)!;
+        after = (definition.updateField ?? updateImmersiveField)(after, record, field, update);
+      }
+    } catch (error) {
+      feedback.error(error);
+      return undefined;
     }
+    if (Object.keys(after).some((key) => replacesBase(jointValueData(after[key])) && !replacesBase(jointValueData(before[key]))))
+      feedback.info('已修改继承列表中的已有项，当前文件改为整体取代基础内容；保存时会将路径写入 mod_info.json 的 replace，可撤销。');
     joint.setDraft(after);
     history.push(before, after);
     return undefined;

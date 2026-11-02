@@ -7,7 +7,7 @@ import { deepClone } from '@/shared/lib/starsector';
 import { stableDeepEqual } from '@/shared/lib/stable-compare';
 import { AppError } from '@/shared/lib/errors';
 import { isRowData } from '@/shared/lib/row-data';
-import { jointObject } from '@/domain/joint-edit';
+import { jointObject, transformJointRecord } from '@/domain/joint-edit';
 import {
   variantBranchKeys,
   stripVariant,
@@ -65,7 +65,11 @@ export function useImmersiveVariantEditor(runtime: ImmersiveEditorRuntime) {
   function applyVariantActions(changes: readonly { key: string; transform: (data: Readonly<RowData>) => RowData }[]) {
     const before = deepClone(joint.draftValue.value);
     const after = { ...before };
-    for (const { key, transform } of changes) after[key] = { state: 'present', value: transform(jointObject(before[key])) };
+    for (const { key, transform } of changes) {
+      const edit = transformJointRecord(snapshot.value!, before, key, transform);
+      if (edit.notice) feedback.info(edit.notice);
+      after[key] = edit.value;
+    }
     joint.setDraft(after);
     history.push(before, after);
   }

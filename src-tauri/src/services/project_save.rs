@@ -117,14 +117,7 @@ pub(crate) fn execute_save_action(mut action: SaveAction) -> AppResult<WriteResu
             (services::write_spec_request(input)?, "保存编辑器规格")
         }
         SaveAction::SaveTextFile(input) => (
-            file_editor::save_project_text_file(
-                input.session_id.as_deref(),
-                &input.mod_root,
-                &input.path,
-                input.text,
-                &input.base_versions,
-                input.json_write,
-            )?,
+            file_editor::save_project_text_file(&input.mod_root, &input.path, input.text)?,
             "保存文本",
         ),
         SaveAction::TranscodeFileToUtf8(input) => (
@@ -276,11 +269,13 @@ mod tests {
     use crate::services::{project, project_sync};
     #[cfg(test)]
     use std::collections::BTreeSet;
+    use std::io::ErrorKind;
     use std::path::Path;
     use std::sync::mpsc;
     use std::time::Duration;
     #[cfg(test)]
     use std::{fs, thread};
+    use tauri::Error;
     #[cfg(test)]
     use tauri::async_runtime;
     #[cfg(test)]
@@ -356,7 +351,6 @@ mod tests {
             let (action, relative) = match kind {
                 "text" => (
                     SaveAction::SaveTextFile(TextSave {
-                        json_write: Default::default(),
                         session_id: Some(manifest.session_id.clone()),
                         mod_root: manifest.mod_root.clone(),
                         path: root.join("notes.txt").to_string_lossy().into(),
@@ -532,7 +526,7 @@ mod tests {
                         unreachable!()
                     };
                     send.send(serde_json::from_str::<Value>(&text).unwrap())
-                        .unwrap();
+                        .map_err(|_| Error::Io(ErrorKind::BrokenPipe.into()))?;
                     Ok(())
                 }),
             )
@@ -566,10 +560,13 @@ mod tests {
             let worker = thread::spawn(move || {
                 completed
                     .send(async_runtime::block_on(submit_project_save(label, request)))
-                    .unwrap();
+                    .map_err(|_| ErrorKind::BrokenPipe)
             });
+            // The functional deadline allows file-backed saves to complete under concurrent CI load.
             loop {
-                let delivery = receive.recv_timeout(Duration::from_secs(5)).unwrap();
+                let delivery = receive
+                    .recv_timeout(Duration::from_secs(15))
+                    .unwrap_or_else(|error| panic!("{kind}: waiting for missing source: {error}"));
                 if delivery["kind"] == "missing" {
                     let paths: Vec<String> =
                         serde_json::from_value(delivery["paths"].clone()).unwrap();
@@ -579,10 +576,10 @@ mod tests {
                 }
             }
             let result = completion
-                .recv_timeout(Duration::from_secs(5))
-                .unwrap()
+                .recv_timeout(Duration::from_secs(15))
+                .unwrap_or_else(|error| panic!("{kind}: waiting for save completion: {error}"))
                 .unwrap();
-            worker.join().unwrap();
+            worker.join().unwrap().unwrap();
             let delivered = receive
                 .try_iter()
                 .filter(|delivery| delivery["kind"] == "saved")

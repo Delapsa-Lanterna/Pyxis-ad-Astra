@@ -62,15 +62,15 @@ vi.mock('@/services/spec-weapon-editor.service', () => ({
     mocks.queryDraftEditorImages(session, 'weapon', id, draft, signal),
 }));
 vi.mock('@/services/spec-projectile-editor.service', () => ({ querySpecProjectileEditorData: vi.fn() }));
-vi.mock('@/orchestrators/entity-write.orchestrator', () => ({
-  chooseEntityFilename: vi.fn(async () => false),
-}));
 vi.mock('@/orchestrators/spec-editor-identity.orchestrator', () => ({
   reserveEntityIntent: async (_session: string, _root: string, source: EntityEditTarget, draft: RowData) => ({
-    source,
-    nextId: draft.hullId ?? draft.id,
-    destinationVersion: { path: source.write.path, fingerprint: 'destination' },
-    nextWrite: source.write,
+    keepFilename: false,
+    intent: {
+      source,
+      nextId: draft.hullId ?? draft.id,
+      destinationVersion: { path: source.write.path, fingerprint: 'destination' },
+      nextWrite: source.write,
+    },
   }),
   retargetEntityWindow: vi.fn(async () => {}),
 }));

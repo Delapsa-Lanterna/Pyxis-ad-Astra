@@ -3,8 +3,9 @@ use crate::models::JsonComposition;
 use serde_json::{Map, Value};
 use std::iter;
 
-/// Mirrors LoadingUtils: supplemental scalar values become strings, and array
-/// clearing retains the sentinel because downstream game consumers receive it.
+/// Mirrors LoadingUtils array and object merging. Array clearing retains the
+/// sentinel because downstream game consumers receive it; supplemental scalars
+/// keep their written type instead of the game's string form.
 pub fn merge_game_json(target: &mut Value, incoming: &Value, excluded: &[String]) -> AppResult<()> {
     let target = target.as_object_mut().expect("game JSON root is an object");
     for (key, value) in incoming.as_object().expect("game JSON source is an object") {
@@ -38,13 +39,7 @@ pub fn merge_game_json(target: &mut Value, incoming: &Value, excluded: &[String]
                 merge_game_json(current, value, excluded)?;
             }
             _ => {
-                target.insert(
-                    key.clone(),
-                    Value::String(match value {
-                        Value::String(text) => text.clone(),
-                        _ => value.to_string(),
-                    }),
-                );
+                target.insert(key.clone(), value.clone());
             }
         }
     }
@@ -58,7 +53,17 @@ fn merge_type_error(key: &str, kind: &str) -> AppError {
     )
 }
 
+/// Frontend draft marker for a file that replaces its base layers; it never reaches disk.
+pub const REPLACE_BASE_KEY: &str = "__replaceBase";
+
 pub fn compose_game_json(composition: &JsonComposition, local: &Value) -> AppResult<Value> {
+    if let Some(object) = local.as_object()
+        && object.contains_key(REPLACE_BASE_KEY)
+    {
+        let mut object = object.clone();
+        object.remove(REPLACE_BASE_KEY);
+        return Ok(Value::Object(object));
+    }
     if composition.replace {
         return Ok(local.clone());
     }

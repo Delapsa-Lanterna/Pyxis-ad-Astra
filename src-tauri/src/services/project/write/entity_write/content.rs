@@ -31,7 +31,8 @@ pub fn save_entity_spec(
     options: JsonWriteOptions,
     ordered_json: Option<&str>,
 ) -> AppResult<WriteResult<Value>> {
-    let composition = composition_for_session(session_id, &target.write.rel_path)?;
+    let mut composition = composition_for_session(session_id, &target.write.rel_path)?;
+    composition.replace |= options.replaces(&target.write.rel_path);
     let effective = json_composition::compose_game_json(&composition, &data)?;
     if let Some(schema) = match target.kind {
         EntityKind::Variant => Some("variant"),
@@ -48,41 +49,14 @@ pub fn save_entity_spec(
             parsers::bundled_schema("spec-weapon"),
         )?;
     }
-    save_entity_content(session_id, target, data, options, ordered_json, None)
+    save_entity_content(session_id, target, data, options, ordered_json)
 }
-pub fn save_entity_text(
-    session_id: &str,
-    target: &EntityEditTarget,
-    text: String,
-    options: JsonWriteOptions,
-) -> AppResult<WriteResult<Value>> {
-    let data = parsers::parse_starsector_json(&text).map_err(|error| {
-        AppError::context(format!("解析 JSON 文件失败 ({})", target.write.path), error)
-            .at_path(&target.write.path)
-    })?;
-    let definition =
-        entity_spec_definition(target.kind).expect("recognized text has a format definition");
-    let raw_id = models::file_content_id(&data, definition.id_field, Path::new(&target.write.path));
-    let id = validate_entity_id(&raw_id, definition.invalid_id_message)?;
-    let text = if raw_id == id || data.get(definition.id_field).is_none() {
-        text
-    } else {
-        parsers::replace_root_string(&text, definition.id_field, id)?
-    };
-    let result = save_entity_content(session_id, target, data, options, None, Some(&text))?;
-    let owner = WriteContentTarget::Text {
-        path: result.identity_changes[0].after.write.path.clone(),
-    };
-    Ok(result.with_content(owner, serde_json::json!({"text":text})))
-}
-
 fn save_entity_content(
     session_id: &str,
     target: &EntityEditTarget,
     data: Value,
     options: JsonWriteOptions,
     ordered_json: Option<&str>,
-    raw_text: Option<&str>,
 ) -> AppResult<WriteResult<Value>> {
     let handle = session_handle(session_id)?;
     let root = lock_session(&handle)?.manifest.mod_root.clone();
@@ -105,7 +79,6 @@ fn save_entity_content(
         target,
         data,
         ordered_json,
-        raw_text,
     )?;
     let description = descriptions::prepare_description_renames(
         &session,
@@ -123,6 +96,7 @@ fn save_entity_content(
         .linked_csv
         .map(|csv| csv.stage(&session, &mut builder))
         .transpose()?;
+    json.stage_replace_paths(&mut builder)?;
     json.finish()?;
     let changes = builder.apply()?;
     if let Some(csv) = description {
@@ -153,7 +127,6 @@ pub(in crate::services::project) fn stage_entity_content(
     target: &EntityEditTarget,
     mut data: Value,
     ordered_json: Option<&str>,
-    raw_text: Option<&str>,
 ) -> AppResult<StagedEntityWrite> {
     let definition = entity_spec_definition(target.kind)
         .ok_or_else(|| AppError::message("spec.kind_unknown", "实体规格格式不存在"))?;
@@ -243,11 +216,7 @@ pub(in crate::services::project) fn stage_entity_content(
             parsers::bundled_schema("spec-weapon"),
         )?;
     }
-    let text = if let Some(text) = raw_text {
-        text.to_string()
-    } else {
-        json.render(render_source, &data, ordered_json)?
-    };
+    let text = json.render(render_source, &data, ordered_json)?;
     if target.state == EntityTargetState::Existing && next_rel != target.write.rel_path {
         builder.rename_text_file(&target.write.rel_path, &next_rel, text)?;
     } else if !source.exists() || io::read_utf8_no_bom(&source)? != text {

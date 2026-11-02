@@ -55,8 +55,8 @@ pub(crate) use project::resources::fonts::query_original_font;
 pub(crate) use project::resources::sprites::resolve_mod_relative_path;
 pub(crate) use project::write::csv_patch::save_csv_patch_snapshot;
 pub(crate) use project::write::csv_patch::{prepare_csv_save, write_csv_request};
+pub(crate) use project::write::entity_write::content::save_entity_spec;
 pub(crate) use project::write::entity_write::content::{prepare_spec_save, write_spec_request};
-pub(crate) use project::write::entity_write::content::{save_entity_spec, save_entity_text};
 pub(crate) use project::write::entity_write::faction_index::delete_faction_entity;
 pub(crate) use project::write::entity_write::single_files::{
     save_variant_entity, validate_skin_engine_changes,
