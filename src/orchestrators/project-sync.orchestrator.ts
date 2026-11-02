@@ -1,3 +1,5 @@
+import { debugLog, infoLog } from '@/shared/runtime/app-log-queue';
+import { logIdentity } from '@/shared/lib/log-fields';
 import { recordWindowEventHandlerError } from '@/orchestrators/window-event-errors.orchestrator';
 import { useProjectStore } from '@/stores/project.store';
 import { useFileHistoryStore } from '@/stores/file-history.store';
@@ -89,15 +91,28 @@ function consumers() {
       return;
     }
     if (delivery.kind === 'waiting') {
+      debugLog('save.waiting', () => logIdentity(delivery));
       sync.setWaiting(delivery.modRoot, delivery.waiting);
       return;
     }
     if (delivery.kind === 'blocked') {
+      debugLog('save.blocked', () => ({
+        ...logIdentity(delivery),
+        errorCode: delivery.diagnostic.code,
+        error: delivery.diagnostic.message,
+      }));
       sync.setBlocked(delivery);
       return;
     }
     const event = delivery.event;
     event.result.requestId = delivery.requestId;
+    debugLog('save.delivered', () => ({
+      requestId: delivery.requestId,
+      reason: event.reason,
+      modRoot: event.modRoot,
+      sessionId: event.sessionId ?? '',
+      changes: String(event.result.changes.length),
+    }));
     for (const previous of sync.pending) {
       if (!previous.error) continue;
       if (normalizeRelPath(previous.event.modRoot).toLowerCase() !== normalizeRelPath(event.modRoot).toLowerCase()) continue;
@@ -184,8 +199,16 @@ async function consume(entry: PendingWriteSync): Promise<void> {
       if (windows.get(sync) !== window) return;
       window.sources.delete(entry.id);
       sync.complete(entry.id);
+      debugLog('save.accepted', () => ({ requestId: entry.id, modRoot: entry.event.modRoot, sessionId: entry.event.sessionId ?? '' }));
     } catch (error) {
       entry.error = errorDiagnosticOf(error);
+      debugLog('save.acceptance_failed', () => ({
+        requestId: entry.id,
+        modRoot: entry.event.modRoot,
+        remaining: String(entry.tasks.length),
+        errorCode: entry.error!.code,
+        error: entry.error!.message,
+      }));
       throw error;
     } finally {
       entry.running = null;
@@ -206,6 +229,12 @@ async function confirmMissingSources(window: SaveConsumers, delivery: Extract<Sa
     content: ['以下文件已缺失，将使用已读取的完整内容及本次保存修改重新创建：', ...delivery.paths].join('\n'),
     choices: [{ label: '重新创建并保存', value: 'recreate', type: 'warning' }],
   });
+  for (const path of delivery.paths)
+    infoLog('save.source_rebuild_decided', () => ({
+      requestId: delivery.requestId,
+      path,
+      status: choice === 'recreate' ? 'confirmed' : 'cancelled',
+    }));
   await resolveSaveSources(delivery.requestId, delivery.paths, choice === 'recreate');
 }
 
@@ -284,6 +313,12 @@ export async function settleProjectSaves(scope: CloseScope, feedback?: AppFeedba
       content: ['以下保存步骤尚未恢复，放弃后将保留磁盘当前内容：', ...pending.map((work) => work.diagnostic.message)].join('\n'),
       choices: [{ label: '放弃恢复并继续关闭', value: 'abandon', type: 'warning' }],
     });
+    for (const work of pending)
+      infoLog('save.recovery_decided', () => ({
+        requestId: work.requestId,
+        modRoot: work.modRoot,
+        status: choice === 'abandon' ? 'abandoned' : 'retained',
+      }));
     if (choice !== 'abandon') throw error;
     await abandonProjectSaves(roots);
     await waitProjectSaves(roots);
@@ -349,11 +384,13 @@ async function retryRequests(requests: ReadonlyArray<{ requestId: string; modRoo
   const sync = useProjectSyncStore();
   for (const work of requests) {
     const content = sync.pending.find((entry) => entry.id === work.requestId);
+    infoLog('save.retry_started', () => ({ requestId: work.requestId, modRoot: work.modRoot, phase: content ? 'content' : 'native' }));
     if (content) await consume(content);
     else {
       await retryProjectSave(work.requestId);
       await waitProjectSaves([work.modRoot]);
     }
+    infoLog('save.retry_completed', () => ({ requestId: work.requestId, modRoot: work.modRoot, phase: content ? 'content' : 'native' }));
   }
 }
 

@@ -44,7 +44,9 @@ describe('JSON field save boundary', () => {
     expect((inputs[2]!.element as HTMLTextAreaElement).value).toBe('[3]');
     await enterRaw(1, '{"y":4}');
     await session.saveDraft();
-    expect(save).toHaveBeenCalledWith('one', { first: { x: 2 }, second: { y: 4 }, third: [3] }, [], expect.any(Object), undefined);
+    expect(save).toHaveBeenCalledWith('one', { first: { x: 2 }, second: { y: 4 }, third: [3] }, [], expect.any(Object), {
+      id: 'fixture-save',
+    });
     wrapper.unmount();
   });
 
@@ -87,7 +89,7 @@ describe('JSON field save boundary', () => {
     await inputs[0]!.setValue('{"x":2}');
     await inputs[1]!.setValue('{"y":3}');
     await session.saveDraft();
-    expect(save).toHaveBeenCalledWith('one', { first: { x: 2 }, second: { y: 3 } }, [], expect.any(Object), undefined);
+    expect(save).toHaveBeenCalledWith('one', { first: { x: 2 }, second: { y: 3 } }, [], expect.any(Object), { id: 'fixture-save' });
     wrapper.unmount();
   });
   it.each(['{"x":', '{"x":1e309}'])('keeps rejected input %s dirty, blocks saving and commits the corrected object', async (raw) => {
@@ -130,7 +132,7 @@ describe('JSON field save boundary', () => {
     expect((wrapper.get('textarea').element as HTMLTextAreaElement).value).toBe(raw);
     await wrapper.get('textarea').setValue('{"x":2}');
     await session.saveDraft();
-    expect(save).toHaveBeenCalledWith('one', { nested: { x: 2 } }, [], expect.any(Object), undefined);
+    expect(save).toHaveBeenCalledWith('one', { nested: { x: 2 } }, [], expect.any(Object), { id: 'fixture-save' });
     expect(session.dirty.value).toBe(false);
     wrapper.unmount();
   });

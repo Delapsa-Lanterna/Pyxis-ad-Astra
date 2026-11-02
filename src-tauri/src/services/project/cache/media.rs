@@ -1,6 +1,7 @@
 use crate::diagnostics;
 use crate::errors::{AppError, AppResult};
 use crate::models::{CacheLimits, CacheSize};
+use serde_json::json;
 use std::collections::{HashMap, VecDeque};
 use std::fs;
 use std::path::PathBuf;
@@ -102,7 +103,11 @@ pub(in crate::services::project) fn lookup_data_url(
     let mut cache = match sprite_media_cache().lock() {
         Ok(cache) => cache,
         Err(_) => {
-            diagnostics::record("sprite media cache lock poisoned");
+            diagnostics::failure(
+                "cache.media_lookup_failed",
+                AppError::message("cache.lock_poisoned", "sprite media cache lock poisoned"),
+                json!({"sessionId":session_id,"resource":resource_key}),
+            );
             return None;
         }
     };
@@ -131,7 +136,11 @@ pub(in crate::services::project) fn insert_entry(
     data_url: String,
 ) {
     let Ok(mut cache) = sprite_media_cache().lock() else {
-        diagnostics::record("sprite media cache lock poisoned");
+        diagnostics::failure(
+            "cache.media_insert_failed",
+            AppError::message("cache.lock_poisoned", "sprite media cache lock poisoned"),
+            json!({"sessionId":session_id,"resource":resource_key,"path":resolved_path}),
+        );
         return;
     };
     let cache_key = (session_id.to_string(), resource_key.to_string());
@@ -148,7 +157,11 @@ pub(in crate::services::project) fn insert_entry(
 
 pub(in crate::services::project) fn clear_sprite_media_for_session(session_id: &str) {
     let Ok(mut cache) = sprite_media_cache().lock() else {
-        diagnostics::record("sprite media cache lock poisoned");
+        diagnostics::failure(
+            "cache.media_release_failed",
+            AppError::message("cache.lock_poisoned", "sprite media cache lock poisoned"),
+            json!({"sessionId":session_id}),
+        );
         return;
     };
     let keys = cache
@@ -168,7 +181,11 @@ pub(in crate::services::project) fn cached_sprite_media_contains(
     resource_key: &str,
 ) -> bool {
     let Ok(cache) = sprite_media_cache().lock() else {
-        diagnostics::record("sprite media cache lock poisoned");
+        diagnostics::failure(
+            "cache.media_lookup_failed",
+            AppError::message("cache.lock_poisoned", "sprite media cache lock poisoned"),
+            json!({"sessionId":session_id,"resource":resource_key}),
+        );
         return false;
     };
     cache

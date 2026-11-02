@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { invokeCommand } from './command.runtime';
 import { AppError, errorContextOf, errorDiagnosticOf, formatError, withCause } from '@/shared/lib/errors';
 import { appLogQueue } from './app-log-queue';
+import { logIdentity } from '@/shared/lib/log-fields';
 import type { AppLogEntry } from '@/shared/types';
 
 const mockInvoke = vi.hoisted(() => vi.fn());
@@ -9,6 +10,31 @@ vi.mock('@tauri-apps/api/core', () => ({ invoke: mockInvoke }));
 beforeEach(() => vi.clearAllMocks());
 
 describe('command transport', () => {
+  it('projects every target while leaving bodies and unrelated getters untouched', () => {
+    const body = vi.fn(() => 'private content');
+    const value = {
+      payload: {
+        sessionId: 's',
+        input: 'private input',
+        targets: [
+          { kind: 'weapon', id: 'one' },
+          { kind: 'ship', id: 'two' },
+        ],
+        get text() {
+          return body();
+        },
+      },
+    };
+    expect(logIdentity(value)).toMatchObject({
+      'payload.sessionId': 's',
+      'payload.targets.count': '2',
+      'payload.targets[0].id': 'one',
+      'payload.targets[1].id': 'two',
+    });
+    expect(body).not.toHaveBeenCalled();
+    expect(logIdentity(value)).not.toHaveProperty('payload.input');
+  });
+
   it('automatically correlates success and failure and excludes log and monitor calls', async () => {
     const records: AppLogEntry[] = [];
     appLogQueue.install(async (entries) => {
@@ -29,7 +55,7 @@ describe('command transport', () => {
       expect(records[0]!.fields?.request).toBe(records[1]!.fields?.request);
       expect(records[2]!.fields?.request).not.toBe(records[0]!.fields?.request);
       expect(JSON.stringify(records)).not.toContain('secret');
-      expect(JSON.stringify(records)).not.toContain('private failure');
+      expect(records[3]!.fields?.errorMessage).toBe('private failure');
     } finally {
       appLogQueue.setLevel('info');
     }
@@ -56,13 +82,13 @@ describe('command transport', () => {
       files: ['demo'],
     };
     mockInvoke.mockRejectedValue(cause);
-    const error = await invokeCommand('save_demo').catch((error: unknown) => error);
+    const error = await invokeCommand('save_demo', { id: 'captured-id' }).catch((error: unknown) => error);
     expect(error).toBeInstanceOf(AppError);
     expect(error).toMatchObject({ command: 'save_demo', cause });
     expect(errorDiagnosticOf(error)).toEqual({ code: cause.code, message: cause.message, location: cause.location });
     expect(formatError(error)).toBe('JSON 语法错误');
     const wrapped = withCause('保存失败', error, 'save-demo');
     expect(formatError(wrapped)).toBe('保存失败：JSON 语法错误');
-    expect(errorContextOf(wrapped)).toEqual({ action: 'save-demo', command: 'save_demo' });
+    expect(errorContextOf(wrapped)).toEqual({ action: 'save-demo', command: 'save_demo', id: 'captured-id' });
   });
 });

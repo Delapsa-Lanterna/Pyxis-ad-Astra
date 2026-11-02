@@ -2,7 +2,7 @@ use crate::models::CloseScope;
 #[cfg(windows)]
 use crate::services::windows::auxiliary;
 use crate::services::{app_lifecycle, app_log, performance_monitor, project_sync, windows};
-use models::AppLogEntry;
+use serde_json::json;
 use std::sync::Arc;
 use tauri::ipc::Invoke;
 use tauri::{Builder, Emitter, Manager, RunEvent, WindowEvent, async_runtime};
@@ -47,24 +47,40 @@ pub fn run() {
                     if let Err(error) =
                         app_lifecycle::request_close(&app, &owner, CloseScope::Window)
                     {
-                        diagnostics::record(format!("native close request: {error}"));
+                        diagnostics::failure(
+                            "window.close_failed",
+                            error,
+                            json!({"window":owner,"scope":"window"}),
+                        );
                     }
                 });
             }
             if matches!(event, WindowEvent::Destroyed)
                 && let Err(error) = windows::release_window(window.label())
             {
-                diagnostics::record(format!("release window registration: {error}"));
+                diagnostics::failure(
+                    "window.registration_release_failed",
+                    error,
+                    json!({"window":window.label()}),
+                );
             }
             if matches!(event, WindowEvent::Destroyed)
                 && let Err(error) = project_sync::release_window(window.label())
             {
-                diagnostics::record(format!("release save delivery: {error}"));
+                diagnostics::failure(
+                    "save.window_release_failed",
+                    error,
+                    json!({"window":window.label()}),
+                );
             }
             if matches!(event, WindowEvent::Destroyed)
                 && let Err(error) = app_lifecycle::destroyed(window.label())
             {
-                diagnostics::record(format!("close lifecycle release: {error}"));
+                diagnostics::failure(
+                    "window.close_release_failed",
+                    error,
+                    json!({"window":window.label()}),
+                );
             }
             if matches!(event, WindowEvent::Destroyed)
                 && let Err(error) = window.app_handle().emit(
@@ -72,22 +88,19 @@ pub fn run() {
                     serde_json::json!({"label": window.label()}),
                 )
             {
-                diagnostics::record(format!("notify window release: {error}"));
+                diagnostics::failure(
+                    "window.release_notification_failed",
+                    error,
+                    json!({"window":window.label()}),
+                );
             }
         })
         .setup(|app| {
             #[cfg(windows)]
             auxiliary::install(&app.config().identifier)?;
             app_log::start_native_writer(app.handle().clone());
-            diagnostics::install(Arc::new(move |level, code, message| {
-                let _ = app_log::append_app_log(AppLogEntry {
-                    level,
-                    code: Some(code.to_string()),
-                    message: Some(message.to_string()),
-                    path: None,
-                    line: None,
-                    fields: None,
-                });
+            diagnostics::install(Arc::new(move |entry| {
+                let _ = app_log::append_app_log(entry);
             }));
             Ok(())
         })

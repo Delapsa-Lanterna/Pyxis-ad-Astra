@@ -6,6 +6,7 @@ import { stableStringify } from '@/shared/lib/stable-compare';
 import { deepClone } from '@/shared/lib/starsector';
 import { createReadTicket, waitForRead, invalidatedRead, isReadInvalidated, type ReadTicket } from '@/shared/runtime/read-request';
 import type { QueryCacheKey, SessionQueryIdentity, DeepReadonly, ProjectInvalidation } from '@/shared/types';
+import { logIdentity } from '@/shared/lib/log-fields';
 import { beginDebug, debugLog, shouldQueueLog } from '@/shared/runtime/app-log-queue';
 
 export interface SessionQueryDefinition<TParameters extends object, TResult> {
@@ -30,11 +31,11 @@ const caches = new Set<InvalidateCache>();
 const liveQueries = new Set<LiveQuery>();
 const invalidationListeners = new Set<QueryCacheInvalidationListener>();
 
-function observeQueryLoad<T>(load: () => Promise<T>, signal: AbortSignal, queryKind: string): Promise<T> {
+function observeQueryLoad<T>(load: () => Promise<T>, signal: AbortSignal, identity: SessionQueryIdentity): Promise<T> {
   const result = load();
   if (!shouldQueueLog('debug')) return result;
   return result.then((value) => {
-    if (signal.aborted) debugLog('query.late_result', () => ({ queryKind }));
+    if (signal.aborted) debugLog('query.late_result', () => ({ ...logIdentity(identity), reason: String(signal.reason) }));
     return value;
   });
 }
@@ -53,12 +54,12 @@ function observeSessionQuery<TResult>(
   const result = execute(debug || finish ? fields : undefined).then(
     (value) => {
       finish?.();
-      log?.();
+      log?.('completed', value);
       return value;
     },
     (error) => {
       finish?.(isReadInvalidated(error) ? 'invalidated' : 'error');
-      log?.(isReadInvalidated(error) ? 'invalidated' : 'failed');
+      log?.(isReadInvalidated(error) ? 'invalidated' : 'failed', undefined, error);
       throw error;
     },
   );
@@ -107,6 +108,7 @@ export class CachedSessionQuery<TParameters extends object, TResult> {
       const definition = this.definition;
       const cache = this.cache;
       const identity = deepClone({ sessionId, queryKind: definition.queryKind, parameters });
+      if (observation && shouldQueueLog('debug')) Object.assign(observation, logIdentity(identity.parameters));
       if (signal?.aborted) throw invalidatedRead(identity, 'consumer');
       requireProjectionReady(sessionId);
       const key = JSON.stringify([sessionId, definition.queryKind, stableStringify(identity.parameters), currentReferenceRevision()]);
@@ -120,9 +122,7 @@ export class CachedSessionQuery<TParameters extends object, TResult> {
         if (observation) observation.cache = 'shared';
         return waitForRead(pending.promise, identity, signal);
       }
-      const request = createReadTicket(identity, (signal) =>
-        observeQueryLoad(() => definition.load(identity), signal, definition.queryKind),
-      );
+      const request = createReadTicket(identity, (signal) => observeQueryLoad(() => definition.load(identity), signal, identity));
       const completed = request.promise
         .then((result) => {
           requireProjectionReady(sessionId, revision);
@@ -146,14 +146,15 @@ export function readLiveSessionQuery<TParameters extends object, TResult>(
   parameters: TParameters,
   signal?: AbortSignal,
 ): Promise<DeepReadonly<TResult>> {
-  return observeSessionQuery(definition.queryKind, 'live', sessionId, async () => {
+  return observeSessionQuery(definition.queryKind, 'live', sessionId, async (observation) => {
     const ready = waitForReferenceSources();
     if (ready) await ready;
     const revision = currentReferenceRevision();
     const identity = deepClone({ sessionId, queryKind: definition.queryKind, parameters });
+    if (observation && shouldQueueLog('debug')) Object.assign(observation, logIdentity(identity.parameters));
     if (signal?.aborted) throw invalidatedRead(identity, 'consumer');
     requireProjectionReady(sessionId);
-    const request = createReadTicket(identity, (signal) => observeQueryLoad(() => definition.load(identity), signal, definition.queryKind));
+    const request = createReadTicket(identity, (signal) => observeQueryLoad(() => definition.load(identity), signal, identity));
     const entry: LiveQuery = {
       identity,
       request,
@@ -172,7 +173,7 @@ export function readLiveSessionQuery<TParameters extends object, TResult>(
 }
 
 function invalidateQueries(sessionId: string, invalidation: ProjectInvalidation | null) {
-  debugLog('query.invalidating', () => ({ sessionId, reason: invalidation ? 'project' : 'session' }));
+  debugLog('query.invalidating', () => ({ sessionId, reason: invalidation ? 'project' : 'session', ...logIdentity(invalidation) }));
   const queries: SessionQueryIdentity[] = [];
   for (const invalidate of caches) invalidate(sessionId, invalidation, queries);
   for (const entry of liveQueries) {

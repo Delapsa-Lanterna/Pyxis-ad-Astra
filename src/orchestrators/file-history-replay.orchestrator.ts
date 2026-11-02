@@ -4,8 +4,6 @@ import { useFileHistoryStore } from '@/stores/file-history.store';
 import { replayFileChangeSet, loadFileHistory } from '@/services/file-history.service';
 
 import { AppError } from '@/shared/lib/errors';
-import { recordLogBestEffort } from '@/services/app-log.service';
-import { logFields } from '@/shared/lib/log-fields';
 
 type ProjectStore = ReturnType<typeof useProjectStore>;
 export type FileHistoryReplayDirection = FileChangeReplayDirection;
@@ -66,21 +64,6 @@ export async function executeFileReplayPlan(plan: FileHistoryReplayPlan, project
   assertReplayPlanStillCurrent(plan, project);
   const result = await replayFileChangeSet(plan.sessionId, plan.modRoot, plan.direction, plan.entry.id, plan.revision);
   if (project.getSessionId(plan.modRoot) !== plan.sessionId) return result;
-  recordLogBestEffort({
-    level: 'info',
-    code: 'history.replayed',
-    message: 'file history replayed',
-    path: null,
-    line: null,
-    fields: logFields({
-      modRoot: plan.modRoot,
-      sessionId: plan.sessionId,
-      direction: plan.direction,
-      entryId: plan.entry.id,
-      label: plan.entry.label,
-      changes: result.changes.length,
-    }),
-  });
   return result;
 }
 

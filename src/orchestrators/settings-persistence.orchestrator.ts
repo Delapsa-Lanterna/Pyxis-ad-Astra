@@ -31,9 +31,18 @@ function report(error: unknown) {
 }
 function accept(snapshot: SettingsSnapshot) {
   if (official && snapshot.revision <= official.revision) return;
+  const previous = official?.value;
   official = snapshot;
   appLogQueue.setLevel(snapshot.value.logLevel);
-  debugLog('settings.saved', () => ({ revision: String(snapshot.revision), level: snapshot.value.logLevel }));
+  debugLog('settings.accepted', () => ({
+    revision: String(snapshot.revision),
+    level: snapshot.value.logLevel,
+    changed: JSON.stringify(
+      Object.keys(snapshot.value).filter(
+        (key) => stableStringify(previous?.[key as keyof AppSettings]) !== stableStringify(snapshot.value[key as keyof AppSettings]),
+      ),
+    ),
+  }));
   receive?.(snapshot);
   updateCacheLimits(snapshot.value.cacheLimits);
 }

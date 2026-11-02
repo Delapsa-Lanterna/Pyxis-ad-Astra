@@ -14,6 +14,7 @@ beforeEach(() => {
 describe('application log lifecycle', () => {
   it('batches records with event time and stable window sequence', async () => {
     const service = await import('./app-log.service');
+    expect(service.recordLogBestEffort).toBe((await import('@/shared/runtime/app-log-queue')).recordQueuedLog);
     for (let index = 0; index < 10; index++) service.recordLogBestEffort(entry);
     expect(invoke).not.toHaveBeenCalled();
     await service.flushApplicationLogs();

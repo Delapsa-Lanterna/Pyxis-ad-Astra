@@ -24,6 +24,16 @@
           >
             目标文件：{{ candidate.preparation.destination.problem }}
           </div>
+          <div
+            v-if="
+              weaponCreate ||
+              resolutionOptions(candidate).length > 1 ||
+              (candidate.change.action === 'rename' && candidate.preparation.original?.location.source === 'mod')
+            "
+            class="ui-text-small"
+          >
+            处理方式：
+          </div>
           <n-select
             v-if="resolutionOptions(candidate).length > 1"
             :value="candidate.mode"

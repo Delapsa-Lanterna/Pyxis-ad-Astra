@@ -31,73 +31,82 @@ export function useWorkspaceNavigationActions() {
   function openCore(): void {
     const modRoot = coreModRoot.value!;
     const starsectorRoot = core.root;
-    confirmNavigation(() => {
-      if (workspace.mods.get(modRoot)?.status === 'ready') workspaceNavigation.activateModTab(modRoot);
-      else
-        void openWorkspaceMod(modRoot, starsectorRoot)
-          .then((outcome) => {
-            if (outcome.type === 'mod-loaded') for (const warning of outcome.warnings) feedback.warning(warning);
-          })
-          .catch((error: unknown) => feedback.error(error, '打开原版失败'));
-    });
+    confirmNavigation(
+      () => {
+        if (workspace.mods.get(modRoot)?.status === 'ready') workspaceNavigation.activateModTab(modRoot);
+        else
+          void openWorkspaceMod(modRoot, starsectorRoot)
+            .then((outcome) => {
+              if (outcome.type === 'mod-loaded') for (const warning of outcome.warnings) feedback.warning(warning);
+            })
+            .catch((error: unknown) => feedback.error(error, '打开原版失败'));
+      },
+      { modRoot, page: 'core' },
+    );
   }
 
   function navigateToModOverview(modRoot: string): void {
-    confirmNavigation(() => workspaceNavigation.navigateToModOverview(modRoot));
+    confirmNavigation(() => workspaceNavigation.navigateToModOverview(modRoot), { modRoot, page: 'mod-overview' });
   }
 
   function navigateToModTable(modRoot: string, table: CsvTableKey): void {
-    confirmNavigation(() => workspaceNavigation.navigateToModTable(modRoot, table));
+    confirmNavigation(() => workspaceNavigation.navigateToModTable(modRoot, table), { modRoot, table, page: 'table' });
   }
 
   function navigateToModFiles(modRoot: string): void {
     if (workspace.activeModRoot === modRoot && workspace.currentView === 'mod-files') return;
-    confirmNavigation(() => workspaceNavigation.navigateToModFiles(modRoot));
+    confirmNavigation(() => workspaceNavigation.navigateToModFiles(modRoot), { modRoot, page: 'mod-files' });
   }
 
   function navigateToModFileHistory(modRoot: string): void {
     if (workspace.activeModRoot === modRoot && workspace.currentView === 'file-history') return;
-    confirmNavigation(() => workspaceNavigation.navigateToModFileHistory(modRoot));
+    confirmNavigation(() => workspaceNavigation.navigateToModFileHistory(modRoot), { modRoot, page: 'file-history' });
   }
 
   function navigateToModJson(modRoot: string, page: JsonEditorPageId): void {
     if (workspace.activeModRoot === modRoot && workspace.currentView === 'json-editor' && workspace.jsonPage === page) return;
-    confirmNavigation(() => workspaceNavigation.navigateToModJson(modRoot, page));
+    confirmNavigation(() => workspaceNavigation.navigateToModJson(modRoot, page), { modRoot, page });
   }
 
   function activateModTab(modRoot: string): void {
     if (workspace.activeModRoot === modRoot && workspace.isModView) return;
-    confirmNavigation(() => workspaceNavigation.activateModTab(modRoot));
+    confirmNavigation(() => workspaceNavigation.activateModTab(modRoot), { modRoot, page: 'activate-mod' });
   }
 
   function showOverview(): void {
-    confirmNavigation(() => workspace.showOverview());
+    confirmNavigation(() => workspace.showOverview(), { page: 'overview' });
   }
 
   function showSettings(): void {
-    confirmNavigation(() => workspace.showSettings());
+    confirmNavigation(() => workspace.showSettings(), { page: 'settings' });
   }
 
   function showAbout(): void {
-    confirmNavigation(() => workspace.showAbout());
+    confirmNavigation(() => workspace.showAbout(), { page: 'about' });
   }
 
-  function confirmNavigation(action: () => void) {
-    debugLog('navigation.requested');
+  function confirmNavigation(action: () => void, destination: Record<string, string>) {
     const commands = useSaveCommandStore();
     const sequence = commands.beginTransition();
+    const fields = {
+      request: String(sequence),
+      fromPage: workspace.currentView,
+      fromModRoot: workspace.activeModRoot ?? '',
+      ...destination,
+    };
+    debugLog('navigation.requested', () => fields);
     const waiting = commands.waitForSaves();
     if (waiting) {
       void waiting.then((saved) => {
-        debugLog('navigation.save_settled', () => ({ saved: String(saved) }));
-        if (saved && commands.isTransitionCurrent(sequence)) confirmIdleNavigation(action, sequence);
+        debugLog('navigation.save_settled', () => ({ ...fields, saved: String(saved) }));
+        if (saved && commands.isTransitionCurrent(sequence)) confirmIdleNavigation(action, sequence, fields);
       });
       return;
     }
-    confirmIdleNavigation(action, sequence);
+    confirmIdleNavigation(action, sequence, fields);
   }
 
-  function confirmIdleNavigation(action: () => void, sequence: number) {
+  function confirmIdleNavigation(action: () => void, sequence: number, fields: Record<string, string>) {
     const modRoot = workspace.activeModRoot;
     const inputs = modRoot && workspace.currentView === 'table' ? tables.activeEditor?.inputs : useJsonEditorStore().active?.inputs;
     if (inputs) {
@@ -106,7 +115,7 @@ export function useWorkspaceNavigationActions() {
         void pending
           .then((accepted) => {
             if (accepted && workspace.activeModRoot === modRoot && useSaveCommandStore().isTransitionCurrent(sequence)) {
-              debugLog('navigation.accepted');
+              debugLog('navigation.accepted', () => fields);
               action();
             }
           })
@@ -114,7 +123,7 @@ export function useWorkspaceNavigationActions() {
         return;
       }
     }
-    debugLog('navigation.accepted');
+    debugLog('navigation.accepted', () => fields);
     action();
   }
 

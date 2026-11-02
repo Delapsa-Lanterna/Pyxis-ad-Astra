@@ -148,7 +148,7 @@ describe('document save queue', () => {
     const item = participant('JSON', async () => ({ status: 'noop' }));
     await item.save();
     await appLogQueue.flush();
-    expect(entries).toEqual(['save.queued', 'save.started', 'save.completed']);
+    expect(entries).toEqual(['save.started', 'save.completed']);
     appLogQueue.setLevel('info');
   });
   it('captures each document immediately and delegates file ordering to the native queue', async () => {

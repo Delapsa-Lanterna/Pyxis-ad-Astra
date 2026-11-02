@@ -22,6 +22,7 @@ use crate::services::project::sources::json_documents::{
 use crate::services::project::sources::{SourceReader, core, documents};
 use crate::services::project::{invalidation, model, versions};
 use crate::{diagnostics, io, models};
+use serde_json::json;
 use std::collections::BTreeMap;
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -191,7 +192,11 @@ pub(crate) fn open_project_session_traced(
     if let Some(root) = &manifest.starsector_root
         && let Err(error) = core::flush_core_cache(root)
     {
-        diagnostics::record(format!("core cache flush failed: {error}"));
+        diagnostics::failure(
+            "cache.core_save_failed",
+            error,
+            json!({"modRoot":manifest.mod_root,"sessionId":manifest.session_id,"root":root}),
+        );
     }
     Ok(manifest)
 }

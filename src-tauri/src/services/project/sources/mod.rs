@@ -6,7 +6,7 @@ use crate::parsers::{parse_persisted_json, parse_starsector_json};
 use crate::test_support::work_counts;
 use crate::{diagnostics, io, models};
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use serde_json::{Value, json};
 use std::collections::btree_map::Entry;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
@@ -377,7 +377,11 @@ impl SourceReader {
             )
         })();
         if let Err(error) = result {
-            diagnostics::record(format!("source cache save failed: {error}"));
+            diagnostics::failure(
+                "cache.source_save_failed",
+                error,
+                json!({"root":self.root(),"records":self.records.len()}),
+            );
         }
     }
     pub fn reused(&self) -> bool {

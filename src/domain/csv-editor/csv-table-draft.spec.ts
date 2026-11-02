@@ -1,5 +1,5 @@
 import { createPinia, setActivePinia } from 'pinia';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useCsvEditorStore } from '@/stores/csv-editor.store';
 import { sessionUpdateFixture } from '@/test/fixtures/write-result';
 import { csvDraftRow, csvTableIndex } from '@/test/fixtures/csv-row';
@@ -22,7 +22,9 @@ import {
   replaceCsvTableDraft,
 } from './csv-table-draft';
 import { getAssociatedSpecCandidates } from './associated-spec-candidates';
-import type { CsvRowKeyMapping } from '@/shared/types';
+import { appLogQueue } from '@/shared/runtime/app-log-queue';
+import { ref } from 'vue';
+import type { AppLogEntry, CsvRowKeyMapping } from '@/shared/types';
 beforeEach(() => setActivePinia(createPinia()));
 const key = (index: number) => 'ships:row:' + index;
 function fixture(count = 6, loaded = Array.from({ length: count }, (_, index) => index)) {
@@ -43,6 +45,43 @@ function fixture(count = 6, loaded = Array.from({ length: count }, (_, index) =>
   return { state, index };
 }
 describe('CSV keyed baseline, order and draft acceptance', () => {
+  it('records each deleted identity and its undo and redo under one history identity', async () => {
+    fixture(6);
+    const records: AppLogEntry[] = [];
+    appLogQueue.install(async (batch) => {
+      records.push(...batch);
+    }, vi.fn());
+    const tables = useCsvEditorStore(),
+      target = { sessionId: 'session', modRoot: 'M:/mod', table: 'ships' as const };
+    const editor = tables.bindSaveActions(target, {
+      saving: ref(false),
+      save: async () => ({ status: 'noop' }),
+      waitForSave: async () => true,
+    });
+    tables.deleteRows(target, [key(0), key(2)]);
+    await editor.undo();
+    await editor.redo();
+    await appLogQueue.flush();
+    const events = records.filter((entry) => entry.code?.startsWith('tables.'));
+    expect(events.map((entry) => [entry.code, entry.fields?.id])).toEqual([
+      ['tables.row_deleted', 'row-0'],
+      ['tables.row_deleted', 'row-2'],
+      ['tables.undo', 'row-0'],
+      ['tables.undo', 'row-2'],
+      ['tables.redo', 'row-0'],
+      ['tables.redo', 'row-2'],
+    ]);
+    expect(new Set(events.map((entry) => entry.fields?.operationId)).size).toBe(1);
+    expect(events.every((entry) => entry.fields?.sessionId === 'session' && entry.fields.modRoot === 'M:/mod')).toBe(true);
+    tables.updateCellValue({ ...target, rowKey: key(1), column: 'id' }, 'renamed');
+    await editor.undo();
+    await appLogQueue.flush();
+    expect(records.at(-1)!.fields).toMatchObject({ previousId: 'renamed', nextId: 'row-1' });
+    tables.moveRows(target, [key(1), key(4)], 4);
+    await editor.undo();
+    await appLogQueue.flush();
+    expect(records.at(-1)!.fields).toMatchObject({ id: 'row-4', previousIndex: '3', nextIndex: '2' });
+  });
   it.each([0, 2, 6])('moves disjoint rows together at boundary %s and reverses exactly', (boundary) => {
     const { state } = fixture(6),
       document = state.documents.ships;

@@ -15,6 +15,7 @@ import { createResidentCache } from '@/shared/runtime/resident-cache';
 import { createReadTicket, waitForRead, invalidatedRead, type ReadTicket } from '@/shared/runtime/read-request';
 import { subscribeCacheLimits, windowCacheLimits } from '@/shared/runtime/cache-limits';
 import { beginPerformance, performanceMonitorEnabled } from '@/shared/runtime/performance';
+import { logIdentity } from '@/shared/lib/log-fields';
 import { debugLog } from '@/shared/runtime/app-log-queue';
 
 export const RESOURCE_MEDIA_FLUSH_DELAY_MS = 25;
@@ -64,7 +65,7 @@ export function mediaResourceKey(sessionId: string, resource: Pick<ResourceRef, 
 function request(entry: MediaEntry): Promise<string | null> {
   if (entry.value.value !== undefined) return Promise.resolve(entry.value.value);
   if (entry.request) return entry.request.promise;
-  debugLog('media.requested', () => ({ sessionId: entry.sessionId, source: entry.resource.source, relPath: entry.resource.relPath }));
+  debugLog('media.requested', () => ({ sessionId: entry.sessionId, ...logIdentity(entry.resource) }));
   const ticket = createReadTicket({ sessionId: entry.sessionId, resource: entry.resource }, (signal) =>
     new Promise<string | null>((resolve, reject) => queued.set(entry.key, { entry, resolve, reject })).then((value) => {
       if (signal.aborted) throw invalidatedRead({ sessionId: entry.sessionId, resource: entry.resource }, 'project');
@@ -72,8 +73,7 @@ function request(entry: MediaEntry): Promise<string | null> {
       entry.value.value = value;
       debugLog('media.received', () => ({
         sessionId: entry.sessionId,
-        source: entry.resource.source,
-        relPath: entry.resource.relPath,
+        ...logIdentity(entry.resource),
         available: String(value !== null),
       }));
       retained.put(entry.key, entry, value?.length ?? 0, entry.references);

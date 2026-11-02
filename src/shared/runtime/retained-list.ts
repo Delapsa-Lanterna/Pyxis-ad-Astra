@@ -18,6 +18,7 @@ export function useRetainedList<T>(
   identity: (item: T) => string,
   rowHeight: number,
   maxBatchSize = Infinity,
+  context: () => Record<string, string> = () => ({}),
 ) {
   const listId = String(++nextListId);
   const mounted = shallowReactive(new Map<string, RetainedListItem<T>>());
@@ -123,7 +124,8 @@ export function useRetainedList<T>(
         }
         view.index = positions.get(current) ?? -1;
         const hidden = view.index < 0;
-        if (hidden !== view.hidden) debugLog(hidden ? 'list.item_hidden' : 'list.item_restored', () => ({ listId, key: current }));
+        if (hidden !== view.hidden)
+          debugLog(hidden ? 'list.item_hidden' : 'list.item_restored', () => ({ ...context(), listId, key: current }));
         view.hidden = hidden;
         const item = resolve(current);
         if (item) view.item = item;
@@ -144,7 +146,7 @@ export function useRetainedList<T>(
     return !disposed && positions.get(key) === index;
   }
   function reset() {
-    debugLog('list.released', () => ({ listId, mounted: String(mounted.size) }));
+    debugLog('list.released', () => ({ ...context(), listId, reason: 'reset', mounted: String(mounted.size) }));
     generation++;
     cancelAnimationFrame(frame);
     frame = 0;
@@ -153,7 +155,7 @@ export function useRetainedList<T>(
     queue = [];
   }
   onScopeDispose(() => {
-    debugLog('list.released', () => ({ listId, mounted: String(mounted.size) }));
+    debugLog('list.released', () => ({ ...context(), listId, reason: 'dispose', mounted: String(mounted.size) }));
     disposed = true;
     generation++;
     cancelAnimationFrame(frame);
@@ -162,7 +164,7 @@ export function useRetainedList<T>(
     queue = [];
   });
   watch([startIndex, endIndex], ([start, end]) =>
-    debugLog('list.range_changed', () => ({ listId, start: String(start), end: String(end) })),
+    debugLog('list.range_changed', () => ({ ...context(), listId, start: String(start), end: String(end), total: String(keys().length) })),
   );
   return { entries, activeItems, startIndex, endIndex, firstVisibleIndex, lastVisibleIndex, setViewportMetrics, ensure, reset };
 }

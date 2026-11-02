@@ -6,7 +6,8 @@ import * as editor from '@/services/spec-editor.service';
 import * as fileHistory from '@/services/file-history.service';
 import * as fileService from '@/services/files.service';
 import { entityTargetFixture } from '@/test/fixtures/entity-target';
-import type { IndexedConfigDelete, JsonFileDelete, IndexedConfigSave, JsonFileSave, SaveEdit } from '@/shared/types';
+import { appLogQueue } from '@/shared/runtime/app-log-queue';
+import type { AppLogEntry, IndexedConfigDelete, JsonFileDelete, IndexedConfigSave, JsonFileSave, SaveEdit } from '@/shared/types';
 
 const invoke = vi.hoisted(() => vi.fn());
 vi.mock('@tauri-apps/api/core', () => ({ invoke }));
@@ -121,6 +122,26 @@ beforeEach(() => {
   invoke.mockResolvedValue({ ready: true });
 });
 describe('query and persistence transport protocols', () => {
+  it.each(['delete', 'upsert'] as const)('records both %s row identities under the actual save request', async (action) => {
+    const records: AppLogEntry[] = [];
+    appLogQueue.install(async (batch) => {
+      records.push(...batch);
+    }, vi.fn());
+    const originalRows = Object.fromEntries(['one', 'two'].map((id) => [id, { rowKey: id, data: { id }, isComment: false }]));
+    const patches = Object.values(originalRows).map((row) => ({
+      rowKey: row.rowKey,
+      action,
+      row: { id: 'next_' + row.data.id },
+      isComment: false,
+    }));
+    await csvTable.saveCsvPatch(sessionId, modRoot, 'ships', patches, [], undefined, [], null, originalRows, { id: 'save-audit' });
+    await appLogQueue.flush();
+    const rows = records.filter((entry) => entry.code === 'tables.row_submitted');
+    expect(rows.map((entry) => entry.fields?.previousId)).toEqual(['one', 'two']);
+    expect(rows.map((entry) => entry.fields?.nextId)).toEqual(action === 'delete' ? ['', ''] : ['next_one', 'next_two']);
+    expect(rows.every((entry) => entry.fields?.requestId === 'save-audit' && entry.fields.members === '2')).toBe(true);
+    expect(records.find((entry) => entry.code === 'save.committed')!.fields?.requestId).toBe('save-audit');
+  });
   it.each(cases)('%s preserves its wire protocol', async (command, action, payload) => {
     const result = await action();
     if (readCommands.has(command)) {

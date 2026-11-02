@@ -286,7 +286,7 @@ describe('useFileEditorViewModel editing', () => {
       'C:/mods/alpha/data/hulls/test.file',
       'saved text',
       [],
-      undefined,
+      { id: 'fixture-save' },
     );
     expect(mocks.publishCommittedWrite).toHaveBeenCalledTimes(1);
     expect(mocks.feedback.success).toHaveBeenCalledWith('文件已保存');
@@ -310,14 +310,9 @@ describe('useFileEditorViewModel editing', () => {
     });
     viewModel.updateText('recovered');
     await viewModel.saveFile();
-    expect(mocks.writeEditableFileText).toHaveBeenCalledWith(
-      null,
-      'C:/mods/alpha',
-      'C:/mods/alpha/data/hulls/test.file',
-      'recovered',
-      [],
-      undefined,
-    );
+    expect(mocks.writeEditableFileText).toHaveBeenCalledWith(null, 'C:/mods/alpha', 'C:/mods/alpha/data/hulls/test.file', 'recovered', [], {
+      id: 'fixture-save',
+    });
     expect(mocks.publishCommittedWrite).toHaveBeenCalledWith('C:/mods/alpha', expect.any(Object), null);
     viewModel.dispose();
   });

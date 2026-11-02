@@ -10,11 +10,11 @@ export const projectChangeListeners = new Set<(event: CommittedWriteEvent) => Re
 const releases = new Map<(event: CommittedWriteEvent) => ReturnType<SaveAcceptanceTask>, (sessionId: string) => void>();
 export const savedContentWorks: Array<{ content: Promise<unknown>; retryContent: () => Promise<unknown> }> = [];
 export function beginSavedWrite<T>(
-  write: (request?: SaveCommandRequest) => Promise<T>,
+  write: (request: SaveCommandRequest) => Promise<T>,
   accept: (value: Exclude<T, void | null>) => SaveAcceptanceTask[],
   complete?: (value: T) => unknown,
 ) {
-  const written = write();
+  const written = write({ id: 'fixture-save' });
   let id = 'fixture-save';
   let tasks: SaveAcceptanceTask[] | undefined;
   const finish = async () => {

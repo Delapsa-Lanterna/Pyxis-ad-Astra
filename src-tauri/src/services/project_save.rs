@@ -10,7 +10,7 @@ use crate::{diagnostics, services};
 use serde::Serialize;
 #[cfg(test)]
 use serde::de::DeserializeOwned;
-use serde_json::Value;
+use serde_json::{Value, json};
 use std::sync::Arc;
 use tauri::async_runtime;
 
@@ -42,21 +42,31 @@ pub async fn submit_project_save(
             )
         }
     };
+    let request_id = request.id.clone();
     let work = project_sync::enqueue(&owner, request.id, &root, session_id.as_deref())?;
     async_runtime::spawn_blocking(move || {
+        let phase = |code| {
+            diagnostics::debug(code, || {
+                format!("requestId={request_id} modRoot={root} sessionId={session_id:?}")
+            })
+        };
         let result = project_sync::execute_queued(
             work.clone(),
             &root,
             session_id.as_deref(),
             reason,
             |identities, versions| {
+                phase("save.versions_checking");
                 let mut action = request.action.clone();
                 let _lease =
                     project_sync::prepare_versions(&root, action.versions(), versions, identities)?;
+                phase("save.preparing");
                 prepare_save_action(&mut action, &request.edits, identities)?;
+                phase("save.writing");
                 execute_save_action(action)
             },
         )?;
+        phase("save.native_completed");
         // Reference delivery must preserve the outcome of the completed file transaction.
         if let Err(error) =
             project::reference_sources_changed(session_id.as_deref()).and_then(|snapshot| {
@@ -66,7 +76,11 @@ pub async fn submit_project_save(
                 Ok(())
             })
         {
-            diagnostics::record(format!("reference refresh delivery: {error}"));
+            diagnostics::failure(
+                "save.reference_delivery_failed",
+                error,
+                json!({"modRoot":root,"sessionId":session_id}),
+            );
         }
         Ok(result)
     })

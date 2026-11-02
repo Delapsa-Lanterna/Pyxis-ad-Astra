@@ -1,6 +1,25 @@
 import type { AppLogEntry, AppLogLevel } from '@/shared/types';
 import { shallowRef } from 'vue';
+import { errorDiagnosticOf } from '@/shared/lib/errors';
+import { logFields, logIdentity } from '@/shared/lib/log-fields';
 export const applicationLogError = shallowRef('');
+
+export type RuntimeLogContext = Record<string, string | number | null | undefined>;
+const contextProviders = new Set<() => RuntimeLogContext>();
+export function setRuntimeErrorContext(provider: () => RuntimeLogContext) {
+  contextProviders.add(provider);
+  return () => contextProviders.delete(provider);
+}
+function runtimeContext(): RuntimeLogContext {
+  const values: RuntimeLogContext = {};
+  for (const provider of contextProviders)
+    try {
+      Object.assign(values, provider());
+    } catch {
+      /* Context collection cannot replace the original diagnostic. */
+    }
+  return values;
+}
 
 const LEVEL_RANK: Record<AppLogLevel, number> = { debug: 0, info: 1, warning: 2, error: 3 };
 
@@ -58,6 +77,7 @@ export function createAppLogQueue() {
     pending.push({
       ...entry,
       fields: {
+        ...(entry.level === 'warning' || entry.level === 'error' ? logFields(runtimeContext()) : null),
         ...entry.fields,
         timestamp: new Date().toISOString(),
         window: (instance ||= crypto.randomUUID()),
@@ -93,14 +113,37 @@ export const shouldQueueLog = appLogQueue.enabled;
 let intervalSequence = 0;
 
 export function debugLog(code: string, fields: () => Record<string, string> = () => ({})): void {
-  if (shouldQueueLog('debug')) recordQueuedLog({ level: 'debug', code, message: null, path: null, line: null, fields: fields() });
+  recordLazyLog('debug', code, fields);
 }
 
-export function beginDebug(code: string, fields: () => Record<string, string>): ((status?: string) => void) | undefined {
+export function infoLog(code: string, fields: () => Record<string, string>): void {
+  recordLazyLog('info', code, fields);
+}
+
+function recordLazyLog(level: AppLogLevel, code: string, fields: () => Record<string, string>) {
+  if (shouldQueueLog(level)) recordQueuedLog({ level, code, message: null, path: null, line: null, fields: fields() });
+}
+
+export function beginDebug(
+  code: string,
+  fields: () => Record<string, string>,
+): ((status?: string, result?: unknown, error?: unknown) => void) | undefined {
   if (!shouldQueueLog('debug')) return;
   const context = fields(),
     started = performance.now();
   context.request ??= String(++intervalSequence);
   debugLog(`${code}.started`, () => context);
-  return (status = 'completed') => debugLog(`${code}.${status}`, () => ({ ...context, durationMs: String(performance.now() - started) }));
+  return (status = 'completed', result, error) =>
+    debugLog(`${code}.${status}`, () => {
+      const diagnostic = error === undefined ? null : errorDiagnosticOf(error);
+      return {
+        ...context,
+        ...logIdentity(result, 'result'),
+        resultCount: String(Array.isArray(result) ? result.length : result == null ? 0 : 1),
+        ...(diagnostic
+          ? { errorCode: diagnostic.code, errorMessage: diagnostic.message, ...logIdentity(diagnostic.location, 'error') }
+          : {}),
+        durationMs: String(performance.now() - started),
+      };
+    });
 }

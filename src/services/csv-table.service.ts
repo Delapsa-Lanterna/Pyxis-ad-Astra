@@ -25,6 +25,8 @@ import { CachedSessionQuery, readLiveSessionQuery, type SessionQueryDefinition }
 import type { ProjectInvalidation } from '@/shared/types';
 import { queryResourceDataUrls } from '@/services/resource-media.service';
 
+import { infoLog } from '@/shared/runtime/app-log-queue';
+import { logIdentity } from '@/shared/lib/log-fields';
 import { captureSaveEdits } from '@/domain/project/save-edits';
 
 const readTableIndex = new CachedSessionQuery<Omit<CsvTableIndexPayload, 'sessionId'>, CsvTableIndex>({
@@ -63,6 +65,8 @@ export function saveCsvPatch(
   originalRows: Record<string, CsvDraftRow> = {},
   request?: SaveCommandRequest,
 ): Promise<WriteResult> {
+  request ??= { id: crypto.randomUUID() };
+  const requestId = request.id;
   const before = Object.fromEntries(
     patches
       .filter((patch) => originalRows[patch.rowKey])
@@ -76,6 +80,32 @@ export function saveCsvPatch(
       .filter((patch) => patch.action !== 'delete')
       .map((patch) => [patch.rowKey, { rowKey: patch.rowKey, data: patch.row, isComment: patch.isComment }]),
   );
+  const idField = table === 'simOpponents' ? 'variant id' : 'id';
+  for (const [index, patch] of patches.entries())
+    infoLog('tables.row_submitted', () => ({
+      requestId,
+      sessionId,
+      modRoot,
+      table,
+      member: String(index + 1),
+      members: String(patches.length),
+      action: patch.action === 'delete' ? 'delete' : originalRows[patch.rowKey] ? 'update' : 'create',
+      rowKey: patch.rowKey,
+      idField,
+      previousId: String(originalRows[patch.rowKey]?.data[idField] ?? ''),
+      nextId: patch.action === 'delete' ? '' : String(patch.row[idField] ?? ''),
+      recordType: String((patch.action === 'delete' ? originalRows[patch.rowKey]?.data : patch.row)?.type ?? ''),
+    }));
+  for (const spec of associatedSpecs)
+    infoLog('tables.associated_spec_submitted', () => ({
+      requestId,
+      sessionId,
+      modRoot,
+      table,
+      ...logIdentity(spec.change),
+      ...logIdentity(spec.target, 'target'),
+      mode: spec.resolution?.mode ?? 'delete',
+    }));
   return invokeSaveCommand(
     'save_csv_patch',
     {

@@ -16,7 +16,7 @@ import { useProjectStore } from '@/stores/project.store';
 import type { AssociatedSpecCandidate } from '@/domain/csv-editor/associated-spec-candidates';
 import { beginSavedWrite } from '@/orchestrators/project-sync.orchestrator';
 
-import { recordLogBestEffort } from '@/services/app-log.service';
+import { infoLog } from '@/shared/runtime/app-log-queue';
 import { runConfirmedJsonWrite } from '@/orchestrators/json-write-confirmation.orchestrator';
 import { commitCsvTableSaveDraft, hasCsvTableDraftChanges, hasCsvRowOrderChanges } from '@/domain/csv-editor/csv-table-draft';
 import { deepClone } from '@/shared/lib/starsector';
@@ -130,8 +130,12 @@ async function saveTarget(target: CapturedTableSaveTarget, options: TableSaveOpt
   if (reservations.length > 0) await reserveNativeWindowTargets(reservations);
   const operation = beginSavedWrite(
     (request) =>
-      runConfirmedJsonWrite(options.feedback, (writeOptions) =>
-        saveCsvPatch(manifest.sessionId, modRoot, table, patches, writes, writeOptions, baseVersions, rowOrder, originalRows, request),
+      runConfirmedJsonWrite(
+        options.feedback,
+        (writeOptions) =>
+          saveCsvPatch(manifest.sessionId, modRoot, table, patches, writes, writeOptions, baseVersions, rowOrder, originalRows, request),
+        [],
+        request.id,
       ),
     (result) => [
       () => {
@@ -164,21 +168,13 @@ async function saveTarget(target: CapturedTableSaveTarget, options: TableSaveOpt
   );
   const result = await operation.result;
   if (!result) return { status: 'cancelled' };
-  recordLogBestEffort({
-    level: 'info',
-    code: 'tables.csv_saved',
-    message: 'csv saved',
-    path: null,
-    line: null,
-    fields: {
-      modRoot,
-      sessionId: manifest.sessionId,
-      table,
-      patches: String(patches.length),
-      changes: String(result.changes.length),
-      associatedSpecs: String(associatedSpecs.length),
-    },
-  });
+  infoLog('tables.history_submitted', () => ({
+    modRoot,
+    sessionId: manifest.sessionId,
+    table,
+    requestId: result.requestId ?? operation.id,
+    historyIds: JSON.stringify([...submittedHistory.undoIds]),
+  }));
   return { status: 'saved', receipt: result };
 }
 

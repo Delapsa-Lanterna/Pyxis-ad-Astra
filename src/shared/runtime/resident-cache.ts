@@ -1,4 +1,5 @@
-import { debugLog } from './app-log-queue';
+import { logIdentity } from '@/shared/lib/log-fields';
+import { debugLog, shouldQueueLog } from './app-log-queue';
 let nextCacheId = 0;
 
 export interface ResidentCacheLimits {
@@ -23,11 +24,14 @@ export function createResidentCache<T>(limits: () => ResidentCacheLimits, name =
     const budget = limits();
     while (idle.size && (!budget.entries || !budget.bytes || idle.size > budget.entries || idleBytes > budget.bytes)) {
       const key = idle.keys().next().value!;
+      const identity = shouldQueueLog('debug') ? logIdentity(entries.get(key)?.value) : {};
       remove(key);
       evictions++;
       debugLog('cache.evicted', () => ({
+        ...identity,
         cacheId,
         kind: name,
+        key,
         reason: 'capacity',
         remaining: String(entries.size),
         idleBytes: String(idleBytes),
@@ -95,7 +99,15 @@ export function createResidentCache<T>(limits: () => ResidentCacheLimits, name =
     }
   }
   function clear() {
-    debugLog('cache.cleared', () => ({ cacheId, kind: name, entries: String(entries.size) }));
+    debugLog('cache.cleared', () => ({
+      cacheId,
+      kind: name,
+      entries: String(entries.size),
+      activeEntries: String(activeEntries),
+      idleBytes: String(idleBytes),
+      activeBytes: String(activeBytes),
+      reason: 'owner-release',
+    }));
     entries.clear();
     idle.clear();
     idleBytes = 0;

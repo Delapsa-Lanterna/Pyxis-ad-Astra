@@ -9,6 +9,7 @@ use crate::models::{
 };
 use crate::services::{app_settings, project};
 use crate::{diagnostics, io, models, services};
+use serde_json::json;
 use std::path::Path;
 
 mod committed;
@@ -86,9 +87,11 @@ impl WriteTransaction {
             {
                 match io::file_version(Path::new(&version.path)) {
                     Ok(current) => *version = current,
-                    Err(error) => diagnostics::record(format!(
-                        "committed directory version awaits refresh: {error}"
-                    )),
+                    Err(error) => diagnostics::failure(
+                        "save.directory_version_refresh_failed",
+                        error,
+                        json!({"modRoot":self.root,"sessionId":self.session_id,"path":version.path}),
+                    ),
                 }
             }
         }
@@ -98,6 +101,12 @@ impl WriteTransaction {
             result.history =
                 file_history::record(&self.root, &result.changes, &result.identity_changes, label)?;
         }
+        diagnostics::debug("save.history_registered", || {
+            format!(
+                "modRoot={} sessionId={:?} historyRevision={}",
+                self.root, self.session_id, result.history.revision
+            )
+        });
         result.session_updates =
             committed::project_commit(&self.root, self.session_id.as_deref(), &result.changes)?;
         if let Some(session_id) = &self.session_id
@@ -111,9 +120,11 @@ impl WriteTransaction {
                     &identity.after.id,
                 ) {
                     Ok(info) => models::push_unique_all(&mut versions, info.base_versions),
-                    Err(error) => diagnostics::record(format!(
-                        "committed target versions await refresh: {error}"
-                    )),
+                    Err(error) => diagnostics::failure(
+                        "save.target_version_refresh_failed",
+                        error,
+                        json!({"modRoot":self.root,"sessionId":session_id,"kind":identity.after.kind,"id":identity.after.id,"path":identity.after.write.path}),
+                    ),
                 }
             }
             if !versions.is_empty() {
@@ -207,9 +218,11 @@ pub fn replay(
                 &identity.after.id,
             ) {
                 Ok(info) => models::push_unique_all(&mut versions, info.base_versions),
-                Err(error) => diagnostics::record(format!(
-                    "committed replay target versions await refresh: {error}"
-                )),
+                Err(error) => diagnostics::failure(
+                    "history.target_version_refresh_failed",
+                    error,
+                    json!({"modRoot":root,"sessionId":session_id,"entryId":entry_id,"direction":direction,"kind":identity.after.kind,"id":identity.after.id}),
+                ),
             }
         }
         versions.sort_by(|left, right| left.path.cmp(&right.path));

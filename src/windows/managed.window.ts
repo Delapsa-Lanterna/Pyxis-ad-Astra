@@ -12,14 +12,19 @@ export type ManagedWindowRequest = Omit<NativeWindowRequest, keyof ManagedWindow
 export async function requestWindow(request: ManagedWindowRequest): Promise<WindowRequestReceipt> {
   const { size, ...input } = request;
   const receipt = await requestNativeWindow({ ...input, ...size });
-  if (receipt.status === 'accepted')
-    recordQueuedLog({
-      level: 'info',
-      code: input.input.kind === 'file-editor' ? 'editor.file_opened' : 'editor.window_opened',
-      message: 'window request accepted',
-      path: 'path' in input.identity ? input.identity.path : null,
-      line: null,
-      fields: logFields({ ...input.identity, label: receipt.label, requestId: receipt.requestId }),
-    });
+  recordQueuedLog({
+    level: 'info',
+    code: input.input.kind === 'file-editor' ? 'editor.file_opened' : 'editor.window_opened',
+    message: 'window request ' + receipt.status,
+    path: 'path' in input.identity ? input.identity.path : null,
+    line: null,
+    fields: logFields({
+      ...input.identity,
+      kind: input.input.kind,
+      label: receipt.label,
+      requestId: receipt.requestId,
+      status: receipt.status,
+    }),
+  });
   return receipt;
 }

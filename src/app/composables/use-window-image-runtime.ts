@@ -6,6 +6,7 @@ import { acquireResourceMedia, disposeResourceMedia } from '@/services/resource-
 import { createResidentCache } from '@/shared/runtime/resident-cache';
 import { subscribeCacheLimits, windowCacheLimits } from '@/shared/runtime/cache-limits';
 import { createReadTicket, invalidatedRead, waitForRead, type ReadTicket } from '@/shared/runtime/read-request';
+import { logIdentity } from '@/shared/lib/log-fields';
 import { debugLog } from '@/shared/runtime/app-log-queue';
 
 interface DecodedImage {
@@ -129,7 +130,7 @@ export function createWindowImageRuntime() {
       load = undefined;
     }
     if (!load) {
-      debugLog('media.decode_started', () => ({ sessionId, source: resource.source, relPath: resource.relPath }));
+      debugLog('media.decode_started', () => ({ sessionId, ...logIdentity(resource) }));
       const image = new Image();
       decodeCount++;
       const entry = { sessionId, resource, url, image };
@@ -138,13 +139,13 @@ export function createWindowImageRuntime() {
         () =>
           new Promise<HTMLImageElement>((resolve, reject) => {
             image.onload = () => {
-              debugLog('media.decoded', () => ({ sessionId, source: resource.source, relPath: resource.relPath }));
+              debugLog('media.decoded', () => ({ sessionId, ...logIdentity(resource) }));
               image.onload = null;
               image.onerror = null;
               resolve(image);
             };
             image.onerror = () => {
-              debugLog('media.decode_failed', () => ({ sessionId, source: resource.source, relPath: resource.relPath }));
+              debugLog('media.decode_failed', () => ({ sessionId, ...logIdentity(resource) }));
               image.onload = null;
               image.onerror = null;
               reject(new Error('图片解码失败'));
@@ -194,8 +195,18 @@ export function createWindowImageRuntime() {
     if (item) thumbnailHits++;
     return item?.canvas ?? null;
   }
+  function recordThumbnail(id: string, sessionId: string, resources: readonly ResourceRef[], canvas: HTMLCanvasElement) {
+    debugLog('media.product_accepted', () => ({
+      sessionId,
+      id,
+      kind: 'thumbnail',
+      width: String(canvas.width),
+      height: String(canvas.height),
+      resources: JSON.stringify(resources.map((resource) => logIdentity(resource))),
+    }));
+  }
   function storeThumbnail(id: string, sessionId: string, resources: readonly ResourceRef[], canvas: HTMLCanvasElement) {
-    debugLog('media.product_accepted', () => ({ sessionId, id }));
+    recordThumbnail(id, sessionId, resources, canvas);
     const entry = { sessionId, dependencies: new Set(resources.map((resource) => key(sessionId, resource))), canvas, missing: [] };
     thumbnails.put(id, entry, canvas.width * canvas.height * 4, 1);
     return () => {
@@ -239,7 +250,7 @@ export function createWindowImageRuntime() {
         }).then(({ canvas, missing }) => {
           if (signal.aborted) throw invalidatedRead({ sessionId: source.sessionId, thumbnail: source.key }, 'project');
           captured.canvas = canvas;
-          debugLog('media.product_accepted', () => ({ sessionId: source.sessionId, id: source.key }));
+          recordThumbnail(source.key, source.sessionId, source.resources, canvas);
           thumbnails.put(
             source.key,
             {

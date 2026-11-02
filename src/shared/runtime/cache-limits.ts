@@ -11,7 +11,7 @@ export function initializeCacheLimits(value: CacheLimits): void {
 export function updateCacheLimits(value: CacheLimits): void {
   if (JSON.stringify(limits) === JSON.stringify(value)) return;
   limits = structuredClone(value);
-  debugLog('cache.budget_updated');
+  debugLog('cache.budget_updated', () => ({ limits: JSON.stringify(limits) }));
   for (const reference of subscribers) {
     const cache = reference.deref();
     if (cache) cache.trim();

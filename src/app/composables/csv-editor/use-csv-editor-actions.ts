@@ -13,8 +13,6 @@ import type { TableDetailAction } from '@/domain/csv-editor/table-detail-actions
 import { openFileEditorWindow, type FileEditorRequest } from '@/windows/file-editor.window';
 
 import { useWorkspaceStore } from '@/stores/workspace.store';
-import { recordLogBestEffort } from '@/services/app-log.service';
-import { logFields } from '@/shared/lib/log-fields';
 import { querySessionEntityEditTarget } from '@/services/entity-query.service';
 import { resolveWingReference } from '@/orchestrators/joint-edit.orchestrator';
 import { useSaveCommandStore } from '@/stores/save-command.store';
@@ -118,20 +116,7 @@ export function useCsvEditorActions(feedback: AppFeedback) {
     const table = tables.currentTab;
     try {
       if ((await commitCurrentInput()) === false || root !== tables.activeModRoot || table !== tables.currentTab) return;
-      const created = tables.addNewRow();
-      recordLogBestEffort({
-        level: 'info',
-        code: 'tables.row_created',
-        message: 'row created',
-        path: null,
-        line: null,
-        fields: logFields({
-          modRoot: tables.activeModRoot,
-          table: tables.currentTab,
-          rowKey: created?.rowKey,
-          rowIndex: created?.rowIndex,
-        }),
-      });
+      tables.addNewRow();
     } catch (err) {
       feedback.error(err, '新建 CSV 行失败');
     }
@@ -149,20 +134,7 @@ export function useCsvEditorActions(feedback: AppFeedback) {
         tables.setActiveCell(null, target.modRoot);
       } else if ((await commitCurrentInput()) === false) return;
       if (root !== tables.activeModRoot || table !== tables.currentTab || rowKey !== tables.selectedRowKey) return;
-      const deleted = tables.deleteSelected();
-      recordLogBestEffort({
-        level: 'info',
-        code: 'tables.row_deleted',
-        message: 'row deleted',
-        path: null,
-        line: null,
-        fields: logFields({
-          modRoot: tables.activeModRoot,
-          table: tables.currentTab,
-          rowKey: deleted?.rowKey,
-          rowIndex: deleted?.rowIndex,
-        }),
-      });
+      tables.deleteSelected();
     } catch (err) {
       feedback.error(err, '删除 CSV 行失败');
     }

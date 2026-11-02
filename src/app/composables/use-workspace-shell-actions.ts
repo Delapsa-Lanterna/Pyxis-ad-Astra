@@ -146,7 +146,11 @@ export function useWorkspaceShellActions(feedback: AppFeedback) {
         message: 'workspace refreshed',
         path: null,
         line: null,
-        fields: { root: overview.starsectorRoot, mods: String(overview.mods.length) },
+        fields: {
+          root: overview.starsectorRoot,
+          mods: String(overview.mods.length),
+          targets: JSON.stringify(targets.map(({ sessionId, modRoot }) => ({ sessionId, modRoot }))),
+        },
       });
       feedback.success(`工作区已刷新：${overview.mods.length} 个 Mod`);
     } catch (err) {
@@ -193,7 +197,7 @@ export function useWorkspaceShellActions(feedback: AppFeedback) {
         message: 'game directory scanned',
         path: null,
         line: null,
-        fields: { root: outcome.root, mods: String(outcome.availableModCount) },
+        fields: { root: outcome.root, mods: String(outcome.availableModCount), requestedPath: path ?? '' },
       });
     } else if (outcome.type === 'mod-loaded') {
       feedback.success(`Mod 已导入：${outcome.modName}`);
@@ -208,7 +212,7 @@ export function useWorkspaceShellActions(feedback: AppFeedback) {
         message: 'mod already loaded',
         path: null,
         line: null,
-        fields: logFields({ modRoot: outcome.modRoot, name: outcome.modName }),
+        fields: logFields({ modRoot: outcome.modRoot, sessionId: project.getSessionId(outcome.modRoot), name: outcome.modName }),
       });
     } else {
       feedback.error(outcome.message ?? '未识别该目录');
@@ -227,6 +231,7 @@ export function useWorkspaceShellActions(feedback: AppFeedback) {
     await saveCommands.settleCloseActions();
     await settleWorkspaceOpenings();
     if (disposed) return;
+    const sessionId = project.getSessionId(modRoot);
     if (!(await removeLoadedModRuntime(modRoot, requestClose))) return;
     recordLogBestEffort({
       level: 'info',
@@ -234,7 +239,7 @@ export function useWorkspaceShellActions(feedback: AppFeedback) {
       message: 'mod removed',
       path: null,
       line: null,
-      fields: { modRoot },
+      fields: { modRoot, sessionId: sessionId ?? '' },
     });
     feedback.success('Mod 已从工作区移除');
   }
@@ -250,7 +255,7 @@ export function useWorkspaceShellActions(feedback: AppFeedback) {
       message: 'workspace closed',
       path: null,
       line: null,
-      fields: { mods: String(target.modRoots.length) },
+      fields: { mods: String(target.modRoots.length), modRoots: JSON.stringify(target.modRoots) },
     });
     return true;
   }

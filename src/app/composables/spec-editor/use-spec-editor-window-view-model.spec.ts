@@ -590,7 +590,7 @@ describe('useSpecEditorWindowViewModel saving', () => {
       { preserveOriginalJson: true, confirmedSources: [] },
       [{ path: 'M:/mod/data/hulls/XY.ship', fingerprint: 'destination' }],
       expect.any(Object),
-      undefined,
+      { id: 'fixture-save' },
     );
     expect(mocks.publishCommittedWrite).toHaveBeenCalledWith('M:/mod', result, 's1');
     expect(mocks.feedback.success).toHaveBeenCalledWith('XY 已保存');
@@ -793,7 +793,7 @@ describe('useSpecEditorWindowViewModel missing specs', () => {
       { preserveOriginalJson: true, confirmedSources: [] },
       [{ path: 'M:/mod/data/hulls/XY.ship', fingerprint: 'destination' }],
       expect.any(Object),
-      undefined,
+      { id: 'fixture-save' },
     );
     expect(viewModel.draftDirty.value).toBe(false);
     expect(viewModel.editorData.value?.isNew).toBe(false);

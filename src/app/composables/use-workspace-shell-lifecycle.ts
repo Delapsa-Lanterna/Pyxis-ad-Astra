@@ -55,7 +55,7 @@ export function useWorkspaceShellLifecycle(
       message: 'app started',
       path: null,
       line: null,
-      fields: { version: __APP_VERSION__ },
+      fields: { version: __APP_VERSION__, startup: 'workspace-restore' },
     });
     workspacePersistence = watchWorkspacePersistence();
     const persistence = workspacePersistence;
@@ -104,7 +104,11 @@ export function useWorkspaceShellLifecycle(
 
   onUnmounted(() => {
     disposed = true;
-    debugLog('window.shell_unmounted', () => ({ version: __APP_VERSION__ }));
+    debugLog('window.shell_unmounted', () => ({
+      version: __APP_VERSION__,
+      modRoot: workspace.activeModRoot ?? '',
+      sessionId: workspace.activeSessionId ?? '',
+    }));
     workspacePersistence?.stop();
     workspacePersistence = null;
   });

@@ -682,7 +682,7 @@ describe('table-save orchestrator', () => {
       [],
       null,
       expect.any(Object),
-      undefined,
+      { id: 'fixture-save' },
     );
     await savedContentWorks.at(-1)!.content;
     expect(completeSavedWrite).toHaveBeenCalledWith({
@@ -720,7 +720,7 @@ describe('table-save orchestrator', () => {
       [],
       null,
       expect.any(Object),
-      undefined,
+      { id: 'fixture-save' },
     );
   });
 

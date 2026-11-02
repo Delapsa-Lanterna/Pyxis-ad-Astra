@@ -6,6 +6,7 @@ export class AppError extends Error {
   readonly action?: string;
   readonly code?: string;
   readonly command?: string;
+  readonly logContext?: Record<string, string>;
   readonly location: ErrorLocation | null;
   override readonly cause?: unknown;
   readonly userMessage?: string;
@@ -16,6 +17,7 @@ export class AppError extends Error {
     options: {
       action?: string;
       command?: string;
+      logContext?: Record<string, string>;
       code?: string;
       location?: ErrorLocation | null;
       cause?: unknown;
@@ -27,6 +29,7 @@ export class AppError extends Error {
     this.name = 'AppError';
     this.action = options.action;
     this.command = options.command;
+    this.logContext = options.logContext;
     this.code = options.code;
     this.location = options.location ?? null;
     this.cause = options.cause;
@@ -98,10 +101,10 @@ export function formatError(error: unknown): string {
   return commandErrorCopy(diagnostic.code) ?? diagnostic.message;
 }
 
-export function errorContextOf(error: unknown): { action?: string; command?: string } {
+export function errorContextOf(error: unknown): Record<string, string | undefined> {
   if (!(error instanceof AppError)) return {};
   const source = errorContextOf(error.cause);
-  return { action: error.action ?? source.action, command: error.command ?? source.command };
+  return { ...source, ...error.logContext, action: error.action ?? source.action, command: error.command ?? source.command };
 }
 
 export function warningNotice(userMessage: string, code: string, message: string): FeedbackNotice {

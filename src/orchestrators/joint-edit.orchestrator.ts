@@ -12,6 +12,8 @@ import { queryJointEdit, queryJointEditRow, prepareJointEdit, saveJointEdit } fr
 import { runConfirmedJsonWrite } from '@/orchestrators/json-write-confirmation.orchestrator';
 import { applyJointConflictChoices, takeJointReplaceBase } from '@/domain/joint-edit';
 import { cloneQuerySnapshot } from '@/shared/lib/query-snapshot';
+import { infoLog } from '@/shared/runtime/app-log-queue';
+import { logIdentity } from '@/shared/lib/log-fields';
 import { AppError } from '@/shared/lib/errors';
 import type { SaveCommandRequest } from '@/shared/runtime/command.runtime';
 
@@ -61,10 +63,25 @@ export async function submitJointEdit(
   createOverrides: string[] = [],
   request?: SaveCommandRequest,
 ): Promise<JointEditWriteResult | null> {
+  request ??= { id: crypto.randomUUID() };
+  const context = { ...draft.baseline.root, requestId: request.id };
   const replaced = takeJointReplaceBase(draft.baseline, draft.values);
   draft = { ...draft, values: replaced.values };
   const prepared = cloneQuerySnapshot<JointEditPrepared>(await prepareJointEdit(draft));
   const choices = prepared.conflicts.length > 0 ? await chooseConflicts(prepared) : [];
+  if (prepared.conflicts.length)
+    infoLog('joint.conflicts_decided', () => ({
+      ...context,
+      status: choices === null ? 'cancelled' : 'confirmed',
+      conflicts: JSON.stringify(
+        prepared.conflicts.map(({ recordKey, path }) => ({
+          recordKey,
+          path,
+          target: logIdentity(prepared.snapshot.records.find((record) => record.key === recordKey)!.target),
+        })),
+      ),
+      choices: JSON.stringify(choices),
+    }));
   if (choices === null) return null;
   const values = applyJointConflictChoices(prepared, choices);
   const overrides = prepared.snapshot.records.filter(
@@ -90,8 +107,28 @@ export async function submitJointEdit(
         .join('\n'),
       choices: [{ label: '保存到上述目标', value: 'save', type: 'warning' }],
     });
+    infoLog('joint.targets_decided', () => ({
+      ...context,
+      status: confirmed === 'save' ? 'confirmed' : 'cancelled',
+      targets: JSON.stringify(
+        [...new Set([...overrides, ...shared])].map((record) => ({
+          recordKey: record.key,
+          ...logIdentity(record.target),
+          referencedBy: record.referencedBy,
+          override: overrides.includes(record),
+        })),
+      ),
+    }));
     if (confirmed !== 'save') return null;
   }
+  infoLog('joint.targets_submitted', () => ({
+    ...context,
+    targets: JSON.stringify(
+      prepared.snapshot.records
+        .filter((record) => Object.hasOwn(values, record.key))
+        .map((record) => ({ recordKey: record.key, ...logIdentity(record.target) })),
+    ),
+  }));
   const result = await runConfirmedJsonWrite(
     feedback,
     (jsonWrite) =>
@@ -106,6 +143,7 @@ export async function submitJointEdit(
         request,
       ),
     replaced.replacePaths,
+    request.id,
   );
   if (!result) return null;
   return result;

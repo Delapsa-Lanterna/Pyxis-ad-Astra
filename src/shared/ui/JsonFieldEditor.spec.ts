@@ -50,7 +50,7 @@ describe('JsonFieldEditor', () => {
     expect((input.element as HTMLInputElement).value).toBe('1e');
     await input.setValue('');
     await session.saveDraft();
-    expect(save).toHaveBeenCalledWith('one', {}, [], expect.any(Object), undefined);
+    expect(save).toHaveBeenCalledWith('one', {}, [], expect.any(Object), { id: 'fixture-save' });
     expect(session.inputs.dirty.value).toBe(false);
     wrapper.unmount();
   });

@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { readSettings, readDefaultSettings, saveSettings, querySystemFonts } from './app-settings.service';
 import { createSettingsFixture } from '@/test/fixtures/settings';
 import { openConfigFolder } from './app-config.service';
-import { clearLog, loadLogStatus } from './app-log.service';
+import { clearLog, loadLogStatus, flushApplicationLogs } from './app-log.service';
 import { loadPersistedWorkspace, savePersistedWorkspace } from './workspace-state.service';
 import { createNewModProject } from './mod-creation.service';
 import { queryCoreRoot, queryCoreFields, queryCoreGraphics, invalidateCoreCacheForRoot } from './core-assets.service';
@@ -109,7 +109,8 @@ const cases: Array<[string, () => unknown, Record<string, unknown> | undefined]>
   ['release_window_targets', releaseNativeWindowTargets, undefined],
   ['retarget_managed_window', () => retargetNativeWindow(identity, 'Demo'), { identity, title: 'Demo', input: null }],
 ];
-beforeEach(() => {
+beforeEach(async () => {
+  await flushApplicationLogs();
   vi.clearAllMocks();
   invoke.mockResolvedValue({ ready: true });
 });

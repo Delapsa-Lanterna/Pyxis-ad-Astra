@@ -72,7 +72,7 @@ describe('Smart numeric input with real Naive UI', () => {
     await wrapper.get('[aria-label="增加"]').trigger('click', { shiftKey, ctrlKey });
     expect(session.draftValue.value.count).toBe(expected);
     await session.saveDraft();
-    expect(save).toHaveBeenCalledWith('one', { count: expected }, [], expect.any(Object), undefined);
+    expect(save).toHaveBeenCalledWith('one', { count: expected }, [], expect.any(Object), { id: 'fixture-save' });
     await wrapper.get('[aria-label="减少"]').trigger('click', { shiftKey, ctrlKey });
     expect(session.draftValue.value.count).toBe(4);
   });
@@ -123,14 +123,14 @@ describe('Smart numeric input with real Naive UI', () => {
     expect(save).not.toHaveBeenCalled();
     await input.setValue('12.5');
     await session.saveDraft();
-    expect(save).toHaveBeenCalledWith('one', { count: 12.5 }, [], expect.any(Object), undefined);
+    expect(save).toHaveBeenCalledWith('one', { count: 12.5 }, [], expect.any(Object), { id: 'fixture-save' });
     expect(session.dirty.value).toBe(false);
   });
   it('removes an optional key on save and retains required empty input', async () => {
     const { session, save } = await harness();
     await wrapper.get('input').setValue('');
     await session.saveDraft();
-    expect(save).toHaveBeenCalledWith('one', {}, [], expect.any(Object), undefined);
+    expect(save).toHaveBeenCalledWith('one', {}, [], expect.any(Object), { id: 'fixture-save' });
     wrapper.unmount();
     const required = await harness('required');
     await wrapper.get('input').setValue('');

@@ -1,3 +1,4 @@
+use crate::diagnostics;
 use crate::errors::{AppError, AppResult, ErrorDiagnostic};
 use crate::io::FsRootBoundary;
 use crate::models;
@@ -636,6 +637,12 @@ pub(crate) fn register_window_request(
         });
         let notify = !state.instances[&label].creating;
         let request_id = state.receive(&label, owner, request.input);
+        diagnostics::debug("window.request_registered", || {
+            format!(
+                "window={label} requestId={request_id} created={create} receiverGeneration={} identity={:?}",
+                state.instances[&label].receiver_generation, state.instances[&label].identity
+            )
+        });
         (OpenedWindow { label, request_id }, create, notify)
     };
     REGISTRY.1.notify_all();

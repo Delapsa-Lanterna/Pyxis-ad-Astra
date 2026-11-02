@@ -221,6 +221,8 @@ const viewport = useRetainedList(
   (key) => entryById.value.get(key),
   (entry) => entry.id,
   36,
+  Infinity,
+  () => ({ ...props.root, kind: 'hullmods' }),
 );
 watch(() => JSON.stringify([props.root.sessionId, props.root.modRoot]), viewport.reset, { flush: 'sync' });
 const visible = useVisibleResourceMedia({

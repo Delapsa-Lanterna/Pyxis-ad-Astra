@@ -88,5 +88,5 @@ it('presents startup failure on a live page and ends late diagnostic reporting o
   window.dispatchEvent(new Event('pagehide'));
   fail(new Error('late report fixture'));
   await flushPromises();
-  expect(api.record).not.toHaveBeenCalled();
+  expect(api.record).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ message: 'startup fixture', level: 'error' }));
 });

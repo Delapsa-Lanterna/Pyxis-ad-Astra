@@ -11,6 +11,8 @@ import { provideWindowCloseState } from './use-window-close-state';
 import { provideAppCloseActions, useAppCloseParticipant } from './use-app-close-participant';
 import { flushPerformanceMonitor, retainPerformanceMonitorError } from '@/app/performance-monitor';
 import { flushApplicationLogs } from '@/services/app-log.service';
+import { managedWindowContext } from '@/windows/window-context.window';
+import { logIdentity } from '@/shared/lib/log-fields';
 import { debugLog } from '@/shared/runtime/app-log-queue';
 import type { AppFeedback } from '@/shared/types';
 import { createModSaveCoordinator } from '@/orchestrators/mod-save.orchestrator';
@@ -41,7 +43,7 @@ export function useAppLifecycleAssembly(feedback: AppFeedback) {
     flushPerformance,
     flushSettings: async () => {
       await flushSettings();
-      debugLog('window.close_prepared');
+      debugLog('window.close_prepared', () => logIdentity(managedWindowContext.value));
       await flushApplicationLogs();
       await flushPerformance();
     },

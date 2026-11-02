@@ -13,7 +13,7 @@ use crate::services::project::sources::SourceReader;
 use crate::test_support::work_counts;
 use crate::{diagnostics, io};
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use serde_json::{Value, json};
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Condvar, LazyLock, Mutex, MutexGuard};
@@ -144,7 +144,11 @@ pub(in crate::services::project) fn invalidate_core_cache(starsector_root: &str)
     // Persist what was built in memory before dropping, so the next open
     // reuses it (the content fingerprint still guards against stale sources).
     if let Err(error) = flush_core_cache(starsector_root) {
-        diagnostics::record(format!("core cache flush failed: {error}"));
+        diagnostics::failure(
+            "cache.core_save_failed",
+            error,
+            json!({"root":starsector_root}),
+        );
     }
     lock_core_caches()?.remove(&cache_key);
     Ok(())

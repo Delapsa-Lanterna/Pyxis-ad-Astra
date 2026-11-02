@@ -7,6 +7,7 @@ import { queryOriginalFont } from '@/services/font.service';
 import { useSettingsStore } from '@/stores/settings.store';
 import { useQueryReadOwner } from './use-query-read-owner';
 import { recordLogBestEffort } from '@/services/app-log.service';
+import { debugLog } from '@/shared/runtime/app-log-queue';
 import { errorDiagnosticOf } from '@/shared/lib/errors';
 
 export interface OriginalFontState {
@@ -51,16 +52,24 @@ export function provideOriginalFonts(sessionId: () => string) {
             const result = await queryOriginalFont(identity.sessionId, id, directory);
             if (result.status === 'available' && !signal.aborted) {
               const font = await decodeOriginalFont(result);
-              return { font, errors };
+              return { font, errors, path: result.path, directory };
             }
           } catch (error) {
             errors.push({ error, directory });
           }
         }
-        return { font: null, errors };
+        return { font: null, errors, path: '', directory: null };
       },
       {
-        ready: ({ font, errors }) => {
+        ready: ({ font, errors, path, directory }) => {
+          debugLog('font.accepted', () => ({
+            fontId: id,
+            sessionId: identity.sessionId,
+            requestedDirectory: identity.fontDirectory ?? 'session',
+            actualDirectory: directory ?? 'session',
+            path,
+            status: font ? 'ready' : errors.length ? 'error' : 'unavailable',
+          }));
           states.set(id, { status: font ? 'ready' : errors.length ? 'error' : 'unavailable', font });
           for (const { error, directory } of errors) {
             const diagnostic = errorDiagnosticOf(error);

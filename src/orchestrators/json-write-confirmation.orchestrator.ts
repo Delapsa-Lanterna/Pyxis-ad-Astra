@@ -1,6 +1,7 @@
 import type { AppFeedback, JsonSourceConfirmation, JsonWriteOptions } from '@/shared/types';
+import { infoLog } from '@/shared/runtime/app-log-queue';
 import { h } from 'vue';
-import { commandErrorCode } from '@/shared/lib/errors';
+import { commandErrorCode, errorContextOf } from '@/shared/lib/errors';
 import { useSettingsStore } from '@/stores/settings.store';
 
 interface RewriteFile extends JsonSourceConfirmation {
@@ -29,6 +30,7 @@ export async function runConfirmedJsonWrite<T>(
   feedback: AppFeedback | undefined,
   write: (options: JsonWriteOptions) => Promise<T>,
   replacePaths: string[] = [],
+  requestId = '',
 ): Promise<T | null> {
   const preserveOriginalJson = feedback ? useSettingsStore().preserveOriginalJson : false;
   let confirmedSources: JsonSourceConfirmation[] = [];
@@ -37,6 +39,7 @@ export async function runConfirmedJsonWrite<T>(
       return await write({ preserveOriginalJson, confirmedSources, ...(replacePaths.length ? { replacePaths } : {}) });
     } catch (error) {
       if (!preserveOriginalJson || !feedback) throw error;
+      requestId ||= errorContextOf(error)['request.id'] ?? '';
       const files = rewriteFiles(error);
       if (!files?.length) throw error;
       const choice = await feedback.choose({
@@ -51,6 +54,14 @@ export async function runConfirmedJsonWrite<T>(
           ]),
         choices: [{ label: '确认重排并保存', value: 'rewrite', type: 'warning' }],
       });
+      for (const file of files)
+        infoLog('save.json_rewrite_decided', () => ({
+          requestId,
+          path: file.path,
+          sourceFingerprint: file.sourceFingerprint,
+          reason: file.reason,
+          status: choice === 'rewrite' ? 'confirmed' : 'cancelled',
+        }));
       if (choice !== 'rewrite') return null;
       confirmedSources = files.map(({ path, sourceFingerprint }) => ({ path, sourceFingerprint }));
     }

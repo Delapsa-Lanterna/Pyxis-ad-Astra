@@ -1,4 +1,4 @@
-import type { AppLogEntry, AppLogStatus, AppendAppLogsPayload } from '@/shared/types';
+import type { AppLogStatus, AppendAppLogsPayload } from '@/shared/types';
 import { invokeCommand } from '@/shared/runtime/command.runtime';
 import { appLogQueue, applicationLogError } from '@/shared/runtime/app-log-queue';
 import { errorMessageOf } from '@/shared/lib/errors';
@@ -18,9 +18,7 @@ appLogQueue.install(
   },
 );
 
-export function recordLogBestEffort(entry: AppLogEntry): void {
-  appLogQueue.record(entry);
-}
+export { recordQueuedLog as recordLogBestEffort } from '@/shared/runtime/app-log-queue';
 export const flushApplicationLogs = appLogQueue.flush;
 
 export async function loadLogStatus(): Promise<AppLogStatus> {

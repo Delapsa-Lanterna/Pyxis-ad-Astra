@@ -9,6 +9,7 @@ use crate::services::{project, windows};
 use crate::test_support::TestWorkspace;
 use crate::{diagnostics, io};
 use serde::Serialize;
+use serde_json::json;
 use std::collections::{BTreeMap, VecDeque};
 use std::path::Path;
 use std::sync::{Arc, Condvar, LazyLock, Mutex, MutexGuard};
@@ -132,7 +133,11 @@ impl ProjectSaves {
                 mod_root: root.to_string(),
                 waiting,
             }) {
-                diagnostics::record(format!("save queue status: {error}"));
+                diagnostics::failure(
+                    "save.queue_notification_failed",
+                    error,
+                    json!({"modRoot":root,"waiting":waiting}),
+                );
             }
         }
     }
@@ -149,7 +154,11 @@ impl ProjectSaves {
                 session_id: work.session_id.clone(),
                 diagnostic: diagnostic.clone(),
             }) {
-                diagnostics::record(format!("save blocked status: {error}"));
+                diagnostics::failure(
+                    "save.blocked_notification_failed",
+                    error,
+                    json!({"requestId":work.id,"modRoot":work.root,"sessionId":work.session_id,"blockedCode":diagnostic.code}),
+                );
             }
         }
         SAVES.1.notify_all();
@@ -328,7 +337,11 @@ pub fn execute_queued<T: Serialize>(
             request_id: work.id.clone(),
             event: event.clone(),
         }) {
-            diagnostics::record(format!("save result delivery: {error}"));
+            diagnostics::failure(
+                "save.result_delivery_failed",
+                error,
+                json!({"requestId":work.id,"modRoot":work.root,"sessionId":work.session_id}),
+            );
         }
     }
     saves.finish(&work.root);
@@ -358,7 +371,11 @@ pub fn publish_references(
             snapshot: snapshot.clone(),
             event: Some(event.clone()),
         }) {
-            diagnostics::record(format!("reference result delivery: {error}"));
+            diagnostics::failure(
+                "references.notification_failed",
+                error,
+                json!({"revision":snapshot.revision}),
+            );
         }
     }
     Ok(())
@@ -565,7 +582,11 @@ pub fn release_project_session(session_id: String) -> AppResult<()> {
         let delivery = project::reference_sources()
             .and_then(|snapshot| publish_references(snapshot, project::reference_updates()?));
         if let Err(error) = delivery {
-            diagnostics::record(format!("reference close delivery: {error}"));
+            diagnostics::failure(
+                "references.close_notification_failed",
+                error,
+                json!({"sessionId":session_id,"previousRevision":revision}),
+            );
         }
     }
     windows::release_session(&session_id)

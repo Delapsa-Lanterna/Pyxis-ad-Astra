@@ -68,7 +68,7 @@ describe('automatic action logging', () => {
     expect(JSON.stringify(records)).not.toContain('private');
     expect(records[0]!.fields?.request).toBe(records[1]!.fields?.request);
     expect(records[0]!.fields?.request).not.toBe(records[2]!.fields?.request);
-    expect(JSON.stringify(records)).not.toContain('secret diagnostic');
+    expect(records[5]!.fields?.errorMessage).toBe('secret diagnostic');
     queue.setLevel('info');
     store.sync('hidden');
     await queue.flush();

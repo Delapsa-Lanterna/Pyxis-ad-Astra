@@ -4,6 +4,7 @@ use crate::models::{AppSettings, CloseIntent, ClosePhase, CloseResult, CloseScop
 use crate::services::{
     app_lifecycle, app_log, file_history, performance_monitor, project, project_sync, windows,
 };
+use serde_json::json;
 use std::collections::{BTreeMap, BTreeSet};
 use std::slice;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -416,7 +417,11 @@ fn execute_close(
     if let Some(window) = app.get_webview_window(owner)
         && let Err(error) = window.set_focus()
     {
-        diagnostics::record(format!("close focus restore: {error}"));
+        diagnostics::failure(
+            "window.focus_restore_failed",
+            error,
+            json!({"operationId":id,"window":owner}),
+        );
     }
     {
         let mut state = operation.state()?;

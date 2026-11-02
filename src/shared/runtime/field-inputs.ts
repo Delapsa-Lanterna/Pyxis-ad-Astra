@@ -49,9 +49,9 @@ export function createFieldInputs(targetKey: Readonly<Ref<string | null>> = ref(
 
   function register(field: FieldInput) {
     fields.add(field);
-    debugLog('input.registered', () => ({ field: field.key }));
+    debugLog('input.registered', () => ({ field: field.key, target: targetKey.value ?? '', path: field.path ?? '' }));
     return () => {
-      debugLog('input.released', () => ({ field: field.key }));
+      debugLog('input.released', () => ({ field: field.key, target: targetKey.value ?? '', path: field.path ?? '' }));
       return fields.delete(field);
     };
   }
@@ -82,7 +82,12 @@ export function createFieldInputs(targetKey: Readonly<Ref<string | null>> = ref(
       if (generation !== started || targetKey.value !== key) return false;
       if (!fields.has(field) || !field.dirty.value) continue;
       const error = field.commit();
-      debugLog(error === null ? 'input.committed' : 'input.validation_failed', () => ({ field: field.key }));
+      debugLog(error === null ? 'input.committed' : 'input.validation_failed', () => ({
+        field: field.key,
+        target: key ?? '',
+        path: field.path ?? '',
+        error: error ?? '',
+      }));
       if (error !== null) {
         await field.focus();
         if (generation !== started || targetKey.value !== key) return false;

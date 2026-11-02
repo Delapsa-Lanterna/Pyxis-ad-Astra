@@ -37,7 +37,7 @@ describe('target field input lifecycle', () => {
         'input.cancelled',
         'input.cancelled',
       ]);
-      expect(JSON.stringify(records)).not.toContain('private validation');
+      expect(records[4]!.fields).toMatchObject({ target: 'fixture', field: 'bad', error: 'private validation' });
     } finally {
       appLogQueue.setLevel('info');
     }

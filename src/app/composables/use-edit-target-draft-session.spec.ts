@@ -285,7 +285,7 @@ describe('save operation', () => {
     session.setDraft({ a: 9 });
     write.resolve(snapshot(20, 'v2', 'persisted'));
     await pending;
-    expect(save).toHaveBeenCalledWith(target, { a: 2 }, snapshot(1).baseVersions, { a: 1 }, undefined);
+    expect(save).toHaveBeenCalledWith(target, { a: 2 }, snapshot(1).baseVersions, { a: 1 }, { id: 'fixture-save' });
     expect(session.baselineSnapshot.value).toEqual(snapshot(20, 'v2', 'persisted'));
     expect(session.draftValue.value).toEqual({ a: 9 });
     expect(session.pendingSnapshot.value).toBeNull();

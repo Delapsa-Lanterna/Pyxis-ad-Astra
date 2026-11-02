@@ -30,6 +30,7 @@ import { buildThemeOverrides } from '@/app/theme-overrides';
 import { useThemeDomEffect } from '@/app/composables/settings/use-theme-dom-effect';
 import { useAppSettings } from '@/app/composables/use-app-lifecycle-assembly';
 import { useWindowImageRuntimeLifetime } from '@/app/composables/use-window-image-runtime';
+import { logIdentity } from '@/shared/lib/log-fields';
 import { setRuntimeErrorContext } from '@/app/runtime-error-monitor';
 import { useDraftSessionsStore } from '@/stores/draft-sessions.store';
 import { useSaveCommandStore } from '@/stores/save-command.store';
@@ -50,14 +51,15 @@ onScopeDispose(
       const identity = managedWindowContext.value?.identity;
       const modRoot = identity && 'modRoot' in identity ? identity.modRoot : null;
       return {
-        dirty: String(modRoot ? draftSessions.hasUnsavedWorkForMod(modRoot) : false),
-        saving: String(modRoot ? saveCommands.hasPendingSave(modRoot) : false),
+        windowDirty: String(modRoot ? draftSessions.hasUnsavedWorkForMod(modRoot) : false),
+        windowSaving: String(modRoot ? saveCommands.hasPendingSave(modRoot) : false),
       };
     })(),
     windowMode: props.mode,
     windowTitle: props.title || null,
     windowModName: windowModName.value || null,
     windowKind: managedWindowContext.value?.kind ?? null,
+    ...logIdentity(managedWindowContext.value?.identity, 'window'),
     windowLabel: managedWindowContext.value?.label ?? null,
     windowTarget: managedWindowContext.value
       ? managedWindowContext.value.identity.type === 'file' || managedWindowContext.value.identity.type === 'recovery'

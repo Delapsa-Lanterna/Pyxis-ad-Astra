@@ -28,10 +28,19 @@ describe('runtime error logging', () => {
     const clear = setRuntimeErrorContext(() => ({ page: 'table', saving: 'true' }));
     window.dispatchEvent(new ErrorEvent('error', { message: 'white screen', filename: 'app.js', lineno: 12, colno: 3 }));
     window.dispatchEvent(new PromiseRejectionEvent('unhandledrejection', { promise: Promise.resolve(), reason: new Error('rejected') }));
+    appLogQueue.record({
+      level: 'warning',
+      code: 'business.warning',
+      message: null,
+      path: null,
+      line: null,
+      fields: { modRoot: 'captured' },
+    });
     await Promise.resolve();
     await appLogQueue.flush();
-    expect(records.map((entry) => entry.level)).toEqual(['error', 'error']);
+    expect(records.map((entry) => entry.level)).toEqual(['error', 'error', 'warning']);
     expect(records[0]!.fields).toMatchObject({ page: 'table', saving: 'true' });
+    expect(records[2]!.fields).toMatchObject({ page: 'table', saving: 'true', modRoot: 'captured' });
     clear();
   });
   it('routes Vue render failures to error and Vue warnings to debug', async () => {

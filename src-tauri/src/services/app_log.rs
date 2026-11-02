@@ -8,6 +8,7 @@ use std::collections::BTreeMap;
 use std::fs::OpenOptions;
 use std::io::{ErrorKind, Write};
 use std::path::{Path, PathBuf};
+use std::process;
 #[cfg(test)]
 use std::slice;
 use std::sync::{LazyLock, Mutex, MutexGuard};
@@ -158,9 +159,15 @@ pub fn append_app_logs(app: AppHandle, owner: &str, entries: Vec<AppLogEntry>) -
 fn append_with_runtime(
     app: AppHandle,
     owner: &str,
-    entries: Vec<AppLogEntry>,
+    mut entries: Vec<AppLogEntry>,
     state: &mut LogRuntime,
 ) -> AppResult<()> {
+    for entry in &mut entries {
+        entry
+            .fields
+            .get_or_insert_with(BTreeMap::new)
+            .insert("process".into(), process::id().to_string());
+    }
     let settings = state.settings.clone().unwrap_or_default();
     let result = state.write(owner, entries.len(), || {
         let app_data = app_data_dir::data_directory(app.clone())?;
@@ -744,6 +751,7 @@ mod tests {
         .unwrap();
         let text = read_utf8_no_bom(&dir.join(LOG_FILE)).unwrap();
         assert!(text.contains("alpha=a  b zeta=last"));
+        assert_eq!(text.lines().count(), 1);
         assert!(text.find("alpha=").unwrap() < text.find("zeta=").unwrap());
         dir.close().unwrap();
     }

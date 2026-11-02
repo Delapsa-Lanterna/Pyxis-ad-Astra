@@ -15,7 +15,7 @@ import {
 } from '@/shared/lib/errors';
 import type { ChooseOptions, ConfirmOptions, ToastDurations } from '@/shared/types';
 import { recordLogBestEffort } from '@/services/app-log.service';
-import { logFields } from '@/shared/lib/log-fields';
+import { logFields, logIdentity } from '@/shared/lib/log-fields';
 import type { FeedbackLevel, FeedbackFileAction, FeedbackFileActions, WindowFeedback } from '@/shared/types';
 
 export type { FeedbackLevel, FeedbackFileAction, FeedbackFileActions } from '@/shared/types';
@@ -66,7 +66,7 @@ export function createAppFeedback(
         message: notice.diagnostic.message,
         path: reference?.path ?? null,
         line: reference?.line ?? null,
-        fields: logFields({ column: notice.diagnostic.location?.column }),
+        fields: logFields({ ...logIdentity(notice.diagnostic.fileTarget), column: notice.diagnostic.location?.column }),
       });
     },
     error: (error, contextMessage) => {
@@ -87,6 +87,7 @@ export function createAppFeedback(
           line: diagnostic.location?.line ?? null,
           fields: logFields({
             ...errorContextOf(error),
+            ...logIdentity(diagnostic.fileTarget),
             action: errorContextOf(error).action ?? contextMessage,
             column: diagnostic.location?.column,
           }),

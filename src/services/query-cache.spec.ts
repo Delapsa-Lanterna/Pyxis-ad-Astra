@@ -73,12 +73,12 @@ describe('session query ownership', () => {
         }),
     );
     try {
-      const first = read.read('debug-query', { id: 'private request' });
-      const second = read.read('debug-query', { id: 'private request' });
+      const first = read.read('debug-query', { id: 'fixture-a' });
+      const second = read.read('debug-query', { id: 'fixture-a' });
       finish([{ name: 'private response' }]);
       await Promise.all([first, second]);
-      await read.read('debug-query', { id: 'private request' });
-      const pending = read.read('debug-query', { id: 'other private request' });
+      await read.read('debug-query', { id: 'fixture-a' });
+      const pending = read.read('debug-query', { id: 'fixture-b' });
       const ended = expect(pending).rejects.toMatchObject({ code: 'query.invalidated' });
       invalidateQueryCacheForSession('debug-query');
       await ended;
@@ -91,7 +91,12 @@ describe('session query ownership', () => {
       ]);
       expect(records.some((entry) => entry.code === 'query.invalidated')).toBe(true);
       expect(records.some((entry) => entry.code === 'query.late_result')).toBe(true);
-      expect(JSON.stringify(records)).not.toContain('private');
+      expect(records.find((entry) => entry.code === 'query.completed')!.fields).toMatchObject({
+        id: 'fixture-a',
+        sessionId: 'debug-query',
+        resultCount: '1',
+      });
+      expect(JSON.stringify(records)).not.toContain('private response');
     } finally {
       appLogQueue.setLevel('info');
       invalidateQueryCacheForSession('debug-query');

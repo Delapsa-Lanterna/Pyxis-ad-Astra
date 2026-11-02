@@ -18,6 +18,7 @@ import {
   type CsvTableState,
   type CsvTableHistoryEntry,
   type CsvDraftOperation,
+  type CsvSingleOperation,
   type CsvCellTarget,
   type CsvTableTarget,
   TABLE_KEYS,
@@ -32,6 +33,8 @@ import {
   type DeepReadonly,
   type CsvSearchField,
 } from '@/shared/types';
+import { recordQueuedLog, shouldQueueLog, infoLog } from '@/shared/runtime/app-log-queue';
+import { logFields } from '@/shared/lib/log-fields';
 import { defineStore } from 'pinia';
 import { computed, markRaw, reactive, ref, shallowReactive, type Raw } from 'vue';
 import { createFieldInputs, type FieldInputs } from '@/shared/runtime/field-inputs';
@@ -78,10 +81,12 @@ interface CsvTableRuntime extends CsvTableState {
   editor: Raw<DocumentEditorActions<CsvTableTarget>> | null;
 }
 interface CsvModRuntime extends Omit<CsvModState, 'documents'> {
+  sessionId: string;
   documents: Record<CsvTableKey, CsvTableRuntime>;
 }
 function createCsvModRuntime(target: { sessionId: string; modRoot: string }, limit: number): CsvModRuntime {
   return {
+    sessionId: target.sessionId,
     documents: Object.fromEntries(
       TABLE_KEYS.map((table): [CsvTableKey, CsvTableRuntime] => [
         table,
@@ -352,11 +357,20 @@ export const useCsvEditorStore = defineStore('csv-editor', () => {
   }
   function copyRows(target: CsvTableTarget, keys: string[], boundary: number) {
     const document = stateMap.get(target.modRoot)!.documents[target.table];
-    return insertRows(
+    const copied = insertRows(
       target,
       keys.map((key) => document.rows[key]!),
       boundary,
     );
+    keys.forEach((rowKey, index) =>
+      infoLog('tables.row_copied', () => ({
+        ...target,
+        rowKey,
+        nextKey: copied[index]!,
+        id: String(document.rows[rowKey]!.data[target.table === 'simOpponents' ? 'variant id' : 'id'] ?? ''),
+      })),
+    );
+    return copied;
   }
   function deleteRows(target: CsvTableTarget, keys: string[]) {
     const state = stateMap.get(target.modRoot)!;
@@ -403,6 +417,69 @@ export const useCsvEditorStore = defineStore('csv-editor', () => {
     pushCsvTableOperation(modRoot, table, result.historyOperation, result.historyLabel);
   }
 
+  function recordCsvOperation(modRoot: string, table: CsvTableKey, entry: CsvTableHistoryEntry, direction: string) {
+    const document = stateMap.get(modRoot)!.documents[table];
+    const steps = (entry.operation.type === 'batch' ? entry.operation.operations : [entry.operation]).filter((step) =>
+      shouldQueueLog(direction === 'edit' && (step.type === 'cell-value-set' || step.type === 'row-moved') ? 'debug' : 'info'),
+    );
+    const movements = new Map<string, Extract<CsvSingleOperation, { type: 'row-moved' }>>();
+    for (const step of steps)
+      if (step.type === 'row-moved')
+        movements.set(step.rowKey, { ...step, previousIndex: movements.get(step.rowKey)?.previousIndex ?? step.previousIndex });
+    if (movements.size) {
+      const otherOrder = [...document.rowOrder];
+      for (const step of direction === 'undo' ? steps : [...steps].reverse())
+        if (step.type === 'row-moved') {
+          otherOrder.splice(otherOrder.indexOf(step.rowKey), 1);
+          otherOrder.splice(direction === 'undo' ? step.nextIndex : step.previousIndex, 0, step.rowKey);
+        }
+      for (const move of movements.values()) {
+        move.previousIndex = (direction === 'undo' ? document.rowOrder : otherOrder).indexOf(move.rowKey);
+        move.nextIndex = (direction === 'undo' ? otherOrder : document.rowOrder).indexOf(move.rowKey);
+      }
+    }
+    const operations: CsvSingleOperation[] = [...steps.filter((step) => step.type !== 'row-moved'), ...movements.values()];
+    for (const [index, operation] of operations.entries()) {
+      const level = direction === 'edit' && (operation.type === 'cell-value-set' || operation.type === 'row-moved') ? 'debug' : 'info';
+      if (!shouldQueueLog(level)) continue;
+      const row = 'row' in operation ? operation.row : (document.rows[operation.rowKey] ?? document.baselineRows[operation.rowKey]);
+      const idField = table === 'simOpponents' ? 'variant id' : 'id';
+      const id = row?.data[idField];
+      const ids =
+        operation.type === 'cell-value-set' && operation.col === idField ? [operation.previousValue, operation.newValue] : [null, null];
+      if (direction === 'undo') ids.reverse();
+      recordQueuedLog({
+        level,
+        code: 'tables.' + (direction === 'edit' ? operation.type.replaceAll('-', '_') : direction),
+        message: null,
+        path: document.baseVersions[0]?.path ?? null,
+        line: null,
+        fields: logFields({
+          modRoot,
+          sessionId: stateMap.get(modRoot)!.sessionId,
+          table,
+          operationId: entry.id,
+          direction,
+          operation: operation.type,
+          recordType: table === 'descriptions' ? String(row?.data.type ?? '') : null,
+          member: index + 1,
+          members: operations.length,
+          rowKey: operation.rowKey,
+          idField,
+          id: typeof id === 'string' ? id : null,
+          isComment: row ? String(row.isComment) : null,
+          sourceRowIndex: document.baselineRowOrder.indexOf(operation.rowKey),
+          rowIndex: 'rowIndex' in operation ? operation.rowIndex : document.rowOrder.indexOf(operation.rowKey),
+          column: 'col' in operation ? operation.col : null,
+          previousId: ids[0],
+          nextId: ids[1],
+          previousIndex: 'previousIndex' in operation ? (direction === 'undo' ? operation.nextIndex : operation.previousIndex) : null,
+          nextIndex: 'nextIndex' in operation ? (direction === 'undo' ? operation.previousIndex : operation.nextIndex) : null,
+        }),
+      });
+    }
+  }
+
   function getStack(modRoot: string, table: CsvTableKey) {
     return stateMap.get(modRoot)?.documents[table].history;
   }
@@ -410,7 +487,9 @@ export const useCsvEditorStore = defineStore('csv-editor', () => {
   function pushCsvTableOperation(modRoot: string, table: CsvTableKey, operation: CsvDraftOperation, label: string) {
     if (!modRoot) return;
     const stack = getStack(modRoot, table)!;
-    pushUndoEntry(stack, { id: nextUndoStackId(stack, 'csv_edit'), timestamp: Date.now(), operation, label });
+    const entry = { id: nextUndoStackId(stack, 'csv_edit'), timestamp: Date.now(), operation, label };
+    pushUndoEntry(stack, entry);
+    recordCsvOperation(modRoot, table, entry, 'edit');
   }
 
   function canUndoCsvTable(modRoot: string, table: CsvTableKey): boolean {
@@ -431,6 +510,7 @@ export const useCsvEditorStore = defineStore('csv-editor', () => {
     reconcileSelection(tableState, table, entry.operation);
     popUndoEntry(stack);
     pushRedoEntry(stack, entry);
+    recordCsvOperation(modRoot, table, entry, 'undo');
     return entry.label;
   }
 
@@ -442,6 +522,7 @@ export const useCsvEditorStore = defineStore('csv-editor', () => {
     reconcileSelection(tableState, table, entry.operation);
     popRedoEntry(stack);
     pushUndoEntry(stack, entry, { clearRedo: false });
+    recordCsvOperation(modRoot, table, entry, 'redo');
     return entry.label;
   }
 

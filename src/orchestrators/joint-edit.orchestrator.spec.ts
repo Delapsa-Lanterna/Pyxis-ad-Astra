@@ -2,7 +2,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { shipJointFixture } from '@/test/fixtures/joint-edit/ship-joint-edit';
 import { jointFixtureValues } from '@/test/fixtures/joint-edit/joint-record';
 import { savedWriteFixture } from '@/test/fixtures/write-result';
-import type { AppFeedback, JointEditDraft } from '@/shared/types';
+import { appLogQueue } from '@/shared/runtime/app-log-queue';
+import type { AppLogEntry, AppFeedback, JointEditDraft } from '@/shared/types';
 const mocks = vi.hoisted(() => ({ prepare: vi.fn(), save: vi.fn(), query: vi.fn() }));
 vi.mock('@/services/joint-edit.service', () => ({
   prepareJointEdit: mocks.prepare,
@@ -18,9 +19,15 @@ vi.mock('@/orchestrators/json-write-confirmation.orchestrator', () => ({
 }));
 import { skinJointFixture } from '@/test/fixtures/joint-edit/skin-joint-edit';
 import { openJointEditSnapshot, resolveWingReference, submitJointEdit } from './joint-edit.orchestrator';
+const records: AppLogEntry[] = [];
 let feedback: AppFeedback;
-beforeEach(() => {
+beforeEach(async () => {
+  await appLogQueue.flush();
   vi.clearAllMocks();
+  records.length = 0;
+  appLogQueue.install(async (batch) => {
+    records.push(...batch);
+  }, vi.fn());
   feedback = {
     error: vi.fn(),
     warning: vi.fn(),
@@ -84,5 +91,11 @@ describe('joint declared editing scope confirmation', () => {
     mocks.save.mockResolvedValue({ ...savedWriteFixture(), content: { target: { kind: 'joint', root: snapshot.root }, value: snapshot } });
     await submitJointEdit(draft, feedback, async () => [], ['spec']);
     expect(mocks.save.mock.calls[0]![0].createOverrides).toEqual(['spec']);
+    await appLogQueue.flush();
+    expect(records.filter((entry) => entry.code === 'joint.targets_decided').map((entry) => entry.fields?.status)).toEqual([
+      'cancelled',
+      'confirmed',
+    ]);
+    expect(records.find((entry) => entry.code === 'joint.targets_submitted')!.fields?.requestId).toBe(mocks.save.mock.calls[0]![1].id);
   });
 });

@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
-import type { AppFeedback } from '@/shared/types';
+import { appLogQueue } from '@/shared/runtime/app-log-queue';
+import type { AppLogEntry, AppFeedback } from '@/shared/types';
 import { initializeSettingsStore, useSettingsStore } from '@/stores/settings.store';
 import { createSettingsFixture } from '@/test/fixtures/settings';
 import { runConfirmedJsonWrite } from './json-write-confirmation.orchestrator';
@@ -16,11 +17,17 @@ const feedback: AppFeedback = {
   choose: vi.fn(async () => 'rewrite'),
 };
 
+const records: AppLogEntry[] = [];
 const rewriteFile = { path: 'M:/mod/demo.ship', reason: '数组元素位置无法对应', sourceFingerprint: 'abc123' };
 
 describe('runConfirmedJsonWrite', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
+    await appLogQueue.flush();
     vi.clearAllMocks();
+    records.length = 0;
+    appLogQueue.install(async (batch) => {
+      records.push(...batch);
+    }, vi.fn());
     setActivePinia(createPinia());
     initializeSettingsStore(createSettingsFixture());
   });
@@ -59,6 +66,12 @@ describe('runConfirmedJsonWrite', () => {
       .mockRejectedValueOnce({ code: 'json.rewrite_confirmation_required', message: 'confirmation required', files: [rewriteFile] });
     expect(await runConfirmedJsonWrite(feedback, write)).toBeNull();
     expect(write).toHaveBeenCalledTimes(1);
+    await appLogQueue.flush();
+    expect(records.find((entry) => entry.code === 'save.json_rewrite_decided')!.fields).toMatchObject({
+      path: rewriteFile.path,
+      sourceFingerprint: 'abc123',
+      status: 'cancelled',
+    });
   });
 
   it('uses normalizing save without a prompt when the setting is off', async () => {

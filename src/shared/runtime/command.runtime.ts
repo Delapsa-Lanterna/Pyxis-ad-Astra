@@ -1,7 +1,8 @@
 import { Channel, invoke } from '@tauri-apps/api/core';
 import { AppError, errorMessageOf } from '@/shared/lib/errors';
 import { beginPerformance, performanceMonitorEnabled } from './performance';
-import { appLogQueue, beginDebug, shouldQueueLog } from './app-log-queue';
+import { appLogQueue, beginDebug, shouldQueueLog, recordQueuedLog } from './app-log-queue';
+import { logIdentity } from '@/shared/lib/log-fields';
 import type { SaveAction, SaveEdit } from '@/shared/types';
 
 export interface SaveCommandRequest {
@@ -29,6 +30,21 @@ export async function invokeSaveCommand<T>(
   const requestId = request?.id ?? crypto.randomUUID();
   const invoked = invokeCommand<T>('save_project', { request: { id: requestId, edits, action: { kind: command, input: args.payload } } });
   const result = await invoked;
+  if (shouldQueueLog('info'))
+    recordQueuedLog({
+      level: 'info',
+      code: 'save.committed',
+      message: null,
+      path: null,
+      line: null,
+      fields: {
+        requestId,
+        action: command,
+        fields: JSON.stringify(edits.map((edit) => edit.path)),
+        ...logIdentity(args.payload),
+        ...logIdentity(result, 'result'),
+      },
+    });
   return Object.assign(result as object, { requestId }) as T;
 }
 
@@ -37,18 +53,18 @@ export async function invokeCommand<T>(command: string, args?: Record<string, un
   const request =
     (performanceMonitorEnabled || shouldQueueLog('debug')) && observable ? `${(instance ||= crypto.randomUUID())}:${++sequence}` : null;
   const finish = request && performanceMonitorEnabled ? beginPerformance('ipc', command, { request }) : null;
-  const log = request ? beginDebug('command', () => ({ command, request })) : undefined;
+  const log = request ? beginDebug('command', () => ({ command, request, ...logIdentity(args) })) : undefined;
   try {
     const value = await (request && performanceMonitorEnabled
       ? invoke<T>(command, args, { headers: { 'x-performance-request': request } })
       : invoke<T>(command, args));
     finish?.();
-    log?.();
+    log?.('completed', value);
     if (command === 'ready_close' || command === 'reply_close') await appLogQueue.flush();
     return value;
   } catch (cause) {
     finish?.('error');
-    log?.('failed');
-    throw new AppError(errorMessageOf(cause), { command, cause });
+    log?.('failed', undefined, cause);
+    throw new AppError(errorMessageOf(cause), { command, cause, logContext: logIdentity(args) });
   }
 }

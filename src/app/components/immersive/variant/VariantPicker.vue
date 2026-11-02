@@ -337,6 +337,8 @@ const viewport = useRetainedList(
   (key) => entryById.value.get(key),
   (entry) => entry.id,
   VARIANT_CARD_STEP,
+  Infinity,
+  () => ({ ...props.root, kind: props.kind }),
 );
 watch(() => JSON.stringify([props.root.sessionId, props.root.modRoot, props.kind]), viewport.reset, { flush: 'sync' });
 const preload = useThumbnailPreload('装配候选预读');

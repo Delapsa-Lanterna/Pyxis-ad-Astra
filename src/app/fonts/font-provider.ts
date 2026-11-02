@@ -14,7 +14,7 @@ export interface LoadedFont {
 }
 
 export async function decodeOriginalFont(source: Extract<OriginalFontResult, { status: 'available' }>): Promise<LoadedFont> {
-  debugLog('font.decode_started', () => ({ path: source.path, pages: String(source.pages.length) }));
+  debugLog('font.decode_started', () => ({ path: source.path, pages: String(source.pages.length), fontId: source.fontId }));
   let definition: BitmapFont;
   try {
     definition = parseOriginalBitmapFont(source.definition);
@@ -69,7 +69,7 @@ export async function decodeOriginalFont(source: Extract<OriginalFontResult, { s
   );
   const failure = results.find((result) => result.status === 'rejected');
   if (failure?.status === 'rejected') throw failure.reason;
-  debugLog('font.decode_completed', () => ({ path: source.path, pages: String(source.pages.length) }));
+  debugLog('font.decode_completed', () => ({ path: source.path, pages: String(source.pages.length), fontId: source.fontId }));
   return { definition, pages: new Map(results.flatMap((result) => (result.status === 'fulfilled' ? [result.value] : []))) };
 }
 

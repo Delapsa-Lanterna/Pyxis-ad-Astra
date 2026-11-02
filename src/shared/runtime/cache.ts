@@ -7,7 +7,8 @@
  * keeping this primitive framework-agnostic.
  */
 
-import { debugLog } from './app-log-queue';
+import { logIdentity } from '@/shared/lib/log-fields';
+import { debugLog, shouldQueueLog } from './app-log-queue';
 let nextCacheId = 0;
 
 export interface RuntimeCacheOptions<TKey> {
@@ -52,9 +53,17 @@ export function createRuntimeCache<TKey extends string, TValue, TPending = never
     while (cache.size > (typeof capacity === 'function' ? capacity() : capacity)) {
       const oldest = cache.keys().next().value as TKey | undefined;
       if (oldest === undefined) return;
+      const identity = shouldQueueLog('debug') ? logIdentity(cache.get(oldest)) : {};
       cache.delete(oldest);
       onEvict?.(oldest);
-      debugLog('cache.evicted', () => ({ cacheId, kind: options.name ?? 'runtime', reason: 'capacity', remaining: String(cache.size) }));
+      debugLog('cache.evicted', () => ({
+        ...identity,
+        cacheId,
+        kind: options.name ?? 'runtime',
+        reason: 'capacity',
+        capacity: String(typeof capacity === 'function' ? capacity() : capacity),
+        remaining: String(cache.size),
+      }));
     }
   }
 
@@ -81,7 +90,9 @@ export function createRuntimeCache<TKey extends string, TValue, TPending = never
       evictOverCapacity();
     },
     delete(key) {
-      if (cache.delete(key)) debugLog('cache.removed', () => ({ cacheId, kind: options.name ?? 'runtime' }));
+      const identity = shouldQueueLog('debug') ? logIdentity(cache.get(key)) : {};
+      if (cache.delete(key))
+        debugLog('cache.removed', () => ({ ...identity, cacheId, kind: options.name ?? 'runtime', reason: 'explicit' }));
     },
     keys() {
       return cache.keys();

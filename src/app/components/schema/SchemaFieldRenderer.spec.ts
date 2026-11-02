@@ -867,6 +867,6 @@ describe('SchemaFieldRenderer plain mode', () => {
     expect(document.activeElement).toBe(wrapper.get('input').element);
     await wrapper.get('input').setValue('');
     await session.saveDraft();
-    expect(save).toHaveBeenCalledWith('one', {}, [], { count: 4 }, undefined);
+    expect(save).toHaveBeenCalledWith('one', {}, [], { count: 4 }, { id: 'fixture-save' });
   });
 });

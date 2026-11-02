@@ -5,7 +5,8 @@ import type { FieldInputs } from '@/shared/runtime/field-inputs';
 import type { DocumentSaveResult } from '@/shared/runtime/document-editor';
 import type { EditWriteTarget } from '@/shared/types';
 import { editTargetsOverlap } from '@/domain/edit-session';
-import { debugLog } from '@/shared/runtime/app-log-queue';
+import { logIdentity } from '@/shared/lib/log-fields';
+import { beginDebug } from '@/shared/runtime/app-log-queue';
 import { useProjectSyncStore } from '@/stores/project-sync.store';
 import { normalizeFsPath } from '@/shared/lib/paths';
 
@@ -76,17 +77,22 @@ export const useSaveCommandStore = defineStore('save-command', () => {
     const pending = requests.get(handle);
     if (pending) return pending;
     if (useProjectSyncStore().isWaiting(handle.modRoot.value)) return Promise.resolve({ status: 'cancelled' });
-    const fields = () => ({ target: handle.targetKey.value ?? '', modRoot: handle.modRoot.value ?? '' });
-    debugLog('save.queued', fields);
-    debugLog('save.started', fields);
+    const finish = beginDebug('save', () => ({
+      target: handle.targetKey.value ?? '',
+      modRoot: handle.modRoot.value ?? '',
+      ...logIdentity(handle.editing?.targets.value),
+    }));
     const result = run()
       .then(
         (value) => {
-          debugLog(value.status === 'cancelled' ? 'save.cancelled' : 'save.completed', () => ({ ...fields(), status: value.status }));
+          finish?.(
+            value.status === 'cancelled' ? 'cancelled' : 'completed',
+            value.status === 'saved' ? { status: value.status, requestId: value.receipt.requestId } : value,
+          );
           return value;
         },
         (error) => {
-          debugLog('save.failed', fields);
+          finish?.('failed', undefined, error);
           throw error;
         },
       )

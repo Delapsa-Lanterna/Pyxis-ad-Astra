@@ -4,7 +4,8 @@ import { installNaiveUi } from '@/app/naive-ui.runtime';
 import { initializeSettings } from '@/orchestrators/settings-persistence.orchestrator';
 import { recordLogBestEffort } from '@/services/app-log.service';
 import { startPerformanceMonitor } from '@/app/performance-monitor';
-import { errorDiagnosticOf } from '@/shared/lib/errors';
+import { logFields } from '@/shared/lib/log-fields';
+import { errorContextOf, errorDiagnosticOf } from '@/shared/lib/errors';
 import { startApplicationLog } from '@/app/application-log';
 import { installRuntimeErrorMonitor, installVueErrorHandlers } from '@/app/runtime-error-monitor';
 import { initializeSettingsStore } from '@/stores/settings.store';
@@ -58,6 +59,7 @@ async function loadWindowRoot(kind: string | null): Promise<Component> {
 
 void bootstrap().catch((error) => {
   if (!pageActive) return;
+  reportStartupError(error);
   app?.unmount();
   const reported = failWindowStartup(error).catch(reportStartupError);
   const target = document.querySelector('#app');
@@ -78,6 +80,6 @@ function reportStartupError(error: unknown) {
     message: diagnostic.message,
     path: diagnostic.location?.path ?? null,
     line: diagnostic.location?.line ?? null,
-    fields: { action: 'window-startup-report' },
+    fields: logFields({ ...errorContextOf(error), action: 'window-startup-report', version: __APP_VERSION__ }),
   });
 }

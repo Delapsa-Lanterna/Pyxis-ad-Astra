@@ -6,7 +6,7 @@ use crate::io::{
 use crate::models::{AppSettings, CacheLimits, LOG_FILE, SettingsSnapshot};
 use crate::services::workspace_persistence;
 use crate::{app_data_dir, diagnostics, parsers};
-use serde_json::Value;
+use serde_json::{Value, json};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -66,7 +66,13 @@ fn read_settings_with(
     let (value, diagnostics) = load()?;
     let snapshot = commit_snapshot(value, apply_runtime, notify)?;
     drop(_guard);
-    diagnostics.into_iter().for_each(diagnostics::record);
+    diagnostics.into_iter().for_each(|message| {
+        diagnostics::failure(
+            "settings.recovered",
+            AppError::message("settings.recovered", message),
+            json!({"phase":"read"}),
+        )
+    });
     Ok(snapshot)
 }
 fn commit_settings(
@@ -93,7 +99,11 @@ fn commit_snapshot(
     };
     *snapshot_state()? = Some(snapshot.clone());
     if let Err(error) = notify(&snapshot) {
-        diagnostics::record(format!("settings notification failed: {error}"));
+        diagnostics::failure(
+            "settings.notification_failed",
+            error,
+            json!({"revision":snapshot.revision}),
+        );
     }
     Ok(snapshot)
 }

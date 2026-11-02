@@ -2,23 +2,10 @@ import type { App, ComponentPublicInstance } from 'vue';
 import { isReadInvalidated } from '@/shared/runtime/read-request';
 import { errorContextOf, errorDiagnosticOf } from '@/shared/lib/errors';
 import { logFields } from '@/shared/lib/log-fields';
-import { recordQueuedLog } from '@/shared/runtime/app-log-queue';
+import { recordQueuedLog, type RuntimeLogContext } from '@/shared/runtime/app-log-queue';
 
-type RuntimeContext = Record<string, string | number | null | undefined>;
-type RuntimeContextProvider = () => RuntimeContext;
-const providers = new Set<RuntimeContextProvider>();
+type RuntimeContext = RuntimeLogContext;
 let installed = false;
-
-function context(): RuntimeContext {
-  const result: RuntimeContext = {};
-  for (const provider of providers)
-    try {
-      Object.assign(result, provider());
-    } catch {
-      // Context collection must never interfere with error reporting.
-    }
-  return result;
-}
 
 function stackOf(error: unknown) {
   return error instanceof Error && error.stack ? error.stack.slice(0, 4000) : undefined;
@@ -36,7 +23,7 @@ function recordRuntimeError(level: 'warning' | 'error' | 'debug', code: string, 
     message: diagnostic.message,
     path: diagnostic.location?.path ?? null,
     line: diagnostic.location?.line ?? null,
-    fields: logFields({ ...context(), ...errorContextOf(error), ...fields, stack: stackOf(error) }),
+    fields: logFields({ ...errorContextOf(error), ...fields, stack: stackOf(error) }),
   });
 }
 
@@ -45,6 +32,7 @@ function onError(event: ErrorEvent | Event) {
     recordRuntimeError('error', 'runtime.window_error', event.error ?? event.message, {
       event: 'window.error',
       filename: event.filename,
+      line: event.lineno,
       column: event.colno,
     });
     return;
@@ -54,6 +42,7 @@ function onError(event: ErrorEvent | Event) {
   recordRuntimeError(tag === 'script' || tag === 'link' ? 'error' : 'warning', 'runtime.resource_error', 'Resource load failed', {
     event: 'resource.error',
     tag,
+    resource: target?.getAttribute('src') ?? target?.getAttribute('href'),
   });
 }
 
@@ -69,10 +58,7 @@ function onUnhandledRejection(event: PromiseRejectionEvent) {
   );
 }
 
-export function setRuntimeErrorContext(provider: RuntimeContextProvider) {
-  providers.add(provider);
-  return () => providers.delete(provider);
-}
+export { setRuntimeErrorContext } from '@/shared/runtime/app-log-queue';
 
 export function installRuntimeErrorMonitor() {
   if (installed) return () => {};
