@@ -325,7 +325,10 @@ import { MAX_HISTORY_LIMIT, MAX_LOG_ROTATION_SIZE_MIB, MAX_LOG_BACKUP_COUNT, MAX
 import { ACCENT_PRESETS } from '@/domain/settings/theme';
 import ColorPicker from '@/shared/ui/ColorPicker.vue';
 import { useSettingsViewModel } from '@/app/composables/settings/use-settings-view-model';
+import type { SettingsSourceChange } from '@/orchestrators/settings-persistence.orchestrator';
 import type { CacheLimits } from '@/shared/types';
+
+const props = defineProps<{ changeSource: SettingsSourceChange }>();
 
 const TOAST_LEVELS = { success: '成功', info: '信息', warning: '警告', error: '错误' } as const;
 const MEDIA_CACHES = {
@@ -398,7 +401,7 @@ const {
   monitorAction,
   traceSeconds,
   performanceMonitorError,
-} = useSettingsViewModel(() => {
+} = useSettingsViewModel(props.changeSource, () => {
   customAccentDraft.value = settings.customAccent;
   customAccentValid.value = true;
 });

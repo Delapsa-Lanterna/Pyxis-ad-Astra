@@ -4,38 +4,54 @@ import { frontendLayerBoundaryRule } from './frontend-layer-boundary.mjs';
 import { messages, architectureFixtures } from '../../testing/fixtures.mjs';
 
 test('settings persistence dependencies follow actual workspace responsibilities', () => {
-  const owner = 'src/orchestrators/settings-persistence.orchestrator.ts';
-  for (const target of [
-    'src/orchestrators/workspace-core-source.orchestrator.ts',
-    'src/orchestrators/workspace-lifecycle.orchestrator.ts',
-    'src/orchestrators/workspace-opening.orchestrator.ts',
-    'src/stores/workspace.store.ts',
-    'src/stores/save-command.store.ts',
-    'src/services/directory.service.ts',
-    'src/domain/project/load-diagnostics.ts',
-  ])
-    for (const typeOnly of [false, true]) {
-      const source = `\nimport ${typeOnly ? 'type ' : ''}{Operation as Selected} from '@/${target.slice(4, -3)}';`;
-      const context = architectureFixtures({ [owner]: source, [target]: 'export interface Operation {}' });
-      const diagnostics = frontendLayerBoundaryRule.check(context);
-      assert.equal(diagnostics.length, 1);
-      const diagnostic = diagnostics[0];
-      assert.ok(diagnostic);
-      assert.equal(diagnostic.file, owner);
-      assert.equal(diagnostic.line, 2);
-      assert.equal(diagnostic.target, target);
-      assert.equal(diagnostic.expected, 'settings persistence dependencies');
-    }
-  for (const target of [
-    'src/services/app-settings.service.ts',
-    'src/orchestrators/settings-normalization.orchestrator.ts',
-    'src/domain/workspace/projection.ts',
+  for (const owner of [
+    'src/orchestrators/settings-persistence.orchestrator.ts',
+    'src/app/composables/settings/use-settings-view-model.ts',
+    'src/app/components/SettingsPage.vue',
   ]) {
-    const context = architectureFixtures({
-      [owner]: `import {operation} from '@/${target.slice(4, -3)}';`,
-      [target]: 'export function operation() {}',
-    });
-    assert.deepEqual(frontendLayerBoundaryRule.check(context), []);
+    for (const target of [
+      'src/orchestrators/workspace-core-source.orchestrator.ts',
+      'src/orchestrators/workspace-lifecycle.orchestrator.ts',
+      'src/orchestrators/workspace-opening.orchestrator.ts',
+      'src/stores/workspace.store.ts',
+      'src/stores/save-command.store.ts',
+      'src/services/directory.service.ts',
+      'src/domain/project/load-diagnostics.ts',
+      'src/app/composables/use-window-close-state.ts',
+    ])
+      for (const typeOnly of [false, true]) {
+        const statement = `import ${typeOnly ? 'type ' : ''}{Action as Selected} from '@/${target.slice(4, -3)}';`;
+        const source = owner.endsWith('.vue') ? `<script setup lang="ts">\n${statement}\n</script>` : `\n${statement}`;
+        const context = architectureFixtures({ [owner]: source, [target]: 'export interface Action {}' });
+        const diagnostics = frontendLayerBoundaryRule.check(context);
+        assert.equal(diagnostics.length, 1);
+        const diagnostic = diagnostics[0];
+        assert.ok(diagnostic);
+        assert.equal(diagnostic.file, owner);
+        assert.equal(diagnostic.line, 2);
+        assert.equal(diagnostic.target, target);
+        assert.equal(
+          diagnostic.expected,
+          owner.startsWith('src/orchestrators/') && target.startsWith('src/app/')
+            ? 'orchestrators, services, stores, domain, windows, shared'
+            : 'settings dependencies and explicit source action',
+        );
+      }
+    for (const target of owner.endsWith('.vue')
+      ? ['src/app/composables/settings/use-settings-view-model.ts', 'src/domain/settings/rules.ts']
+      : [
+          'src/services/app-settings.service.ts',
+          'src/orchestrators/settings-normalization.orchestrator.ts',
+          'src/domain/workspace/projection.ts',
+        ]) {
+      const context = architectureFixtures({
+        [owner]: owner.endsWith('.vue')
+          ? `<script setup lang="ts">import {operation} from '@/${target.slice(4, -3)}';</script>`
+          : `import {operation} from '@/${target.slice(4, -3)}';`,
+        [target]: 'export function operation() {}',
+      });
+      assert.deepEqual(frontendLayerBoundaryRule.check(context), []);
+    }
   }
   const sameName = architectureFixtures({
     'src/domain/settings-persistence.ts': "import {operation} from '@/domain/project/load-diagnostics';",

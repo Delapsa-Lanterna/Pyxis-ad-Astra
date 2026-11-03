@@ -24,7 +24,7 @@
 - `src/app/composables/use-workspace-json-editor-host.ts`：当前 JSON 页面目标、定位完成回执及已解析基础船体的导航交接。
 - `src/app/composables/use-workspace-mod-creation.ts`：总览创建目的地、对话框状态及创建结果的工作区接纳。
 - `src/app/composables/use-workspace-navigation-actions.ts`：导航输入提交、保存等待和存活草稿交接。
-- `src/app/composables/use-workspace-shell-actions.ts`：打开动作消费入口，处理 outcome 与失败反馈。
+- `src/app/composables/use-workspace-shell-actions.ts`：主窗口工作区动作、当前窗口关闭与来源切换绑定、打开结果及失败反馈。
 - `src/app/composables/use-workspace-shell-lifecycle.ts`：主窗口恢复、工作区持久化及保存事件生命周期。
 - `src/domain/workspace/mod-navigation.ts`：每个 Mod 的页面状态与导航投影。
 - `src/domain/workspace/mod-overview.ts`：正式 manifest 的 Mod 概览统计投影。
@@ -71,7 +71,7 @@
 - 没有游戏概览时，原版条目随最后一个普通 Mod 共同进入关闭范围；会话按实际释放结果清理，加载中条目在关闭成功后撤销接纳权。
 - 启动恢复以游戏目录或普通 Mod 为工作区依据；仅含原版条目且没有游戏目录的快照结束为空工作区，并由恢复收尾保存当前快照。
 - 工作区打开动作持有捕获代次、共享 manifest 等待及迟到 session 清理，接纳成功建立的运行态。
-- 来源切换拥有捕获的恢复快照及完整关闭等待，设置模块交付正式设置提交闭包。
+- 来源切换拥有捕获的恢复快照及完整关闭等待；主窗口装配交付当前关闭动作，设置模块交付正式设置提交闭包。
 - 历史命令消费当前可见编辑面的草稿动作，文件回放确认与 CSV 选择交接归工作区动作。
 
 ## 链路
@@ -105,7 +105,7 @@
 
 ### 原版来源切换
 
-1. 设置页交付目标覆盖根、当前窗口关闭动作和设置提交闭包。
+1. 主窗口的工作区动作实例捕获当前窗口关闭请求，设置持久化经该实例的 switchCoreSource 交付目标覆盖根及设置提交闭包。
 2. 来源切换等待已登记动作及目录打开，验证目标根并捕获工作区快照，暂停自动保存。
 3. 正式关闭流程接纳实际释放结果；取消或错误登记并等待最终快照收尾。
 4. 关闭成功后登记完整任务，执行设置提交，并在结束时按捕获列表恢复工作区。

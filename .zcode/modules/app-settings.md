@@ -13,7 +13,7 @@
 - `src-tauri/src/services/app_settings/`：系统字体枚举及设置所属依赖。
 - `src-tauri/src/services/app_settings/system_fonts.rs`：Windows 已安装字体族枚举、去重与排序。
 - `src/app/components/SettingsPage.vue`：设置页组件，消费全局历史限制、日志留存与 accent 预设。
-- `src/app/composables/settings/use-settings-view-model.ts`：字体与日志读取、页面投影、重置确认，以及当前窗口关闭与工作区来源切换装配。
+- `src/app/composables/settings/use-settings-view-model.ts`：字体与日志读取、页面投影、重置确认，以及主窗口交付的来源切换动作消费。
 - `src/app/composables/settings/use-theme-dom-effect.ts`：主题与通用字体 DOM 副作用，写 root dataset、颜色变量与字体变量。
 - `src/domain/settings/`：设置校验、字体、配色与主题令牌纯规则。
 - `src/domain/settings/fonts.ts`：通用字体组合与字体族投影。
@@ -29,7 +29,6 @@
 - `src-tauri/src/models/app_settings.rs`：设置 wire 模型与四项容量的默认值。
 - `src-tauri/src/models/cache_limits.rs`：设置持久化消费的缓存预算模型与默认值。
 - `src/domain/cache-limits.ts`：缓存预算完整性与数值范围校验。
-- `src/orchestrators/workspace-core-source.orchestrator.ts`：设置页消费的完整工作区来源切换及最终快照等待。
 - `src/shared/runtime/cache-limits.ts`：正式预算快照、变更通知与缓存订阅释放。
 - `src/shared/runtime/event.runtime.ts`：设置通知消费的通用事件传输。
 - `src/shared/types/app-settings.types.ts`：完整设置快照、主题及保存请求。
@@ -42,6 +41,7 @@
 
 ### 装配
 
+- `src/app/AppContent.vue`：主窗口向设置页交付工作区动作中的 SettingsSourceChange。
 - `src/app/WindowShell.vue`：唯一窗口壳，main 模式启动设置持久化、child 模式启动设置镜像并挂载主题 effect。
 
 ## 边界
@@ -52,7 +52,7 @@
 - `toastDurations` 随完整快照保存、重置和镜像，成功、信息、警告、错误的默认时长分别为 5、7、7、0 秒，范围为 0–3600 整数秒，0 表示持续显示。
 - 唯一主题 effect 拥有 DOM 写入，窗口壳与 Naive provider 消费同一具体颜色。
 - 日志目录动作经设置 ViewModel 与持久化编排接纳后端规范化快照。
-- 设置持久化拥有正式根判断、完整默认值和提交失败回退，设置页交付工作区来源切换及当前窗口关闭动作。
+- 设置持久化拥有正式根判断、完整默认值和提交失败回退；设置页消费主窗口交付的来源切换动作。
 - 设置和镜像提供请求 editMode，各编辑面拥有实际模式及所属输入交接。
 - 设置服务必须在写盘后调用应用装配交付的运行参数动作；主窗口装配必须向保存队列交付正式提交后的历史摘要刷新动作。
 - 领域拥有输入校验与主题算法，store 持有设置运行态、setter 和派生结果。
@@ -102,7 +102,7 @@
 ### 重置设置
 
 1. 设置页请求危险确认，说明全部设置恢复默认及性能监视重启生效。
-2. 持久化编排经 `read_default_settings` 取得完整默认值，比较正式根；根变化时等待设置页交付的工作区切换，再执行设置提交闭包。
+2. 持久化编排经 `read_default_settings` 取得完整默认值，比较正式根；根变化时等待主窗口经设置页交付的来源切换，再执行设置提交闭包。
 3. 设置提交按原有写盘、运行参数及快照广播流程接纳；所属窗口呈现完成结果并刷新日志状态。
 
 ## 规范
@@ -142,7 +142,7 @@
 - 设置页释放必须撤销字体与日志展示读取的接纳；已执行日志动作必须由所属窗口反馈结果，页面投影必须由当前读取票据接纳。
 - 安装路径必须表达用户指定的原版覆盖目录；目录打开、扫描与刷新只允许更新所属工作区目录。
 - 选择、清除与重置安装路径必须经显式设置动作等待保存、确认草稿、释放旧会话、提交设置并按捕获列表重开 Mod；取消必须保留原设置与会话，写盘失败必须按正式设置重开。
-- 设置持久化必须独占正式根比较、完整默认值读取、归一化及提交失败回退；来源切换必须消费设置页交付的工作区动作与提交闭包。
+- 设置持久化必须独占正式根比较、完整默认值读取、归一化及提交失败回退；来源切换必须消费主窗口交付的 SettingsSourceChange；设置页必须将该动作交给设置持久化，正式提交闭包必须由设置持久化捕获。
 - 相同正式根必须直接提交设置；来源切换必须等待重开及最终工作区快照处理完成后交付动作结果。
 - 窗口原版加载必须消费正式提交后的安装路径变化；设置编辑值严禁提前改变正式来源。
 - 重置设置必须取得用户确认并消费后端完整默认值，必须通过正式保存队列提交；工作区记录、Mod 内容和已有日志必须保留。

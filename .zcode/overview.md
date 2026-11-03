@@ -92,7 +92,7 @@
 - 武器开火预览：已保存武器或独立 draft 快照 → weapon-fire-preview 窗口请求 → 武器、CSV 与弹体读取接纳 → 播放状态与帧循环 → 领域发射模拟及共享场景绘制 → 提交失效重读或窗口释放
 - 设置保存与镜像：主窗口 settings 编辑值 → 唯一保存队列 → Rust 权限、校验、规范化与写盘 → 运行参数、revision 及正式 snapshot → 全部窗口按版本接纳 → 缓存预算与历史容量生效
 - 主题与输入模式：正式设置及系统主题 → settings store 派生主题令牌与字体 → 唯一主题 DOM effect 及 Naive Provider；`editMode` 变化 → 所属输入集合确认交接 → 字段控件接纳实际模式
-- 原版来源切换：设置页捕获目标根与工作区 → `switchWorkspaceCoreSource` 等待已登记动作 → 根授权与关闭确认 → 实际 session 释放 → 设置提交 → 按捕获 Mod 列表重开 → 最终工作区快照与结果反馈
+- 原版来源切换：设置页提交目标根 → 设置持久化比较正式根并捕获提交闭包 → 主窗口交付 `actions.switchCoreSource` 绑定的当前关闭动作 → `switchWorkspaceCoreSource` 等待已登记动作 → 根授权与关闭确认 → 实际 session 释放 → 设置提交 → 按捕获 Mod 列表重开 → 最终工作区快照与结果反馈
 - 关闭与释放：window、sessions 或 application 的 `CloseScope` → 保存及待同步工作结束 → 当前 dirty 与活动输入复核 → 所属确认及设置、日志、性能交付 → Rust 销毁并等待 `Destroyed` → 项目同步完整释放 → `releasedSessions` → 工作区、内容与缓存释放
 - 错误呈现与恢复：原始 `AppError`、稳定码、location 与 payload → 所属窗口反馈 → 用户文案、原始诊断日志及授权文件动作 → recovery 窗口或明确业务重试 → 实际动作结果与一次最终反馈
 - 文本编码转换：`text.invalid_utf8` 与授权目标 → 用户选择源编码 → 后端重读并检查当前字节 → 仍需转码时完整解码并写入 changeset → 正式回执 → 受影响会话及文本窗口接纳

@@ -31,7 +31,7 @@
 - `src-tauri/src/services/mod.rs`：原生服务模块登记及查询、资源、保存业务函数的直接导出装配。
 - `src-tauri/tauri.conf.json`：应用标识、窗口与构建配置。
 - `src/app/App.vue`：主窗口根，以 main 模式包装唯一窗口壳并装配主窗口内容。
-- `src/app/AppContent.vue`：主窗口装配、明确文档保存与快捷键登记、窗口级 CSV 关联确认，以及完整目标绑定的 CSV 和 JSON 页面懒挂载。
+- `src/app/AppContent.vue`：主窗口装配、设置来源切换接线、明确文档保存与快捷键登记、窗口级 CSV 关联确认，以及完整目标绑定的 CSV 和 JSON 页面懒挂载。
 - `src/app/FileEditorApp.vue`：文件编辑器子窗口根，以 child 模式包装文件编辑器窗口内容。
 - `src/app/ImmersiveEditorApp.vue`：沉浸式子窗口根与统一窗口壳挂载。
 - `src/app/ImmersiveEditorContent.vue`：四类沉浸式组件、共同会话及业务事件装配。
@@ -70,6 +70,7 @@
 
 - `src-tauri/src/services/project/resources/media_cache.rs`：正式设置接纳时配置后端媒体预算。
 - `src/app/composables/use-workspace-json-editor-host.ts`：工作区 JSON 页面目标及定位与导航宿主。
+- `src/app/composables/use-workspace-shell-actions.ts`：主窗口工作区动作及绑定当前窗口关闭能力的来源切换。
 - `src/domain/source-catalog/source-definitions.ts`：规格窗口装配捕获配置候选的正式刷新路径。
 - `src/orchestrators/mod-save.orchestrator.ts`：所属窗口的 Mod 保存协调实例与结果交付。
 - `src/services/app-settings.service.ts`：启动消费的主窗口 settings 读取能力。
@@ -90,6 +91,7 @@
 - Naive UI 注册表同步装配 Provider 与 NButton，其余控件在首次渲染时异步解析。
 - main 拥有依赖初始化、根组件加载、Vue 挂载与窗口显示。
 - 主题算法归设置领域，settings store 提供派生结果，窗口壳挂载唯一 DOM effect。
+- 主窗口消费所属工作区动作中的来源切换能力，经设置页向设置持久化交付同一动作。
 - 全部窗口从 Rust 设置服务读取正式 snapshot，主窗口装配唯一编辑提交队列。
 - 原生 bootstrap 提供窗口种类、已接纳上下文和接收代次，启动入口独立装配设置与所属根。
 - 原生创建、复用与事件归窗口能力，启动入口消费已建立的身份参数。
@@ -140,6 +142,7 @@
 - 内容窗口的关闭保护登记与用户关闭动作失败必须进入所属窗口反馈，启动失败后的显示失败必须进入原始启动诊断入口。
 - 主窗口与子窗口的模式差异必须由唯一窗口壳的 mode 参数表达，严禁出现第二份 Provider 栈。
 - 主窗口必须通过 MainWindowFrame 分配标题栏、页签、导航、通知与唯一主内容区域，导航实例与工作区动作必须归 AppContent。
+- 主窗口必须将所属工作区动作的 switchCoreSource 经设置页明确属性交付；当前窗口关闭能力必须由同一工作区动作实例捕获，切换结果必须等待完整工作区操作。
 - 全部窗口 settings snapshot 必须从 Rust 设置服务读取并经统一校验入口初始化，后续更新必须先监听再读取正式快照并按版本接纳。
 - 关闭取消必须保留实际销毁及完整释放结果，存活 owner 必须恢复准备状态、焦点和保留的读取失效。
 - 关闭必须由 Rust 应用生命周期协调范围、阶段、销毁等待与实际释放；项目同步必须完成项目释放，窗口必须交付实例与内容登记，会话必须完成底层状态释放，工作区必须接纳实际结果。

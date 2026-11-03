@@ -105,7 +105,7 @@ export const projectCapabilities = [
     {
       capability: 'workspace-core-source',
       names: ['switchWorkspaceCoreSource'],
-      owners: [{ path: 'src/app/composables/settings/use-settings-view-model.ts', layer: 'app' }],
+      owners: [{ path: 'src/app/composables/use-workspace-shell-actions.ts', layer: 'app' }],
     },
   ]),
   ...capabilities({ role: 'service', domain: 'workspace-state' }, [

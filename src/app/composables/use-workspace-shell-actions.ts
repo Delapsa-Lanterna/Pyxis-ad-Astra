@@ -24,6 +24,7 @@ import { logFields } from '@/shared/lib/log-fields';
 import { refreshProjectSourcePaths } from '@/orchestrators/project-sync.orchestrator';
 
 import { useWindowCloseRequest } from '@/app/composables/use-window-close-state';
+import { switchWorkspaceCoreSource } from '@/orchestrators/workspace-core-source.orchestrator';
 import { cell, formatModVersion } from '@/shared/lib/starsector';
 import { pathBasename, normalizeFsPath, gameCoreDirectoryPath } from '@/shared/lib/paths';
 import { refreshCoreAssets } from '@/orchestrators/core-assets.orchestrator';
@@ -40,6 +41,10 @@ export function useWorkspaceShellActions(feedback: AppFeedback) {
     onScopeDispose(() => {
       disposed = true;
     });
+
+  function switchCoreSource(root: string | null, commitSettings: () => Promise<void>) {
+    return switchWorkspaceCoreSource(root, requestClose, commitSettings);
+  }
 
   async function openDirectory() {
     try {
@@ -261,6 +266,7 @@ export function useWorkspaceShellActions(feedback: AppFeedback) {
   }
 
   return {
+    switchCoreSource,
     settleWorkspaceOpenings,
     confirmCloseWorkspace,
     confirmRemoveMod,

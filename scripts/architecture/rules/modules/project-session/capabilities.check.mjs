@@ -7,7 +7,7 @@ import { capabilityBoundaryRule } from '../../capabilities/capability-boundary.m
 const cases = [
   [
     'workspace-core-source',
-    'src/app/composables/settings/use-settings-view-model.ts',
+    'src/app/composables/use-workspace-shell-actions.ts',
     'src/orchestrators/workspace-core-source.orchestrator.ts',
     'switchWorkspaceCoreSource',
   ],

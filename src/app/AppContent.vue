@@ -12,8 +12,9 @@
       @import-mod="actions.openDirectory"
       @refresh-workspace="actions.refreshWorkspace"
       @close-workspace="actions.confirmCloseWorkspace"
-      @load-mod="actions.loadOverviewMod" /><SettingsPage v-else-if="workspace.currentView === 'settings'" /><AboutPage
-      v-else-if="workspace.currentView === 'about'" /><ModFileBrowser
+      @load-mod="actions.loadOverviewMod" /><SettingsPage
+      v-else-if="workspace.currentView === 'settings'"
+      :change-source="actions.switchCoreSource" /><AboutPage v-else-if="workspace.currentView === 'about'" /><ModFileBrowser
       :target="workspace.activeManifest"
       v-else-if="workspace.currentView === 'mod-files' && workspace.activeManifest" /><CsvEditorPage
       v-else-if="csvHost.target.value"

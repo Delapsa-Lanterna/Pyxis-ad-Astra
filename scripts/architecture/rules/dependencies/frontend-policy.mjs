@@ -9,13 +9,21 @@ export function frontendDependencyFailure(current, target, edge) {
       expected: /** @type {string[]} */ (layers[current.layer]).join(', '),
     };
   if (
-    current.path === 'src/orchestrators/settings-persistence.orchestrator.ts' &&
+    [
+      'src/orchestrators/settings-persistence.orchestrator.ts',
+      'src/app/composables/settings/use-settings-view-model.ts',
+      'src/app/components/SettingsPage.vue',
+    ].includes(current.path) &&
     ((target.layer === 'orchestrators' && target.domain?.startsWith('workspace-')) ||
       (target.layer === 'stores' && ['workspace', 'save-command'].includes(target.domain ?? '')) ||
       target.path === 'src/services/directory.service.ts' ||
-      target.path === 'src/domain/project/load-diagnostics.ts')
+      target.path === 'src/domain/project/load-diagnostics.ts' ||
+      target.path === 'src/app/composables/use-window-close-state.ts')
   )
-    return { message: 'workspace source transitions belong to the workspace action', expected: 'settings persistence dependencies' };
+    return {
+      message: 'settings source actions must be supplied by application assembly',
+      expected: 'settings dependencies and explicit source action',
+    };
   const jsonEditor =
     /^src\/(?:app\/(?:components|composables)\/json-editor\/|domain\/json-editor\/|stores\/json-editor\.store\.ts$|orchestrators\/json-save\.orchestrator\.ts$|services\/json-(?:entity|file|resource|recovery)\.service\.ts$)/.test(
       current.path,

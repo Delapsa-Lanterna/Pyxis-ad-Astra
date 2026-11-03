@@ -7,10 +7,17 @@ import { createSettingsFixture } from '@/test/fixtures/settings';
 import { editorUiStubs, nInputNumber } from '@/test/unit/ui-stubs';
 import SettingsPage from './SettingsPage.vue';
 import ColorPicker from '@/shared/ui/ColorPicker.vue';
+import { useSettingsViewModel } from '@/app/composables/settings/use-settings-view-model';
+import type { SettingsSourceChange } from '@/orchestrators/settings-persistence.orchestrator';
 
-const logUi = vi.hoisted(() => ({ refresh: vi.fn(), reset: vi.fn(), pickFont: vi.fn() }));
+const logUi = vi.hoisted(() => ({
+  refresh: vi.fn(),
+  reset: vi.fn(),
+  pickFont: vi.fn(),
+  changeSource: vi.fn<SettingsSourceChange>(async () => true),
+}));
 vi.mock('@/app/composables/settings/use-settings-view-model', () => ({
-  useSettingsViewModel: (onReset?: () => void) => ({
+  useSettingsViewModel: vi.fn((_changeSource: SettingsSourceChange, onReset?: () => void) => ({
     logStatus: ref({ recording: 'stopped', level: 'warning', pending: 0, dropped: 7, lastError: 'fixture write error' }),
     applicationLogError: ref(''),
     monitorStatus: ref({
@@ -48,7 +55,7 @@ vi.mock('@/app/composables/settings/use-settings-view-model', () => ({
     },
     restoreDefaultLogDirectory: vi.fn(),
     confirmClearLog: vi.fn(),
-  }),
+  })),
 }));
 
 beforeEach(() => {
@@ -60,7 +67,11 @@ beforeEach(() => {
 
 describe('settings limit controls', () => {
   it('places toast durations below cache limits and edits all four levels in seconds', async () => {
-    const wrapper = mount(SettingsPage, { global: { stubs: { ...editorUiStubs, ColorPicker: true } } });
+    const wrapper = mount(SettingsPage, {
+      props: { changeSource: logUi.changeSource },
+      global: { stubs: { ...editorUiStubs, ColorPicker: true } },
+    });
+    expect(useSettingsViewModel).toHaveBeenCalledWith(logUi.changeSource, expect.any(Function));
     const sections = wrapper.findAll('section'),
       index = sections.findIndex((section) => section.get('h3').text() === '提示时长'),
       section = sections[index]!;
@@ -79,7 +90,10 @@ describe('settings limit controls', () => {
     wrapper.unmount();
   });
   it('keeps the color draft at its declared string output', async () => {
-    const wrapper = mount(SettingsPage, { global: { stubs: { ...editorUiStubs, ColorPicker: true } } });
+    const wrapper = mount(SettingsPage, {
+      props: { changeSource: logUi.changeSource },
+      global: { stubs: { ...editorUiStubs, ColorPicker: true } },
+    });
     const color = wrapper.getComponent(ColorPicker);
     const original = color.props('modelValue');
     color.vm.$emit('update:modelValue', [10, 20, 30]);
@@ -92,7 +106,10 @@ describe('settings limit controls', () => {
     wrapper.unmount();
   });
   it('resets local invalid color input when the saved default color is unchanged', async () => {
-    const wrapper = mount(SettingsPage, { global: { stubs: { ...editorUiStubs, ColorPicker: true } } });
+    const wrapper = mount(SettingsPage, {
+      props: { changeSource: logUi.changeSource },
+      global: { stubs: { ...editorUiStubs, ColorPicker: true } },
+    });
     const color = wrapper.getComponent(ColorPicker);
     color.vm.$emit('update:modelValue', 'invalid');
     await wrapper.vm.$nextTick();
@@ -108,6 +125,7 @@ describe('settings limit controls', () => {
   });
   it('offers all four minimum levels and exposes the stopped-run status', async () => {
     const wrapper = mount(SettingsPage, {
+      props: { changeSource: logUi.changeSource },
       global: { stubs: { ...editorUiStubs, ColorPicker: true } },
     });
     const config = wrapper.findAll('section').find((section) => section.get('h3').text() === '配置文件')!;
@@ -141,6 +159,7 @@ describe('settings limit controls', () => {
   });
   it('places default-off monitoring last and keeps the runtime state until restart', async () => {
     const wrapper = mount(SettingsPage, {
+      props: { changeSource: logUi.changeSource },
       global: {
         stubs: { ...editorUiStubs, ColorPicker: true, 'n-radio-group': { template: '<div><slot /></div>' }, 'n-radio-button': true },
       },
@@ -175,6 +194,7 @@ describe('settings limit controls', () => {
   });
   it('places general and immersive fonts below appearance and applies both controls', async () => {
     const wrapper = mount(SettingsPage, {
+      props: { changeSource: logUi.changeSource },
       global: {
         stubs: { ...editorUiStubs, ColorPicker: true, 'n-radio-group': { template: '<div><slot /></div>' }, 'n-radio-button': true },
       },
@@ -230,6 +250,7 @@ describe('settings limit controls', () => {
   });
   it('places history and log settings in their sections with units and scope hints', async () => {
     const wrapper = mount(SettingsPage, {
+      props: { changeSource: logUi.changeSource },
       global: {
         stubs: { ...editorUiStubs, ColorPicker: true, 'n-radio-group': { template: '<div><slot /></div>' }, 'n-radio-button': true },
       },

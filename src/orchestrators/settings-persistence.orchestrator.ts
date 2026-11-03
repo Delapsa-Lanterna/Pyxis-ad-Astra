@@ -8,7 +8,7 @@ import { AppError, errorDiagnosticOf } from '@/shared/lib/errors';
 import { invalidatedRead } from '@/shared/runtime/read-request';
 import type { AppSettings, SettingsSnapshot } from '@/shared/types';
 import { updateCacheLimits } from '@/shared/runtime/cache-limits';
-type ChangeSource = (root: string | null, commitSettings: () => Promise<void>) => Promise<boolean>;
+export type SettingsSourceChange = (root: string | null, commitSettings: () => Promise<void>) => Promise<boolean>;
 let official: SettingsSnapshot | null = null;
 let receive: ((snapshot: SettingsSnapshot) => void) | null = null;
 let queue = Promise.resolve();
@@ -191,7 +191,11 @@ export async function flushSettings(): Promise<void> {
     });
   }
 }
-export async function saveStarsectorRoot(root: string | null, changeSource: ChangeSource, defaults?: AppSettings): Promise<boolean> {
+export async function saveStarsectorRoot(
+  root: string | null,
+  changeSource: SettingsSourceChange,
+  defaults?: AppSettings,
+): Promise<boolean> {
   const settings = useSettingsStore();
   await flushSettings();
   const commit = async () => {
@@ -209,7 +213,7 @@ export async function saveStarsectorRoot(root: string | null, changeSource: Chan
   await commit();
   return true;
 }
-export async function resetSettings(changeSource: ChangeSource): Promise<boolean> {
+export async function resetSettings(changeSource: SettingsSourceChange): Promise<boolean> {
   const defaults = await readDefaultSettings();
   return saveStarsectorRoot(defaults.starsectorRoot, changeSource, defaults);
 }

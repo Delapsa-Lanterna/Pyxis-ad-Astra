@@ -6,19 +6,19 @@ import { clearLog, loadLogStatus } from '@/services/app-log.service';
 import { applicationLogError } from '@/shared/runtime/app-log-queue';
 import { useAppConfigActions } from '@/app/composables/settings/use-app-config-actions';
 import { useSettingsStore } from '@/stores/settings.store';
-import { saveLogDirectory, saveStarsectorRoot, resetSettings } from '@/orchestrators/settings-persistence.orchestrator';
-import { switchWorkspaceCoreSource } from '@/orchestrators/workspace-core-source.orchestrator';
-import { useWindowCloseRequest } from '@/app/composables/use-window-close-state';
+import {
+  saveLogDirectory,
+  saveStarsectorRoot,
+  resetSettings,
+  type SettingsSourceChange,
+} from '@/orchestrators/settings-persistence.orchestrator';
 import { querySystemFonts } from '@/services/app-settings.service';
 import { useQueryReadOwner } from '@/app/composables/use-query-read-owner';
 import { controlPerformanceMonitor, performanceMonitorError } from '@/app/performance-monitor';
 import type { AppLogStatus, PerformanceMonitorStatus } from '@/shared/types';
 
-export function useSettingsViewModel(onReset?: () => void) {
+export function useSettingsViewModel(changeSource: SettingsSourceChange, onReset?: () => void) {
   const settings = useSettingsStore();
-  const requestClose = useWindowCloseRequest();
-  const changeSource = (root: string | null, commitSettings: () => Promise<void>) =>
-    switchWorkspaceCoreSource(root, requestClose, commitSettings);
   const feedback = useAppFeedback();
   const logSizeBytes = ref(0);
   const logPath = ref('');
