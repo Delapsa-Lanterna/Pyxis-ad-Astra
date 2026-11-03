@@ -1,15 +1,16 @@
-use super::super::definitions::config_sources::CONFIG_OPTION_SOURCES;
-use super::super::definitions::entity_definitions::entity_definitions;
-use super::super::model::{ProjectSession, string_from_row};
-use super::super::resources::HullReferenceResolver;
-use super::super::resources::table_references::{csv_source_display_name, csv_source_resource_ref};
-use super::super::session::csv_tables::{
+use super::super::super::definitions::entity_definitions::entity_definitions;
+use super::super::super::model::{ProjectSession, string_from_row};
+use super::super::super::resources::HullReferenceResolver;
+use super::super::super::resources::table_references::{
+    csv_source_display_name, csv_source_resource_ref,
+};
+use super::super::super::session::csv_tables::{
     ensure_registered_table_rows, loaded_csv_rows, loaded_registered_csv_rows,
 };
-use super::super::session::{lock_ready_session, session_handle};
+use super::super::super::session::{lock_ready_session, session_handle};
+use super::config_sources::CONFIG_OPTION_SOURCES;
 use crate::domain::well_known_labels::{WellKnownCatalog, well_known_catalog};
 use crate::errors::{AppError, AppResult};
-use crate::io::{FsRootBoundary, forward_slash_relative_path, validate_walk_entry};
 use crate::models::{
     CsvTableKey, EntityKind, ResourceSource, SkinFile, SourceOption, SourceOptionGroup,
 };
@@ -22,228 +23,7 @@ use crate::services::project::sources::core::{
 use crate::services::project::sources::{SourceReader, core, engine_styles};
 use serde_json::{Map, Value};
 use std::collections::{BTreeSet, HashMap};
-use std::path::{Path, PathBuf};
-use walkdir::WalkDir;
-
-pub fn query_image_source_options(
-    session_id: &str,
-    directories: &[String],
-    mission_id: Option<&str>,
-) -> AppResult<Vec<SourceOptionGroup>> {
-    let handle = session_handle(session_id)?;
-    let (mod_root, game_root, references) = {
-        let session = lock_ready_session(&handle)?;
-        (
-            session.manifest.mod_root.clone(),
-            session.manifest.starsector_root.clone(),
-            session.references.clone(),
-        )
-    };
-    if directories.is_empty() {
-        return Ok(Vec::new());
-    }
-    let mut roots = vec![(ResourceSource::Mod, mod_root.into(), None)];
-    roots.extend(references.iter().map(|view| {
-        (
-            ResourceSource::Reference,
-            view.identity.mod_root.clone().into(),
-            Some(view.identity.clone()),
-        )
-    }));
-    if let Some(root) = game_root {
-        roots.push((ResourceSource::Core, core::core_dir(&root)?, None));
-    }
-    let mut seen = BTreeSet::new();
-    let mut groups = Vec::new();
-    for (origin, root, reference) in roots {
-        let boundary = FsRootBoundary::new(&root, "image source root")?;
-        let base = mission_id
-            .map(|id| {
-                boundary.resolve_relative(&format!("data/missions/{id}"), "mission image root")
-            })
-            .transpose()?
-            .unwrap_or(root);
-        if !base.exists() {
-            continue;
-        }
-        let boundary = FsRootBoundary::new(&base, "image path base")?;
-        let mut paths = BTreeSet::new();
-        for directory in directories {
-            let path = if directory == "." {
-                boundary.root().to_path_buf()
-            } else {
-                boundary.resolve_relative(directory, "image directory")?
-            };
-            if !path.exists() {
-                continue;
-            }
-            for entry in WalkDir::new(&path) {
-                let entry = entry.map_err(|error| {
-                    AppError::message("io.walk_failed", error.to_string()).at_path(&path)
-                })?;
-                validate_walk_entry(entry.path(), "image candidate")?;
-                if entry.file_type().is_file()
-                    && matches!(
-                        entry
-                            .path()
-                            .extension()
-                            .and_then(|extension| extension.to_str()),
-                        Some("png" | "jpg" | "jpeg" | "gif")
-                    )
-                {
-                    let path = boundary.resolve_absolute(entry.path(), "image candidate")?;
-                    paths.insert(forward_slash_relative_path(boundary.root(), &path));
-                }
-            }
-        }
-        let options = paths
-            .into_iter()
-            .filter(|path| seen.insert(path.clone()))
-            .map(|value| SourceOption {
-                label: Path::new(&value)
-                    .file_name()
-                    .expect("image has a file name")
-                    .to_string_lossy()
-                    .into_owned(),
-                value,
-                origin,
-                description: None,
-                resource_ref: None,
-                template_value: None,
-                template_max: None,
-            })
-            .collect::<Vec<_>>();
-        if !options.is_empty() {
-            groups.push(SourceOptionGroup {
-                origin,
-                options,
-                reference,
-            });
-        }
-    }
-    drop(lock_ready_session(&handle)?);
-    Ok(groups)
-}
-
-#[cfg(test)]
-mod image_tests {
-    use crate::services::project_sync::release_project_session;
-
-    use super::*;
-    use crate::services::project::PerformanceTrace;
-    use crate::services::project::session::open_project_session_traced;
-    #[cfg(test)]
-    use crate::services::project::test_support;
-    use crate::services::project::test_support::project_workspace;
-    use crate::test_support::TestWorkspace;
-    use std::fs;
-
-    #[test]
-    fn image_directories_merge_sources_and_keep_mission_paths_relative() {
-        let root = project_workspace("image_source_catalog");
-        let local = root.join("mod");
-        let game = root.join("game");
-        let core = game.join("starsector-core");
-        for base in [&local, &core] {
-            fs::create_dir_all(base.join("graphics/icons/sub")).unwrap();
-            fs::create_dir_all(base.join("graphics/other")).unwrap();
-            fs::create_dir_all(base.join("data/missions/sample/sub")).unwrap();
-            for path in [
-                "graphics/icons/shared.png",
-                "graphics/icons/sub/a.jpg",
-                "graphics/icons/b.jpeg",
-                "graphics/icons/c.gif",
-                "graphics/icons/ignored.txt",
-                "graphics/other/outside.png",
-                "data/missions/sample/icon.jpg",
-                "data/missions/sample/sub/extra.png",
-            ] {
-                fs::write(base.join(path), [1]).unwrap();
-            }
-        }
-        fs::write(core.join("graphics/icons/core.png"), [1]).unwrap();
-        let manifest = open_project_session_traced(
-            &local,
-            Some(&game),
-            &mut PerformanceTrace::new("images.test"),
-        )
-        .unwrap();
-        let directories = vec![
-            "graphics/icons".into(),
-            "graphics/icons/sub".into(),
-            "missing".into(),
-        ];
-        let groups = query_image_source_options(&manifest.session_id, &directories, None).unwrap();
-        assert_eq!(groups.len(), 2);
-        assert_eq!(groups[0].origin, ResourceSource::Mod);
-        assert_eq!(groups[0].options.len(), 4);
-        assert_eq!(
-            groups[1]
-                .options
-                .iter()
-                .map(|option| option.value.as_str())
-                .collect::<Vec<_>>(),
-            ["graphics/icons/core.png"]
-        );
-        assert!(
-            groups
-                .iter()
-                .flat_map(|group| &group.options)
-                .all(|option| option.resource_ref.is_none())
-        );
-        assert_eq!(groups[0].options[0].label, "b.jpeg");
-        let mission =
-            query_image_source_options(&manifest.session_id, &[".".into()], Some("sample"))
-                .unwrap();
-        assert_eq!(
-            mission[0]
-                .options
-                .iter()
-                .map(|option| option.value.as_str())
-                .collect::<Vec<_>>(),
-            ["icon.jpg", "sub/extra.png"]
-        );
-        assert!(
-            query_image_source_options(&manifest.session_id, &[], None)
-                .unwrap()
-                .is_empty()
-        );
-        assert!(
-            query_image_source_options(&manifest.session_id, &["missing".into()], None)
-                .unwrap()
-                .is_empty()
-        );
-        for invalid in ["../outside", "/absolute", "graphics/../other"] {
-            assert!(
-                query_image_source_options(&manifest.session_id, &[invalid.into()], None).is_err()
-            );
-        }
-        assert!(
-            query_image_source_options(&manifest.session_id, &[".".into()], Some("../outside"))
-                .is_err()
-        );
-        release_project_session(manifest.session_id.clone()).unwrap();
-        assert!(query_image_source_options(&manifest.session_id, &directories, None).is_err());
-        root.close().unwrap();
-    }
-
-    #[test]
-    fn image_directories_reject_linked_children() {
-        let (root, outside, _link) =
-            TestWorkspace::directory_link("image_catalog_link", "graphics/icons").unwrap();
-        let root = root.with_cleanup(test_support::release_workspace);
-        fs::write(outside.join("outside.png"), [1]).unwrap();
-        let manifest =
-            open_project_session_traced(&root, None, &mut PerformanceTrace::new("images.test"))
-                .unwrap();
-        assert!(
-            query_image_source_options(&manifest.session_id, &["graphics/icons".into()], None)
-                .is_err()
-        );
-        release_project_session(manifest.session_id).unwrap();
-        root.close().unwrap();
-    }
-}
+use std::path::PathBuf;
 
 struct SourceOptionRowsContext<'a> {
     core_data: Option<&'a CoreSourceData>,
@@ -258,18 +38,19 @@ struct SourceOptionResourceContext<'a> {
     table: CsvTableKey,
 }
 
-pub fn query_csv_source_options(
+pub fn query_source_option_catalog(
     session_id: &str,
     source: &str,
 ) -> AppResult<Vec<SourceOptionGroup>> {
     let handle = session_handle(session_id)?;
     let mut session = lock_ready_session(&handle)?;
-    let (mut groups, core): (Vec<_>, Vec<_>) = source_catalog(&mut session, source, None)?
-        .into_iter()
-        .partition(|group| group.origin != ResourceSource::Core);
+    let (mut groups, core): (Vec<_>, Vec<_>) =
+        collect_source_option_groups(&mut session, source, None)?
+            .into_iter()
+            .partition(|group| group.origin != ResourceSource::Core);
     for view in &session.references {
         for mut group in view
-            .read(|snapshot| source_catalog(snapshot, source, Some(&session)))?
+            .read(|snapshot| collect_source_option_groups(snapshot, source, Some(&session)))?
             .into_iter()
             .filter(|group| group.origin == ResourceSource::Mod)
         {
@@ -295,7 +76,7 @@ pub fn query_csv_source_options(
     Ok(groups)
 }
 
-fn source_catalog(
+fn collect_source_option_groups(
     session: &mut ProjectSession,
     source: &str,
     context: Option<&ProjectSession>,
@@ -1037,23 +818,15 @@ fn add_faction_blueprint_metadata(
 mod tests {
     use crate::services::project_sync::release_project_session;
 
-    use super::super::super::session::open_project_session_traced;
+    use super::super::super::super::session::open_project_session_traced;
     use super::*;
-    #[cfg(test)]
     use crate::errors::AppError;
     use crate::io::write_utf8_no_bom;
-    #[cfg(test)]
     use crate::models::ResourceSource;
-    #[cfg(test)]
     use crate::services;
-    #[cfg(test)]
     use crate::services::project;
-    #[cfg(test)]
     use crate::services::project::PerformanceTrace;
-    #[cfg(test)]
-    use crate::services::project::performance::PerformanceTrace as PerformancePerformanceTrace;
     use crate::services::project::test_support::project_workspace;
-    #[cfg(test)]
     use std::fs;
 
     #[test]
@@ -1080,7 +853,8 @@ mod tests {
         let manifest =
             project::open_project_session_traced(&local, Some(&root), &mut trace).unwrap();
         let groups =
-            services::query_csv_source_options(&manifest.session_id, "csv:projectiles.id").unwrap();
+            services::query_source_option_catalog(&manifest.session_id, "csv:projectiles.id")
+                .unwrap();
         release_project_session(manifest.session_id).unwrap();
         assert_eq!(groups.len(), 2);
         assert_eq!(groups[0].origin, ResourceSource::Mod);
@@ -1113,7 +887,7 @@ mod tests {
         let manifest = open_project_session_traced(&local, Some(&root), &mut trace).unwrap();
         for &(source, relative, section) in CONFIG_OPTION_SOURCES {
             assert!(
-                query_csv_source_options(&manifest.session_id, source)
+                query_source_option_catalog(&manifest.session_id, source)
                     .unwrap()
                     .is_empty()
             );
@@ -1134,7 +908,7 @@ mod tests {
             };
             write_utf8_no_bom(&core.join(relative), &values(false).to_string()).unwrap();
             write_utf8_no_bom(&local.join(relative), &values(true).to_string()).unwrap();
-            let groups = query_csv_source_options(&manifest.session_id, source).unwrap();
+            let groups = query_source_option_catalog(&manifest.session_id, source).unwrap();
             assert_eq!(groups.len(), 2);
             assert_eq!(groups[0].origin, ResourceSource::Mod);
             assert_eq!(groups[1].origin, ResourceSource::Core);
@@ -1152,7 +926,7 @@ mod tests {
                 assert!(all.iter().any(|option| option.value == "plain"));
             }
             fs::remove_file(local.join(relative)).unwrap();
-            let groups = query_csv_source_options(&manifest.session_id, source).unwrap();
+            let groups = query_source_option_catalog(&manifest.session_id, source).unwrap();
             assert_eq!(groups.len(), 1);
             assert_eq!(groups[0].origin, ResourceSource::Core);
             fs::remove_file(core.join(relative)).unwrap();
@@ -1163,7 +937,7 @@ mod tests {
         )
         .unwrap();
         let error =
-            query_csv_source_options(&manifest.session_id, "config:designTypes").unwrap_err();
+            query_source_option_catalog(&manifest.session_id, "config:designTypes").unwrap_err();
         assert_eq!(error.code(), "misc_config.shape_invalid");
         assert!(
             error
@@ -1193,9 +967,9 @@ mod tests {
         )
         .unwrap();
 
-        let mut trace = PerformancePerformanceTrace::new("project.openSession");
+        let mut trace = PerformanceTrace::new("project.openSession");
         let manifest = open_project_session_traced(&root, None, &mut trace).unwrap();
-        let groups = query_csv_source_options(&manifest.session_id, "csv:ships.id").unwrap();
+        let groups = query_source_option_catalog(&manifest.session_id, "csv:ships.id").unwrap();
 
         let _ = release_project_session(manifest.session_id);
         let option = groups
@@ -1235,9 +1009,10 @@ mod tests {
         )
         .unwrap();
 
-        let mut trace = PerformancePerformanceTrace::new("project.openSession");
+        let mut trace = PerformanceTrace::new("project.openSession");
         let manifest = open_project_session_traced(&mod_root, Some(&root), &mut trace).unwrap();
-        let groups = query_csv_source_options(&manifest.session_id, "csv:commodities.id").unwrap();
+        let groups =
+            query_source_option_catalog(&manifest.session_id, "csv:commodities.id").unwrap();
 
         let _ = release_project_session(manifest.session_id);
         assert_eq!(groups.len(), 2);
@@ -1304,9 +1079,9 @@ mod tests {
         )
         .unwrap();
 
-        let mut trace = PerformancePerformanceTrace::new("project.openSession");
+        let mut trace = PerformanceTrace::new("project.openSession");
         let manifest = open_project_session_traced(&root, None, &mut trace).unwrap();
-        let groups = query_csv_source_options(&manifest.session_id, "csv:ships.id").unwrap();
+        let groups = query_source_option_catalog(&manifest.session_id, "csv:ships.id").unwrap();
 
         let _ = release_project_session(manifest.session_id);
         let option = groups
@@ -1344,9 +1119,9 @@ mod tests {
         )
         .unwrap();
 
-        let mut trace = PerformancePerformanceTrace::new("project.openSession");
+        let mut trace = PerformanceTrace::new("project.openSession");
         let manifest = open_project_session_traced(&mod_root, Some(&root), &mut trace).unwrap();
-        let groups = query_csv_source_options(&manifest.session_id, "csv:ships.id").unwrap();
+        let groups = query_source_option_catalog(&manifest.session_id, "csv:ships.id").unwrap();
 
         let _ = release_project_session(manifest.session_id);
         let option = groups
@@ -1393,9 +1168,9 @@ mod tests {
         )
         .unwrap();
 
-        let mut trace = PerformancePerformanceTrace::new("project.openSession");
+        let mut trace = PerformanceTrace::new("project.openSession");
         let manifest = open_project_session_traced(&mod_root, Some(&root), &mut trace).unwrap();
-        let groups = query_csv_source_options(&manifest.session_id, "csv:ships.id").unwrap();
+        let groups = query_source_option_catalog(&manifest.session_id, "csv:ships.id").unwrap();
 
         let _ = release_project_session(manifest.session_id);
         assert_eq!(
@@ -1425,10 +1200,11 @@ mod tests {
         )
         .unwrap();
 
-        let mut trace = PerformancePerformanceTrace::new("project.openSession");
+        let mut trace = PerformanceTrace::new("project.openSession");
         let manifest = open_project_session_traced(&root, None, &mut trace).unwrap();
-        let id_groups = query_csv_source_options(&manifest.session_id, "csv:wings.id").unwrap();
-        let tag_groups = query_csv_source_options(&manifest.session_id, "csv:wings.tags").unwrap();
+        let id_groups = query_source_option_catalog(&manifest.session_id, "csv:wings.id").unwrap();
+        let tag_groups =
+            query_source_option_catalog(&manifest.session_id, "csv:wings.tags").unwrap();
 
         let _ = release_project_session(manifest.session_id);
         assert_eq!(
@@ -1461,9 +1237,9 @@ mod tests {
         .unwrap();
         write_utf8_no_bom(&root.join("starsector-core/data/hulls/skins/bad.skin"), "{").unwrap();
 
-        let mut trace = PerformancePerformanceTrace::new("project.openSession");
+        let mut trace = PerformanceTrace::new("project.openSession");
         let manifest = open_project_session_traced(&mod_root, Some(&root), &mut trace).unwrap();
-        let error = query_csv_source_options(&manifest.session_id, "csv:wings.id")
+        let error = query_source_option_catalog(&manifest.session_id, "csv:wings.id")
             .unwrap_err()
             .to_string();
 
@@ -1495,9 +1271,9 @@ mod tests {
         )
         .unwrap();
 
-        let mut trace = PerformancePerformanceTrace::new("project.openSession");
+        let mut trace = PerformanceTrace::new("project.openSession");
         let manifest = open_project_session_traced(&mod_root, Some(&root), &mut trace).unwrap();
-        let groups = query_csv_source_options(&manifest.session_id, "csv:wings.id").unwrap();
+        let groups = query_source_option_catalog(&manifest.session_id, "csv:wings.id").unwrap();
 
         let _ = release_project_session(manifest.session_id);
         let option = groups
@@ -1543,10 +1319,10 @@ mod tests {
         )
         .unwrap();
 
-        let mut trace = PerformancePerformanceTrace::new("project.openSession");
+        let mut trace = PerformanceTrace::new("project.openSession");
         let manifest = open_project_session_traced(&mod_root, Some(&root), &mut trace).unwrap();
         let groups =
-            query_csv_source_options(&manifest.session_id, "csv:variants.variantId").unwrap();
+            query_source_option_catalog(&manifest.session_id, "csv:variants.variantId").unwrap();
 
         let _ = release_project_session(manifest.session_id);
 
@@ -1583,10 +1359,10 @@ mod tests {
         let root = project_workspace("unknown_entity_source");
         fs::create_dir_all(root.join("data/hulls")).unwrap();
 
-        let mut trace = PerformancePerformanceTrace::new("project.openSession");
+        let mut trace = PerformanceTrace::new("project.openSession");
         let manifest = open_project_session_traced(&root, None, &mut trace).unwrap();
         let error =
-            query_csv_source_options(&manifest.session_id, "csv:nonexistent.foo").unwrap_err();
+            query_source_option_catalog(&manifest.session_id, "csv:nonexistent.foo").unwrap_err();
 
         let _ = release_project_session(manifest.session_id);
         assert!(matches!(
@@ -1621,9 +1397,9 @@ mod tests {
         )
         .unwrap();
 
-        let mut trace = PerformancePerformanceTrace::new("project.openSession");
+        let mut trace = PerformanceTrace::new("project.openSession");
         let manifest = open_project_session_traced(&mod_root, Some(&root), &mut trace).unwrap();
-        let groups = query_csv_source_options(&manifest.session_id, "csv:weapons.id").unwrap();
+        let groups = query_source_option_catalog(&manifest.session_id, "csv:weapons.id").unwrap();
 
         let _ = release_project_session(manifest.session_id);
         let option = groups
@@ -1658,9 +1434,9 @@ mod tests {
         )
         .unwrap();
 
-        let mut trace = PerformancePerformanceTrace::new("project.openSession");
+        let mut trace = PerformanceTrace::new("project.openSession");
         let manifest = open_project_session_traced(&root, None, &mut trace).unwrap();
-        let error = query_csv_source_options(&manifest.session_id, "csv:ships.missing")
+        let error = query_source_option_catalog(&manifest.session_id, "csv:ships.missing")
             .unwrap_err()
             .to_string();
 
@@ -1679,10 +1455,10 @@ mod tests {
         )
         .unwrap();
 
-        let mut trace = PerformancePerformanceTrace::new("project.openSession");
+        let mut trace = PerformanceTrace::new("project.openSession");
         let manifest = open_project_session_traced(&root, None, &mut trace).unwrap();
         let groups =
-            query_csv_source_options(&manifest.session_id, "csv:commodities.tags").unwrap();
+            query_source_option_catalog(&manifest.session_id, "csv:commodities.tags").unwrap();
 
         let _ = release_project_session(manifest.session_id);
         let option = groups
@@ -1704,12 +1480,12 @@ mod tests {
         )
         .unwrap();
 
-        let mut trace = PerformancePerformanceTrace::new("project.openSession");
+        let mut trace = PerformanceTrace::new("project.openSession");
         let manifest = open_project_session_traced(&root, None, &mut trace).unwrap();
         let tag_groups =
-            query_csv_source_options(&manifest.session_id, "csv:weapons.tags").unwrap();
+            query_source_option_catalog(&manifest.session_id, "csv:weapons.tags").unwrap();
         let hint_groups =
-            query_csv_source_options(&manifest.session_id, "csv:weapons.hints").unwrap();
+            query_source_option_catalog(&manifest.session_id, "csv:weapons.hints").unwrap();
 
         let _ = release_project_session(manifest.session_id);
         let tag_label = source_option_label_from_groups(&tag_groups, "no_drop");
@@ -1744,10 +1520,10 @@ mod tests {
         )
         .unwrap();
 
-        let mut trace = PerformancePerformanceTrace::new("project.openSession");
+        let mut trace = PerformanceTrace::new("project.openSession");
         let manifest = open_project_session_traced(&mod_root, Some(&root), &mut trace).unwrap();
         let groups =
-            query_csv_source_options(&manifest.session_id, "csv:commodities.tags").unwrap();
+            query_source_option_catalog(&manifest.session_id, "csv:commodities.tags").unwrap();
 
         let _ = release_project_session(manifest.session_id);
         let tag_label = source_option_label_from_groups(&groups, "lowtech_bp");
@@ -1778,16 +1554,16 @@ mod tests {
         )
         .unwrap();
 
-        let mut trace = PerformancePerformanceTrace::new("project.openSession");
+        let mut trace = PerformanceTrace::new("project.openSession");
         let manifest = open_project_session_traced(&root, None, &mut trace).unwrap();
-        query_csv_source_options(&manifest.session_id, "csv:specialItems.tags").unwrap();
+        query_source_option_catalog(&manifest.session_id, "csv:specialItems.tags").unwrap();
         write_utf8_no_bom(
             &root.join("data/campaign/special_items.csv"),
             "name,id,tags,plugin params,desc\r\nNew Package,new_package,package_bp,demo_bp,New description.\r\n",
         )
         .unwrap();
         let groups =
-            query_csv_source_options(&manifest.session_id, "csv:commodities.tags").unwrap();
+            query_source_option_catalog(&manifest.session_id, "csv:commodities.tags").unwrap();
 
         let _ = release_project_session(manifest.session_id);
         let tag_label = source_option_label_from_groups(&groups, "demo_bp");
@@ -1807,12 +1583,12 @@ mod tests {
         )
         .unwrap();
 
-        let mut trace = PerformancePerformanceTrace::new("project.openSession");
+        let mut trace = PerformanceTrace::new("project.openSession");
         let manifest = open_project_session_traced(&root, None, &mut trace).unwrap();
         let tag_groups =
-            query_csv_source_options(&manifest.session_id, "csv:weapons.tags").unwrap();
+            query_source_option_catalog(&manifest.session_id, "csv:weapons.tags").unwrap();
         let hint_groups =
-            query_csv_source_options(&manifest.session_id, "csv:weapons.hints").unwrap();
+            query_source_option_catalog(&manifest.session_id, "csv:weapons.hints").unwrap();
 
         let _ = release_project_session(manifest.session_id);
         assert_eq!(

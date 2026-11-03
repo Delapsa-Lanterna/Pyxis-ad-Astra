@@ -41,7 +41,7 @@ import { provideFieldInputs } from '@/shared/runtime/field-inputs';
 import { applySchemaFieldUpdate } from '@/domain/schema/schema-values';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
 import { queryBuiltInWeaponSlotOptions } from '@/services/hull-reference.service';
-import { querySourceOptionCatalog } from '@/services/source-options.service';
+import { querySourceOptionCatalog } from '@/services/source-catalog.service';
 import { fieldValues, galleryFields } from './scenarios/fields';
 import { browserModel } from './runtime/commands';
 import './browser.css';

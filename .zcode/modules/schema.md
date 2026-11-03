@@ -2,7 +2,7 @@
 
 ## 定义
 
-字段模式模块将 schema 映射为字段展示、校验和编辑动作。
+字段模式模块维护字段、CSV 列及其声明顺序，并交付字段展示、校验和编辑动作。
 
 ## 参考
 
@@ -23,12 +23,8 @@
 - `schemas/spec-weapon.schema.json`：武器字段及前后端共同消费的保存约束。
 - `schemas/strings.schema.json`：分组字符串与根级文本的文件表单。
 - `schemas/variant.schema.json`：装配字段模式资产。
-- `schemas/well-known-labels.json`：按原版表列登记的 tags、hints 与数字规则。
-- `src-tauri/src/commands/source_options.rs`：字段来源与声明目录图片候选 command。
-- `src-tauri/src/domain/csv_column_order.rs`：CSV 标准列资产与补列顺序。
+- `src-tauri/src/domain/csv_column_order.rs`：从 CSV schema 声明提取标准列并维护补列顺序。
 - `src-tauri/src/domain/schema.rs`：对象完整性、分支与字段值类型校验。
-- `src-tauri/src/domain/well_known_labels.rs`：well-known 标签资产唯一加载入口，编译期内嵌并校验版本头。
-- `src-tauri/src/services/project/query/source_options.rs`：来源选项、分组、授权资源与回退目录查询。
 - `src/app/components/schema/`：字段分派、表单、标量原文及行为测试。
 - `src/app/components/schema/SchemaCollectionInput.vue`：对象固定属性、可命名条目、列表、结构动作与折叠。
 - `src/app/components/schema/SchemaFieldRenderer.vue`：字段渲染。
@@ -54,22 +50,23 @@
 - `src/domain/schema/schema-sections.ts`：section 投影与折叠标识。
 - `src/domain/schema/schema-values.ts`：字段值转换，拥有标量、kv 条目与业务归一化规则。
 - `src/domain/schema/schema.types.ts`：schema 输出类型，拥有字段/控件闭合枚举与 FileSchema/FieldSchema/列 schema 形状。
-- `src/services/source-options.service.ts`：字段来源与图片目录协议、查询身份与性能记录。
 
 ### 消费
 
 - `src-tauri/build.rs`：按根目录字段资产生成编译期索引。
-- `src-tauri/src/models/schema.rs`：字段来源请求、选项与来源分组协议。
+- `src-tauri/src/models/source_catalog.rs`：字段来源请求、选项与来源分组协议。
 - `src-tauri/src/parsers/field_schema.rs`：内嵌字段资产的严格 JSON 读取入口。
 - `src/app/components/editors/common/EditorCollapse.vue`：共同分组的展开列表交接。
 - `src/app/components/editors/common/EditorCollapseItem.vue`：共同分组的标题、辅助动作与保留输入的内容展示。
 - `src/app/composables/editors/use-resource-reference.ts`：图片文件选择消费的后端路径授权与相对路径交付。
+- `src/domain/source-catalog/source-definitions.ts`：字段来源名称、配置路径和 CSV 来源解析。
+- `src/services/source-catalog.service.ts`：来源候选目录的正式读取和失效接口。
 - `src/shared/lib/input-number.ts`：完整有限浮点与安全整数解析。
 - `src/shared/lib/json-fields.ts`：额外 JSON 字段展示条目投影。
 - `src/shared/lib/json-input.ts`：字段输入消费的共享 JSON 解析、形状校验与格式化。
 - `src/shared/runtime/focus-field-input.ts`：结构化输入的焦点与选择恢复。
 - `src/shared/types/core-assets.types.ts`：字段合并消费的 Core 字段发现结果。
-- `src/shared/types/schema.types.ts`：字段来源请求、选项与来源分组协议。
+- `src/shared/types/source-catalog.types.ts`：字段来源请求、选项与来源分组协议。
 - `src/shared/ui/`：数值、JSON、额外字段与颜色输入及其行为测试。
 - `src/shared/ui/FieldHints.vue`：描述、注意与风险的共同展示。
 - `src/shared/ui/FieldLabel.vue`：显式名称、字段键与完整路径的共同标签。
@@ -124,6 +121,7 @@
 
 ## 规范
 
+- CSV 标准列及顺序必须唯一来自各表 schema 的 columns 声明，严禁新增独立列序资产或第二份手工列清单；正式表头回退和展示排序必须消费该声明。
 - 模式切换确认必须列出实际待提交字段；确认只允许取消所属控件原文，退出必须保留当前模式与输入。
 - 身份字段的静态必填声明必须保留；局部覆盖状态必须由当前草稿的本地身份交付；字段标签与全部递归输入必须共同允许必填缺省，已提供内容必须校验类型、格式和取值约束。
 - 字段终结器必须在状态切换后消费当前必填规则；清空组合字段必须提交所属本地键的移除动作。

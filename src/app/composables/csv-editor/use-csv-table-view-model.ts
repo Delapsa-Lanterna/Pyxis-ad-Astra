@@ -1,11 +1,10 @@
 import { csvDraftSearchKeys } from '@/domain/csv-editor/csv-search';
-import { hasSourceInvalidation, querySourceOptionCatalog } from '@/services/source-options.service';
+import { hasSourceInvalidation, querySourceOptionCatalog } from '@/services/source-catalog.service';
 import { hasTableInvalidation, queryTableRowPreviewDataUrl, queryTableIndex, queryTableRows } from '@/services/csv-table.service';
 import { relativePathFromRoot } from '@/shared/lib/paths';
 import { useContextMenuScope } from '@/app/composables/use-context-menu';
 import { refreshProjectSourcePaths, observeSavedContent, saveProjection } from '@/orchestrators/project-sync.orchestrator';
-import { parseCsvSource } from '@/domain/schema/csv-source-options';
-import { CONFIG_OPTION_SOURCES, isConfigSource } from '@/domain/schema/schema-sources';
+import { parseCsvSource, CONFIG_OPTION_SOURCES, isConfigSource } from '@/domain/source-catalog/source-definitions';
 import { useQueryReadOwner } from '@/app/composables/use-query-read-owner';
 import { computed, onUnmounted, ref, watch } from 'vue';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';

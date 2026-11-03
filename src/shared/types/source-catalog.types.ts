@@ -17,7 +17,7 @@ export interface SourceOption {
   templateMax?: number;
 }
 
-export interface CsvSourceOptionsPayload {
+export interface SourceCatalogPayload {
   sessionId: string;
   source: string;
 }

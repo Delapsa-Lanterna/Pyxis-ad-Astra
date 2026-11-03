@@ -26,7 +26,7 @@ const images = vi.hoisted(() => ({
     },
   ]),
 }));
-vi.mock('@/services/source-options.service', () => ({ queryImageSourceOptions: images.query }));
+vi.mock('@/services/source-catalog.service', () => ({ queryImageSourceOptions: images.query }));
 
 vi.mock('@/app/composables/use-app-feedback', () => ({ useAppFeedback: () => ({ choose: vi.fn(), error: vi.fn() }) }));
 

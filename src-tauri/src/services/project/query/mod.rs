@@ -4,7 +4,7 @@ pub(in crate::services) mod entity_targets;
 pub(in crate::services) mod hull_references;
 pub(in crate::services) mod mod_file_browser;
 pub(in crate::services) mod resources;
-pub(in crate::services) mod source_options;
+pub(in crate::services) mod source_catalog;
 
 pub(in crate::services) mod joint_edit;
 

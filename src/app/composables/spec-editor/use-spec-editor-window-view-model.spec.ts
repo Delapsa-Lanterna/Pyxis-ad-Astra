@@ -23,7 +23,7 @@ import { editorUiStubs } from '@/test/unit/ui-stubs';
 
 import type { SpecEditorData, SpecEditorKind, WriteResult, RowData, EntityEditTarget } from '@/shared/types/index';
 import * as projectSync from '@/orchestrators/project-sync.orchestrator';
-import * as sourceOptions from '@/services/source-options.service';
+import * as sourceOptions from '@/services/source-catalog.service';
 import { committedChangeFixture, dispatchProjectChangeFixture } from '@/test/unit/project-changes';
 
 vi.mock('@/services/window.service', () => ({ releaseNativeWindowTargets: vi.fn(async () => {}) }));

@@ -8,7 +8,7 @@ import {
   hasEntityInvalidation,
 } from './entity-query.service';
 import { queryTableIndex, querySessionCsvRowPreview, hasTableInvalidation } from './csv-table.service';
-import { querySourceOptionCatalog, hasSourceInvalidation } from './source-options.service';
+import { querySourceOptionCatalog, hasSourceInvalidation } from './source-catalog.service';
 import { querySessionHullReferences } from './hull-reference.service';
 import { querySessionDraftResources, resolveModImageReference } from './resource-reference.service';
 import {
@@ -19,6 +19,7 @@ import {
   prepareJointEdit,
 } from './joint-edit.service';
 import { invalidateQueryCacheByProject, invalidateQueryCacheForSession } from './query-cache.service';
+import { CONFIG_OPTION_SOURCES } from '@/domain/source-catalog/source-definitions';
 import { entityTargetFixture } from '@/test/fixtures/entity-target';
 import type { JointEditSnapshot, ProjectInvalidation, InvalidatedQueryScope } from '@/shared/types';
 
@@ -54,10 +55,10 @@ const cases: Array<{
   unrelated: ProjectInvalidation;
   value: unknown;
 }> = [
-  ...['config:sounds', 'config:designTypes', 'config:hullStyles'].map((source) => ({
+  ...Object.entries(CONFIG_OPTION_SOURCES).map(([source, relPath]) => ({
     name: source,
     read: () => querySourceOptionCatalog(session, source),
-    matching: scope('csv-source-options', { source }),
+    matching: { ...empty, resources: [{ source: 'mod' as const, relPath }] },
     unrelated: scope('csv-source-options', { source: 'csv:ships.id' }),
     value: [],
   })),
@@ -162,8 +163,10 @@ afterEach(() => invalidateQueryCacheForSession(session));
 
 describe('business-owned query invalidation', () => {
   it.each(
-    cases.filter(({ name }) =>
-      ['entity-detail', 'entity-list', 'csv-table-window', 'csv-row-preview', 'csv-source-options', 'hull-references'].includes(name),
+    cases.filter(
+      ({ name }) =>
+        name.startsWith('config:') ||
+        ['entity-detail', 'entity-list', 'csv-table-window', 'csv-row-preview', 'csv-source-options', 'hull-references'].includes(name),
     ),
   )('$name shares pending and ready results and reloads once after invalidation', async ({ read, matching, unrelated, value }) => {
     let finish!: (value: unknown) => void;
@@ -219,6 +222,21 @@ describe('business-owned query invalidation', () => {
     expect(settled).toBe(false);
     finish(value);
     await expect(pending).resolves.toEqual(value);
+  });
+  it.each(
+    Object.entries(CONFIG_OPTION_SOURCES).flatMap(([source, path]) =>
+      (['mod', 'core'] as const).flatMap((origin) => [path, 'data/config'].map((relPath) => ({ source, origin, relPath }))),
+    ),
+  )('reloads $source for $origin resource scope $relPath', async ({ source, origin, relPath }) => {
+    invoke.mockResolvedValue([]);
+    await querySourceOptionCatalog(session, source);
+    const invalidation = { ...empty, resources: [{ source: origin, relPath }] };
+    expect(hasSourceInvalidation(invalidation, source)).toBe(true);
+    invalidateQueryCacheByProject(session, invalidation);
+    await Promise.all([querySourceOptionCatalog(session, source), querySourceOptionCatalog(session, source)]);
+    expect(invoke).toHaveBeenCalledTimes(2);
+    expect(hasSourceInvalidation({ ...empty, resources: [{ source: origin, relPath: '' }] }, source)).toBe(true);
+    expect(hasSourceInvalidation({ ...empty, resources: [{ source: origin, relPath: 'data/configuration' }] }, source)).toBe(false);
   });
   it.each(['csv:ships.id', 'ships.id'])('matches table-wide option invalidation for %s', async (name) => {
     invoke.mockResolvedValue([]);

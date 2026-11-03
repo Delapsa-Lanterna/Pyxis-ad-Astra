@@ -47,6 +47,8 @@
 - `src/app/composables/use-joint-edit-session.ts`：消费编辑会话原语的联合目标适配器。
 - `src/domain/entity-write/spec-construction.ts`：装配与皮肤的正式初始内容。
 - `src/domain/project/entity-definitions.ts`：实体内容 ID 字段及字符串 ID 提取。
+- `src/domain/source-catalog/source-definitions.ts`：共同字段的来源分类。
+- `src/services/source-catalog.service.ts`：联合上下文的候选目录读取与失效判断。
 - `src/shared/lib/starsector/variant-modules.ts`：装配模块的共同格式规则。
 - `src/shared/runtime/use-layout-frame.ts`：展示尺寸与位置更新的帧合并和作用域释放。
 

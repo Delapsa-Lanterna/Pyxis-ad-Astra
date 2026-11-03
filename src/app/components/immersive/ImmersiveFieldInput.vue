@@ -38,7 +38,7 @@ import { useSchemaSourceOptions } from '@/app/composables/editors/use-schema-sou
 import { useRawFieldInput } from '@/shared/runtime/raw-field-input';
 import { includeCurrentSelectOptions, selectOptionValues } from '@/domain/schema/schema-options';
 import { useInputEditMode } from '@/app/composables/use-input-edit-mode';
-import { isConfigSource } from '@/domain/schema/schema-sources';
+import { isConfigSource } from '@/domain/source-catalog/source-definitions';
 import { parseJsonInput, formatJsonInput } from '@/shared/lib/json-input';
 import ImmersiveText from './ImmersiveText.vue';
 const props = defineProps<{

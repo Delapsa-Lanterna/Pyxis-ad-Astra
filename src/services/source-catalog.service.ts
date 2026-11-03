@@ -1,13 +1,14 @@
 import type {
   SourceOptionGroup,
   InvalidatedQueryScope,
-  CsvSourceOptionsPayload,
+  SourceCatalogPayload,
   ImageSourceOptionsPayload,
   DeepReadonly,
 } from '@/shared/types';
 
 import type { ProjectInvalidation } from '@/shared/types';
 
+import { CONFIG_OPTION_SOURCES, isConfigSource, parseCsvSource } from '@/domain/source-catalog/source-definitions';
 import { invokeCommand } from '@/shared/runtime/command.runtime';
 import { CachedSessionQuery, readLiveSessionQuery, type SessionQueryDefinition } from '@/services/query-cache.service';
 
@@ -22,13 +23,13 @@ export function queryImageSourceOptions(sessionId: string, directories: string[]
   return readLiveSessionQuery(readImageOptions, sessionId, { directories, missionId }, signal);
 }
 
-const readSourceOptions = new CachedSessionQuery<Omit<CsvSourceOptionsPayload, 'sessionId'>, SourceOptionGroup[]>({
+const readSourceOptions = new CachedSessionQuery<Omit<SourceCatalogPayload, 'sessionId'>, SourceOptionGroup[]>({
   queryKind: 'csv-source-options',
   load: ({ sessionId, parameters }) =>
     invokeCommand<SourceOptionGroup[]>('query_csv_source_options', {
-      payload: { sessionId, ...parameters } satisfies CsvSourceOptionsPayload,
+      payload: { sessionId, ...parameters } satisfies SourceCatalogPayload,
     }),
-  invalidates: (parameters, invalidation) => invalidation.queryScopes.some((scope) => matchesSourceOptionsScope(scope, parameters.source)),
+  invalidates: (parameters, invalidation) => hasSourceInvalidation(invalidation, parameters.source),
 });
 
 export async function querySourceOptionCatalog(
@@ -40,18 +41,19 @@ export async function querySourceOptionCatalog(
 }
 
 export function hasSourceInvalidation(invalidation: ProjectInvalidation, source: string): boolean {
-  return invalidation.session || invalidation.queryScopes.some((scope) => matchesSourceOptionsScope(scope, source));
+  return (
+    invalidation.session ||
+    invalidation.queryScopes.some((scope) => matchesSourceOptionsScope(scope, source)) ||
+    (isConfigSource(source) &&
+      invalidation.resources.some(
+        ({ relPath }) =>
+          relPath === '' || relPath === CONFIG_OPTION_SOURCES[source] || CONFIG_OPTION_SOURCES[source].startsWith(relPath + '/'),
+      ))
+  );
 }
 function matchesSourceOptionsScope(scope: InvalidatedQueryScope, source: string | null): boolean {
   if (scope.kind !== 'csv-source-options') return false;
   if (scope.source) return scope.source === source;
-  if (scope.table) return sourceTable(source) === scope.table;
+  if (scope.table) return parseCsvSource(source)?.table === scope.table;
   return true;
-}
-
-function sourceTable(source: string | null): string | null {
-  if (!source) return null;
-  const trimmed = source.startsWith('csv:') ? source.slice(4) : source;
-  const separator = trimmed.indexOf('.');
-  return separator > 0 ? trimmed.slice(0, separator) : null;
 }

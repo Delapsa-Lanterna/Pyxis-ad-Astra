@@ -6,7 +6,6 @@ import {
   selectOptionText,
   type SelectOption,
 } from '@/domain/schema/schema-options';
-import { TABLE_KEYS, type CsvTableKey } from '@/shared/types';
 
 export interface CsvSourceIndex {
   optionsBySource: Map<string, SelectOption[]>;
@@ -14,28 +13,8 @@ export interface CsvSourceIndex {
   valueSetsBySource: Map<string, Set<string>>;
 }
 
-export interface ParsedCsvSource {
-  column: string;
-  table: CsvTableKey;
-}
-
 const EMPTY_OPTIONS: SelectOption[] = [];
 const EMPTY_VALUE_SET = new Set<string>();
-const tableKeys = new Set<string>(TABLE_KEYS);
-
-export function parseCsvSource(source: string | undefined | null): ParsedCsvSource | null {
-  if (!source) return null;
-  const trimmed = source.startsWith('csv:') ? source.slice(4) : source;
-  const separator = trimmed.indexOf('.');
-  if (separator <= 0 || separator === trimmed.length - 1) return null;
-  const table = trimmed.slice(0, separator);
-  if (!tableKeys.has(table)) return null;
-  return { table: table as CsvTableKey, column: trimmed.slice(separator + 1) };
-}
-
-export function isCsvSource(source: string | undefined | null): boolean {
-  return Boolean(parseCsvSource(source));
-}
 
 export function createCsvSourceIndex(
   sources: Iterable<string | undefined | null>,

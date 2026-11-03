@@ -2,12 +2,11 @@ import { onUnmounted, ref, watch } from 'vue';
 import type { FieldSchema } from '@/domain/schema/schema.types';
 import type { SchemaRuntimeContext } from '@/domain/schema/schema-runtime';
 import { mapSourceGroupsToSelectOptions, type SelectOption } from '@/domain/schema/schema-options';
-import { isCsvSource } from '@/domain/schema/csv-source-options';
-import { isConfigSource, isEntitySource } from '@/domain/schema/schema-sources';
+import { isCsvSource, isConfigSource, isEntitySource } from '@/domain/source-catalog/source-definitions';
 import type { ResourceRef } from '@/shared/types';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
 import { useQueryReadOwner } from '@/app/composables/use-query-read-owner';
-import { querySourceOptionCatalog, hasSourceInvalidation } from '@/services/source-options.service';
+import { querySourceOptionCatalog, hasSourceInvalidation } from '@/services/source-catalog.service';
 import { hasResourceInvalidation } from '@/services/resource-media.service';
 import { observeSavedContent, saveProjection } from '@/orchestrators/project-sync.orchestrator';
 

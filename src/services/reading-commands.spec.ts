@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { queryTableIndex, querySessionCsvRowPreview } from './csv-table.service';
-import { querySourceOptionCatalog, queryImageSourceOptions } from './source-options.service';
+import { querySourceOptionCatalog, queryImageSourceOptions } from './source-catalog.service';
 import { querySessionHullReferences } from './hull-reference.service';
 import {
   querySessionEntity,

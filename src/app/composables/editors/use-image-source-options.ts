@@ -1,6 +1,6 @@
 import { observeSavedContent, saveProjection } from '@/orchestrators/project-sync.orchestrator';
 import { ref, watch, onScopeDispose } from 'vue';
-import { queryImageSourceOptions } from '@/services/source-options.service';
+import { queryImageSourceOptions } from '@/services/source-catalog.service';
 
 import { mapSourceGroupsToSelectOptions, type SelectOption } from '@/domain/schema/schema-options';
 import { useQueryReadOwner } from '@/app/composables/use-query-read-owner';

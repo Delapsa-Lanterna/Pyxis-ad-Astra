@@ -1,3 +1,4 @@
+import { posix } from 'node:path';
 import { productionRustSource } from '../../shared/rust-source.mjs';
 import { sourcePositions } from '../../shared/source-position.mjs';
 import { rustServicePaths } from './rust-crate-paths.mjs';
@@ -5,7 +6,8 @@ import { splitTopLevel } from '../../shared/rust-source.mjs';
 
 /** @typedef {{name: string, attributes: string[], start: number, end: number, body: string, signature: string, line: number, column: number}} RustFunction */
 /** @typedef {{name: string, target: string, arguments: string[], offset: number, line: number, column: number}} RustCall */
-/** @typedef {{code: string, references: import('./rust-crate-paths.mjs').RustReference[], functions: RustFunction[], calls: RustCall[]}} RustFacts */
+/** @typedef {{macro: string, expression: string, path: string | null, offset: number, line: number, column: number}} RustEmbeddedAsset */
+/** @typedef {{embeddedAssets: RustEmbeddedAsset[], code: string, references: import('./rust-crate-paths.mjs').RustReference[], functions: RustFunction[], calls: RustCall[]}} RustFacts */
 
 /** @param {import('../../shared/files.mjs').SourceFile} file @param {string} code @param {Map<string, string[]>} exports @returns {RustFacts} */
 export function rustFacts(file, code, exports) {
@@ -89,7 +91,86 @@ export function rustFacts(file, code, exports) {
       ...at(match.index),
     });
   }
-  return { code, references, functions, calls };
+
+  const embeddedAssets = [];
+  for (const match of code.matchAll(/\b(include_str|include_bytes)\s*!\s*([([{])/g)) {
+    const opening = match[2] ?? '(',
+      closing = { '(': ')', '[': ']', '{': '}' }[opening];
+    const start = match.index + match[0].length;
+    let end = start,
+      depth = 1;
+    while (end < code.length && depth) {
+      if (code[end] === opening) depth++;
+      else if (code[end] === closing) depth--;
+      end++;
+    }
+    const expression = file.text.slice(start, end - 1),
+      literal = embeddedLiteral(expression);
+    embeddedAssets.push({
+      macro: match[1] ?? '',
+      expression,
+      path: literal === null ? null : posix.normalize(posix.join(posix.dirname(file.rel), literal)),
+      offset: match.index,
+      ...at(match.index),
+    });
+  }
+
+  return { code, references, functions, calls, embeddedAssets };
+}
+
+/** @param {string} expression @returns {string | null} */
+function embeddedLiteral(expression) {
+  let start = 0;
+  while (start < expression.length) {
+    if (/\s/.test(expression[start] ?? '')) {
+      start++;
+      continue;
+    }
+    if (expression.startsWith('//', start)) {
+      const end = expression.indexOf('\n', start);
+      start = end < 0 ? expression.length : end + 1;
+      continue;
+    }
+    if (expression.startsWith('/*', start)) {
+      let depth = 1;
+      start += 2;
+      while (start < expression.length && depth) {
+        if (expression.startsWith('/*', start)) {
+          depth++;
+          start += 2;
+        } else if (expression.startsWith('*/', start)) {
+          depth--;
+          start += 2;
+        } else start++;
+      }
+      continue;
+    }
+    break;
+  }
+  const value = expression.slice(start);
+  const raw = /^r(#*)"([\s\S]*?)"\1/.exec(value),
+    quoted = raw ? null : /^"((?:\\[\s\S]|[^"\\])*)"/.exec(value);
+  const literal = raw ?? quoted;
+  if (!literal || productionRustSource(value.slice(literal[0].length)).replace(',', '').trim()) return null;
+  if (raw) return raw[2] ?? null;
+  const escapes = new Map([
+    ['n', '\n'],
+    ['r', '\r'],
+    ['t', '\t'],
+    ['0', '\0'],
+    ['\\', '\\'],
+    ['"', '"'],
+    ["'", "'"],
+  ]);
+  return (quoted?.[1] ?? '').replace(
+    /\\(?:u\{([\da-fA-F_]+)\}|x([\da-fA-F]{2})|(\r?\n\s*)|([\s\S]))/g,
+    (_match, unicode, hex, continuation, character) => {
+      if (unicode) return String.fromCodePoint(parseInt(unicode.replaceAll('_', ''), 16));
+      if (hex) return String.fromCodePoint(parseInt(hex, 16));
+      if (continuation) return '';
+      return escapes.get(character) ?? character;
+    },
+  );
 }
 
 export { productionRustSource };

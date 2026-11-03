@@ -65,6 +65,7 @@
 - 窗口创建与复用：`WindowIdentity` 与结构化输入 → managed window → Rust 登记、目标占用与实例创建或复用 → 接收方领取请求并加载业务基线 → `requestId + receiverGeneration` 回执 → 发起动作完成
 - 引用来源与内容组合：工作区标签顺序及引用开关 → `publishReferenceSources` → 后端有序引用快照 → 原版、前序可引用 Mod 与本地 JSON 组合 → 引用版本接纳与缓存失效 → 展示更新并保留本地草稿
 - 会话查询与编辑目标：`ViewModel/composable` 捕获 session 与参数 → 类型化 query、投影门控与 `ReadTicket` → `command.runtime` → 所属 Rust query → `EntityData`、正式目标与版本 → 票据接纳只读结果或独立草稿
+- 来源候选目录：字段或编辑器捕获 session 与 source、图片目录 → 候选 service → 就绪会话和实际来源 → 值分组、授权图片路径及标签模板 → 所属票据接纳；正式 scope 与配置资源变化 → 目录失效判定 → 缓存及字段重读
 - 来源读取与解析：授权来源根 → 同次字节读取及 `FileVersion` → 匹配来源记录复用或 CSV-like、JSON-like、spec parser → 业务索引与诊断 → 所属打开或刷新完成时集中持久化来源成果
 - CSV 编辑：工作区宿主交付完整表格目标与列宽 → keyed CSV 页面及所属内存投影 → 表格窗口查询 → `CsvRow`、源索引与 `rowKey` → CSV store 与可视区网格 → 列 schema、原始输入及单元格动作 → 行草稿、operation 历史与 dirty → patches 和关联规格动作
 - JSON 与杂项配置编辑：工作区宿主交付 session、Mod 根与页面目标 → keyed JSON 页面 → 正式记录、缺失版本及 schema → JSON 文档会话 → `FieldInputs` 提交字段动作 → 本地 draft 与快照历史 → 所属创建、保存或删除动作

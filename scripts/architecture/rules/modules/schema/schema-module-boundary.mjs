@@ -5,7 +5,27 @@ export const schemaModuleBoundaryRule = defineRule(
   '.zcode/modules/schema.md#边界',
   import.meta.url,
   (context, report) => {
+    for (const file of context.rust.filter((file) => file.rel === 'src-tauri/src/domain/csv_column_order.rs')) {
+      const sources = file.rust.embeddedAssets;
+      if (!sources.length)
+        report(file, { line: 1, column: 1 }, 'CSV standard order must derive from column schema declarations', {
+          expected: 'schemas/csv/*.schema.json',
+        });
+      for (const source of sources)
+        if (source.path === null || !/^schemas\/csv\/[^/]+\.schema\.json$/.test(source.path))
+          report(file, source, 'CSV standard order must derive from column schema declarations', {
+            target: source.path ?? source.expression,
+            expected: 'schemas/csv/*.schema.json',
+          });
+    }
     for (const file of context.frontend) {
+      if (file.rel === 'src/domain/csv-editor/csv-column-schema.ts')
+        for (const edge of file.dependencies)
+          if (edge.resolved.endsWith('.json'))
+            report(file, edge, 'CSV presentation consumes its authoritative schema registry', {
+              target: edge.resolved,
+              expected: 'schema registry',
+            });
       const component = file.role.layer === 'app' && file.role.role === 'component' && file.role.domain === 'schema';
       const dispatch = component && file.frontend.conditions.find((condition) => /\b(?:field|active)\.type\b/.test(condition.expression));
       if (

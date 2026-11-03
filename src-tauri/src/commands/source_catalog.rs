@@ -1,12 +1,12 @@
 use crate::errors::AppError;
-use crate::models::{CsvSourceOptionsPayload, ImageSourceOptionsPayload, SourceOptionGroup};
+use crate::models::{ImageSourceOptionsPayload, SourceCatalogPayload, SourceOptionGroup};
 use crate::services;
 
 #[command_macros::command(async)]
 pub fn query_csv_source_options(
-    payload: CsvSourceOptionsPayload,
+    payload: SourceCatalogPayload,
 ) -> Result<Vec<SourceOptionGroup>, AppError> {
-    services::query_csv_source_options(&payload.session_id, &payload.source)
+    services::query_source_option_catalog(&payload.session_id, &payload.source)
 }
 
 #[command_macros::command(async)]

@@ -26,7 +26,7 @@ vi.mock('@/services/csv-table.service', () => ({
   queryTableRows: vi.fn(),
   queryTableRowPreviewDataUrl: async () => '',
 }));
-vi.mock('@/services/source-options.service', () => ({ querySourceOptionCatalog: async () => [] }));
+vi.mock('@/services/source-catalog.service', () => ({ querySourceOptionCatalog: async () => [] }));
 vi.mock('@/app/composables/use-app-feedback', () => ({ useAppFeedback: () => ({ error: mocks.error }) }));
 vi.mock('@/app/composables/use-workspace-shell-actions', () => ({ useWorkspaceShellActions: () => ({}) }));
 

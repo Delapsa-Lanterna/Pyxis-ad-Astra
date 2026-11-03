@@ -104,8 +104,7 @@ import { useSchemaPathPicker } from '@/app/composables/editors/use-schema-path-p
 import { useSchemaSelectMedia } from '@/app/composables/use-schema-select-media';
 import { useImageSourceOptions } from '@/app/composables/editors/use-image-source-options';
 import { useInputEditMode } from '@/app/composables/use-input-edit-mode';
-import { isCsvSource } from '@/domain/schema/csv-source-options';
-import { isEntitySource } from '@/domain/schema/schema-sources';
+import { isCsvSource, isEntitySource } from '@/domain/source-catalog/source-definitions';
 import {
   fieldSourceCurrentValues,
   includeCurrentSelectOptions,

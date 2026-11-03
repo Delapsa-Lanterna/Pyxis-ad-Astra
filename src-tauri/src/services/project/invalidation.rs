@@ -9,7 +9,6 @@ use crate::models::{
     ResourceSource, push_unique_all,
 };
 use crate::parsers::parse_starsector_json;
-use crate::services::project::definitions::config_sources::CONFIG_OPTION_SOURCES;
 use crate::services::project::model::{
     MISSION_LIST_REL_PATH, MISSION_LIST_TABLE_KEY, SessionCsvRow,
 };
@@ -655,11 +654,6 @@ fn query_scopes_for_invalidation(
         }
     }
     for resource in resources {
-        for &(source, path, _) in CONFIG_OPTION_SOURCES {
-            if relative_path_contains(&resource.rel_path, path) {
-                push_source_option_query_scope(&mut scopes, source.into());
-            }
-        }
         push_query_scope(
             &mut scopes,
             InvalidatedQueryScope {
@@ -821,7 +815,6 @@ mod tests {
     use crate::io::write_utf8_no_bom;
     use crate::models::{CsvTableKey, FileChangeKind, FileChangeRecord, FileSnapshot};
     #[cfg(test)]
-    use crate::services::project::definitions::config_sources::CONFIG_OPTION_SOURCES;
     #[cfg(test)]
     use crate::services::project::model::{MISSION_LIST_REL_PATH, MISSION_LIST_TABLE_KEY};
     use crate::services::project::performance::PerformanceTrace;
@@ -834,6 +827,7 @@ mod tests {
     use crate::services::project::{PerformanceTrace as ProjectPerformanceTrace, session};
     use std::fs;
     use std::path::PathBuf;
+    use std::slice;
 
     #[test]
     fn mission_index_changes_refresh_cached_lists_and_counts() {
@@ -908,42 +902,20 @@ mod tests {
     }
 
     #[test]
-    fn config_source_invalidation() {
-        for &(source, path, _) in CONFIG_OPTION_SOURCES {
-            for origin in [ResourceSource::Mod, ResourceSource::Core] {
-                for changed in [path, "data/config"] {
-                    let scopes = query_scopes_for_invalidation(
-                        &[],
-                        &[],
-                        &[InvalidatedResourceScope {
-                            source: origin,
-                            rel_path: changed.into(),
-                        }],
-                    )
-                    .unwrap();
-                    assert!(
-                        scopes
-                            .iter()
-                            .any(|scope| scope.kind == InvalidatedQueryKind::CsvSourceOptions
-                                && scope.source.as_deref() == Some(source))
-                    );
-                }
+    fn resource_query_scopes_preserve_source_and_path() {
+        for origin in [ResourceSource::Mod, ResourceSource::Core] {
+            for changed in ["data/config/sounds.json", "data/config"] {
+                let resource = InvalidatedResourceScope {
+                    source: origin,
+                    rel_path: changed.into(),
+                };
+                let scopes =
+                    query_scopes_for_invalidation(&[], &[], slice::from_ref(&resource)).unwrap();
+                assert_eq!(scopes.len(), 1);
+                assert_eq!(scopes[0].kind, InvalidatedQueryKind::ResourceDataUrls);
+                assert_eq!(scopes[0].resource.as_ref(), Some(&resource));
             }
         }
-        let scopes = query_scopes_for_invalidation(
-            &[],
-            &[],
-            &[InvalidatedResourceScope {
-                source: ResourceSource::Mod,
-                rel_path: "graphics/sample.png".into(),
-            }],
-        )
-        .unwrap();
-        assert!(
-            !scopes
-                .iter()
-                .any(|scope| scope.kind == InvalidatedQueryKind::CsvSourceOptions)
-        );
     }
 
     #[test]

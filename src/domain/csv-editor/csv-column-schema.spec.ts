@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi, onTestFinished } from 'vitest';
+import * as columnRegistry from '@/domain/schema/csv-schema-registry';
 import { TABLE_KEYS, type CsvTableKey } from '@/shared/types';
 import {
   csvBooleanDisplayValue,
@@ -18,6 +19,13 @@ import {
 import { CSV_COLUMN_CONTROLS } from '@/domain/schema/schema.types';
 
 describe('table column schemas', () => {
+  it('follows the authoritative schema order after column declarations are reordered', () => {
+    const columns = csvColumnSchemasForTable('ships');
+    const order = columns.map((column) => column.key).reverse();
+    const mock = vi.spyOn(columnRegistry, 'getCsvColumnSchemas').mockReturnValue([...columns].reverse());
+    onTestFinished(() => mock.mockRestore());
+    expect(csvColumnsForTable('ships', [...order].reverse())).toEqual(order);
+  });
   it.each(TABLE_KEYS)('orders %s by schema and appends custom columns in header order', (table) => {
     const keys = csvColumnSchemasForTable(table).map((schema) => schema.key);
     const header = ['custom-z', ...keys.toReversed(), 'custom-a'];

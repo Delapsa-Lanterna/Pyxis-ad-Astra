@@ -31,7 +31,7 @@ export function architectureContext(sources, available = sources.map((file) => f
     ...file,
     rust: rustCode.has(file.rel)
       ? rustFacts(file, /** @type {string} */ (rustCode.get(file.rel)), exports)
-      : { code: '', references: [], functions: [], calls: [] },
+      : { code: '', references: [], functions: [], calls: [], embeddedAssets: [] },
     document: file.rel.endsWith('.md') ? moduleFacts(file.text) : { lines: [], headings: [], references: [], styleLines: [] },
   }));
   const frontend = files.filter((file) => frontendFile(file.rel) && !specFile(file.rel));

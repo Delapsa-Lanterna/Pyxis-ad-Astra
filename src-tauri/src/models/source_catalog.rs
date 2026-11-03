@@ -27,7 +27,7 @@ pub struct SourceOption {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
-pub struct CsvSourceOptionsPayload {
+pub struct SourceCatalogPayload {
     pub session_id: ProjectSessionId,
     pub source: String,
 }
@@ -48,7 +48,7 @@ mod tests {
 
     #[test]
     fn csv_source_options_payload_requires_session_and_source() {
-        let payload = serde_json::from_value::<CsvSourceOptionsPayload>(json!({
+        let payload = serde_json::from_value::<SourceCatalogPayload>(json!({
             "baseVersions": [],
             "sessionId": "session-1",
             "source": "csv:ships.id"
@@ -58,7 +58,7 @@ mod tests {
         assert_eq!(payload.session_id, "session-1");
         assert_eq!(payload.source, "csv:ships.id");
         assert!(
-            serde_json::from_value::<CsvSourceOptionsPayload>(json!({
+            serde_json::from_value::<SourceCatalogPayload>(json!({
                 "sessionId": "session-1"
             }))
             .is_err()

@@ -3,7 +3,7 @@ import { releaseNativeWindowTargets } from '@/services/window.service';
 import { useProjectSyncStore } from '@/stores/project-sync.store';
 import { beginSavedWrite } from '@/orchestrators/project-sync.orchestrator';
 import type { SchemaRuntimeContext } from '@/domain/schema/schema-runtime';
-import { querySourceOptionCatalog } from '@/services/source-options.service';
+import { querySourceOptionCatalog } from '@/services/source-catalog.service';
 import { hasEntityInvalidation } from '@/services/entity-query.service';
 import {
   refreshProjectSourcePaths,

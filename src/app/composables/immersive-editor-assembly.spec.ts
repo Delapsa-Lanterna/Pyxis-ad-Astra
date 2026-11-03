@@ -64,7 +64,7 @@ vi.mock('@/windows/spec-editor.window', () => ({ openSpecProjectileEditorWindow:
 vi.mock('@/windows/weapon-fire-preview.window', () => ({ openWeaponFirePreviewWindow: mocks.openPreview }));
 vi.mock('@/windows/immersive-editor.window', () => ({ openImmersiveEditorWindow: mocks.openImmersive }));
 vi.mock('@/services/app-log.service', () => ({ recordLogBestEffort: mocks.log }));
-vi.mock('@/services/source-options.service', () => ({ querySourceOptionCatalog: vi.fn(), hasSourceInvalidation: () => false }));
+vi.mock('@/services/source-catalog.service', () => ({ querySourceOptionCatalog: vi.fn(), hasSourceInvalidation: () => false }));
 vi.mock('@/services/query-cache.service', async (importOriginal) => ({
   ...(await importOriginal<typeof QueryCacheServiceModule>()),
   subscribeQueryInvalidations: (listener: (event: unknown) => void) => {

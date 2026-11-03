@@ -72,7 +72,7 @@ export const projectCapabilities = [
       ],
     },
   ]),
-  ...capabilities({ role: 'service', domain: 'source-options' }, [
+  ...capabilities({ role: 'service', domain: 'source-catalog' }, [
     {
       capability: 'cache-observe',
       names: ['hasSourceInvalidation'],
@@ -145,7 +145,7 @@ export const projectCapabilities = [
       owners: [
         { layer: 'services', domain: 'entity-query' },
         { layer: 'services', domain: 'csv-table' },
-        { layer: 'services', domain: 'source-options' },
+        { layer: 'services', domain: 'source-catalog' },
         { layer: 'services', domain: 'hull-reference' },
         { layer: 'services', domain: 'resource-reference' },
         { layer: 'services', domain: 'joint-edit' },

@@ -99,6 +99,7 @@
 - [项目来源读取](modules/project-sources.md)：说明授权来源、带版本读取、解析复用、来源缓存与持久化。
 - [项目同步](modules/project-sync.md)：说明来源刷新、提交接纳、同步重试、缓存失效与跨窗口通知。
 - [项目查询与缓存](modules/project-query-cache.md)：说明类型化查询定义、会话共享读取、缓存、门控与失效通知。
+- [来源候选目录](modules/source-catalog.md)：说明实际来源分组、候选查询、图片目录、标签元数据与所属失效。
 - [实体查询](modules/entity-query.md)：说明实体详情、列表、编辑目标、身份意图及所属失效。
 - [文本与格式解析器](modules/text-parsers.md)：说明 CSV-like 与 JSON-like 解析、UTF-8 无 BOM、CP1252 规范化和格式错误上下文。
 - [CSV 文档编辑](modules/csv-editor.md)：说明整表运行态、行草稿、操作历史、输入、关联文件及原子保存。

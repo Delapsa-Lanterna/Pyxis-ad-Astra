@@ -44,6 +44,7 @@ Spec 编辑器基础模块提供规格窗口宿主、共同输入契约和业务
 - `src/domain/schema/schema.types.ts`：对象字段与扩展权限的共同声明。
 - `src/orchestrators/entity-write.orchestrator.ts`：实体保存的文件名选择。
 - `src/orchestrators/json-write-confirmation.orchestrator.ts`：保存提交所属的 JSON 原文保留和逐源重排确认。
+- `src/services/source-catalog.service.ts`：规格字段的正式候选目录读取。
 - `src/shared/runtime/dialog.runtime.ts`：目录、文件、规格与图片的原生选择适配。
 - `src/shared/types/spec-editor.types.ts`：规格种类、分支、保存及导入请求与窗口业务读取投影。
 - `src/shared/ui/FieldLabel.vue`：显式名称、字段键与完整路径的共同标签。

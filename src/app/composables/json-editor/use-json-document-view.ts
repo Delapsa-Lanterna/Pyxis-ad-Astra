@@ -5,7 +5,7 @@ import { querySessionEntityEditTarget } from '@/services/entity-query.service';
 import { useQueryReadOwner } from '@/app/composables/use-query-read-owner';
 import { useSaveCommandStore } from '@/stores/save-command.store';
 import { observeSchemaSourceOptions } from '@/app/composables/editors/use-schema-source-options';
-import { querySourceOptionCatalog } from '@/services/source-options.service';
+import { querySourceOptionCatalog } from '@/services/source-catalog.service';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
 import { queryBuiltInWeaponSlotOptions, hasHullReferencesInvalidation } from '@/services/hull-reference.service';
 

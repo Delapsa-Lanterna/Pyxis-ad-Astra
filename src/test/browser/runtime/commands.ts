@@ -26,7 +26,7 @@ import { sessionUpdateFixture, savedWriteFixture } from '../../fixtures/write-re
 import { createBrowserModel, type BrowserModel } from '../scenarios/model';
 import { emit } from './events';
 import { MISC_CONFIG_DEFINITIONS, miscConfigDefinition } from '@/domain/misc-config';
-import { CONFIG_OPTION_SOURCES, isConfigSource } from '@/domain/schema/schema-sources';
+import { CONFIG_OPTION_SOURCES, isConfigSource } from '@/domain/source-catalog/source-definitions';
 import type { RowData } from '@/shared/types';
 
 let model: BrowserModel;
@@ -232,9 +232,7 @@ export async function dispatch(command: string, args: Record<string, unknown>, m
       const path = model.manifest.modRoot + '/' + definition.path;
       result.baseVersions = [{ path, fingerprint: command === 'save_misc_config' ? String(model.saveCount) : null }];
       result.invalidation.paths = [path];
-      result.invalidation.queryScopes = Object.entries(CONFIG_OPTION_SOURCES)
-        .filter(([, relative]) => relative === definition.path)
-        .map(([source]) => ({ kind: 'csv-source-options', source, table: null, entity: null, resource: null }));
+      result.invalidation.resources = [{ source: 'mod', relPath: definition.path }];
       result.sessionUpdates[0]!.projection.invalidation = result.invalidation;
       const index = model.miscFiles.findIndex((file) => file.kind === payload.kind);
       if (index !== -1) model.miscFiles.splice(index, 1);

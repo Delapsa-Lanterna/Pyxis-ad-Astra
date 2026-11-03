@@ -1,26 +1,10 @@
 import type { JsonValue, RowData } from '@/shared/types';
-import { parseCsvSource } from '@/domain/schema/csv-source-options';
+import { parseCsvSource, isEntitySource, isConfigSource } from '@/domain/source-catalog/source-definitions';
 import type { FieldSchema, FileSchema } from '@/domain/schema/schema.types';
 
-export const CONFIG_OPTION_SOURCES = {
-  'config:sounds': 'data/config/sounds.json',
-  'config:designTypes': 'data/config/settings.json',
-  'config:hullStyles': 'data/config/hull_styles.json',
-  'config:engineStyles': 'data/config/engine_styles.json',
-} as const;
-
-export const ENTITY_OPTION_SOURCES = ['csv:projectiles.id', 'csv:variants.variantId'] as const;
-export function isEntitySource(source: string | undefined | null): boolean {
-  return ENTITY_OPTION_SOURCES.some((registered) => registered === source);
-}
-
-export function isConfigSource(source: string | undefined): source is keyof typeof CONFIG_OPTION_SOURCES {
-  return source !== undefined && Object.hasOwn(CONFIG_OPTION_SOURCES, source);
-}
-
-export function validateSchemaCsvSources(schema: FileSchema): void {
+export function validateSchemaSources(schema: FileSchema): void {
   const fields = schema.root ? [schema.root] : (schema.sections ?? []).flatMap((section) => section.fields);
-  validateSchemaFieldCsvSources([...fields, ...Object.values(schema.definitions ?? {})], 'file');
+  validateSchemaFieldSources([...fields, ...Object.values(schema.definitions ?? {})], 'file');
 }
 
 export function aggregateSchemaSources(sources: Record<string, unknown>): RowData {
@@ -55,7 +39,7 @@ function scalarToJsonValue(value: unknown): JsonValue {
   return String(value);
 }
 
-function validateSchemaFieldCsvSources(fields: FieldSchema[], parentPath: string): void {
+function validateSchemaFieldSources(fields: FieldSchema[], parentPath: string): void {
   for (const field of fields) {
     const path = `${parentPath}.${field.key}`;
     if (field.source?.startsWith('csv:') && !parseCsvSource(field.source) && !isEntitySource(field.source)) {
@@ -64,9 +48,9 @@ function validateSchemaFieldCsvSources(fields: FieldSchema[], parentPath: string
     if (field.source?.startsWith('config:') && !isConfigSource(field.source)) {
       throw new Error(`Invalid config source "${field.source}" at schema field "${path}"`);
     }
-    if (field.nested) validateSchemaFieldCsvSources(field.nested, path);
-    if (field.item) validateSchemaFieldCsvSources([field.item], `${path}[]`);
-    if (field.valueSchema) validateSchemaFieldCsvSources([field.valueSchema], `${path}{}`);
-    if (field.variants) validateSchemaFieldCsvSources(field.variants, path);
+    if (field.nested) validateSchemaFieldSources(field.nested, path);
+    if (field.item) validateSchemaFieldSources([field.item], `${path}[]`);
+    if (field.valueSchema) validateSchemaFieldSources([field.valueSchema], `${path}{}`);
+    if (field.variants) validateSchemaFieldSources(field.variants, path);
   }
 }

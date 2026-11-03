@@ -1,4 +1,4 @@
-pub(in crate::services::project) const CONFIG_OPTION_SOURCES: &[(&str, &str, Option<&str>)] = &[
+pub(super) const CONFIG_OPTION_SOURCES: &[(&str, &str, Option<&str>)] = &[
     ("config:sounds", "data/config/sounds.json", None),
     (
         "config:designTypes",

@@ -90,8 +90,8 @@ const cases = [
   ],
   ['query-cache-load', 'src/services/entity-query.service.ts', 'src/services/query-cache.service.ts', 'CachedSessionQuery'],
   ['live-query-load', 'src/services/entity-query.service.ts', 'src/services/query-cache.service.ts', 'readLiveSessionQuery'],
-  ['source-query', 'src/app/composables/use-sample.ts', 'src/services/source-options.service.ts', 'querySourceOptionCatalog'],
-  ['source-query', 'src/app/composables/use-sample.ts', 'src/services/source-options.service.ts', 'queryImageSourceOptions'],
+  ['source-query', 'src/app/composables/use-sample.ts', 'src/services/source-catalog.service.ts', 'querySourceOptionCatalog'],
+  ['source-query', 'src/app/composables/use-sample.ts', 'src/services/source-catalog.service.ts', 'queryImageSourceOptions'],
   ['query-observe', 'src/app/composables/use-sample.ts', 'src/services/query-cache.service.ts', 'subscribeQueryInvalidations'],
   [
     'query-project-invalidate',

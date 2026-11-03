@@ -1,7 +1,7 @@
 import { dialogBody, dialogFiles } from '@/shared/ui/dialog-content';
 import { useProjectSyncStore } from '@/stores/project-sync.store';
 import { isExternalSource } from '@/shared/lib/resource-ref';
-import { hasSourceInvalidation } from '@/services/source-options.service';
+import { hasSourceInvalidation } from '@/services/source-catalog.service';
 import { useContextMenuScope } from '@/app/composables/use-context-menu';
 import {
   refreshProjectSourcePaths,
@@ -24,7 +24,7 @@ import type { SchemaFieldUpdate } from '@/domain/schema/schema.types';
 import type { SchemaRuntimeContext } from '@/domain/schema/schema-runtime';
 import { jointWriteTargets, mapJointDraftIdentity, rebaseJointDraft } from '@/domain/joint-edit';
 import { queryJointEdit, queryJointEditRow, queryJointEditProjection } from '@/services/joint-edit.service';
-import { querySourceOptionCatalog } from '@/services/source-options.service';
+import { querySourceOptionCatalog } from '@/services/source-catalog.service';
 
 import { retargetImmersiveWindow } from '@/orchestrators/immersive-editor.orchestrator';
 

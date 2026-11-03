@@ -37,10 +37,12 @@ CSV 文档编辑模块管理整表文件的领域规则、运行态、展示、�
 - `src/domain/editors/weapon-spec.ts`：武器关联创建消费的统一分支推断。
 - `src/domain/entity-write/spec-construction.ts`：武器分支定义与正式规格构造。
 - `src/domain/schema/csv-schema-registry.ts`：表格消费的列 schema 加载入口。
+- `src/domain/source-catalog/source-definitions.ts`：表格字段候选的来源解析与配置刷新路径。
 - `src/orchestrators/json-write-confirmation.orchestrator.ts`：保存提交所属的逐源重排确认。
 - `src/orchestrators/project-sync.orchestrator.ts`：表格保存消费的 receipt 同步与反馈入口。
+- `src/services/source-catalog.service.ts`：表格字段候选读取及失效判断。
 - `src/shared/lib/starsector/rows.ts`：表格行显示标识与关联规格标识。
-- `src/shared/lib/starsector/tables.ts`：游戏表格标准列、模块名称及列排序。
+- `src/shared/lib/starsector/tables.ts`：游戏表格名称。
 - `src/shared/runtime/app-log-queue.ts`：行实际挂载、输入提交及驻留生命周期的详细记录。
 - `src/shared/runtime/use-layout-frame.ts`：网格视口与输入锚点更新的帧合并及作用域释放。
 - `src/shared/types/csv-table-history.types.ts`：CSV 草稿操作及历史条目协议。

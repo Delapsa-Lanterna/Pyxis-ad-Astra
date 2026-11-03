@@ -1,6 +1,7 @@
 use super::*;
 use crate::io::write_utf8_no_bom;
-use crate::services::project::query::{entities, source_options};
+use crate::services::project::query::entities;
+use crate::services::project::query::source_catalog::{images, values};
 #[cfg(test)]
 use crate::services::project::query::{hull_references, joint_edit, resources};
 #[cfg(test)]
@@ -90,7 +91,7 @@ fn owner(groups: &[SourceOptionGroup], value: &str) -> ResourceSource {
         .origin
 }
 fn options(manifest: &ProjectManifest, source: &str) -> Vec<SourceOptionGroup> {
-    source_options::query_csv_source_options(&manifest.session_id, source).unwrap()
+    values::query_source_option_catalog(&manifest.session_id, source).unwrap()
 }
 fn option_resource<'a>(groups: &'a [SourceOptionGroup], value: &str) -> &'a ResourceRef {
     groups
@@ -240,8 +241,7 @@ fn reference_priority_content_and_lifecycle() {
         "beta"
     );
     let images =
-        source_options::query_image_source_options(&a.session_id, &["graphics".into()], None)
-            .unwrap();
+        images::query_image_source_options(&a.session_id, &["graphics".into()], None).unwrap();
     assert!(images.iter().any(|group| {
         group
             .reference
@@ -467,7 +467,7 @@ fn mutual_references_share_views_and_refresh_official_content() {
         .map(|manifest| {
             let id = manifest.session_id.clone();
             thread::spawn(move || {
-                source_options::query_csv_source_options(&id, "csv:weapons.id").unwrap()
+                values::query_source_option_catalog(&id, "csv:weapons.id").unwrap()
             })
         })
         .collect::<Vec<_>>();

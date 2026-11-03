@@ -58,17 +58,26 @@ export function frontendDependencyFailure(current, target, edge) {
     ((target.role === 'service' && target.domain === 'spec-editor') || target.path === 'src/domain/spec-editor/spec-editor-definitions.ts')
   )
     return { message: 'native identity handoff consumes prepared identities and titles', expected: 'window identity capability' };
+  if (
+    (current.path.startsWith('src/domain/source-catalog/') || current.path === 'src/services/source-catalog.service.ts') &&
+    target.path.startsWith('src/domain/schema/')
+  )
+    return {
+      message: 'source catalogs own source definitions below field presentation',
+      expected: 'source catalog definitions or public contracts',
+    };
   const queryKernel = current.path === 'src/services/query-cache.service.ts' || current.path === 'src/shared/types/query-cache.types.ts';
   const businessQuery = [
     'src/services/entity-query.service.ts',
     'src/services/csv-table.service.ts',
-    'src/services/source-options.service.ts',
+    'src/services/source-catalog.service.ts',
+    'src/domain/source-catalog/source-definitions.ts',
     'src/services/hull-reference.service.ts',
     'src/services/resource-reference.service.ts',
     'src/services/joint-edit.service.ts',
     'src/shared/types/entity-query.types.ts',
     'src/shared/types/tables.types.ts',
-    'src/shared/types/schema.types.ts',
+    'src/shared/types/source-catalog.types.ts',
     'src/shared/types/resources.types.ts',
     'src/shared/types/joint-edit.types.ts',
   ];
@@ -121,7 +130,7 @@ const serviceEdges = new Set([
   'entity-query -> query-cache',
   'csv-table -> query-cache',
   'joint-edit -> query-cache',
-  'source-options -> query-cache',
+  'source-catalog -> query-cache',
   'hull-reference -> query-cache',
   'resource-reference -> query-cache',
   'engine-assets -> query-cache',

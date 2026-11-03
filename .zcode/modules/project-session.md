@@ -12,10 +12,9 @@
 - `src-tauri/src/domain/entity_definitions.rs`：八种实体的目录、后缀、ID 字段及规格、表格关联登记。
 - `src-tauri/src/domain/entity_identity.rs`：跨编辑器实体 ID、路径与来源范围纯规则。
 - `src-tauri/src/services/project/cache/mod.rs`：媒体缓存的模块登记和会话释放能力导出。
-- `src-tauri/src/services/project/definitions/config_sources.rs`：配置引用目录的来源名称、固定路径与对象分组登记。
 - `src-tauri/src/services/project/definitions/entity_definitions.rs`：实体来源、读取准备、刷新与摘要的登记规则。
 - `src-tauri/src/services/project/definitions/factions.rs`：势力来源装载、诊断与蓝图标签。
-- `src-tauri/src/services/project/definitions/mod.rs`：实体、配置来源与资源定义的模块登记。
+- `src-tauri/src/services/project/definitions/mod.rs`：实体来源与资源定义的模块登记。
 - `src-tauri/src/services/project/definitions/projectiles.rs`：Mod 弹体及 Core 回退的正式读取。
 - `src-tauri/src/services/project/invalidation.rs`：提交路径到会话投影、实体与资源失效的更新。
 - `src-tauri/src/services/project/mod.rs`：会话生命周期、授权、投影、缓存配置与性能入口。
@@ -77,7 +76,7 @@
 - 表格写入缓冲持有候选行和最终文本，实际变更集应用成功后由会话能力接纳正式状态。
 - 媒体和查询等待按 session 释放，投影恢复归事务与提交同步入口。
 - 持久化来源成果由来源读取交付，query 消费所属会话投影。
-- 来源目录、实体记录和草稿资源由后端定义装配，前端能力交付所属消费者。
+- 来源目录、实体记录和草稿资源由后端定义装配，配置变化交付实际资源范围，候选读取能力拥有配置候选的失效解释。
 - 引用来源层消费工作区发布的标签顺序，为同路径文件组合交付当前会话之前的可引用来源，JSON 查询消费该序列。
 - 根事务拥有写入租约，session 与缓存按固定锁序协作。
 

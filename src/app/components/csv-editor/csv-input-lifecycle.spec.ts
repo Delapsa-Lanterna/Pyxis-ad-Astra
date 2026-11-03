@@ -22,7 +22,7 @@ import type { CsvColumnControl } from '@/domain/schema/schema.types';
 const bulkMocks = vi.hoisted(() => ({ read: vi.fn(), write: vi.fn(), error: vi.fn(), images: vi.fn() }));
 vi.mock('@/shared/runtime/clipboard.runtime', () => ({ readClipboardText: bulkMocks.read, writeClipboardText: bulkMocks.write }));
 vi.mock('@/app/composables/use-app-feedback', () => ({ useAppFeedback: () => ({ choose: vi.fn(), error: bulkMocks.error }) }));
-vi.mock('@/services/source-options.service', () => ({ queryImageSourceOptions: bulkMocks.images }));
+vi.mock('@/services/source-catalog.service', () => ({ queryImageSourceOptions: bulkMocks.images }));
 
 afterEach(() => {
   Reflect.deleteProperty(HTMLElement.prototype, 'scrollIntoView');

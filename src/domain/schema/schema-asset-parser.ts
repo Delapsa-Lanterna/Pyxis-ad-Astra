@@ -1,4 +1,5 @@
-import { isConfigSource, validateSchemaCsvSources } from '@/domain/schema/schema-sources';
+import { validateSchemaSources } from '@/domain/schema/schema-sources';
+import { isConfigSource } from '@/domain/source-catalog/source-definitions';
 import {
   CSV_COLUMN_CONTROL_SET,
   FIELD_TYPE_SET,
@@ -44,7 +45,7 @@ export function parseFileSchema(id: string, raw: unknown): FileSchema {
   if (isString(asset.targetFile)) schema.targetFile = asset.targetFile;
   if (isString(asset.gameVersion)) schema.gameVersion = asset.gameVersion;
   if (asset.sources !== undefined) schema.sources = parseSources(id, asset.sources);
-  validateSchemaCsvSources(schema);
+  validateSchemaSources(schema);
   return schema;
 }
 

@@ -414,8 +414,9 @@ mod tests {
     #[cfg(test)]
     use crate::services::project::performance::PerformanceTrace;
     use crate::services::project::query::csv_window::query_csv_table_window;
+    use crate::services::project::query::source_catalog::values;
     #[cfg(test)]
-    use crate::services::project::query::{csv_window, entity_targets, source_options};
+    use crate::services::project::query::{csv_window, entity_targets};
     use crate::services::project::session::open_project_session_traced;
     use crate::services::project::test_support::project_workspace;
     #[cfg(test)]
@@ -856,7 +857,7 @@ mod tests {
             .is_some()
         );
         let catalog =
-            source_options::query_csv_source_options(&manifest.session_id, "csv:ships.id").unwrap();
+            values::query_source_option_catalog(&manifest.session_id, "csv:ships.id").unwrap();
         assert_eq!(
             catalog[0]
                 .options

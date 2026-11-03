@@ -156,7 +156,7 @@ test('entity preparation and formal table state keep CSV editor consumption one-
     ['write/entity_write/associated_spec_preparation.rs', 'query::entity_targets::describe_entity_target'],
     ['write/entity_write/associated_specs.rs', 'write::entity_write::associated_spec_preparation::verify_associated_spec_file'],
     ['session/csv_tables.rs', 'model::csv_table_specs'],
-    ['query/source_options.rs', 'resources::table_references::csv_source_resource_ref'],
+    ['query/source_catalog/values.rs', 'resources::table_references::csv_source_resource_ref'],
   ]) {
     const context = architectureFixtures({
       ['src-tauri/src/services/project/' + consumer]: 'fn run() { crate::services::project::' + target + '(); }',
@@ -189,4 +189,19 @@ test('history scope authorization belongs to its facade while records remain ind
     'src-tauri/src/services/project/session.rs': 'fn release() { crate::services::file_history::release_root_history(root); }',
   });
   assert.equal(rustProjectLayerBoundaryRule.check(session).length, 1);
+});
+
+test('source catalog queries retain read-only layers and consume session facts one-way', () => {
+  for (const leaf of ['values', 'images', 'config_sources']) {
+    const target = 'crate::services::project::query::source_catalog::' + leaf + '::read';
+    for (const source of ['session/csv_tables.rs', 'invalidation.rs', 'definitions/entity_definitions.rs']) {
+      const context = architectureFixtures({ ['src-tauri/src/services/project/' + source]: 'fn run() { ' + target + '(); }' });
+      assert.equal(rustProjectLayerBoundaryRule.check(context).length, 1);
+    }
+    const query = 'src-tauri/src/services/project/query/source_catalog/' + leaf + '.rs';
+    assert.equal(
+      rustProjectLayerBoundaryRule.check(architectureFixtures({ [query]: 'fn run() { std::fs::write(path, bytes); }' })).length,
+      1,
+    );
+  }
 });

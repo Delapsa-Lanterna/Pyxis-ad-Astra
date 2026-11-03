@@ -54,6 +54,7 @@ JSON 文档编辑模块提供 Mod 信息、势力、战役、装配、舰船皮�
 - `src/services/entity-query.service.ts`：实体列表、详情、正式目标和身份意图查询。
 - `src/services/hull-reference.service.ts`：船体名称、Hull 引用和内置武器槽查询。
 - `src/services/query-cache.service.ts`：实体与引用查询失效订阅。
+- `src/services/source-catalog.service.ts`：文档宿主的正式字段候选目录读取。
 - `src/shared/lib/starsector/variant-modules.ts`：装配模块格式及引用修改。
 - `src/shared/runtime/document-editor.ts`：活动文档的输入、保存与历史动作契约。
 - `src/shared/types/config-entity.types.ts`：Mod 信息与索引实体保存请求、刷新内容及编辑投影契约。

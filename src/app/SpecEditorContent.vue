@@ -109,7 +109,7 @@ import { useContextMenuScope } from '@/app/composables/use-context-menu';
 import { computed, onMounted, onUnmounted, provide } from 'vue';
 import { specSchemaContext } from '@/app/composables/spec-editor/spec-schema-context';
 import { specProblemsKey } from '@/app/composables/spec-editor/use-spec-problems';
-import { CONFIG_OPTION_SOURCES } from '@/domain/schema/schema-sources';
+import { CONFIG_OPTION_SOURCES } from '@/domain/source-catalog/source-definitions';
 import SpecShipEditor from '@/app/components/spec-editor/ship/SpecShipEditor.vue';
 import SpecWeaponEditor from '@/app/components/spec-editor/weapon/SpecWeaponEditor.vue';
 import SpecProjectileEditor from '@/app/components/spec-editor/projectile/SpecProjectileEditor.vue';

@@ -32,7 +32,7 @@ vi.mock('@/services/csv-table.service', () => ({
   hasTableInvalidation: mocks.affected,
 }));
 vi.mock('@/orchestrators/project-sync.orchestrator', () => import('@/test/unit/project-changes'));
-vi.mock('@/services/source-options.service', () => ({ querySourceOptionCatalog: mocks.sources, hasSourceInvalidation: () => false }));
+vi.mock('@/services/source-catalog.service', () => ({ querySourceOptionCatalog: mocks.sources, hasSourceInvalidation: () => false }));
 vi.mock('@/app/composables/use-app-feedback', () => ({ useAppFeedback: () => ({ error: mocks.error, choose: mocks.choose }) }));
 const target = { sessionId: 'session', modRoot: 'M:/mod', table: 'ships' as const };
 let wrapper: VueWrapper, rows: CsvDraftRow[];

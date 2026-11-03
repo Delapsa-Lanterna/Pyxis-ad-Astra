@@ -10,6 +10,8 @@ test('editing and resource projections consume their own rules and public contra
     ['src/app/composables/use-edit-target-draft-session.ts', 'src/domain/project/save-edits.ts'],
     ['src/app/composables/use-edit-target-draft-session.ts', 'src/stores/project-sync.store.ts'],
     ['src/domain/resources/hull-references.ts', 'src/domain/schema/schema-options.ts'],
+    ['src/domain/source-catalog/source-definitions.ts', 'src/domain/schema/schema-sources.ts'],
+    ['src/services/source-catalog.service.ts', 'src/domain/schema/csv-source-options.ts'],
   ])
     for (const typeOnly of [false, true]) {
       assert.ok(source && target);
@@ -24,7 +26,9 @@ test('editing and resource projections consume their own rules and public contra
       assert.equal(diagnostic.file, source);
       assert.equal(diagnostic.line, 2);
       assert.equal(diagnostic.target, target);
-      assert.equal(diagnostic.expected, 'owned projection or shared contract');
+      assert.ok(
+        ['owned projection or shared contract', 'source catalog definitions or public contracts'].includes(diagnostic.expected ?? ''),
+      );
     }
   for (const [source, target] of [
     ['src/app/composables/use-edit-target-draft-session.ts', 'src/domain/edit-session.ts'],
@@ -47,7 +51,9 @@ for (const [source, target] of /** @type {const} */ ([
   ['src/shared/types/cache-limits.types.ts', 'src/shared/types/query-cache.types.ts'],
   ['src/shared/types/cache-limits.types.ts', 'src/shared/types/app-settings.types.ts'],
   ['src/services/query-cache.service.ts', 'src/services/entity-query.service.ts'],
-  ['src/services/query-cache.service.ts', 'src/services/source-options.service.ts'],
+  ['src/services/query-cache.service.ts', 'src/services/source-catalog.service.ts'],
+  ['src/services/query-cache.service.ts', 'src/shared/types/source-catalog.types.ts'],
+  ['src/services/query-cache.service.ts', 'src/domain/source-catalog/source-definitions.ts'],
   ['src/services/query-cache.service.ts', 'src/services/hull-reference.service.ts'],
   ['src/services/query-cache.service.ts', 'src/services/resource-reference.service.ts'],
 ])) {
@@ -63,7 +69,7 @@ for (const [source, target] of /** @type {const} */ ([
 for (const [source, target, name] of /** @type {const} */ ([
   ['src/app/composables/use-example.ts', 'src/services/entity-query.service.ts', 'hasEntityInvalidation'],
   ['src/app/composables/use-example.ts', 'src/services/csv-table.service.ts', 'hasTableInvalidation'],
-  ['src/app/composables/use-example.ts', 'src/services/source-options.service.ts', 'hasSourceInvalidation'],
+  ['src/app/composables/use-example.ts', 'src/services/source-catalog.service.ts', 'hasSourceInvalidation'],
   ['src/services/resource-reference.service.ts', 'src/services/query-cache.service.ts', 'readLiveSessionQuery'],
 ]))
   test(name + ' has a formal consumer', () => {

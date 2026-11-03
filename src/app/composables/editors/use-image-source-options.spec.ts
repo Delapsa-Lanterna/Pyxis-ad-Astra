@@ -11,7 +11,7 @@ const mocks = vi.hoisted(() => ({
   query: vi.fn(),
   error: vi.fn(),
 }));
-vi.mock('@/services/source-options.service', () => ({ queryImageSourceOptions: mocks.query }));
+vi.mock('@/services/source-catalog.service', () => ({ queryImageSourceOptions: mocks.query }));
 vi.mock('@/app/composables/use-app-feedback', () => ({ useAppFeedback: () => ({ error: mocks.error }) }));
 const groups: SourceOptionGroup[] = [
   { origin: 'mod', options: [{ label: 'Image', value: 'graphics/sample.png', origin: 'mod', description: null, resourceRef: null }] },

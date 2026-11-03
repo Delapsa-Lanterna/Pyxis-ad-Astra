@@ -45,8 +45,8 @@ pub(crate) use project::query::mod_file_browser::{
 pub(crate) use project::query::resources::{
     query_draft_resources, query_engine_render_assets, query_resource_data_urls,
 };
-pub(crate) use project::query::source_options::query_csv_source_options;
-pub(crate) use project::query::source_options::query_image_source_options;
+pub(crate) use project::query::source_catalog::images::query_image_source_options;
+pub(crate) use project::query::source_catalog::values::query_source_option_catalog;
 pub(crate) use project::resources::core_assets::{
     query_core_root, scan_core_fields, scan_core_graphics,
 };

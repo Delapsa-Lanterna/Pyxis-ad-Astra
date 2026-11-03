@@ -433,8 +433,9 @@ mod tests {
     use crate::models::{CsvSearchField, EntityKind};
     #[cfg(test)]
     use crate::services::project::performance::PerformanceTrace;
+    use crate::services::project::query::source_catalog::values;
     #[cfg(test)]
-    use crate::services::project::query::{csv_window, entities, source_options};
+    use crate::services::project::query::{csv_window, entities};
     use crate::services::project::test_support::project_workspace;
     #[cfg(test)]
     use std::fs;
@@ -685,7 +686,7 @@ mod tests {
             "graphics/ships/core_ship.png"
         );
         let ids =
-            source_options::query_csv_source_options(&manifest.session_id, "csv:ships.id").unwrap();
+            values::query_source_option_catalog(&manifest.session_id, "csv:ships.id").unwrap();
         assert_eq!(
             ids.iter()
                 .flat_map(|group| &group.options)
@@ -694,8 +695,8 @@ mod tests {
                 .label,
             "Nested Hull (nested)"
         );
-        let tags = source_options::query_csv_source_options(&manifest.session_id, "csv:ships.tags")
-            .unwrap();
+        let tags =
+            values::query_source_option_catalog(&manifest.session_id, "csv:ships.tags").unwrap();
         assert_eq!(
             tags.iter()
                 .flat_map(|group| &group.options)

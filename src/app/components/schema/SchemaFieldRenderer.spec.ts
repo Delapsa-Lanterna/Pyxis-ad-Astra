@@ -28,7 +28,7 @@ const mocks = vi.hoisted(() => ({
   queryCoreGraphics: vi.fn(async () => ['graphics/one.png', 'graphics/two.png']),
 }));
 const slotUiStubs = { ...editorUiStubs, 'n-select': { ...nSelect, methods: { focusInput: vi.fn() } } };
-vi.mock('@/services/source-options.service', () => ({ queryImageSourceOptions: mocks.queryImages }));
+vi.mock('@/services/source-catalog.service', () => ({ queryImageSourceOptions: mocks.queryImages }));
 
 vi.mock('@/services/core-assets.service', () => ({
   queryCoreFields: mocks.queryCoreFields,
