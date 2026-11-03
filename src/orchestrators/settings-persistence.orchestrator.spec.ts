@@ -60,26 +60,37 @@ afterEach(() => window.dispatchEvent(new Event('pagehide')));
 async function setup() {
   const runtime = settingsRuntime;
   await runtime.initializeSettings();
-  onTestFinished(runtime.startSettingsPersistence(api.history));
+  const stopPersistence = runtime.startSettingsPersistence(api.history);
+  onTestFinished(stopPersistence);
   return {
     runtime,
     settings: useSettingsStore(),
     switchSource,
+    stopPersistence,
   };
 }
 describe('formal settings commits', () => {
-  let changeReleasedSettings: () => void;
-  it.fails('releases persistence when an assertion ends the test early', async () => {
-    const { settings } = await setup();
-    changeReleasedSettings = () => settings.setGeneralFont('Released fixture font');
-    throw new Error('Expected fixture assertion failure');
-  });
-  it('keeps changes from a failed fixture out of the following save queue', async () => {
-    changeReleasedSettings();
+  it('releases persistence when its operation fails and ignores subsequent changes', async () => {
+    const { runtime, settings, stopPersistence } = await setup();
+    settings.setGeneralFont('Active fixture font');
+    await runtime.flushSettings();
+    expect(api.save).toHaveBeenCalledOnce();
+    api.save.mockClear();
+    const failure = new Error('fixture operation failed');
+    await expect(
+      (async () => {
+        try {
+          throw failure;
+        } finally {
+          stopPersistence();
+        }
+      })(),
+    ).rejects.toBe(failure);
+    settings.setGeneralFont('Released fixture font');
     await nextTick();
     await flushPromises();
-    expect(api.save).not.toHaveBeenCalled();
-    expect(api.defaults).not.toHaveBeenCalled();
+    expect(api.save).toHaveBeenCalledTimes(0);
+    expect(api.defaults).toHaveBeenCalledTimes(0);
   });
   it('saves toast durations and restores their defaults through reset', async () => {
     const { runtime, settings } = await setup();

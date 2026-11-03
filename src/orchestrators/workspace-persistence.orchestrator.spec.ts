@@ -242,19 +242,29 @@ describe('restorePersistedWorkspace', () => {
 });
 
 describe('watchWorkspacePersistence', () => {
-  let changeReleasedWorkspace: () => void;
-  it.fails('releases its watcher when an assertion ends the test early', () => {
+  it('releases its watcher when its operation fails and ignores subsequent changes', async () => {
     const workspace = useWorkspaceStore(),
       watcher = watchWorkspacePersistence();
     onTestFinished(watcher.stop);
-    changeReleasedWorkspace = () =>
-      workspace.registerMod({ modRoot: 'M:/released', displayName: 'Released', version: '', status: 'ready' });
-    throw new Error('Expected fixture assertion failure');
-  });
-  it('keeps a failed workspace fixture out of the following save calls', async () => {
-    changeReleasedWorkspace();
+    workspace.registerMod({ modRoot: 'M:/active', displayName: 'Active', version: '', status: 'ready' });
     await vi.advanceTimersByTimeAsync(600);
-    expect(mocks.savePersistedWorkspace).not.toHaveBeenCalled();
+    expect(mocks.savePersistedWorkspace).toHaveBeenCalledOnce();
+    mocks.savePersistedWorkspace.mockClear();
+    workspace.registerMod({ modRoot: 'M:/pending', displayName: 'Pending', version: '', status: 'ready' });
+    await vi.advanceTimersByTimeAsync(0);
+    const failure = new Error('fixture operation failed');
+    await expect(
+      (async () => {
+        try {
+          throw failure;
+        } finally {
+          watcher.stop();
+        }
+      })(),
+    ).rejects.toBe(failure);
+    workspace.registerMod({ modRoot: 'M:/released', displayName: 'Released', version: '', status: 'ready' });
+    await vi.advanceTimersByTimeAsync(600);
+    expect(mocks.savePersistedWorkspace).toHaveBeenCalledTimes(0);
   });
   beforeEach(() => {
     setActivePinia(createPinia());

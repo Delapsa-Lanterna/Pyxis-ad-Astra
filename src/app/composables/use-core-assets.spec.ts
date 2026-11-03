@@ -38,21 +38,30 @@ afterEach(() => {
 });
 
 describe('Core asset ownership and acceptance', () => {
-  let changeReleasedRoot: () => void;
-  it.fails('releases a second loader when an assertion ends the test early', () => {
+  it('releases a second loader when its operation fails and ignores subsequent changes', async () => {
     setActivePinia(createPinia());
     const releasedRoot = ref<string | null>('D:/released');
-    onTestFinished(startCoreAssetsLoading(releasedRoot));
-    changeReleasedRoot = () => {
-      releasedRoot.value = 'D:/later';
-    };
-    throw new Error('Expected fixture assertion failure');
-  });
-  it('keeps a failed loader fixture out of the following read calls', async () => {
-    changeReleasedRoot();
+    const stopReleased = startCoreAssetsLoading(releasedRoot);
+    onTestFinished(stopReleased);
+    await Promise.all([loadCoreFields(), loadCoreGraphics()]);
+    expect(mocks.fields).toHaveBeenCalledExactlyOnceWith('D:/released');
+    expect(mocks.graphics).toHaveBeenCalledExactlyOnceWith('D:/released');
+    mocks.fields.mockClear();
+    mocks.graphics.mockClear();
+    const failure = new Error('fixture operation failed');
+    await expect(
+      (async () => {
+        try {
+          throw failure;
+        } finally {
+          stopReleased();
+        }
+      })(),
+    ).rejects.toBe(failure);
+    releasedRoot.value = 'D:/later';
     await flushPromises();
-    expect(mocks.fields).not.toHaveBeenCalled();
-    expect(mocks.graphics).not.toHaveBeenCalled();
+    expect(mocks.fields).toHaveBeenCalledTimes(0);
+    expect(mocks.graphics).toHaveBeenCalledTimes(0);
   });
   it.each([false, true])('clears and reloads an unused Core root with a changed lifetime=%s', async (changed) => {
     await Promise.all([loadCoreFields(), loadCoreGraphics()]);
