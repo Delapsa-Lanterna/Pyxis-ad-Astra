@@ -111,7 +111,7 @@
 - JSON 更新必须消费当前设置与指纹确认；规格身份必须消费所属定义，CSV 必须保留行序、业务值、未知列与注释身份。
 - `JointEditQuery` 必须分别承载正式根、可选 CSV `rowKey`、草稿值、`newSources` 与可选 catalog；`rowKey` 必须由后端解析已保存 ID，草稿关联投影必须消费独立捕获值。
 - `JointEditRoot` 必须完整表达 `sessionId`、`modRoot`、kind 和 id；四类根必须为 ship、weapon、wing 与 variant。
-- `JointHullProjection` 必须表达装配、基础船体、Skin 链、实际字段绑定、逐船体 CSV／描述／系统展示绑定、完整有效槽位、有效 hints、内置装备、模块定位与授权贴图；有效值必须按继承顺序投影，字段提交必须消费所属 `recordKey` 与 path，展示绑定必须指向同一来源图中的实际记录键。
+- `JointHull` 必须表达装配、基础船体、Skin 链、实际字段绑定、逐船体 CSV／描述／系统展示绑定、完整有效槽位、有效 hints、内置装备、模块定位与授权贴图；有效值必须按继承顺序投影，字段提交必须消费所属 `recordKey` 与 path，展示绑定必须指向同一来源图中的实际记录键。
 - `JointRecordTarget` 必须分别表达规格、CSV 与文本；CSV 必须具有 table、`rowKey`、业务 identity 和授权 write。
 - `JointValue` 必须区分 missing 与 present；`null`、删除、数组和文本原文必须保持各自语义。
 - Mod 写入版本必须保持所属根范围；Core 来源必须消费独立 `sourceVersion` 核对，授权 Mod 覆盖目标必须保留不存在凭据。

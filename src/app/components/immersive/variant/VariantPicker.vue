@@ -145,7 +145,7 @@ import type {
   JointValue,
   ResourceRef,
 } from '@/shared/types';
-import type { VariantProjection } from '@/domain/immersive/variant/variant-panel';
+import type { VariantPanelEntry } from '@/domain/immersive/variant/variant-panel';
 import type { ImmersiveRenderContext } from '../immersive-render-context';
 import { useVariantCatalog } from '@/app/composables/immersive-editor/variant/use-variant-catalog';
 import { isRowData } from '@/shared/lib/row-data';
@@ -167,7 +167,7 @@ const props = defineProps<{
   kind: 'weapons' | 'wings' | 'variants';
   moduleContext?: {
     entry?: ReadonlyVariantEntry;
-    variant?: VariantProjection;
+    variant?: VariantPanelEntry;
     snapshot: JointEditSnapshot;
     values: Record<string, JointValue>;
     render: ImmersiveRenderContext;

@@ -170,7 +170,7 @@ beforeEach(() => {
     ['s1', 'M:/one'],
     ['s2', 'M:/two'],
   ]) {
-    const manifest = sessionUpdateFixture(session!, root!).projection.manifest;
+    const manifest = sessionUpdateFixture(session!, root!).content.manifest;
     manifest.modInfo = { id: 'mod', name: 'Saved' };
     useProjectStore().registerProjectManifest(manifest);
   }

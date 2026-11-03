@@ -15,7 +15,8 @@ use crate::models::{CommittedSessionUpdate, JsonRecoveryPlan};
 use crate::models::{
     FileChangeReplayDirection, FileVersion, JsonDocumentOrigin, JsonRecoveryRequest,
     JsonSourceRestore, JsonWriteOptions, MiscConfigDelete, MiscConfigFile, MiscConfigKind,
-    MiscConfigRead, MiscConfigScope, MiscConfigState, MiscConfigWrite, SaveAction, WriteResult,
+    MiscConfigRead, MiscConfigScope, MiscConfigState, MiscConfigWrite, ResourceSource, SaveAction,
+    WriteResult,
 };
 #[cfg(windows)]
 #[cfg(test)]
@@ -310,25 +311,20 @@ fn config_formats_replay() {
         assert!(query_misc_config_file(read_payload()).unwrap().is_none());
         let created = save(json!({}), vec![file_version(&path).unwrap()]).unwrap();
         let saved = save(content.clone(), created.base_versions).unwrap();
-        let source = match kind {
-            MiscConfigKind::HullStyles => Some("config:hullStyles"),
-            MiscConfigKind::Sounds => Some("config:sounds"),
-            MiscConfigKind::Settings => Some("config:designTypes"),
-            _ => None,
+        let assert_resource = |updates: &[CommittedSessionUpdate]| {
+            assert!(updates.iter().any(|update| {
+                update
+                    .content
+                    .invalidation
+                    .resources
+                    .iter()
+                    .any(|resource| {
+                        resource.source == ResourceSource::Mod
+                            && resource.rel_path == domain_misc_config::misc_config_path(kind)
+                    })
+            }));
         };
-        let assert_source = |updates: &[CommittedSessionUpdate]| {
-            if let Some(source) = source {
-                assert!(updates.iter().any(|update| {
-                    update
-                        .projection
-                        .invalidation
-                        .query_scopes
-                        .iter()
-                        .any(|scope| scope.source.as_deref() == Some(source))
-                }));
-            }
-        };
-        assert_source(&saved.session_updates);
+        assert_resource(&saved.session_updates);
         assert_eq!(
             query_misc_config_file(read_payload())
                 .unwrap()
@@ -345,7 +341,7 @@ fn config_formats_replay() {
                 base_versions: saved.base_versions,
             }))
             .unwrap();
-        assert_source(&deleted.session_updates);
+        assert_resource(&deleted.session_updates);
         assert!(!path.exists());
         let history = deleted.history;
         let undone = write_transactions::replay(
@@ -356,7 +352,7 @@ fn config_formats_replay() {
             history.revision,
         )
         .unwrap();
-        assert_source(&undone.session_updates);
+        assert_resource(&undone.session_updates);
         assert_eq!(fs::read(&path).unwrap(), bytes);
         let plan = prepare_json_source_recovery(JsonRecoveryRequest {
             session_id: f.scope.session_id.clone(),

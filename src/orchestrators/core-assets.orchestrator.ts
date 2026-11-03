@@ -5,7 +5,7 @@ import { recordLogBestEffort } from '@/services/app-log.service';
 import { errorContextOf, errorDiagnosticOf } from '@/shared/lib/errors';
 import { logFields } from '@/shared/lib/log-fields';
 import { normalizeFsPath, pathBelongsToRoot } from '@/shared/lib/paths';
-import { observeSavedContent, saveProjection } from '@/orchestrators/project-sync.orchestrator';
+import { observeSavedContent, sessionContentUpdate } from '@/orchestrators/project-sync.orchestrator';
 import type { DiscoveredField } from '@/shared/types';
 
 class CoreAssetLoader<T> {
@@ -79,10 +79,10 @@ export function startCoreAssetsLoading(root: Readonly<Ref<string | null>>): () =
   loaders.set(store, runtime);
   store.reset(root.value);
   const stopChanges = observeSavedContent((change) => {
-    const projection = saveProjection(change, change.sessionId);
-    if (!projection) return;
+    const update = sessionContentUpdate(change, change.sessionId);
+    if (!update) return;
 
-    const { manifest, invalidation } = projection;
+    const { manifest, invalidation } = update;
     if (
       lifetime.disposed ||
       !store.root ||

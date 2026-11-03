@@ -85,7 +85,7 @@ export function createBrowserModel(
           ),
         }))
       : [];
-  const manifest = sessionUpdateFixture(sessionId, modRoot).projection.manifest;
+  const manifest = sessionUpdateFixture(sessionId, modRoot).content.manifest;
   manifest.modInfo = { name: '浏览器样本' };
   manifest.tableSummaries.ships = { path: 'data/hulls/ship_data.csv', header, available: scene === 'csv', totalRows: rows.length };
   const graphs = new Map<string, JointEditSnapshot>();
@@ -344,7 +344,7 @@ export function createBrowserModel(
       content: value === null ? null : { target, value },
     };
     const update = sessionUpdateFixture(sessionId, modRoot);
-    update.projection.manifest = structuredClone(manifest);
+    update.content.manifest = structuredClone(manifest);
     result.sessionUpdates = [update];
     return result;
   }
@@ -376,8 +376,8 @@ export function createBrowserModel(
     result.baseVersions = [{ path: manifest.tableSummaries.ships.path, fingerprint: String(saveCount) }];
     result.invalidation.queryScopes = [{ kind: 'csv-table-window', table: 'ships', source: null, entity: null, resource: null }];
     result.sessionUpdates[0] = sessionUpdateFixture(sessionId, modRoot);
-    result.sessionUpdates[0].projection.manifest = structuredClone(manifest);
-    result.sessionUpdates[0].projection.invalidation = result.invalidation;
+    result.sessionUpdates[0].content.manifest = structuredClone(manifest);
+    result.sessionUpdates[0].content.invalidation = result.invalidation;
     return result;
   }
   function saveJoint(payload: SaveJointEditPayload) {

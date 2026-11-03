@@ -39,20 +39,20 @@ export function useDraftSession<T>(initialValue: T, options: DraftSessionOptions
       hasPending: session.hasPendingExternal,
     };
   }
-  const projection = shallowRef(capture());
-  const baseValue = computed(() => projection.value.base);
+  const capturedState = shallowRef(capture());
+  const baseValue = computed(() => capturedState.value.base);
   const draftValue = computed({
-    get: () => projection.value.draft,
+    get: () => capturedState.value.draft,
     set: (value: T) => dispatch(() => session.setDraft(value)),
   });
-  const pendingExternalValue = computed(() => projection.value.pending);
-  const revision = computed(() => projection.value.revision);
-  const dirty = computed(() => projection.value.dirty);
-  const hasPendingExternalValue = computed(() => projection.value.hasPending);
+  const pendingExternalValue = computed(() => capturedState.value.pending);
+  const revision = computed(() => capturedState.value.revision);
+  const dirty = computed(() => capturedState.value.dirty);
+  const hasPendingExternalValue = computed(() => capturedState.value.hasPending);
 
   function dispatch(action: () => void): void {
     action();
-    projection.value = capture();
+    capturedState.value = capture();
   }
 
   const externalUpdateNotice = computed(() => (hasPendingExternalValue.value ? (externalNotice ?? DEFAULT_EXTERNAL_NOTICE) : ''));

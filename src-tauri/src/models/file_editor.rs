@@ -1,12 +1,12 @@
 use super::ProjectSessionId;
 use super::serde_fields::deserialize_nullable;
-use crate::models::{EntityEditInfo, EntityKind, FileVersion, project_identity};
+use crate::models::{EntityKind, EntityTargetSnapshot, FileVersion, project_identity};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EditableFileData {
-    pub entity: Option<EntityEditInfo>,
+    pub entity: Option<EntityTargetSnapshot>,
     pub path: String,
     pub text: String,
     pub base_versions: Vec<FileVersion>,

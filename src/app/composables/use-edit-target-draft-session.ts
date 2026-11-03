@@ -1,11 +1,11 @@
-import type { SaveCommandRequest, SaveOperation } from '@/shared/runtime/command.runtime';
+import type { SaveCommandRequest, SaveTask } from '@/shared/runtime/command.runtime';
 import { computed, ref, shallowRef, type Ref } from 'vue';
 import { createFieldInputs, type FieldInputs } from '@/shared/runtime/field-inputs';
 import { useDraftSession, type DraftSessionOptions } from '@/app/composables/use-draft-session';
 import { deepClone } from '@/shared/lib/starsector';
 import { stableDeepEqual } from '@/shared/lib/stable-compare';
 import { errorCodeOf } from '@/shared/lib/errors';
-import { createReadTicketOwner, isReadInvalidated } from '@/shared/runtime/read-request';
+import { createReadOwner, isReadInvalidated } from '@/shared/runtime/read-request';
 import type { EditContext, FileVersion, SaveAcceptanceTask } from '@/shared/types';
 import { retainLaterDraft } from '@/domain/edit-session';
 
@@ -42,7 +42,7 @@ export interface EditTargetDraftSessionOptions<TValue, TTarget, TMeta = unknown>
   beginSave?: (
     write: (request?: SaveCommandRequest) => Promise<EditTargetSnapshot<TValue, TTarget, TMeta> | void>,
     accept: (snapshot: EditTargetSnapshot<TValue, TTarget, TMeta>) => SaveAcceptanceTask[],
-  ) => SaveOperation<EditTargetSnapshot<TValue, TTarget, TMeta> | void>;
+  ) => SaveTask<EditTargetSnapshot<TValue, TTarget, TMeta> | void>;
   savedContent?: (snapshot: EditTargetSnapshot<TValue, TTarget, TMeta>) => EditTargetSnapshot<TValue, TTarget, TMeta>;
   confirmSave?: (target: TTarget, value: TValue) => MaybePromise<boolean>;
   afterSaved?: (snapshot: EditTargetSnapshot<TValue, TTarget, TMeta>) => void;
@@ -106,7 +106,7 @@ export function useEditTargetDraftSession<TValue, TTarget, TMeta = unknown>(
   const inputs = createFieldInputs(currentTargetKey);
   const context = shallowRef<EditContext | null>(null);
   let submittedRequestId: string | null = null;
-  const reads = createReadTicketOwner();
+  const reads = createReadOwner();
   const loading = ref(false);
   const saving = ref(false);
   const baselineSnapshot = computed(() => session.baseValue.value);

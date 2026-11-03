@@ -1,6 +1,6 @@
 import type { ResourceRef } from '@/shared/types';
 import type { LoadedWeaponMissile, WeaponImageLayer } from '@/shared/lib/starsector/weapon-images';
-import type { ImmersiveHullProjection, ImmersiveWingLayout } from '@/domain/immersive/hull-scene';
+import type { ImmersiveHullScene, ImmersiveWingLayout } from '@/domain/immersive/hull-scene';
 import { windowImageRuntime, type ThumbnailRequest } from '../use-window-image-runtime';
 import { drawWeaponMount } from '@/app/renderers/immersive/weapon-mount';
 import { paintImmersiveHullThumbnail } from '@/app/renderers/immersive/hull-scene';
@@ -83,14 +83,14 @@ export function weaponThumbnailRequest(
 }
 export function hullThumbnailRequest(
   sessionId: string,
-  variant: ImmersiveHullProjection,
+  variant: ImmersiveHullScene,
   size: number,
   layout?: ImmersiveWingLayout,
   url?: (resource: ResourceRef) => string,
 ): ThumbnailRequest {
   const runtime = windowImageRuntime(),
     ratio = window.devicePixelRatio;
-  function collect(item: ImmersiveHullProjection, parents = new Set<string>()): ImmersiveHullProjection[] {
+  function collect(item: ImmersiveHullScene, parents = new Set<string>()): ImmersiveHullScene[] {
     if (parents.has(item.key)) return [];
     return [item, ...item.modules.flatMap((module) => collect(module.variant, new Set([...parents, item.key])))];
   }

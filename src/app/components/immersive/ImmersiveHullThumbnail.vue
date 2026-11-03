@@ -5,14 +5,14 @@
 </template>
 <script setup lang="ts">
 import { ref } from 'vue';
-import type { ImmersiveHullProjection, ImmersiveWingLayout } from '@/domain/immersive/hull-scene';
+import type { ImmersiveHullScene, ImmersiveWingLayout } from '@/domain/immersive/hull-scene';
 import type { ResourceRef } from '@/shared/types';
 import { useResourceThumbnail } from '@/app/composables/use-resource-thumbnail';
 import { hullThumbnailRequest } from '@/app/composables/immersive-editor/use-immersive-thumbnails';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
 const props = withDefaults(
   defineProps<{
-    variant: ImmersiveHullProjection;
+    variant: ImmersiveHullScene;
     sessionId: string;
     size: number;
     wingLayout?: ImmersiveWingLayout;

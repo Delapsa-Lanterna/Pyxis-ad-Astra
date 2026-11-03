@@ -10,10 +10,10 @@ use std::collections::btree_map::Entry;
 use std::fs;
 use std::path::Path;
 
-pub(in crate::services::project) fn sources_from_projection(
+pub(in crate::services::project) fn source_reader_for_session(
     session: &ProjectSession,
 ) -> AppResult<SourceReader> {
-    let mut sources = SourceReader::for_projection(Path::new(&session.manifest.mod_root))?;
+    let mut sources = SourceReader::for_session(Path::new(&session.manifest.mod_root))?;
     for (key, table) in &session.csv_tables {
         let Some(table_key) = CsvTableKey::from_key(key) else {
             continue;
@@ -29,7 +29,7 @@ pub(in crate::services::project) fn sources_from_projection(
     Ok(sources)
 }
 
-pub(in crate::services::project) fn retain_projection_sources(
+pub(in crate::services::project) fn retain_session_sources(
     sources: &mut SourceReader,
     session: &ProjectSession,
     changed: &[&str],
@@ -127,7 +127,7 @@ pub(in crate::services::project) fn capture_project_versions(
     Ok(())
 }
 
-pub(in crate::services::project) fn capture_projection_versions(
+pub(in crate::services::project) fn capture_changed_versions(
     sources: &mut SourceReader,
     paths: &[&str],
 ) -> AppResult<()> {

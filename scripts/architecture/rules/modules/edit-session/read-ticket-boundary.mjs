@@ -4,7 +4,7 @@ import { callsFrom } from '../../../facts/imports.mjs';
 import { readTicketLifecycles } from '../../../facts/read-tickets.mjs';
 
 const ticketSource = 'src/shared/runtime/read-request.ts';
-const primitives = new Set(['createReadTicket', 'createReadTicketOwner']);
+const primitives = new Set(['createReadTicket', 'createReadOwner']);
 
 export const readTicketBoundaryRule = defineRule(
   'read-ticket-boundary',
@@ -28,11 +28,11 @@ export const readTicketBoundaryRule = defineRule(
       const ticketCalls = callsFrom(file, context.byPath, new Set([ticketSource]));
       const creations = ticketCalls.filter((call) => call.name === 'createReadTicket');
       for (const lifecycle of readTicketLifecycles(file, creations, context.byPath)) {
-        if (!lifecycle.accepts.size)
-          report(file, lifecycle, 'direct ReadTicket consumers must accept a result before publication', {
+        if (!lifecycle.currentChecks.size)
+          report(file, lifecycle, 'direct ReadTicket consumers must check the current result before publication', {
             target: ticketSource,
             symbol: 'createReadTicket',
-            expected: 'ticket.accept()',
+            expected: 'ticket.requireCurrent()',
           });
         if (!lifecycle.invalidates.size)
           report(file, lifecycle, 'direct ReadTicket consumers must invalidate the ticket on release', {

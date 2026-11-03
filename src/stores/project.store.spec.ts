@@ -6,7 +6,7 @@ import { TABLE_KEYS, type ProjectManifest } from '@/shared/types';
 
 function manifest(sessionId: string, modRoot = 'M:/alpha'): ProjectManifest {
   const update = sessionUpdateFixture(sessionId, modRoot);
-  return update.projection.manifest;
+  return update.content.manifest;
 }
 
 beforeEach(() => setActivePinia(createPinia()));

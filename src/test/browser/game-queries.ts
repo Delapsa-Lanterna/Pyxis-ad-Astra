@@ -62,7 +62,7 @@ export function gameCatalog(project: WorkspaceProject, kind: T.JointVariantCatal
           relPath: path,
           ...(origin === 'reference' ? { reference } : {}),
         };
-        const projection = kind === 'wings' ? project.graph('wing', id) : kind === 'variants' ? project.graph('variant', id) : null;
+        const preview = kind === 'wings' ? project.graph('wing', id) : kind === 'variants' ? project.graph('variant', id) : null;
         const resourceRefs = source.resources(kind === 'weapons' ? 'weapon' : kind === 'hullmods' ? 'hullmods' : 'ship', id, spec ?? data);
         for (const resource of Object.values(resourceRefs))
           Object.assign(resource, {
@@ -90,13 +90,13 @@ export function gameCatalog(project: WorkspaceProject, kind: T.JointVariantCatal
           primaryRole: String(data['role desc'] ?? data.role ?? ''),
           moduleHull:
             kind === 'variants'
-              ? { id: String(data.hullId), name: String(projection!.hull!.spec.hullName), hints: projection!.hull!.hints }
+              ? { id: String(data.hullId), name: String(preview!.hull!.spec.hullName), hints: preview!.hull!.hints }
               : null,
-          preview: projection
+          preview: preview
             ? {
-                hull: projection.hull!,
-                spec: projection.hull!.spec,
-                specs: projection.records
+                hull: preview.hull!,
+                spec: preview.hull!.spec,
+                specs: preview.records
                   .filter((record) => record.target.kind === 'spec' && record.value.state === 'present')
                   .map((record) => ({
                     kind: (record.target as Extract<T.JointRecordTarget, { kind: 'spec' }>).target.kind,

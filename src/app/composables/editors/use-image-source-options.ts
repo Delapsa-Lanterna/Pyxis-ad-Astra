@@ -1,4 +1,4 @@
-import { observeSavedContent, saveProjection } from '@/orchestrators/project-sync.orchestrator';
+import { observeSavedContent, sessionContentUpdate } from '@/orchestrators/project-sync.orchestrator';
 import { ref, watch, onScopeDispose } from 'vue';
 import { queryImageSourceOptions } from '@/services/source-catalog.service';
 
@@ -45,9 +45,9 @@ export function useImageSourceOptions(args: {
   onScopeDispose(
     observeSavedContent(
       (event) => {
-        const projection = saveProjection(event, args.sessionId());
-        if (!projection) return;
-        if (projection.manifest.sessionId !== args.sessionId()) return;
+        const update = sessionContentUpdate(event, args.sessionId());
+        if (!update) return;
+        if (update.manifest.sessionId !== args.sessionId()) return;
         return reload(true);
       },
       (sessionId) => {

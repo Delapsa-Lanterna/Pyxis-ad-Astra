@@ -1,6 +1,6 @@
-import type { EntityEditInfo, FileVersion, EntityKind } from '@/shared/types/project-identity.types';
+import type { EntityTargetSnapshot, FileVersion, EntityKind } from '@/shared/types/project-identity.types';
 export interface EditableFileData {
-  entity: EntityEditInfo | null;
+  entity: EntityTargetSnapshot | null;
   path: string;
   text: string;
   baseVersions: FileVersion[];

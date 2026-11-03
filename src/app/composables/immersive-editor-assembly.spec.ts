@@ -11,7 +11,7 @@ import { weaponJointFixture } from '@/test/fixtures/joint-edit/weapon-joint-edit
 import { wingJointFixture } from '@/test/fixtures/joint-edit/wing-joint-edit';
 import { variantJointFixture } from '@/test/fixtures/joint-edit/variant-joint-edit';
 import { setVariantHullmod, equipVariantWing } from '@/domain/immersive/variant/variant-actions';
-import type { JointEditSnapshot, ProjectSessionInvalidationResult, JsonValue } from '@/shared/types';
+import type { JointEditSnapshot, SessionContentUpdate, JsonValue } from '@/shared/types';
 import { initializeSettingsStore } from '@/stores/settings.store';
 import { createSettingsFixture } from '@/test/fixtures/settings';
 import { savedWriteFixture, sessionUpdateFixture } from '@/test/fixtures/write-result';
@@ -20,7 +20,7 @@ import type { CommittedWriteEvent } from '@/shared/types';
 const mocks = vi.hoisted(() => ({
   query: vi.fn(),
   save: vi.fn(),
-  projection: vi.fn(),
+  preview: vi.fn(),
   catalog: vi.fn(),
   candidate: vi.fn(),
   listen: vi.fn(),
@@ -34,12 +34,12 @@ const mocks = vi.hoisted(() => ({
   openPreview: vi.fn(),
   openImmersive: vi.fn(),
   invalidations: [] as Array<(event: unknown) => void>,
-  projectUpdates: [] as Array<(event: ProjectSessionInvalidationResult) => Promise<void>>,
+  projectUpdates: [] as Array<(event: SessionContentUpdate) => Promise<void>>,
 }));
 vi.mock('@/services/joint-edit.service', () => ({
   queryJointEdit: mocks.query,
   queryJointEditRow: mocks.query,
-  queryJointEditProjection: mocks.projection,
+  queryJointEditPreview: mocks.preview,
   queryJointVariantCatalog: mocks.catalog,
   queryJointCandidate: mocks.candidate,
 }));
@@ -50,7 +50,7 @@ vi.mock('@/app/composables/use-app-feedback', () => ({
 vi.mock('@/orchestrators/project-sync.orchestrator', async () => ({
   ...(await import('@/test/unit/project-changes')),
   listenSavedIdentity: mocks.listen,
-  listenProjectSessionInvalidated: async (listener: (event: ProjectSessionInvalidationResult) => Promise<void>) => {
+  listenProjectSessionInvalidated: async (listener: (event: SessionContentUpdate) => Promise<void>) => {
     mocks.projectUpdates.push(listener);
     return () => {
       mocks.projectUpdates.splice(mocks.projectUpdates.indexOf(listener), 1);
@@ -127,7 +127,7 @@ describe('variant joint actions', () => {
     graph.records.push(row);
     mocks.query.mockResolvedValue(baseline);
     let finish!: (value: JointEditSnapshot) => void;
-    mocks.projection.mockImplementation(
+    mocks.preview.mockImplementation(
       () =>
         new Promise<JointEditSnapshot>((resolve) => {
           finish = resolve;
@@ -136,7 +136,7 @@ describe('variant joint actions', () => {
     const { vm, wrapper } = editor('variant');
     await vm.initialize();
     await flushPromises();
-    expect(mocks.projection).not.toHaveBeenCalled();
+    expect(mocks.preview).not.toHaveBeenCalled();
     const view = () => {
       if (vm.panel.value?.kind !== 'variant') throw new Error('Variant panel fixture');
       return vm.panel.value.variants[0]!;
@@ -158,13 +158,13 @@ describe('variant joint actions', () => {
     await flushPromises();
     expect(view().mods.map((mod) => mod.id)).toEqual(['expanded']);
     expect(view().opUsed).toBe(33);
-    const reads = mocks.projection.mock.calls.length;
+    const reads = mocks.preview.mock.calls.length;
     await vm.variant!.updateVariant('variant', (data) => setVariantHullmod(data, 'expanded', 's'));
     await vm.variant!.updateVariant('variant', (data) => ({ ...data, fluxCapacitors: 5 }));
     await flushPromises();
     expect(view().mods[0]).toMatchObject({ category: 's', cost: 0 });
     expect(view().capacity).toBe(12000);
-    expect(mocks.projection).toHaveBeenCalledTimes(reads);
+    expect(mocks.preview).toHaveBeenCalledTimes(reads);
     await vm.undo();
     expect(view().capacity).toBe(11800);
     wrapper.unmount();
@@ -173,7 +173,7 @@ describe('variant joint actions', () => {
     const baseline = variantJointFixture();
     mocks.query.mockResolvedValue(baseline);
     let first!: (value: JointEditSnapshot) => void, second!: (value: JointEditSnapshot) => void;
-    mocks.projection
+    mocks.preview
       .mockImplementationOnce(
         () =>
           new Promise<JointEditSnapshot>((resolve) => {
@@ -202,7 +202,7 @@ describe('variant joint actions', () => {
     first(baseline);
     await flushPromises();
     expect(vm.displaySnapshot.value!.records.find((record) => record.key === 'wing')!.target).toEqual(wing.target);
-    mocks.projection.mockRejectedValueOnce(new Error('Source unavailable'));
+    mocks.preview.mockRejectedValueOnce(new Error('Source unavailable'));
     await vm.variant!.updateVariant('variant', (data) => equipVariantWing(data, 0, 'third'));
     await flushPromises();
     expect(jointObject(vm.joint.draftValue.value.variant).wings).toEqual(['third']);
@@ -214,7 +214,7 @@ describe('variant joint actions', () => {
     const snapshot = variantJointFixture();
     const source = snapshot.records.find((record) => record.key === 'weapon-spec')!.source!;
     mocks.query.mockResolvedValue(snapshot);
-    mocks.projection.mockImplementation(async (draft) => structuredClone(draft.baseline));
+    mocks.preview.mockImplementation(async (draft) => structuredClone(draft.baseline));
     const entry = {
       id: 'test_weapon',
       label: 'Test Weapon',
@@ -431,7 +431,7 @@ describe('variant joint actions', () => {
     });
     snapshot.variants.module = { ...structuredClone(snapshot.variants.variant!), variantKey: 'module', modules: [] };
     mocks.query.mockResolvedValue(snapshot);
-    mocks.projection.mockImplementation(async (draft) => structuredClone(draft.baseline));
+    mocks.preview.mockImplementation(async (draft) => structuredClone(draft.baseline));
     return snapshot;
   }
   it('confirms the shared branch and records one history action for all records', async () => {
@@ -584,7 +584,7 @@ describe('variant joint actions', () => {
     snapshot.variants.variant!.modules = [{ slotId: 'M', variantKey: 'module' }];
     snapshot.variants.module = { ...structuredClone(snapshot.variants.variant!), variantKey: 'module', modules: [] };
     mocks.query.mockResolvedValue(snapshot);
-    mocks.projection.mockImplementation(async (draft) => structuredClone(draft.baseline));
+    mocks.preview.mockImplementation(async (draft) => structuredClone(draft.baseline));
     const { vm, wrapper } = editor('variant');
     await vm.initialize();
     await vm.variant!.updateVariant('module', (data) => ({ ...data, fluxVents: 7 }));
@@ -616,7 +616,7 @@ describe('variant joint actions', () => {
   function prepareVariant() {
     const snapshot = variantJointFixture();
     mocks.query.mockResolvedValue(snapshot);
-    mocks.projection.mockImplementation(async (draft) => structuredClone(draft.baseline));
+    mocks.preview.mockImplementation(async (draft) => structuredClone(draft.baseline));
     return snapshot;
   }
   it('commits the active input before one variant action and preserves draft history', async () => {
@@ -869,8 +869,8 @@ describe('wing joint source handoff', () => {
     next.bindings.csv = 'next-wing';
     mocks.query.mockResolvedValue(next);
     const update = sessionUpdateFixture('s', 'M:/mod');
-    update.projection.invalidation.paths = ['data/hulls/wing_data.csv'];
-    void projectChangeFixture('s', update.projection.invalidation);
+    update.content.invalidation.paths = ['data/hulls/wing_data.csv'];
+    void projectChangeFixture('s', update.content.invalidation);
     await flushPromises();
     expect(vm.joint.currentTarget.value!.id).toBe('renamed-wing');
     expect(vm.joint.draftValue.value['next-wing']).toMatchObject({ state: 'present', value: { id: 'renamed-wing', num: '4' } });
@@ -884,7 +884,7 @@ describe('wing joint source handoff', () => {
   function prepare() {
     const snapshot = wingJointFixture();
     mocks.query.mockResolvedValue(snapshot);
-    mocks.projection.mockImplementation(async (draft) => structuredClone(draft.baseline));
+    mocks.preview.mockImplementation(async (draft) => structuredClone(draft.baseline));
     return snapshot;
   }
   it('edits two title sources as one history action and keeps the wing isolated', async () => {
@@ -1090,7 +1090,7 @@ describe('immersive ship lifecycle and reference channels', () => {
       value: { id: 'chaingun', specClass: 'beam', custom: 'retained', textureType: 'SMOOTH' },
     };
     mocks.save.mockResolvedValue({ ...savedWriteFixture(), content: { target: { kind: 'joint', root: actual.root }, value: actual } });
-    mocks.projection.mockResolvedValue(actual);
+    mocks.preview.mockResolvedValue(actual);
     const { vm, wrapper } = editor('weapon');
     await vm.initialize();
     await vm.createOverrides();
@@ -1172,12 +1172,12 @@ describe('immersive ship lifecycle and reference channels', () => {
     const { vm, wrapper } = editor();
     await vm.initialize();
     await flushPromises();
-    const projection = shipJointFixture();
-    projection.records.find((record) => record.key === 'system-csv')!.value = {
+    const preview = shipJointFixture();
+    preview.records.find((record) => record.key === 'system-csv')!.value = {
       state: 'present',
       value: { id: 'ammofeed', name: 'Selected system' },
     };
-    mocks.projection.mockResolvedValue(projection);
+    mocks.preview.mockResolvedValue(preview);
     void vm.updateField(shipPanel(vm).system.fields[0]!, { kind: 'set', value: 'next' });
     await flushPromises();
     expect(shipPanel(vm).system.display).toBe('Selected system');
@@ -1185,7 +1185,7 @@ describe('immersive ship lifecycle and reference channels', () => {
     actual.records[1]!.value = { state: 'present', value: { 'system id': 'next', id: 'lasher', name: 'Lasher' } };
     mocks.save.mockResolvedValue({ ...savedWriteFixture(), content: { target: { kind: 'joint', root: actual.root }, value: actual } });
     let finish!: (snapshot: JointEditSnapshot) => void;
-    mocks.projection.mockImplementationOnce(
+    mocks.preview.mockImplementationOnce(
       () =>
         new Promise<JointEditSnapshot>((resolve) => {
           finish = resolve;
@@ -1197,11 +1197,11 @@ describe('immersive ship lifecycle and reference channels', () => {
     });
     await flushPromises();
     expect(settled).toBe(true);
-    finish(projection);
+    finish(preview);
     await saving;
     await savedContentWorks.at(-1)!.content;
     await flushPromises();
-    expect(mocks.projection).toHaveBeenCalledTimes(2);
+    expect(mocks.preview).toHaveBeenCalledTimes(2);
     expect(shipPanel(vm).system.display).toBe('Selected system');
     expect(mocks.error).not.toHaveBeenCalled();
     wrapper.unmount();
@@ -1212,10 +1212,10 @@ describe('immersive ship lifecycle and reference channels', () => {
     await flushPromises();
     const actual = shipJointFixture();
     mocks.save.mockResolvedValue({ ...savedWriteFixture(), content: { target: { kind: 'joint', root: actual.root }, value: actual } });
-    mocks.projection.mockClear();
+    mocks.preview.mockClear();
     await vm.save();
     await flushPromises();
-    expect(mocks.projection).toHaveBeenCalledTimes(0);
+    expect(mocks.preview).toHaveBeenCalledTimes(0);
     wrapper.unmount();
   });
   it('keeps the old identity when native retarget fails and follows on retry with the draft history intact', async () => {
@@ -1270,7 +1270,7 @@ describe('immersive ship lifecycle and reference channels', () => {
     await flushPromises();
     expect(shipPanel(vm).combat.find((stat) => stat.id === 'hitpoints')!.display).toBe('1800');
     expect(vm.history.canUndo.value).toBe(true);
-    expect(mocks.projection).not.toHaveBeenCalled();
+    expect(mocks.preview).not.toHaveBeenCalled();
     await vm.undo();
     expect(shipPanel(vm).combat.find((stat) => stat.id === 'hitpoints')!.display).toBe('1750');
     wrapper.unmount();
@@ -1280,7 +1280,7 @@ describe('immersive ship lifecycle and reference channels', () => {
     await vm.initialize();
     await flushPromises();
     let finish!: (value: JointEditSnapshot) => void;
-    mocks.projection.mockImplementationOnce(
+    mocks.preview.mockImplementationOnce(
       () =>
         new Promise((resolve) => {
           finish = resolve;
@@ -1289,13 +1289,13 @@ describe('immersive ship lifecycle and reference channels', () => {
     const field = shipPanel(vm).system.fields[0]!;
     void vm.updateField(field, { kind: 'set', value: 'first' });
     await flushPromises();
-    const firstSignal = mocks.projection.mock.calls[0]![1] as AbortSignal;
+    const firstSignal = mocks.preview.mock.calls[0]![1] as AbortSignal;
     const latest = shipJointFixture();
     latest.records.find((record) => record.key === 'system-csv')!.value = {
       state: 'present',
       value: { id: 'ammofeed', name: 'Latest system' },
     };
-    mocks.projection.mockResolvedValueOnce(latest);
+    mocks.preview.mockResolvedValueOnce(latest);
     void vm.updateField(field, { kind: 'set', value: 'second' });
     await flushPromises();
     expect(firstSignal.aborted).toBe(true);
@@ -1311,7 +1311,7 @@ describe('immersive ship lifecycle and reference channels', () => {
     await vm.initialize();
     await flushPromises();
     let finish!: (value: JointEditSnapshot) => void;
-    mocks.projection.mockImplementationOnce(
+    mocks.preview.mockImplementationOnce(
       () =>
         new Promise((resolve) => {
           finish = resolve;

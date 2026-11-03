@@ -1,4 +1,4 @@
-import { observeSavedContent, saveProjection } from '@/orchestrators/project-sync.orchestrator';
+import { observeSavedContent, sessionContentUpdate } from '@/orchestrators/project-sync.orchestrator';
 import { ref, shallowRef, watch, onScopeDispose } from 'vue';
 import type {
   JointEditRoot,
@@ -63,10 +63,10 @@ export function useVariantCatalog(
   onScopeDispose(
     observeSavedContent(
       (event) => {
-        const projection = saveProjection(event, root().sessionId);
-        if (!projection) return undefined;
-        if (!enabled() || projection.manifest.sessionId !== root().sessionId) return undefined;
-        if (hasJointEditInvalidation(projection.invalidation)) return load(true);
+        const update = sessionContentUpdate(event, root().sessionId);
+        if (!update) return undefined;
+        if (!enabled() || update.manifest.sessionId !== root().sessionId) return undefined;
+        if (hasJointEditInvalidation(update.invalidation)) return load(true);
         return undefined;
       },
       (sessionId) => {

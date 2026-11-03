@@ -20,11 +20,10 @@ static LOG_WRITE_LOCK: Mutex<()> = Mutex::new(());
 static NATIVE_DRAIN: Mutex<()> = Mutex::new(());
 static NATIVE_QUEUE: LazyLock<Mutex<NativeQueue>> =
     LazyLock::new(|| Mutex::new(NativeQueue::default()));
-static LOG_RUNTIME: LazyLock<Mutex<LogRuntime>> =
-    LazyLock::new(|| Mutex::new(LogRuntime::default()));
+static LOG_RUNTIME: LazyLock<Mutex<LogState>> = LazyLock::new(|| Mutex::new(LogState::default()));
 
 #[derive(Default)]
-struct LogRuntime {
+struct LogState {
     settings: Option<AppSettings>,
     last_error: Option<String>,
     losses: BTreeMap<String, u64>,
@@ -38,7 +37,7 @@ struct NativeQueue {
     stopped: bool,
 }
 
-impl LogRuntime {
+impl LogState {
     fn write(
         &mut self,
         owner: &str,
@@ -61,7 +60,7 @@ impl LogRuntime {
     }
 }
 
-fn runtime() -> AppResult<MutexGuard<'static, LogRuntime>> {
+fn runtime() -> AppResult<MutexGuard<'static, LogState>> {
     LOG_RUNTIME
         .lock()
         .map_err(|_| AppError::message("log.runtime_poisoned", "log runtime unavailable"))
@@ -160,7 +159,7 @@ fn append_with_runtime(
     app: AppHandle,
     owner: &str,
     mut entries: Vec<AppLogEntry>,
-    state: &mut LogRuntime,
+    state: &mut LogState,
 ) -> AppResult<()> {
     for entry in &mut entries {
         entry
@@ -508,7 +507,7 @@ mod tests {
     #[test]
     fn a_failed_writer_stops_subsequent_windows_until_a_new_runtime() {
         let dir = TestWorkspace::new("log_runtime_stop");
-        let mut state = LogRuntime::default();
+        let mut state = LogState::default();
         let records = vec![entry("first"), entry("second")];
         state
             .write("window-a", records.len(), || {
@@ -529,7 +528,7 @@ mod tests {
             .unwrap_err();
         assert!(!executed);
         assert_eq!(state.losses.values().sum::<u64>(), 5);
-        let mut fresh = LogRuntime::default();
+        let mut fresh = LogState::default();
         fresh
             .write("window-a", records.len(), || {
                 append_logs(&dir, &records, &AppSettings::default())

@@ -95,7 +95,7 @@ export const rustProjectLayerBoundaryRule = defineRule(
           });
           continue;
         }
-        const committedResourceProjection =
+        const committedResourceReferences =
           from === 'project-write' && parts.slice(0, 4).join('::') === 'services::project::resources::entity_references';
         const sourceLayersRead =
           from === 'services' && reference === 'crate::services::project::query::json_layers::query_json_composition';
@@ -121,15 +121,15 @@ export const rustProjectLayerBoundaryRule = defineRule(
           ['project-root', 'project-query', 'project-write', 'project-resources', 'project-session'].includes(from) &&
           ['csv_tables', 'csv_writes'].includes(parts[3] ?? '') &&
           parts.slice(0, 3).join('::') === 'services::project::session';
-        const projectionAccess =
+        const sourceVersionAccess =
           from === 'project-root' &&
           [
-            'crate::services::project::session::source_projection::sources_from_projection',
-            'crate::services::project::session::source_projection::retain_projection_sources',
-            'crate::services::project::session::source_projection::capture_projection_versions',
+            'crate::services::project::session::source_versions::source_reader_for_session',
+            'crate::services::project::session::source_versions::retain_session_sources',
+            'crate::services::project::session::source_versions::capture_changed_versions',
           ].includes(reference);
         if (
-          !committedResourceProjection &&
+          !committedResourceReferences &&
           !sourceLayersRead &&
           !mediaLifecycle &&
           !historyCommand &&
@@ -137,7 +137,7 @@ export const rustProjectLayerBoundaryRule = defineRule(
           !runtimeSettings &&
           !runtimeMonitor &&
           !sessionAccess &&
-          !projectionAccess &&
+          !sourceVersionAccess &&
           !tableAccess &&
           !validRustDependency(from, to) &&
           !rejected.has(to)

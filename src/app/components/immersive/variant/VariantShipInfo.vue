@@ -32,7 +32,7 @@
 <script setup lang="ts">
 import { computed, watch } from 'vue';
 import type { JointEditRoot, JointEditSnapshot, JointValue } from '@/shared/types';
-import type { VariantProjection } from '@/domain/immersive/variant/variant-panel';
+import type { VariantPanelEntry } from '@/domain/immersive/variant/variant-panel';
 import { projectShipPanel } from '@/domain/immersive/ship/ship-panel';
 import type { ImmersiveRenderContext } from '../immersive-render-context';
 import { useImmersiveHover } from '@/app/composables/use-immersive-hover';
@@ -43,7 +43,7 @@ import ShipImmersivePanel from '../ship/ShipImmersivePanel.vue';
 import ImmersiveResourceIcon from '../ImmersiveResourceIcon.vue';
 import { IMMERSIVE_COLORS } from '@/domain/immersive/appearance';
 const props = defineProps<{
-  variant: VariantProjection;
+  variant: VariantPanelEntry;
   snapshot: JointEditSnapshot;
   values: Record<string, JointValue>;
   root: JointEditRoot;

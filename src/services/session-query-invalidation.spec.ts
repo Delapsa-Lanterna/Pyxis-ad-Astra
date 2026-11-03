@@ -14,7 +14,7 @@ import { querySessionDraftResources, resolveModImageReference } from './resource
 import {
   queryJointEdit,
   queryJointCandidate,
-  queryJointEditProjection,
+  queryJointEditPreview,
   queryJointVariantCatalog,
   prepareJointEdit,
 } from './joint-edit.service';
@@ -149,7 +149,7 @@ const cases: Array<{
     unrelated: detail,
     value: { root, referenceSettings: snapshot.referenceSettings, catalog: { kind: 'weapons', entries: [] } },
   },
-  { name: 'joint-edit-projection', read: () => queryJointEditProjection(draft), matching: changed, unrelated: detail, value: snapshot },
+  { name: 'joint-edit-preview', read: () => queryJointEditPreview(draft), matching: changed, unrelated: detail, value: snapshot },
   {
     name: 'joint-edit-prepare',
     read: () => prepareJointEdit(draft),

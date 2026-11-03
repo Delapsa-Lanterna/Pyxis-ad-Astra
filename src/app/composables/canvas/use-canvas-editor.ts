@@ -1,6 +1,6 @@
 import { computed, nextTick, onMounted, onUnmounted, shallowRef, ref, type Ref, type ShallowRef } from 'vue';
 import type { EditorTarget, CanvasTarget, CanvasInput } from '@/domain/editors/editor-types';
-import type { CanvasState } from './use-canvas-state';
+import type { CanvasRuntime } from './use-canvas-runtime';
 import type { CanvasViewport } from './use-canvas-viewport';
 import type { useEditorDocument } from '@/app/composables/editors/use-editor-document';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
@@ -35,7 +35,7 @@ export function useCanvasEditor<TPreview>(options: {
   windowRef: Readonly<ShallowRef<HTMLElement | null>>;
   expandedSections: Ref<(string | number)[]>;
   viewport: CanvasViewport;
-  state: CanvasState<TPreview>;
+  state: CanvasRuntime<TPreview>;
   hooks: {
     targets(x: number, y: number): CanvasTarget[];
     radius(target: CanvasTarget): number;

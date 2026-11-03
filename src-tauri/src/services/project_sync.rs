@@ -29,7 +29,7 @@ struct SourceConfirmation {
     accepted: Option<bool>,
     responder: Option<String>,
 }
-pub struct SaveWork {
+pub struct SaveTask {
     id: String,
     owner: String,
     root: String,
@@ -37,7 +37,7 @@ pub struct SaveWork {
     session_id: Option<String>,
 }
 struct QueuedSave {
-    work: Arc<SaveWork>,
+    task: Arc<SaveTask>,
     progress: Progress,
 }
 #[derive(Clone)]
@@ -67,13 +67,13 @@ impl ProjectSaves {
                 **key == requested
                     || queue
                         .iter()
-                        .any(|entry| entry.work.submitted_root == requested)
+                        .any(|entry| entry.task.submitted_root == requested)
             })
             .map(|(key, _)| key.clone())
             .unwrap_or(requested)
     }
-    fn offer_confirmation(&mut self, work: &SaveWork) -> AppResult<()> {
-        let Some(confirmation) = self.progress(work).confirmation.as_ref() else {
+    fn offer_confirmation(&mut self, task: &SaveTask) -> AppResult<()> {
+        let Some(confirmation) = self.progress(task).confirmation.as_ref() else {
             return Ok(());
         };
         if confirmation.accepted.is_some() || confirmation.responder.is_some() {
@@ -82,19 +82,19 @@ impl ProjectSaves {
         let paths = confirmation.paths.clone();
         let selected = self
             .windows
-            .get_key_value(&work.owner)
+            .get_key_value(&task.owner)
             .or_else(|| {
                 self.windows
                     .iter()
-                    .find(|(_, window)| window.belongs_to(&work.root))
+                    .find(|(_, window)| window.belongs_to(&task.root))
             })
             .map(|(label, window)| (label.clone(), window.channel.clone()));
         if let Some((label, channel)) = selected {
             channel.send(SaveDelivery::Missing {
-                request_id: work.id.clone(),
+                request_id: task.id.clone(),
                 paths,
             })?;
-            self.progress(work)
+            self.progress(task)
                 .confirmation
                 .as_mut()
                 .expect("current save holds its confirmation")
@@ -102,13 +102,13 @@ impl ProjectSaves {
         }
         Ok(())
     }
-    fn progress(&mut self, work: &SaveWork) -> &mut Progress {
+    fn progress(&mut self, task: &SaveTask) -> &mut Progress {
         &mut self
             .roots
-            .get_mut(&work.root)
+            .get_mut(&task.root)
             .expect("active save owns its root queue")
             .iter_mut()
-            .find(|entry| entry.work.id == work.id)
+            .find(|entry| entry.task.id == task.id)
             .expect("active save is queued")
             .progress
     }
@@ -142,23 +142,23 @@ impl ProjectSaves {
             }
         }
     }
-    fn block(&mut self, work: &SaveWork, diagnostic: ErrorDiagnostic) {
-        self.progress(work).blocked = Some(diagnostic.clone());
+    fn block(&mut self, task: &SaveTask, diagnostic: ErrorDiagnostic) {
+        self.progress(task).blocked = Some(diagnostic.clone());
         for window in self
             .windows
             .values()
-            .filter(|window| window.belongs_to(&work.root))
+            .filter(|window| window.belongs_to(&task.root))
         {
             if let Err(error) = window.channel.send(SaveDelivery::Blocked {
-                request_id: work.id.clone(),
-                mod_root: work.root.clone(),
-                session_id: work.session_id.clone(),
+                request_id: task.id.clone(),
+                mod_root: task.root.clone(),
+                session_id: task.session_id.clone(),
                 diagnostic: diagnostic.clone(),
             }) {
                 diagnostics::failure(
                     "save.blocked_notification_failed",
                     error,
-                    json!({"requestId":work.id,"modRoot":work.root,"sessionId":work.session_id,"blockedCode":diagnostic.code}),
+                    json!({"requestId":task.id,"modRoot":task.root,"sessionId":task.session_id,"blockedCode":diagnostic.code}),
                 );
             }
         }
@@ -185,13 +185,13 @@ fn root_key(root: &str) -> AppResult<String> {
         &io::canonical_path(Path::new(root), "save root")?.to_string_lossy(),
     ))
 }
-fn work(id: &str) -> AppResult<Arc<SaveWork>> {
+fn task(id: &str) -> AppResult<Arc<SaveTask>> {
     saves()?
         .roots
         .values()
         .flatten()
-        .find(|entry| entry.work.id == id)
-        .map(|entry| entry.work.clone())
+        .find(|entry| entry.task.id == id)
+        .map(|entry| entry.task.clone())
         .ok_or_else(|| AppError::message("write.request_unknown", "保存请求已结束"))
 }
 pub fn register(
@@ -217,10 +217,10 @@ pub fn register(
         .values()
         .flatten()
         .filter(|entry| entry.progress.confirmation.is_some())
-        .map(|entry| entry.work.clone())
+        .map(|entry| entry.task.clone())
         .collect::<Vec<_>>();
-    for work in confirmations {
-        saves.offer_confirmation(&work)?;
+    for task in confirmations {
+        saves.offer_confirmation(&task)?;
     }
     Ok(())
 }
@@ -230,14 +230,14 @@ pub fn enqueue(
     request_id: String,
     root: &str,
     session_id: Option<&str>,
-) -> AppResult<Arc<SaveWork>> {
+) -> AppResult<Arc<SaveTask>> {
     if !windows::accepts_save(label, session_id)? {
         return Err(AppError::message(
             "write.scope_closing",
             "所属窗口或项目正在关闭",
         ));
     }
-    let work = Arc::new(SaveWork {
+    let task = Arc::new(SaveTask {
         id: request_id,
         owner: label.to_string(),
         root: root_key(root)?,
@@ -245,21 +245,21 @@ pub fn enqueue(
         session_id: session_id.map(str::to_string),
     });
     let mut saves = saves()?;
-    let queue = saves.roots.entry(work.root.clone()).or_default();
+    let queue = saves.roots.entry(task.root.clone()).or_default();
     let progress = Progress::default();
     let first = queue.is_empty();
     queue.push_back(QueuedSave {
-        work: work.clone(),
+        task: task.clone(),
         progress,
     });
     if first {
-        saves.notify(&work.root, true);
+        saves.notify(&task.root, true);
     }
-    Ok(work)
+    Ok(task)
 }
 /// The project queue owns execution; subscribers receive results without holding the queue.
 pub fn execute_queued<T: Serialize>(
-    work: Arc<SaveWork>,
+    task: Arc<SaveTask>,
     event_root: &str,
     session_id: Option<&str>,
     reason: &str,
@@ -267,31 +267,31 @@ pub fn execute_queued<T: Serialize>(
 ) -> AppResult<WriteResult<T>> {
     let (identities, versions) = {
         let mut saves = saves()?;
-        while saves.roots[&work.root]
+        while saves.roots[&task.root]
             .front()
             .expect("queued save is registered")
-            .work
+            .task
             .id
-            != work.id
+            != task.id
         {
             saves = wait_changed(saves)?;
         }
-        if saves.progress(&work).abandoned {
-            saves.finish(&work.root);
+        if saves.progress(&task).abandoned {
+            saves.finish(&task.root);
             return Err(AppError::message("write.abandoned", "所属项目保存已结束"));
         }
-        let progress = saves.progress(&work);
+        let progress = saves.progress(&task);
         (progress.identities.clone(), progress.versions.clone())
     };
-    let recovery = work.clone();
+    let recovery = task.clone();
     let result = io::with_write_retry(
         Path::new(event_root),
         move |error| wait_retry(&recovery, error),
         || loop {
             match action(&identities, &versions) {
                 Err(AppError::SaveSourcesMissing { paths }) => {
-                    confirm_sources(&work, paths.clone())?;
-                    io::accept_source_recreation(&work.root, paths)?;
+                    confirm_sources(&task, paths.clone())?;
+                    io::accept_source_recreation(&task.root, paths)?;
                 }
                 result => break result,
             }
@@ -301,13 +301,13 @@ pub fn execute_queued<T: Serialize>(
     let result = match result {
         Ok(result) => result,
         Err(error) => {
-            saves.finish(&work.root);
+            saves.finish(&task.root);
             return Err(error);
         }
     };
     for entry in saves
         .roots
-        .get_mut(&work.root)
+        .get_mut(&task.root)
         .expect("written save remains queued")
     {
         entry
@@ -323,7 +323,7 @@ pub fn execute_queued<T: Serialize>(
         }
     }
     let event = serde_json::to_value(CommittedWriteEvent {
-        origin_window_label: &work.owner,
+        origin_window_label: &task.owner,
         mod_root: event_root,
         session_id,
         reason,
@@ -332,20 +332,20 @@ pub fn execute_queued<T: Serialize>(
     for window in saves
         .windows
         .values()
-        .filter(|window| window.belongs_to(&work.root))
+        .filter(|window| window.belongs_to(&task.root))
     {
         if let Err(error) = window.channel.send(SaveDelivery::Saved {
-            request_id: work.id.clone(),
+            request_id: task.id.clone(),
             event: event.clone(),
         }) {
             diagnostics::failure(
                 "save.result_delivery_failed",
                 error,
-                json!({"requestId":work.id,"modRoot":work.root,"sessionId":work.session_id}),
+                json!({"requestId":task.id,"modRoot":task.root,"sessionId":task.session_id}),
             );
         }
     }
-    saves.finish(&work.root);
+    saves.finish(&task.root);
     Ok(result)
 }
 
@@ -382,13 +382,13 @@ pub fn publish_references(
     Ok(())
 }
 
-fn wait_retry(work: &SaveWork, error: &AppError) -> AppResult<()> {
+fn wait_retry(task: &SaveTask, error: &AppError) -> AppResult<()> {
     let mut saves = saves()?;
-    saves.block(work, error.diagnostic());
-    while saves.progress(work).blocked.is_some() && !saves.progress(work).abandoned {
+    saves.block(task, error.diagnostic());
+    while saves.progress(task).blocked.is_some() && !saves.progress(task).abandoned {
         saves = wait_changed(saves)?;
     }
-    if saves.progress(work).abandoned {
+    if saves.progress(task).abandoned {
         return Err(AppError::message(
             "write.recovery_abandoned",
             "用户已放弃恢复保存前内容",
@@ -437,25 +437,25 @@ pub fn prepare_versions(
     Ok(lease)
 }
 
-fn confirm_sources(work: &SaveWork, paths: Vec<String>) -> AppResult<()> {
+fn confirm_sources(task: &SaveTask, paths: Vec<String>) -> AppResult<()> {
     let mut saves = saves()?;
-    saves.progress(work).confirmation = Some(SourceConfirmation {
+    saves.progress(task).confirmation = Some(SourceConfirmation {
         paths: paths.clone(),
         accepted: None,
         responder: None,
     });
-    saves.offer_confirmation(work)?;
+    saves.offer_confirmation(task)?;
     loop {
-        if saves.progress(work).abandoned {
+        if saves.progress(task).abandoned {
             return Err(AppError::message("write.abandoned", "所属项目保存已结束"));
         }
         if let Some(accepted) = saves
-            .progress(work)
+            .progress(task)
             .confirmation
             .as_ref()
             .and_then(|confirmation| confirmation.accepted)
         {
-            saves.progress(work).confirmation = None;
+            saves.progress(task).confirmation = None;
             return if accepted {
                 Ok(())
             } else {
@@ -472,9 +472,9 @@ pub fn resolve_sources(
     paths: &[String],
     accepted: bool,
 ) -> AppResult<()> {
-    let work = work(request_id)?;
+    let task = task(request_id)?;
     let mut saves = saves()?;
-    if let Some(confirmation) = &mut saves.progress(&work).confirmation
+    if let Some(confirmation) = &mut saves.progress(&task).confirmation
         && confirmation.paths == paths
     {
         if confirmation.responder.as_deref() != Some(label) {
@@ -489,10 +489,10 @@ pub fn resolve_sources(
     Ok(())
 }
 pub fn retry(request_id: &str) -> AppResult<()> {
-    let work = work(request_id)?;
+    let task = task(request_id)?;
     let mut saves = saves()?;
-    saves.progress(&work).blocked = None;
-    saves.notify(&work.root, true);
+    saves.progress(&task).blocked = None;
+    saves.notify(&task.root, true);
     SAVES.1.notify_all();
     Ok(())
 }
@@ -548,11 +548,11 @@ pub fn release_window(label: &str) -> AppResult<()> {
             && confirmation.responder.as_deref() == Some(label)
         {
             confirmation.responder = None;
-            confirmations.push(entry.work.clone());
+            confirmations.push(entry.task.clone());
         }
     }
-    for work in confirmations {
-        saves.offer_confirmation(&work)?;
+    for task in confirmations {
+        saves.offer_confirmation(&task)?;
     }
     SAVES.1.notify_all();
     Ok(())
@@ -753,7 +753,7 @@ mod tests {
             delivery_for_request(&receiver, "saved", "first")["requestId"],
             "first"
         );
-        assert!(work("first").is_err());
+        assert!(task("first").is_err());
         drop(receiver);
         save_empty("observer", "broken-channel", &root.to_string_lossy());
         release_window("observer").unwrap();
@@ -979,7 +979,7 @@ mod tests {
         let delivery = delivery_for_request(&source, "missing", "confirmation");
         let paths = serde_json::from_value::<Vec<String>>(delivery["paths"].clone()).unwrap();
         release_window("confirmation-source").unwrap();
-        assert!(work("confirmation").is_ok());
+        assert!(task("confirmation").is_ok());
         let receiver = window("confirmation-receiver");
         delivery_for_request(&receiver, "missing", "confirmation");
         assert_eq!(
@@ -994,7 +994,7 @@ mod tests {
             "confirmation"
         );
         worker.join().unwrap();
-        assert!(work("confirmation").is_err());
+        assert!(task("confirmation").is_err());
         release_window("confirmation-receiver").unwrap();
         root.close().unwrap();
     }

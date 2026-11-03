@@ -23,7 +23,7 @@ fn history_access_checks_scope_and_reads_pending_projection() {
     fs::write(&path, "saved").unwrap();
     let change = io::build_text_change(&path, Some("next".into())).unwrap();
     let history = record_write(&first.mod_root, &[change], &[], "entry").unwrap();
-    project::mark_projection_pending(&first.session_id).unwrap();
+    project::mark_session_pending(&first.session_id).unwrap();
     assert_eq!(
         query_file_history(&first.session_id, &first.mod_root)
             .unwrap()

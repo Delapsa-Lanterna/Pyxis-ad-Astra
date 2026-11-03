@@ -86,17 +86,17 @@ describe('target field input lifecycle', () => {
   });
   it('commits in registration order and waits for consumer projections', async () => {
     const inputs = createFieldInputs(ref('one'));
-    const projection = ref('base');
+    const preview = ref('base');
     const observed: string[] = [];
     inputs.register(
       field('first', () => {
-        projection.value = 'first';
+        preview.value = 'first';
         return null;
       }),
     );
     inputs.register(
       field('second', () => {
-        observed.push(projection.value);
+        observed.push(preview.value);
         return null;
       }),
     );

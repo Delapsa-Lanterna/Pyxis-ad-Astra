@@ -12,8 +12,8 @@
 - `src/app/composables/canvas/use-canvas-editor.ts`：指针阶段、输入适配、导航、快捷键与窗口监听。
 - `src/app/composables/canvas/use-canvas-navigation.ts`：骨架和装配消费的右键平移、滚轮缩放与指针位置。
 - `src/app/composables/canvas/use-canvas-palette.ts`：主题派生与重绘通知的装配。
+- `src/app/composables/canvas/use-canvas-runtime.ts`：完整目标身份、悬停、检查器锁定、镜像开关与候选预览。
 - `src/app/composables/canvas/use-canvas-selection.ts`：骨架和装配消费的距离命中、选区身份与显式选择。
-- `src/app/composables/canvas/use-canvas-state.ts`：完整目标身份、悬停、检查器锁定、镜像开关与候选预览。
 - `src/app/composables/canvas/use-canvas-viewport.ts`：视口缩放与平移。
 - `src/app/composables/editors/use-editor-document.ts`：工作值、动作起点、提交快照、字段与手势边界及历史交接。
 - `src/app/composables/editors/use-editor-fields.ts`：所属文档字段、颜色与对象输入的绑定入口。

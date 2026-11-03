@@ -1,5 +1,5 @@
 use super::super::model::{ProjectSession, csv_table_spec, string_field};
-use super::super::query::entity_targets::{EntityTargetProjection, prepare_entity_targets};
+use super::super::query::entity_targets::{EntityTargetIndex, prepare_entity_targets};
 use super::super::session::{csv_tables, lock_ready_session, session_handle};
 use crate::domain::joint_hull::description_id;
 use crate::domain::{
@@ -376,7 +376,7 @@ fn variant_catalog(
         JointVariantCatalogKind::Variants => unreachable!("module catalogs use hull summaries"),
     };
     csv_tables::ensure_registered_table_rows(session, table)?;
-    let rows = JointCsvCatalog::load(session, table)?;
+    let rows = JointCsvIndex::load(session, table)?;
     let core = session
         .manifest
         .starsector_root
@@ -437,7 +437,7 @@ fn variant_catalog(
     )?;
     let descriptions = if matches!(kind, JointVariantCatalogKind::Weapons) {
         csv_tables::ensure_registered_table_rows(session, CsvTableKey::Descriptions)?;
-        Some(JointCsvCatalog::load(session, CsvTableKey::Descriptions)?)
+        Some(JointCsvIndex::load(session, CsvTableKey::Descriptions)?)
     } else {
         None
     };
@@ -1105,8 +1105,8 @@ struct JointGraph<'a> {
     session: &'a mut ProjectSession,
     records: BTreeMap<String, JointEditRecord>,
     visiting: BTreeSet<(EntityKind, String)>,
-    tables: BTreeMap<CsvTableKey, JointCsvCatalog>,
-    targets: BTreeMap<EntityKind, EntityTargetProjection>,
+    tables: BTreeMap<CsvTableKey, JointCsvIndex>,
+    targets: BTreeMap<EntityKind, EntityTargetIndex>,
     core_systems: Option<BTreeMap<String, LoadedSpecRecord>>,
     core_sources: BTreeMap<EntityKind, BTreeMap<String, EntityFileLocation>>,
     scope: JointGraphScope,
@@ -1136,7 +1136,7 @@ impl JointGraph<'_> {
         if !self.tables.contains_key(&table) {
             csv_tables::ensure_registered_table_rows(self.session, table)?;
             self.tables
-                .insert(table, JointCsvCatalog::load(self.session, table)?);
+                .insert(table, JointCsvIndex::load(self.session, table)?);
         }
         let catalog = &self.tables[&table];
         let identity_key = serde_json::to_string(&identity)?;
@@ -1796,7 +1796,7 @@ fn reference_catalog(session: &ProjectSession) -> AppResult<BTreeMap<String, BTr
                 );
             }
         }
-        let wings = JointCsvCatalog::load(session, CsvTableKey::Wings)?;
+        let wings = JointCsvIndex::load(session, CsvTableKey::Wings)?;
         for row in wings.rows.values() {
             if let (Some(id), Some(variant)) = (
                 row.data.get("id").and_then(Value::as_str),
@@ -1833,12 +1833,12 @@ struct JointCsvRow {
     source: EntityFileLocation,
     version: FileVersion,
 }
-struct JointCsvCatalog {
+struct JointCsvIndex {
     write: EntityFileLocation,
     version: FileVersion,
     rows: BTreeMap<String, JointCsvRow>,
 }
-impl JointCsvCatalog {
+impl JointCsvIndex {
     fn load(session: &ProjectSession, table: CsvTableKey) -> AppResult<Self> {
         let relative = csv_table_spec(table).rel_path;
         let boundary = FsRootBoundary::new(Path::new(&session.manifest.mod_root), "joint CSV")?;

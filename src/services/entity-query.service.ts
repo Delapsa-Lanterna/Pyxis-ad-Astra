@@ -1,7 +1,7 @@
 import { matchesEntityQueryScope } from '@/domain/project/query-scopes';
 import type {
   EntityData,
-  EntityEditInfo,
+  EntityTargetSnapshot,
   EntityIdentityIntent,
   QueryEntityPayload,
   QueryEntityListPayload,
@@ -34,10 +34,10 @@ const readEntityList = new CachedSessionQuery<Omit<QueryEntityListPayload, 'sess
 const readEditTarget = {
   queryKind: 'entity-edit-target',
   load: ({ sessionId, parameters }) =>
-    invokeCommand<EntityEditInfo>('query_entity_edit_target', { payload: { sessionId, ...parameters } satisfies QueryEntityPayload }),
+    invokeCommand<EntityTargetSnapshot>('query_entity_edit_target', { payload: { sessionId, ...parameters } satisfies QueryEntityPayload }),
   invalidates: (parameters, invalidation) =>
     invalidation.queryScopes.some((scope) => matchesEntityQueryScope(scope, 'entity-detail', parameters.kind, parameters.id)),
-} satisfies SessionQueryDefinition<Omit<QueryEntityPayload, 'sessionId'>, EntityEditInfo>;
+} satisfies SessionQueryDefinition<Omit<QueryEntityPayload, 'sessionId'>, EntityTargetSnapshot>;
 
 const readIdentityIntent = {
   queryKind: 'entity-identity-intent',
@@ -72,7 +72,7 @@ export function querySessionEntityEditTarget(
   kind: EntityKind,
   id: string,
   signal?: AbortSignal,
-): Promise<DeepReadonly<EntityEditInfo>> {
+): Promise<DeepReadonly<EntityTargetSnapshot>> {
   return readLiveSessionQuery(readEditTarget, sessionId, { kind, id }, signal);
 }
 

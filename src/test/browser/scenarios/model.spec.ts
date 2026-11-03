@@ -172,7 +172,7 @@ describe('browser sample service', () => {
     await expect(invoke('save_csv_patch', { payload })).rejects.toThrow('save failed');
     expect(model.rows[1]!.data.id).toBe('ship_1');
     const result = model.saveCsv(payload);
-    expect(result.sessionUpdates[0]?.projection.manifest).toEqual(model.manifest);
+    expect(result.sessionUpdates[0]?.content.manifest).toEqual(model.manifest);
     expect(model.saveCount).toBe(1);
   });
 
@@ -189,8 +189,8 @@ describe('browser sample service', () => {
     const weapon = createBrowserModel('weapon'),
       snapshot = weapon.graph('weapon');
     const value = { state: 'present' as const, value: { ...jointObject(snapshot.records[0]!.value), projectileSpecId: 'sample_shot' } };
-    const projection = weapon.project(snapshot.root, { spec: value });
-    expect(projection.records.find((r) => r.key === 'projectile')!.target).toMatchObject({ target: { id: 'sample_shot' } });
+    const preview = weapon.project(snapshot.root, { spec: value });
+    expect(preview.records.find((r) => r.key === 'projectile')!.target).toMatchObject({ target: { id: 'sample_shot' } });
     const model = createBrowserModel('variant'),
       base = model.graph('variant');
     const variant = {

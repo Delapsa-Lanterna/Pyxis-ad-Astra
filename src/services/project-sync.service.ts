@@ -3,7 +3,7 @@ import type {
   InvalidateProjectSessionPayload,
   SourceRefresh,
   FileChangeRecord,
-  ProjectSessionInvalidationResult,
+  SessionContentUpdate,
   InvalidatedResourceScope,
   WriteResult,
 } from '@/shared/types';
@@ -47,7 +47,7 @@ export function waitProjectSaves(modRoots: string[]) {
   return invokeCommand<void>('wait_project_saves', { modRoots });
 }
 
-export function requestProjectSessionRefresh(sessionId: string, changes: FileChangeRecord[]): Promise<ProjectSessionInvalidationResult> {
+export function requestProjectSessionRefresh(sessionId: string, changes: FileChangeRecord[]): Promise<SessionContentUpdate> {
   return invokeCommand('invalidate_project_session', { payload: { sessionId, changes } satisfies InvalidateProjectSessionPayload });
 }
 

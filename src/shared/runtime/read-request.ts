@@ -7,7 +7,7 @@ export interface ReadTicket<T, TIdentity extends object = object> {
   signal: AbortSignal;
   promise: Promise<T>;
   invalidate(reason: ReadEndReason): void;
-  accept(): void;
+  requireCurrent(): void;
 }
 
 export function invalidatedRead(identity: object, reason: ReadEndReason): AppError {
@@ -53,13 +53,13 @@ export function createReadTicket<T, TIdentity extends object>(
       controller.abort();
       reject(invalidatedRead(identity, reason));
     },
-    accept: () => {
+    requireCurrent: () => {
       if (ended) throw invalidatedRead(identity, ended);
     },
   };
 }
 
-export function createReadTicketOwner() {
+export function createReadOwner() {
   const requests = new Map<string, ReadTicket<unknown>>();
   const scheduled = new Map<string, () => void>();
   const replay = new Map<string, () => void>();
@@ -103,7 +103,7 @@ export function createReadTicketOwner() {
     });
     try {
       const value = await ticket.promise;
-      ticket.accept();
+      ticket.requireCurrent();
       if (!synchronous) handlers.ready(value);
       return true;
     } catch (error) {

@@ -7,7 +7,7 @@ import { projectSessionBoundaryRule } from './project-session-boundary.mjs';
 
 for (const source of [
   'src/services/project-session.service.ts',
-  'src/services/project-projection.service.ts',
+  'src/services/project-readiness.service.ts',
   'src/services/query-cache.service.ts',
   'src/services/resource-media.service.ts',
   'src/services/resource-reference.service.ts',
@@ -32,10 +32,10 @@ for (const source of [
 test('project synchronization consumes formal cache and projection capabilities', () => {
   const files = architectureFixtures({
     'src/orchestrators/project-sync.orchestrator.ts':
-      "import { invalidateResourceMediaByProject } from '@/services/resource-media.service'; import { invalidateQueryCacheByProject } from '@/services/query-cache.service'; import { markProjectionReady } from '@/services/project-projection.service';",
+      "import { invalidateResourceMediaByProject } from '@/services/resource-media.service'; import { invalidateQueryCacheByProject } from '@/services/query-cache.service'; import { markSessionReady } from '@/services/project-readiness.service';",
     'src/services/resource-media.service.ts': 'export function invalidateResourceMediaByProject() {}',
     'src/services/query-cache.service.ts': 'export function invalidateQueryCacheByProject() {}',
-    'src/services/project-projection.service.ts': 'export function markProjectionReady() {}',
+    'src/services/project-readiness.service.ts': 'export function markSessionReady() {}',
   });
   assert.deepEqual(messages(frontendLayerBoundaryRule.check(files)), []);
   assert.deepEqual(messages(capabilityBoundaryRule.check(files)), []);

@@ -20,7 +20,7 @@ export const projectCapabilities = [
     },
     {
       capability: 'commit-observe',
-      names: ['saveProjection', 'listenSavedContent', 'observeSavedContent', 'listenSavedIdentity'],
+      names: ['sessionContentUpdate', 'listenSavedContent', 'observeSavedContent', 'listenSavedIdentity'],
       owners: [{ layer: 'orchestrators' }, { layer: 'app', role: 'composable' }],
     },
     {
@@ -118,20 +118,20 @@ export const projectCapabilities = [
   ...capabilities({ role: 'service', domain: 'mod-creation' }, [
     { capability: 'mod-create', names: ['createNewModProject'], owners: [{ layer: 'orchestrators', domain: 'mod-creation' }] },
   ]),
-  ...capabilities({ role: 'service', domain: 'project-projection' }, [
-    { capability: 'projection-state', names: ['markProjectionPending'], owners: [{ layer: 'orchestrators', domain: 'project-sync' }] },
+  ...capabilities({ role: 'service', domain: 'project-readiness' }, [
+    { capability: 'session-readiness', names: ['markSessionPending'], owners: [{ layer: 'orchestrators', domain: 'project-sync' }] },
     { capability: 'reference-readiness', names: ['setReferenceReadiness'], owners: [{ layer: 'orchestrators', domain: 'project-sync' }] },
     {
-      capability: 'projection-state',
-      names: ['markProjectionReady', 'acceptReferenceRevision'],
+      capability: 'session-readiness',
+      names: ['markSessionReady', 'acceptReferenceRevision'],
       owners: [
         { layer: 'orchestrators', domain: 'project-sync' },
         { layer: 'orchestrators', domain: 'workspace-lifecycle' },
       ],
     },
     {
-      capability: 'projection-read',
-      names: ['requireProjectionReady', 'currentReferenceRevision', 'waitForReferenceSources'],
+      capability: 'session-read',
+      names: ['requireSessionReady', 'currentReferenceRevision', 'waitForReferenceSources'],
       owners: [
         { layer: 'services', domain: 'query-cache' },
         { layer: 'services', domain: 'resource-media' },

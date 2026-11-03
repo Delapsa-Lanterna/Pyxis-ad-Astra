@@ -7,7 +7,7 @@ import type {
   ResourceRef,
 } from '@/shared/types';
 import { invokeCommand } from '@/shared/runtime/command.runtime';
-import { requireProjectionReady, currentReferenceRevision, waitForReferenceSources } from '@/services/project-projection.service';
+import { requireSessionReady, currentReferenceRevision, waitForReferenceSources } from '@/services/project-readiness.service';
 import { normalizeFsPath } from '@/shared/lib/paths';
 import { sameResourceRef } from '@/shared/lib/resource-ref';
 import { AppError, MediaReadError } from '@/shared/lib/errors';
@@ -69,7 +69,7 @@ function request(entry: MediaEntry): Promise<string | null> {
   const ticket = createReadTicket({ sessionId: entry.sessionId, resource: entry.resource }, (signal) =>
     new Promise<string | null>((resolve, reject) => queued.set(entry.key, { entry, resolve, reject })).then((value) => {
       if (signal.aborted) throw invalidatedRead({ sessionId: entry.sessionId, resource: entry.resource }, 'project');
-      requireProjectionReady(entry.sessionId);
+      requireSessionReady(entry.sessionId);
       entry.value.value = value;
       debugLog('media.received', () => ({
         sessionId: entry.sessionId,
@@ -86,7 +86,7 @@ function request(entry: MediaEntry): Promise<string | null> {
     if (!entry.references && working.get(entry.key) === entry) working.delete(entry.key);
   }
   void ticket.promise.then(() => {
-    ticket.accept();
+    ticket.requireCurrent();
     settled();
   }, settled);
   if (flushHandle === null)
@@ -115,7 +115,7 @@ function dispatch(items: QueuedMedia[]) {
       return invokeCommand<ResourceDataUrlBatchResult>('query_resource_data_urls', {
         payload: { sessionId, resources } satisfies ResourceDataUrlBatchPayload,
       }).then((result) => {
-        requireProjectionReady(sessionId, revision);
+        requireSessionReady(sessionId, revision);
         return result;
       });
     };
@@ -141,7 +141,7 @@ function dispatch(items: QueuedMedia[]) {
   }
 }
 export function acquireResourceMedia(sessionId: string, resource: ResourceRef): ResourceMediaLease {
-  requireProjectionReady(sessionId);
+  requireSessionReady(sessionId);
   const key = mediaResourceKey(sessionId, resource);
   let entry = working.get(key) ?? retained.get(key);
   const fields = performanceMonitorEnabled
@@ -156,7 +156,7 @@ export function acquireResourceMedia(sessionId: string, resource: ResourceRef): 
   const consumer = owned.value.value === undefined ? createReadTicket({ sessionId, resource }, () => request(owned)) : null;
   const ready = consumer
     ? consumer.promise.then((value) => {
-        consumer.accept();
+        consumer.requireCurrent();
         return value;
       })
     : Promise.resolve(owned.value.value!);
@@ -214,7 +214,7 @@ export async function queryResourceDataUrls(
   dispatchResourceMedia(sessionId, resources);
   try {
     const values = await waitForRead(Promise.all(leases.map((lease) => lease.ready)), { sessionId, resources }, signal);
-    requireProjectionReady(sessionId);
+    requireSessionReady(sessionId);
     return values;
   } finally {
     leases.forEach((lease) => lease.release());

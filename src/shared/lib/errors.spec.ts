@@ -30,8 +30,8 @@ describe('error diagnostic projections', () => {
   });
 
   it('keeps own frontend code separate from action identity', () => {
-    const error = new AppError('Session projection pending', { action: 'query-session', code: 'session.projection_pending' });
-    expect(errorDiagnosticOf(error).code).toBe('session.projection_pending');
+    const error = new AppError('Session content pending', { action: 'query-session', code: 'session.content_pending' });
+    expect(errorDiagnosticOf(error).code).toBe('session.content_pending');
     expect(formatError(error)).toBe('内容已保存，等待项目同步，请重试同步');
   });
 

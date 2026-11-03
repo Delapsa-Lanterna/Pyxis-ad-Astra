@@ -66,7 +66,6 @@ export interface WindowRequestReceipt {
   requestId: number;
   status: 'accepted' | 'superseded' | 'cancelled';
 }
-export type WindowRequestResult = WindowRequestReceipt;
 export interface ManagedWindowStatus {
   dirty: boolean;
   saving: boolean;

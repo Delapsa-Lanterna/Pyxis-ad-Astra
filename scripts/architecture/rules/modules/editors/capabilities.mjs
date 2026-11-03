@@ -41,7 +41,7 @@ export const editorsCapabilities = [
     { capability: 'cache-observe', names: ['hasJointEditInvalidation'], owners: readOwners },
     {
       capability: 'joint-edit-read',
-      names: ['queryJointEdit', 'queryJointEditRow', 'queryJointEditProjection', 'queryJointVariantCatalog', 'prepareJointEdit'],
+      names: ['queryJointEdit', 'queryJointEditRow', 'queryJointEditPreview', 'queryJointVariantCatalog', 'prepareJointEdit'],
       owners: [
         { layer: 'orchestrators', domain: 'joint-edit' },
         { layer: 'app', role: 'composable', domain: 'joint-edit-session' },

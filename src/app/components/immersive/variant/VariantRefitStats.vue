@@ -182,7 +182,7 @@
 <script setup lang="ts">
 import { computed, inject, ref, onMounted, watch } from 'vue';
 import { immersiveBlockedKey } from '../immersive-render-context';
-import type { VariantProjection } from '@/domain/immersive/variant/variant-panel';
+import type { VariantPanelEntry } from '@/domain/immersive/variant/variant-panel';
 import { formatVariantNumber, variantOpSegments } from '@/domain/immersive/variant/variant-panel';
 import { VARIANT_COLORS } from '@/domain/immersive/appearance';
 import type { HullmodCategory } from '@/domain/immersive/variant/variant-actions';
@@ -199,7 +199,7 @@ import { useVariantCatalog } from '@/app/composables/immersive-editor/variant/us
 import { useResourceMediaRegistry } from '@/app/composables/use-resource-media-registry';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
 const props = defineProps<{
-  variant: VariantProjection;
+  variant: VariantPanelEntry;
   render: ImmersiveRenderContext;
   vm: ReturnType<typeof useImmersiveVariantEditor>;
   pickerOpen: boolean;

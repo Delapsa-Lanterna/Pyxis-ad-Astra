@@ -194,7 +194,7 @@ import { dialogBody, dialogGroup, dialogSelect, dialogDisclosure } from '@/share
 
 import { computed, ref, onMounted, onScopeDispose, watch } from 'vue';
 import type { RowData, JsonValue } from '@/shared/types';
-import type { VariantProjection, VariantWeapon } from '@/domain/immersive/variant/variant-panel';
+import type { VariantPanelEntry, VariantWeapon } from '@/domain/immersive/variant/variant-panel';
 import { formatVariantNumber } from '@/domain/immersive/variant/variant-panel';
 import { immersiveArcPath } from '@/domain/immersive/hull-scene';
 import { deepClone } from '@/shared/lib/starsector';
@@ -219,7 +219,7 @@ import { useResourceMediaRegistry } from '@/app/composables/use-resource-media-r
 import ImmersiveText from '../ImmersiveText.vue';
 import ImmersiveSquareToggle from '../ImmersiveSquareToggle.vue';
 import ImmersiveGameFrame from '../ImmersiveGameFrame.vue';
-const props = defineProps<{ recordKey: string; variant: VariantProjection; vm: ReturnType<typeof useImmersiveVariantEditor> }>();
+const props = defineProps<{ recordKey: string; variant: VariantPanelEntry; vm: ReturnType<typeof useImmersiveVariantEditor> }>();
 const emit = defineEmits<{ close: [] }>();
 const feedback = useAppFeedback(),
   inputs = useFieldInputs()!;

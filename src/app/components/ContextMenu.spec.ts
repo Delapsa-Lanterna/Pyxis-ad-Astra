@@ -96,7 +96,7 @@ function setupTabs() {
   const workspace = useWorkspaceStore();
   for (const name of ['alpha', 'beta']) {
     workspace.registerMod({ modRoot: `M:/${name}`, displayName: name, version: '', status: 'ready' });
-    useProjectStore().registerProjectManifest(sessionUpdateFixture(name, `M:/${name}`).projection.manifest);
+    useProjectStore().registerProjectManifest(sessionUpdateFixture(name, `M:/${name}`).content.manifest);
   }
   workspace.activateModOverview('M:/alpha');
   useCoreAssetsStore().reset('M:/game');

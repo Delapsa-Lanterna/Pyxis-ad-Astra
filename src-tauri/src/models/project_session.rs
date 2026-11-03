@@ -37,7 +37,7 @@ pub struct ProjectInvalidation {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
-pub struct ProjectSessionInvalidationResult {
+pub struct SessionContentUpdate {
     pub manifest: ProjectManifest,
     pub invalidation: ProjectInvalidation,
 }

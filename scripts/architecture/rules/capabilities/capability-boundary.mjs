@@ -16,7 +16,7 @@ export const capabilityBoundaryRule = defineRule(
             });
       for (const edge of file.dependencies) {
         if (edge.typeOnly) continue;
-        /** @type {Map<string, {names: Set<string>, owners: import('./frontend-policy.mjs').Owner[]}>} */
+        /** @type {Map<string, {names: Set<string>, owners: import('./frontend-policy.mjs').CapabilityScope[]}>} */
         const rejected = new Map();
         for (const origin of capabilityOrigins(edge, context.byPath)) {
           const capability = capabilityFor(origin.rel, origin.name, context.byPath.get(origin.rel)?.role);

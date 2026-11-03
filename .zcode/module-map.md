@@ -95,7 +95,7 @@
 - [目录打开](modules/directory-opening.md)：说明授权目录识别、游戏 Mod 扫描与结构化诊断。
 - [新建 Mod](modules/mod-creation.md)：说明 Mod 父目录、最小目录骨架、`mod_info.json` renderer 与实际创建结果。
 - [工作区运行态与持久化](modules/workspace.md)：说明多 Mod 页签、项目打开、创建结果接纳、导航上下文、快照恢复及运行态释放。
-- [项目会话与投影](modules/project-session.md)：说明 `sessionId + modRoot`、正式实体与 JSON 来源、生命周期、原子接纳及提交恢复。
+- [项目会话与正式内容](modules/project-session.md)：说明 `sessionId + modRoot`、正式实体与 JSON 来源、生命周期、原子接纳及提交恢复。
 - [项目来源读取](modules/project-sources.md)：说明授权来源、带版本读取、解析复用、来源缓存与持久化。
 - [项目同步](modules/project-sync.md)：说明来源刷新、提交接纳、同步重试、缓存失效与跨窗口通知。
 - [项目查询与缓存](modules/project-query-cache.md)：说明类型化查询定义、会话共享读取、缓存、门控与失效通知。

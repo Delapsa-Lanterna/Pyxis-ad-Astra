@@ -22,7 +22,7 @@ pub(crate) use session::references::{
     set_reference_sources,
 };
 pub(crate) use session::registry::unregister_project_session;
-pub(crate) use session::{affected_session_ids, current_projection, mark_projection_pending};
+pub(crate) use session::{affected_session_ids, current_project_manifest, mark_session_pending};
 pub use session::{
     ensure_project_session_mod_root, hold_session_openings, invalidate_core_cache,
     invalidate_project_session, refresh_project_sources, registered_session_ids,

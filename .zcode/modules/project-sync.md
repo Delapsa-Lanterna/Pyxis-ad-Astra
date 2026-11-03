@@ -24,7 +24,7 @@
 - `src-tauri/src/services/project/mod.rs`：原子注销事实、会话内容清理及引用状态交接。
 - `src-tauri/src/services/project/resources/media_cache.rs`：完整项目释放中的所属 session 媒体清理。
 - `src-tauri/src/services/windows.rs`：窗口范围、关闭及释放。
-- `src/services/project-projection.service.ts`：正式读取门控。
+- `src/services/project-readiness.service.ts`：正式读取门控。
 - `src/services/query-cache.service.ts`：所属查询和在途读取失效。
 - `src/services/resource-media.service.ts`：资源缓存与租约失效。
 - `src/shared/types/write-commit.types.ts`：保存交付、所属结果及 SaveAcceptanceTask 接纳回调契约。

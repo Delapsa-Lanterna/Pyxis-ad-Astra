@@ -56,7 +56,7 @@ beforeEach(() => {
   mocks.sources.mockResolvedValue([]);
   setActivePinia(createPinia());
   initializeSettingsStore(createSettingsFixture({ editMode: 'plain' }));
-  const manifest = sessionUpdateFixture(target.sessionId, target.modRoot).projection.manifest;
+  const manifest = sessionUpdateFixture(target.sessionId, target.modRoot).content.manifest;
   manifest.tableSummaries.ships.header = ['id', 'name'];
   manifest.tableSummaries.ships.totalRows = 1000;
   useWorkspaceStore().registerMod({ modRoot: target.modRoot, displayName: 'Sample', version: '', status: 'ready' });

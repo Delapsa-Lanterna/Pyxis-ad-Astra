@@ -22,6 +22,7 @@ import { createFileReplayPlan, executeFileReplayPlan, refreshLoadedFileHistory }
 import { replayWorkspaceFileRedo, replayWorkspaceFileUndo } from './workspace-history.orchestrator';
 import { useFileHistoryStore } from '@/stores/file-history.store';
 import { useProjectStore } from '@/stores/project.store';
+import { useCsvEditorStore } from '@/stores/csv-editor.store';
 import { useWorkspaceStore } from '@/stores/workspace.store';
 import { sessionUpdateFixture } from '@/test/fixtures/write-result';
 
@@ -30,7 +31,9 @@ function project(session = 's1') {
   return { getSessionId: () => session } as never;
 }
 function tables() {
-  return { selectRowByKey: vi.fn() } as never;
+  const store = useCsvEditorStore();
+  store.initializeModTables({ sessionId: 's1', modRoot: root, manifest: sessionUpdateFixture('s1', root).content.manifest });
+  return store;
 }
 function feedback(): AppFeedback {
   return {
@@ -89,7 +92,7 @@ describe('authoritative file history replay', () => {
       ['s2', 'C:/mods/beta'],
     ] as const) {
       const update = sessionUpdateFixture(session, modRoot);
-      projects.registerProjectManifest(update.projection.manifest);
+      projects.registerProjectManifest(update.content.manifest);
     }
     mocks.loadFileHistory.mockResolvedValue({ revision: 5, undoStack: [], redoStack: [] });
     await refreshLoadedFileHistory(() => true);
@@ -105,7 +108,7 @@ describe('authoritative file history replay', () => {
   it.each(['closed', 'replaced', 'released'] as const)('rejects history delivery after its target is %s', async (reason) => {
     const projects = useProjectStore();
     const update = sessionUpdateFixture('s1', root);
-    projects.registerProjectManifest(update.projection.manifest);
+    projects.registerProjectManifest(update.content.manifest);
     let finish!: (snapshot: FileHistorySnapshot) => void;
     mocks.loadFileHistory.mockImplementationOnce(
       () =>
@@ -116,7 +119,7 @@ describe('authoritative file history replay', () => {
     let active = true;
     const refreshing = refreshLoadedFileHistory(() => active);
     if (reason === 'closed') projects.removeProjectManifest(root);
-    if (reason === 'replaced') projects.registerProjectManifest({ ...update.projection.manifest, sessionId: 's2' });
+    if (reason === 'replaced') projects.registerProjectManifest({ ...update.content.manifest, sessionId: 's2' });
     if (reason === 'released') active = false;
     finish({ revision: 8, undoStack: [], redoStack: [] });
     await refreshing;
@@ -174,7 +177,7 @@ describe('authoritative file history replay', () => {
   it('keeps the requested Mod when navigation changes during the history read', async () => {
     const projects = useProjectStore();
     const update = sessionUpdateFixture('s1', root);
-    projects.registerProjectManifest(update.projection.manifest);
+    projects.registerProjectManifest(update.content.manifest);
     const workspace = (await import('@/stores/workspace.store')).useWorkspaceStore();
     workspace.registerMod({ modRoot: root, displayName: 'First', version: '', status: 'ready' });
     workspace.activateModOverview(root);
@@ -211,12 +214,13 @@ describe('authoritative file history replay', () => {
       ['s2', 'C:/mods/beta'],
     ] as const) {
       const update = sessionUpdateFixture(session, modRoot);
-      projects.registerProjectManifest(update.projection.manifest);
+      projects.registerProjectManifest(update.content.manifest);
       workspace.registerMod({ modRoot, displayName: session, version: '', status: 'ready' });
     }
     const messages = feedback();
-    const table = { currentTab: 'ships', selectRowByKey: vi.fn() };
-    await replayWorkspaceFileUndo(projects, table as never, messages);
+    const table = tables();
+    vi.spyOn(table, 'selectRowByKey');
+    await replayWorkspaceFileUndo(projects, table, messages);
     workspace.activateModOverview('C:/mods/beta');
     const result = savedResult();
     result.sessionUpdates = [sessionUpdateFixture('s1', root)];

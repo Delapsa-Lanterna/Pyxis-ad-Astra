@@ -12,7 +12,7 @@ import { logFields } from '@/shared/lib/log-fields';
 import { useProjectSyncStore } from '@/stores/project-sync.store';
 import type { CloseScope, CloseResult, ProjectManifest } from '@/shared/types';
 type RequestClose = (scope: CloseScope) => Promise<CloseResult>;
-import { markProjectionReady } from '@/services/project-projection.service';
+import { markSessionReady } from '@/services/project-readiness.service';
 import { releaseProjectContentConsumers } from '@/orchestrators/project-sync.orchestrator';
 import { pathBasename } from '@/shared/lib/paths';
 
@@ -93,7 +93,7 @@ function removeClosedMod(modRoot: string) {
   const sessionId = project.getSessionId(modRoot);
 
   if (sessionId) {
-    markProjectionReady(sessionId);
+    markSessionReady(sessionId);
     invalidateQueryCacheForSession(sessionId);
     invalidateResourceMediaForSession(sessionId);
     try {

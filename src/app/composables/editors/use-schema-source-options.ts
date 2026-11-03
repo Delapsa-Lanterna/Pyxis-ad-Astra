@@ -8,7 +8,7 @@ import { useAppFeedback } from '@/app/composables/use-app-feedback';
 import { useQueryReadOwner } from '@/app/composables/use-query-read-owner';
 import { querySourceOptionCatalog, hasSourceInvalidation } from '@/services/source-catalog.service';
 import { hasResourceInvalidation } from '@/services/resource-media.service';
-import { observeSavedContent, saveProjection } from '@/orchestrators/project-sync.orchestrator';
+import { observeSavedContent, sessionContentUpdate } from '@/orchestrators/project-sync.orchestrator';
 
 export function observeSchemaSourceOptions(
   context: SchemaRuntimeContext,
@@ -17,11 +17,8 @@ export function observeSchemaSourceOptions(
   listener: () => void | Promise<void>,
 ) {
   return observeSavedContent((event) => {
-    const projection = saveProjection(event, context.sessionId);
-    if (
-      projection &&
-      (hasSourceInvalidation(projection.invalidation, source) || hasResourceInvalidation(projection.invalidation, resources()))
-    )
+    const update = sessionContentUpdate(event, context.sessionId);
+    if (update && (hasSourceInvalidation(update.invalidation, source) || hasResourceInvalidation(update.invalidation, resources())))
       return listener();
   });
 }

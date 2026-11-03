@@ -696,7 +696,7 @@ export function createBrowserWorkspace(systemTheme: T.AppTheme = 'light') {
       saved.sessionUpdates.forEach((update) => {
         update.sessionId = sessionId;
         update.modRoot = roots.get(sessionId) ?? receiver.manifest.modRoot;
-        update.projection.manifest = { ...receiver.manifest, modRoot: update.modRoot };
+        update.content.manifest = { ...receiver.manifest, modRoot: update.modRoot };
       });
       for (const channel of channels.values())
         channel.onmessage({

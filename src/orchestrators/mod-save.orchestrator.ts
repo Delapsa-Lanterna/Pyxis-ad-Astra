@@ -43,35 +43,35 @@ export function createModSaveCoordinator(feedback: AppFeedback, closing: () => b
         kind: 'participants',
         participants: participants(target)
           .filter(
-            ({ handle }) =>
-              handle.editing!.dirty.value ||
-              handle.editing!.draftSession.inputs.dirty.value ||
-              handle.saving.value ||
-              saveCommands.isSaveQueued(handle),
+            ({ participant }) =>
+              participant.editing!.dirty.value ||
+              participant.editing!.draftSession.inputs.dirty.value ||
+              participant.saving.value ||
+              saveCommands.isSaveQueued(participant),
           )
-          .map(({ id, handle }) => ({
+          .map(({ id, participant }) => ({
             id,
-            targetKey: handle.targetKey.value,
-            label: handle.editing!.label,
-            paths: handle.editing!.targets.value.map((own) => own.path),
+            targetKey: participant.targetKey.value,
+            label: participant.editing!.label,
+            paths: participant.editing!.targets.value.map((own) => own.path),
           })),
       };
     if (action.kind !== 'save') return enqueueBatch(target);
     const entry = action.participant;
     const item: WindowSaveItem = { label: entry.label, paths: entry.paths, status: 'cancelled', diagnostic: null };
-    const handle = participants(target).find(({ id }) => id === entry.id)?.handle;
+    const participant = participants(target).find(({ id }) => id === entry.id)?.participant;
     const accepts = () =>
       !disposed &&
       !closing() &&
-      handle &&
-      handle.targetKey.value === entry.targetKey &&
-      participants(target).some((own) => own.id === entry.id && own.handle === handle);
+      participant &&
+      participant.targetKey.value === entry.targetKey &&
+      participants(target).some((own) => own.id === entry.id && own.participant === participant);
     try {
-      if (!accepts() || !(await saveCommands.waitForSession(handle!)) || !accepts())
+      if (!accepts() || !(await saveCommands.waitForParticipant(participant!)) || !accepts())
         throw new AppError('保存目标已变化或保存尚未完成', { action: 'save-mod' });
-      const committed = await handle!.editing!.draftSession.inputs.commit();
+      const committed = await participant!.editing!.draftSession.inputs.commit();
       if (committed !== false && accepts()) {
-        item.status = handle!.editing!.dirty.value ? (await saveCommands.requestSave(handle!)).status : 'noop';
+        item.status = participant!.editing!.dirty.value ? (await saveCommands.requestSave(participant!)).status : 'noop';
       }
     } catch (error) {
       return { kind: 'results', items: [failed(entry, error)] };

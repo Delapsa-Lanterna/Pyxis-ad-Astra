@@ -4,7 +4,7 @@ import { releaseNativeWindowTargets } from '@/services/window.service';
 import { stableDeepEqual } from '@/shared/lib/stable-compare';
 import { requireRowData } from '@/shared/lib/row-data';
 import { miscConfigDocumentValue } from '@/domain/json-editor/json-document-definitions';
-import { observeSavedContent, saveProjection } from '@/orchestrators/project-sync.orchestrator';
+import { observeSavedContent, sessionContentUpdate } from '@/orchestrators/project-sync.orchestrator';
 import { computed, effectScope, onScopeDispose, ref, watch } from 'vue';
 import { hasMiscConfigInvalidation } from '@/services/misc-config.service';
 import { miscConfigDefinition } from '@/domain/misc-config';
@@ -28,7 +28,7 @@ import {
 } from '@/domain/json-editor/json-document-definitions';
 import { useJsonEditorStore } from '@/stores/json-editor.store';
 import { useDraftSessionsStore } from '@/stores/draft-sessions.store';
-import { useSaveCommandStore, type SaveSessionHandle } from '@/stores/save-command.store';
+import { useSaveCommandStore, type SaveParticipant } from '@/stores/save-command.store';
 import { useSettingsStore } from '@/stores/settings.store';
 
 import { hasEntityInvalidation } from '@/services/entity-query.service';
@@ -131,7 +131,7 @@ function createJsonDocumentSession(definition: JsonDocumentDefinition, record: J
     const snapshot = await session.saveDraft(write, Boolean(write));
     return snapshot ? { status: 'saved', receipt: snapshot.meta.receipt! } : { status: 'cancelled' };
   }
-  const handle: SaveSessionHandle = {
+  const participant: SaveParticipant = {
     targetKey: session.currentTargetKey,
     modRoot,
     saving: session.saving,
@@ -150,7 +150,7 @@ function createJsonDocumentSession(definition: JsonDocumentDefinition, record: J
       save: () => saveActual(),
     },
   };
-  const save = (write?: Writer) => commands.requestSave(handle, () => saveActual(write));
+  const save = (write?: Writer) => commands.requestSave(participant, () => saveActual(write));
   const recovery = useJsonSourceRecovery({ session, active, save, feedback });
   const { confirmDiscard } = useFieldInputActions(session.inputs, feedback);
   function setDraft(value: RowData) {
@@ -190,13 +190,13 @@ function createJsonDocumentSession(definition: JsonDocumentDefinition, record: J
     targetKey: session.currentTargetKey,
     inputs: session.inputs,
     dirty: session.dirty,
-    saving: computed(() => session.saving.value || commands.isSaveQueued(handle)),
+    saving: computed(() => session.saving.value || commands.isSaveQueued(participant)),
     canUndo: computed(() => history.canUndo.value || session.inputs.dirty.value),
     canRedo: computed(() => history.canRedo.value || session.inputs.dirty.value),
     undo: () => replay('undo'),
     redo: () => replay('redo'),
     save: () => save(),
-    waitForSave: () => commands.waitForSession(handle),
+    waitForSave: () => commands.waitForParticipant(participant),
   };
   const editor = actions;
   function setActive(enabled: boolean, fresh = false) {
@@ -222,13 +222,13 @@ function createJsonDocumentSession(definition: JsonDocumentDefinition, record: J
     { flush: 'sync' },
   );
   onScopeDispose(useDraftSessionsStore().registerDraftSession(modRoot, session.dirty));
-  onScopeDispose(commands.registerSaveSession(handle));
+  onScopeDispose(commands.registerSaveParticipant(participant));
   onScopeDispose(
     observeSavedContent(
       (event) => {
-        const projection = saveProjection(event, record.target?.sessionId);
-        if (!projection) return undefined;
-        if (projection.manifest.sessionId !== record.target.sessionId) return undefined;
+        const update = sessionContentUpdate(event, record.target?.sessionId);
+        if (!update) return undefined;
+        if (update.manifest.sessionId !== record.target.sessionId) return undefined;
 
         const target = session.currentTarget.value!;
         const receipt = event.reason === 'refresh' ? null : event.result;
@@ -280,8 +280,8 @@ function createJsonDocumentSession(definition: JsonDocumentDefinition, record: J
         if (
           definition.kind !== 'mod-info' &&
           !(definition.kind === 'misc-config'
-            ? hasMiscConfigInvalidation(projection.invalidation, record.target.modRoot, miscConfigDefinition(record.target.id).kind)
-            : hasEntityInvalidation(projection.invalidation, 'entity-detail', definition.kind, session.currentTarget.value!.id))
+            ? hasMiscConfigInvalidation(update.invalidation, record.target.modRoot, miscConfigDefinition(record.target.id).kind)
+            : hasEntityInvalidation(update.invalidation, 'entity-detail', definition.kind, session.currentTarget.value!.id))
         )
           return undefined;
         if (active.value)

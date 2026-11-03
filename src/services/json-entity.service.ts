@@ -10,7 +10,7 @@ import type {
   WriteResult,
   FileVersion,
   EntityKind,
-  EntityEditInfo,
+  EntityTargetSnapshot,
   EntityIdentityIntent,
 } from '@/shared/types';
 import { querySessionEntityEditTarget, querySessionEntityIdentityIntent } from '@/services/entity-query.service';
@@ -80,9 +80,9 @@ export function deleteIndexedConfigEntity(write: IndexedConfigDelete, request?: 
 }
 
 export async function captureConfigIdentityIntent(sessionId: string, kind: EntityKind, sourceId: string, nextId: string) {
-  const info = cloneQuerySnapshot<EntityEditInfo>(await querySessionEntityEditTarget(sessionId, kind, sourceId));
-  const intent = await querySessionEntityIdentityIntent(sessionId, info.target, nextId);
-  return { info, intent: cloneQuerySnapshot<EntityIdentityIntent>(intent) };
+  const snapshot = cloneQuerySnapshot<EntityTargetSnapshot>(await querySessionEntityEditTarget(sessionId, kind, sourceId));
+  const intent = await querySessionEntityIdentityIntent(sessionId, snapshot.target, nextId);
+  return { snapshot, intent: cloneQuerySnapshot<EntityIdentityIntent>(intent) };
 }
 
 export async function queryFactionPreviewImages(

@@ -44,7 +44,7 @@ function mountSettings(mode: 'main' | 'child') {
   });
 }
 function open(modRoot: string) {
-  const manifest = sessionUpdateFixture(modRoot, modRoot).projection.manifest;
+  const manifest = sessionUpdateFixture(modRoot, modRoot).content.manifest;
   useCsvEditorStore().initializeModTables({ sessionId: modRoot, modRoot, manifest });
   return (['ships', 'weapons'] as const).map((table) => ({ sessionId: modRoot, modRoot, table }));
 }

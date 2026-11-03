@@ -10,7 +10,7 @@ use crate::errors::{AppError, AppResult};
 use crate::io::FsRootBoundary;
 use crate::models::{
     EntitySummaries, FileChangeRecord, InvalidatedResourceScope, ProjectInvalidation,
-    ProjectManifest, ProjectSessionInvalidationResult, ResourceSource, TableSummary,
+    ProjectManifest, ResourceSource, SessionContentUpdate, TableSummary,
 };
 use crate::services::project::definitions::entity_definitions;
 use crate::services::project::model::{ProjectContent, SessionCsvRow};
@@ -31,7 +31,7 @@ pub(in crate::services::project) mod csv_tables;
 pub(in crate::services::project) mod csv_writes;
 pub(super) mod references;
 pub(super) mod registry;
-pub(in crate::services::project) mod source_projection;
+pub(in crate::services::project) mod source_versions;
 
 pub(crate) use access::lock_ready_session;
 pub(super) use registry::{RegisteredSession, lock_registry};
@@ -81,7 +81,7 @@ pub fn ensure_project_session_mod_root(session_id: &str, mod_root: &str) -> AppR
 pub fn invalidate_project_session(
     session_id: &str,
     changes: Vec<FileChangeRecord>,
-) -> AppResult<ProjectSessionInvalidationResult> {
+) -> AppResult<SessionContentUpdate> {
     let handle = session_handle(session_id)?;
     let mut session = lock_session(&handle)?;
     let mut invalidation = ProjectInvalidation::default();
@@ -90,8 +90,8 @@ pub fn invalidate_project_session(
         &changes,
     )?);
     session.manifest.base_versions = vec![versions::version_for_path(&session, "mod_info.json")];
-    session.projection_pending = false;
-    Ok(ProjectSessionInvalidationResult {
+    session.content_pending = false;
+    Ok(SessionContentUpdate {
         manifest: session.manifest.clone(),
         invalidation,
     })
@@ -121,19 +121,16 @@ pub(crate) fn affected_session_ids(
     Ok(affected)
 }
 
-pub(crate) fn mark_projection_pending(session_id: &str) -> AppResult<()> {
+pub(crate) fn mark_session_pending(session_id: &str) -> AppResult<()> {
     let handle = session_handle(session_id)?;
-    lock_session(&handle)?.projection_pending = true;
+    lock_session(&handle)?.content_pending = true;
     Ok(())
 }
 
-pub(crate) fn current_projection(session_id: &str) -> AppResult<ProjectSessionInvalidationResult> {
+pub(crate) fn current_project_manifest(session_id: &str) -> AppResult<ProjectManifest> {
     let handle = session_handle(session_id)?;
     let session = lock_ready_session(&handle)?;
-    Ok(ProjectSessionInvalidationResult {
-        manifest: session.manifest.clone(),
-        invalidation: ProjectInvalidation::default(),
-    })
+    Ok(session.manifest.clone())
 }
 
 pub(crate) fn open_project_session_traced(
@@ -206,7 +203,7 @@ pub(super) fn build_project_session(
         .as_ref()
         .is_some_and(|root| root.join("starsector-core").exists());
     let content = load_project_content(&mut sources, starsector_root.as_deref(), trace)?;
-    source_projection::capture_project_versions(&mut sources)?;
+    source_versions::capture_project_versions(&mut sources)?;
     trace.record_stage("source_records", source_timer, || {
         vec![(
             "result",
@@ -295,7 +292,7 @@ pub(super) fn build_project_session(
         reference_revision: 0,
         references: Vec::new(),
         loaded_edit_targets: Vec::new(),
-        projection_pending: false,
+        content_pending: false,
         source_versions: source_versions.into(),
         manifest,
         faction_files: faction_files.into(),
@@ -959,13 +956,13 @@ mod tests {
 pub fn refresh_project_sources(
     session_id: &str,
     sources: Vec<InvalidatedResourceScope>,
-) -> AppResult<ProjectSessionInvalidationResult> {
+) -> AppResult<SessionContentUpdate> {
     let handle = session_handle(session_id)?;
     let root = lock_ready_session(&handle)?.manifest.mod_root.clone();
     let _lease = io::acquire_root_write_lock(Path::new(&root))?;
     let mut session = lock_ready_session(&handle)?;
     let invalidation = invalidation::refresh_sources(&mut session, &sources)?;
-    Ok(ProjectSessionInvalidationResult {
+    Ok(SessionContentUpdate {
         manifest: session.manifest.clone(),
         invalidation,
     })

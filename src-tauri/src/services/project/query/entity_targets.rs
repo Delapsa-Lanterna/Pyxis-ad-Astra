@@ -9,8 +9,8 @@ use crate::errors::{AppError, AppResult};
 use crate::io;
 use crate::io::FsRootBoundary;
 use crate::models::{
-    CsvTableKey, EntityEditInfo, EntityEditTarget, EntityFileLocation, EntityIdentityIntent,
-    EntityKind, EntityLinkedRecord, EntityTargetState, FileVersion, ResourceSource,
+    CsvTableKey, EntityEditTarget, EntityFileLocation, EntityIdentityIntent, EntityKind,
+    EntityLinkedRecord, EntityTargetSnapshot, EntityTargetState, FileVersion, ResourceSource,
     windows_path_key,
 };
 use crate::services::project::session::csv_tables;
@@ -21,13 +21,13 @@ pub fn query_entity_edit_target(
     session_id: &str,
     kind: EntityKind,
     id: &str,
-) -> AppResult<EntityEditInfo> {
+) -> AppResult<EntityTargetSnapshot> {
     let handle = session_handle(session_id)?;
     let mut session = lock_ready_session(&handle)?;
     (entity_definition(kind)?.prepare)(&mut session)?;
-    let info = describe_entity_target(&mut session, kind, id)?;
-    remember_edit_target(&mut session, &info.target);
-    Ok(info)
+    let snapshot = describe_entity_target(&mut session, kind, id)?;
+    remember_edit_target(&mut session, &snapshot.target);
+    Ok(snapshot)
 }
 
 pub(super) fn remember_edit_target(session: &mut ProjectSession, target: &EntityEditTarget) {
@@ -45,8 +45,8 @@ pub fn require_entity_version_scope(
     id: &str,
     supplied: &[FileVersion],
 ) -> AppResult<()> {
-    let info = query_entity_edit_target(session_id, kind, id)?;
-    for required in info.base_versions {
+    let snapshot = query_entity_edit_target(session_id, kind, id)?;
+    for required in snapshot.base_versions {
         if !supplied
             .iter()
             .any(|version| windows_path_key(&version.path) == windows_path_key(&required.path))
@@ -81,7 +81,10 @@ pub fn require_csv_version_scope(
     Ok(())
 }
 
-pub fn query_file_entity_target(session_id: &str, path: &str) -> AppResult<Option<EntityEditInfo>> {
+pub fn query_file_entity_target(
+    session_id: &str,
+    path: &str,
+) -> AppResult<Option<EntityTargetSnapshot>> {
     let handle = session_handle(session_id)?;
     let mut session = lock_ready_session(&handle)?;
     let key = windows_path_key(path);
@@ -192,7 +195,7 @@ pub fn query_entity_identity_intent(
     })
 }
 
-pub(in crate::services::project) struct EntityTargetProjection {
+pub(in crate::services::project) struct EntityTargetIndex {
     kind: EntityKind,
     sources: BTreeMap<String, EntityFileLocation>,
     linked: BTreeMap<String, EntityLinkedRecord>,
@@ -205,7 +208,7 @@ pub(in crate::services::project) struct EntityTargetProjection {
 pub(in crate::services::project) fn prepare_entity_targets(
     session: &mut ProjectSession,
     kind: EntityKind,
-) -> AppResult<EntityTargetProjection> {
+) -> AppResult<EntityTargetIndex> {
     let root = &session.manifest.mod_root;
     let mut parent_versions = BTreeMap::<String, Vec<FileVersion>>::new();
     if kind == EntityKind::Variant {
@@ -367,7 +370,7 @@ pub(in crate::services::project) fn prepare_entity_targets(
             .join("data/strings/descriptions.csv")
             .is_file())
     .then(|| version_for_path(session, "data/strings/descriptions.csv"));
-    Ok(EntityTargetProjection {
+    Ok(EntityTargetIndex {
         parent_versions,
         kind,
         sources,
@@ -378,12 +381,12 @@ pub(in crate::services::project) fn prepare_entity_targets(
     })
 }
 
-impl EntityTargetProjection {
+impl EntityTargetIndex {
     pub(in crate::services::project) fn describe(
         &self,
         session: &ProjectSession,
         id: &str,
-    ) -> EntityEditInfo {
+    ) -> EntityTargetSnapshot {
         let root = &session.manifest.mod_root;
         let definition = entity_definitions::entity_spec_definition(self.kind);
         let source = if self.kind == EntityKind::Mission {
@@ -436,7 +439,7 @@ impl EntityTargetProjection {
         versions.sort_by(|left, right| left.path.cmp(&right.path));
         versions
             .dedup_by(|left, right| windows_path_key(&left.path) == windows_path_key(&right.path));
-        EntityEditInfo {
+        EntityTargetSnapshot {
             target: EntityEditTarget {
                 kind: self.kind,
                 id: id.to_string(),
@@ -454,7 +457,7 @@ pub(in crate::services::project) fn describe_entity_target(
     session: &mut ProjectSession,
     kind: EntityKind,
     id: &str,
-) -> AppResult<EntityEditInfo> {
+) -> AppResult<EntityTargetSnapshot> {
     Ok(prepare_entity_targets(session, kind)?.describe(session, id))
 }
 
@@ -522,9 +525,9 @@ mod tests {
         )
         .unwrap();
         let files = services::query_entity_list(&manifest.session_id, EntityKind::Variant).unwrap();
-        let info =
+        let snapshot =
             query_entity_edit_target(&manifest.session_id, EntityKind::Variant, "child").unwrap();
-        let paths = info
+        let paths = snapshot
             .base_versions
             .iter()
             .map(|version| version.path.clone())
@@ -560,7 +563,7 @@ mod tests {
                     data: json!({"variantId":"child","hullId":"hull","displayName":"Draft"}),
                     json_write: Default::default(),
                     ordered_json: None,
-                    base_versions: info.base_versions.clone(),
+                    base_versions: snapshot.base_versions.clone(),
                 }))
                 .unwrap_err();
             assert_eq!(error.code(), "write.version_conflict");

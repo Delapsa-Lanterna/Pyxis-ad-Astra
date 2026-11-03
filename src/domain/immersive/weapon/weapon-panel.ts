@@ -70,7 +70,7 @@ export interface WeaponPanel {
 export function projectWeaponPanel(
   snapshot: JointEditSnapshot,
   values: Record<string, JointValue>,
-  projection: JointEditSnapshot | null = snapshot,
+  preview: JointEditSnapshot | null = snapshot,
 ): WeaponPanel {
   const sources = immersiveSourceRecords(snapshot),
     csv = jointObject(values[sources.csv.key]),
@@ -116,7 +116,7 @@ export function projectWeaponPanel(
     },
   });
   const n = (key: string, fallback = 0) => immersiveNumber(csv, key, fallback);
-  const association = projection?.records.find((record) => record.key === projection.bindings.projectile);
+  const association = preview?.records.find((record) => record.key === preview.bindings.projectile);
   const projectile = jointObject(association?.value);
   const stats = weaponStatistics(csv, spec, projectile);
   const stat = (id: string, label: string, display: string, fields: ImmersiveField[], formula?: string): ImmersiveStat => ({
@@ -317,7 +317,7 @@ export function projectWeaponPanel(
   const hints = Array.isArray(spec.renderHints) ? spec.renderHints : [];
   const layers = weaponImageLayers(
     spec,
-    projection?.records.find((record) => record.key === projection.bindings.spec)?.resourceRefs ?? {},
+    preview?.records.find((record) => record.key === preview.bindings.spec)?.resourceRefs ?? {},
     'turret',
   );
   const standardIds = new Set(['range', 'damage', 'dps', 'emp']);
@@ -330,7 +330,7 @@ export function projectWeaponPanel(
   ancillarySettings.font = 'heading';
   branch.font = 'heading';
   heading[1]!.inline = true;
-  heading[1]!.displayRuns = [{ text: heading[1]!.display, color: designTypeColor(projection ?? snapshot, heading[1]!.display) }];
+  heading[1]!.displayRuns = [{ text: heading[1]!.display, color: designTypeColor(preview ?? snapshot, heading[1]!.display) }];
   for (const entry of visiblePrimary)
     entry.gapBefore = ['range', 'flux-second', 'no-flux'].includes(entry.id) || (noDps && entry.id === 'energy/shot');
   for (const entry of visibleAncillary) entry.gapBefore = ['speed', 'accuracy', 'ammo', 'refire'].includes(entry.id);
@@ -353,7 +353,7 @@ export function projectWeaponPanel(
     damageDescription:
       `${damageType.armor}% 对装甲，${damageType.shield}% 对护盾` + (stats.beam || tags.includes('damage_soft_flux') ? '；产生软幅能' : ''),
     damageType: damageTypeId,
-    damageIcon: projection?.records.find((record) => record.key === projection.bindings.csv)?.resourceRefs.damageIcon ?? null,
+    damageIcon: preview?.records.find((record) => record.key === preview.bindings.csv)?.resourceRefs.damageIcon ?? null,
     iconLayers: layers,
     mountType: schemaStringValue(spec.mountTypeOverride) || schemaStringValue(spec.type),
     mountSize: schemaStringValue(spec.size),
@@ -389,7 +389,7 @@ export function updateImmersiveWeaponField(...args: Parameters<typeof updateImme
   return after;
 }
 
-export function weaponProjectionInputs(snapshot: JointEditSnapshot, values: Record<string, JointValue>): RowData {
+export function weaponPreviewInputs(snapshot: JointEditSnapshot, values: Record<string, JointValue>): RowData {
   const records = immersiveSourceRecords(snapshot),
     spec = jointObject(values[records.spec.key]),
     csv = jointObject(values[records.csv.key]);

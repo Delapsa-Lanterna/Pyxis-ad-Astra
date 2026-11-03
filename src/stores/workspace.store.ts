@@ -16,12 +16,12 @@ import { gameModsDirectoryPath } from '@/shared/lib/paths';
 import { isRowData } from '@/shared/lib/row-data';
 import { useProjectStore } from '@/stores/project.store';
 
-interface ModNavigationContext {
+interface ModNavigationState {
   jsonPage: JsonEditorPageId;
   currentView: Extract<WorkspaceView, 'mod-overview' | 'file-history' | 'json-editor' | 'table' | 'mod-files'>;
 }
 
-function createDefaultModNavigationContext(): ModNavigationContext {
+function createDefaultModNavigationState(): ModNavigationState {
   return { currentView: 'mod-overview', jsonPage: 'mod-info' };
 }
 
@@ -35,7 +35,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
   const activeModRoot = ref<string | null>(null);
   const currentView = ref<WorkspaceView>('overview');
   const jsonPage = ref<JsonEditorPageId>('mod-info');
-  const modNavigationContexts = ref<Map<string, ModNavigationContext>>(new Map());
+  const modNavigationStates = ref<Map<string, ModNavigationState>>(new Map());
   const gameOverview = ref<GameOverviewData | null>(null);
   const modOpeningFailures = ref<Map<string, ModOpeningFailure>>(new Map());
   const columnWidths = ref<WorkspaceColumnWidths>({});
@@ -74,7 +74,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     const generation = ++nextModGeneration;
     modGenerations.set(entry.modRoot, generation);
     mods.value.set(entry.modRoot, { ...entry });
-    modNavigationContexts.value.set(entry.modRoot, createDefaultModNavigationContext());
+    modNavigationStates.value.set(entry.modRoot, createDefaultModNavigationState());
     return generation;
   }
 
@@ -149,7 +149,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
   function removeLoadedModEntry(modRoot: string) {
     modGenerations.delete(modRoot);
     mods.value.delete(modRoot);
-    modNavigationContexts.value.delete(modRoot);
+    modNavigationStates.value.delete(modRoot);
     cleanupColumnWidthsForMod(modRoot);
     if (activeModRoot.value === modRoot) {
       activeModRoot.value = null;
@@ -162,28 +162,28 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     if (!mods.value.has(modRoot)) return;
     activeModRoot.value = modRoot;
     currentView.value = 'mod-overview';
-    updateModNavigationContext(modRoot, { currentView: 'mod-overview' });
+    updateModNavigationState(modRoot, { currentView: 'mod-overview' });
   }
 
   function activateModFileHistory(modRoot: string) {
     if (!mods.value.has(modRoot)) return;
     activeModRoot.value = modRoot;
     currentView.value = 'file-history';
-    updateModNavigationContext(modRoot, { currentView: 'file-history' });
+    updateModNavigationState(modRoot, { currentView: 'file-history' });
   }
 
   function activateModTable(modRoot: string) {
     if (!mods.value.has(modRoot)) return;
     activeModRoot.value = modRoot;
     currentView.value = 'table';
-    updateModNavigationContext(modRoot, { currentView: 'table' });
+    updateModNavigationState(modRoot, { currentView: 'table' });
   }
 
   function activateModFiles(modRoot: string) {
     if (!mods.value.has(modRoot)) return;
     activeModRoot.value = modRoot;
     currentView.value = 'mod-files';
-    updateModNavigationContext(modRoot, { currentView: 'mod-files' });
+    updateModNavigationState(modRoot, { currentView: 'mod-files' });
   }
 
   function activateModJson(modRoot: string, page: JsonEditorPageId) {
@@ -191,15 +191,15 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     activeModRoot.value = modRoot;
     currentView.value = 'json-editor';
     jsonPage.value = page;
-    updateModNavigationContext(modRoot, { currentView: 'json-editor', jsonPage: page });
+    updateModNavigationState(modRoot, { currentView: 'json-editor', jsonPage: page });
   }
 
   function activateModTab(modRoot: string) {
     if (!mods.value.has(modRoot)) return;
-    const context = modNavigationContexts.value.get(modRoot) ?? createDefaultModNavigationContext();
+    const navigation = modNavigationStates.value.get(modRoot) ?? createDefaultModNavigationState();
     activeModRoot.value = modRoot;
-    currentView.value = context.currentView;
-    jsonPage.value = context.jsonPage;
+    currentView.value = navigation.currentView;
+    jsonPage.value = navigation.jsonPage;
   }
 
   function showOverview() {
@@ -225,7 +225,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
 
   function applyPersistedWorkspaceSnapshot(persisted: PersistedWorkspace) {
     clearModOpeningFailures();
-    modNavigationContexts.value = new Map();
+    modNavigationStates.value = new Map();
     for (const mod of persisted.mods) {
       registerMod({ ...mod, status: 'loading' });
     }
@@ -282,9 +282,9 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     columnWidths.value = next;
   }
 
-  function updateModNavigationContext(modRoot: string, next: Partial<ModNavigationContext>) {
-    const previous = modNavigationContexts.value.get(modRoot) ?? createDefaultModNavigationContext();
-    modNavigationContexts.value.set(modRoot, { ...previous, ...next });
+  function updateModNavigationState(modRoot: string, next: Partial<ModNavigationState>) {
+    const previous = modNavigationStates.value.get(modRoot) ?? createDefaultModNavigationState();
+    modNavigationStates.value.set(modRoot, { ...previous, ...next });
   }
 
   return {

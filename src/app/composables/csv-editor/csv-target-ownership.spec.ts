@@ -64,14 +64,14 @@ beforeEach(() => {
   initializeSettingsStore(createSettingsFixture({ editMode: 'plain' }));
   for (const target of [a, b]) {
     const update = sessionUpdateFixture(target.sessionId, target.modRoot);
-    update.projection.manifest.tableSummaries.ships.header = ['id', 'name'];
-    update.projection.manifest.tableSummaries.ships.totalRows = 1;
+    update.content.manifest.tableSummaries.ships.header = ['id', 'name'];
+    update.content.manifest.tableSummaries.ships.totalRows = 1;
     useWorkspaceStore().registerMod({ modRoot: target.modRoot, displayName: target.sessionId, version: '', status: 'ready' });
-    useProjectStore().registerProjectManifest(update.projection.manifest);
+    useProjectStore().registerProjectManifest(update.content.manifest);
     useCsvEditorStore().initializeModTables({
-      sessionId: update.projection.manifest.sessionId,
+      sessionId: update.content.manifest.sessionId,
       modRoot: target.modRoot,
-      manifest: update.projection.manifest,
+      manifest: update.content.manifest,
     });
   }
   useWorkspaceStore().setColumnWidths(a.modRoot, 'ships', { name: 120 });

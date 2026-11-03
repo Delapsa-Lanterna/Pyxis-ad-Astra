@@ -1,6 +1,6 @@
 import { computed, shallowRef, watch, onScopeDispose } from 'vue';
-import { createReadTicketOwner } from '@/shared/runtime/read-request';
-import { observeSavedContent, saveProjection } from '@/orchestrators/project-sync.orchestrator';
+import { createReadOwner } from '@/shared/runtime/read-request';
+import { observeSavedContent, sessionContentUpdate } from '@/orchestrators/project-sync.orchestrator';
 import { formatError } from '@/shared/lib/errors';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
 import { normalizeFsPath } from '@/shared/lib/paths';
@@ -22,7 +22,7 @@ export function useSpecEditorDraftImages<TImageData>(
   const value = shallowRef<{ resourceRefs: ResourceRef[]; spriteData: TImageData; diagnostic?: string } | null>(null);
   const loading = shallowRef(false),
     errorText = shallowRef('');
-  const reads = createReadTicketOwner(),
+  const reads = createReadOwner(),
     feedback = useAppFeedback();
   const source = computed(() =>
     options.target.value && options.context.value
@@ -72,16 +72,16 @@ export function useSpecEditorDraftImages<TImageData>(
   );
   const stop = observeSavedContent(
     (event) => {
-      const projection = saveProjection(event, options.target.value?.sessionId);
-      if (!projection) return undefined;
-      if (projection.manifest.sessionId !== options.target.value?.sessionId) return undefined;
+      const update = sessionContentUpdate(event, options.target.value?.sessionId);
+      if (!update) return undefined;
+      if (update.manifest.sessionId !== options.target.value?.sessionId) return undefined;
 
       const paths = [
         ...(value.value?.resourceRefs ?? []).map((resource) => resource.relPath),
         ...options.fields.flatMap((field) => options.draft.value[field] ?? []).filter((path): path is string => typeof path === 'string'),
       ].map(normalizeFsPath);
-      const resources = projection.invalidation.resources;
-      if (projection.invalidation.session || resources.some((resource) => paths.includes(normalizeFsPath(resource.relPath))))
+      const resources = update.invalidation.resources;
+      if (update.invalidation.session || resources.some((resource) => paths.includes(normalizeFsPath(resource.relPath))))
         return refresh(true);
       return undefined;
     },

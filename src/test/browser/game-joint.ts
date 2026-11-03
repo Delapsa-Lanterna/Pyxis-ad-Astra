@@ -12,7 +12,7 @@ export function buildGameJoint(
   values: Record<string, T.JointValue> | null,
 ): T.JointEditSnapshot {
   const records = new Map<string, T.JointEditRecord>();
-  const variants: Record<string, T.JointHullProjection> = {};
+  const variants: Record<string, T.JointHull> = {};
   const binding: Record<string, string> = {};
   const sources = project.sources();
   const data = (key: string) => jointObject(records.get(key)!.value);
@@ -128,7 +128,7 @@ export function buildGameJoint(
       spec('projectile', projectile);
     return { spec: key, csv: row, description, ...(typeof projectile === 'string' ? { projectile: 'projectile:' + projectile } : {}) };
   }
-  function hull(id: string, variantKey: string): T.JointHullProjection {
+  function hull(id: string, variantKey: string): T.JointHull {
     const skin = sources.some((source) => source.entities.has(source.entityKey('skin', id))) ? spec('skin', id) : null;
     const hullId = skin ? String(data(skin).baseHullId) : id;
     const hullKey = spec('ship', hullId),
@@ -188,7 +188,7 @@ export function buildGameJoint(
       csv('shipSystems', systemId);
       csv('descriptions', systemId, 'SHIP_SYSTEM');
     }
-    const result: T.JointHullProjection = {
+    const result: T.JointHull = {
       spec: ship,
       variantKey,
       hullKey,
@@ -218,30 +218,30 @@ export function buildGameJoint(
   function wing(id: string) {
     const wingKey = csv('wings', id),
       variant = spec('variant', String(data(wingKey).variant));
-    const projection = variants[variant] ?? hull(String(data(variant).hullId), variant);
+    const resolvedHull = variants[variant] ?? hull(String(data(variant).hullId), variant);
     return {
       csv: wingKey,
       variant,
-      hull: projection.hullKey,
-      spec: projection.hullKey,
-      hullCsv: projection.displayBindings.csv!,
-      description: projection.displayBindings.description!,
-      system: 'system:' + data(projection.displayBindings.csv!)['system id'],
+      hull: resolvedHull.hullKey,
+      spec: resolvedHull.hullKey,
+      hullCsv: resolvedHull.displayBindings.csv!,
+      description: resolvedHull.displayBindings.description!,
+      system: 'system:' + data(resolvedHull.displayBindings.csv!)['system id'],
     };
   }
-  let projection: T.JointHullProjection | null = null;
+  let resolvedHull: T.JointHull | null = null;
   if (root.kind === 'weapon') Object.assign(binding, weapon(root.id));
   else if (root.kind === 'wing') {
     Object.assign(binding, wing(root.id));
-    projection = variants[binding.variant!]!;
+    resolvedHull = variants[binding.variant!]!;
   } else {
     const key = spec(root.kind === 'variant' ? 'variant' : root.kind === 'skin' ? 'skin' : 'ship', root.id);
-    projection = hull(root.kind === 'variant' ? String(data(key).hullId) : root.id, key);
+    resolvedHull = hull(root.kind === 'variant' ? String(data(key).hullId) : root.id, key);
     Object.assign(binding, {
       spec: key,
-      csv: projection.displayBindings.csv,
-      description: projection.displayBindings.description,
-      system: 'system:' + data(projection.displayBindings.csv!)['system id'],
+      csv: resolvedHull.displayBindings.csv,
+      description: resolvedHull.displayBindings.description,
+      system: 'system:' + data(resolvedHull.displayBindings.csv!)['system id'],
       ...(root.kind === 'variant' ? { variant: key } : {}),
     });
   }
@@ -259,7 +259,7 @@ export function buildGameJoint(
     baseVersions: [
       ...new Map([...records.values()].flatMap((record) => record.baseVersions).map((version) => [version.path, version])).values(),
     ],
-    hull: projection,
+    hull: resolvedHull,
     variants,
     catalog: null,
     newSources: [],

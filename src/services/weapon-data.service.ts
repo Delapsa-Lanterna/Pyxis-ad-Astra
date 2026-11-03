@@ -11,14 +11,14 @@ import { WEAPON_SPRITE_FIELDS } from '@/shared/lib/starsector/weapon-sprite-fiel
 import type {
   DeepReadonly,
   EntityData,
-  EntityEditInfo,
+  EntityTargetSnapshot,
   SpecEditorKind,
   ProjectSessionId,
   ResourceRef,
   RowData,
   JsonComposition,
 } from '@/shared/types';
-export interface WeaponData extends EntityEditInfo {
+export interface WeaponData extends EntityTargetSnapshot {
   composition?: JsonComposition;
   weapon: RowData;
   weaponCsvRow: RowData;

@@ -151,7 +151,7 @@ describe('config list selection and action boundaries', () => {
 
   it.each(['discard', 'delete'] as const)('reports a failed save wait during %s', async (action) => {
     const { selection } = harness();
-    useSaveCommandStore().registerSaveSession({
+    useSaveCommandStore().registerSaveParticipant({
       modRoot: ref('M:/mod'),
       targetKey: ref('saving'),
       saving: ref(true),
@@ -250,7 +250,7 @@ describe('config list selection and action boundaries', () => {
     const waiting = new Promise<boolean>((resolve) => {
       finish = resolve;
     });
-    useSaveCommandStore().registerSaveSession({
+    useSaveCommandStore().registerSaveParticipant({
       modRoot: ref('M:/mod'),
       targetKey: ref('target'),
       saving: ref(true),
@@ -278,10 +278,10 @@ describe('config list selection and action boundaries', () => {
     expect(mocks.feedback.confirmWarning).not.toHaveBeenCalled();
   });
 
-  it.each(['projection', 'broadcast'] as const)('keeps the project saved while retrying failed %s content work', async (step) => {
+  it.each(['content', 'broadcast'] as const)('keeps the project saved while retrying failed %s content work', async (step) => {
     const { selection } = harness();
     const action = mutation(selection);
-    if (step === 'projection') mocks.release.mockRejectedValueOnce(new Error(step));
+    if (step === 'content') mocks.release.mockRejectedValueOnce(new Error(step));
     else mocks.complete.mockRejectedValueOnce(new Error(step));
     expect(await action.run()).toBe(true);
     await flushPromises();

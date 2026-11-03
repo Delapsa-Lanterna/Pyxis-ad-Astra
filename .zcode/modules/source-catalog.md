@@ -24,7 +24,7 @@
 - `src-tauri/src/services/project/resources/`：候选名称、船体引用与授权图片投影。
 - `src-tauri/src/services/project/session/`：会话就绪、正式行、引用快照与稳定身份。
 - `src-tauri/src/services/project/sources/`：对应来源的内容、版本、Core 文档及配置读取。
-- `src/services/query-cache.service.ts`：候选读取的会话缓存、实时请求与投影门控。
+- `src/services/query-cache.service.ts`：候选读取的会话缓存、实时请求与读取就绪门控。
 - `src/shared/types/source-catalog.types.ts`：候选请求、选项、来源分组和模板协议。
 
 ### 装配

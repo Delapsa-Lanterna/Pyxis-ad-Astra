@@ -1,4 +1,4 @@
-/** @type {import('./frontend-policy.mjs').Owner[]} */
+/** @type {import('./frontend-policy.mjs').CapabilityScope[]} */
 export const readOwners = [{ layer: 'services' }, { layer: 'orchestrators' }, { layer: 'app', role: 'composable' }];
 
 /** @param {Omit<import('./frontend-policy.mjs').CapabilityRule, 'names' | 'capability' | 'owners'>} provider @param {Pick<import('./frontend-policy.mjs').CapabilityRule, 'names' | 'capability' | 'owners'>[]} entries */

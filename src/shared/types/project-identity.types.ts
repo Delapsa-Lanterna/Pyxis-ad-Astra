@@ -90,7 +90,7 @@ export interface EntityEditTarget {
   linkedRecord: EntityLinkedRecord | null;
 }
 
-export interface EntityEditInfo {
+export interface EntityTargetSnapshot {
   target: EntityEditTarget;
   baseVersions: FileVersion[];
 }

@@ -49,7 +49,7 @@ async function capturedVersions(
     throw error;
   });
   await reserveFileIdentityIntent(sessionId, modRoot, captured.intent);
-  const versions = create ? captured.info.baseVersions : baseVersions;
+  const versions = create ? captured.snapshot.baseVersions : baseVersions;
   return captureIdentityVersions(versions, captured.intent.destinationVersion);
 }
 
@@ -70,7 +70,7 @@ async function settledVersions(
   });
   const keepFilename = await chooseEntityFilename(
     feedback,
-    captured.info.target,
+    captured.snapshot.target,
     captured.intent,
     content ? { before: content.original, after: content.data, composition: content.composition } : undefined,
   );

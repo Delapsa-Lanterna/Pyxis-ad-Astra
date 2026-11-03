@@ -64,28 +64,28 @@
 - 导航与定位：菜单、快捷键或业务引用捕获目标 → 等待保存及同步并提交活动输入 → 工作区导航与所属页面挂载 → 按需读取、实体选择与滚动，或关于页内联 `CHANGELOG.md` 的 marked 渲染
 - 窗口创建与复用：`WindowIdentity` 与结构化输入 → managed window → Rust 登记、目标占用与实例创建或复用 → 接收方领取请求并加载业务基线 → `requestId + receiverGeneration` 回执 → 发起动作完成
 - 引用来源与内容组合：工作区标签顺序及引用开关 → `publishReferenceSources` → 后端有序引用快照 → 原版、前序可引用 Mod 与本地 JSON 组合 → 引用版本接纳与缓存失效 → 展示更新并保留本地草稿
-- 会话查询与编辑目标：`ViewModel/composable` 捕获 session 与参数 → 类型化 query、投影门控与 `ReadTicket` → `command.runtime` → 正式会话内容与来源 → 所属资源及实体呈现 → `EntityData`、正式目标与版本 → 票据接纳只读结果或独立草稿
+- 会话查询与编辑目标：`ViewModel/composable` 捕获 session 与参数 → 类型化 query、读取就绪门控与 `ReadTicket` → `command.runtime` → 正式会话内容与来源 → 所属资源及实体呈现 → `EntityData`、正式目标与版本 → 票据接纳只读结果或独立草稿
 - 来源候选目录：字段或编辑器捕获 session 与 source、图片目录 → 候选 service → 就绪会话和实际来源 → 值分组、授权图片路径及标签模板 → 所属票据接纳；正式 scope 与配置资源变化 → 目录失效判定 → 缓存及字段重读
 - 来源读取与解析：授权来源根 → 同次字节读取及 `FileVersion` → 匹配来源记录复用或 CSV-like、JSON-like、spec parser → 业务索引与诊断 → 所属打开或刷新完成时集中持久化来源成果
-- CSV 编辑：工作区宿主交付完整表格目标与列宽 → keyed CSV 页面及所属内存投影 → 表格窗口查询 → `CsvRow`、源索引与 `rowKey` → CSV store 与可视区网格 → 列 schema、原始输入及单元格动作 → 行草稿、operation 历史与 dirty → patches 和关联规格动作
+- CSV 编辑：工作区宿主交付完整表格目标与列宽 → keyed CSV 页面及所属内存投影 → 表格窗口查询 → `CsvRow`、源索引与 `rowKey` → CSV store 与可视区网格 → 列 schema、原始输入及单元格动作 → 行草稿、edit 历史与 dirty → patches 和关联规格动作
 - JSON 与杂项配置编辑：工作区宿主交付 session、Mod 根与页面目标 → keyed JSON 页面 → 正式记录、缺失版本及 schema → JSON 文档会话 → `FieldInputs` 提交字段动作 → 本地 draft 与快照历史 → 所属创建、保存或删除动作
 - Spec 字段与画布编辑：规格窗口定义 → 正式目标、规格与依赖 → 舰船、武器、弹体或战术系统 ViewModel → schema 字段或画布手势 → 领域投影与工作值 → Draft Session、历史及保存动作
 - 联合与沉浸式编辑：ship、weapon、wing 或 variant 的 `JointEditRoot` → `query_joint_edit` → 规格、CSV、描述、Skin 与模块来源图 → `JointEditSnapshot` → 所属字段、装备、场景与关联编辑器动作 → 联合草稿
 - 文件浏览与文本打开：宿主交付 session 与正式 Mod 根 → Mod 文件页 → 目录查询或全目录搜索 → 按 session 接纳条目 → `query_mod_text_file_target` 核对路径与内容 → 完整文件窗口请求 → 文本加载与行列定位
 - 文本编辑：`EditableFileData` 与版本 → 文本 Draft Session → 原文、dirty 及文本撤销栈 → 保存时捕获文本与目标 → 实际写盘文本接纳基线 → 保留后续输入；外部差异进入待载入版本
 - Mod 整体保存：`Ctrl+Shift+S` 捕获 `sessionId + modRoot` → 主窗口捕获各窗口文档参与者 → 所属输入提交与文档保存 → 串行批次汇总实际结果 → 发起窗口反馈与请求释放
-- 项目保存：编辑面提交输入并捕获 `SaveRequest` → `save_project` → 项目同步 FIFO → 所属业务准备 → `write_transactions::begin` 与版本复核 → 业务 changeset → 历史及正式投影登记 → 发布 `WriteResult` 并释放项目工作
+- 项目保存：编辑面提交输入并捕获 `SaveRequest` → `save_project` → 项目同步 FIFO → 所属业务准备 → `write_transactions::begin` 与版本复核 → 业务 changeset → 历史及正式内容登记 → 发布 `WriteResult` 并释放项目工作
 - 联合冲突与提交：联合基线、磁盘与提交草稿 → `submitJointEdit` 请求后端三方比较 → 独立修改合并与冲突选择 → 共享影响、Mod 覆盖和目标协调 → 确认版本复核 → 同根 changeset 与一次历史登记 → 实际联合快照
 - 实体身份联动：正式实体目标、内容与文件名选择 → 实体写入能力 → 主文件、关联规格、描述、势力索引与父装配引用暂存 → 同根 changeset 应用 → 会话表格接纳 → 实际内容、行键与身份变化
 - JSON 写入确认：捕获 `preserveOriginalJson` → `runConfirmedJsonWrite` → 原文结构更新或逐源重排要求 → 所属窗口确认具体文件 → 绑定来源指纹与版本重试 → changeset 写入
 - 缺失来源重建：已捕获的完整内容与修改 → 项目队列发现缺失来源 → 所属请求确认路径 → 重新核对现存内容及版本 → 所属保存能力重建文件与必要索引 → 实际结果接纳
 - 写后接纳：`CommittedWriteEvent` 有序交付 → File History 摘要 → `sessionUpdates` 正式清单及资源、query 缓存失效 → 发起会话 `SaveAcceptanceTask` → 窗口身份交接 → 所属内容与后续草稿接纳
 - 文件修改失败恢复：根租约内写入失败 → 实际 before 字节、路径与存在状态 → 逆序恢复已执行及部分执行步骤 → 受阻位置保留项目工作 → 恢复或明确放弃 → 所属请求结束与后续队列推进
-- 正式登记恢复：文件及历史已登记后的投影构建失败 → session 投影标记 `pending` 并保留所属项目工作 → `project_sync::retry` 继续未完成投影登记 → 完整正式结果发布 → 释放项目工作
+- 正式登记恢复：文件及历史已登记后的正式内容构建失败 → session 正式内容标记 `pending` 并保留所属项目工作 → `project_sync::retry` 继续未完成正式内容登记 → 完整正式结果发布 → 释放项目工作
 - 内容接纳重试：窗口内容处理失败 → `PendingWriteSync` 保留未完成步骤 → 所属重试入口 → 当前有效身份、基线或必要读取接纳 → 释放已完成步骤并结束所属待办
 - 文件历史读取与清空：捕获 `sessionId + modRoot` → 历史 service 核对范围 → 根历史摘要或根租约内清空双栈 → revision → 所属读取寿命与项目身份接纳
 - 草稿历史与文件回放：workspace history dispatch → 当前 JSON 或 CSV 草稿历史 → 草稿耗尽时构造 File History replay plan → 影响文件确认 → 项目队列复核当前路径、版本与授权 → changeset replay → 历史及窗口内容交付
-- 来源刷新：所属业务根刷新动作 → 保存等待与活动输入交接 → `refreshProjectSourcePaths` → 项目队列按实际来源重读 → 正式投影及失效交付 → 所属内容接纳或 dirty 外部版本暂存
+- 来源刷新：所属业务根刷新动作 → 保存等待与活动输入交接 → `refreshProjectSourcePaths` → 项目队列按实际来源重读 → 正式内容及失效交付 → 所属内容接纳或 dirty 外部版本暂存
 - Core 生命周期：`WindowShell` 有效原版根 → `startCoreAssetsLoading` → fields 与 graphics 独立读取并复用所属在途任务 → 后端 Core 产品 → 根与产品代次接纳 → Core store；根清空或窗口释放撤销所属读取
 - 资源读取与展示：后端授权 `ResourceRef` → 媒体集合与租约 → media 合批、共享读取及 Mod/引用/Core 根授权 → data URL → 窗口图像解码及缩略图成品 → 展示；引用替换、失效或释放交还所属租约
 - 字体加载与绘制：沉浸式窗口登记字体身份 → `ReadTicket` → 指定目录或所属游戏根的 FNT 与图集 → 字体解析、解码及来源回退 → `FontText` 排版与 canvas 绘制 → 来源切换或窗口释放清理所属字体

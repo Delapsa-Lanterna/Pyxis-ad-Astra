@@ -1,7 +1,7 @@
 import type { CsvTableKey } from '@/shared/types/project-identity.types';
 import type { CsvDraftRow } from '@/shared/types/tables.types';
 
-export interface CsvCellValueSetOperation {
+export interface CsvCellValueSetEdit {
   type: 'cell-value-set';
   tab: CsvTableKey;
   rowKey: string;
@@ -12,7 +12,7 @@ export interface CsvCellValueSetOperation {
   newIsComment: boolean;
 }
 
-export interface CsvRowCreatedOperation {
+export interface CsvRowCreatedEdit {
   type: 'row-created';
   tab: CsvTableKey;
   rowKey: string;
@@ -20,7 +20,7 @@ export interface CsvRowCreatedOperation {
   row: CsvDraftRow;
 }
 
-export interface CsvRowDeletedOperation {
+export interface CsvRowDeletedEdit {
   type: 'row-deleted';
   tab: CsvTableKey;
   rowKey: string;
@@ -28,7 +28,7 @@ export interface CsvRowDeletedOperation {
   row: CsvDraftRow;
 }
 
-export interface CsvRowMovedOperation {
+export interface CsvRowMovedEdit {
   type: 'row-moved';
   tab: CsvTableKey;
   rowKey: string;
@@ -36,18 +36,18 @@ export interface CsvRowMovedOperation {
   nextIndex: number;
 }
 
-export type CsvSingleOperation = CsvCellValueSetOperation | CsvRowCreatedOperation | CsvRowDeletedOperation | CsvRowMovedOperation;
-export interface CsvBatchOperation {
+export type CsvSingleEdit = CsvCellValueSetEdit | CsvRowCreatedEdit | CsvRowDeletedEdit | CsvRowMovedEdit;
+export interface CsvBatchEdit {
   type: 'batch';
   tab: CsvTableKey;
   rowKey: string;
-  operations: CsvSingleOperation[];
+  edits: CsvSingleEdit[];
 }
-export type CsvDraftOperation = CsvSingleOperation | CsvBatchOperation;
+export type CsvDraftEdit = CsvSingleEdit | CsvBatchEdit;
 
 export interface CsvTableHistoryEntry {
   id: string;
   timestamp: number;
-  operation: CsvDraftOperation;
+  edit: CsvDraftEdit;
   label: string;
 }

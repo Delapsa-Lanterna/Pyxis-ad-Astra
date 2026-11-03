@@ -1,4 +1,4 @@
-import type { JointEditSnapshot, JointValue, ResourceRef, JointHullProjection, DeepReadonly, RowData } from '@/shared/types';
+import type { JointEditSnapshot, JointValue, ResourceRef, JointHull, DeepReadonly, RowData } from '@/shared/types';
 import type { ImmersiveField, ImmersiveStat } from '../fields';
 import { jointObject } from '@/domain/joint-edit';
 import { hullDataIndex, hullFieldInputs, hullFieldValue } from '../hull-fields';
@@ -8,8 +8,8 @@ import { schemaStringValue } from '@/domain/schema/schema-values';
 import { parseInputNumber } from '@/shared/lib/input-number';
 import { designTypeColor } from '../design-type';
 import type { TextRun } from '@/domain/fonts/font.types';
-export interface ImmersiveShipContext {
-  hull: JointHullProjection;
+export interface ImmersiveShipPanelInput {
+  hull: JointHull;
   name: string;
   capacity: number;
   dissipation: number;
@@ -78,10 +78,10 @@ const INTEGER_COLUMNS = new Set([
 export function projectShipPanel(
   snapshot: JointEditSnapshot,
   values: Record<string, JointValue>,
-  projection: JointEditSnapshot | null = snapshot,
-  variant?: ImmersiveShipContext,
+  preview: JointEditSnapshot | null = snapshot,
+  variant?: ImmersiveShipPanelInput,
 ): ShipImmersivePanel {
-  const graph = projection ?? snapshot;
+  const graph = preview ?? snapshot;
   const find = (key: string | undefined) => graph.records.find((record) => record.key === key);
   const effectiveHull = variant?.hull ?? graph.hull;
   const sources = effectiveHull
@@ -231,7 +231,7 @@ export function projectShipPanel(
     { DESTROYER: 'baseSensorDestroyer', CRUISER: 'baseSensorCruiser', CAPITAL_SHIP: 'baseSensorCapital' }[
       schemaStringValue(spec.hullSize)
     ] ?? 'baseSensorFrigate';
-  const referenceSettings = (projection ?? snapshot).referenceSettings;
+  const referenceSettings = (preview ?? snapshot).referenceSettings;
   const sensorValue = referenceSettings.values[sensorKey];
   const sensor = (id: string, label: string): ImmersiveStat => ({
     id,
@@ -323,8 +323,8 @@ export function projectShipPanel(
     numeric('flux dissipation', '幅能耗散', 1),
     numeric('max speed', '最高航速', 10),
   ];
-  const references = projection?.records ?? [];
-  const systemRecord = references.find((record) => record.key === (variant?.hull.displayBindings.system ?? projection?.bindings.system));
+  const references = preview?.records ?? [];
+  const systemRecord = references.find((record) => record.key === (variant?.hull.displayBindings.system ?? preview?.bindings.system));
   const systemId = systemRecord?.target.kind === 'spec' ? systemRecord.target.target.id : schemaStringValue(value('system id'));
   const systemCsv = references.find(
     (record) => record.target.kind === 'csv' && record.target.table === 'shipSystems' && record.target.identity.id === systemId,
@@ -380,7 +380,7 @@ export function projectShipPanel(
   const allStats = [...heading, description, ...logistics.flat(), ...combat, system];
   for (const entry of heading.slice(0, 2)) entry.font = 'ship-title';
   heading[2]!.inline = true;
-  heading[2]!.displayRuns = [{ text: heading[2]!.display, color: designTypeColor(projection ?? snapshot, heading[2]!.display) }];
+  heading[2]!.displayRuns = [{ text: heading[2]!.display, color: designTypeColor(preview ?? snapshot, heading[2]!.display) }];
   peak.gapBefore = true;
   hull.gapBefore = true;
   const panel: ShipImmersivePanel = {
@@ -454,7 +454,7 @@ export function projectShipPanel(
   return panel;
 }
 
-export function shipProjectionInputs(snapshot: JointEditSnapshot, values: Record<string, JointValue>): RowData {
+export function shipPreviewInputs(snapshot: JointEditSnapshot, values: Record<string, JointValue>): RowData {
   const csv = jointObject(values[immersiveSourceRecords(snapshot).csv.key]);
   return { systemId: csv['system id'] ?? null, shieldType: csv['shield type'] ?? null, defenseId: csv['defense id'] ?? null };
 }

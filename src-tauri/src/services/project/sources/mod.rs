@@ -37,7 +37,7 @@ struct SourceRecord {
     parsed: ParsedSource,
 }
 #[derive(Serialize, Deserialize)]
-struct Snapshot {
+struct SourceCacheSnapshot {
     format: u32,
     root: String,
     records: BTreeMap<String, SourceRecord>,
@@ -67,7 +67,7 @@ impl SourceReader {
         let boundary = FsRootBoundary::new(root, "source root")?;
         let records = cache_path(&boundary)?
             .and_then(|path| io::read_utf8_no_bom(&path).ok())
-            .and_then(|text| parse_persisted_json::<Snapshot>(&text).ok())
+            .and_then(|text| parse_persisted_json::<SourceCacheSnapshot>(&text).ok())
             .filter(|snapshot| {
                 snapshot.format == 1 && snapshot.root == boundary.root().to_string_lossy()
             })
@@ -75,7 +75,7 @@ impl SourceReader {
             .unwrap_or_default();
         Ok(Self::empty(boundary, records))
     }
-    pub fn for_projection(root: &Path) -> AppResult<Self> {
+    pub fn for_session(root: &Path) -> AppResult<Self> {
         Ok(Self::empty(
             FsRootBoundary::new(root, "source root")?,
             BTreeMap::new(),

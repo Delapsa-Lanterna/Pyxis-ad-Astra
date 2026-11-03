@@ -1,8 +1,8 @@
 use crate::domain::{joint_hull, json_composition, variant_modules};
 use crate::errors::{AppError, AppResult};
 use crate::models::{
-    CsvTableKey, EntityKind, JointEditRecord, JointFieldBinding, JointHullProjection,
-    JointModuleBinding, JointRecordTarget, JointValue,
+    CsvTableKey, EntityKind, JointEditRecord, JointFieldBinding, JointHull, JointModuleBinding,
+    JointRecordTarget, JointValue,
 };
 #[cfg(test)]
 use crate::test_support::work_counts;
@@ -16,7 +16,7 @@ use std::sync::LazyLock;
 pub fn project_joint_hull(
     records: &[JointEditRecord],
     variant_key: &str,
-) -> AppResult<Option<JointHullProjection>> {
+) -> AppResult<Option<JointHull>> {
     let records = effective_records(records)?;
     let records = records.as_ref();
     let variant = record(records, variant_key);
@@ -32,7 +32,7 @@ pub fn project_joint_hull(
 pub fn project_ship_hull(
     records: &[JointEditRecord],
     root_key: &str,
-) -> AppResult<Option<JointHullProjection>> {
+) -> AppResult<Option<JointHull>> {
     let records = effective_records(records)?;
     let records = records.as_ref();
     let JointRecordTarget::Spec { target } = &record(records, root_key).target else {
@@ -70,7 +70,7 @@ fn project_hull(
     records: &[JointEditRecord],
     variant_key: &str,
     hull_id: &str,
-) -> AppResult<Option<JointHullProjection>> {
+) -> AppResult<Option<JointHull>> {
     let variant = record(records, variant_key);
     let mut current = hull_id;
     let mut skins = Vec::new();
@@ -311,7 +311,7 @@ fn project_hull(
     {
         display_bindings.insert("system".into(), record.key.clone());
     }
-    Ok(Some(JointHullProjection {
+    Ok(Some(JointHull {
         spec: effective_spec,
         variant_key: variant_key.into(),
         hull_key: hull.key.clone(),

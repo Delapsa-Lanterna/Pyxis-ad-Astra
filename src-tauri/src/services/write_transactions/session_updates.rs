@@ -1,6 +1,8 @@
 use crate::errors::AppResult;
 use crate::io;
-use crate::models::{CommittedSessionUpdate, FileChangeRecord};
+use crate::models::{
+    CommittedSessionUpdate, FileChangeRecord, ProjectInvalidation, SessionContentUpdate,
+};
 use crate::services::project;
 use std::sync::Arc;
 
@@ -12,8 +14,8 @@ pub(super) fn refresh_committed_sessions(
     let affected = if changes.is_empty() {
         session_id
             .map(|id| {
-                project::current_projection(id)
-                    .map(|projection| vec![(id.to_string(), projection.manifest.mod_root)])
+                project::current_project_manifest(id)
+                    .map(|manifest| vec![(id.to_string(), manifest.mod_root)])
             })
             .transpose()?
             .unwrap_or_default()
@@ -23,21 +25,26 @@ pub(super) fn refresh_committed_sessions(
     affected
         .into_iter()
         .map(|(session_id, mod_root)| {
-            let projection = io::retry_write(root, || {
+            let update = io::retry_write(root, || {
                 let result = if changes.is_empty() {
-                    project::current_projection(&session_id)
+                    project::current_project_manifest(&session_id).map(|manifest| {
+                        SessionContentUpdate {
+                            manifest,
+                            invalidation: ProjectInvalidation::default(),
+                        }
+                    })
                 } else {
                     project::invalidate_project_session(&session_id, changes.to_vec())
                 };
                 if result.is_err() {
-                    project::mark_projection_pending(&session_id)?;
+                    project::mark_session_pending(&session_id)?;
                 }
                 result
             })?;
             Ok(CommittedSessionUpdate {
                 session_id,
                 mod_root,
-                projection: Arc::new(projection),
+                content: Arc::new(update),
             })
         })
         .collect()

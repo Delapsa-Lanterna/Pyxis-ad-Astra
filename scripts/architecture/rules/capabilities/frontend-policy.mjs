@@ -2,8 +2,8 @@ import { classifyFrontendPath } from '../../facts/classify.mjs';
 import { dependencyOrigins } from '../../facts/imports.mjs';
 
 /** @typedef {import('../../facts/classify.mjs').FrontendPathClass} PathRole */
-/** @typedef {{ path?: string, layer: string, domain?: string, role?: string }} Owner */
-/** @typedef {{ path?: string, layer?: string, role: string, domain: string, names: string[], capability: string, owners: Owner[] }} CapabilityRule */
+/** @typedef {{ path?: string, layer: string, domain?: string, role?: string }} CapabilityScope */
+/** @typedef {{ path?: string, layer?: string, role: string, domain: string, names: string[], capability: string, owners: CapabilityScope[] }} CapabilityRule */
 
 import { applicationCapabilities } from '../modules/app-feedback/capabilities.mjs';
 import { windowsCapabilities } from '../modules/windowing/capabilities.mjs';
@@ -75,7 +75,7 @@ export function canConsumeCapability(current, capability) {
   return capability.owners.some((owner) => matchesOwner(current, owner));
 }
 
-/** @param {PathRole} current @param {Owner} owner @returns {boolean} */
+/** @param {PathRole} current @param {CapabilityScope} owner @returns {boolean} */
 function matchesOwner(current, owner) {
   return (
     (owner.path === undefined || current.path === owner.path) &&

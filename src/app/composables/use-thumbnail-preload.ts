@@ -69,7 +69,7 @@ export function useThumbnailPreload(surface: string, onFailures?: (resources: re
     };
     void ticket.promise
       .then(() => {
-        ticket.accept();
+        ticket.requireCurrent();
         settled();
       }, settled)
       .catch(settled);

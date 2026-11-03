@@ -2,8 +2,8 @@ use super::collections::push_unique_all;
 use crate::errors::ErrorDiagnostic;
 use crate::models::{
     CsvTableKey, EntityEditTarget, EntityIdentityChange, FileChangeRecord, FileHistorySnapshot,
-    FileVersion, JointEditRoot, JsonDocumentOrigin, ProjectInvalidation,
-    ProjectSessionInvalidationResult, ReferenceSources,
+    FileVersion, JointEditRoot, JsonDocumentOrigin, ProjectInvalidation, ReferenceSources,
+    SessionContentUpdate,
 };
 #[cfg(test)]
 use crate::test_support::TestWorkspace;
@@ -157,7 +157,7 @@ impl<T> WriteResult<T> {
 pub struct CommittedSessionUpdate {
     pub session_id: String,
     pub mod_root: String,
-    pub projection: Arc<ProjectSessionInvalidationResult>,
+    pub content: Arc<SessionContentUpdate>,
 }
 
 fn changed_paths_for_changes(changes: &[FileChangeRecord]) -> Vec<String> {
@@ -198,7 +198,7 @@ mod tests {
     use std::fs;
 
     #[test]
-    fn committed_projection_states_keep_the_flat_wire_shape() {
+    fn committed_session_updates_keep_the_flat_wire_shape() {
         let manifest = json!({
             "baseVersions":[], "sessionId":"s", "modRoot":"M:/mod", "starsectorRoot":null,
             "coreAvailable":false, "associatedSpecTables":[], "modInfo":null,
@@ -206,7 +206,7 @@ mod tests {
             "entitySummaries":{"factions":0,"missions":0,"ships":0,"weapons":0,"projectiles":0,"variants":0,"skins":0,"systems":0,"skills":0}
         });
         let invalidation = json!({"paths":[],"tables":[],"entities":[],"resources":[],"queryScopes":[],"session":false});
-        let value = json!({"sessionId":"s","modRoot":"M:/mod","projection":{"manifest":manifest,"invalidation":invalidation}});
+        let value = json!({"sessionId":"s","modRoot":"M:/mod","content":{"manifest":manifest,"invalidation":invalidation}});
         let update: CommittedSessionUpdate = serde_json::from_value(value.clone()).unwrap();
         assert_eq!(serde_json::to_value(update).unwrap(), value);
         let blocked = SaveDelivery::Blocked {
@@ -282,7 +282,7 @@ mod tests {
     }
 
     #[test]
-    fn content_owner_survives_value_projection() {
+    fn content_target_survives_value_conversion() {
         let target = WriteContentTarget::Text {
             path: "M:/mod/notes.txt".into(),
         };

@@ -37,7 +37,7 @@ describe('CSV editor actions', () => {
     setActivePinia(createPinia());
     initializeSettingsStore(createSettingsFixture());
     vi.clearAllMocks();
-    const manifest = sessionUpdateFixture('s', 'M:/mod').projection.manifest;
+    const manifest = sessionUpdateFixture('s', 'M:/mod').content.manifest;
     useWorkspaceStore().registerMod({ modRoot: manifest.modRoot, displayName: 'Fixture', version: '', status: 'ready' });
     useProjectStore().registerProjectManifest(manifest);
     useCsvEditorStore().initializeModTables({ sessionId: manifest.sessionId, modRoot: manifest.modRoot, manifest });

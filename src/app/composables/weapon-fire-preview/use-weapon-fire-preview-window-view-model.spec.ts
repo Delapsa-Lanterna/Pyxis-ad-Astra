@@ -30,7 +30,7 @@ vi.mock('@/orchestrators/project-sync.orchestrator', async () => ({
   ...(await import('@/test/unit/project-changes')),
   listenSavedIdentity: mocks.listenIdentity,
   listenProjectSessionInvalidated: vi.fn(async () => vi.fn()),
-  invalidateProjectionCaches: vi.fn(),
+  invalidateResourceMediaForSession: vi.fn(),
 }));
 
 vi.mock('@/orchestrators/weapon-fire-preview.orchestrator', () => ({ retargetWeaponFirePreviewWindow: mocks.retarget }));

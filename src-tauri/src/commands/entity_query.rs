@@ -1,6 +1,6 @@
 use crate::errors::AppError;
 use crate::models::{
-    EntityData, EntityEditInfo, EntityIdentityIntent, EntityIdentityIntentPayload,
+    EntityData, EntityIdentityIntent, EntityIdentityIntentPayload, EntityTargetSnapshot,
     QueryEntityListPayload, QueryEntityPayload,
 };
 use crate::services;
@@ -16,7 +16,9 @@ pub fn query_entity_list(payload: QueryEntityListPayload) -> Result<Vec<EntityDa
 }
 
 #[command_macros::command(async)]
-pub fn query_entity_edit_target(payload: QueryEntityPayload) -> Result<EntityEditInfo, AppError> {
+pub fn query_entity_edit_target(
+    payload: QueryEntityPayload,
+) -> Result<EntityTargetSnapshot, AppError> {
     services::query_entity_edit_target(&payload.session_id, payload.kind, &payload.id)
 }
 

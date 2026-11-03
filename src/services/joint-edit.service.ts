@@ -33,8 +33,8 @@ const readJointCandidate = new CachedSessionQuery<JointEditQuery, JointEditSnaps
   invalidates: (_parameters, invalidation) => hasJointEditInvalidation(invalidation),
 });
 
-const readJointProjection = {
-  queryKind: 'joint-edit-projection',
+const readJointPreview = {
+  queryKind: 'joint-edit-preview',
   load: ({ parameters }) => invokeCommand<JointEditSnapshot>('query_joint_edit', { payload: parameters }),
   invalidates: (_parameters, invalidation) => hasJointEditInvalidation(invalidation),
 } satisfies SessionQueryDefinition<JointEditQuery, JointEditSnapshot>;
@@ -80,9 +80,9 @@ export function queryJointEditRow(
     signal,
   );
 }
-export function queryJointEditProjection(draft: JointEditDraft, signal?: AbortSignal): Promise<DeepReadonly<JointEditSnapshot>> {
+export function queryJointEditPreview(draft: JointEditDraft, signal?: AbortSignal): Promise<DeepReadonly<JointEditSnapshot>> {
   return readLiveSessionQuery(
-    readJointProjection,
+    readJointPreview,
     draft.baseline.root.sessionId,
     { root: draft.baseline.root, rowKey: null, values: draft.values, newSources: draft.baseline.newSources, catalog: null },
     signal,

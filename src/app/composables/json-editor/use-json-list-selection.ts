@@ -186,7 +186,7 @@ export function useJsonListSelection(options: {
     { flush: 'sync' },
   );
   onScopeDispose(
-    commands.registerSaveSession({
+    commands.registerSaveParticipant({
       modRoot: options.modRoot,
       targetKey: computed(() => JSON.stringify([key.value, selectedId.value])),
       saving: writing,

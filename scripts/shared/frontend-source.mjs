@@ -2,12 +2,12 @@ import ts from 'typescript';
 import { sourcePositions } from './source-position.mjs';
 import { parse } from 'vue/compiler-sfc';
 
-/** @typedef {{ importedName: string | null, localName: string | null, specifier: string, typeOnly: boolean, kind: 'import' | 'export' | 'dynamic' | 'type', line: number, column: number }} ImportSpecifierInfo */
+/** @typedef {{ importedName: string | null, localName: string | null, specifier: string, typeOnly: boolean, kind: 'import' | 'export' | 'dynamic' | 'type', line: number, column: number }} ImportBinding */
 /** @typedef {{ exportedName: string, localName: string, specifier: string | null, importedName: string, typeOnly: boolean, line: number, column: number }} ExportBinding */
 /** @typedef {{ localName: string | null, member: string | null, specifier: string | null, arguments: (string | null)[], argumentExpressions: (string | null)[], factory: boolean, line: number, column: number }} SourceCall */
 /** @typedef {{line: number, column: number, message: string, target?: string, symbol?: string, expected?: string}} SourceFailure */
 /** @typedef {Omit<SourceCall, 'arguments' | 'argumentExpressions'> & {write: boolean}} SourceAccess */
-/** @typedef {{ imports: ImportSpecifierInfo[], exports: ExportBinding[], exportedFunctions: string[], calls: SourceCall[], accesses: SourceAccess[], dependencyFailures: SourceFailure[], syntax: {scripts: {ast: ts.SourceFile, offset: number}[], template: {text: string, offset: number, ast: import('@vue/compiler-dom').RootNode} | null, styles: import('@vue/compiler-sfc').SFCStyleBlock[]} }} FrontendSource */
+/** @typedef {{ imports: ImportBinding[], exports: ExportBinding[], exportedFunctions: string[], calls: SourceCall[], accesses: SourceAccess[], dependencyFailures: SourceFailure[], syntax: {scripts: {ast: ts.SourceFile, offset: number}[], template: {text: string, offset: number, ast: import('@vue/compiler-dom').RootNode} | null, styles: import('@vue/compiler-sfc').SFCStyleBlock[]} }} FrontendSource */
 
 /** @param {import('./files.mjs').SourceFile} file @param {{references?: boolean, inspect?: boolean, onNode?: (node: ts.Node, ast: ts.SourceFile, offset: number) => void}} [options] @returns {FrontendSource} */
 export function parseFrontendSource(file, { references = true, inspect = true, onNode } = {}) {
@@ -288,7 +288,7 @@ export function parseFrontendSource(file, { references = true, inspect = true, o
         });
       ts.forEachChild(node, visit);
     }
-    /** @param {ts.Node} node @param {string} specifier @param {string | null} importedName @param {string | null} localName @param {boolean} typeOnly @param {ImportSpecifierInfo['kind']} kind */
+    /** @param {ts.Node} node @param {string} specifier @param {string | null} importedName @param {string | null} localName @param {boolean} typeOnly @param {ImportBinding['kind']} kind */
     function addImport(node, specifier, importedName, localName, typeOnly, kind) {
       const position = block.offset + node.getStart(ast);
       const location = positionAt(position);

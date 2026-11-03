@@ -92,9 +92,7 @@ pub fn prepare_misc_save(input: &mut MiscConfigWrite, edits: &[SaveEdit]) -> App
 }
 
 pub fn write_misc_request(payload: MiscConfigWrite) -> Result<WriteResult<Value>, AppError> {
-    let root = project::current_projection(&payload.session_id)?
-        .manifest
-        .starsector_root;
+    let root = project::current_project_manifest(&payload.session_id)?.starsector_root;
     let root = root
         .as_deref()
         .filter(|root| Path::new(root).join("starsector-core").is_dir())

@@ -2,7 +2,7 @@ import type { Point } from '@/domain/editors/editor-types';
 import type {
   JointEditSnapshot,
   JointValue,
-  JointHullProjection,
+  JointHull,
   RowData,
   ReadonlyVariantEntry,
   JointPreviewSpec,
@@ -13,27 +13,27 @@ import { isRowData } from '@/shared/lib/row-data';
 import { schemaStringValue } from '@/domain/schema/schema-values';
 import { mountedWeaponImages, type MountedWeaponImages } from '@/shared/lib/starsector/weapon-images';
 
-export interface ImmersiveHullProjection {
+export interface ImmersiveHullScene {
   key: string;
   name: string;
   spec: DeepReadonly<RowData>;
-  hull: DeepReadonly<Pick<JointHullProjection, 'sprite' | 'modules' | 'hints'>>;
+  hull: DeepReadonly<Pick<JointHull, 'sprite' | 'modules' | 'hints'>>;
   weapons: Array<MountedWeaponImages & { id: string; name: string; builtin: boolean }>;
-  modules: Array<{ slot: DeepReadonly<RowData>; variant: ImmersiveHullProjection }>;
+  modules: Array<{ slot: DeepReadonly<RowData>; variant: ImmersiveHullScene }>;
 }
 
-export function immersiveCatalogScene(entry: ReadonlyVariantEntry): ImmersiveHullProjection | null {
+export function immersiveCatalogScene(entry: ReadonlyVariantEntry): ImmersiveHullScene | null {
   const preview = entry.preview;
   if (!preview || !isRowData(preview.spec)) return null;
   return variantHullScene(preview.hull, preview.spec, entry.label, preview.specs);
 }
 
 function variantHullScene(
-  hull: DeepReadonly<JointHullProjection>,
+  hull: DeepReadonly<JointHull>,
   spec: DeepReadonly<RowData>,
   name: string,
   specs: readonly DeepReadonly<JointPreviewSpec>[],
-): ImmersiveHullProjection {
+): ImmersiveHullScene {
   return {
     key: hull.variantKey,
     name,
@@ -62,7 +62,7 @@ function variantHullScene(
   };
 }
 
-export function immersiveSnapshotScene(snapshot: JointEditSnapshot, values: Record<string, JointValue>): ImmersiveHullProjection | null {
+export function immersiveSnapshotScene(snapshot: JointEditSnapshot, values: Record<string, JointValue>): ImmersiveHullScene | null {
   if (!snapshot.hull) return null;
   const data = hullDataIndex(snapshot.records, values);
   const specs = snapshot.records.flatMap((record): DeepReadonly<JointPreviewSpec>[] =>

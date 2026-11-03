@@ -1,7 +1,7 @@
 export { TABLE_KEYS, RESOURCE_OWNER_KINDS, RESOURCE_SOURCES } from '@/shared/types/project-identity.types';
 export type {
   EntityEditTarget,
-  EntityEditInfo,
+  EntityTargetSnapshot,
   EntityFileLocation,
   EntityLinkedRecord,
   EntityTargetState,
@@ -85,7 +85,6 @@ export type {
   WindowBootstrap,
   WindowsPathCaseMap,
   WindowRequestReceipt,
-  WindowRequestResult,
   ModSaveTarget,
   WindowSaveParticipant,
   WindowSaveItem,
@@ -108,7 +107,7 @@ export { ACCENT_PRESET_VALUES, APP_THEMES, EDIT_MODES, LOG_LEVELS } from '@/shar
 export type { AppLogEntry, AppLogLevel, AppLogStatus, AppendAppLogsPayload } from '@/shared/types/app-log.types';
 export { APP_LOG_LEVELS } from '@/shared/types/app-log.types';
 export type { FileChangeKind, FileChangeRecord, FileChangeReplayDirection, FileSnapshot } from '@/shared/types/file-changes.types';
-export type { CsvDraftOperation, CsvSingleOperation, CsvTableHistoryEntry } from '@/shared/types/csv-table-history.types';
+export type { CsvDraftEdit, CsvSingleEdit, CsvTableHistoryEntry } from '@/shared/types/csv-table-history.types';
 export type { FileHistoryEntrySummary, FileHistorySnapshot, FileReplay, FileHistoryPayload } from '@/shared/types/file-history.types';
 export type {
   AssociatedSpecChange,
@@ -182,7 +181,7 @@ export type {
   InvalidatedResourceScope,
   ProjectInvalidation,
   ProjectManifest,
-  ProjectSessionInvalidationResult,
+  SessionContentUpdate,
   TableSummary,
   OpenProjectSessionPayload,
   CloseProjectSessionPayload,

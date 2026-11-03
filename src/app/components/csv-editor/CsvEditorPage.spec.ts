@@ -45,10 +45,10 @@ beforeEach(() => {
   vi.clearAllMocks();
   initializeSettingsStore(createSettingsFixture({ editMode: 'plain' }));
   const update = sessionUpdateFixture(target.sessionId, target.modRoot);
-  update.projection.manifest.tableSummaries.ships.header = record().header;
+  update.content.manifest.tableSummaries.ships.header = record().header;
   useWorkspaceStore().registerMod({ modRoot: target.modRoot, displayName: 'Search', version: '', status: 'ready' });
-  useProjectStore().registerProjectManifest(update.projection.manifest);
-  useCsvEditorStore().initializeModTables({ ...target, manifest: update.projection.manifest });
+  useProjectStore().registerProjectManifest(update.content.manifest);
+  useCsvEditorStore().initializeModTables({ ...target, manifest: update.content.manifest });
   navigateToModTable(target.modRoot, target.table);
   mocks.query.mockResolvedValue(record());
 });

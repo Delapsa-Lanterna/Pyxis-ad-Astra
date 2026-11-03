@@ -17,7 +17,7 @@ beforeEach(() => {
 function fixture() {
   const workspace = useWorkspaceStore(),
     project = useProjectStore();
-  const manifest = sessionUpdateFixture('s1', 'M:/one').projection.manifest;
+  const manifest = sessionUpdateFixture('s1', 'M:/one').content.manifest;
   workspace.registerMod({ modRoot: manifest.modRoot, displayName: 'Fixture', version: '', status: 'ready' });
   project.registerProjectManifest(manifest);
   useCsvEditorStore().initializeModTables({ sessionId: manifest.sessionId, modRoot: manifest.modRoot, manifest });

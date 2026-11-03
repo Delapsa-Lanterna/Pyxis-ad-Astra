@@ -1,7 +1,7 @@
 import type { FileVersion, EntityIdentityChange } from '@/shared/types/project-identity.types';
 import type { FileChangeRecord } from '@/shared/types/file-changes.types';
 import type { RowData } from '@/shared/types/json.types';
-import type { ProjectInvalidation, ProjectSessionInvalidationResult } from '@/shared/types/project-session.types';
+import type { ProjectInvalidation, SessionContentUpdate } from '@/shared/types/project-session.types';
 import type { FileHistorySnapshot } from '@/shared/types/file-history.types';
 import type { JsonValue } from './json.types';
 import type { CsvTableKey, EntityEditTarget, ReferenceSources } from './project-identity.types';
@@ -47,7 +47,7 @@ export interface WriteResult<T = RowData> {
 export interface CommittedSessionUpdate {
   sessionId: string;
   modRoot: string;
-  projection: ProjectSessionInvalidationResult;
+  content: SessionContentUpdate;
 }
 
 export interface CommittedWriteEvent {

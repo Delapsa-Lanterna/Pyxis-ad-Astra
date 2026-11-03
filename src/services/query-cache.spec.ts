@@ -6,12 +6,12 @@ import {
   invalidateQueryCacheForSession,
 } from './query-cache.service';
 import {
-  markProjectionPending,
-  markProjectionReady,
+  markSessionPending,
+  markSessionReady,
   setReferenceReadiness,
   acceptReferenceRevision,
   currentReferenceRevision,
-} from './project-projection.service';
+} from './project-readiness.service';
 import { initializeCacheLimits } from '@/shared/runtime/cache-limits';
 import { createSettingsFixture } from '@/test/fixtures/settings';
 import type { DeepReadonly, ProjectInvalidation } from '@/shared/types';
@@ -213,26 +213,26 @@ describe('session query ownership', () => {
     expect(load).toHaveBeenCalledTimes(2);
     invalidateQueryCacheForSession('late-query');
   });
-  it('gates cached values and pending completion with the projection state', async () => {
+  it('gates cached values and pending completion with session readiness', async () => {
     const read = createReader(async () => []);
-    await read.read('projection-gated', { id: 'a' });
-    markProjectionPending('projection-gated');
-    await expect(read.read('projection-gated', { id: 'a' })).rejects.toMatchObject({ code: 'session.projection_pending' });
-    markProjectionReady('projection-gated');
-    await expect(read.read('projection-gated', { id: 'a' })).resolves.toEqual([]);
-    invalidateQueryCacheForSession('projection-gated');
+    await read.read('readiness-gated', { id: 'a' });
+    markSessionPending('readiness-gated');
+    await expect(read.read('readiness-gated', { id: 'a' })).rejects.toMatchObject({ code: 'session.content_pending' });
+    markSessionReady('readiness-gated');
+    await expect(read.read('readiness-gated', { id: 'a' })).resolves.toEqual([]);
+    invalidateQueryCacheForSession('readiness-gated');
     let finish!: (value: []) => void;
     const pending = createReader(
       () =>
         new Promise<[]>((resolve) => {
           finish = resolve;
         }),
-    ).read('projection-gated', { id: 'b' });
-    markProjectionPending('projection-gated');
+    ).read('readiness-gated', { id: 'b' });
+    markSessionPending('readiness-gated');
     finish([]);
-    await expect(pending).rejects.toMatchObject({ code: 'session.projection_pending' });
-    markProjectionReady('projection-gated');
-    invalidateQueryCacheForSession('projection-gated');
+    await expect(pending).rejects.toMatchObject({ code: 'session.content_pending' });
+    markSessionReady('readiness-gated');
+    invalidateQueryCacheForSession('readiness-gated');
   });
   it('ends pending requests for a closed session and allows a fresh read', async () => {
     let finish!: (value: []) => void;

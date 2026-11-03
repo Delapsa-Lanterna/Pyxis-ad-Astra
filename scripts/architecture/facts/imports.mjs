@@ -2,8 +2,8 @@ import { posix } from 'node:path';
 import ts from 'typescript';
 import { parseArchitectureFrontend } from './frontend.mjs';
 
-/** @typedef {import('../../shared/frontend-source.mjs').ImportSpecifierInfo} ImportSpecifierInfo */
-/** @typedef {{ specifier: string, resolved: string, typeOnly: boolean, bindings: ImportSpecifierInfo[], line: number, column: number }} ResolvedImport */
+/** @typedef {import('../../shared/frontend-source.mjs').ImportBinding} ImportBinding */
+/** @typedef {{ specifier: string, resolved: string, typeOnly: boolean, bindings: ImportBinding[], line: number, column: number }} ResolvedImport */
 /** @typedef {{ rel: string, name: string }} ExportOrigin */
 /** @type {Record<string, string[]>} */
 const extensionSubstitutions = {
@@ -12,7 +12,7 @@ const extensionSubstitutions = {
   '.mjs': ['.mts', '.d.mts'],
   '.cjs': ['.cts', '.d.cts'],
 };
-/** @typedef {import('../../shared/files.mjs').SourceFile & ReturnType<typeof parseArchitectureFrontend> & {dependencies: ResolvedImport[], referenceBindings: Map<string, {edge: ResolvedImport, binding: ImportSpecifierInfo}>, repositoryPaths: ReadonlySet<string>}} ResolvedFile */
+/** @typedef {import('../../shared/files.mjs').SourceFile & ReturnType<typeof parseArchitectureFrontend> & {dependencies: ResolvedImport[], referenceBindings: Map<string, {edge: ResolvedImport, binding: ImportBinding}>, repositoryPaths: ReadonlySet<string>}} ResolvedFile */
 
 /** @param {import('../../shared/files.mjs').SourceFile[]} sources @param {string[]} [available] @returns {ResolvedFile[]} */
 export function prepareArchitectureFiles(sources, available = sources.map((file) => file.rel)) {
@@ -92,7 +92,7 @@ function configAliases(file) {
   );
 }
 
-/** @param {import('./context.mjs').ArchitectureFile} file @returns {ImportSpecifierInfo[]} */
+/** @param {import('./context.mjs').ArchitectureFile} file @returns {ImportBinding[]} */
 export function importSpecifiers(file) {
   return file.imports;
 }

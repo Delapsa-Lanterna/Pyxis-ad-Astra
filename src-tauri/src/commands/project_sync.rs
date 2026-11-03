@@ -1,7 +1,6 @@
 use crate::errors::{AppError, ErrorDiagnostic};
 use crate::models::{
-    CloseProjectSessionPayload, InvalidateProjectSessionPayload, ProjectSessionInvalidationResult,
-    SaveDelivery,
+    CloseProjectSessionPayload, InvalidateProjectSessionPayload, SaveDelivery, SessionContentUpdate,
 };
 use crate::services::{project, project_sync, windows};
 use tauri::ipc::Channel;
@@ -77,7 +76,7 @@ pub async fn wait_project_saves(mod_roots: Vec<String>) -> Result<(), ErrorDiagn
 #[command_macros::command(async)]
 pub fn invalidate_project_session(
     payload: InvalidateProjectSessionPayload,
-) -> Result<ProjectSessionInvalidationResult, AppError> {
+) -> Result<SessionContentUpdate, AppError> {
     project::invalidate_project_session(&payload.session_id, payload.changes)
 }
 

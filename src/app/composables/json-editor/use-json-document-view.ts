@@ -1,4 +1,4 @@
-import { observeSavedContent, saveProjection } from '@/orchestrators/project-sync.orchestrator';
+import { observeSavedContent, sessionContentUpdate } from '@/orchestrators/project-sync.orchestrator';
 import { openVariantImmersiveEditor } from '@/orchestrators/immersive-editor.orchestrator';
 import { computed, onScopeDispose, ref, watch } from 'vue';
 import { querySessionEntityEditTarget } from '@/services/entity-query.service';
@@ -85,10 +85,9 @@ export function useJsonDocumentView(
       subscribeSourceOptionInvalidation: (source, resources, listener) =>
         source === 'hull:builtInWeaponSlots' || source === 'hull:weaponSlots' || source === 'hull:moduleSlots'
           ? observeSavedContent((event) => {
-              const projection = saveProjection(event, target?.sessionId);
-              if (!projection) return;
-              if (projection.manifest.sessionId === target.sessionId && hasHullReferencesInvalidation(projection.invalidation))
-                return listener();
+              const update = sessionContentUpdate(event, target?.sessionId);
+              if (!update) return;
+              if (update.manifest.sessionId === target.sessionId && hasHullReferencesInvalidation(update.invalidation)) return listener();
             })
           : observeSchemaSourceOptions(context, source, resources, listener),
     };
@@ -132,11 +131,11 @@ export function useJsonDocumentView(
   );
   onScopeDispose(
     observeSavedContent((event) => {
-      const projection = saveProjection(event, document.target.value!.sessionId);
-      if (!projection) return;
+      const update = sessionContentUpdate(event, document.target.value!.sessionId);
+      if (!update) return;
       if (
-        projection.manifest.sessionId === document.target.value!.sessionId &&
-        hasResourceInvalidation(projection.invalidation, Object.values(document.record.value.resources))
+        update.manifest.sessionId === document.target.value!.sessionId &&
+        hasResourceInvalidation(update.invalidation, Object.values(document.record.value.resources))
       )
         revision.value++;
     }),
@@ -161,15 +160,15 @@ export function useJsonDocumentView(
         { target, id },
         (signal) => querySessionEntityEditTarget(target.sessionId, 'ship', id, signal),
         {
-          ready: (info) => {
+          ready: (snapshot) => {
             if (!current() || String(document.draftValue.value.baseHullId ?? '').trim() !== id) return;
-            if (isExternalSource(info.target.source?.source)) {
-              feedback.info('船体「' + id + '」来自' + (info.target.source?.source === 'core' ? '原版' : '其他 Mod') + '。');
+            if (isExternalSource(snapshot.target.source?.source)) {
+              feedback.info('船体「' + id + '」来自' + (snapshot.target.source?.source === 'core' ? '原版' : '其他 Mod') + '。');
               return;
             }
-            if (info.target.source?.source !== 'mod')
+            if (snapshot.target.source?.source !== 'mod')
               throw new AppError('当前 Mod 没有船体记录「' + id + '」', { action: 'navigate-skin-hull' });
-            const linked = info.target.linkedRecord;
+            const linked = snapshot.target.linkedRecord;
             if (!linked || linked.kind !== 'csv' || linked.table !== 'ships')
               throw new AppError('船体「' + id + '」缺少可定位的舰船表格行', { action: 'navigate-skin-hull' });
             locateBaseHull(target, { id, rowKey: linked.rowKey });

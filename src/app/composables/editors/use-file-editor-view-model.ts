@@ -6,7 +6,7 @@ import {
   refreshProjectSourcePaths,
   listenSavedIdentity,
   listenSavedContent,
-  saveProjection,
+  sessionContentUpdate,
 } from '@/orchestrators/project-sync.orchestrator';
 import { computed, ref, watch } from 'vue';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
@@ -21,7 +21,7 @@ import { useSaveCommandStore } from '@/stores/save-command.store';
 import { retargetFileWindow } from '@/orchestrators/window-identity.orchestrator';
 
 import type { CommittedWriteEvent, FileWindowLocation } from '@/shared/types';
-import type { EntityIdentityChange, WriteResult, EntityEditInfo } from '@/shared/types';
+import type { EntityIdentityChange, WriteResult, EntityTargetSnapshot } from '@/shared/types';
 import { formatError, errorDiagnosticOf, errorCodeOf, AppError } from '@/shared/lib/errors';
 import { waitForRead } from '@/shared/runtime/read-request';
 
@@ -54,7 +54,7 @@ export function useFileEditorViewModel(params: FileEditorViewModelParams) {
   } | null = null;
   const identityNotice = ref('');
   let identitySequence = 0;
-  type TextMeta = { entity: EntityEditInfo | null; receipt: WriteResult<unknown> | null };
+  type TextMeta = { entity: EntityTargetSnapshot | null; receipt: WriteResult<unknown> | null };
 
   const title = ref(params.title);
   const contextLabel = ref('错误');
@@ -125,7 +125,7 @@ export function useFileEditorViewModel(params: FileEditorViewModelParams) {
     (text) => text,
     (left, right) => left === right,
   );
-  const unregisterSave = useSaveCommandStore().registerSaveSession({
+  const unregisterSave = useSaveCommandStore().registerSaveParticipant({
     targetKey: draftSession.currentTargetKey,
     modRoot: computed(() => params.modRoot),
     saving: draftSession.saving,
@@ -367,11 +367,11 @@ export function useFileEditorViewModel(params: FileEditorViewModelParams) {
 
   function handleCommittedWriteEvent(change: CommittedWriteEvent) {
     const target = draftSession.currentTarget.value;
-    const projection = saveProjection(change, target?.sessionId);
-    if (!projection) return undefined;
-    if (!target || disposed || pendingIdentity || projection.manifest.sessionId !== target.sessionId) return undefined;
+    const update = sessionContentUpdate(change, target?.sessionId);
+    if (!update) return undefined;
+    if (!target || disposed || pendingIdentity || update.manifest.sessionId !== target.sessionId) return undefined;
 
-    if (normalizeFsPath(projection.manifest.modRoot) !== normalizeFsPath(target.modRoot)) return undefined;
+    if (normalizeFsPath(update.manifest.modRoot) !== normalizeFsPath(target.modRoot)) return undefined;
     const receipt = change.reason === 'refresh' ? null : change.result;
     if (receipt && !draftSession.acceptsSaveDelivery(target, receipt.requestId)) return undefined;
     if (
@@ -403,10 +403,10 @@ export function useFileEditorViewModel(params: FileEditorViewModelParams) {
       );
       return undefined;
     }
-    const affected = projection.invalidation.paths.some((path) =>
+    const affected = update.invalidation.paths.some((path) =>
       pathBelongsToRoot(target.filePath, isAbsoluteFsPath(path) ? path : joinRootRelativePath(target.modRoot, path)),
     );
-    if (affected || projection.invalidation.session) return draftSession.refreshTarget(target, true).then(() => {});
+    if (affected || update.invalidation.session) return draftSession.refreshTarget(target, true).then(() => {});
     return undefined;
   }
 

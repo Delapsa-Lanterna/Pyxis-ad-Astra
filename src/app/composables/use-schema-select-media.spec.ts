@@ -24,7 +24,7 @@ vi.mock('@/services/resource-media.service', () => ({
       }),
     );
     const ready = ticket.promise.then((result) => {
-      ticket.accept();
+      ticket.requireCurrent();
       return result;
     });
     return { dataUrl: value, ready, release: () => ticket.invalidate('consumer') };

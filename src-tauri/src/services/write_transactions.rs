@@ -126,7 +126,7 @@ impl WriteTransaction {
                     identity.after.kind,
                     &identity.after.id,
                 ) {
-                    Ok(info) => models::push_unique_all(&mut versions, info.base_versions),
+                    Ok(snapshot) => models::push_unique_all(&mut versions, snapshot.base_versions),
                     Err(error) => diagnostics::failure(
                         "save.target_version_refresh_failed",
                         error,
@@ -213,7 +213,7 @@ pub fn replay(
                 identity.after.kind,
                 &identity.after.id,
             ) {
-                Ok(info) => models::push_unique_all(&mut versions, info.base_versions),
+                Ok(snapshot) => models::push_unique_all(&mut versions, snapshot.base_versions),
                 Err(error) => diagnostics::failure(
                     "history.target_version_refresh_failed",
                     error,
@@ -285,8 +285,8 @@ mod tests {
             .unwrap();
         assert_eq!(saved.session_updates.len(), 2);
         for update in &saved.session_updates {
-            assert_eq!(update.projection.manifest.session_id, update.session_id);
-            assert_eq!(update.projection.manifest.mod_root, update.mod_root);
+            assert_eq!(update.content.manifest.session_id, update.session_id);
+            assert_eq!(update.content.manifest.mod_root, update.mod_root);
             assert!(
                 services::query_entity(&update.session_id, EntityKind::Variant, "next")
                     .unwrap()
@@ -338,7 +338,7 @@ mod tests {
                     services::query_entity(&check_session, EntityKind::Variant, "next")
                         .unwrap_err()
                         .code(),
-                    "session.projection_pending"
+                    "session.content_pending"
                 );
                 fs::remove_file(&bad)?;
                 Ok(())
@@ -360,7 +360,7 @@ mod tests {
         .unwrap();
         assert_eq!(saved.history.undo_stack.len(), 1);
         assert_eq!(
-            saved.session_updates[0].projection.manifest.session_id,
+            saved.session_updates[0].content.manifest.session_id,
             manifest.session_id
         );
         assert!(
@@ -426,7 +426,7 @@ mod tests {
         )
         .unwrap();
         assert_eq!(
-            receipt.session_updates[0].projection.manifest.session_id,
+            receipt.session_updates[0].content.manifest.session_id,
             manifest.session_id
         );
         assert_eq!(
@@ -500,10 +500,10 @@ mod tests {
                 .to_string()
         };
         assert_eq!(directory_name(), next_id);
-        let info =
+        let snapshot =
             services::query_entity_edit_target(&manifest.session_id, EntityKind::Mission, next_id)
                 .unwrap();
-        assert_eq!(saved.base_versions, info.base_versions);
+        assert_eq!(saved.base_versions, snapshot.base_versions);
         assert_eq!(saved.identity_changes[0].after.id, next_id);
         assert_eq!(
             io::read_csv_data(&root.join("data/missions/mission_list.csv"))

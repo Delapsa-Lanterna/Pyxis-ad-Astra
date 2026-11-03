@@ -98,7 +98,7 @@ export function frontendDependencyFailure(current, target, edge) {
     return { message: 'cache budgets must be consumed by settings and session queries', expected: 'pure cache budget foundation' };
   const foundation =
     (current.layer === 'services' &&
-      ['project-session', 'project-projection', 'query-cache', 'resource-media', 'resource-reference'].includes(current.domain ?? '')) ||
+      ['project-session', 'project-readiness', 'query-cache', 'resource-media', 'resource-reference'].includes(current.domain ?? '')) ||
     (current.layer === 'stores' && current.domain === 'project');
   if (foundation && target.domain === 'project-sync')
     return {
@@ -125,8 +125,8 @@ export function frontendDependencyFailure(current, target, edge) {
 }
 
 const serviceEdges = new Set([
-  'query-cache -> project-projection',
-  'resource-media -> project-projection',
+  'query-cache -> project-readiness',
+  'resource-media -> project-readiness',
   'entity-query -> query-cache',
   'csv-table -> query-cache',
   'joint-edit -> query-cache',

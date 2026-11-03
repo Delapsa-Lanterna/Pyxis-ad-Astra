@@ -1,5 +1,5 @@
 import { normalizeFsPath } from '@/shared/lib/paths';
-import type { EntityEditInfo, FileVersion } from '@/shared/types';
+import type { EntityTargetSnapshot, FileVersion } from '@/shared/types';
 
 export function captureIdentityVersions(baseline: FileVersion[], destination: FileVersion): FileVersion[] {
   return baseline.some((version) => normalizeFsPath(version.path) === normalizeFsPath(destination.path))
@@ -7,7 +7,7 @@ export function captureIdentityVersions(baseline: FileVersion[], destination: Fi
     : [...baseline, destination];
 }
 
-export function handoffTableVersions(baseline: FileVersion[], info: EntityEditInfo): FileVersion[] {
-  const linked = info.baseVersions.filter((version) => normalizeFsPath(version.path) !== normalizeFsPath(info.target.write.path));
+export function handoffTableVersions(baseline: FileVersion[], snapshot: EntityTargetSnapshot): FileVersion[] {
+  const linked = snapshot.baseVersions.filter((version) => normalizeFsPath(version.path) !== normalizeFsPath(snapshot.target.write.path));
   return [...baseline.filter((version) => !linked.some((next) => normalizeFsPath(next.path) === normalizeFsPath(version.path))), ...linked];
 }

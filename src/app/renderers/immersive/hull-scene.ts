@@ -1,4 +1,4 @@
-import type { ImmersiveHullProjection, ImmersiveWingLayout } from '@/domain/immersive/hull-scene';
+import type { ImmersiveHullScene, ImmersiveWingLayout } from '@/domain/immersive/hull-scene';
 import { immersiveHullPoint } from '@/domain/immersive/hull-scene';
 import { IMMERSIVE_COLORS } from '@/domain/immersive/appearance';
 import type { ResourceRef } from '@/shared/types';
@@ -7,13 +7,13 @@ import { renderMountedWeapons } from '@/app/renderers/editors/weapon-images';
 
 type Image = (resource: ResourceRef) => HTMLImageElement | null;
 interface HullPasses {
-  beforeHull?: (context: CanvasRenderingContext2D, variant: ImmersiveHullProjection) => void;
-  afterHull?: (context: CanvasRenderingContext2D, variant: ImmersiveHullProjection) => void;
-  afterWeapons?: (context: CanvasRenderingContext2D, variant: ImmersiveHullProjection) => void;
+  beforeHull?: (context: CanvasRenderingContext2D, variant: ImmersiveHullScene) => void;
+  afterHull?: (context: CanvasRenderingContext2D, variant: ImmersiveHullScene) => void;
+  afterWeapons?: (context: CanvasRenderingContext2D, variant: ImmersiveHullScene) => void;
 }
 export function paintImmersiveHull(
   context: CanvasRenderingContext2D,
-  variant: ImmersiveHullProjection,
+  variant: ImmersiveHullScene,
   image: Image,
   passes: HullPasses = {},
   parents = new Set<string>(),
@@ -52,7 +52,7 @@ export function paintImmersiveHull(
 export function paintImmersiveHullThumbnail(
   context: CanvasRenderingContext2D,
   size: number,
-  variant: ImmersiveHullProjection,
+  variant: ImmersiveHullScene,
   image: Image,
   layout?: ImmersiveWingLayout,
 ) {

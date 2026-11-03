@@ -39,7 +39,7 @@ beforeEach(() => {
   setActivePinia(createPinia());
   initializeSettingsStore(createSettingsFixture());
   const update = sessionUpdateFixture('s1', 'M:/mod');
-  useProjectStore().registerProjectManifest(update.projection.manifest);
+  useProjectStore().registerProjectManifest(update.content.manifest);
 });
 afterEach(() => {
   wrapper?.unmount();
@@ -310,7 +310,7 @@ describe('window recovery completion', () => {
     feedback.error({ code: 'parse.json', message: 'Invalid', location: { path: 'M:/mod/demo.skin', line: 1, column: 2 } });
     useProjectStore().removeProjectManifest('M:/mod');
     const next = sessionUpdateFixture('s2', 'M:/mod');
-    useProjectStore().registerProjectManifest(next.projection.manifest);
+    useProjectStore().registerProjectManifest(next.content.manifest);
     wrapper = mount({ render: messages.error.mock.lastCall![0] });
     await wrapper.get('button').trigger('click');
     expect(mocks.open).toHaveBeenCalledWith(expect.objectContaining({ sessionId: 's1' }));

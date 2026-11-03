@@ -1,5 +1,5 @@
 import { beginPerformance, performanceMonitorEnabled } from '@/shared/runtime/performance';
-import { requireProjectionReady, currentReferenceRevision, waitForReferenceSources } from '@/services/project-projection.service';
+import { requireSessionReady, currentReferenceRevision, waitForReferenceSources } from '@/services/project-readiness.service';
 import { createRuntimeCache, type RuntimeCache } from '@/shared/runtime/cache';
 import { subscribeCacheLimits, windowCacheLimits } from '@/shared/runtime/cache-limits';
 import { stableStringify } from '@/shared/lib/stable-compare';
@@ -14,7 +14,7 @@ export interface SessionQueryDefinition<TParameters extends object, TResult> {
   load: (identity: SessionQueryIdentity<TParameters>) => Promise<TResult>;
   invalidates: (parameters: TParameters, invalidation: ProjectInvalidation) => boolean;
 }
-type InvalidateCache = (sessionId: string, invalidation: ProjectInvalidation | null, queries: SessionQueryIdentity[]) => void;
+type QueryInvalidationHandler = (sessionId: string, invalidation: ProjectInvalidation | null, queries: SessionQueryIdentity[]) => void;
 interface LiveQuery {
   identity: SessionQueryIdentity;
   request: ReadTicket<unknown>;
@@ -27,7 +27,7 @@ export interface QueryCacheInvalidationEvent {
   scope: 'paths' | 'session';
 }
 type QueryCacheInvalidationListener = (event: QueryCacheInvalidationEvent) => void;
-const caches = new Set<InvalidateCache>();
+const caches = new Set<QueryInvalidationHandler>();
 const liveQueries = new Set<LiveQuery>();
 const invalidationListeners = new Set<QueryCacheInvalidationListener>();
 
@@ -110,7 +110,7 @@ export class CachedSessionQuery<TParameters extends object, TResult> {
       const identity = deepClone({ sessionId, queryKind: definition.queryKind, parameters });
       if (observation && shouldQueueLog('debug')) Object.assign(observation, logIdentity(identity.parameters));
       if (signal?.aborted) throw invalidatedRead(identity, 'consumer');
-      requireProjectionReady(sessionId);
+      requireSessionReady(sessionId);
       const key = JSON.stringify([sessionId, definition.queryKind, stableStringify(identity.parameters), currentReferenceRevision()]);
       const cached = cache.get(key);
       if (cached) {
@@ -125,8 +125,8 @@ export class CachedSessionQuery<TParameters extends object, TResult> {
       const request = createReadTicket(identity, (signal) => observeQueryLoad(() => definition.load(identity), signal, identity));
       const completed = request.promise
         .then((result) => {
-          requireProjectionReady(sessionId, revision);
-          request.accept();
+          requireSessionReady(sessionId, revision);
+          request.requireCurrent();
           const value = result as DeepReadonly<TResult>;
           if (cache.getPending(key)?.request === request) cache.set(key, { identity, value });
           return value;
@@ -153,7 +153,7 @@ export function readLiveSessionQuery<TParameters extends object, TResult>(
     const identity = deepClone({ sessionId, queryKind: definition.queryKind, parameters });
     if (observation && shouldQueueLog('debug')) Object.assign(observation, logIdentity(identity.parameters));
     if (signal?.aborted) throw invalidatedRead(identity, 'consumer');
-    requireProjectionReady(sessionId);
+    requireSessionReady(sessionId);
     const request = createReadTicket(identity, (signal) => observeQueryLoad(() => definition.load(identity), signal, identity));
     const entry: LiveQuery = {
       identity,
@@ -163,8 +163,8 @@ export function readLiveSessionQuery<TParameters extends object, TResult>(
     liveQueries.add(entry);
     const completed = request.promise
       .then((value) => {
-        requireProjectionReady(sessionId, revision);
-        request.accept();
+        requireSessionReady(sessionId, revision);
+        request.requireCurrent();
         return value as DeepReadonly<TResult>;
       })
       .finally(() => liveQueries.delete(entry));

@@ -31,7 +31,7 @@ describe('all loaded CSV save participants', () => {
     const commands = useSaveCommandStore();
     const manifests = Array.from(
       { length: modCount },
-      (_, index) => sessionUpdateFixture('s-' + index, 'M:/mod-' + index).projection.manifest,
+      (_, index) => sessionUpdateFixture('s-' + index, 'M:/mod-' + index).content.manifest,
     );
     for (const manifest of manifests) {
       project.registerProjectManifest(manifest);
@@ -77,7 +77,7 @@ describe('all loaded CSV save participants', () => {
       },
     });
     const update = sessionUpdateFixture('s', 'M:/mod');
-    const manifest = update.projection.manifest;
+    const manifest = update.content.manifest;
     const project = useProjectStore();
     project.registerProjectManifest(manifest);
     await flushPromises();
@@ -94,7 +94,7 @@ describe('all loaded CSV save participants', () => {
   });
   it('keeps captured targets valid while manifest removal awaits participant cleanup', async () => {
     const update = sessionUpdateFixture('s', 'M:/mod');
-    const manifest = update.projection.manifest;
+    const manifest = update.content.manifest;
     manifest.tableSummaries.ships.path = 'data/hulls/ship_data.csv';
     const project = useProjectStore();
     const tables = useCsvEditorStore();
@@ -122,7 +122,7 @@ describe('all loaded CSV save participants', () => {
       },
     });
     const update = sessionUpdateFixture('s', 'M:/mod');
-    const manifest = update.projection.manifest;
+    const manifest = update.content.manifest;
     manifest.tableSummaries.ships.path = 'data/hulls/ship_data.csv';
     const project = useProjectStore();
     const tables = useCsvEditorStore();
@@ -162,7 +162,7 @@ describe('all loaded CSV save participants', () => {
       commands = useSaveCommandStore();
     const first = sessionUpdateFixture('s', 'M:/mod');
     const second = sessionUpdateFixture('other', 'M:/other');
-    const manifest = first.projection.manifest;
+    const manifest = first.content.manifest;
     manifest.tableSummaries.ships.path = 'data/hulls/ship_data.csv';
     project.registerProjectManifest(manifest);
     tables.initializeModTables({ sessionId: 's', modRoot: manifest.modRoot, manifest });
@@ -174,8 +174,8 @@ describe('all loaded CSV save participants', () => {
     });
     const target = { sessionId: 's', modRoot: manifest.modRoot, path: manifest.modRoot + '/data/hulls/ship_data.csv' };
     const initial = commands.participantsForTargets([target])[0]!;
-    project.registerProjectManifest(second.projection.manifest);
-    tables.initializeModTables({ sessionId: 'other', modRoot: 'M:/other', manifest: second.projection.manifest });
+    project.registerProjectManifest(second.content.manifest);
+    tables.initializeModTables({ sessionId: 'other', modRoot: 'M:/other', manifest: second.content.manifest });
     await flushPromises();
     expect(commands.editTargets).toHaveLength(28);
     expect(commands.participantsForTargets([target])).toEqual([initial]);
@@ -188,7 +188,7 @@ describe('all loaded CSV save participants', () => {
   });
   it('registers a background table, submits its input and saves its captured manifest', async () => {
     const update = sessionUpdateFixture('s', 'M:/mod');
-    const manifest = update.projection.manifest;
+    const manifest = update.content.manifest;
     manifest.tableSummaries.weapons.path = 'data/weapons/weapon_data.csv';
     useProjectStore().registerProjectManifest(manifest);
     useCsvEditorStore().initializeModTables({ sessionId: 's', modRoot: 'M:/mod', manifest });
@@ -219,7 +219,7 @@ describe('all loaded CSV save participants', () => {
     expect(commands.participantsForTargets(handle.editing!.targets.value)).toEqual([]);
   });
   it('releases a failed project request and retains newer input', async () => {
-    const manifest = sessionUpdateFixture('s', 'M:/mod').projection.manifest;
+    const manifest = sessionUpdateFixture('s', 'M:/mod').content.manifest;
     const tables = useCsvEditorStore(),
       commands = useSaveCommandStore();
     useProjectStore().registerProjectManifest(manifest);

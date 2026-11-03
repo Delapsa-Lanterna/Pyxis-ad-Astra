@@ -316,7 +316,7 @@ pub fn prepare_mod_save(input: &mut ModInfoSave, edits: &[SaveEdit]) -> AppResul
     if io::source_recreation_allowed(&input.mod_root, &path.to_string_lossy()) {
         return Ok(());
     }
-    let current = project::current_projection(&input.session_id)?.manifest;
+    let current = project::current_project_manifest(&input.session_id)?;
     input.data = current.mod_info.unwrap_or_default();
     input.base_versions = current.base_versions;
     save_edits::apply_save_edits(&mut input.data, edits);

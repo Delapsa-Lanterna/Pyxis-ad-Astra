@@ -13,8 +13,8 @@ use crate::services::project::model::{
     MISSION_LIST_REL_PATH, MISSION_LIST_TABLE_KEY, SessionCsvRow,
 };
 use crate::services::project::session::csv_tables;
-use crate::services::project::session::source_projection::{
-    capture_projection_versions, retain_projection_sources, sources_from_projection,
+use crate::services::project::session::source_versions::{
+    capture_changed_versions, retain_session_sources, source_reader_for_session,
 };
 use crate::services::project::sources::{SourceReader, core};
 use crate::services::project::{model, versions};
@@ -29,7 +29,7 @@ pub(crate) fn invalidate_session_changes(
 ) -> AppResult<ProjectInvalidation> {
     let boundary = FsRootBoundary::new(Path::new(&session.manifest.mod_root), "mod root")?;
     let files = changed_project_files(changes, &boundary)?;
-    let mut sources = sources_from_projection(session)?;
+    let mut sources = source_reader_for_session(session)?;
     sources.accept_changes(changes)?;
     let invalidation = invalidate_files(session, files, false, sources)?;
     session.loaded_edit_targets.retain(|target| {
@@ -71,7 +71,7 @@ fn invalidate_files(
         );
     }
     if !affected_kinds.is_empty() {
-        retain_projection_sources(
+        retain_session_sources(
             &mut sources,
             session,
             &files
@@ -158,7 +158,7 @@ fn invalidate_files(
         })
         .collect::<Vec<_>>();
     let tables = tables.into_iter().collect::<Vec<_>>();
-    capture_projection_versions(
+    capture_changed_versions(
         &mut sources,
         &files
             .iter()
@@ -792,7 +792,7 @@ pub(super) fn refresh_sources(
     } else {
         None
     };
-    let mut result = invalidate_files(session, files, true, sources_from_projection(session)?)?;
+    let mut result = invalidate_files(session, files, true, source_reader_for_session(session)?)?;
     if let Some(records) = core_projectiles {
         session.manifest.entity_summaries.projectiles = records.len();
         session.projectile_specs = records.into();

@@ -20,17 +20,17 @@ import { setVariantModule, variantModuleEntries } from '@/shared/lib/starsector/
 import { composeJson, editComposedJson } from '@/domain/schema/json-composition';
 import { AppError } from '@/shared/lib/errors';
 
-export interface ImmersivePanelState {
+export interface ImmersivePanel {
   kind: JointEditKind;
   allStats: ImmersiveStat[];
 }
-export interface ImmersiveEditorDefinition<TPanel extends ImmersivePanelState = ImmersivePanelState> {
+export interface ImmersiveEditorDefinition<TPanel extends ImmersivePanel = ImmersivePanel> {
   label: string;
   editableRecords: (snapshot: JointEditSnapshot) => string[];
-  project: (snapshot: JointEditSnapshot, values: Record<string, JointValue>, projection: JointEditSnapshot | null) => TPanel;
-  projectionInputs: (snapshot: JointEditSnapshot, values: Record<string, JointValue>) => JsonValue;
+  project: (snapshot: JointEditSnapshot, values: Record<string, JointValue>, preview: JointEditSnapshot | null) => TPanel;
+  previewInputs: (snapshot: JointEditSnapshot, values: Record<string, JointValue>) => JsonValue;
   displayResources: (panel: TPanel) => ResourceRef[];
-  retainProjectedContent: boolean;
+  retainPreviewContent: boolean;
   updateField?: typeof updateImmersiveField;
 }
 

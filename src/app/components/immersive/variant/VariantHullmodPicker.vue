@@ -130,7 +130,7 @@ import { useLayoutFrame } from '@/shared/runtime/use-layout-frame';
 import { computed, ref, watch, nextTick, onMounted, onScopeDispose, type ComputedRef } from 'vue';
 import { debugLog } from '@/shared/runtime/app-log-queue';
 import type { JointEditRoot, ReadonlyVariantEntry } from '@/shared/types';
-import type { VariantProjection } from '@/domain/immersive/variant/variant-panel';
+import type { VariantPanelEntry } from '@/domain/immersive/variant/variant-panel';
 import type { HullmodCategory } from '@/domain/immersive/variant/variant-actions';
 import {
   hullmodDesign,
@@ -158,7 +158,7 @@ import ImmersiveText from '../ImmersiveText.vue';
 import ImmersiveFilterGroup from '../ImmersiveFilterGroup.vue';
 import ImmersiveResourceIcon from '../ImmersiveResourceIcon.vue';
 import VariantHullmodDetails from './VariantHullmodDetails.vue';
-const props = defineProps<{ root: JointEditRoot; variant: VariantProjection }>();
+const props = defineProps<{ root: JointEditRoot; variant: VariantPanelEntry }>();
 const emit = defineEmits<{
   select: [id: string, category: HullmodCategory];
   'manual-commit': [id: string, category: HullmodCategory];

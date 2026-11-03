@@ -1,11 +1,11 @@
 import { flushPromises } from '@vue/test-utils';
 import { describe, expect, it, vi } from 'vitest';
-import { createReadTicket, createReadTicketOwner, waitForRead } from './read-request';
+import { createReadTicket, createReadOwner, waitForRead } from './read-request';
 
 describe('read request ownership', () => {
   it('rejects a resolved ticket replaced before acceptance runs', async () => {
     let finish!: (value: number) => void;
-    const owner = createReadTicketOwner();
+    const owner = createReadOwner();
     const ready = vi.fn();
     const first = owner.consume('list', { sessionId: 'a' }, () => new Promise<number>((resolve) => (finish = resolve)), { ready });
     finish(1);
@@ -16,7 +16,7 @@ describe('read request ownership', () => {
   });
 
   it('coalesces reload intents and releases scheduled work with its owner', async () => {
-    const owner = createReadTicketOwner();
+    const owner = createReadOwner();
     const first = vi.fn(),
       latest = vi.fn();
     owner.schedule('list', first);
@@ -31,7 +31,7 @@ describe('read request ownership', () => {
   });
 
   it('releases one channel without dropping another channel scheduled refresh', async () => {
-    const owner = createReadTicketOwner();
+    const owner = createReadOwner();
     const names = vi.fn();
     const options = vi.fn();
     owner.schedule('names', names);
@@ -46,7 +46,7 @@ describe('read request ownership', () => {
     const request = createReadTicket({ sessionId: 'a' }, async () => 7);
     await request.promise;
     request.invalidate('project');
-    expect(() => request.accept()).toThrow(expect.objectContaining({ code: 'query.invalidated' }));
+    expect(() => request.requireCurrent()).toThrow(expect.objectContaining({ code: 'query.invalidated' }));
   });
   it('ends invalidated waits before the transport completes', async () => {
     let finish!: (value: number) => void;

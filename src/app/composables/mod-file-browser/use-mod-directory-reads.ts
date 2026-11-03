@@ -53,7 +53,7 @@ export function createModDirectoryReads(handlers: {
     let accepted = false;
     void task.ticket.promise
       .then((result) => {
-        task.ticket!.accept();
+        task.ticket!.requireCurrent();
         handlers.ready(task.identity, result);
         accepted = true;
       })

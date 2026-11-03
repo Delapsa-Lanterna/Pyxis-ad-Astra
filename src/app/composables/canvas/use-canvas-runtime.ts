@@ -1,7 +1,7 @@
 import { computed, shallowReadonly, ref, shallowRef } from 'vue';
 import type { EditorTarget } from '@/domain/editors/editor-types';
 
-export function createCanvasState<TPreview>() {
+export function createCanvasRuntime<TPreview>() {
   const target = shallowRef<EditorTarget | null>(null);
   const hovered = shallowRef<EditorTarget | null>(null);
   const inspectorLock = shallowRef<EditorTarget | null>(null);
@@ -51,4 +51,4 @@ export function createCanvasState<TPreview>() {
     },
   };
 }
-export type CanvasState<T> = ReturnType<typeof createCanvasState<T>>;
+export type CanvasRuntime<T> = ReturnType<typeof createCanvasRuntime<T>>;

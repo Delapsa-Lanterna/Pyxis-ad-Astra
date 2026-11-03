@@ -8,7 +8,7 @@ import { hasEntityInvalidation } from '@/services/entity-query.service';
 import {
   refreshProjectSourcePaths,
   listenSavedContent,
-  saveProjection,
+  sessionContentUpdate,
   listenSavedIdentity,
 } from '@/orchestrators/project-sync.orchestrator';
 import type { SpecEditorDefinition, SpecEditorTarget } from './spec-editor.types';
@@ -170,7 +170,7 @@ export function useSpecEditorWindowViewModel(
     );
   });
   watch(draftSession.context, () => problems.clearFailure(), { flush: 'sync' });
-  const unregisterSave = useSaveCommandStore().registerSaveSession({
+  const unregisterSave = useSaveCommandStore().registerSaveParticipant({
     targetKey: draftSession.currentTargetKey,
     modRoot: computed(() => params.modRoot),
     saving: draftSession.saving,
@@ -450,11 +450,11 @@ export function useSpecEditorWindowViewModel(
 
   function handleCommittedWriteEvent(change: CommittedWriteEvent) {
     const target = editorWindowTarget();
-    const projection = saveProjection(change, target?.sessionId);
-    if (!projection) return undefined;
-    if (!target || projection.manifest.sessionId !== target.sessionId) return undefined;
+    const update = sessionContentUpdate(change, target?.sessionId);
+    if (!update) return undefined;
+    if (!target || update.manifest.sessionId !== target.sessionId) return undefined;
 
-    if (normalizeFsPath(projection.manifest.modRoot) !== normalizeFsPath(target.modRoot)) return undefined;
+    if (normalizeFsPath(update.manifest.modRoot) !== normalizeFsPath(target.modRoot)) return undefined;
     const receipt = change.reason === 'refresh' ? null : change.result;
     if (receipt && !draftSession.acceptsSaveDelivery(target, receipt.requestId)) return undefined;
     if (
@@ -484,7 +484,7 @@ export function useSpecEditorWindowViewModel(
       );
       return undefined;
     }
-    if (hasEntityInvalidation(projection.invalidation, 'entity-detail', target.kind, target.id))
+    if (hasEntityInvalidation(update.invalidation, 'entity-detail', target.kind, target.id))
       return queryEditorData({ promptForMissing: false, showLoading: false });
     return undefined;
   }

@@ -19,10 +19,10 @@ test('joint edit submission is owned by its orchestrator and registration by its
 test('immersive projections and window identity capabilities retain their declared owners', () => {
   const files = architectureFixtures({
     'src/app/composables/immersive-editor/use-immersive-editor-runtime.ts':
-      "import {queryJointEditProjection} from '@/services/joint-edit.service'; queryJointEditProjection(draft);",
+      "import {queryJointEditPreview} from '@/services/joint-edit.service'; queryJointEditPreview(draft);",
     'src/orchestrators/immersive-editor.orchestrator.ts':
       "import {focusNativeManagedWindow,retargetNativeWindow} from '@/services/window.service'; focusNativeManagedWindow(identity); retargetNativeWindow(identity,title);",
-    'src/services/joint-edit.service.ts': 'export const queryJointEditProjection=(draft)=>draft;',
+    'src/services/joint-edit.service.ts': 'export const queryJointEditPreview=(draft)=>draft;',
     'src/services/window.service.ts':
       'export const focusNativeManagedWindow=(identity)=>identity; export const retargetNativeWindow=(identity,title)=>({identity,title});',
   });

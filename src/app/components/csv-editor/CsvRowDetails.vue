@@ -174,14 +174,14 @@ interface SchemaPreviewItem {
   values: string[];
 }
 
-interface PreviewState {
+interface CsvRowPreview {
   alt: string;
   detail: string;
   src: string;
   title: string;
 }
 
-const previewState = computed<PreviewState>(() => {
+const previewState = computed<CsvRowPreview>(() => {
   const row = view.selectedRow;
   if (!row) return noPreview(view.currentTab);
   if (isCommentRow.value) return commentPreview();
@@ -215,7 +215,7 @@ watch(
   { immediate: true },
 );
 
-function noPreview(tab: CsvTableKey): PreviewState {
+function noPreview(tab: CsvTableKey): CsvRowPreview {
   return {
     alt: MODULE_LABELS[tab],
     detail: `${MODULE_LABELS[tab]}当前没有可用缩略图。`,
@@ -224,7 +224,7 @@ function noPreview(tab: CsvTableKey): PreviewState {
   };
 }
 
-function commentPreview(): PreviewState {
+function commentPreview(): CsvRowPreview {
   return {
     alt: '注释行',
     detail: '该行不参与引用、预览或专用编辑器。',

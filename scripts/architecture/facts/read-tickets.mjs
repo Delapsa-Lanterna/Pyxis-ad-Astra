@@ -1,7 +1,7 @@
 import ts from 'typescript';
 
 /**
- * @typedef {{ line: number, column: number, handles: Set<string>, accepts: Set<string>, invalidates: Set<string> }} ReadTicketLifecycle
+ * @typedef {{ line: number, column: number, handles: Set<string>, currentChecks: Set<string>, invalidates: Set<string> }} ReadTicketLifecycle
  */
 
 /**
@@ -23,7 +23,7 @@ export function readTicketLifecycles(file, creations, files = new Map([[file.rel
       {
         ...creation,
         handles: new Set(),
-        accepts: new Set(),
+        currentChecks: new Set(),
         invalidates: new Set(),
       },
     ]),
@@ -114,7 +114,7 @@ export function readTicketLifecycles(file, creations, files = new Map([[file.rel
   for (const method of methods)
     for (const ticket of byPosition.values())
       if ([...ticket.handles].some((handle) => aliasPrefix(handle, method.receiver) === handle))
-        (method.name === 'accept' ? ticket.accepts : ticket.invalidates).add(method.receiver);
+        (method.name === 'requireCurrent' ? ticket.currentChecks : ticket.invalidates).add(method.receiver);
   return [...byPosition.values()];
 }
 
@@ -135,7 +135,7 @@ function methodCall(node, pathOf) {
     : ts.isStringLiteralLike(node.expression.argumentExpression)
       ? node.expression.argumentExpression.text
       : null;
-  if (name !== 'accept' && name !== 'invalidate') return null;
+  if (name !== 'requireCurrent' && name !== 'invalidate') return null;
   return { name, receiver: pathOf(node.expression.expression) };
 }
 

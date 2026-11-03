@@ -1,7 +1,7 @@
 use super::super::model::ProjectSession;
 use crate::errors::{AppError, AppResult};
 use crate::models::ProjectSessionId;
-use crate::services::project::model::ReferenceView;
+use crate::services::project::model::ReferenceSnapshot;
 use std::collections::BTreeMap;
 use std::sync::{Arc, LazyLock, Mutex, MutexGuard};
 
@@ -10,7 +10,7 @@ pub(in crate::services::project) struct RegisteredSession {
     pub session_id: String,
     pub root: String,
     pub handle: Arc<Mutex<ProjectSession>>,
-    pub reference: Option<Arc<ReferenceView>>,
+    pub reference: Option<Arc<ReferenceSnapshot>>,
 }
 
 static PROJECT_SESSIONS: LazyLock<Mutex<BTreeMap<ProjectSessionId, RegisteredSession>>> =
@@ -52,14 +52,14 @@ pub(crate) fn lock_session(
         .map_err(|_| AppError::message("session.lock_poisoned", "project session lock poisoned"))
 }
 
-pub(super) fn lock_projected_session(
+pub(super) fn lock_content_ready_session(
     handle: &RegisteredSession,
 ) -> AppResult<MutexGuard<'_, ProjectSession>> {
     let session = lock_session(handle)?;
-    if session.projection_pending {
+    if session.content_pending {
         return Err(AppError::message(
-            "session.projection_pending",
-            "项目已写盘，等待会话投影同步",
+            "session.content_pending",
+            "项目已写盘，等待会话内容同步",
         ));
     }
     Ok(session)

@@ -53,7 +53,7 @@ function register(id = 's1', root = 'M:/A') {
   const workspace = useWorkspaceStore();
   workspace.registerMod({ modRoot: root, displayName: root, version: '', status: 'ready' });
   const update = sessionUpdateFixture(id, root);
-  useProjectStore().registerProjectManifest(update.projection.manifest);
+  useProjectStore().registerProjectManifest(update.content.manifest);
   workspace.activateModFiles(root);
 }
 async function open() {

@@ -20,9 +20,7 @@ pub async fn submit_project_save(
 ) -> AppResult<WriteResult<Value>> {
     let (root, session_id, reason) = match &request.action {
         SaveAction::RefreshProjectSources(input) => (
-            project::current_projection(&input.session_id)?
-                .manifest
-                .mod_root,
+            project::current_project_manifest(&input.session_id)?.mod_root,
             Some(input.session_id.clone()),
             "refresh",
         ),
@@ -43,7 +41,7 @@ pub async fn submit_project_save(
         }
     };
     let request_id = request.id.clone();
-    let work = project_sync::enqueue(&owner, request.id, &root, session_id.as_deref())?;
+    let task = project_sync::enqueue(&owner, request.id, &root, session_id.as_deref())?;
     async_runtime::spawn_blocking(move || {
         let phase = |code| {
             diagnostics::debug(code, || {
@@ -51,7 +49,7 @@ pub async fn submit_project_save(
             })
         };
         let result = project_sync::execute_queued(
-            work.clone(),
+            task.clone(),
             &root,
             session_id.as_deref(),
             reason,
@@ -227,13 +225,13 @@ pub(crate) fn execute_save_action(mut action: SaveAction) -> AppResult<WriteResu
             )?);
         }
         SaveAction::RefreshProjectSources(input) => {
-            let projection = project::refresh_project_sources(&input.session_id, input.sources)?;
+            let update = project::refresh_project_sources(&input.session_id, input.sources)?;
             let mut result = WriteResult::from_changes(Vec::new());
-            result.invalidation = projection.invalidation.clone();
+            result.invalidation = update.invalidation.clone();
             result.session_updates.push(CommittedSessionUpdate {
                 session_id: input.session_id,
-                mod_root: projection.manifest.mod_root.clone(),
-                projection: Arc::new(projection),
+                mod_root: update.manifest.mod_root.clone(),
+                content: Arc::new(update),
             });
             return json_result(result);
         }

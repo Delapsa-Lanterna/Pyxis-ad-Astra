@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
-  createModFileTreeProjection,
+  createModFileTreeCache,
   sortModFiles,
   modFileTree,
   visibleModFiles,
@@ -96,9 +96,9 @@ describe('file metadata and sorting', () => {
   });
 });
 
-describe('cached visible directory projection', () => {
+describe('cached visible directory cache', () => {
   it('sorts each changed directory once and formats each stable entry once', () => {
-    const { directories, projection, project } = setup();
+    const { directories, cache, project } = setup();
     const reads = [...directories.values()]
       .flatMap((state) => state.entries!)
       .map((item) => {
@@ -118,7 +118,7 @@ describe('cached visible directory projection', () => {
       project(['data', 'other']);
       expect(sorts).toHaveBeenCalledTimes(4);
       for (const read of reads) expect(read).toHaveBeenCalledTimes(1);
-      projection.clear();
+      cache.clear();
       project(['data', 'other']);
       expect(sorts).toHaveBeenCalledTimes(7);
       for (const read of reads.slice(0, 3)) expect(read).toHaveBeenCalledTimes(2);
@@ -132,9 +132,9 @@ describe('cached visible directory projection', () => {
       ['data', { entries: [entry('data/spec.wpn')], loading: false, error: '' }],
       ['other', { entries: [], loading: false, error: '' }],
     ]);
-    const projection = createModFileTreeProjection();
-    const project = (expanded: string[] = [], ascending = true) => projection.project(directories, expanded, { key: 'name', ascending });
-    return { directories, projection, project };
+    const cache = createModFileTreeCache();
+    const project = (expanded: string[] = [], ascending = true) => cache.project(directories, expanded, { key: 'name', ascending });
+    return { directories, cache, project };
   }
   it('keeps collapsed caches out of display and preserves unchanged array and sibling identities', () => {
     const { directories, project } = setup();
@@ -171,14 +171,14 @@ describe('cached visible directory projection', () => {
     expect(project(['data'])).toBe(empty);
   });
   it('releases removed subtree projections and clears window-scoped identities', () => {
-    const { directories, projection, project } = setup();
+    const { directories, cache, project } = setup();
     const before = project(['data']);
     directories.delete('data');
-    projection.forget(['data']);
+    cache.forget(['data']);
     expect(project(['data'])[0]!.children).toEqual([]);
     directories.set('data', { entries: [entry('data/recreated')], loading: false, error: '' });
     expect(project(['data'])[0]!.children![0]!.key).toBe('data/recreated');
-    projection.clear();
+    cache.clear();
     expect(project(['data'])[2]).not.toBe(before[2]);
   });
 });

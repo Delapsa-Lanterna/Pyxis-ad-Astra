@@ -20,7 +20,7 @@ function fixture(getConfiguredGameRoot: () => string | null = () => null) {
   const workspace = useWorkspaceStore(),
     project = useProjectStore(),
     tables = useCsvEditorStore();
-  const manifest = sessionUpdateFixture('s1', 'M:/one').projection.manifest;
+  const manifest = sessionUpdateFixture('s1', 'M:/one').content.manifest;
   workspace.registerMod({ modRoot: manifest.modRoot, displayName: 'Fixture', version: '', status: 'ready' });
   project.registerProjectManifest(manifest);
   tables.initializeModTables({ sessionId: manifest.sessionId, modRoot: manifest.modRoot, manifest });
@@ -89,7 +89,7 @@ describe('workspace CSV host', () => {
   });
   it('projects and edits an explicit second Mod independently of the visible workspace', () => {
     const own = fixture(),
-      manifest = sessionUpdateFixture('s-other', 'M:/other').projection.manifest,
+      manifest = sessionUpdateFixture('s-other', 'M:/other').content.manifest,
       target = { sessionId: manifest.sessionId, modRoot: manifest.modRoot, table: 'ships' as const };
     own.project.registerProjectManifest(manifest);
     own.tables.initializeModTables({ ...target, manifest });

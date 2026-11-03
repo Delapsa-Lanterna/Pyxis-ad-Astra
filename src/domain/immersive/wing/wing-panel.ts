@@ -8,7 +8,7 @@ import { parseInputNumber } from '@/shared/lib/input-number';
 import { designTypeColor } from '../design-type';
 import { highlightedTextParts } from '../highlighted-text';
 import type { TextRun } from '@/domain/fonts/font.types';
-import { immersiveSnapshotScene, type ImmersiveHullProjection } from '../hull-scene';
+import { immersiveSnapshotScene, type ImmersiveHullScene } from '../hull-scene';
 
 export interface WingPanel {
   kind: 'wing';
@@ -21,7 +21,7 @@ export interface WingPanel {
   armamentRuns: TextRun[];
   sources: ImmersiveStat[];
   sprite: ResourceRef | null;
-  preview: ImmersiveHullProjection | null;
+  preview: ImmersiveHullScene | null;
   count: number;
   formation: string;
   allStats: ImmersiveStat[];
@@ -38,9 +38,9 @@ export const WING_ROLE_LABELS: Record<string, string> = {
 export function projectWingPanel(
   snapshot: JointEditSnapshot,
   values: Record<string, JointValue>,
-  projection: JointEditSnapshot | null = snapshot,
+  preview: JointEditSnapshot | null = snapshot,
 ): WingPanel {
-  const graph = projection ?? snapshot,
+  const graph = preview ?? snapshot,
     hull = graph.hull;
   const indexed = hullDataIndex(graph.records, values);
   const data = (key: string | undefined) => (key ? indexed.get(key)! : {});

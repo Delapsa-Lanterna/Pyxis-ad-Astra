@@ -4,7 +4,7 @@ import {
   refreshProjectSourcePaths,
   listenSavedIdentity,
   observeSavedContent,
-  saveProjection,
+  sessionContentUpdate,
 } from '@/orchestrators/project-sync.orchestrator';
 import { computed, ref, shallowRef, onScopeDispose } from 'vue';
 import { useWindowContext } from '@/windows/window-context.window';
@@ -109,16 +109,15 @@ export function useWeaponFirePreviewWindowViewModel() {
             )
           )
             return undefined;
-          const projection = saveProjection(event, target.value.sessionId);
-          if (!projection) return undefined;
-          if (projection.manifest.sessionId !== target.value.sessionId) return undefined;
+          const update = sessionContentUpdate(event, target.value.sessionId);
+          if (!update) return undefined;
+          if (update.manifest.sessionId !== target.value.sessionId) return undefined;
 
           const projectileId = data.value?.weapon.projectileSpecId;
           if (
-            hasEntityInvalidation(projection.invalidation, 'entity-detail', 'weapon', target.value.id) ||
-            (typeof projectileId === 'string' &&
-              hasEntityInvalidation(projection.invalidation, 'entity-detail', 'projectile', projectileId)) ||
-            hasResourceInvalidation(projection.invalidation, resourceRefs.value)
+            hasEntityInvalidation(update.invalidation, 'entity-detail', 'weapon', target.value.id) ||
+            (typeof projectileId === 'string' && hasEntityInvalidation(update.invalidation, 'entity-detail', 'projectile', projectileId)) ||
+            hasResourceInvalidation(update.invalidation, resourceRefs.value)
           )
             return refresh(true);
           return undefined;

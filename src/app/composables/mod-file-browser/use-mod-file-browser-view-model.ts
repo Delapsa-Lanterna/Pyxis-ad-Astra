@@ -2,14 +2,9 @@ import { useContextMenuScope } from '@/app/composables/use-context-menu';
 import { computed, nextTick, onScopeDispose, reactive, ref, watch } from 'vue';
 import { useModFileBrowserStore } from '@/stores/mod-file-browser.store';
 import { queryModDirectory, queryModFileSearch, queryModTextFileTarget } from '@/services/mod-file-browser.service';
-import { createReadTicketOwner } from '@/shared/runtime/read-request';
-import {
-  createModFileTreeProjection,
-  modFileSearchTree,
-  visibleModFiles,
-  affectedModDirectories,
-} from '@/domain/mod-file-browser/file-tree';
-import { listenSavedContent, saveProjection } from '@/orchestrators/project-sync.orchestrator';
+import { createReadOwner } from '@/shared/runtime/read-request';
+import { createModFileTreeCache, modFileSearchTree, visibleModFiles, affectedModDirectories } from '@/domain/mod-file-browser/file-tree';
+import { listenSavedContent, sessionContentUpdate } from '@/orchestrators/project-sync.orchestrator';
 import { openFileEditorWindow } from '@/windows/file-editor.window';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
 import { formatError } from '@/shared/lib/errors';
@@ -22,8 +17,8 @@ export type ModFileBrowserTarget = Readonly<Pick<ProjectManifest, 'sessionId' | 
 export function useModFileBrowserViewModel(getTarget: () => ModFileBrowserTarget | null) {
   const store = useModFileBrowserStore(),
     feedback = useAppFeedback(),
-    reads = createReadTicketOwner(),
-    tree = createModFileTreeProjection();
+    reads = createReadOwner(),
+    tree = createModFileTreeCache();
   const target = computed(getTarget);
   const state = computed(() => (target.value ? store.sessions.get(target.value.sessionId)! : null));
   const searching = computed(() => Boolean(state.value?.search.text.trim()));
@@ -295,14 +290,12 @@ export function useModFileBrowserViewModel(getTarget: () => ModFileBrowserTarget
   void listenSavedContent(
     (change) => {
       const captured = target.value;
-      const projection = saveProjection(change, captured?.sessionId);
-      if (!projection) return;
-      if (!captured || disposed || projection.manifest.sessionId !== captured.sessionId) return;
+      const update = sessionContentUpdate(change, captured?.sessionId);
+      if (!update) return;
+      if (!captured || disposed || update.manifest.sessionId !== captured.sessionId) return;
 
-      if (normalizeFsPath(projection.manifest.modRoot) !== normalizeFsPath(captured.modRoot)) return;
-      const paths = projection.invalidation.paths.map((path) =>
-        isAbsoluteFsPath(path) ? relativePathFromRoot(captured.modRoot, path) : path,
-      );
+      if (normalizeFsPath(update.manifest.modRoot) !== normalizeFsPath(captured.modRoot)) return;
+      const paths = update.invalidation.paths.map((path) => (isAbsoluteFsPath(path) ? relativePathFromRoot(captured.modRoot, path) : path));
       return scheduleUpdates(paths);
     },
     (sessionId) => {

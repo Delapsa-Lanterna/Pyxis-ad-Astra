@@ -82,7 +82,7 @@ export function useResourceThumbnail(
       waiting = createReadTicket({ sessionId: request.sessionId, thumbnail: request.key }, () => next.promise);
       void waiting.promise
         .then((finished) => {
-          waiting?.accept();
+          waiting?.requireCurrent();
           accept(finished);
         })
         .catch((error) => {

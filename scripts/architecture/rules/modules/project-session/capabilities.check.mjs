@@ -26,7 +26,7 @@ const cases = [
   [
     'reference-readiness',
     'src/orchestrators/project-sync.orchestrator.ts',
-    'src/services/project-projection.service.ts',
+    'src/services/project-readiness.service.ts',
     'setReferenceReadiness',
   ],
   [
@@ -57,10 +57,10 @@ const cases = [
   [
     'projection-pending-owner',
     'src/orchestrators/project-sync.orchestrator.ts',
-    'src/services/project-projection.service.ts',
-    'markProjectionPending',
+    'src/services/project-readiness.service.ts',
+    'markSessionPending',
   ],
-  ['projection-read-owner', 'src/services/query-cache.service.ts', 'src/services/project-projection.service.ts', 'requireProjectionReady'],
+  ['session-read-owner', 'src/services/query-cache.service.ts', 'src/services/project-readiness.service.ts', 'requireSessionReady'],
   ['entity-target-query', 'src/services/spec-editor.service.ts', 'src/services/entity-query.service.ts', 'querySessionEntityEditTarget'],
   [
     'identity-target-query',

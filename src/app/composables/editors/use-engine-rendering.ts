@@ -1,4 +1,4 @@
-import { observeSavedContent, saveProjection } from '@/orchestrators/project-sync.orchestrator';
+import { observeSavedContent, sessionContentUpdate } from '@/orchestrators/project-sync.orchestrator';
 import { computed, onScopeDispose, shallowRef, shallowReactive, watch } from 'vue';
 import { formatError } from '@/shared/lib/errors';
 import { queryEngineRenderAssets, hasEngineAssetsInvalidation } from '@/services/engine-assets.service';
@@ -79,7 +79,7 @@ export function useEngineRendering(
     const request = (fallbackRead = createReadTicket({ lane: 'bundled-engines' }, loadEngineFallbacks));
     void request.promise
       .then(() => {
-        request.accept();
+        request.requireCurrent();
         notices.delete('读取引擎回退图片失败');
         notify();
       })
@@ -132,9 +132,9 @@ export function useEngineRendering(
   }
   const stop = observeSavedContent(
     (event) => {
-      const projection = saveProjection(event, session());
-      if (!projection) return;
-      if (projection.manifest.sessionId !== session() || !hasEngineAssetsInvalidation(projection.invalidation)) return;
+      const update = sessionContentUpdate(event, session());
+      if (!update) return;
+      if (update.manifest.sessionId !== session() || !hasEngineAssetsInvalidation(update.invalidation)) return;
       return refresh(true);
     },
     (sessionId) => {

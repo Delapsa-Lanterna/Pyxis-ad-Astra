@@ -102,11 +102,11 @@ describe('formal settings commits', () => {
     const overview = { starsectorRoot: 'G:/workspace', modsDir: 'G:/workspace/mods', coreAvailable: true, mods: [], warnings: [] };
     workspace.setGameOverview(overview);
     workspace.registerMod({ modRoot: 'M:/sample', displayName: 'Sample', version: '', status: 'ready' });
-    useProjectStore().registerProjectManifest(sessionUpdateFixture('before', 'M:/sample').projection.manifest);
+    useProjectStore().registerProjectManifest(sessionUpdateFixture('before', 'M:/sample').content.manifest);
     api.detect.mockResolvedValue({ kind: stage === 'validate' ? 'unknown' : 'game-root' });
     api.scan.mockResolvedValue(overview);
     api.open.mockImplementation(async () => ({
-      ...sessionUpdateFixture('after', 'M:/sample').projection.manifest,
+      ...sessionUpdateFixture('after', 'M:/sample').content.manifest,
       starsectorRoot: settings.savedStarsectorRoot ?? overview.starsectorRoot,
     }));
     if (stage === 'save') api.save.mockRejectedValueOnce(new Error('settings unavailable'));
@@ -159,7 +159,7 @@ describe('formal settings commits', () => {
   it('waits for existing actions and actual directory openings before changing the source', async () => {
     const { runtime, settings, switchSource } = await setup();
     const commands = useSaveCommandStore();
-    let finishAction!: () => void, finishOpen!: (value: ReturnType<typeof sessionUpdateFixture>['projection']['manifest']) => void;
+    let finishAction!: () => void, finishOpen!: (value: ReturnType<typeof sessionUpdateFixture>['content']['manifest']) => void;
     const action = commands.trackCloseAction(
       new Promise<void>((resolve) => {
         finishAction = resolve;
@@ -170,7 +170,7 @@ describe('formal settings commits', () => {
         finishOpen = resolve;
       }),
     );
-    api.open.mockImplementation(async () => sessionUpdateFixture('after', 'M:/waiting').projection.manifest);
+    api.open.mockImplementation(async () => sessionUpdateFixture('after', 'M:/waiting').content.manifest);
     api.detect.mockResolvedValue({ kind: 'game-root' });
     const { openWorkspaceMod } = await import('./workspace-opening.orchestrator');
     const opening = openWorkspaceMod('M:/waiting', null);
@@ -181,7 +181,7 @@ describe('formal settings commits', () => {
     const switching = runtime.saveStarsectorRoot('G:/selected', (root, commit) => switchSource(root, close, commit));
     onTestFinished(async () => {
       finishAction();
-      finishOpen(sessionUpdateFixture('before', 'M:/waiting').projection.manifest);
+      finishOpen(sessionUpdateFixture('before', 'M:/waiting').content.manifest);
       await Promise.all([action, opening, switching]);
     });
     await flushPromises();
@@ -190,7 +190,7 @@ describe('formal settings commits', () => {
     await action;
     await flushPromises();
     expect(api.detect).not.toHaveBeenCalled();
-    finishOpen(sessionUpdateFixture('before', 'M:/waiting').projection.manifest);
+    finishOpen(sessionUpdateFixture('before', 'M:/waiting').content.manifest);
     await opening;
     await switching;
     expect(close).toHaveBeenCalledOnce();

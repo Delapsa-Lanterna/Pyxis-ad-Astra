@@ -88,7 +88,7 @@ pub fn prepare_csv_associated_specs(
         .values()
         .map(|record| (windows_path_key(&record.location.path), record.id.clone()))
         .collect();
-    let mut sources = SourceReader::for_projection(Path::new(&root))?;
+    let mut sources = SourceReader::for_session(Path::new(&root))?;
     let mut paths = Vec::new();
     for directory in definition.source_dirs() {
         paths.extend(sources.files(directory)?);

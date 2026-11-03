@@ -391,10 +391,10 @@ fn reference_priority_content_and_lifecycle() {
         &session::lock_session(&handle).unwrap().weapon_specs
     ));
     let captured = session::session_handle(&a.session_id).unwrap();
-    session::mark_projection_pending(&a.session_id).unwrap();
+    session::mark_session_pending(&a.session_id).unwrap();
     assert_eq!(
         session::lock_ready_session(&captured).err().unwrap().code(),
-        "session.projection_pending"
+        "session.content_pending"
     );
     session::invalidate_project_session(&a.session_id, Vec::new()).unwrap();
     set_reference_sources(vec![c.session_id.clone(), b.session_id.clone()]).unwrap();

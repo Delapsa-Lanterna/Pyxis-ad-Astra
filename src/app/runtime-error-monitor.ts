@@ -4,7 +4,6 @@ import { errorContextOf, errorDiagnosticOf } from '@/shared/lib/errors';
 import { logFields } from '@/shared/lib/log-fields';
 import { recordQueuedLog, type RuntimeLogContext } from '@/shared/runtime/app-log-queue';
 
-type RuntimeContext = RuntimeLogContext;
 let installed = false;
 
 function stackOf(error: unknown) {
@@ -15,7 +14,7 @@ function componentName(instance: ComponentPublicInstance | null) {
   return instance?.$options.name ?? undefined;
 }
 
-function recordRuntimeError(level: 'warning' | 'error' | 'debug', code: string, error: unknown, fields: RuntimeContext = {}) {
+function recordRuntimeError(level: 'warning' | 'error' | 'debug', code: string, error: unknown, fields: RuntimeLogContext = {}) {
   const diagnostic = errorDiagnosticOf(error);
   recordQueuedLog({
     level,

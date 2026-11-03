@@ -1,5 +1,5 @@
 import { variantModuleEntries } from '@/shared/lib/starsector/variant-modules';
-import type { JsonValue, RowData, JointHullProjection, JointEditSnapshot, JointValue } from '@/shared/types';
+import type { JsonValue, RowData, JointHull, JointEditSnapshot, JointValue } from '@/shared/types';
 import { deepClone } from '@/shared/lib/starsector';
 import { isRowData } from '@/shared/lib/row-data';
 import { jointObject } from '@/domain/joint-edit';
@@ -30,7 +30,7 @@ export function variantBranchKeys(snapshot: JointEditSnapshot, values: Readonly<
   }
   return [...keys];
 }
-export function stripVariant(data: Readonly<RowData>, hull: JointHullProjection): RowData {
+export function stripVariant(data: Readonly<RowData>, hull: JointHull): RowData {
   const groups = variantWeaponGroups(data)
     .map((group) => ({
       ...group,

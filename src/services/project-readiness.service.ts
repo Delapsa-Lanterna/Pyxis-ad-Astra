@@ -19,14 +19,14 @@ export function acceptReferenceRevision(revision: number) {
   return true;
 }
 
-export function markProjectionPending(sessionId: string) {
+export function markSessionPending(sessionId: string) {
   pendingSessions.add(sessionId);
 }
-export function markProjectionReady(sessionId: string) {
+export function markSessionReady(sessionId: string) {
   pendingSessions.delete(sessionId);
 }
-export function requireProjectionReady(sessionId: string, revision = referenceRevision) {
+export function requireSessionReady(sessionId: string, revision = referenceRevision) {
   if (revision !== referenceRevision) throw invalidatedRead({ sessionId, revision }, 'project');
   if (pendingSessions.has(sessionId))
-    throw new AppError('Session projection pending', { action: 'query-session', code: 'session.projection_pending' });
+    throw new AppError('Session content pending', { action: 'query-session', code: 'session.content_pending' });
 }

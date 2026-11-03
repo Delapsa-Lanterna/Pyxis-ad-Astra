@@ -1,9 +1,9 @@
-import type { JointHullProjection, JointValue, RowData, JsonValue, JointEditRecord } from '@/shared/types';
+import type { JointHull, JointValue, RowData, JsonValue, JointEditRecord } from '@/shared/types';
 import type { ImmersiveField } from './fields';
 import { getSchema } from '@/domain/schema/config-schema-registry';
 import { getCsvColumnSchemas } from '@/domain/schema/csv-schema-registry';
 import { jointObject } from '@/domain/joint-edit';
-type Inputs = JointHullProjection['fields'][string];
+type Inputs = JointHull['fields'][string];
 export function hullFieldValue(inputs: Inputs | undefined, data: ReadonlyMap<string, Readonly<RowData>>): JsonValue | undefined {
   let value: JsonValue | undefined;
   for (const input of inputs ?? []) {

@@ -6,9 +6,9 @@ import { useProjectStore } from '@/stores/project.store';
 import { useFileHistoryStore } from '@/stores/file-history.store';
 import { useProjectSyncStore, type PendingWriteSync } from '@/stores/project-sync.store';
 import type { SaveAcceptanceTask, AppFeedback, ReferenceSource, SaveDelivery } from '@/shared/types';
-import { markProjectionReady, acceptReferenceRevision, setReferenceReadiness } from '@/services/project-projection.service';
+import { markSessionReady, acceptReferenceRevision, setReferenceReadiness } from '@/services/project-readiness.service';
 import { AppError, errorDiagnosticOf } from '@/shared/lib/errors';
-import type { InvalidatedResourceScope, CommittedWriteEvent, ProjectSessionInvalidationResult } from '@/shared/types';
+import type { InvalidatedResourceScope, CommittedWriteEvent, SessionContentUpdate } from '@/shared/types';
 import {
   registerSaveWindow,
   retryProjectSave,
@@ -24,16 +24,16 @@ import type { CloseScope } from '@/shared/types';
 import { pathBelongsToRoot, relativePathFromRoot, normalizeRelPath } from '@/shared/lib/paths';
 import { invalidateQueryCacheByProject } from '@/services/query-cache.service';
 import { invalidateResourceMediaByProject } from '@/services/resource-media.service';
-import type { SaveOperation, SaveCommandRequest } from '@/shared/runtime/command.runtime';
+import type { SaveTask, SaveCommandRequest } from '@/shared/runtime/command.runtime';
 
 type SaveHandler = (event: CommittedWriteEvent) => ReturnType<SaveAcceptanceTask>;
-interface ContentOwner {
+interface SavedContentHandler {
   handler: SaveHandler;
   release?: (sessionId: string) => void;
 }
 interface SaveConsumers {
   feedback?: AppFeedback;
-  content: Set<ContentOwner>;
+  content: Set<SavedContentHandler>;
   identity: Set<SaveHandler>;
   ready: Promise<void>;
   processing: Promise<void>;
@@ -68,16 +68,16 @@ export function pauseProjectDisplay() {
   };
 }
 
-export function saveProjection(event: CommittedWriteEvent, sessionId: string | null | undefined) {
+export function sessionContentUpdate(event: CommittedWriteEvent, sessionId: string | null | undefined) {
   const update = event.result.sessionUpdates.find((update) => update.sessionId === sessionId);
-  return update?.projection ?? null;
+  return update?.content ?? null;
 }
 
 function consumers() {
   const sync = useProjectSyncStore();
   let window = windows.get(sync);
   if (window) return window;
-  const content = new Set<ContentOwner>(),
+  const content = new Set<SavedContentHandler>(),
     identity = new Set<SaveHandler>();
   window = { content, identity, ready: Promise.resolve(), processing: Promise.resolve(), sources: new Map() };
   windows.set(sync, window);
@@ -124,14 +124,11 @@ function consumers() {
         identityChanges: [...earlier.identityChanges, ...event.result.identityChanges],
         sessionUpdates: event.result.sessionUpdates.map((update) => ({
           ...update,
-          projection: {
-            ...update.projection,
+          content: {
+            ...update.content,
             invalidation: {
-              ...update.projection.invalidation,
-              paths: [
-                ...earlier.changes.flatMap((change) => [change.beforePath, change.afterPath]),
-                ...update.projection.invalidation.paths,
-              ],
+              ...update.content.invalidation,
+              paths: [...earlier.changes.flatMap((change) => [change.beforePath, change.afterPath]), ...update.content.invalidation.paths],
               session: true,
             },
           },
@@ -153,8 +150,8 @@ function consumers() {
         const update = event.result.sessionUpdates[index]!;
         const current = useProjectStore().getManifest(update.modRoot);
         if (current && current.sessionId !== update.sessionId) return;
-        markProjectionReady(update.sessionId);
-        acceptProjection(update.projection);
+        markSessionReady(update.sessionId);
+        acceptContentUpdate(update.content);
       });
     const source = registration.sources.get(delivery.requestId);
     if (source) tasks.push(...source.receive());
@@ -162,7 +159,7 @@ function consumers() {
       tasks.push(async () => {
         if (identity.has(handler)) return handler(event);
       });
-    function ownedTask(owner: ContentOwner, task: SaveAcceptanceTask): SaveAcceptanceTask {
+    function ownedTask(owner: SavedContentHandler, task: SaveAcceptanceTask): SaveAcceptanceTask {
       return async () => {
         if (!content.has(owner)) return;
         const result = await task();
@@ -187,7 +184,7 @@ async function consume(entry: PendingWriteSync): Promise<void> {
   if (entry.running) return entry.running;
   const sync = useProjectSyncStore();
   entry.error = null;
-  // Only unfinished work remains in this list. A successful callback immediately relinquishes its position.
+  // Only unfinished task remains in this list. A successful callback immediately relinquishes its position.
   const window = consumers();
   const operation = window.processing.then(async () => {
     try {
@@ -260,12 +257,10 @@ export async function startProjectSync(feedback?: AppFeedback) {
   };
 }
 
-export type SavedWriteOperation<T> = SaveOperation<T>;
-
 export function beginSavedWrite<T>(
   write: (request: SaveCommandRequest) => Promise<T>,
   accept: (value: Exclude<T, void | null>) => SaveAcceptanceTask[],
-): SavedWriteOperation<T> {
+): SaveTask<T> {
   const id = crypto.randomUUID();
   const window = consumers();
   const sync = useProjectSyncStore();
@@ -310,30 +305,30 @@ export async function settleProjectSaves(scope: CloseScope, feedback?: AppFeedba
     await waitProjectSaves(roots);
   } catch (error) {
     if (!feedback) throw error;
-    const pending = useProjectSyncStore().blocked.filter((work) =>
-      roots.some((root) => normalizeRelPath(root).toLowerCase() === normalizeRelPath(work.modRoot).toLowerCase()),
+    const pending = useProjectSyncStore().blocked.filter((task) =>
+      roots.some((root) => normalizeRelPath(root).toLowerCase() === normalizeRelPath(task.modRoot).toLowerCase()),
     );
     const choice = await feedback.choose({
       title: '结束保存恢复并关闭？',
       content: () =>
         dialogBody(
           '以下 ' + pending.length + ' 个保存任务仍有步骤需要恢复。继续关闭将结束这些恢复任务，并保留磁盘当前内容。',
-          ...pending.map((work) =>
+          ...pending.map((task) =>
             dialogGroup(
-              work.modRoot,
-              work.diagnostic.message,
-              ...(work.diagnostic.location?.path ? ['涉及文件：', dialogFiles([work.diagnostic.location.path])] : []),
-              '请求：' + work.requestId,
+              task.modRoot,
+              task.diagnostic.message,
+              ...(task.diagnostic.location?.path ? ['涉及文件：', dialogFiles([task.diagnostic.location.path])] : []),
+              '请求：' + task.requestId,
             ),
           ),
         ),
       choices: [{ label: '结束恢复并关闭', value: 'abandon', type: 'warning' }],
       cancelText: '返回处理',
     });
-    for (const work of pending)
+    for (const task of pending)
       infoLog('save.recovery_decided', () => ({
-        requestId: work.requestId,
-        modRoot: work.modRoot,
+        requestId: task.requestId,
+        modRoot: task.modRoot,
         status: choice === 'abandon' ? 'abandoned' : 'retained',
       }));
     if (choice !== 'abandon') throw error;
@@ -342,7 +337,7 @@ export async function settleProjectSaves(scope: CloseScope, feedback?: AppFeedba
   }
 }
 
-export function observeSavedContent(handler: SaveHandler, release?: ContentOwner['release']) {
+export function observeSavedContent(handler: SaveHandler, release?: SavedContentHandler['release']) {
   const window = consumers();
   const owner = { handler, release };
   window.content.add(owner);
@@ -352,7 +347,7 @@ export function observeSavedContent(handler: SaveHandler, release?: ContentOwner
   };
 }
 
-export async function listenSavedContent(handler: SaveHandler, release?: ContentOwner['release']) {
+export async function listenSavedContent(handler: SaveHandler, release?: SavedContentHandler['release']) {
   const stop = observeSavedContent(handler, release);
   await consumers().ready;
   return stop;
@@ -390,7 +385,7 @@ export function releaseProjectContentConsumers(sessionId: string) {
 }
 
 export function retryPendingSessionSyncs(sessionId: string) {
-  return retryRequests(useProjectSyncStore().blocked.filter((work) => work.sessionId === sessionId || work.sessionIds.includes(sessionId)));
+  return retryRequests(useProjectSyncStore().blocked.filter((task) => task.sessionId === sessionId || task.sessionIds.includes(sessionId)));
 }
 
 export function retryPendingWrites() {
@@ -399,22 +394,22 @@ export function retryPendingWrites() {
 
 async function retryRequests(requests: ReadonlyArray<{ requestId: string; modRoot: string }>): Promise<void> {
   const sync = useProjectSyncStore();
-  for (const work of requests) {
-    const content = sync.pending.find((entry) => entry.id === work.requestId);
-    infoLog('save.retry_started', () => ({ requestId: work.requestId, modRoot: work.modRoot, phase: content ? 'content' : 'native' }));
+  for (const task of requests) {
+    const content = sync.pending.find((entry) => entry.id === task.requestId);
+    infoLog('save.retry_started', () => ({ requestId: task.requestId, modRoot: task.modRoot, phase: content ? 'content' : 'native' }));
     if (content) await consume(content);
     else {
-      await retryProjectSave(work.requestId);
-      await waitProjectSaves([work.modRoot]);
+      await retryProjectSave(task.requestId);
+      await waitProjectSaves([task.modRoot]);
     }
-    infoLog('save.retry_completed', () => ({ requestId: work.requestId, modRoot: work.modRoot, phase: content ? 'content' : 'native' }));
+    infoLog('save.retry_completed', () => ({ requestId: task.requestId, modRoot: task.modRoot, phase: content ? 'content' : 'native' }));
   }
 }
 
-function acceptProjection(projection: ProjectSessionInvalidationResult) {
-  useProjectStore().replaceProjectManifest(projection.manifest);
-  invalidateResourceMediaByProject(projection.manifest.sessionId, projection.invalidation);
-  invalidateQueryCacheByProject(projection.manifest.sessionId, projection.invalidation);
+function acceptContentUpdate(update: SessionContentUpdate) {
+  useProjectStore().replaceProjectManifest(update.manifest);
+  invalidateResourceMediaByProject(update.manifest.sessionId, update.invalidation);
+  invalidateQueryCacheByProject(update.manifest.sessionId, update.invalidation);
 }
 
 export async function refreshProjectSourcePaths(

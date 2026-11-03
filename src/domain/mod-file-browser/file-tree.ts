@@ -82,7 +82,7 @@ function modFileNode(entry: ModFileEntry): ModFileNode {
   };
 }
 
-export function createModFileTreeProjection() {
+export function createModFileTreeCache() {
   const cache = new Map<
     string | null,
     {

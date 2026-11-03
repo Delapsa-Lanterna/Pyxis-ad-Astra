@@ -13,7 +13,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import type { JointEditRoot, JointEditSnapshot, JointValue } from '@/shared/types';
-import type { VariantProjection } from '@/domain/immersive/variant/variant-panel';
+import type { VariantPanelEntry } from '@/domain/immersive/variant/variant-panel';
 import { projectShipPanel } from '@/domain/immersive/ship/ship-panel';
 import ShipImmersivePanel from '../ship/ShipImmersivePanel.vue';
 import type { ImmersiveRenderContext } from '../immersive-render-context';
@@ -25,7 +25,7 @@ const props = defineProps<{
   root: JointEditRoot;
   kind: 'weapons' | 'wings' | 'variants';
   id: string;
-  currentVariant?: VariantProjection;
+  currentVariant?: VariantPanelEntry;
   currentSnapshot?: JointEditSnapshot;
   currentValues?: Record<string, JointValue>;
   currentRender?: ImmersiveRenderContext;

@@ -207,7 +207,7 @@ export function createWorkspaceProject(root: string, index: number) {
     const result = model.receipt(value, target);
     result.baseVersions = paths.map(version);
     result.invalidation = { ...result.invalidation, session: true, paths, tables: [...TABLE_KEYS] };
-    result.sessionUpdates[0]!.projection.invalidation = result.invalidation;
+    result.sessionUpdates[0]!.content.invalidation = result.invalidation;
     history.revision++;
     result.history = structuredClone(history);
     result.changes = changed.map((path) => ({

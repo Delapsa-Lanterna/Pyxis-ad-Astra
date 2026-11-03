@@ -30,14 +30,14 @@
 </template>
 <script setup lang="ts">
 import { computed, ref, shallowRef, watch, onMounted, onScopeDispose } from 'vue';
-import type { ImmersiveHullProjection } from '@/domain/immersive/hull-scene';
+import type { ImmersiveHullScene } from '@/domain/immersive/hull-scene';
 import { schemaStringValue } from '@/domain/schema/schema-values';
 import { isRowData } from '@/shared/lib/row-data';
 import { useCanvasViewport } from '@/app/composables/canvas/use-canvas-viewport';
 import { clearCanvas, drawPixelImage } from '@/app/renderers/editors/canvas-drawing';
 import { useCanvasNavigation } from '@/app/composables/canvas/use-canvas-navigation';
 import { useCanvasSelection } from '@/app/composables/canvas/use-canvas-selection';
-import { createCanvasState } from '@/app/composables/canvas/use-canvas-state';
+import { createCanvasRuntime } from '@/app/composables/canvas/use-canvas-runtime';
 import { watchCanvasPixelRatio } from '@/app/composables/canvas/use-canvas-surface';
 import { useLayoutFrame } from '@/shared/runtime/use-layout-frame';
 import { drawWeaponSlotVisual, weaponSlotStyle } from '@/app/renderers/editors/weapon-slot-renderer';
@@ -55,7 +55,7 @@ import { drawEngineVisual, type EngineImages } from '@/app/renderers/editors/eng
 import type { ResourceRef, DeepReadonly, RowData } from '@/shared/types';
 
 const props = defineProps<{
-  variant: ImmersiveHullProjection;
+  variant: ImmersiveHullScene;
   sessionId: string;
   iconSize?: number;
   wingLayout?: ImmersiveWingLayout;
@@ -71,7 +71,7 @@ const canvas = shallowRef<HTMLCanvasElement | null>(null),
   stage = ref<HTMLElement | null>(null);
 const viewport = useCanvasViewport(canvas, 1, 4),
   feedback = useAppFeedback();
-const state = createCanvasState<null>();
+const state = createCanvasRuntime<null>();
 const hoverWeapon = computed(() => (state.hovered.value ? props.variant.weapons[state.hovered.value.i] : null));
 const hoverLabel = computed(() => {
   const weapon = hoverWeapon.value;
@@ -111,7 +111,7 @@ const media = props.resourceUrl
           );
       },
     });
-function sceneVariants(root: ImmersiveHullProjection, visited = new Set<string>()): ImmersiveHullProjection[] {
+function sceneVariants(root: ImmersiveHullScene, visited = new Set<string>()): ImmersiveHullScene[] {
   if (visited.has(root.key)) return [];
   visited.add(root.key);
   return [root, ...root.modules.flatMap((module) => sceneVariants(module.variant, visited))];
@@ -247,7 +247,7 @@ function paintScene(engineImages: EngineImages) {
     releaseThumbnail = imageCache.storeThumbnail(key, props.sessionId, resources(), finished);
   }
 }
-function drawVariant(ctx: CanvasRenderingContext2D, variant: ImmersiveHullProjection, parents: Set<string>, engineImages: EngineImages) {
+function drawVariant(ctx: CanvasRenderingContext2D, variant: ImmersiveHullScene, parents: Set<string>, engineImages: EngineImages) {
   paintImmersiveHull(
     ctx,
     variant,
@@ -282,7 +282,7 @@ function drawSlots(ctx: CanvasRenderingContext2D) {
     });
   }
 }
-function drawEngines(ctx: CanvasRenderingContext2D, variant: ImmersiveHullProjection, engineImages: EngineImages) {
+function drawEngines(ctx: CanvasRenderingContext2D, variant: ImmersiveHullScene, engineImages: EngineImages) {
   const slots = Array.isArray(variant.spec.engineSlots) ? variant.spec.engineSlots.filter(isRowData) : [];
   for (const engine of slots) {
     drawEngineVisual(

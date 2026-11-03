@@ -233,7 +233,7 @@ export async function dispatch(command: string, args: Record<string, unknown>, m
       result.baseVersions = [{ path, fingerprint: command === 'save_misc_config' ? String(model.saveCount) : null }];
       result.invalidation.paths = [path];
       result.invalidation.resources = [{ source: 'mod', relPath: definition.path }];
-      result.sessionUpdates[0]!.projection.invalidation = result.invalidation;
+      result.sessionUpdates[0]!.content.invalidation = result.invalidation;
       const index = model.miscFiles.findIndex((file) => file.kind === payload.kind);
       if (index !== -1) model.miscFiles.splice(index, 1);
       if (command === 'save_misc_config')
@@ -378,12 +378,12 @@ export async function dispatch(command: string, args: Record<string, unknown>, m
     case 'query_file_history':
       return { revision: 1, undoStack: [], redoStack: [] };
     case 'refresh_project_sources': {
-      const projection = sessionUpdateFixture(model.sessionId, model.manifest.modRoot).projection;
+      const update = sessionUpdateFixture(model.sessionId, model.manifest.modRoot).content;
       const result = {
-        ...projection,
+        ...update,
         manifest: model.manifest,
         invalidation: {
-          ...projection.invalidation,
+          ...update.invalidation,
           resources: (args.payload as SourceRefresh).sources,
         },
       };
@@ -397,7 +397,7 @@ export async function dispatch(command: string, args: Record<string, unknown>, m
 
         history: { revision: 0, undoStack: [], redoStack: [] },
         invalidation: result.invalidation,
-        sessionUpdates: [{ sessionId: model.sessionId, modRoot: model.manifest.modRoot, projection: result }],
+        sessionUpdates: [{ sessionId: model.sessionId, modRoot: model.manifest.modRoot, content: result }],
       };
     }
     case 'update_edit_target_registration':

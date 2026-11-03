@@ -24,7 +24,7 @@ import {
 import { querySessionEntity, querySessionEntityList, hasEntityInvalidation } from '@/services/entity-query.service';
 import { queryHullReferenceOptions, querySessionHullReferences } from '@/services/hull-reference.service';
 
-import { refreshProjectSourcePaths, observeSavedContent, saveProjection } from '@/orchestrators/project-sync.orchestrator';
+import { refreshProjectSourcePaths, observeSavedContent, sessionContentUpdate } from '@/orchestrators/project-sync.orchestrator';
 import { focusExistingEntityWindow } from '@/orchestrators/window-target-focus.orchestrator';
 import { warningNotice } from '@/shared/lib/errors';
 import { startPerformance } from '@/shared/runtime/performance';
@@ -397,14 +397,14 @@ export function useJsonEditorViewModel(definition: JsonDocumentDefinition, conte
   onScopeDispose(
     observeSavedContent((event) => {
       if (selection.isOwnSave(event.result.requestId)) return undefined;
-      const projection = saveProjection(event, sessionId.value);
-      if (!projection) return undefined;
+      const update = sessionContentUpdate(event, sessionId.value);
+      if (!update) return undefined;
       if (
-        projection.manifest.sessionId === sessionId.value &&
+        update.manifest.sessionId === sessionId.value &&
         (kind === 'mod-info' ||
           (kind === 'misc-config'
-            ? hasMiscConfigInvalidation(projection.invalidation, modRoot.value!)
-            : hasEntityInvalidation(projection.invalidation, 'entity-list', kind)))
+            ? hasMiscConfigInvalidation(update.invalidation, modRoot.value!)
+            : hasEntityInvalidation(update.invalidation, 'entity-list', kind)))
       )
         return load(true);
       return undefined;

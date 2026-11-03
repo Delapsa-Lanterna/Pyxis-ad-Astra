@@ -26,7 +26,7 @@ import {
 import { shipCanvasPoint, shipPointFromCanvas, shipRelativeToAbsolute, distance } from '@/domain/editors/lib/geometry';
 
 import { useEditorDocument } from '../../editors/use-editor-document';
-import { createCanvasState } from '@/app/composables/canvas/use-canvas-state';
+import { createCanvasRuntime } from '@/app/composables/canvas/use-canvas-runtime';
 import { useCanvasEditor, type CanvasPick } from '@/app/composables/canvas/use-canvas-editor';
 import { useCanvasViewport } from '@/app/composables/canvas/use-canvas-viewport';
 import { useCanvasPalette } from '@/app/composables/canvas/use-canvas-palette';
@@ -69,7 +69,7 @@ export function useSpecShipEditorViewModel(
 ) {
   const { editorWindowRef, stageRef, canvasRef } = elements;
   const settings = useSettingsStore();
-  const state = createCanvasState<ShipHoverPreview>();
+  const state = createCanvasRuntime<ShipHoverPreview>();
   const mode = ref<ShipEditorMode>('overview'),
     expandedSections = ref<(string | number)[]>(['basic']),
     spriteSize = ref({ width: 0, height: 0 });

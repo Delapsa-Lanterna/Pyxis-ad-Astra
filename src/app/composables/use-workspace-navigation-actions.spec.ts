@@ -72,7 +72,7 @@ describe('useWorkspaceNavigationActions', () => {
 
   it.each([true, false])('uses the current project Core availability %s', (coreAvailable) => {
     const workspace = useWorkspaceStore();
-    const manifest = sessionUpdateFixture('sample', 'M:/mod').projection.manifest;
+    const manifest = sessionUpdateFixture('sample', 'M:/mod').content.manifest;
     Object.assign(manifest, { starsectorRoot: 'D:/game', coreAvailable });
     useProjectStore().registerProjectManifest(manifest);
     workspace.registerMod({ modRoot: manifest.modRoot, displayName: 'Sample', version: '', status: 'ready' });
@@ -97,7 +97,7 @@ describe('useWorkspaceNavigationActions', () => {
     const pending = new Promise<boolean>((resolve) => {
       finish = resolve;
     });
-    useSaveCommandStore().registerSaveSession({ targetKey: ref('sample'), modRoot: ref('M:/mod'), saving, waitForSave: () => pending });
+    useSaveCommandStore().registerSaveParticipant({ targetKey: ref('sample'), modRoot: ref('M:/mod'), saving, waitForSave: () => pending });
     useCoreAssetsStore().reset('D:/game');
     useWorkspaceNavigationActions().openCore();
     expect(mocks.openMod).not.toHaveBeenCalled();
@@ -131,7 +131,7 @@ describe('useWorkspaceNavigationActions', () => {
     const promise = new Promise<boolean>((resolve) => {
       release = resolve;
     });
-    useSaveCommandStore().registerSaveSession({ targetKey: ref('one'), modRoot: ref('M:/A'), saving, waitForSave: () => promise });
+    useSaveCommandStore().registerSaveParticipant({ targetKey: ref('one'), modRoot: ref('M:/A'), saving, waitForSave: () => promise });
     const actions = useWorkspaceNavigationActions();
     actions.navigateToModTable('M:/B', 'ships');
     actions.navigateToModTable('M:/C', 'weapons');

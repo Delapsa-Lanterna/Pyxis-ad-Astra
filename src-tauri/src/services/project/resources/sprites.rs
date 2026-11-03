@@ -453,7 +453,7 @@ mod tests {
         assert!(cached.mod_root.boundary.is_none());
         assert!(cached.core_root.is_none());
         let handle = session_handle(&manifest.session_id).unwrap();
-        session::lock_session(&handle).unwrap().projection_pending = true;
+        session::lock_session(&handle).unwrap().content_pending = true;
         assert!(SpriteReadBatch::new(&manifest.session_id).is_err());
         release_project_session(manifest.session_id.clone()).unwrap();
         assert!(SpriteReadBatch::new(&manifest.session_id).is_err());

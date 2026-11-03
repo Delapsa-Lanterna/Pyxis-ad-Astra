@@ -5,7 +5,7 @@ import { mount, flushPromises } from '@vue/test-utils';
 import { defineComponent, h, nextTick, ref, shallowRef, type Ref } from 'vue';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { useCanvasEditor } from './use-canvas-editor';
-import { createCanvasState } from './use-canvas-state';
+import { createCanvasRuntime } from './use-canvas-runtime';
 import { useEditorDocument } from '@/app/composables/editors/use-editor-document';
 import { useCanvasViewport } from './use-canvas-viewport';
 import { beginEditorCollapseLeave, finishEditorCollapseLeave } from '@/app/components/editors/common/editor-collapse';
@@ -24,7 +24,7 @@ function mountCanvas(withInspector = false) {
   const source = ref<RowData>({ x: 0 }),
     context = ref<EditContext | null>({ targetKey: 'one', baselineGeneration: 1, handoff: 'load' });
   const inputs = createFieldInputs(ref('one')),
-    state = createCanvasState<null>();
+    state = createCanvasRuntime<null>();
   const viewport = useCanvasViewport(shallowRef(null), 1, 10);
   const windowRef = shallowRef<HTMLElement | null>(null),
     expandedSections = ref<string[]>([]);

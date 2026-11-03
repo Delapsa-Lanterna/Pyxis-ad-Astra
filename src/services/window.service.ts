@@ -1,7 +1,7 @@
 import { commandChannel, invokeCommand } from '@/shared/runtime/command.runtime';
 import type { WindowSaveMessage, WindowSaveReply, WindowSaveRequest } from '@/shared/types';
 import { withCause } from '@/shared/lib/errors';
-import type { ManagedWindowStatus, NativeWindowRequest, WindowIdentity, WindowRequestResult } from '@/shared/types';
+import type { ManagedWindowStatus, NativeWindowRequest, WindowIdentity, WindowRequestReceipt } from '@/shared/types';
 import type { WindowBootstrap, ManagedWindowContext, ErrorDiagnostic } from '@/shared/types';
 import type { EditWriteTarget, ManagedWindowInput } from '@/shared/types';
 
@@ -34,8 +34,8 @@ export function focusEditTargetOwner(label: string): Promise<boolean> {
   return invokeCommand('focus_edit_target_owner', { label });
 }
 
-export function requestNativeWindow(request: NativeWindowRequest): Promise<WindowRequestResult> {
-  return invokeCommand<WindowRequestResult>('request_window', { payload: request }).catch((error) => {
+export function requestNativeWindow(request: NativeWindowRequest): Promise<WindowRequestReceipt> {
+  return invokeCommand<WindowRequestReceipt>('request_window', { payload: request }).catch((error) => {
     throw withCause(`打开窗口「${request.title}」失败`, error, 'open-managed-window');
   });
 }

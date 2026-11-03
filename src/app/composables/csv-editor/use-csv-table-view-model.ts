@@ -3,7 +3,7 @@ import { hasSourceInvalidation, querySourceOptionCatalog } from '@/services/sour
 import { hasTableInvalidation, queryTableRowPreviewDataUrl, queryTableIndex, queryTableRows } from '@/services/csv-table.service';
 import { relativePathFromRoot } from '@/shared/lib/paths';
 import { useContextMenuScope } from '@/app/composables/use-context-menu';
-import { refreshProjectSourcePaths, observeSavedContent, saveProjection } from '@/orchestrators/project-sync.orchestrator';
+import { refreshProjectSourcePaths, observeSavedContent, sessionContentUpdate } from '@/orchestrators/project-sync.orchestrator';
 import { parseCsvSource, CONFIG_OPTION_SOURCES, isConfigSource } from '@/domain/source-catalog/source-definitions';
 import { useQueryReadOwner } from '@/app/composables/use-query-read-owner';
 import { computed, onUnmounted, ref, watch } from 'vue';
@@ -201,10 +201,10 @@ export function useCsvTableViewModel(model: CsvEditorModel, host: CsvEditorHost)
 
   const stopQueryInvalidation = observeSavedContent(
     (event) => {
-      const projection = saveProjection(event, target.value?.sessionId);
-      if (!projection) return;
+      const update = sessionContentUpdate(event, target.value?.sessionId);
+      if (!update) return;
       const tasks: SaveAcceptanceTask[] = [];
-      if (hasTableInvalidation(projection.invalidation, 'csv-table-window', view.currentTab)) {
+      if (hasTableInvalidation(update.invalidation, 'csv-table-window', view.currentTab)) {
         tasks.push(async () => {
           const captured = target.value!;
           reads.revoke();
@@ -224,8 +224,8 @@ export function useCsvTableViewModel(model: CsvEditorModel, host: CsvEditorHost)
         });
       }
       if (
-        [...visibleSourceIds()].some((source) => hasSourceInvalidation(projection.invalidation, source)) ||
-        hasResourceInvalidation(projection.invalidation, loadedSourceResourceRefs())
+        [...visibleSourceIds()].some((source) => hasSourceInvalidation(update.invalidation, source)) ||
+        hasResourceInvalidation(update.invalidation, loadedSourceResourceRefs())
       )
         tasks.push(() => reloadVisibleSourceOptions(true));
       return tasks;

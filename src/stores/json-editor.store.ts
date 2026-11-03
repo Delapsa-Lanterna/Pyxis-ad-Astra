@@ -4,7 +4,6 @@ import type { DocumentEditorActions } from '@/shared/runtime/document-editor';
 import { defineStore } from 'pinia';
 import { reactive, ref, shallowReactive, shallowRef, type Ref } from 'vue';
 
-export type JsonEditorHandle = DocumentEditorActions<ConfigDocumentTarget>;
 export type JsonSearchField = 'id-name' | 'id' | 'name';
 export interface JsonDocumentState {
   target: Readonly<Ref<ConfigDocumentTarget | null>>;
@@ -26,7 +25,7 @@ export const useJsonEditorStore = defineStore('json-editor', () => {
     if (!selections.has(key)) selections.set(key, ref(null));
     return selections.get(key)!;
   }
-  const active = shallowRef<JsonEditorHandle | null>(null);
+  const active = shallowRef<DocumentEditorActions<ConfigDocumentTarget> | null>(null);
   const documents = shallowReactive(
     new Map<string, { sessionId: string; modRoot: string; value: { session: JsonDocumentState }; dispose: () => void }>(),
   );
@@ -67,10 +66,10 @@ export const useJsonEditorStore = defineStore('json-editor', () => {
     if (active.value?.target.value?.sessionId === sessionId) active.value = null;
     for (const [key, document] of documents) if (document.sessionId === sessionId) releaseDocument(key);
   }
-  function activate(editor: JsonEditorHandle) {
+  function activate(editor: DocumentEditorActions<ConfigDocumentTarget>) {
     active.value = editor;
   }
-  function deactivate(editor: JsonEditorHandle) {
+  function deactivate(editor: DocumentEditorActions<ConfigDocumentTarget>) {
     if (active.value === editor) active.value = null;
   }
   return {

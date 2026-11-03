@@ -10,7 +10,7 @@ pub(crate) fn lock_ready_session(
     handle: &RegisteredSession,
 ) -> AppResult<MutexGuard<'_, ProjectSession>> {
     let (revision, views) = references::prepare(&handle.session_id)?;
-    let mut session = registry::lock_projected_session(handle)?;
+    let mut session = registry::lock_content_ready_session(handle)?;
     session.reference_revision = revision;
     session.references = views;
     Ok(session)

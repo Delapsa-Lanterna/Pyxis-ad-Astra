@@ -21,7 +21,7 @@ static ROOT_WRITE_COORDINATORS: LazyLock<Mutex<BTreeMap<String, Weak<RootWriteCo
     LazyLock::new(|| Mutex::new(BTreeMap::new()));
 
 struct RootWriteCoordinator {
-    tickets: Mutex<(u64, u64)>,
+    turns: Mutex<(u64, u64)>,
     released: Condvar,
 }
 
@@ -98,8 +98,8 @@ pub fn retry_write<T>(root: &str, mut action: impl FnMut() -> AppResult<T>) -> A
 
 impl Drop for RootWriteLease {
     fn drop(&mut self) {
-        if let Ok(mut tickets) = self.coordinator.tickets.lock() {
-            tickets.1 += 1;
+        if let Ok(mut turns) = self.coordinator.turns.lock() {
+            turns.1 += 1;
             self.coordinator.released.notify_all();
         }
     }
@@ -172,25 +172,25 @@ fn acquire_root_write_lock_with_retry(
             coordinator
         } else {
             let coordinator = Arc::new(RootWriteCoordinator {
-                tickets: Mutex::new((0, 0)),
+                turns: Mutex::new((0, 0)),
                 released: Condvar::new(),
             });
             coordinators.insert(canonical_root.clone(), Arc::downgrade(&coordinator));
             coordinator
         }
     };
-    let mut tickets = coordinator
-        .tickets
+    let mut turns = coordinator
+        .turns
         .lock()
         .map_err(|_| AppError::message("write.lock_poisoned", "write coordinator lock poisoned"))?;
-    let ticket = tickets.0;
-    tickets.0 += 1;
-    while tickets.1 != ticket {
-        tickets = coordinator.released.wait(tickets).map_err(|_| {
+    let turn = turns.0;
+    turns.0 += 1;
+    while turns.1 != turn {
+        turns = coordinator.released.wait(turns).map_err(|_| {
             AppError::message("write.lock_poisoned", "write coordinator lock poisoned")
         })?;
     }
-    drop(tickets);
+    drop(turns);
     let lease = Arc::new(RootWriteLease {
         root: canonical_root.clone(),
         recreated_sources: Mutex::new(Vec::new()),
@@ -1263,7 +1263,7 @@ mod tests {
                 sent.send(index).unwrap();
             }));
             let start = Instant::now();
-            while held._lease.coordinator.tickets.lock().unwrap().0 < index + 1 {
+            while held._lease.coordinator.turns.lock().unwrap().0 < index + 1 {
                 assert!(start.elapsed() < Duration::from_secs(3));
                 thread::yield_now();
             }

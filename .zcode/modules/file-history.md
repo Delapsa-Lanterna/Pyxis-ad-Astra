@@ -20,14 +20,14 @@
 - `src-tauri/src/io/file_changes.rs`：历史清空消费的根写入租约。
 - `src-tauri/src/models/file_history.rs`：历史查询、清空与回放请求、条目摘要及双栈快照。
 - `src-tauri/src/services/project/mod.rs`：历史读取与清空消费的 session 及根归属核对。
-- `src/orchestrators/project-sync.orchestrator.ts`：回放消费的提交同步入口，交付历史摘要与会话投影。
+- `src/orchestrators/project-sync.orchestrator.ts`：回放消费的提交同步入口，交付历史摘要与会话正式内容。
 - `src/shared/types/file-history.types.ts`：历史查询、清空与回放请求、条目摘要及双栈快照契约。
 - `src/shared/types/write-commit.types.ts`：公共保存回执、提交同步、行键映射与正式内容交付。
 - `src/stores/project.store.ts`：指定 Mod 的正式清单与 session 查询，异步动作消费捕获目标。
 
 ### 关联
 
-- `src-tauri/src/services/write_transactions.rs`：根写入租约、版本复核、历史登记、回放及投影提交。
+- `src-tauri/src/services/write_transactions.rs`：根写入租约、版本复核、历史登记、回放及会话内容接纳。
 - `src/test/fixtures/write-result.ts`：跨写入场景的正式提交结果夹具。
 
 ## 边界
@@ -52,7 +52,7 @@
 ### 查询与清空
 
 1. 历史 command 交付捕获的 session 与 Mod 根。
-2. 历史服务核对范围并读取摘要；投影 pending 期间沿用所属 session 的历史。
+2. 历史服务核对范围并读取摘要；正式内容 pending 期间沿用所属 session 的历史。
 3. 清空先取得根租约，再核对 session 与根，清除双栈并推进 revision。
 4. 所属前端按读取寿命、项目身份及历史版本接纳结果。
 
@@ -67,7 +67,7 @@
 1. 用户确认后提交条目 ID、回放方向和预期历史版本。
 2. 后端队列校验当前栈顶、文件现状和路径边界，应用快照并推进历史。
 3. 回放结果以本次实际方向表达 before/after，前端接纳历史投影。
-4. 同步编排接纳事务返回的会话投影，统一提交事件驱动文本与身份交接。
+4. 同步编排接纳事务返回的会话正式内容，统一提交事件驱动文本与身份交接。
 5. 回放工作必须在正式结果发布后释放，显示更新失败必须由消费者处理。
 
 ### 撤销与重做
@@ -80,7 +80,7 @@
 
 - applySnapshot 必须由项目同步、文件历史读取或工作区历史动作及 ViewModel 接纳正式后端快照，并核对所属读取寿命、项目身份及版本。
 - 文件历史撤销与重做的展示动作必须返回所属回放任务，调用者必须按实际用途等待或交接完成状态。
-- commit 与 replay 必须共用正式结果登记；磁盘与历史已完成时，投影失败必须由当前项目工作继续处理。
+- commit 与 replay 必须共用正式结果登记；磁盘与历史已完成时，正式内容更新失败必须由当前项目保存任务继续处理。
 - dirty 文件编辑器只允许暂存回放文本并提示，严禁覆盖当前输入。
 - 历史列表必须消费 `FileHistoryEntrySummary`；摘要必须只包含条目 ID、标签、时间与路径，完整变更必须归后端历史记录。
 - 历史双栈与 revision 必须只由记录状态修改；历史服务必须维护查询与清空授权，事务必须消费登记及回放交接接口。

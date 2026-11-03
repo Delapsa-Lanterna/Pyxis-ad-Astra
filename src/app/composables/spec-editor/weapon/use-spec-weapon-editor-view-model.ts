@@ -22,7 +22,7 @@ import {
 import { findMirrorBarrelIndex } from '@/domain/editors/lib/mirror';
 import type { WeaponViewMode } from '@/shared/lib/starsector/weapon-sprite-fields';
 import { useEditorDocument } from '../../editors/use-editor-document';
-import { createCanvasState } from '@/app/composables/canvas/use-canvas-state';
+import { createCanvasRuntime } from '@/app/composables/canvas/use-canvas-runtime';
 import { useCanvasEditor } from '@/app/composables/canvas/use-canvas-editor';
 import { useCanvasViewport } from '@/app/composables/canvas/use-canvas-viewport';
 import { useCanvasPalette } from '@/app/composables/canvas/use-canvas-palette';
@@ -62,7 +62,7 @@ export function useSpecWeaponEditorViewModel(
   },
 ) {
   const { editorWindowRef, stageRef, canvasRef } = elements,
-    state = createCanvasState<WeaponOperationPreview>();
+    state = createCanvasRuntime<WeaponOperationPreview>();
   const settings = useSettingsStore();
   const viewMode = ref<WeaponViewMode>('turret'),
     glowPreviewEnabled = ref(false),

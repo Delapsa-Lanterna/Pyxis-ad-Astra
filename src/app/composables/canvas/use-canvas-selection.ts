@@ -1,8 +1,8 @@
-import type { CanvasState } from './use-canvas-state';
+import type { CanvasRuntime } from './use-canvas-runtime';
 import type { CanvasTarget, EditorTarget } from '@/domain/editors/editor-types';
 
 export function useCanvasSelection(
-  state: Pick<CanvasState<unknown>, 'select' | 'clear' | 'inspectorLock'>,
+  state: Pick<CanvasRuntime<unknown>, 'select' | 'clear' | 'inspectorLock'>,
   targets: (x: number, y: number) => CanvasTarget[],
   radius: (target: CanvasTarget) => number,
   nearestFallback = true,

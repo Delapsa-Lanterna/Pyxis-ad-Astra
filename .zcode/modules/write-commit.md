@@ -2,15 +2,15 @@
 
 ## 定义
 
-保存提交模块提供按项目顺序执行的文件事务、历史登记和未完成投影恢复。
+保存提交模块提供按项目顺序执行的文件事务、历史登记和未完成正式内容恢复。
 
 ## 参考
 
 ### 拥有
 
 - `src-tauri/src/domain/save_edits.rs`：当前正式内容的字段修改应用。
-- `src-tauri/src/services/write_transactions.rs`：根租约、实际写入结果、历史登记、回放及正式投影提交。
-- `src-tauri/src/services/write_transactions/session_updates.rs`：已提交 changeset 的正式会话投影更新、pending 标记及重试交接。
+- `src-tauri/src/services/write_transactions.rs`：根租约、实际写入结果、历史登记、回放及正式内容提交。
+- `src-tauri/src/services/write_transactions/session_updates.rs`：已提交 changeset 的正式会话正式内容更新、pending 标记及重试交接。
 - `src/domain/project/save-edits.ts`：本次保存的实际字段赋值、移除及数组整体修改提取。
 - `src/orchestrators/json-write-confirmation.orchestrator.ts`：JSON 原文保留、逐源重排确认及版本绑定的写入重试。
 
@@ -44,7 +44,7 @@
 - 保存输入必须归发起编辑会话，捕获后的草稿操作必须保持独立。
 - 事务修改提取必须归保存提交，正式结果与后续草稿合并必须消费编辑会话领域规则。
 - 多文件修改必须共同交给一次历史登记和一个保存事件。
-- 投影恢复必须持有实际写入范围及未完成状态。
+- 正式内容恢复必须持有实际写入范围及未完成状态。
 - 文件历史必须独立持有配置范围内的撤销重做内容。
 - 项目队列必须覆盖文件准备、来源确认、写入、失败恢复、历史和正式内容登记。
 

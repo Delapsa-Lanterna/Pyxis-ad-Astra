@@ -12,7 +12,7 @@ import { normalizeFsPath } from '@/shared/lib/paths';
 
 type SaveHandler = () => void | Promise<void>;
 
-export interface SaveSessionHandle {
+export interface SaveParticipant {
   targetKey: Readonly<Ref<string | null>>;
   modRoot: Readonly<Ref<string | null>>;
   saving: Readonly<Ref<boolean>>;
@@ -31,15 +31,17 @@ export interface EditParticipant {
 
 export const useSaveCommandStore = defineStore('save-command', () => {
   const activeHandler = ref<SaveHandler | null>(null);
-  const sessions = shallowReactive(new Set<SaveSessionHandle>());
-  const participantIds = new WeakMap<SaveSessionHandle, number>();
+  const participants = shallowReactive(new Set<SaveParticipant>());
+  const participantIds = new WeakMap<SaveParticipant, number>();
   let participantSequence = 0;
-  const editTargets = computed(() => [...sessions].flatMap((handle) => handle.editing?.targets.value ?? []));
-  const requests = shallowReactive(new Map<SaveSessionHandle, Promise<DocumentSaveResult>>());
+  const editTargets = computed(() => [...participants].flatMap((participant) => participant.editing?.targets.value ?? []));
+  const requests = shallowReactive(new Map<SaveParticipant, Promise<DocumentSaveResult>>());
   let transitionSequence = 0;
   const closePrepared = ref(false);
   const closePreparations = computed(() =>
-    [...sessions].flatMap((handle) => (handle.editing?.draftSession.prepareClose ? [handle.editing.draftSession.prepareClose] : [])),
+    [...participants].flatMap((participant) =>
+      participant.editing?.draftSession.prepareClose ? [participant.editing.draftSession.prepareClose] : [],
+    ),
   );
   const closeActions = new Set<Promise<unknown>>();
   function trackCloseAction<T>(action: Promise<T>): Promise<T> {
@@ -51,36 +53,36 @@ export const useSaveCommandStore = defineStore('save-command', () => {
     while (closeActions.size) await Promise.all([...closeActions]);
   }
 
-  function registerSaveSession(handle: SaveSessionHandle) {
-    participantIds.set(handle, ++participantSequence);
-    sessions.add(handle);
+  function registerSaveParticipant(participant: SaveParticipant) {
+    participantIds.set(participant, ++participantSequence);
+    participants.add(participant);
     return () => {
-      sessions.delete(handle);
+      participants.delete(participant);
     };
   }
   function participantsForSession(sessionId: string, modRoot: string) {
-    return [...sessions]
-      .filter((handle) =>
-        handle.editing?.targets.value.some(
+    return [...participants]
+      .filter((participant) =>
+        participant.editing?.targets.value.some(
           (target) => target.sessionId === sessionId && normalizeFsPath(target.modRoot) === normalizeFsPath(modRoot),
         ),
       )
-      .map((handle) => ({ id: participantIds.get(handle)!, handle }))
-      .sort((left, right) => String(left.handle.targetKey.value).localeCompare(String(right.handle.targetKey.value)));
+      .map((participant) => ({ id: participantIds.get(participant)!, participant }))
+      .sort((left, right) => String(left.participant.targetKey.value).localeCompare(String(right.participant.targetKey.value)));
   }
   function participantsForTargets(targets: readonly EditWriteTarget[]) {
-    return [...sessions]
-      .filter((handle) => handle.editing?.targets.value.some((own) => targets.some((target) => editTargetsOverlap(own, target))))
+    return [...participants]
+      .filter((participant) => participant.editing?.targets.value.some((own) => targets.some((target) => editTargetsOverlap(own, target))))
       .sort((left, right) => JSON.stringify(left.editing!.targets.value).localeCompare(JSON.stringify(right.editing!.targets.value)));
   }
-  function requestSave(handle: SaveSessionHandle, run = handle.editing!.save): Promise<DocumentSaveResult> {
-    const pending = requests.get(handle);
+  function requestSave(participant: SaveParticipant, run = participant.editing!.save): Promise<DocumentSaveResult> {
+    const pending = requests.get(participant);
     if (pending) return pending;
-    if (useProjectSyncStore().isWaiting(handle.modRoot.value)) return Promise.resolve({ status: 'cancelled' });
+    if (useProjectSyncStore().isWaiting(participant.modRoot.value)) return Promise.resolve({ status: 'cancelled' });
     const finish = beginDebug('save', () => ({
-      target: handle.targetKey.value ?? '',
-      modRoot: handle.modRoot.value ?? '',
-      ...logIdentity(handle.editing?.targets.value),
+      target: participant.targetKey.value ?? '',
+      modRoot: participant.modRoot.value ?? '',
+      ...logIdentity(participant.editing?.targets.value),
     }));
     const result = run()
       .then(
@@ -96,24 +98,24 @@ export const useSaveCommandStore = defineStore('save-command', () => {
           throw error;
         },
       )
-      .finally(() => requests.delete(handle));
-    requests.set(handle, result);
+      .finally(() => requests.delete(participant));
+    requests.set(participant, result);
     return result;
   }
-  function isSaveQueued(handle: SaveSessionHandle) {
-    return requests.has(handle);
+  function isSaveQueued(participant: SaveParticipant) {
+    return requests.has(participant);
   }
-  function waitForSession(handle: SaveSessionHandle) {
+  function waitForParticipant(participant: SaveParticipant) {
     const sync = useProjectSyncStore();
-    const blocked = () => sync.blocked.some((work) => normalizeFsPath(work.modRoot) === normalizeFsPath(handle.modRoot.value!));
+    const blocked = () => sync.blocked.some((work) => normalizeFsPath(work.modRoot) === normalizeFsPath(participant.modRoot.value!));
     if (blocked()) return Promise.resolve(false);
-    const request = requests.get(handle);
+    const request = requests.get(participant);
     const waiting = request
       ? request.then(
           (result) => result.status !== 'cancelled',
           () => false,
         )
-      : handle.waitForSave().catch(() => false);
+      : participant.waitForSave().catch(() => false);
     return new Promise<boolean>((resolve) => {
       const stop = watch(blocked, (value) => {
         if (value) finish(false);
@@ -126,31 +128,41 @@ export const useSaveCommandStore = defineStore('save-command', () => {
     });
   }
   function hasPendingSave(modRoot?: string | null) {
-    return [...sessions].some(
-      (handle) => (requests.has(handle) || handle.saving.value) && (modRoot == null || handle.modRoot.value === modRoot),
+    return [...participants].some(
+      (participant) =>
+        (requests.has(participant) || participant.saving.value) && (modRoot == null || participant.modRoot.value === modRoot),
     );
   }
   function waitForSaves(modRoot?: string | null, targetKey?: string | null): Promise<boolean> | undefined {
-    const pending = [...sessions].filter(
-      (handle) =>
-        (requests.has(handle) || handle.saving.value) &&
-        (modRoot == null || handle.modRoot.value === modRoot) &&
-        (targetKey == null || handle.targetKey.value === targetKey),
+    const pending = [...participants].filter(
+      (participant) =>
+        (requests.has(participant) || participant.saving.value) &&
+        (modRoot == null || participant.modRoot.value === modRoot) &&
+        (targetKey == null || participant.targetKey.value === targetKey),
     );
     if (pending.length === 0) return;
-    return Promise.all(pending.map(waitForSession)).then(
+    return Promise.all(pending.map(waitForParticipant)).then(
       (outcomes) => outcomes.every(Boolean) && (waitForSaves(modRoot, targetKey) ?? true),
     );
   }
   function captureCloseState() {
     const capture = () =>
       stableStringify(
-        [...sessions].map((handle) => [handle.targetKey.value, handle.editing?.draftSession.draftValue.value, handle.editing?.dirty.value]),
+        [...participants].map((participant) => [
+          participant.targetKey.value,
+          participant.editing?.draftSession.draftValue.value,
+          participant.editing?.dirty.value,
+        ]),
       );
-    const handles = [...sessions];
+    const capturedParticipants = [...participants];
     const snapshot = capture();
-    const accepts = [...sessions].flatMap((handle) => (handle.editing ? [handle.editing.draftSession.inputs.captureContext()] : []));
-    return () => handles.every((handle) => sessions.has(handle)) && snapshot === capture() && accepts.every((accept) => accept());
+    const accepts = [...participants].flatMap((participant) =>
+      participant.editing ? [participant.editing.draftSession.inputs.captureContext()] : [],
+    );
+    return () =>
+      capturedParticipants.every((participant) => participants.has(participant)) &&
+      snapshot === capture() &&
+      accepts.every((accept) => accept());
   }
   function beginTransition() {
     return ++transitionSequence;
@@ -178,7 +190,7 @@ export const useSaveCommandStore = defineStore('save-command', () => {
   return {
     requestSave,
     isSaveQueued,
-    waitForSession,
+    waitForParticipant,
     closePreparations,
     closePrepared,
     trackCloseAction,
@@ -190,7 +202,7 @@ export const useSaveCommandStore = defineStore('save-command', () => {
     registerActiveSaveHandler,
     unregisterActiveSaveHandler,
     dispatchSaveCommand,
-    registerSaveSession,
+    registerSaveParticipant,
     hasPendingSave,
     waitForSaves,
     beginTransition,

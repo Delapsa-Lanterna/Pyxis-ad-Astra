@@ -66,7 +66,7 @@ pub struct JointPreviewSpec {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct JointVariantPreview {
-    pub hull: JointHullProjection,
+    pub hull: JointHull,
     pub spec: Value,
     pub specs: Vec<JointPreviewSpec>,
 }
@@ -160,9 +160,9 @@ pub struct JointEditSnapshot {
     pub reference_settings: JointReferenceSettings,
     pub records: Vec<JointEditRecord>,
     pub base_versions: Vec<FileVersion>,
-    pub hull: Option<JointHullProjection>,
+    pub hull: Option<JointHull>,
     pub new_sources: Vec<JointSourceCreate>,
-    pub variants: BTreeMap<String, JointHullProjection>,
+    pub variants: BTreeMap<String, JointHull>,
     pub catalog: Option<JointVariantCatalog>,
 }
 
@@ -175,7 +175,7 @@ pub struct JointFieldBinding {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct JointHullProjection {
+pub struct JointHull {
     pub spec: Value,
     pub variant_key: String,
     pub hull_key: String,

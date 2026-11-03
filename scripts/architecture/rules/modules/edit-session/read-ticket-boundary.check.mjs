@@ -5,12 +5,12 @@ import { readTicketBoundaryRule } from './read-ticket-boundary.mjs';
 
 const ticket = 'src/shared/runtime/read-request.ts';
 for (const source of [
-  "import {createReadTicketOwner as owner} from '@/shared/runtime/read-request';",
+  "import {createReadOwner as owner} from '@/shared/runtime/read-request';",
   "import * as reads from '@/shared/runtime/read-request';",
   "const reads=import('@/shared/runtime/read-request');",
 ]) {
   test('read ticket ownership follows ' + source, () => {
-    const declarations = { [ticket]: 'export function createReadTicketOwner() {}' };
+    const declarations = { [ticket]: 'export function createReadOwner() {}' };
     const legal = architectureFixtures({ ...declarations, 'src/app/composables/use-sample.ts': source });
     assert.deepEqual(readTicketBoundaryRule.check(legal), []);
     const context = architectureFixtures({ ...declarations, 'src/app/components/Sample.vue': '<script setup>\n' + source + '</script>' });
@@ -39,11 +39,11 @@ test('direct ReadTicket consumers must accept and invalidate their ticket', () =
       "import {createReadTicket} from '@/shared/runtime/read-request'; const ticket=createReadTicket(id, load); void ticket.promise;",
   });
   const diagnostics = readTicketBoundaryRule.check(invalid);
-  assert.deepEqual(diagnostics.map(({ expected }) => expected).sort(), ['ticket.accept()', 'ticket.invalidate(reason)'].sort());
+  assert.deepEqual(diagnostics.map(({ expected }) => expected).sort(), ['ticket.requireCurrent()', 'ticket.invalidate(reason)'].sort());
   const legal = architectureFixtures({
     [ticket]: 'export function createReadTicket() {}',
     'src/app/composables/use-sample.ts':
-      "import {createReadTicket} from '@/shared/runtime/read-request'; const ticket=createReadTicket(id, load); void ticket.promise.then(() => ticket.accept()); onScopeDispose(() => ticket.invalidate('consumer'));",
+      "import {createReadTicket} from '@/shared/runtime/read-request'; const ticket=createReadTicket(id, load); void ticket.promise.then(() => ticket.requireCurrent()); onScopeDispose(() => ticket.invalidate('consumer'));",
   });
   assert.deepEqual(readTicketBoundaryRule.check(legal), []);
 });
@@ -55,23 +55,23 @@ test('each direct ticket keeps its own acceptance obligation', () => {
       import {createReadTicket} from '@/shared/runtime/read-request';
       const first=createReadTicket(firstId, load);
       const second=createReadTicket(secondId, load);
-      void first.promise.then(() => first.accept());
+      void first.promise.then(() => first.requireCurrent());
       onScopeDispose(() => { first.invalidate('consumer'); second.invalidate('consumer'); });
     `,
   });
   assert.deepEqual(
     readTicketBoundaryRule.check(context).map(({ expected }) => expected),
-    ['ticket.accept()'],
+    ['ticket.requireCurrent()'],
   );
 });
 
 for (const unrelated of [
-  'function separate(task) { task.accept(); task.invalidate(); }',
-  'function separate() { const task = external(); task.accept(); task.invalidate(); }',
-  'function separate(other) { other.task.accept(); other.task.invalidate(); }',
-  'function separate({ task }) { task.accept(); task.invalidate(); }',
-  '{ const task = external(); task.accept(); task.invalidate(); }',
-  'try {} catch (task) { task.accept(); task.invalidate(); }',
+  'function separate(task) { task.requireCurrent(); task.invalidate(); }',
+  'function separate() { const task = external(); task.requireCurrent(); task.invalidate(); }',
+  'function separate(other) { other.task.requireCurrent(); other.task.invalidate(); }',
+  'function separate({ task }) { task.requireCurrent(); task.invalidate(); }',
+  '{ const task = external(); task.requireCurrent(); task.invalidate(); }',
+  'try {} catch (task) { task.requireCurrent(); task.invalidate(); }',
 ]) {
   test('unrelated declarations preserve both ticket obligations: ' + unrelated, () => {
     const context = architectureFixtures({
@@ -83,7 +83,7 @@ ${unrelated}`,
     const diagnostics = readTicketBoundaryRule.check(context);
     assert.deepEqual(
       diagnostics.map(({ expected }) => expected),
-      ['ticket.accept()', 'ticket.invalidate(reason)'],
+      ['ticket.requireCurrent()', 'ticket.invalidate(reason)'],
     );
     assert.ok(diagnostics.every((diagnostic) => diagnostic.ruleId === 'read-ticket-boundary' && diagnostic.line === 2));
   });
@@ -93,7 +93,7 @@ test('same-named tickets in separate functions retain independent obligations', 
   const context = architectureFixtures({
     [ticket]: 'export function createReadTicket() {}',
     'src/app/composables/use-sample.ts': `import {createReadTicket} from '@/shared/runtime/read-request';
-function complete() { const task = createReadTicket(id, load); task.accept(); task.invalidate(); }
+function complete() { const task = createReadTicket(id, load); task.requireCurrent(); task.invalidate(); }
 function incomplete() { const task = createReadTicket(id, load); }`,
   });
   const diagnostics = readTicketBoundaryRule.check(context);
@@ -102,15 +102,15 @@ function incomplete() { const task = createReadTicket(id, load); }`,
 });
 
 for (const handoff of [
-  'const alias = task; queueMicrotask(() => alias.accept()); onScopeDispose(() => task.invalidate());',
-  'const owner = { task }; owner.task.accept(); owner.task.invalidate();',
-  'const owner = { active: task }; const alias = owner; alias.active.accept(); alias.active.invalidate();',
-  'function finish(input) { input.accept(); input.invalidate(); } finish(task);',
-  'const pending = new Map(); pending.set(id, { task }); const item = pending.get(id); item.task.accept(); item.task.invalidate();',
-  'const pending = new Map(); pending.set(undefined, { task }); const item = pending.get(); item.task.accept(); item.task.invalidate();',
-  'const pending = new Map(); pending.set(undefined, task); pending.get().accept(); pending.get(undefined).invalidate();',
-  'const pending = new Set(); pending.add({ task }); for (const item of pending) { item.task.accept(); item.task.invalidate(); }',
-  'const pending = new Map(); const queued = { active: new Map() }; const item = {}; pending.set(id, item); queued.active.set(id, item); function start(job) { job.ticket = task; } start(queued.active.values().next().value); for (const [key, job] of pending) { job.ticket.accept(); job.ticket.invalidate(); }',
+  'const alias = task; queueMicrotask(() => alias.requireCurrent()); onScopeDispose(() => task.invalidate());',
+  'const owner = { task }; owner.task.requireCurrent(); owner.task.invalidate();',
+  'const owner = { active: task }; const alias = owner; alias.active.requireCurrent(); alias.active.invalidate();',
+  'function finish(input) { input.requireCurrent(); input.invalidate(); } finish(task);',
+  'const pending = new Map(); pending.set(id, { task }); const item = pending.get(id); item.task.requireCurrent(); item.task.invalidate();',
+  'const pending = new Map(); pending.set(undefined, { task }); const item = pending.get(); item.task.requireCurrent(); item.task.invalidate();',
+  'const pending = new Map(); pending.set(undefined, task); pending.get().requireCurrent(); pending.get(undefined).invalidate();',
+  'const pending = new Set(); pending.add({ task }); for (const item of pending) { item.task.requireCurrent(); item.task.invalidate(); }',
+  'const pending = new Map(); const queued = { active: new Map() }; const item = {}; pending.set(id, item); queued.active.set(id, item); function start(job) { job.ticket = task; } start(queued.active.values().next().value); for (const [key, job] of pending) { job.ticket.requireCurrent(); job.ticket.invalidate(); }',
 ]) {
   test('explicit ticket handoff preserves lifecycle evidence: ' + handoff, () => {
     const context = architectureFixtures({
@@ -138,7 +138,7 @@ readSeparate(key) { return separate.get(key); } }; }`;
 import {createStorage} from '@/shared/storage';
 const storage = createStorage(); const task = createReadTicket(id, load);
 storage.${write}(id, { task }); const held = storage.${read}(id);
-held.task.accept(); held.task.invalidate();`,
+held.task.requireCurrent(); held.task.invalidate();`,
     });
     assert.deepEqual(readTicketBoundaryRule.check(context), []);
     const consumer = context.byPath.get('src/app/composables/use-sample.ts');
@@ -157,7 +157,7 @@ test('same-named object properties retain their declared owner through aliases',
     [ticket]: 'export function createReadTicket() {}',
     'src/app/composables/use-sample.ts': `import {createReadTicket} from '@/shared/runtime/read-request';
 const task = createReadTicket(id, load); const owner = { task }; const other = { task: external() };
-other.task.accept(); other.task.invalidate();`,
+other.task.requireCurrent(); other.task.invalidate();`,
   });
   assert.equal(readTicketBoundaryRule.check(context).length, 2);
 });
@@ -179,11 +179,11 @@ for (const access of ["pending.get('left')", "constAlias.get('left')", 'pending.
 const right = createReadTicket(b, load);
 const pending = new Map(), constAlias = pending, selected = 'left';
 pending.set('left', left); pending.set('right', right);
-${access}.accept(); ${access}.invalidate();`);
+${access}.requireCurrent(); ${access}.invalidate();`);
     assert.deepEqual(
       diagnostics.map(({ line, expected }) => ({ line, expected })),
       [
-        { line: 3, expected: 'ticket.accept()' },
+        { line: 3, expected: 'ticket.requireCurrent()' },
         { line: 3, expected: 'ticket.invalidate(reason)' },
       ],
     );
@@ -191,9 +191,9 @@ ${access}.accept(); ${access}.invalidate();`);
 }
 
 for (const handling of [
-  'for (const item of pending.values()) { item.accept(); item.invalidate(); }',
-  'for (const key of pending.keys()) { pending.get(key).accept(); pending.get(key).invalidate(); }',
-  "pending.get('left').accept(); pending.get('left').invalidate(); pending.get('right').accept(); pending.get('right').invalidate();",
+  'for (const item of pending.values()) { item.requireCurrent(); item.invalidate(); }',
+  'for (const key of pending.keys()) { pending.get(key).requireCurrent(); pending.get(key).invalidate(); }',
+  "pending.get('left').requireCurrent(); pending.get('left').invalidate(); pending.get('right').requireCurrent(); pending.get('right').invalidate();",
 ])
   test('all Map entries retain complete lifecycle evidence: ' + handling, () => {
     assert.deepEqual(
@@ -206,10 +206,10 @@ const pending = new Map(); pending.set('left', left); pending.set('right', right
 test('taking the first Map value preserves the remaining ticket obligations', () => {
   const diagnostics = collectionDiagnostics(`const left = createReadTicket(a, load), right = createReadTicket(b, load);
 const pending = new Map(); pending.set('left', left); pending.set('right', right);
-const first = pending.values().next().value; first.accept(); first.invalidate();`);
+const first = pending.values().next().value; first.requireCurrent(); first.invalidate();`);
   assert.deepEqual(
     diagnostics.map(({ expected }) => expected),
-    ['ticket.accept()', 'ticket.invalidate(reason)'],
+    ['ticket.requireCurrent()', 'ticket.invalidate(reason)'],
   );
 });
 
@@ -219,7 +219,7 @@ test('wrapped Map methods preserve keys and entry properties', () => {
 const left = createReadTicket(a, load);
 const right = createReadTicket(b, load);
 const storage = createStorage(); storage.retain({task:left}, 'left'); storage.retain({task:right}, 'right');
-storage.lookup('left').task.accept(); storage.lookup('left').task.invalidate();`,
+storage.lookup('left').task.requireCurrent(); storage.lookup('left').task.invalidate();`,
     {
       'src/shared/storage.ts': `export function createStorage() { const values = new Map();
 return { retain(value, key) { values.set(key, value); }, lookup(key) { return values.get(key); } }; }`,
@@ -228,7 +228,7 @@ return { retain(value, key) { values.set(key, value); }, lookup(key) { return va
   assert.deepEqual(
     diagnostics.map(({ line, expected }) => ({ line, expected })),
     [
-      { line: 4, expected: 'ticket.accept()' },
+      { line: 4, expected: 'ticket.requireCurrent()' },
       { line: 4, expected: 'ticket.invalidate(reason)' },
     ],
   );
@@ -242,7 +242,7 @@ for (const [first, second] of [
   test(`Map key identity separates ${first} from ${second}`, () => {
     const diagnostics = collectionDiagnostics(`const left=createReadTicket(a,load), right=createReadTicket(b,load); let leftKey, rightKey;
 const pending=new Map(); pending.set(${first},left); pending.set(${second},right);
-pending.get(${first}).accept(); pending.get(${first}).invalidate();`);
+pending.get(${first}).requireCurrent(); pending.get(${first}).invalidate();`);
     assert.equal(diagnostics.length, 2);
   });
 }
@@ -250,7 +250,7 @@ pending.get(${first}).accept(); pending.get(${first}).invalidate();`);
 test('iterating a subset of keys preserves unvisited ticket obligations', () => {
   const diagnostics = collectionDiagnostics(`const left=createReadTicket(a,load), right=createReadTicket(b,load);
 const pending=new Map(); pending.set('left',left); pending.set('right',right);
-for (const key of ['left']) { pending.get(key).accept(); pending.get(key).invalidate(); }`);
+for (const key of ['left']) { pending.get(key).requireCurrent(); pending.get(key).invalidate(); }`);
   assert.ok(diagnostics.some(({ expected }) => expected === 'ticket.invalidate(reason)'));
 });
 
@@ -261,7 +261,7 @@ return { retain(key, value) { values.set(key, value); }, lookup(key) { return va
 import {createStorage} from '@/shared/storage';
 class Owner {
   constructor() { this.storage = createStorage(); }
-  read() { const storage = this.storage; const task = createReadTicket(id, load); storage.retain(id, task); task.accept(); }
+  read() { const storage = this.storage; const task = createReadTicket(id, load); storage.retain(id, task); task.requireCurrent(); }
   release() { const storage = this.storage; storage.lookup(id).invalidate(); }
 }`;
   assert.deepEqual(collectionDiagnostics(source, { 'src/shared/storage.ts': storage }), []);

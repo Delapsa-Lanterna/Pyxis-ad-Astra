@@ -3,7 +3,7 @@ import { computed, onScopeDispose } from 'vue';
 import { useEditTargetDraftSession, type EditTargetDraftSession } from '@/app/composables/use-edit-target-draft-session';
 import { useJointEditActions } from '@/app/composables/use-joint-edit-actions';
 import { useSaveCommandStore } from '@/stores/save-command.store';
-import { observeSavedContent, saveProjection } from '@/orchestrators/project-sync.orchestrator';
+import { observeSavedContent, sessionContentUpdate } from '@/orchestrators/project-sync.orchestrator';
 import { jointWriteTargets, rebaseJointDraft, type JointIdentitySnapshot } from '@/domain/joint-edit';
 import type { JointEditRoot, JointEditSnapshot, JointValue, JointEditWriteResult, WriteContent, DeepReadonly } from '@/shared/types';
 import { queryJointEdit } from '@/services/joint-edit.service';
@@ -19,7 +19,7 @@ export function useJointEditSession(
     editableRecords?: (snapshot: JointEditSnapshot) => string[];
     afterBaseline?: (snapshot: JointEditSnapshot, receipt: JointEditWriteResult, previous: JointIdentitySnapshot) => Promise<void>;
     readSnapshot?: (root: JointEditRoot, signal?: AbortSignal) => Promise<DeepReadonly<JointEditSnapshot>>;
-    onProjection?: (root: JointEditRoot) => Promise<void>;
+    onContentUpdate?: (root: JointEditRoot) => Promise<void>;
   } = {},
 ) {
   const actions = useJointEditActions();
@@ -89,7 +89,7 @@ export function useJointEditSession(
         await options.afterBaseline?.(snapshot.meta.snapshot, snapshot.meta.receipt, snapshot.meta.previous);
     },
   });
-  const unregister = commands.registerSaveSession({
+  const unregister = commands.registerSaveParticipant({
     targetKey: session.currentTargetKey,
     modRoot: computed(() => session.currentTarget.value?.modRoot ?? null),
     saving: session.saving,
@@ -112,11 +112,11 @@ export function useJointEditSession(
   const stopChanges = observeSavedContent(
     (change) => {
       const root = session.currentTarget.value;
-      const projection = saveProjection(change, root?.sessionId);
-      if (!projection) return undefined;
-      if (!root || projection.manifest.sessionId !== root.sessionId) return undefined;
+      const update = sessionContentUpdate(change, root?.sessionId);
+      if (!update) return undefined;
+      if (!root || update.manifest.sessionId !== root.sessionId) return undefined;
 
-      if (normalizeFsPath(projection.manifest.modRoot) !== normalizeFsPath(root.modRoot)) return undefined;
+      if (normalizeFsPath(update.manifest.modRoot) !== normalizeFsPath(root.modRoot)) return undefined;
       const receipt = change.reason === 'refresh' ? null : change.result;
       if (receipt && !session.acceptsSaveDelivery(root, receipt.requestId)) return undefined;
       if (
@@ -138,8 +138,8 @@ export function useJointEditSession(
           },
           true,
         );
-      } else if (projection.invalidation.paths.length || projection.invalidation.session) {
-        return (options.onProjection ? options.onProjection(root) : session.refreshTarget(root, true)).then(() => {});
+      } else if (update.invalidation.paths.length || update.invalidation.session) {
+        return (options.onContentUpdate ? options.onContentUpdate(root) : session.refreshTarget(root, true)).then(() => {});
       }
       return undefined;
     },

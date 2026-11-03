@@ -24,7 +24,7 @@
 
 ### 关联
 
-- `src-tauri/src/services/write_transactions.rs`：根写入租约、版本复核、历史登记、回放及投影提交。
+- `src-tauri/src/services/write_transactions.rs`：根写入租约、版本复核、历史登记、回放及会话内容接纳。
 - `src/shared/lib/paths.ts`：文件系统、资源及游戏目录的路径纯规则。
 
 ## 边界

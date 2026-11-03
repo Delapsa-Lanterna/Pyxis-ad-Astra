@@ -49,7 +49,7 @@ export interface JointPreviewSpec {
   sourceVersion: FileVersion | null;
 }
 export interface JointVariantPreview {
-  hull: JointHullProjection;
+  hull: JointHull;
   spec: JsonValue;
   specs: JointPreviewSpec[];
 }
@@ -93,16 +93,16 @@ export interface JointEditSnapshot {
   referenceSettings: { values: Record<string, JsonValue>; versions: FileVersion[]; resources: Record<string, ResourceRef> };
   records: JointEditRecord[];
   baseVersions: FileVersion[];
-  hull: JointHullProjection | null;
+  hull: JointHull | null;
   newSources: JointSourceCreate[];
-  variants: Record<string, JointHullProjection>;
+  variants: Record<string, JointHull>;
   catalog: JointVariantCatalog | null;
 }
 export interface JointFieldBinding {
   recordKey: string;
   path: string;
 }
-export interface JointHullProjection {
+export interface JointHull {
   spec: RowData;
   variantKey: string;
   hullKey: string;

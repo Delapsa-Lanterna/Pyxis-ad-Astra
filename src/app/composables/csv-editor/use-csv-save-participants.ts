@@ -1,7 +1,7 @@
 import { computed, onScopeDispose, watch } from 'vue';
 import { useProjectStore } from '@/stores/project.store';
 import { useCsvEditorStore } from '@/stores/csv-editor.store';
-import { useSaveCommandStore, type SaveSessionHandle } from '@/stores/save-command.store';
+import { useSaveCommandStore, type SaveParticipant } from '@/stores/save-command.store';
 import { saveCsvChanges } from '@/orchestrators/csv-save.orchestrator';
 import { hasCsvTableDraftChanges } from '@/domain/csv-editor/csv-table-draft';
 import { TABLE_KEYS, type AppFeedback, type AssociatedSpecWrite } from '@/shared/types';
@@ -34,7 +34,7 @@ export function useCsvSaveParticipants(
           const target = { sessionId: manifest.sessionId, modRoot, table };
           const writeTarget = project.tableWriteTargets.find((target) => target.modRoot === modRoot && target.table === table)!;
           const inputs = tables.getTableInputs(modRoot, table);
-          const handle: SaveSessionHandle = {
+          const participant: SaveParticipant = {
             targetKey: inputs.targetKey,
             modRoot: computed(() => modRoot),
             saving: computed(() => state.documents[table].saving),
@@ -66,11 +66,11 @@ export function useCsvSaveParticipants(
             },
           };
           tables.bindSaveActions(target, {
-            saving: computed(() => commands.isSaveQueued(handle)),
-            save: () => commands.requestSave(handle),
-            waitForSave: () => commands.waitForSession(handle),
+            saving: computed(() => commands.isSaveQueued(participant)),
+            save: () => commands.requestSave(participant),
+            waitForSave: () => commands.waitForParticipant(participant),
           });
-          registrations.set(registrationKey, { state, release: commands.registerSaveSession(handle) });
+          registrations.set(registrationKey, { state, release: commands.registerSaveParticipant(participant) });
         }
       }
     },

@@ -29,7 +29,7 @@ vi.mock('@/services/json-entity.service', async () => ({
     const source = entityTargetFixture(kind, sourceId);
     const next = entityTargetFixture(kind, nextId);
     return {
-      info: { target: source, baseVersions: [] },
+      snapshot: { target: source, baseVersions: [] },
       intent: { source, nextId, nextWrite: next.write, destinationVersion: { path: next.write.path, fingerprint: null } },
     };
   },

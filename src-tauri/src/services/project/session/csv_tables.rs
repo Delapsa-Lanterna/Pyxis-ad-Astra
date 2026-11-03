@@ -307,7 +307,7 @@ mod tests {
             reference_revision: 0,
             references: Vec::new(),
             loaded_edit_targets: Vec::new(),
-            projection_pending: false,
+            content_pending: false,
             source_versions: Default::default(),
             manifest: ProjectManifest {
                 base_versions: Vec::new(),
@@ -362,7 +362,7 @@ mod tests {
             reference_revision: 0,
             references: Vec::new(),
             loaded_edit_targets: Vec::new(),
-            projection_pending: false,
+            content_pending: false,
             source_versions: Default::default(),
             manifest: ProjectManifest {
                 base_versions: Vec::new(),

@@ -66,7 +66,7 @@ function event(id = 1, originWindowLabel = 'peer'): CommittedWriteEvent {
   result.history.revision = id;
   result.identityChanges = [{ before: entityTargetFixture('ship', 'before'), after: entityTargetFixture('ship', 'after') }];
   const update = sessionUpdateFixture('s1', root);
-  update.projection.invalidation.paths = ['notes.txt'];
+  update.content.invalidation.paths = ['notes.txt'];
   result.sessionUpdates = [update];
   return { originWindowLabel, sessionId: 's1', modRoot: root, reason: 'save', result };
 }
@@ -83,7 +83,7 @@ beforeEach(() => {
   mocks.unregister.mockResolvedValue(undefined);
   nativeWaits.clear();
   mocks.retry.mockResolvedValue(undefined);
-  useProjectStore().registerProjectManifest(sessionUpdateFixture('s1', root).projection.manifest);
+  useProjectStore().registerProjectManifest(sessionUpdateFixture('s1', root).content.manifest);
 });
 
 describe('ordered save consumption', () => {
@@ -104,7 +104,7 @@ describe('ordered save consumption', () => {
     update.sessionId = null;
     update.modRoot = '';
     update.result.identityChanges = [];
-    update.result.sessionUpdates[0]!.projection.invalidation.session = true;
+    update.result.sessionUpdates[0]!.content.invalidation.session = true;
     mocks.receive!({ kind: 'references', snapshot: { revision: 100, sources: [] }, event: update });
     await flushPromises();
     expect(content).toHaveBeenCalledOnce();
@@ -421,7 +421,7 @@ describe('ordered save consumption', () => {
     const receive = vi.fn();
     await listenSavedContent(receive);
     const saved = event();
-    saved.result.sessionUpdates[0]!.projection.manifest.modInfo = { id: 'prepared' };
+    saved.result.sessionUpdates[0]!.content.manifest.modInfo = { id: 'prepared' };
     deliver(saved);
     await flushPromises();
     expect(receive).toHaveBeenCalledOnce();

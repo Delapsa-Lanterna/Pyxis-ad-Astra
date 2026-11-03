@@ -79,8 +79,8 @@ describe('joint snapshot session acceptance', () => {
     });
     await session.loadTarget(root);
     const update = sessionUpdateFixture('s', 'M:/mod');
-    update.projection.invalidation.paths = ['a.txt'];
-    invalidateQueryCacheByProject('s', update.projection.invalidation);
+    update.content.invalidation.paths = ['a.txt'];
+    invalidateQueryCacheByProject('s', update.content.invalidation);
     await flushPromises();
     expect(mocks.open).toHaveBeenCalledTimes(1);
     const next = { ...root, id: 'renamed' };
@@ -96,7 +96,7 @@ describe('joint snapshot session acceptance', () => {
       'identity',
     );
     mocks.open.mockResolvedValue({ ...snapshot, root: next });
-    void projectChangeFixture('s', update.projection.invalidation);
+    void projectChangeFixture('s', update.content.invalidation);
     await flushPromises();
     expect(mocks.open).toHaveBeenLastCalledWith(next);
     wrapper.unmount();

@@ -62,7 +62,7 @@ CSV 文档编辑模块管理整表文件的领域规则、运行态、展示、�
 
 ### 关联
 
-- `src-tauri/src/services/write_transactions.rs`：根写入租约、版本复核、历史登记、回放及投影提交。
+- `src-tauri/src/services/write_transactions.rs`：根写入租约、版本复核、历史登记、回放及会话内容接纳。
 - `src/shared/lib/starsector/index.ts`：游戏值、颜色与表格规则的转导出入口。
 - `src/shared/lib/starsector/value.ts`：JSON 复制、标量转换与 Mod 版本展示。
 - `src/shared/types/json.types.ts`：JSON 业务值与输入形状契约。
@@ -192,7 +192,7 @@ CSV 文档编辑模块管理整表文件的领域规则、运行态、展示、�
 - CSV patch 必须携带读取基线与 `isComment`，恢复行必须携带 `insertAt`；正式 `rowKey` 删除必须命中实际行，未知键必须返回冲突。
 - CSV 保存参与者必须交付所属表草稿与现有输入集合；窗口关闭必须经保存注册表核对目标、草稿、dirty 与输入生命周期。
 - CSV 保存必须消费正式 parser 的列数容忍、注释和空行模型，渲染必须使用最小引号规则及 LF 行。
-- CSV 保存状态、行、基线、顺序、计数、输入及 operation 历史必须归所属表运行态；文档动作与保存参与者必须按 session、Mod 与表各装配一次。
+- CSV 保存状态、行、基线、顺序、计数、输入及 edit 历史必须归所属表运行态；文档动作与保存参与者必须按 session、Mod 与表各装配一次。
 - CSV 文档动作必须交付完整目标、输入、dirty、保存状态、保存与等待能力、历史能力及撤销重做结果；主窗口必须消费所属动作。
 - CSV 新增行的 `insertAt` 必须将省略与 `null` 共同解释为末尾插入；显式位置必须沿现有插入规则处理。
 - CSV 暂存必须共同交付表身份、表头、行、分配序列及最终文本；正式表状态只允许在同根 changeset 应用成功后消费该暂存结果。

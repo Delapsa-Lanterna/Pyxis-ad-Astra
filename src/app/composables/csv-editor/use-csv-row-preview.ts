@@ -1,4 +1,4 @@
-import { observeSavedContent, saveProjection } from '@/orchestrators/project-sync.orchestrator';
+import { observeSavedContent, sessionContentUpdate } from '@/orchestrators/project-sync.orchestrator';
 import { hasTableInvalidation } from '@/services/csv-table.service';
 import { computed, ref, watch, onScopeDispose } from 'vue';
 import { useQueryReadOwner } from '@/app/composables/use-query-read-owner';
@@ -38,14 +38,11 @@ export function useCsvRowPreview(options: {
   );
   const stopQuery = observeSavedContent(
     (event) => {
-      const projection = saveProjection(event, options.target()?.sessionId);
-      if (!projection) return undefined;
-      if (projection.manifest.sessionId !== options.target()?.sessionId) return undefined;
+      const update = sessionContentUpdate(event, options.target()?.sessionId);
+      if (!update) return undefined;
+      if (update.manifest.sessionId !== options.target()?.sessionId) return undefined;
 
-      if (
-        hasTableInvalidation(projection.invalidation, 'csv-row-preview', options.target()!.table) ||
-        projection.invalidation.resources.length > 0
-      )
+      if (hasTableInvalidation(update.invalidation, 'csv-row-preview', options.target()!.table) || update.invalidation.resources.length > 0)
         return load(true);
       return undefined;
     },

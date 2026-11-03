@@ -1,6 +1,6 @@
 import { hasJointEditInvalidation } from '@/services/joint-edit.service';
 import { useContextMenuScope } from '@/app/composables/use-context-menu';
-import { refreshProjectSourcePaths, observeSavedContent, saveProjection } from '@/orchestrators/project-sync.orchestrator';
+import { refreshProjectSourcePaths, observeSavedContent, sessionContentUpdate } from '@/orchestrators/project-sync.orchestrator';
 import { computed, ref, shallowRef, watch, onScopeDispose } from 'vue';
 import type { JointEditRoot, ResourceRef, RowData } from '@/shared/types/index';
 import { querySpecShipWeaponSources } from '@/services/spec-ship-editor.service';
@@ -29,9 +29,9 @@ export function useSpecShipWeapons(root: () => JointEditRoot, ship: () => RowDat
         resources.value,
       ),
   });
-  const projection = computed(() => projectShipWeapons(ship(), sources.value));
+  const weaponScene = computed(() => projectShipWeapons(ship(), sources.value));
   const resources = computed<ResourceRef[]>((previous) => {
-    const next = projection.value.weapons.flatMap((weapon) => [
+    const next = weaponScene.value.weapons.flatMap((weapon) => [
       ...weapon.layers.map((layer) => layer.resource),
       ...(weapon.loadedMissile ? [weapon.loadedMissile.resource] : []),
     ]);
@@ -78,9 +78,9 @@ export function useSpecShipWeapons(root: () => JointEditRoot, ship: () => RowDat
   onScopeDispose(
     observeSavedContent(
       (event) => {
-        const projection = saveProjection(event, root().sessionId);
-        if (!projection) return;
-        if (projection.manifest.sessionId !== root().sessionId || !hasJointEditInvalidation(projection.invalidation)) return;
+        const update = sessionContentUpdate(event, root().sessionId);
+        if (!update) return;
+        if (update.manifest.sessionId !== root().sessionId || !hasJointEditInvalidation(update.invalidation)) return;
         return load(true);
       },
       (sessionId) => {
@@ -118,8 +118,8 @@ export function useSpecShipWeapons(root: () => JointEditRoot, ship: () => RowDat
     },
   );
   const diagnostics = computed(() => [
-    ...projection.value.diagnostics,
-    ...projection.value.weapons.flatMap((weapon) => {
+    ...weaponScene.value.diagnostics,
+    ...weaponScene.value.weapons.flatMap((weapon) => {
       const refs = [...weapon.layers.map((layer) => layer.resource), ...(weapon.loadedMissile ? [weapon.loadedMissile.resource] : [])];
       return refs.flatMap((resource) => {
         const key = mediaResourceKey(root().sessionId, resource);
@@ -132,9 +132,9 @@ export function useSpecShipWeapons(root: () => JointEditRoot, ship: () => RowDat
       });
     }),
   ]);
-  watch(projection, changed, { flush: 'post' });
+  watch(weaponScene, changed, { flush: 'post' });
   return {
-    weapons: computed(() => projection.value.weapons),
+    weapons: computed(() => weaponScene.value.weapons),
     hints: computed(() => sources.value.hints),
     diagnostics,
     image: (resource: ResourceRef) => images.images.get(mediaResourceKey(root().sessionId, resource)),

@@ -24,7 +24,7 @@ use crate::models::{
     ResourceSource, SkinFile, VariantFile,
 };
 use crate::services::project::definitions::projectiles;
-use crate::services::project::session::source_projection::capture_projection_versions;
+use crate::services::project::session::source_versions::capture_changed_versions;
 
 use crate::services::project::sources::core::load_core_variant_files;
 use crate::services::project::sources::documents::LoadedSpecRecord;
@@ -590,7 +590,7 @@ fn build_mission_entity(session: &mut ProjectSession, id: &str) -> AppResult<Opt
         "relPath".to_string(),
         Value::String(format!("data/missions/{clean}")),
     );
-    capture_projection_versions(&mut sources, &[&format!("data/missions/{clean}")])?;
+    capture_changed_versions(&mut sources, &[&format!("data/missions/{clean}")])?;
     Arc::make_mut(&mut session.source_versions).extend(sources.versions);
     Ok(Some(Value::Object(data)))
 }

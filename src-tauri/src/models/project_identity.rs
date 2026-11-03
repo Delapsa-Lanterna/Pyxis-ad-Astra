@@ -216,7 +216,7 @@ pub struct EntityEditTarget {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct EntityEditInfo {
+pub struct EntityTargetSnapshot {
     pub target: EntityEditTarget,
     pub base_versions: Vec<FileVersion>,
 }

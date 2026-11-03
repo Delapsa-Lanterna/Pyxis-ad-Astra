@@ -129,7 +129,7 @@ describe('workspace shell listener lifecycle', () => {
     });
     await flushPromises();
     expect(mocks.publish).toHaveBeenCalledTimes(0);
-    project.registerProjectManifest(sessionUpdateFixture('beacon', 'M:/beacon').projection.manifest);
+    project.registerProjectManifest(sessionUpdateFixture('beacon', 'M:/beacon').content.manifest);
     await flushPromises();
     expect(mocks.publish).toHaveBeenCalledTimes(0);
     workspace.updateModStatus('M:/beacon', 'ready');
@@ -139,7 +139,7 @@ describe('workspace shell listener lifecycle', () => {
     workspace.updateModStatus('M:/comet', 'error');
     await flushPromises();
     expect(mocks.publish).toHaveBeenCalledTimes(1);
-    project.registerProjectManifest(sessionUpdateFixture('atlas', 'M:/atlas').projection.manifest);
+    project.registerProjectManifest(sessionUpdateFixture('atlas', 'M:/atlas').content.manifest);
     workspace.updateModStatus('M:/atlas', 'ready');
     await flushPromises();
     const atlas = { sessionId: 'atlas', modRoot: 'M:/atlas' };
@@ -162,7 +162,7 @@ describe('workspace shell listener lifecycle', () => {
     for (const id of ['atlas', 'beacon', 'comet']) {
       const modRoot = `M:/${id}`;
       workspace.registerMod({ modRoot, displayName: id, version: '', status: 'ready' });
-      const manifest = sessionUpdateFixture(id, modRoot).projection.manifest;
+      const manifest = sessionUpdateFixture(id, modRoot).content.manifest;
       project.registerProjectManifest({ ...manifest, modInfo: { id } });
     }
     const manifest = project.getManifest('M:/atlas')!;

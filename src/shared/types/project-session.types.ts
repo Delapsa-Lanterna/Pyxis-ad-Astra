@@ -27,7 +27,7 @@ export interface ProjectInvalidation {
   session: boolean;
 }
 
-export interface ProjectSessionInvalidationResult {
+export interface SessionContentUpdate {
   manifest: ProjectManifest;
   invalidation: ProjectInvalidation;
 }

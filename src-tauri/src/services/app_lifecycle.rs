@@ -23,7 +23,7 @@ struct Progress {
     result: Option<CloseResult>,
     released_sessions: Vec<String>,
 }
-impl Operation {
+impl CloseTask {
     fn state(&self) -> AppResult<MutexGuard<'_, Progress>> {
         self.progress.lock().map_err(|_| poisoned())
     }
@@ -56,7 +56,7 @@ pub fn apply_settings_runtime(value: &AppSettings) -> Result<bool, AppError> {
     performance_monitor::initialize(value.performance_monitor_enabled);
     Ok(performance_monitor::enabled())
 }
-struct Operation {
+struct CloseTask {
     only_if_clean: bool,
     owner: String,
     scope: CloseScope,
@@ -64,7 +64,7 @@ struct Operation {
     progress: Mutex<Progress>,
     changed: Condvar,
 }
-static OPERATIONS: LazyLock<Mutex<BTreeMap<u64, Arc<Operation>>>> = LazyLock::new(Default::default);
+static OPERATIONS: LazyLock<Mutex<BTreeMap<u64, Arc<CloseTask>>>> = LazyLock::new(Default::default);
 static READY: LazyLock<(Mutex<BTreeMap<String, bool>>, Condvar)> = LazyLock::new(Default::default);
 static SEQUENCE: AtomicU64 = AtomicU64::new(0);
 fn poisoned() -> AppError {
@@ -130,7 +130,7 @@ pub fn destroyed(label: &str) -> AppResult<()> {
 fn phase(
     app: &AppHandle,
     id: u64,
-    operation: &Operation,
+    operation: &CloseTask,
     phase: ClosePhase,
     labels: &[String],
 ) -> AppResult<bool> {
@@ -194,7 +194,7 @@ fn phase(
     }
     Ok(!state.cancelled)
 }
-fn destroy(app: &AppHandle, operation: &Operation, label: &str) -> AppResult<()> {
+fn destroy(app: &AppHandle, operation: &CloseTask, label: &str) -> AppResult<()> {
     operation.state()?.destroying.insert(label.into());
     if let Some(window) = app.get_webview_window(label) {
         window.destroy()?;
@@ -207,7 +207,7 @@ fn destroy(app: &AppHandle, operation: &Operation, label: &str) -> AppResult<()>
     }
     Ok(())
 }
-fn child_windows(operation: &Operation) -> impl Iterator<Item = &String> {
+fn child_windows(operation: &CloseTask) -> impl Iterator<Item = &String> {
     operation
         .labels
         .iter()
@@ -283,7 +283,7 @@ fn execute_close(
             if let Some((_, parent)) = &parent {
                 parent.state()?.destroying.insert(owner.into());
             }
-            let operation = Arc::new(Operation {
+            let operation = Arc::new(CloseTask {
                 only_if_clean,
                 owner: owner.into(),
                 scope,
@@ -439,7 +439,7 @@ mod tests {
 
     #[test]
     fn child_window_stages_include_every_managed_window() {
-        let operation = Operation {
+        let operation = CloseTask {
             only_if_clean: false,
             owner: "main".into(),
             scope: CloseScope::Application,
@@ -457,7 +457,7 @@ mod tests {
     #[test]
     fn close_replies_bind_participant_and_phase_and_expected_destroy_preserves_scope() {
         let id = SEQUENCE.fetch_add(1, Ordering::Relaxed) + 1;
-        let operation = Arc::new(Operation {
+        let operation = Arc::new(CloseTask {
             owner: "close-fixture-owner".into(),
             scope: CloseScope::Application,
             labels: vec!["close-fixture-child".into()],

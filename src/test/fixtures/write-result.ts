@@ -18,7 +18,7 @@ export function sessionUpdateFixture(sessionId: string, modRoot: string): Commit
     sessionId,
     modRoot,
 
-    projection: {
+    content: {
       manifest: {
         sessionId,
         modRoot,

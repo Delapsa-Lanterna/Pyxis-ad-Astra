@@ -1,7 +1,7 @@
 import { immersiveNumber } from '../fields';
 import { variantEditableRecords } from '../source-records';
 import { immersiveCatalogScene } from '../hull-scene';
-import type { JointEditSnapshot, JointValue, JointHullProjection, ResourceRef, RowData, ReadonlyVariantEntry } from '@/shared/types';
+import type { JointEditSnapshot, JointValue, JointHull, ResourceRef, RowData, ReadonlyVariantEntry } from '@/shared/types';
 import { jointObject } from '@/domain/joint-edit';
 import { hullDataIndex, hullFieldValue } from '../hull-fields';
 import { isRowData } from '@/shared/lib/row-data';
@@ -47,14 +47,14 @@ export interface VariantHullmod {
   strengthened: boolean;
   icon: ResourceRef | null;
 }
-export interface VariantProjection {
+export interface VariantPanelEntry {
   key: string;
   role: string;
   id: string;
   name: string;
   source: string;
   editable: boolean;
-  hull: JointHullProjection;
+  hull: JointHull;
   spec: Readonly<RowData>;
   weapons: VariantWeapon[];
   wings: VariantWing[];
@@ -71,13 +71,13 @@ export interface VariantProjection {
   capacitors: number;
   fluxLimit: number;
   diagnostics: string[];
-  modules: Array<{ slot: RowData; variant: VariantProjection }>;
+  modules: Array<{ slot: RowData; variant: VariantPanelEntry }>;
 }
 export interface VariantPanel {
   kind: 'variant';
   heading: ImmersiveStat[];
   allStats: ImmersiveStat[];
-  variants: VariantProjection[];
+  variants: VariantPanelEntry[];
   resources: ResourceRef[];
 }
 
@@ -129,9 +129,9 @@ function variantRecordRoles(snapshot: JointEditSnapshot): Map<string, string> {
 export function projectVariantPanel(
   snapshot: JointEditSnapshot,
   values: Record<string, JointValue>,
-  projection: JointEditSnapshot | null = snapshot,
+  preview: JointEditSnapshot | null = snapshot,
 ): VariantPanel {
-  const graph = projection ?? snapshot;
+  const graph = preview ?? snapshot;
   const roles = variantRecordRoles(graph);
   const data = hullDataIndex(graph.records, values);
   const csv = (table: string, id: string) =>
@@ -143,7 +143,7 @@ export function projectVariantPanel(
   const variants = Object.values(graph.variants)
     .filter((hull) => editableKeys.includes(hull.variantKey))
     .sort((a, b) => Number(b.variantKey === rootKey) - Number(a.variantKey === rootKey))
-    .map((hull): VariantProjection => {
+    .map((hull): VariantPanelEntry => {
       const key = hull.variantKey,
         role = roles.get(key)!,
         variant = data.get(key)!,
@@ -387,7 +387,7 @@ export function projectVariantPanel(
   };
 }
 
-export function variantProjectionInputs(_snapshot: JointEditSnapshot, values: Record<string, JointValue>): RowData[] {
+export function variantPreviewInputs(_snapshot: JointEditSnapshot, values: Record<string, JointValue>): RowData[] {
   return Object.entries(values).map(([key, value]) => {
     const data = jointObject(value);
     const weapons = variantWeaponGroups(data)

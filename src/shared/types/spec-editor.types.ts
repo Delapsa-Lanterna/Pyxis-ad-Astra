@@ -1,4 +1,4 @@
-import type { EntityEditInfo, FileVersion, EntityEditTarget } from '@/shared/types/project-identity.types';
+import type { EntityTargetSnapshot, FileVersion, EntityEditTarget } from '@/shared/types/project-identity.types';
 import type { RowData } from './json.types';
 import type { JsonComposition } from './json-composition.types';
 import type { JsonWriteOptions } from '@/shared/types/json-write.types';
@@ -9,7 +9,7 @@ export type SpecEditorKind = (typeof SPEC_EDITOR_KINDS)[number];
 export type WeaponSpecClass = 'projectile' | 'beam';
 export type ProjectileSpecClass = 'projectile' | 'missile';
 
-export interface SpecEditorData<K extends SpecEditorKind = SpecEditorKind> extends EntityEditInfo {
+export interface SpecEditorData<K extends SpecEditorKind = SpecEditorKind> extends EntityTargetSnapshot {
   composition?: JsonComposition;
   kind: K;
   spec: RowData;

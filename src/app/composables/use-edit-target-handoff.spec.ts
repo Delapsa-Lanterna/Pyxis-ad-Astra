@@ -14,7 +14,7 @@ it('settles registrations before close and publishes the surviving targets after
   setActivePinia(createPinia());
   const commands = useSaveCommandStore();
   const target = { sessionId: 'fixture', modRoot: 'M:/fixture', path: 'M:/fixture/file.json' };
-  const unregister = commands.registerSaveSession({
+  const unregister = commands.registerSaveParticipant({
     targetKey: ref('fixture'),
     modRoot: ref(target.modRoot),
     saving: ref(false),

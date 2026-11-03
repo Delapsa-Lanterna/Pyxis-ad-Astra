@@ -74,7 +74,7 @@ function editor(name: string, sessionId = 'a') {
     dirty.value = false;
     return { status: 'saved', receipt: savedWriteFixture() };
   });
-  const handle = {
+  const participant = {
     targetKey,
     modRoot: ref('M:/' + sessionId),
     saving: ref(false),
@@ -87,8 +87,8 @@ function editor(name: string, sessionId = 'a') {
       save,
     },
   };
-  const release = useSaveCommandStore().registerSaveSession(handle);
-  return { handle, save, dirty, inputs, targetKey, release };
+  const release = useSaveCommandStore().registerSaveParticipant(participant);
+  return { participant, save, dirty, inputs, targetKey, release };
 }
 function coordinatorFixture(...args: Parameters<typeof createModSaveCoordinator>) {
   const coordinator = createModSaveCoordinator(...args);
@@ -138,7 +138,7 @@ describe('Mod save coordination', () => {
     const cancelled = editor('a'),
       failed = editor('b'),
       saved = editor('c');
-    cancelled.handle.editing.save = vi.fn(async () => ({ status: 'cancelled' as const }));
+    cancelled.participant.editing.save = vi.fn(async () => ({ status: 'cancelled' as const }));
     failed.save.mockRejectedValueOnce(new Error('fixture failure'));
     const output = feedback(),
       coordinator = coordinatorFixture(output, () => false);

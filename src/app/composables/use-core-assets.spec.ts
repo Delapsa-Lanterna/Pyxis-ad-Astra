@@ -80,10 +80,10 @@ describe('Core asset ownership and acceptance', () => {
     expect(mocks.graphics).toHaveBeenCalledTimes(calls + Number(!changed));
   });
   async function refresh(path: string, source: 'core' | 'mod' = 'core', gameRoot = 'd:/a') {
-    const projection = sessionUpdateFixture('s', 'M:/mod').projection;
-    projection.manifest.starsectorRoot = gameRoot;
-    projection.invalidation.resources = [{ source, relPath: path }];
-    await dispatchProjectChangeFixture({ kind: 'refresh', projection });
+    const update = sessionUpdateFixture('s', 'M:/mod').content;
+    update.manifest.starsectorRoot = gameRoot;
+    update.invalidation.resources = [{ source, relPath: path }];
+    await dispatchProjectChangeFixture({ kind: 'refresh', content: update });
     await flushPromises();
   }
 

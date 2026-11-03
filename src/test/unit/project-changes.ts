@@ -1,5 +1,5 @@
 import { afterEach } from 'vitest';
-import type { CommittedWriteEvent, ProjectInvalidation, ProjectSessionInvalidationResult, WriteResult } from '@/shared/types';
+import type { CommittedWriteEvent, ProjectInvalidation, SessionContentUpdate, WriteResult } from '@/shared/types';
 import { savedWriteFixture, sessionUpdateFixture } from '@/test/fixtures/write-result';
 import { getActivePinia } from 'pinia';
 import { useProjectStore } from '@/stores/project.store';
@@ -73,38 +73,36 @@ export async function listenSavedContentFixture(
   return observeSavedContentFixture(handler, release);
 }
 export { observeSavedContentFixture as observeSavedContent, listenSavedContentFixture as listenSavedContent };
-export function saveProjection(event: CommittedWriteEvent, sessionId: string | null | undefined) {
+export function sessionContentUpdate(event: CommittedWriteEvent, sessionId: string | null | undefined) {
   const update = event.result.sessionUpdates.find((update) => update.sessionId === sessionId);
-  return update?.projection ?? null;
+  return update?.content ?? null;
 }
 export function projectChangeFixture(sessionId: string, invalidation: ProjectInvalidation, modRoot = 'M:/mod') {
   const manifest = getActivePinia() && [...useProjectStore().manifests.values()].find((manifest) => manifest.sessionId === sessionId);
   if (manifest) modRoot = manifest.modRoot;
-  const projection = sessionUpdateFixture(sessionId, modRoot).projection;
-  if (manifest) projection.manifest = manifest;
-  return dispatchProjectChangeFixture({ kind: 'refresh', projection: { ...projection, invalidation } });
+  const update = sessionUpdateFixture(sessionId, modRoot).content;
+  if (manifest) update.manifest = manifest;
+  return dispatchProjectChangeFixture({ kind: 'refresh', content: { ...update, invalidation } });
 }
 export function closeProjectChangeFixture(sessionId: string) {
   for (const release of releases.values()) release(sessionId);
 }
-export async function dispatchProjectChangeFixture(
-  input: CommittedWriteEvent | { kind: 'refresh'; projection: ProjectSessionInvalidationResult },
-) {
+export async function dispatchProjectChangeFixture(input: CommittedWriteEvent | { kind: 'refresh'; content: SessionContentUpdate }) {
   let event: CommittedWriteEvent;
   if ('kind' in input) {
     const result = savedWriteFixture();
     result.sessionUpdates = [
       {
-        sessionId: input.projection.manifest.sessionId,
-        modRoot: input.projection.manifest.modRoot,
+        sessionId: input.content.manifest.sessionId,
+        modRoot: input.content.manifest.modRoot,
 
-        projection: input.projection,
+        content: input.content,
       },
     ];
     event = {
       result,
-      sessionId: input.projection.manifest.sessionId,
-      modRoot: input.projection.manifest.modRoot,
+      sessionId: input.content.manifest.sessionId,
+      modRoot: input.content.manifest.modRoot,
       originWindowLabel: 'peer',
       reason: 'refresh',
     };
@@ -113,7 +111,7 @@ export async function dispatchProjectChangeFixture(
 }
 export function committedChangeFixture(result: WriteResult<unknown>, sessionId: string, modRoot: string): CommittedWriteEvent {
   const update = sessionUpdateFixture(sessionId, modRoot);
-  update.projection.invalidation = result.invalidation;
+  update.content.invalidation = result.invalidation;
   result.sessionUpdates = [update];
   return { sessionId, modRoot, result, reason: 'save', originWindowLabel: 'peer' };
 }

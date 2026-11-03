@@ -108,8 +108,8 @@ describe('workspace active project projection', () => {
 
   function register(sessionId: string, modRoot: string) {
     const update = sessionUpdateFixture(sessionId, modRoot);
-    useProjectStore().registerProjectManifest(update.projection.manifest);
-    return update.projection.manifest;
+    useProjectStore().registerProjectManifest(update.content.manifest);
+    return update.content.manifest;
   }
   it('derives the selected manifest as it becomes available and follows session and projection replacement', () => {
     const workspace = useWorkspaceStore();
@@ -168,7 +168,7 @@ describe('workspace automatic references', () => {
   function register(id: string, dependencies: string[] = [], status: 'loading' | 'ready' = 'ready') {
     const modRoot = `M:/${id}`;
     useWorkspaceStore().registerMod({ modRoot, displayName: id, version: '', status });
-    const manifest = sessionUpdateFixture(id, modRoot).projection.manifest;
+    const manifest = sessionUpdateFixture(id, modRoot).content.manifest;
     useProjectStore().registerProjectManifest({ ...manifest, modInfo: { id, dependencies: dependencies.map((id) => ({ id })) } });
     return modRoot;
   }

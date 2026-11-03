@@ -9,7 +9,7 @@ export interface SaveCommandRequest {
   id: string;
 }
 
-export interface SaveOperation<T> {
+export interface SaveTask<T> {
   id: string;
   result: Promise<T>;
 }

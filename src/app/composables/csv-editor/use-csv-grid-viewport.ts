@@ -3,7 +3,7 @@ import { computed, ref, type Ref } from 'vue';
 export const CSV_GRID_ROW_HEIGHT = 24;
 export const CSV_GRID_OVERSCAN_ROWS = 12;
 
-export interface CsvGridViewportState<T> {
+export interface CsvGridViewport<T> {
   afterHeight: Ref<number>;
   beforeHeight: Ref<number>;
   endIndex: Ref<number>;
@@ -18,7 +18,7 @@ export interface CsvGridViewportState<T> {
 export function useCsvGridViewport<T>(
   items: Ref<T[]>,
   options: { editingIndex: Ref<number | null>; overscan?: number; rowHeight?: number },
-): CsvGridViewportState<T> {
+): CsvGridViewport<T> {
   const rowHeight = options.rowHeight ?? CSV_GRID_ROW_HEIGHT;
   const overscan = options.overscan ?? CSV_GRID_OVERSCAN_ROWS;
   const scrollTop = ref(0);

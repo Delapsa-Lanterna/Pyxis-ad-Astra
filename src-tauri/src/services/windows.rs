@@ -745,8 +745,7 @@ pub fn current_window_bootstrap(label: &str) -> AppResult<WindowBootstrap> {
     let restoring = state.instances[label].accepted_input.is_some();
     drop(state);
     let mod_name = match context.identity.session_id() {
-        Some(session) => project::current_projection(session)?
-            .manifest
+        Some(session) => project::current_project_manifest(session)?
             .mod_info
             .and_then(|info| info.get("name").and_then(Value::as_str).map(str::to_owned)),
         None => None,

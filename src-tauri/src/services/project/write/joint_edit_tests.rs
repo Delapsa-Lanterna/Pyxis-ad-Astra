@@ -1140,7 +1140,7 @@ fn weapon_projection_icons_and_source() {
 }
 
 #[test]
-fn loaded_missile_resource_projection() {
+fn loaded_missile_resource_versions() {
     let (dir, root) = fixture();
     release_project_session(root.session_id.clone()).unwrap();
     fs::create_dir_all(dir.join("data/weapons/proj")).unwrap();
@@ -1890,7 +1890,7 @@ fn csv_identity_and_draft_system() {
     )
     .unwrap();
     release_project_session(root.session_id.clone()).unwrap();
-    let mut trace = PerformanceTrace::new("joint.projection");
+    let mut trace = PerformanceTrace::new("joint.content");
     let manifest = project::open_project_session_traced(&dir, None, &mut trace).unwrap();
     let root = JointEditRoot {
         session_id: manifest.session_id,

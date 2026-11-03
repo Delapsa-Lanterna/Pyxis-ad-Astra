@@ -158,7 +158,7 @@ export function createWindowImageRuntime() {
       const captured = load;
       void request.promise
         .then((value) => {
-          request.accept();
+          request.requireCurrent();
           if (pending.get(physicalKey) !== captured) return;
           decoded.put(physicalKey, entry, value.width * value.height * 4, captured.consumers);
           pending.delete(physicalKey);
@@ -173,7 +173,7 @@ export function createWindowImageRuntime() {
     return {
       image: null,
       promise: captured.request.promise.then((image) => {
-        captured.request.accept();
+        captured.request.requireCurrent();
         return image;
       }),
       release: () => {
@@ -266,7 +266,7 @@ export function createWindowImageRuntime() {
         }),
       );
       const accepted = request.promise.then((value) => {
-        request.accept();
+        request.requireCurrent();
         return value;
       });
       product = captured = { source, request, accepted, references: 0, canvas: null, start };

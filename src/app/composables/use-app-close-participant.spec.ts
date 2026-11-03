@@ -138,7 +138,7 @@ describe('window close preparation', () => {
         resolve(true);
       };
     });
-    useSaveCommandStore().registerSaveSession({ targetKey: ref('a'), modRoot: ref('M:/fixture'), saving, waitForSave: () => pending });
+    useSaveCommandStore().registerSaveParticipant({ targetKey: ref('a'), modRoot: ref('M:/fixture'), saving, waitForSave: () => pending });
     const { guard, wrapper } = await setup(dirty);
     await api.listener(intent('hold'));
     const settling = api.listener(intent('settle'));

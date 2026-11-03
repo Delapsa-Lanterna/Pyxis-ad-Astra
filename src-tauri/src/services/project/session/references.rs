@@ -1,4 +1,4 @@
-use super::super::model::{ProjectSession, ReferenceView, SessionCsvRow};
+use super::super::model::{ProjectSession, ReferenceSnapshot, SessionCsvRow};
 use super::{csv_tables as csv, registry};
 use crate::errors::{AppError, AppResult};
 use crate::io;
@@ -51,7 +51,7 @@ pub(crate) fn reference_updates() -> AppResult<Vec<CommittedSessionUpdate>> {
             Ok(CommittedSessionUpdate {
                 session_id: session.manifest.session_id.clone(),
                 mod_root: session.manifest.mod_root.clone(),
-                projection: ProjectSessionInvalidationResult {
+                content: SessionContentUpdate {
                     manifest: session.manifest.clone(),
                     invalidation: ProjectInvalidation {
                         session: true,
@@ -68,12 +68,12 @@ pub(crate) fn set_reference_sources(ids: Vec<String>) -> AppResult<ReferenceSour
     let mut sources = Vec::new();
     for id in &ids {
         let handle = registry::session_handle(id)?;
-        let session = registry::lock_projected_session(&handle)?;
+        let session = registry::lock_content_ready_session(&handle)?;
         let mut registered = registry::lock_registry()?;
         let source = registered
             .get_mut(id)
             .ok_or_else(|| AppError::message("session.unknown", format!("引用来源已关闭：{id}")))?;
-        let view = Arc::new(ReferenceView::new(&session));
+        let view = Arc::new(ReferenceSnapshot::new(&session));
         sources.push(view.identity.clone());
         source.reference = Some(view);
     }
@@ -108,8 +108,8 @@ pub(crate) fn reference_sources_changed(
     let view = handle
         .as_ref()
         .map(|handle| {
-            registry::lock_projected_session(handle)
-                .map(|session| Arc::new(ReferenceView::new(&session)))
+            registry::lock_content_ready_session(handle)
+                .map(|session| Arc::new(ReferenceSnapshot::new(&session)))
         })
         .transpose()?;
     let mut registered = registry::lock_registry()?;
@@ -125,7 +125,7 @@ pub(crate) fn reference_sources_changed(
     Ok(Some(state.clone()))
 }
 
-impl ReferenceView {
+impl ReferenceSnapshot {
     fn new(session: &ProjectSession) -> Self {
         let session = ProjectSession {
             references: Vec::new(),
@@ -255,7 +255,7 @@ impl ReferenceView {
 }
 
 impl ProjectSession {
-    pub fn preceding_references(&self) -> AppResult<impl Iterator<Item = &Arc<ReferenceView>>> {
+    pub fn preceding_references(&self) -> AppResult<impl Iterator<Item = &Arc<ReferenceSnapshot>>> {
         let order = state()?.order.clone();
         // The workspace owns tab order; consumers receive the eligible source sequence.
         Ok(self.references.iter().filter(move |view| {
@@ -318,7 +318,7 @@ impl ProjectSession {
     }
 }
 
-pub(super) fn prepare(session_id: &str) -> AppResult<(u64, Vec<Arc<ReferenceView>>)> {
+pub(super) fn prepare(session_id: &str) -> AppResult<(u64, Vec<Arc<ReferenceSnapshot>>)> {
     let registered = registry::lock_registry()?;
     let state = state()?;
     Ok((

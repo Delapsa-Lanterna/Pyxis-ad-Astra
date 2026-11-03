@@ -7,7 +7,7 @@ import {
   refreshProjectSourcePaths,
   listenSavedIdentity,
   observeSavedContent,
-  saveProjection,
+  sessionContentUpdate,
 } from '@/orchestrators/project-sync.orchestrator';
 import { computed, onScopeDispose, ref, shallowRef, watch } from 'vue';
 import type { JointEditRoot, JointEditSnapshot, JointValue, RowData, ResourceRef } from '@/shared/types';
@@ -17,13 +17,13 @@ import { useQueryReadOwner } from '../use-query-read-owner';
 import { useAppFeedback } from '../use-app-feedback';
 import { useResourceMediaRegistry } from '../use-resource-media-registry';
 import { useSettingsStore } from '@/stores/settings.store';
-import type { ImmersiveEditorDefinition, ImmersivePanelState } from '@/domain/immersive/fields';
+import type { ImmersiveEditorDefinition, ImmersivePanel } from '@/domain/immersive/fields';
 
 import { immersiveFieldValue, updateImmersiveField, type ImmersiveField, type ImmersiveFieldChange } from '@/domain/immersive/fields';
 import type { SchemaFieldUpdate } from '@/domain/schema/schema.types';
 import type { SchemaRuntimeContext } from '@/domain/schema/schema-runtime';
 import { jointWriteTargets, mapJointDraftIdentity, rebaseJointDraft } from '@/domain/joint-edit';
-import { queryJointEdit, queryJointEditRow, queryJointEditProjection } from '@/services/joint-edit.service';
+import { queryJointEdit, queryJointEditRow, queryJointEditPreview } from '@/services/joint-edit.service';
 import { querySourceOptionCatalog } from '@/services/source-catalog.service';
 
 import { retargetImmersiveWindow } from '@/orchestrators/immersive-editor.orchestrator';
@@ -43,10 +43,10 @@ function jointValueData(value: JointValue | undefined) {
   return value?.state === 'present' ? value.value : undefined;
 }
 
-export function useImmersiveEditorRuntime<TPanel extends ImmersivePanelState>(
+export function useImmersiveEditorRuntime<TPanel extends ImmersivePanel>(
   root: JointEditRoot & { rowKey?: string },
   definition: ImmersiveEditorDefinition<TPanel>,
-  hooks: Pick<NonNullable<Parameters<typeof useJointEditSession>[0]>, 'readSnapshot' | 'onProjection'>,
+  hooks: Pick<NonNullable<Parameters<typeof useJointEditSession>[0]>, 'readSnapshot' | 'onContentUpdate'>,
 ) {
   const feedback = useAppFeedback();
   const settings = useSettingsStore();
@@ -56,7 +56,7 @@ export function useImmersiveEditorRuntime<TPanel extends ImmersivePanelState>(
   let stopIdentity: (() => void) | null = null;
   const selectedStatId = ref<string | null>(null);
   const errorText = ref('');
-  const projection = shallowRef<{
+  const preview = shallowRef<{
     baseline: JointEditSnapshot;
     graph: JointEditSnapshot;
     values: Record<string, JointValue>;
@@ -77,7 +77,7 @@ export function useImmersiveEditorRuntime<TPanel extends ImmersivePanelState>(
     afterBaseline: async (snapshot, receipt, previous) => {
       await retargetImmersiveWindow(snapshot);
       history.rebase((value) => mapJointDraftIdentity(value, previous, snapshot, receipt.identityChanges, receipt.keyMap));
-      await refreshProjection(true);
+      await refreshPreview(true);
     },
   });
   const history = useSnapshotHistory<Record<string, JointValue>>(
@@ -85,13 +85,13 @@ export function useImmersiveEditorRuntime<TPanel extends ImmersivePanelState>(
     computed(() => settings.editHistoryLimit),
   );
   const snapshot = computed(() => joint.baselineSnapshot.value?.meta.snapshot ?? null);
-  const displaySnapshot = computed(() => (projection.value?.baseline === snapshot.value ? projection.value.graph : snapshot.value));
+  const displaySnapshot = computed(() => (preview.value?.baseline === snapshot.value ? preview.value.graph : snapshot.value));
   const displayValues = computed(() => {
-    if (!definition.retainProjectedContent || !snapshot.value) return joint.draftValue.value;
-    const accepted = projection.value?.baseline === snapshot.value ? projection.value.values : joint.baselineSnapshot.value!.value;
+    if (!definition.retainPreviewContent || !snapshot.value) return joint.draftValue.value;
+    const accepted = preview.value?.baseline === snapshot.value ? preview.value.values : joint.baselineSnapshot.value!.value;
     return stableDeepEqual(
-      definition.projectionInputs(snapshot.value, accepted),
-      definition.projectionInputs(snapshot.value, joint.draftValue.value),
+      definition.previewInputs(snapshot.value, accepted),
+      definition.previewInputs(snapshot.value, joint.draftValue.value),
     )
       ? joint.draftValue.value
       : accepted;
@@ -126,21 +126,21 @@ export function useImmersiveEditorRuntime<TPanel extends ImmersivePanelState>(
     subscribeSourceOptionInvalidation: (source, _resources, listener) =>
       observeSavedContent(
         (event) => {
-          const projection = saveProjection(event, root?.sessionId);
-          if (!projection) return;
+          const update = sessionContentUpdate(event, root?.sessionId);
+          if (!update) return;
 
           if (
-            projection.manifest.sessionId === root.sessionId &&
+            update.manifest.sessionId === root.sessionId &&
             (source === 'hull:ids'
-              ? projection.invalidation.session || projection.invalidation.queryScopes.some((scope) => scope.kind === 'hull-references')
-              : hasSourceInvalidation(projection.invalidation, source))
+              ? update.invalidation.session || update.invalidation.queryScopes.some((scope) => scope.kind === 'hull-references')
+              : hasSourceInvalidation(update.invalidation, source))
           )
             return listener();
         },
         (sessionId) => {
           if (sessionId !== root.sessionId) return;
           reads.revoke('session');
-          projection.value = null;
+          preview.value = null;
           dismissStat();
           errorText.value = '所属会话已关闭';
         },
@@ -167,40 +167,40 @@ export function useImmersiveEditorRuntime<TPanel extends ImmersivePanelState>(
       void media.replaceCollection(root.sessionId, 'immersive-preview', resources);
     },
   );
-  function projectionInputKey() {
+  function previewInputKey() {
     if (!snapshot.value) return '';
-    return JSON.stringify([joint.currentTargetKey.value, definition.projectionInputs(snapshot.value, joint.draftValue.value)]);
+    return JSON.stringify([joint.currentTargetKey.value, definition.previewInputs(snapshot.value, joint.draftValue.value)]);
   }
-  const projectionInputSelection = computed(projectionInputKey);
-  watch([projectionInputSelection, snapshot], ([, baseline], [, previousBaseline]) => {
+  const previewInputSelection = computed(previewInputKey);
+  watch([previewInputSelection, snapshot], ([, baseline], [, previousBaseline]) => {
     if (baseline !== previousBaseline && joint.context.value?.handoff === 'save') return;
-    reads.revoke('consumer', 'projection');
-    reads.schedule('projection', () => {
-      void refreshProjection();
+    reads.revoke('consumer', 'preview');
+    reads.schedule('preview', () => {
+      void refreshPreview();
     });
   });
-  async function refreshProjection(required = false) {
+  async function refreshPreview(required = false) {
     const baseline = snapshot.value;
     if (!baseline) return;
     const values = deepClone(joint.draftValue.value);
     const original = joint.baselineSnapshot.value!.value;
-    const previous = projection.value;
+    const previous = preview.value;
     const saved = joint.context.value?.handoff === 'save' && previous && previous.baseline !== baseline;
     if (
       previous &&
       (saved || previous.baseline === baseline) &&
-      stableDeepEqual(definition.projectionInputs(previous.baseline, previous.values), definition.projectionInputs(baseline, values))
+      stableDeepEqual(definition.previewInputs(previous.baseline, previous.values), definition.previewInputs(baseline, values))
     ) {
-      projection.value = { baseline, graph: previous.graph, values };
+      preview.value = { baseline, graph: previous.graph, values };
       return;
     }
-    if (!saved && stableDeepEqual(definition.projectionInputs(baseline, values), definition.projectionInputs(baseline, original))) {
-      projection.value = { baseline, graph: baseline, values };
+    if (!saved && stableDeepEqual(definition.previewInputs(baseline, values), definition.previewInputs(baseline, original))) {
+      preview.value = { baseline, graph: baseline, values };
       return;
     }
-    await reads.consume('projection', { root: baseline.root, values }, (signal) => queryJointEditProjection({ baseline, values }, signal), {
+    await reads.consume('preview', { root: baseline.root, values }, (signal) => queryJointEditPreview({ baseline, values }, signal), {
       ready: (value) => {
-        projection.value = { baseline, graph: cloneQuerySnapshot<JointEditSnapshot>(value), values };
+        preview.value = { baseline, graph: cloneQuerySnapshot<JointEditSnapshot>(value), values };
       },
       error: (error) => {
         if (required) throw error;
@@ -208,16 +208,16 @@ export function useImmersiveEditorRuntime<TPanel extends ImmersivePanelState>(
       },
     });
   }
-  const stopProjection = observeSavedContent(
+  const stopPreview = observeSavedContent(
     (event) => {
-      const projection = saveProjection(event, root?.sessionId);
-      if (!projection) return;
-      if (projection.manifest.sessionId !== root.sessionId) return;
+      const update = sessionContentUpdate(event, root?.sessionId);
+      if (!update) return;
+      if (update.manifest.sessionId !== root.sessionId) return;
     },
     (sessionId) => {
       if (sessionId !== root.sessionId) return;
       reads.revoke('session');
-      projection.value = null;
+      preview.value = null;
       dismissStat();
       errorText.value = '所属会话已关闭';
     },
@@ -506,10 +506,10 @@ export function useImmersiveEditorRuntime<TPanel extends ImmersivePanelState>(
   }
   onScopeDispose(() => {
     active = false;
-    projection.value = null;
+    preview.value = null;
     selectionIntent = null;
     stopIdentity?.();
-    stopProjection();
+    stopPreview();
   });
   useContextMenuScope({
     identity: () => joint.currentTargetKey.value ?? '',

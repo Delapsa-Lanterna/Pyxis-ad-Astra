@@ -296,9 +296,9 @@ pub(super) struct SessionCsvRow {
 #[derive(Clone)]
 pub(super) struct ProjectSession {
     pub reference_revision: u64,
-    pub references: Vec<Arc<ReferenceView>>,
+    pub references: Vec<Arc<ReferenceSnapshot>>,
     pub loaded_edit_targets: Vec<EntityEditTarget>,
-    pub projection_pending: bool,
+    pub content_pending: bool,
     pub source_versions: Arc<BTreeMap<String, FileVersion>>,
     pub manifest: ProjectManifest,
     pub faction_files: Arc<BTreeMap<String, LoadedSpecRecord>>,
@@ -315,7 +315,7 @@ pub(super) struct ProjectSession {
     pub skill_files: Arc<BTreeMap<String, LoadedSpecRecord>>,
 }
 
-pub(super) struct ReferenceView {
+pub(super) struct ReferenceSnapshot {
     pub identity: ReferenceSource,
     pub session: ProjectSession,
     pub tables: Mutex<BTreeMap<String, Arc<SessionCsvTable>>>,

@@ -1,6 +1,6 @@
 import { onScopeDispose } from 'vue';
-import { createReadTicketOwner } from '@/shared/runtime/read-request';
-const owners = new Set<ReturnType<typeof createReadTicketOwner>>();
+import { createReadOwner } from '@/shared/runtime/read-request';
+const owners = new Set<ReturnType<typeof createReadOwner>>();
 let prepared = false;
 export function pauseQueryReads() {
   prepared = true;
@@ -11,7 +11,7 @@ export function pauseQueryReads() {
   };
 }
 export function useQueryReadOwner() {
-  const owner = createReadTicketOwner();
+  const owner = createReadOwner();
   owners.add(owner);
   if (prepared) owner.pause();
   onScopeDispose(() => {

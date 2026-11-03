@@ -125,7 +125,7 @@ test('source products are consumed by session models while source reads stay ind
 test('project definitions consume projection capture while session lifecycle stays owned', () => {
   const file = 'src-tauri/src/services/project/definitions/entity_definitions.rs';
   const allowed = architectureFixtures({
-    [file]: 'fn read() { crate::services::project::session::source_projection::capture_projection_versions(sources, paths); }',
+    [file]: 'fn read() { crate::services::project::session::source_versions::capture_changed_versions(sources, paths); }',
   });
   assert.deepEqual(rustProjectLayerBoundaryRule.check(allowed), []);
   const denied = architectureFixtures({ [file]: '\nfn read() { crate::services::project::session::lock_registry(); }' });

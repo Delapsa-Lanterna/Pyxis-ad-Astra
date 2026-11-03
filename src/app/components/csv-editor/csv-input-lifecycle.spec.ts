@@ -56,7 +56,7 @@ function mountTable(control: CsvColumnControl = 'number', extraColumns = 0, coun
   const workspace = useWorkspaceStore();
   workspace.registerMod({ modRoot: root, displayName: 'A', version: '', status: 'ready' });
   workspace.activateModTable(root);
-  const tableManifest = sessionUpdateFixture('sA', root).projection.manifest;
+  const tableManifest = sessionUpdateFixture('sA', root).content.manifest;
   const header = ['width', ...Array.from({ length: extraColumns }, (_, index) => 'field' + index)];
   for (const key of TABLE_KEYS) tableManifest.tableSummaries[key] = { ...tableManifest.tableSummaries[key], header, totalRows: 1 };
   useProjectStore().registerProjectManifest(tableManifest);

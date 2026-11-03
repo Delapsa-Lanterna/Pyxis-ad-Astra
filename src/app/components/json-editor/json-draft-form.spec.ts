@@ -168,7 +168,7 @@ let entities: Map<string, EntityData>;
 const pages = (Object.keys(JSON_DOCUMENT_DEFINITIONS) as JsonEditorPageId[]).filter((page) => page !== 'misc-config');
 const key = (session: string, kind: string, id: string) => [session, kind, id].join(':');
 function manifest(session = 's1', root = 'M:/one') {
-  const result = sessionUpdateFixture(session, root).projection.manifest;
+  const result = sessionUpdateFixture(session, root).content.manifest;
   result.modInfo = { id: 'mod', name: 'Saved' };
   result.baseVersions = [{ path: root + '/mod_info.json', fingerprint: 'v1' }];
   return result;

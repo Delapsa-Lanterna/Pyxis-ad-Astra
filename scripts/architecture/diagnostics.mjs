@@ -3,7 +3,7 @@ import { relative } from 'node:path';
 
 /** @typedef {{ruleId: string, file: string, line: number, column: number, message: string, reference: string, source: string, target?: string, symbol?: string, expected?: string}} Diagnostic */
 /** @typedef {{line: number, column: number}} Position */
-/** @typedef {Position & {bindings?: import('./facts/imports.mjs').ImportSpecifierInfo[], target?: string | string[]}} EvidencePosition */
+/** @typedef {Position & {bindings?: import('./facts/imports.mjs').ImportBinding[], target?: string | string[]}} EvidencePosition */
 /** @typedef {(file: {rel: string}, position: EvidencePosition, message: string, relation?: {target?: string, symbol?: string, expected?: string}) => void} Report */
 /** @typedef {{name: string, reference: string, source: string, check: (context: import('./facts/context.mjs').ArchitectureContext) => Diagnostic[]}} ArchitectureRule */
 

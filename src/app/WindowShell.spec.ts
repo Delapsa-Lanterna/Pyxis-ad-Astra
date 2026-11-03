@@ -45,7 +45,7 @@ afterEach(() => wrapper?.unmount());
 
 function register(sessionId: string, modRoot: string, starsectorRoot: string) {
   const update = sessionUpdateFixture(sessionId, modRoot);
-  useProjectStore().registerProjectManifest({ ...update.projection.manifest, starsectorRoot });
+  useProjectStore().registerProjectManifest({ ...update.content.manifest, starsectorRoot });
   useWorkspaceStore().registerMod({ modRoot, displayName: sessionId, version: '', status: 'ready' });
 }
 function mountWindow(mode: 'main' | 'child') {

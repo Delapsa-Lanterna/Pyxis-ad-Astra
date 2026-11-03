@@ -33,8 +33,8 @@ function harness() {
   const workspace = useWorkspaceStore(),
     tables = useCsvEditorStore();
   workspace.registerMod({ modRoot: 'M:/mod', displayName: 'Sample', version: '', status: 'ready' });
-  useProjectStore().registerProjectManifest(update.projection.manifest);
-  tables.initializeModTables({ sessionId: 's', modRoot: 'M:/mod', manifest: update.projection.manifest });
+  useProjectStore().registerProjectManifest(update.content.manifest);
+  tables.initializeModTables({ sessionId: 's', modRoot: 'M:/mod', manifest: update.content.manifest });
   tables.switchTab('M:/mod', 'wings');
   workspace.activateModTable('M:/mod');
   const target = { sessionId: 's', modRoot: 'M:/mod', table: 'wings' as const };

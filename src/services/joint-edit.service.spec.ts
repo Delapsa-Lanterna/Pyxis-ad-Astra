@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   queryJointEdit,
   queryJointEditRow,
-  queryJointEditProjection,
+  queryJointEditPreview,
   queryJointCandidate,
   queryJointVariantCatalog,
   prepareJointEdit,
@@ -74,7 +74,7 @@ describe('joint edit capability protocols', () => {
       payload: { root: { ...root, id: '' }, rowKey: 'ships:row:2', values: null, newSources: [], catalog: null },
     });
     const values = { csv: { state: 'present' as const, value: { 'system id': 'next' } } };
-    await queryJointEditProjection({ baseline: snapshot, values });
+    await queryJointEditPreview({ baseline: snapshot, values });
     expect(invoke).toHaveBeenLastCalledWith('query_joint_edit', { payload: { root, rowKey: null, values, newSources: [], catalog: null } });
   });
   it('maps query, preparation and submission to their formal payloads', async () => {

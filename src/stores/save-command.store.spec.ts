@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ref } from 'vue';
 import { createFieldInputs } from '@/shared/runtime/field-inputs';
 
-import { useSaveCommandStore, type SaveSessionHandle } from './save-command.store';
+import { useSaveCommandStore, type SaveParticipant } from './save-command.store';
 import { flushPromises } from '@vue/test-utils';
 import { savedWriteFixture } from '@/test/fixtures/write-result';
 import type { DocumentSaveResult } from '@/shared/runtime/document-editor';
@@ -18,7 +18,7 @@ describe('useSaveCommandStore', () => {
       saving.value = false;
       return true;
     });
-    commands.registerSaveSession({
+    commands.registerSaveParticipant({
       targetKey: ref('target'),
       modRoot: ref('M:/mod'),
       saving,
@@ -82,7 +82,7 @@ describe('useSaveCommandStore', () => {
         dirty = ref(false),
         draftValue = ref({ value: 1 });
       const inputs = createFieldInputs(targetKey);
-      const handle = {
+      const participant = {
         targetKey,
         modRoot: ref('M:/mod'),
         saving: ref(false),
@@ -95,7 +95,7 @@ describe('useSaveCommandStore', () => {
           save: async () => ({ status: 'noop' as const }),
         },
       };
-      const unregister = commands.registerSaveSession(handle);
+      const unregister = commands.registerSaveParticipant(participant);
       const accepts = commands.captureCloseState();
       expect(accepts()).toBe(true);
       if (change === 'target') targetKey.value = 'two';
@@ -104,7 +104,7 @@ describe('useSaveCommandStore', () => {
       if (change === 'input lifecycle') inputs.cancel();
       if (change === 'registration') {
         unregister();
-        commands.registerSaveSession({ ...handle });
+        commands.registerSaveParticipant({ ...participant });
       }
       expect(accepts()).toBe(false);
     },
@@ -121,7 +121,7 @@ function deferred<T>() {
   return { promise, resolve, reject };
 }
 function participant(id: string, run: () => Promise<DocumentSaveResult>, root = 'M:/one') {
-  const handle: SaveSessionHandle = {
+  const participant: SaveParticipant = {
     targetKey: ref(id),
     modRoot: ref(root),
     saving: ref(false),
@@ -134,8 +134,8 @@ function participant(id: string, run: () => Promise<DocumentSaveResult>, root = 
       save: vi.fn(run),
     },
   };
-  const release = useSaveCommandStore().registerSaveSession(handle);
-  return { handle, release, save: () => useSaveCommandStore().requestSave(handle) };
+  const release = useSaveCommandStore().registerSaveParticipant(participant);
+  return { participant, release, save: () => useSaveCommandStore().requestSave(participant) };
 }
 describe('document save queue', () => {
   beforeEach(() => setActivePinia(createPinia()));
@@ -175,7 +175,7 @@ describe('document save queue', () => {
     expect(order).toEqual(['CSV', 'queued']);
     second.resolve({ status: 'noop' });
     expect(await savingB).toEqual(await repeated);
-    expect(b.handle.editing!.save).toHaveBeenCalledOnce();
+    expect(b.participant.editing!.save).toHaveBeenCalledOnce();
     expect(useSaveCommandStore().hasPendingSave()).toBe(false);
   });
   it.each(['cancel', 'fail'] as const)('%s ends the appropriate requests and continues other Mods', async (outcome) => {
@@ -193,8 +193,8 @@ describe('document save queue', () => {
     await expectedA;
     expect(await savingB).toEqual({ status: 'noop' });
     expect(await savingC).toEqual({ status: 'noop' });
-    expect(b.handle.editing!.save).toHaveBeenCalledOnce();
-    expect(c.handle.editing!.save).toHaveBeenCalledOnce();
+    expect(b.participant.editing!.save).toHaveBeenCalledOnce();
+    expect(c.participant.editing!.save).toHaveBeenCalledOnce();
   });
 
   it('waits for saves added during the wait and their synchronization', async () => {
@@ -227,13 +227,13 @@ describe('document save queue', () => {
     useProjectSyncStore().setBlocked({
       kind: 'blocked',
       requestId: 'disk',
-      modRoot: item.handle.modRoot.value!,
+      modRoot: item.participant.modRoot.value!,
       sessionId: 's',
       diagnostic: { code: 'io.unexpected', message: 'disk', location: null },
     });
     await expect(waiting).resolves.toBe(false);
     expect(commands.hasPendingSave()).toBe(true);
-    useProjectSyncStore().setWaiting(item.handle.modRoot.value!, true);
+    useProjectSyncStore().setWaiting(item.participant.modRoot.value!, true);
     gate.resolve({ status: 'saved', receipt: savedWriteFixture() });
     await saving;
     expect(commands.hasPendingSave()).toBe(false);

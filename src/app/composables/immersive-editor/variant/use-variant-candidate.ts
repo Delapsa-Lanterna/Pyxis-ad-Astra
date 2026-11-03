@@ -1,4 +1,4 @@
-import { observeSavedContent, saveProjection } from '@/orchestrators/project-sync.orchestrator';
+import { observeSavedContent, sessionContentUpdate } from '@/orchestrators/project-sync.orchestrator';
 import { computed, shallowRef, ref, watch, onScopeDispose } from 'vue';
 import type { JointEditRoot, JointEditSnapshot, ResourceRef } from '@/shared/types';
 import { queryJointCandidate, hasJointEditInvalidation } from '@/services/joint-edit.service';
@@ -85,9 +85,9 @@ export function useVariantCandidate(root: () => JointEditRoot, kind: () => 'weap
   onScopeDispose(
     observeSavedContent(
       (event) => {
-        const projection = saveProjection(event, root().sessionId);
-        if (!projection) return undefined;
-        if (projection.manifest.sessionId !== root().sessionId || !hasJointEditInvalidation(projection.invalidation)) return undefined;
+        const update = sessionContentUpdate(event, root().sessionId);
+        if (!update) return undefined;
+        if (update.manifest.sessionId !== root().sessionId || !hasJointEditInvalidation(update.invalidation)) return undefined;
         if (id()) return load(true);
         return undefined;
       },
