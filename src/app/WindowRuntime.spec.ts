@@ -7,6 +7,9 @@ import { NDialogProvider } from 'naive-ui/es/dialog';
 import { NPopover } from 'naive-ui/es/popover';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import WindowShell from './WindowShell.vue';
+import ContextMenu from './components/ContextMenu.vue';
+import { useWindowMenuHost } from './composables/use-app-lifecycle-assembly';
+import { useSaveCommandStore } from '@/stores/save-command.store';
 import TitleBar from './TitleBar.vue';
 import { createWindowFeedback } from './app-feedback-assembly';
 import { useAppFeedback } from './composables/use-app-feedback';
@@ -34,10 +37,10 @@ vi.mock('@/orchestrators/mod-save.orchestrator', () => ({
 vi.mock('@/services/app-log.service', () => ({ recordLogBestEffort: mocks.log }));
 vi.mock('@/app/composables/use-core-assets', () => ({ useCoreAssetsLifecycle: vi.fn() }));
 vi.mock('@/app/composables/use-window-image-runtime', () => ({ useWindowImageRuntimeLifetime: vi.fn() }));
-vi.mock('@/app/composables/use-app-lifecycle-assembly', async (original) => ({
-  ...(await original<typeof UseAppLifecycleAssemblyModule>()),
-  useAppSettings: vi.fn(),
-}));
+vi.mock('@/app/composables/use-app-lifecycle-assembly', async (original) => {
+  const module = await original<typeof UseAppLifecycleAssemblyModule>();
+  return { ...module, useAppSettings: vi.fn(), useWindowMenuHost: vi.fn(module.useWindowMenuHost) };
+});
 vi.mock('@/app/composables/settings/use-theme-dom-effect', () => ({ useThemeDomEffect: vi.fn() }));
 vi.mock('./composables/use-edit-target-handoff', async (original) => {
   const module = await original<typeof UseEditTargetHandoffModule>();
@@ -76,9 +79,51 @@ beforeEach(() => {
 afterEach(async () => {
   for (const wrapper of wrappers.splice(0)) wrapper.unmount();
   await flushPromises();
+  vi.restoreAllMocks();
 });
 
 describe('window-owned feedback', () => {
+  it('binds each menu to its own close state, feedback and captured save store', async () => {
+    const first = windowHarness();
+    const firstWait = vi.spyOn(useSaveCommandStore(), 'waitForSaves').mockResolvedValue(true);
+    const firstHost = first.wrapper.getComponent(ContextMenu).props('host');
+    setActivePinia(createPinia());
+    initializeSettingsStore(createSettingsFixture());
+    const second = windowHarness('child');
+    const secondWait = vi.spyOn(useSaveCommandStore(), 'waitForSaves').mockResolvedValue(false);
+    const secondHost = second.wrapper.getComponent(ContextMenu).props('host');
+    expect(first.wrapper.findAllComponents(ContextMenu)).toHaveLength(1);
+    expect(second.wrapper.findAllComponents(ContextMenu)).toHaveLength(1);
+    expect(firstHost).not.toBe(secondHost);
+    expect(firstHost.closing).toBe(closingStates[0]);
+    expect(secondHost.closing).toBe(closingStates[2]);
+    expect(firstHost.feedback).toBe(consumers[0]);
+    expect(secondHost.feedback).toBe(consumers[2]);
+    expect(useWindowMenuHost).toHaveBeenCalledTimes(2);
+    await expect(firstHost.waitForSaves()).resolves.toBe(true);
+    await expect(secondHost.waitForSaves()).resolves.toBe(false);
+    expect(firstWait).toHaveBeenCalledExactlyOnceWith();
+    expect(secondWait).toHaveBeenCalledExactlyOnceWith();
+  });
+  it('installs and releases exactly one menu priority listener per window', async () => {
+    const add = vi.spyOn(window, 'addEventListener');
+    const remove = vi.spyOn(window, 'removeEventListener');
+    const { wrapper, page } = windowHarness();
+    const priorityCalls = () => add.mock.calls.filter(([type, , capture]) => type === 'keydown' && capture === true);
+    expect(priorityCalls()).toHaveLength(1);
+    const [, handler, capture] = priorityCalls()[0]!;
+    page.value++;
+    closingStates[0]!.value = true;
+    await nextTick();
+    closingStates[0]!.value = false;
+    await nextTick();
+    expect(priorityCalls()).toHaveLength(1);
+    expect(remove.mock.calls.filter(([type, listener]) => type === 'keydown' && listener === handler)).toHaveLength(0);
+    wrapper.unmount();
+    expect(
+      remove.mock.calls.filter(([type, listener, phase]) => type === 'keydown' && listener === handler && phase === capture),
+    ).toHaveLength(1);
+  });
   it.each(['沉浸式编辑器', '文件编辑器', 'Spec 编辑器', '开火预览'])(
     'assembles the shared %s titlebar inside the owning close boundary',
     async (title) => {
@@ -157,9 +202,12 @@ describe('window-owned feedback', () => {
   it('keeps the instance and its feedback after replacing the source page', async () => {
     const { page } = windowHarness();
     const feedback = consumers[0]!;
+    const host = wrappers[0]!.getComponent(ContextMenu).props('host');
     page.value++;
     await nextTick();
     expect(consumers.at(-1)).toBe(feedback);
+    expect(wrappers[0]!.getComponent(ContextMenu).props('host')).toBe(host);
+    expect(useWindowMenuHost).toHaveBeenCalledOnce();
     expect(createWindowFeedback).toHaveBeenCalledOnce();
     feedback.info('操作已完成');
     await flushPromises();

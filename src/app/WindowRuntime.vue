@@ -1,10 +1,13 @@
 <template>
   <div class="window-runtime ui-layout-contained" :inert="closing || undefined">
-    <n-config-provider abstract :namespace="closing ? 'window-runtime-overlays' : undefined"><slot /></n-config-provider>
+    <n-config-provider abstract :namespace="closing ? 'window-runtime-overlays' : undefined"
+      ><ContextMenu :host="menuHost"><slot /></ContextMenu
+    ></n-config-provider>
   </div>
 </template>
 <script setup lang="ts">
-import { useAppLifecycleAssembly } from '@/app/composables/use-app-lifecycle-assembly';
+import { useAppLifecycleAssembly, useWindowMenuHost } from '@/app/composables/use-app-lifecycle-assembly';
+import ContextMenu from '@/app/components/ContextMenu.vue';
 import { useDialog } from 'naive-ui/es/dialog';
 import { useMessage } from 'naive-ui/es/message';
 import { createWindowFeedback } from '@/app/app-feedback-assembly';
@@ -22,6 +25,7 @@ const feedback = createWindowFeedback(
 );
 provideAppFeedback(feedback);
 const closing = useAppLifecycleAssembly(feedback);
+const menuHost = useWindowMenuHost(feedback, closing);
 useEditTargetHandoff(feedback);
 watch(
   applicationLogError,

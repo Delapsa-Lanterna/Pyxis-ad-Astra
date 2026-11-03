@@ -1,6 +1,8 @@
 import { requestClose, readyNativeClose, replyNativeClose } from '@/services/app-lifecycle.service';
-import { onUnmounted, onScopeDispose, watch } from 'vue';
+import { onUnmounted, onScopeDispose, watch, type Ref } from 'vue';
 import { useSettingsStore } from '@/stores/settings.store';
+import { useSaveCommandStore } from '@/stores/save-command.store';
+import type { ContextMenuHost } from '@/app/composables/use-context-menu';
 import { useCsvEditorStore } from '@/stores/csv-editor.store';
 import { refreshLoadedFileHistory } from '@/orchestrators/file-history-replay.orchestrator';
 import { pauseProjectDisplay, startProjectSync } from '@/orchestrators/project-sync.orchestrator';
@@ -61,4 +63,14 @@ export function useAppSettings(mode: 'main' | 'child') {
   const csv = useCsvEditorStore();
   watch(() => settings.editHistoryLimit, csv.setHistoryLimit, { immediate: true, flush: 'sync' });
   onUnmounted(mode === 'main' ? startSettingsPersistence(refreshLoadedFileHistory) : startSettingsMirror());
+}
+
+export function useWindowMenuHost(feedback: AppFeedback, closing: Readonly<Ref<boolean>>): ContextMenuHost {
+  const commands = useSaveCommandStore();
+  return {
+    closing,
+    feedback,
+    waitForSaves: () => commands.waitForSaves(),
+    bindPriorityKeys: (priority) => useWindowShortcuts({ priority }),
+  };
 }

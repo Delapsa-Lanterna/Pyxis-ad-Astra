@@ -1,7 +1,7 @@
 import { mount, flushPromises } from '@vue/test-utils';
 import { defineComponent, h, ref } from 'vue';
 import { createPinia, setActivePinia } from 'pinia';
-import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, afterEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 import ContextMenu from './ContextMenu.vue';
 import TitleBar from '@/app/TitleBar.vue';
 import { initializeSettingsStore } from '@/stores/settings.store';
@@ -11,7 +11,8 @@ import { NConfigProvider } from 'naive-ui/es/config-provider';
 import { createThemeColors } from '@/domain/settings/theme';
 import { IMMERSIVE_COLORS } from '@/domain/immersive/appearance';
 import { buildThemeOverrides } from '@/app/theme-overrides';
-import { useContextMenuScope } from '@/app/composables/use-context-menu';
+import { useContextMenuScope, type ContextMenuHost } from '@/app/composables/use-context-menu';
+import { useWindowShortcuts } from '@/app/composables/use-window-shortcuts';
 import ModTabsBar from './ModTabsBar.vue';
 import { useWorkspaceStore } from '@/stores/workspace.store';
 import { useProjectStore } from '@/stores/project.store';
@@ -50,11 +51,21 @@ vi.mock('@/app/composables/use-workspace-navigation-actions', () => ({
   }),
 }));
 vi.mock('@/app/composables/use-app-feedback', () => ({ useAppFeedback: () => ({ error: mocks.error }) }));
+function createMenuHost(): ContextMenuHost {
+  return {
+    closing: closeState,
+    feedback: { error: mocks.error },
+    waitForSaves: () => useSaveCommandStore().waitForSaves(),
+    bindPriorityKeys: (priority) => useWindowShortcuts({ priority }),
+  };
+}
+
 let wrapper: ReturnType<typeof mount>;
 function setup(readOnly = false) {
   const identity = ref('A'),
     refresh = vi.fn();
   wrapper = mount(ContextMenu, {
+    props: { host: createMenuHost() },
     attachTo: document.body,
     slots: {
       default: defineComponent({
@@ -102,6 +113,7 @@ function setupTabs() {
   useCoreAssetsStore().reset('M:/game');
   const parentRefresh = vi.fn();
   wrapper = mount(ContextMenu, {
+    props: { host: createMenuHost() },
     attachTo: document.body,
     slots: {
       default: defineComponent({
@@ -216,6 +228,7 @@ describe('window context menu', () => {
   });
   it.each(['设置', '关于', '最小化', '退出'] as const)('dispatches titlebar %s through its existing action', async (key) => {
     wrapper = mount(ContextMenu, {
+      props: { host: createMenuHost() },
       attachTo: document.body,
       slots: { default: TitleBar },
       global: { stubs: { NPopover: { template: '<div><slot name="trigger" /><slot /></div>' } } },
@@ -311,7 +324,7 @@ describe('window context menu', () => {
               NConfigProvider,
               { themeOverrides: buildThemeOverrides(colors, 'sans-serif') },
               {
-                default: () => h(ContextMenu, {}, { default: () => h('main') }),
+                default: () => h(ContextMenu, { host: createMenuHost() }, { default: () => h('main') }),
               },
             ),
         }),
@@ -413,5 +426,105 @@ describe('window context menu', () => {
     fail(new Error('source refresh failed'));
     await flushPromises();
     expect(mocks.error).toHaveBeenCalledExactlyOnceWith(expect.any(Error), '右键操作失败');
+  });
+
+  it.each(['closing', 'cancelled-close', 'unmounted'] as const)('ends captured refresh after %s', async (state) => {
+    const own = setup();
+    let finish!: (value: boolean) => void;
+    const waiting = new Promise<boolean>((resolve) => {
+      finish = resolve;
+    });
+    onTestFinished(async () => {
+      finish(true);
+      await flushPromises();
+    });
+    const wait = vi.spyOn(useSaveCommandStore(), 'waitForSaves').mockReturnValueOnce(waiting);
+    await open(wrapper.get('main').element);
+    await select('刷新');
+    expect(wait).toHaveBeenCalledOnce();
+    expect(own.refresh).toHaveBeenCalledTimes(0);
+    if (state === 'unmounted') wrapper.unmount();
+    else {
+      closeState.value = true;
+      if (state === 'cancelled-close') closeState.value = false;
+    }
+    finish(true);
+    await flushPromises();
+    expect(own.refresh).toHaveBeenCalledTimes(0);
+    if (state === 'cancelled-close') {
+      await open(wrapper.get('main').element);
+      await select('刷新');
+      expect(wait).toHaveBeenCalledTimes(2);
+      expect(own.refresh).toHaveBeenCalledOnce();
+    }
+  });
+  it.each([
+    ['粘贴', false],
+    ['粘贴', true],
+    ['剪切', false],
+    ['剪切', true],
+  ] as const)('ends pending %s input across window close (resume: %s)', async (key, resume) => {
+    setup();
+    const input = wrapper.get('textarea').element;
+    const edit = vi.fn(() => true);
+    Object.defineProperty(document, 'execCommand', { configurable: true, value: edit });
+    onTestFinished(() => {
+      Reflect.deleteProperty(document, 'execCommand');
+    });
+    let finish!: (text: string) => void;
+    const waiting = new Promise<string>((resolve) => {
+      finish = resolve;
+    });
+    onTestFinished(async () => {
+      finish('late');
+      await flushPromises();
+    });
+    if (key === '粘贴') mocks.read.mockReturnValueOnce(waiting);
+    else
+      mocks.write.mockImplementationOnce(async () => {
+        await waiting;
+      });
+    input.focus();
+    input.setSelectionRange(1, 4);
+    await open(input);
+    await select(key);
+    expect(key === '粘贴' ? mocks.read : mocks.write).toHaveBeenCalledOnce();
+    closeState.value = true;
+    if (resume) closeState.value = false;
+    finish('late');
+    await flushPromises();
+    expect(edit).toHaveBeenCalledTimes(0);
+    expect(input.value).toBe('hello');
+    expect([input.selectionStart, input.selectionEnd]).toEqual([1, 4]);
+    closeState.value = false;
+    await open(input);
+    await select(key);
+    expect(key === '粘贴' ? mocks.read : mocks.write).toHaveBeenCalledTimes(2);
+    expect(edit).toHaveBeenCalledExactlyOnceWith(key === '粘贴' ? 'insertText' : 'delete', false, key === '粘贴' ? 'paste' : '');
+    expect(mocks.error).toHaveBeenCalledTimes(0);
+  });
+  it('ends a started refresh callback when its window closes and resumes', async () => {
+    const own = setup();
+    const accept = vi.fn();
+    let finish!: () => void;
+    const waiting = new Promise<void>((resolve) => {
+      finish = resolve;
+    });
+    onTestFinished(async () => {
+      finish();
+      await flushPromises();
+    });
+    own.refresh.mockImplementationOnce(async (current: () => boolean) => {
+      await waiting;
+      if (current()) accept();
+    });
+    await open(wrapper.get('main').element);
+    await select('刷新');
+    expect(own.refresh).toHaveBeenCalledOnce();
+    closeState.value = true;
+    closeState.value = false;
+    finish();
+    await flushPromises();
+    expect(accept).toHaveBeenCalledTimes(0);
   });
 });

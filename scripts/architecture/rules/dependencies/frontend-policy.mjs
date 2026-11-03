@@ -24,6 +24,15 @@ export function frontendDependencyFailure(current, target, edge) {
       message: 'settings source actions must be supplied by application assembly',
       expected: 'settings dependencies and explicit source action',
     };
+  const menu = ['src/app/components/ContextMenu.vue', 'src/app/composables/use-context-menu.ts'].includes(current.path);
+  if (
+    menu &&
+    (['stores', 'services', 'orchestrators', 'windows'].includes(target.layer) ||
+      ['use-window-close-state', 'use-window-shortcuts', 'use-app-feedback', 'use-app-lifecycle-assembly'].some(
+        (name) => target.path === 'src/app/composables/' + name + '.ts',
+      ))
+  )
+    return { message: 'menu runtime capabilities must be supplied by window assembly', expected: 'explicit context menu host' };
   const jsonEditor =
     /^src\/(?:app\/(?:components|composables)\/json-editor\/|domain\/json-editor\/|stores\/json-editor\.store\.ts$|orchestrators\/json-save\.orchestrator\.ts$|services\/json-(?:entity|file|resource|recovery)\.service\.ts$)/.test(
       current.path,

@@ -1,9 +1,26 @@
-import { useWindowCloseState } from '@/app/composables/use-window-close-state';
-import { useWindowShortcuts } from '@/app/composables/use-window-shortcuts';
-import { useAppFeedback } from '@/app/composables/use-app-feedback';
-import { useSaveCommandStore } from '@/stores/save-command.store';
 import { readClipboardText, writeClipboardText } from '@/shared/runtime/clipboard.runtime';
-import { computed, getCurrentInstance, inject, onMounted, onScopeDispose, provide, ref, shallowRef, watch, type InjectionKey } from 'vue';
+import {
+  computed,
+  getCurrentInstance,
+  inject,
+  onMounted,
+  onScopeDispose,
+  provide,
+  ref,
+  shallowRef,
+  watch,
+  type InjectionKey,
+  type Ref,
+} from 'vue';
+import type { AppFeedback } from '@/shared/types';
+
+export interface ContextMenuHost {
+  closing: Readonly<Ref<boolean>>;
+  waitForSaves: () => Promise<boolean> | undefined;
+  bindPriorityKeys: (handler: (event: KeyboardEvent) => boolean) => void;
+  feedback: Pick<AppFeedback, 'error'>;
+}
+
 type WindowMenuAction = '设置' | '关于' | '最小化' | '退出';
 type MenuAction = { label: string; key: string; disabled: boolean; props?: { class: string } };
 type MenuOption = MenuAction | { type: 'divider'; key: string };
@@ -21,33 +38,45 @@ export interface ContextMenuScope {
   windowActions?: Record<WindowMenuAction, () => unknown>;
   actions?: (target: HTMLElement) => Array<{ label: string; disabled?: boolean; run: () => unknown }>;
 }
-type Scope = ContextMenuScope & { root: () => Node | null; revision: number };
+type RegisteredMenuScope = ContextMenuScope & { root: () => Node | null; revision: number };
 const menuKey: InjectionKey<ReturnType<typeof provideContextMenu>> = Symbol('context-menu');
-export function provideContextMenu() {
-  const closing = useWindowCloseState();
-  const scopes = new Set<Scope>();
+export function provideContextMenu(closing: ContextMenuHost['closing']) {
+  // Closing ends captured actions even when the same window resumes.
+  let closeGeneration = 0;
+  const scopes = new Set<RegisteredMenuScope>();
   let active = true;
   onScopeDispose(() => {
     active = false;
   });
   const menu = shallowRef<{
+    closeGeneration: number;
     x: number;
     y: number;
     target: HTMLElement;
-    scope?: Scope;
+    scope?: RegisteredMenuScope;
     identity?: string;
     selection: string;
     start: number;
     end: number;
     value: string;
-    refreshes: Scope[];
+    refreshes: RegisteredMenuScope[];
     identities: string[];
     actions: ReturnType<NonNullable<ContextMenuScope['actions']>>;
   } | null>(null);
   const close = () => {
     menu.value = null;
   };
-  function register(scope: Scope) {
+  watch(
+    closing,
+    (value) => {
+      if (value) {
+        closeGeneration++;
+        close();
+      }
+    },
+    { flush: 'sync' },
+  );
+  function register(scope: RegisteredMenuScope) {
     scopes.add(scope);
     const stop = watch(
       scope.identity,
@@ -64,7 +93,7 @@ export function provideContextMenu() {
     };
   }
   function open(event: MouseEvent) {
-    if (closing?.value) return;
+    if (closing.value) return;
     if (event.defaultPrevented) return;
     event.preventDefault();
     const target = event.target as HTMLElement;
@@ -83,6 +112,7 @@ export function provideContextMenu() {
     const start = input?.selectionStart ?? 0,
       end = input?.selectionEnd ?? 0;
     menu.value = {
+      closeGeneration,
       x: event.clientX,
       y: event.clientY,
       target: input ?? target,
@@ -104,6 +134,8 @@ export function provideContextMenu() {
     open,
     current: (captured: NonNullable<typeof menu.value>) =>
       active &&
+      !closing.value &&
+      captured.closeGeneration === closeGeneration &&
       captured.target.isConnected &&
       (!captured.scope ||
         (scopes.has(captured.scope) && captured.identity === captured.scope.revision + ':' + captured.scope.identity())) &&
@@ -123,12 +155,9 @@ export function useContextMenuScope(scope: ContextMenuScope) {
     );
 }
 
-export function useWindowContextMenu() {
-  const { menu, close, open, current } = provideContextMenu();
-  const feedback = useAppFeedback(),
-    commands = useSaveCommandStore();
-  const closing = useWindowCloseState();
-  watch(() => closing?.value, close, { flush: 'sync' });
+export function useWindowContextMenu(host: ContextMenuHost) {
+  const { menu, close, open, current } = provideContextMenu(host.closing);
+  const { feedback } = host;
   const selected = ref(-1);
   const enabled = computed(() => options.value.filter((option): option is MenuAction => !('type' in option) && !option.disabled));
   const activeKey = computed(() => enabled.value[selected.value]?.key);
@@ -165,7 +194,7 @@ export function useWindowContextMenu() {
     event.preventDefault();
   }
   async function select(key: string) {
-    if (closing?.value) return;
+    if (host.closing.value) return;
     const captured = menu.value!;
     close();
     try {
@@ -174,7 +203,7 @@ export function useWindowContextMenu() {
       if (business) await business.run();
       else if (captured.scope?.windowActions) await captured.scope.windowActions[key as WindowMenuAction]();
       else if (key === '刷新') {
-        if ((await commands.waitForSaves()) === false || !current(captured)) return;
+        if ((await host.waitForSaves()) === false || !current(captured)) return;
         for (const scope of captured.refreshes) {
           if (!current(captured)) return;
           await scope.refresh!(() => current(captured), captured.target);
@@ -220,7 +249,7 @@ export function useWindowContextMenu() {
           : (selected.value + (event.key === 'ArrowUp' ? -1 : 1) + available.length) % available.length;
     return true;
   }
-  useWindowShortcuts({ priority: handleKey });
+  host.bindPriorityKeys(handleKey);
   onMounted(() => {
     document.addEventListener('contextmenu', open);
     document.addEventListener('input', close, true);

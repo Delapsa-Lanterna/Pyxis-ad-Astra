@@ -228,3 +228,47 @@ test('CSV editors consume explicit host inputs across implementation layers and 
   });
   assert.deepEqual(frontendLayerBoundaryRule.check(context), []);
 });
+
+test('context menus consume runtime capabilities through their window host', () => {
+  for (const owner of ['src/app/components/ContextMenu.vue', 'src/app/composables/use-context-menu.ts']) {
+    for (const target of [
+      'src/stores/save-command.store.ts',
+      'src/stores/project-sync.store.ts',
+      'src/services/window.service.ts',
+      'src/orchestrators/project-sync.orchestrator.ts',
+      'src/windows/current.window.ts',
+      'src/app/composables/use-window-close-state.ts',
+      'src/app/composables/use-window-shortcuts.ts',
+      'src/app/composables/use-app-feedback.ts',
+      'src/app/composables/use-app-lifecycle-assembly.ts',
+    ])
+      for (const typeOnly of [false, true]) {
+        const statement = 'import ' + (typeOnly ? 'type ' : '') + '{Action as Selected} from "@/' + target.slice(4, -3) + '";';
+        const source = owner.endsWith('.vue') ? '<script setup lang="ts">\n' + statement + '\n</script>' : '\n' + statement;
+        const context = architectureFixtures({ [owner]: source, [target]: 'export interface Action {}' });
+        const diagnostics = frontendLayerBoundaryRule.check(context);
+        assert.equal(diagnostics.length, 1);
+        const diagnostic = diagnostics[0];
+        assert.ok(diagnostic);
+        assert.equal(diagnostic.ruleId, 'frontend-layer-boundary');
+        assert.equal(diagnostic.file, owner);
+        assert.equal(diagnostic.line, 2);
+        assert.equal(diagnostic.target, target);
+        assert.equal(diagnostic.expected, 'explicit context menu host');
+        assert.equal(diagnostic.message, 'menu runtime capabilities must be supplied by window assembly');
+      }
+  }
+  const allowed = architectureFixtures({
+    'src/app/composables/use-app-lifecycle-assembly.ts':
+      "import type {ContextMenuHost} from '@/app/composables/use-context-menu'; import {wait} from '@/stores/save-command.store';",
+    'src/stores/save-command.store.ts': 'export function wait() {}',
+    'src/app/components/ContextMenu.vue':
+      '<script setup lang="ts">import {useWindowContextMenu} from "@/app/composables/use-context-menu";</script>',
+    'src/app/composables/use-context-menu.ts':
+      "import {read} from '@/shared/runtime/clipboard.runtime'; export interface ContextMenuHost {} export function useWindowContextMenu() {} export function useContextMenuScope() {}",
+    'src/shared/runtime/clipboard.runtime.ts': 'export function read() {}',
+    'src/app/composables/settings/use-settings-view-model.ts':
+      "import {useContextMenuScope as register} from '@/app/composables/use-context-menu';",
+  });
+  assert.deepEqual(frontendLayerBoundaryRule.check(allowed), []);
+});

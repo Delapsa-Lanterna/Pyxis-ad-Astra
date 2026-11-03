@@ -40,7 +40,7 @@
 - `src/app/StartupFailure.vue`：必须独立承载启动失败说明、诊断复制、重试及原生窗口动作。
 - `src/app/TitleBar.vue`：标题栏菜单登记及导航与窗口动作交接。
 - `src/app/WeaponFirePreviewApp.vue`：独立开火预览窗口根，消费唯一 child 窗口壳。
-- `src/app/WindowRuntime.vue`：窗口唯一反馈、关闭操作锁的建立与提供，以及目标交接挂载。
+- `src/app/WindowRuntime.vue`：窗口唯一反馈、关闭操作锁、菜单宿主的建立与提供，以及菜单和目标交接挂载。
 - `src/app/WindowShell.vue`：唯一窗口壳，以 main/child 模式区分设置持久化与设置镜像，统一挂载 Provider、主题与 Core 加载生命周期。
 - `src/app/app-feedback-assembly.ts`：文件会话定位、授权恢复动作、转码及保存同步。
 - `src/app/components/AppImage.vue`：统一图片控件的等比展示与窗口关闭锁适配。
@@ -50,7 +50,7 @@
 - `src/app/composables/immersive-editor-assembly.ts`：舰船、皮肤、武器、联队和装配的实现选择、会话交接及展示媒体适配。
 - `src/app/composables/spec-editor-assembly.ts`：Spec 查询定义与依赖实现选择。
 - `src/app/composables/use-app-close-participant.ts`：应用关闭六阶段、业务动作注入、保存等待、确认和恢复。
-- `src/app/composables/use-app-lifecycle-assembly.ts`：窗口关闭、参与者工厂、项目展示准备、设置提交与编辑历史容量装配。
+- `src/app/composables/use-app-lifecycle-assembly.ts`：窗口关闭、参与者工厂、菜单宿主、项目展示准备、设置提交与编辑历史容量装配。
 - `src/app/naive-ui.d.ts`：模板全局组件及项目包装组件的类型声明。
 - `src/app/naive-ui.runtime.ts`：Naive UI 按需注册。
 - `src/app/theme-overrides.ts`：Naive UI 主题覆盖构建，消费主题令牌生成 provider 覆盖。
@@ -71,12 +71,15 @@
 - `src-tauri/src/services/app_log.rs`：日志运行参数及目录准备与已有目录解析能力。
 - `src-tauri/src/services/project/resources/media_cache.rs`：正式设置接纳时配置后端媒体预算。
 - `src-tauri/src/services/workspace_persistence.rs`：单次目录操作捕获的已持久化工作区物理根。
+- `src/app/components/ContextMenu.vue`：窗口运行范围内唯一挂载的菜单。
+- `src/app/composables/use-context-menu.ts`：菜单所需的 ContextMenuHost 输入契约。
 - `src/app/composables/use-workspace-json-editor-host.ts`：工作区 JSON 页面目标及定位与导航宿主。
 - `src/app/composables/use-workspace-shell-actions.ts`：主窗口工作区动作及绑定当前窗口关闭能力的来源切换。
 - `src/domain/source-catalog/source-definitions.ts`：规格窗口装配捕获配置候选的正式刷新路径。
 - `src/orchestrators/mod-save.orchestrator.ts`：所属窗口的 Mod 保存协调实例与结果交付。
 - `src/services/app-settings.service.ts`：启动消费的主窗口 settings 读取能力。
 - `src/stores/csv-editor.store.ts`：窗口装配消费的历史容量正式输入入口。
+- `src/stores/save-command.store.ts`：菜单宿主绑定的本窗口保存等待。
 - `src/stores/settings.store.ts`：窗口装配消费的当前编辑历史偏好。
 - `src/stores/workspace.store.ts`：当前 Mod、正式清单与 session 的工作区派生投影。
 - `src/test/unit/ui-stubs.ts`：应用测试的 Naive UI 控件装配。
@@ -161,7 +164,7 @@
 - 所有下拉框必须由统一注册入口维护箭头收起、内部聚焦及展开状态，业务方必须消费展开事件管理所属资源。
 - 文件恢复必须在提示产生时捕获所属文件与会话；转码写盘后的同步失败必须保留原提交和待同步重试。
 - 每个窗口壳必须建立一次 Core 加载生命周期，释放时必须撤销所属监听及响应接纳。
-- 每个窗口壳必须装配统一菜单，业务根必须通过登记接口交付身份与刷新回调。
+- 每个 WindowRuntime 必须在关闭状态与反馈建立后挂载唯一菜单，ContextMenuHost 必须交付同一窗口的关闭 Ref、反馈、捕获的保存 store 及优先按键登记，业务根必须通过登记接口交付身份与刷新回调。
 - 窗口 Core 根必须按设置根、当前项目清单根、空根的顺序计算，并交付唯一 Core 加载生命周期。
 - 窗口反馈必须在消息与对话框 Provider 内建立一次，并先于菜单及业务内容提供；目标交接必须消费同一实例。
 - 窗口操作锁必须由 WindowRuntime 提供；内容区域必须消费 inert，业务浮层必须消费关闭状态的声明式命名空间，确认与结果反馈必须由所属窗口的 Provider 承载。

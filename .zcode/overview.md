@@ -61,6 +61,7 @@
 - 工作区持久化：Mod、目录、引用设置或列宽变化 → `watchWorkspacePersistence` 提取可恢复投影 → workspace service → Rust 写入工具私有快照 → 所属保存与关闭等待完成
 - 目录与会话：目录选择或游戏概览中的 Mod 打开动作 → `openWorkspaceDirectory` 或所属打开编排 → 目录识别与正式 Mod 根 → `open_project_session` 授权根并装载来源 → `ProjectManifest` → 按捕获代次登记工作区
 - 新建 Mod：工作区捕获游戏根或明确父目录与创建参数 → Mod 创建编排 → Rust 授权父目录并写入目录骨架及 `mod_info.json` → 实际 `modRoot` → 工作区打开与结果反馈
+- 窗口菜单：`WindowRuntime` 建立关闭状态与反馈 → `useWindowMenuHost` 绑定保存等待及优先按键 → 唯一 `ContextMenu(host)` → 业务根登记与目标捕获 → 保存等待、有效性复核与所属动作 → 关闭代次失效或卸载释放
 - 导航与定位：菜单、快捷键或业务引用捕获目标 → 等待保存及同步并提交活动输入 → 工作区导航与所属页面挂载 → 按需读取、实体选择与滚动，或关于页内联 `CHANGELOG.md` 的 marked 渲染
 - 窗口创建与复用：`WindowIdentity` 与结构化输入 → managed window → Rust 登记、目标占用与实例创建或复用 → 接收方领取请求并加载业务基线 → `requestId + receiverGeneration` 回执 → 发起动作完成
 - 引用来源与内容组合：工作区标签顺序及引用开关 → `publishReferenceSources` → 后端有序引用快照 → 原版、前序可引用 Mod 与本地 JSON 组合 → 引用版本接纳与缓存失效 → 展示更新并保留本地草稿

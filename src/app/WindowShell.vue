@@ -3,12 +3,12 @@
     <n-message-provider :duration="0" closable container-class="app-toast-container">
       <n-dialog-provider>
         <WindowRuntime
-          ><WindowTooltip /><ContextMenu
-            ><div v-if="title" class="app-frame app-frame-child ui-content-grid ui-content-contained">
-              <TitleBar :title="title" :subtitle="windowModName" /><slot />
-            </div>
-            <slot v-else /></ContextMenu
-        ></WindowRuntime>
+          ><WindowTooltip />
+          <div v-if="title" class="app-frame app-frame-child ui-content-grid ui-content-contained">
+            <TitleBar :title="title" :subtitle="windowModName" /><slot />
+          </div>
+          <slot v-else
+        /></WindowRuntime>
       </n-dialog-provider>
     </n-message-provider>
   </n-config-provider>
@@ -16,7 +16,6 @@
 
 <script setup lang="ts">
 import { computed, onScopeDispose } from 'vue';
-import ContextMenu from '@/app/components/ContextMenu.vue';
 import WindowTooltip from '@/app/components/WindowTooltip.vue';
 import { darkTheme } from 'naive-ui/es/themes';
 import { IMMERSIVE_COLORS } from '@/domain/immersive/appearance';

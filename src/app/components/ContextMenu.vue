@@ -22,8 +22,9 @@
 import { computed, h } from 'vue';
 import { useThemeVars } from 'naive-ui/es/composables';
 import { NDropdown } from 'naive-ui/es/dropdown';
-import { useWindowContextMenu } from '@/app/composables/use-context-menu';
-const { menu, options, close, select, activeKey, preventBlur } = useWindowContextMenu();
+import { useWindowContextMenu, type ContextMenuHost } from '@/app/composables/use-context-menu';
+const props = defineProps<{ host: ContextMenuHost }>();
+const { menu, options, close, select, activeKey, preventBlur } = useWindowContextMenu(props.host);
 const theme = useThemeVars();
 const menuTheme = computed(() => ({
   fontSizeSmall: '12px',
