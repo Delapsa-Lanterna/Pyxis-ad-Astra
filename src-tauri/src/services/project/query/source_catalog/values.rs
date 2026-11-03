@@ -14,9 +14,9 @@ use crate::errors::{AppError, AppResult};
 use crate::models::{
     CsvTableKey, EntityKind, ResourceSource, SkinFile, SourceOption, SourceOptionGroup,
 };
-use crate::services::project::definitions::entity_resources;
 use crate::services::project::model;
-use crate::services::project::model::EntityProjection;
+use crate::services::project::model::EntityListEntry;
+use crate::services::project::resources::entity_references;
 use crate::services::project::sources::core::{
     CoreSourceData, load_core_csv_table, load_core_skin_files, load_core_source_data,
 };
@@ -399,17 +399,10 @@ fn entity_source_option_groups(
                 .projectile_specs
                 .values()
                 .filter(|record| record.location.source == origin)
-                .map(|record| EntityProjection {
+                .map(|record| EntityListEntry {
                     kind: EntityKind::Projectile,
                     id: record.id.clone(),
                     data: record.data.clone(),
-                    resource_refs: entity_resources::projectile_resource_refs(
-                        &record.id,
-                        &record.data,
-                    )
-                    .into_iter()
-                    .filter(|(key, _)| key == "sprite" || key == "bulletSprite")
-                    .collect(),
                 })
                 .collect()
         } else if origin == ResourceSource::Mod {
@@ -435,33 +428,33 @@ fn entity_source_option_groups(
 fn entity_source_options(
     origin: ResourceSource,
     session: &ProjectSession,
-    entities: Vec<EntityProjection>,
+    entities: Vec<EntityListEntry>,
     seen: &mut BTreeSet<String>,
 ) -> AppResult<Vec<SourceOption>> {
     let mut options = Vec::new();
-    for mut entity in entities {
+    for entity in entities {
         if !seen.insert(entity.id.clone()) {
             continue;
         }
-        if entity.kind == EntityKind::Variant {
-            entity.resource_refs =
-                entity_resources::variant_resource_refs(session, ResourceSource::Mod, &entity.data);
+        let mut resources = entity_references::entity_list_resource_refs(
+            session,
+            entity.kind,
+            &entity.id,
+            &entity.data,
+        )?;
+        if entity.kind == EntityKind::Projectile {
+            resources.retain(|key, _| key == "sprite" || key == "bulletSprite");
         }
         options.push(SourceOption {
             label: entity_source_option_label(origin, session, &entity)?,
             value: entity.id.clone(),
             description: None,
-            resource_ref: entity
-                .resource_refs
-                .values()
-                .next()
-                .cloned()
-                .map(|mut resource| {
-                    if resource.source == ResourceSource::Mod && resource.reference.is_none() {
-                        resource.source = origin;
-                    }
-                    resource
-                }),
+            resource_ref: resources.values().next().cloned().map(|mut resource| {
+                if resource.source == ResourceSource::Mod && resource.reference.is_none() {
+                    resource.source = origin;
+                }
+                resource
+            }),
             origin,
             template_value: None,
             template_max: None,
@@ -473,7 +466,7 @@ fn entity_source_options(
 fn entity_source_option_label(
     origin: ResourceSource,
     session: &ProjectSession,
-    entity: &EntityProjection,
+    entity: &EntityListEntry,
 ) -> AppResult<String> {
     let display_name = entity
         .data

@@ -20,7 +20,7 @@
 
 - `src-tauri/src/models/source_catalog.rs`：候选请求、选项、来源分组及模板的公共协议。
 - `src-tauri/src/services/project/definitions/entity_definitions.rs`：实体来源和列表定义。
-- `src-tauri/src/services/project/model.rs`：会话内容、表格定义及引用视图。
+- `src-tauri/src/services/project/model.rs`：会话内容、EntityListEntry、表格定义及引用视图。
 - `src-tauri/src/services/project/resources/`：候选名称、船体引用与授权图片投影。
 - `src-tauri/src/services/project/session/`：会话就绪、正式行、引用快照与稳定身份。
 - `src-tauri/src/services/project/sources/`：对应来源的内容、版本、Core 文档及配置读取。

@@ -34,6 +34,7 @@ JSON 文档编辑模块提供 Mod 信息、势力、战役、装配、舰船皮�
 - `src-tauri/src/models/config_entity.rs`：Mod 信息与索引实体请求、刷新内容及势力索引结构。
 - `src-tauri/src/models/json_file.rs`：JSON 文件写入与删除请求协议。
 - `src-tauri/src/models/json_recovery.rs`：来源重建请求、计划和版本协议。
+- `src-tauri/src/services/project/query/json_layers.rs`：会话所属的正式有序 JSON 来源组合与版本。
 - `src-tauri/src/services/project/sources/json_documents.rs`：Variant 与 Skin 的实际来源文件产品构造。
 - `src-tauri/src/services/project/write/entity_write.rs`：Variant、Skin、势力及关联文件的实际写入。
 - `src/app/components/schema/SchemaFormRenderer.vue`：schema 字段表单展示。

@@ -1,8 +1,8 @@
-use super::super::definitions::entity_resources::{
+use super::super::resources::SpriteReadBatch;
+use super::super::resources::entity_references::{
     faction_resource_refs, mission_resource_refs, projectile_resource_refs, ship_resource_refs,
     weapon_resource_refs,
 };
-use super::super::resources::SpriteReadBatch;
 use super::super::session::{lock_ready_session, session_handle};
 use crate::domain::json_composition as domain_json_composition;
 use crate::errors::AppResult;
@@ -10,11 +10,12 @@ use crate::models::{
     DraftResourceEntityKind, EngineRenderAssets, EntityKind, ResourceDataUrlBatchEntry,
     ResourceDataUrlBatchResult, ResourceOwnerKind, ResourceRef, ResourceSource,
 };
-use crate::services::project::query::json_composition as query_json_composition;
+use crate::services::project::query::json_layers::json_composition;
+use crate::services::project::resources;
+use crate::services::project::resources::entity_references::apply_resource_origins;
 use crate::services::project::resources::resource_ref;
 use crate::services::project::sources::engine_styles;
 use crate::services::project::sources::engine_styles::ENGINE_STYLES_PATH;
-use crate::services::project::{json_composition, resources};
 use serde_json::Value;
 use std::collections::{BTreeMap, BTreeSet};
 use std::iter;
@@ -144,7 +145,7 @@ pub fn query_draft_resources(
                 local[key] = value.clone();
             }
         }
-        query_json_composition::resource_origins(&mut resources, &local, &sources);
+        apply_resource_origins(&mut resources, &local, &sources);
     }
     Ok(resources)
 }
@@ -158,9 +159,9 @@ mod tests {
     #[cfg(test)]
     use crate::models::EntityKind;
     #[cfg(test)]
-    use crate::services::project::cache::media;
-    #[cfg(test)]
     use crate::services::project::performance::PerformanceTrace as PerformancePerformanceTrace;
+    #[cfg(test)]
+    use crate::services::project::resources::media_cache as media;
     #[cfg(test)]
     use crate::services::project::{PerformanceTrace, test_support};
     use base64::Engine as _;
@@ -172,7 +173,7 @@ mod tests {
     use super::super::super::session::open_project_session_traced;
     use super::*;
     use crate::models::{ResourceOwnerKind, ResourceRef, ResourceSource};
-    use crate::services::project::cache::media::cached_sprite_media_contains;
+    use crate::services::project::resources::media_cache::cached_sprite_media_contains;
     use crate::services::project::test_support::project_workspace;
     use crate::test_support::TestWorkspace;
     use base64::engine::general_purpose::STANDARD;
@@ -704,18 +705,26 @@ mod tests {
             &media_resource_key(&resource)
         ));
 
+        let sibling = open_project_session_traced(&root, None, &mut trace).unwrap();
+        query_resource_data_urls(&sibling.session_id, vec![resource.clone()]).unwrap();
         release_project_session(session_id.clone()).unwrap();
+        assert!(cached_sprite_media_contains(
+            &sibling.session_id,
+            &media_resource_key(&resource)
+        ));
+        query_resource_data_urls(&sibling.session_id, vec![resource.clone()]).unwrap();
 
         assert!(!cached_sprite_media_contains(
             &session_id,
             &media_resource_key(&resource)
         ));
         let path = sprite_dir.join("demo.png");
-        assert_eq!(sprite_read_count(&path), 1);
+        assert_eq!(sprite_read_count(&path), 2);
         let reopened = open_project_session_traced(&root, None, &mut trace).unwrap();
         query_resource_data_urls(&reopened.session_id, vec![resource.clone()]).unwrap();
         query_resource_data_urls(&reopened.session_id, vec![resource]).unwrap();
-        assert_eq!(sprite_read_count(&path), 2);
+        assert_eq!(sprite_read_count(&path), 3);
+        release_project_session(sibling.session_id).unwrap();
         release_project_session(reopened.session_id).unwrap();
         root.close().unwrap();
     }

@@ -1,4 +1,3 @@
-use super::cache;
 use super::definitions::{factions, projectiles};
 use super::model::{
     MISSION_LIST_REL_PATH, MISSION_LIST_TABLE_KEY, ProjectSession, SessionCsvTable, SpecBundle,
@@ -63,12 +62,6 @@ pub fn hold_session_openings() -> AppResult<SessionOpeningPause> {
 }
 pub fn registered_session_ids() -> AppResult<Vec<String>> {
     Ok(lock_registry()?.keys().cloned().collect())
-}
-
-pub(crate) fn release_session_content(session_id: &str) -> AppResult<()> {
-    cache::clear_sprite_media_for_session(session_id);
-    references::reference_sources_changed(Some(session_id))?;
-    Ok(())
 }
 
 pub fn ensure_project_session_mod_root(session_id: &str, mod_root: &str) -> AppResult<()> {

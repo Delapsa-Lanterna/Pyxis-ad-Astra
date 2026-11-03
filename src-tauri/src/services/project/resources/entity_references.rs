@@ -1,8 +1,14 @@
 use super::super::model::{ProjectSession, WEAPON_SPRITE_FIELDS, string_field};
-use super::super::resources::{HullReferenceResolver, resource_ref};
-use crate::models::{EntityKind, ResourceOwnerKind, ResourceRef, ResourceSource};
+use super::table_references::csv_icon_resource_ref;
+use super::{HullReferenceResolver, resource_ref};
+use crate::domain::entity_identity;
+use crate::errors::AppResult;
+use crate::io::read_json_file;
+use crate::models::JsonComposition;
+use crate::models::{CsvTableKey, EntityKind, ResourceOwnerKind, ResourceRef, ResourceSource};
 use serde_json::Value;
 use std::collections::BTreeMap;
+use std::path::Path;
 
 pub(in crate::services::project) fn ship_resource_refs(
     id: &str,
@@ -134,13 +140,6 @@ fn effect_resource_refs(id: &str, data: &Value, refs: &mut BTreeMap<String, Reso
     }
 }
 
-pub(in crate::services::project) fn system_resource_refs(
-    _id: &str,
-    _data: &Value,
-) -> BTreeMap<String, ResourceRef> {
-    BTreeMap::new()
-}
-
 pub(in crate::services::project) fn variant_resource_refs(
     session: &ProjectSession,
     origin: ResourceSource,
@@ -237,8 +236,110 @@ pub(in crate::services::project) fn mission_resource_refs(
     refs
 }
 
+/// Projects resources from entity content using the captured session for hull inheritance.
+pub(in crate::services::project) fn entity_resource_refs(
+    session: &ProjectSession,
+    kind: EntityKind,
+    id: &str,
+    data: &Value,
+) -> BTreeMap<String, ResourceRef> {
+    match kind {
+        EntityKind::Ship => ship_resource_refs(id, data),
+        EntityKind::Weapon => data
+            .get("spec")
+            .map(|spec| weapon_resource_refs(id, spec))
+            .unwrap_or_default(),
+        EntityKind::Projectile => projectile_resource_refs(id, data),
+        EntityKind::System => BTreeMap::new(),
+        EntityKind::Skill => data
+            .get("csvRow")
+            .and_then(Value::as_object)
+            .and_then(|row| csv_icon_resource_ref(ResourceSource::Mod, CsvTableKey::Skills, row))
+            .map(|resource| BTreeMap::from([("icon".to_string(), resource)]))
+            .unwrap_or_default(),
+        EntityKind::Faction => faction_resource_refs(id, data),
+        EntityKind::Mission => mission_resource_refs(id, data),
+        EntityKind::Variant => variant_resource_refs(session, ResourceSource::Mod, data),
+        EntityKind::Skin => skin_entity_resource_refs(session, id, data),
+    }
+}
+
+/// Resolves list resources and propagates mission descriptor read or parse errors.
+pub(in crate::services::project) fn entity_list_resource_refs(
+    session: &ProjectSession,
+    kind: EntityKind,
+    id: &str,
+    data: &Value,
+) -> AppResult<BTreeMap<String, ResourceRef>> {
+    if kind == EntityKind::Mission {
+        return Ok(mission_icon_resource_ref(session, id)?
+            .map(|resource| BTreeMap::from([("icon".to_string(), resource)]))
+            .unwrap_or_default());
+    }
+    Ok(entity_resource_refs(session, kind, id, data))
+}
+
+fn mission_icon_resource_ref(session: &ProjectSession, id: &str) -> AppResult<Option<ResourceRef>> {
+    let clean = entity_identity::validate_entity_id(id, "无效战役 ID")?;
+    let descriptor_path = Path::new(&session.manifest.mod_root)
+        .join("data/missions")
+        .join(clean)
+        .join("descriptor.json");
+    if !descriptor_path.exists() {
+        return Ok(None);
+    }
+    let descriptor = read_json_file(&descriptor_path)?;
+    let Some(icon) = descriptor.get("icon").and_then(Value::as_str) else {
+        return Ok(None);
+    };
+    Ok(Some(resource_ref(
+        ResourceSource::Mod,
+        &format!("data/missions/{clean}/{icon}"),
+        ResourceOwnerKind::Mission,
+        id,
+        "icon",
+    )))
+}
+
+pub(in crate::services::project) fn apply_resource_origins(
+    resources: &mut BTreeMap<String, ResourceRef>,
+    local: &Value,
+    composition: &JsonComposition,
+) {
+    for (key, resource) in resources {
+        let field = match key.as_str() {
+            "sprite"
+                if resource.owner_kind == EntityKind::Ship.into()
+                    || resource.owner_kind == EntityKind::Skin.into() =>
+            {
+                "spriteName"
+            }
+            _ => key.split('[').next().expect("resource field"),
+        };
+        if local.get(field).is_some() || composition.replace {
+            continue;
+        }
+        if let Some(layer) = composition
+            .layers
+            .iter()
+            .rev()
+            .find(|layer| layer.data.get(field).is_some())
+        {
+            resource.source = layer.source.source;
+            resource.reference = layer.source.reference.as_deref().cloned();
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    use crate::services::project::PerformanceTrace;
+    use crate::services::project::session::{
+        lock_ready_session, open_project_session_traced, session_handle,
+    };
+    use crate::services::project::test_support::project_workspace;
+    use crate::services::project_sync::release_project_session;
+
     use super::*;
     #[cfg(test)]
     use crate::models::EntityKind;
@@ -285,5 +386,81 @@ mod tests {
             &json!({"specClass":"missile","sprite":"graphics/missile.png","glowSprite":"graphics/glow.png"}),
         );
         assert_eq!(refs["glowSprite"].rel_path, "graphics/glow.png");
+    }
+
+    #[test]
+    fn entity_dispatch_preserves_content_shapes_and_roles() {
+        let root = project_workspace("entity_resource_dispatch");
+        let manifest = open_project_session_traced(
+            &root,
+            None,
+            &mut PerformanceTrace::new("resources.dispatch"),
+        )
+        .unwrap();
+        let handle = session_handle(&manifest.session_id).unwrap();
+        let session = lock_ready_session(&handle).unwrap();
+        for (kind, data, key, path) in [
+            (
+                EntityKind::Ship,
+                json!({"spriteName":"graphics/ship.png"}),
+                "sprite",
+                "graphics/ship.png",
+            ),
+            (
+                EntityKind::Weapon,
+                json!({"spec":{"turretSprite":"graphics/weapon.png"},"csvRow":{}}),
+                "turretSprite",
+                "graphics/weapon.png",
+            ),
+            (
+                EntityKind::Projectile,
+                json!({"sprite":"graphics/projectile.png"}),
+                "sprite",
+                "graphics/projectile.png",
+            ),
+            (
+                EntityKind::Skill,
+                json!({"spec":{},"csvRow":{"id":"skill","icon":"graphics/skill.png"}}),
+                "icon",
+                "graphics/skill.png",
+            ),
+            (
+                EntityKind::Faction,
+                json!({"logo":"graphics/logo.png"}),
+                "logo",
+                "graphics/logo.png",
+            ),
+            (
+                EntityKind::Mission,
+                json!({"descriptor":{"icon":"icon.png"}}),
+                "icon",
+                "data/missions/sample/icon.png",
+            ),
+            (
+                EntityKind::Skin,
+                json!({"spriteName":"graphics/skin.png"}),
+                "sprite",
+                "graphics/skin.png",
+            ),
+        ] {
+            let refs = entity_resource_refs(&session, kind, "sample", &data);
+            assert_eq!(refs[key].rel_path, path);
+            assert_eq!(refs[key].source, ResourceSource::Mod);
+        }
+        assert!(
+            entity_resource_refs(&session, EntityKind::System, "sample", &json!({})).is_empty()
+        );
+        assert!(
+            entity_resource_refs(
+                &session,
+                EntityKind::Variant,
+                "sample",
+                &json!({"hullId":"absent"})
+            )
+            .is_empty()
+        );
+        drop(session);
+        release_project_session(manifest.session_id).unwrap();
+        root.close().unwrap();
     }
 }

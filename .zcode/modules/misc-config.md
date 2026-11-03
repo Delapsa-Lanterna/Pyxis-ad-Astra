@@ -26,6 +26,7 @@
 - `src-tauri/src/models/document_identity.rs`：配置文件类别与文档来源身份。
 - `src-tauri/src/models/misc_config.rs`：配置查询记录、保存与删除协议。
 - `src-tauri/src/parsers/field_schema.rs`：内嵌字段资产读取。
+- `src-tauri/src/services/project/query/json_layers.rs`：会话所属的正式有序 JSON 来源组合与版本。
 - `src-tauri/src/services/write_transactions.rs`：根事务、版本校验、历史及提交同步。
 - `src/services/query-cache.service.ts`：所属会话的实时读取与失效。
 - `src/shared/types/misc-config.types.ts`：前后端对应的类型化文件协议。

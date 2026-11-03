@@ -1,6 +1,6 @@
 use super::super::super::definitions::entity_definitions::entity_definition;
 use super::super::super::query::entity_targets::describe_entity_target;
-use super::super::super::query::json_composition as query_composition;
+use super::super::super::query::json_layers as source_layers;
 use super::super::super::session::csv_writes::CsvTableDraft;
 use super::super::super::session::{lock_session, session_handle};
 use crate::domain::entity_definitions::entity_spec_definition;
@@ -12,13 +12,13 @@ use crate::models::{
     EntityEditTarget, EntityIdentityChange, EntityKind, EntityLinkedRecord, EntityTargetState,
     JsonWriteOptions, SaveEdit, SpecSave, WriteContentTarget, WriteResult,
 };
-use crate::services::project::composition_for_session;
 use crate::services::project::model::ProjectSession;
 use crate::services::project::sources::json_documents;
 use crate::services::project::write::entity_write::descriptions::DescriptionRename;
 use crate::services::project::write::entity_write::{
     descriptions, faction_index, variant_references,
 };
+use crate::services::query_json_composition;
 use crate::services::save_entity_spec as save_spec_via_service;
 use crate::services::{query_entity, require_entity_version_scope};
 use crate::{io, models, parsers};
@@ -32,7 +32,7 @@ pub fn save_entity_spec(
     options: JsonWriteOptions,
     ordered_json: Option<&str>,
 ) -> AppResult<WriteResult<Value>> {
-    let mut composition = composition_for_session(session_id, &target.write.rel_path)?;
+    let mut composition = query_json_composition(session_id, &target.write.rel_path)?;
     composition.replace |= options.replaces(&target.write.rel_path);
     let effective = json_composition::compose_game_json(&composition, &data)?;
     if let Some(schema_id) = match target.kind {
@@ -224,10 +224,10 @@ pub(in crate::services::project) fn stage_entity_content(
     if next_rel != target.write.rel_path
         && let Some(schema_id) = schema_id
     {
-        let previous = query_composition::json_composition(session, &target.write.rel_path)?;
+        let previous = source_layers::json_composition(session, &target.write.rel_path)?;
         if !previous.replace && !previous.layers.is_empty() {
             let effective = json_composition::compose_game_json(
-                &query_composition::json_composition(session, &next_rel)?,
+                &source_layers::json_composition(session, &next_rel)?,
                 &data,
             )?;
             let schema = parsers::bundled_schema(schema_id);

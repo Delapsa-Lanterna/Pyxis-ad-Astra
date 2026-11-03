@@ -10,12 +10,13 @@
 
 - `src-tauri/src/commands/hull_reference.rs`：Hull command。
 - `src-tauri/src/commands/resources.rs`：批量资源与引用 command。
-- `src-tauri/src/services/project/cache/media.rs`：资源指纹与后端媒体缓存。
-- `src-tauri/src/services/project/definitions/entity_resources.rs`：解析实体贴图、光束枚举或自定义贴图对、弹体与等离子默认特效的授权资源。
 - `src-tauri/src/services/project/query/hull_references.rs`：船体引用、槽位及来源选择查询。
 - `src-tauri/src/services/project/query/resources.rs`：草稿资源引用与授权资源批量 data URL 查询。
+- `src-tauri/src/services/project/resources/entity_references.rs`：实体内容、列表图标、特效、继承资源及资源来源投影。
+- `src-tauri/src/services/project/resources/hull_references.rs`：按会话与有序来源解析船体名称、贴图和皮肤继承。
+- `src-tauri/src/services/project/resources/media_cache.rs`：按 session 隔离媒体指纹、LRU、预算及所属清理。
 - `src-tauri/src/services/project/resources/mod.rs`：资源实现模块登记及内部引用能力。
-- `src-tauri/src/services/project/resources/refs.rs`：媒体资源身份键、业务引用构造和船体引用解析。
+- `src-tauri/src/services/project/resources/resource_identity.rs`：资源引用构造及包含来源与引用代次的物理媒体键。
 - `src-tauri/src/services/project/resources/sprites.rs`：批次来源边界、媒体读取、缓存接纳和相对路径解析。
 - `src-tauri/src/services/project/resources/table_references.rs`：表格行与来源引用的图片、图标及显示名称投影。
 - `src/app/components/media/`：授权图片与配置选项消费的缩略图展示。
@@ -39,6 +40,7 @@
 - `src-tauri/src/models/project_identity.rs`：资源来源与所属身份。
 - `src-tauri/src/models/resources.rs`：草稿资源、批量图片、路径及船体引用请求与结果。
 - `src-tauri/src/services/project/model.rs`：资源读取消费的已加载来源记录。
+- `src-tauri/src/services/project/query/json_layers.rs`：正式有序 JSON 来源层及其版本。
 - `src-tauri/src/services/project/resources/fonts.rs`：session 来源补充、安装根授权及 FNT 图集读取。
 - `src-tauri/src/services/project/sources/core.rs`：实际来源根所属的共享 Core 文档目录。
 - `src/shared/lib/resource-ref.ts`：资源身份键、相等与集合纯规则。
@@ -59,6 +61,7 @@
 - 各 WebView 由唯一媒体 owner 持有 data URL；窗口图片运行态分别持有解码和成品，活跃引用与闲置预算分别计量。
 - 后端拥有资源授权与当前 Mod、标签顺序内可引用 Mod、原版的查找顺序；query 返回 `ResourceRef`，组件消费引用和媒体结果；字体 FNT 与图集按原版字体只读能力交给所属字体运行态。
 - 媒体服务拥有合批、single-flight、就绪数据与失效；registry 持有集合差量和所属租约。
+- 实体内容由正式会话交付，资源能力分别维护详情与列表资源映射，完整媒体清理由项目同步调用。
 - 舰船内置展示消费共享媒体集合，几何调整复用当前解码结果，资源失败按所属槽位、武器引用和路径交付诊断。
 - 船体引用能力分别提供创建目录和指定 ID 元数据，名称按 Mod CSV 优先、Core 补集解析。
 - 船体选项投影必须消费资源协议的只读字段，实体和表格资源必须直接消费资源所属船体解析器。

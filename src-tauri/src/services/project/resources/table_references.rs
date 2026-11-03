@@ -313,3 +313,20 @@ fn source_variant<'a>(
             .find(|variant| variant.variant_id == variant_id),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn row_icon_resource_ref_requires_owner_id() {
+        let mut row = Map::new();
+        row.insert(
+            "icon".to_string(),
+            Value::String("graphics/icons/skill.png".to_string()),
+        );
+
+        let resource = csv_icon_resource_ref(ResourceSource::Mod, CsvTableKey::Skills, &row);
+
+        assert!(resource.is_none());
+    }
+}

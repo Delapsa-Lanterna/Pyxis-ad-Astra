@@ -10,7 +10,7 @@ use crate::models::{
     JsonRecoveryRequest, JsonSourceIdentity,
 };
 use crate::services::project;
-use crate::services::project::query::json_composition;
+use crate::services::project::query::entity_presentation;
 use crate::{io, parsers};
 use serde_json::Value;
 use std::collections::BTreeMap;
@@ -144,7 +144,7 @@ pub fn prepare_json_source_recovery(request: JsonRecoveryRequest) -> AppResult<J
             current.get("file")
         };
         data.map(|data| {
-            json_composition::entity_presentation(&session, target, data, None)
+            entity_presentation::entity_presentation(&session, target, data, None)
                 .map(|(_, resources)| resources)
         })
         .transpose()?

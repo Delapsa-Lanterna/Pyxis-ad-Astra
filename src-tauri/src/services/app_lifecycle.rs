@@ -1,6 +1,7 @@
 use crate::diagnostics;
 use crate::errors::{AppError, AppResult, ErrorDiagnostic};
 use crate::models::{AppSettings, CloseIntent, ClosePhase, CloseResult, CloseScope, CloseStatus};
+use crate::services::configure_media_cache;
 use crate::services::{
     app_lifecycle, app_log, file_history, performance_monitor, project, project_sync, windows,
 };
@@ -50,7 +51,7 @@ pub fn close_displaced(
 
 pub fn apply_settings_runtime(value: &AppSettings) -> Result<bool, AppError> {
     app_log::configure_runtime(value)?;
-    project::configure_media_cache(&value.cache_limits.backend_media)?;
+    configure_media_cache(&value.cache_limits.backend_media)?;
     file_history::set_history_limit(value.file_history_limit as usize)?;
     performance_monitor::initialize(value.performance_monitor_enabled);
     Ok(performance_monitor::enabled())

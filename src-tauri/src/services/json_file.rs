@@ -3,8 +3,9 @@ use crate::errors::AppError;
 use crate::models::{
     EntityIdentityChange, EntityKind, JsonFileDelete, JsonFileSave, SaveEdit, WriteResult,
 };
+use crate::services::query_json_composition;
 use crate::services::{
-    JsonEntityFileInput, config_entity, create_json_entity_file, delete_json_entity_file, project,
+    JsonEntityFileInput, config_entity, create_json_entity_file, delete_json_entity_file,
     save_json_entity_file, spec_entity_definition,
 };
 use crate::{io, models, parsers, services};
@@ -146,7 +147,7 @@ pub fn write_variant_request(payload: JsonFileSave) -> Result<WriteResult<Value>
 
 pub fn write_skin_request(payload: JsonFileSave) -> Result<WriteResult<Value>, AppError> {
     let relative = payload.rel_path.as_deref().expect("skin source path");
-    let mut composition = project::composition_for_session(&payload.session_id, relative)?;
+    let mut composition = query_json_composition(&payload.session_id, relative)?;
     composition.replace |= payload.json_write.replaces(relative);
     let effective = json_composition::compose_game_json(&composition, &payload.data)?;
     let schema = parsers::bundled_schema("skin");

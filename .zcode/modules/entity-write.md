@@ -19,6 +19,7 @@
 
 - `src-tauri/src/domain/variant_modules.rs`：装配模块的共同格式规则。
 - `src-tauri/src/io/`：授权路径、JSON 原文渲染与同根变更集。
+- `src-tauri/src/services/project/query/json_layers.rs`：会话所属的正式有序 JSON 来源组合与版本。
 - `src-tauri/src/services/project/session/csv_tables.rs`：正式表格、行身份与来源版本。
 - `src-tauri/src/services/project/session/csv_writes.rs`：表格暂存及成功应用后的正式接纳。
 - `src/shared/types/project-identity.types.ts`：实体、目标和版本身份协议。

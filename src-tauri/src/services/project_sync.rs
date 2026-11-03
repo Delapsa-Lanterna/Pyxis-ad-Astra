@@ -4,6 +4,7 @@ use crate::models::{
     CommittedSessionUpdate, CommittedWriteEvent, EntityIdentityChange, FileVersion,
     ReferenceSources, SaveDelivery, WriteResult, windows_path_key,
 };
+use crate::services::clear_session_media;
 use crate::services::{file_history, project, windows};
 #[cfg(test)]
 use crate::test_support::TestWorkspace;
@@ -580,7 +581,8 @@ pub fn release_project_session(session_id: String) -> AppResult<()> {
     if let Some(root) = project::unregister_project_session(&session_id)? {
         file_history::release_root_history(&root)?;
     }
-    project::release_session_content(&session_id)?;
+    clear_session_media(&session_id);
+    project::reference_sources_changed(Some(&session_id))?;
     if revision != project::reference_revision() {
         let delivery = project::reference_sources()
             .and_then(|snapshot| publish_references(snapshot, project::reference_updates()?));

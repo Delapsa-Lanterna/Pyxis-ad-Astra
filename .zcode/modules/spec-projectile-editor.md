@@ -17,8 +17,8 @@
 ### 消费
 
 - `src-tauri/src/domain/entity_definitions.rs`：八种实体的目录、后缀、ID 字段及规格、表格关联登记。
-- `src-tauri/src/services/project/definitions/entity_resources.rs`：舰船、武器、弹体、系统及配置实体的授权资源字段映射。
 - `src-tauri/src/services/project/definitions/projectiles.rs`：Mod 弹体及 Core 回退的正式读取。
+- `src-tauri/src/services/project/resources/entity_references.rs`：舰船、武器、弹体、系统及配置实体的授权资源字段映射。
 - `src/shared/ui/FieldHints.vue`：检查器说明的共同展示。
 - `src/windows/spec-editor.window.ts`：四类规格的身份、尺寸与结构化窗口请求。
 

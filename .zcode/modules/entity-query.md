@@ -9,15 +9,17 @@
 ### 拥有
 
 - `src-tauri/src/commands/entity_query.rs`：实体、目标及身份意图查询 command。
-- `src-tauri/src/domain/json_composition.rs`：游戏同路径 JSON 的纯合并规则。
 - `src-tauri/src/services/project/query/entities.rs`：按实际来源装配详情与列表。
+- `src-tauri/src/services/project/query/entity_presentation.rs`：实体是否参与组合的判定及对外内容、目标和资源呈现装配。
 - `src-tauri/src/services/project/query/entity_targets.rs`：实际编辑目标、身份意图及正式版本范围。
-- `src-tauri/src/services/project/query/json_composition.rs`：有序同路径来源、版本、加载规则与资源归属。
 - `src/services/entity-query.service.ts`：四类查询定义、正式请求与实体失效选择。
 
 ### 消费
 
+- `src-tauri/src/domain/json_composition.rs`：正式 JSON 来源的游戏合并规则。
 - `src-tauri/src/models/entity_query.rs`：实体详情、列表请求及返回记录。
+- `src-tauri/src/services/project/query/json_layers.rs`：会话所属的正式有序 JSON 来源和版本。
+- `src-tauri/src/services/project/resources/entity_references.rs`：详情、列表资源映射及实际资源来源。
 - `src/domain/project/query-scopes.ts`：标准实体失效 scope 匹配。
 - `src/services/query-cache.service.ts`：会话缓存、实时请求与失效通知。
 - `src/shared/types/entity-query.types.ts`：与 Rust 对应的实体请求与返回协议。
@@ -31,6 +33,7 @@
 
 - 后端按登记的实体种类和实际来源交付只读内容、目标与版本。
 - 实体列表一次准备实际来源和关联记录，前端业务 mapper 交付所属可写快照。
+- EntityListEntry 交付正式列表内容，查询按资源产品和批量目标共同装配 EntityData。
 - 实体查询拥有参数、返回和失效规则，会话缓存拥有共享请求和就绪结果。
 - 实际编辑目标与身份意图通过实时查询交付，详情与列表消费各自缓存。
 - 读取接纳归正式票据，资源引用按实体来源由所属资源能力构造。

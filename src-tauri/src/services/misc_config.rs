@@ -9,6 +9,7 @@ use crate::models::{
     FileVersion, JsonDocumentOrigin, MiscConfigEntry, MiscConfigFile, MiscConfigKind,
     MiscConfigRead, MiscConfigState, MiscConfigWrite, SaveEdit, WriteContentTarget, WriteResult,
 };
+use crate::services::query_json_composition;
 use crate::services::{misc_config, project};
 use crate::{io, parsers};
 use serde_json::Value;
@@ -67,7 +68,7 @@ pub fn query_misc_config_file(
 pub fn query_project_misc_config(payload: MiscConfigRead) -> AppResult<Option<MiscConfigFile>> {
     let mut file = query_misc_config_file(&payload.mod_root, payload.kind)?;
     if let Some(file) = &mut file {
-        file.composition = project::composition_for_session(&payload.session_id, &file.rel_path)?;
+        file.composition = query_json_composition(&payload.session_id, &file.rel_path)?;
     }
     Ok(file)
 }
@@ -128,7 +129,7 @@ pub fn save_misc_config(
     require_version(&path, &payload.base_versions)?;
     validate_misc_config(payload.kind, &payload.data).map_err(|error| error.at_path(&path))?;
     let mut composition =
-        project::composition_for_session(&payload.session_id, misc_config_path(payload.kind))?;
+        query_json_composition(&payload.session_id, misc_config_path(payload.kind))?;
     composition.replace |= payload.json_write.replaces(misc_config_path(payload.kind));
     let effective = json_composition::compose_game_json(&composition, &payload.data)?;
     schema::validate_field(

@@ -155,7 +155,7 @@ pub(in crate::services::project) fn insert_entry(
     );
 }
 
-pub(in crate::services::project) fn clear_sprite_media_for_session(session_id: &str) {
+pub(crate) fn clear_session_media(session_id: &str) {
     let Ok(mut cache) = sprite_media_cache().lock() else {
         diagnostics::failure(
             "cache.media_release_failed",

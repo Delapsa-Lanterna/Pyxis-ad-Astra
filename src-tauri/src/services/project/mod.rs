@@ -1,4 +1,3 @@
-mod cache;
 mod definitions;
 mod invalidation;
 mod model;
@@ -15,10 +14,7 @@ pub(crate) mod test_support;
 mod versions;
 pub(in crate::services) mod write;
 
-pub(crate) use cache::media::configure_media_cache;
 pub(crate) use performance::PerformanceTrace;
-pub(in crate::services) use query::json_composition::composition_for_session;
-pub(in crate::services::project) use query::json_composition::json_composition;
 pub(crate) use session::open_project_session_traced;
 pub(crate) use session::references::reference_updates;
 pub(crate) use session::references::{
@@ -26,7 +22,6 @@ pub(crate) use session::references::{
     set_reference_sources,
 };
 pub(crate) use session::registry::unregister_project_session;
-pub(crate) use session::release_session_content;
 pub(crate) use session::{affected_session_ids, current_projection, mark_projection_pending};
 pub use session::{
     ensure_project_session_mod_root, hold_session_openings, invalidate_core_cache,

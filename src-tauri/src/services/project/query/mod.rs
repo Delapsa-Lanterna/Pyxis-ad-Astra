@@ -8,5 +8,6 @@ pub(in crate::services) mod source_catalog;
 
 pub(in crate::services) mod joint_edit;
 
-pub(in crate::services) mod json_composition;
+pub(in crate::services) mod entity_presentation;
+pub(in crate::services) mod json_layers;
 pub(in crate::services) mod json_recovery;

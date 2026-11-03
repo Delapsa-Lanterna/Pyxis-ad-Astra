@@ -22,6 +22,19 @@ export const rustProjectLayerBoundaryRule = defineRule(
               ? 'project-root'
               : rustLayerFromCratePath(reference);
         if (!to) continue;
+        const resourceTarget = parts.slice(0, 3).join('::') === 'services::project::resources';
+        const formalContent =
+          ['project-session', 'project-model', 'project-root', 'session-entry'].includes(from) ||
+          file.rel === 'src-tauri/src/services/project/query/json_layers.rs';
+        if (formalContent && resourceTarget) {
+          if (!rejected.has('resource-products'))
+            report(file, edge, 'formal project content must be consumed by resource projections', {
+              target: reference,
+              expected: 'formal content or source layers',
+            });
+          rejected.add('resource-products');
+          continue;
+        }
         const csvEditorTarget =
           parts.slice(0, 2).join('::') === 'services::project' &&
           ((parts[2] === 'query' && ['csv_window', 'csv_associated_specs'].includes(parts[3] ?? '')) ||
@@ -68,10 +81,11 @@ export const rustProjectLayerBoundaryRule = defineRule(
           reference === 'crate::services::project::ensure_project_session_mod_root';
         const sessionRelease = [
           'crate::services::project::unregister_project_session',
-          'crate::services::project::release_session_content',
+          'crate::services::project::resources::media_cache::clear_session_media',
         ].includes(reference);
         if (
           sessionRelease &&
+          from !== 'service-assembly' &&
           modulePath.slice(0, 2).join('::') !== 'services::project_sync' &&
           !['project-session', 'session-entry'].includes(from)
         ) {
@@ -79,7 +93,17 @@ export const rustProjectLayerBoundaryRule = defineRule(
             target: reference,
             expected: 'complete project release',
           });
+          continue;
         }
+        const committedResourceProjection =
+          from === 'project-write' && parts.slice(0, 4).join('::') === 'services::project::resources::entity_references';
+        const sourceLayersRead =
+          from === 'services' && reference === 'crate::services::project::query::json_layers::query_json_composition';
+        const mediaLifecycle =
+          (modulePath.join('::') === 'services::app_lifecycle' &&
+            reference === 'crate::services::project::resources::media_cache::configure_media_cache') ||
+          (modulePath.join('::') === 'services::project_sync' &&
+            reference === 'crate::services::project::resources::media_cache::clear_session_media');
         const runtimeSettings =
           modulePath.join('::') === 'commands::app_lifecycle' && reference === 'crate::services::file_history::set_history_limit';
         const runtimeMonitor =
@@ -105,6 +129,9 @@ export const rustProjectLayerBoundaryRule = defineRule(
             'crate::services::project::session::source_projection::capture_projection_versions',
           ].includes(reference);
         if (
+          !committedResourceProjection &&
+          !sourceLayersRead &&
+          !mediaLifecycle &&
           !historyCommand &&
           !historyScope &&
           !runtimeSettings &&

@@ -11,7 +11,7 @@
 - `src-tauri/src/commands/project_session.rs`：session 打开 command。
 - `src-tauri/src/domain/entity_definitions.rs`：八种实体的目录、后缀、ID 字段及规格、表格关联登记。
 - `src-tauri/src/domain/entity_identity.rs`：跨编辑器实体 ID、路径与来源范围纯规则。
-- `src-tauri/src/services/project/cache/mod.rs`：媒体缓存的模块登记和会话释放能力导出。
+- `src-tauri/src/domain/json_composition.rs`：正式有序 JSON 来源的游戏合并、replace、排除字段和本地替代标记纯规则。
 - `src-tauri/src/services/project/definitions/entity_definitions.rs`：实体来源、读取准备、刷新与摘要的登记规则。
 - `src-tauri/src/services/project/definitions/factions.rs`：势力来源装载、诊断与蓝图标签。
 - `src-tauri/src/services/project/definitions/mod.rs`：实体来源与资源定义的模块登记。
@@ -19,6 +19,7 @@
 - `src-tauri/src/services/project/invalidation.rs`：提交路径到会话投影、实体与资源失效的更新。
 - `src-tauri/src/services/project/mod.rs`：会话生命周期、授权、投影、缓存配置与性能入口。
 - `src-tauri/src/services/project/model.rs`：会话、引用视图、可编辑 CSV 行身份及表格业务元数据。
+- `src-tauri/src/services/project/query/json_layers.rs`：同路径有序来源、匹配版本及正式来源组合读取。
 - `src-tauri/src/services/project/query/mod.rs`：只读业务实现的服务层可见模块登记。
 - `src-tauri/src/services/project/root.rs`：任务索引统计行为验证。
 - `src-tauri/src/services/project/session.rs`：会话打开、关闭、投影与内部登记及就绪访问能力交付。
@@ -48,7 +49,6 @@
 - `src-tauri/src/models/serde_fields.rs`：会话输入字段的空值转换与非空字符串归一化。
 - `src-tauri/src/services/project/query/entities.rs`：实际实体详情与列表查询。
 - `src-tauri/src/services/project/query/entity_targets.rs`：实体查询交付实际编辑目标、身份意图与版本范围。
-- `src-tauri/src/services/project/resources/refs.rs`：资源身份、来源根和船体引用解析。
 - `src-tauri/src/services/project/sources/`：成套来源内容、版本与解析成果读取。
 - `src/domain/project/entity-definitions.ts`：共享实体内容 ID 字段、可用 ID 规则与目标身份投影。
 - `src/services/entity-query.service.ts`：实体查询能力交接。
@@ -72,7 +72,10 @@
 - 前端 project store 必须持有全部 manifest 和正式清单，工作区必须按根查询，项目同步必须顺序交付完整投影。
 - 势力及蓝图包提供 tags 元数据，来源变化参与全部相关表的失效。
 - 后端 query 消费会话索引并返回只读结果，write 发布 changeset 和结构化投影。
+- 正式会话内容严禁消费资源投影；资源与实体呈现必须消费正式内容及来源。
 - 正式 CSV 定义、内容、稳定行身份、来源版本、缺失来源保留及实体计数归会话表格能力。
+- 实体列表以 EntityListEntry 交付种类、身份和内容，资源映射由所属消费者调用资源能力。
+- 正式 JSON 来源按当前会话的原版、前序引用和本地内容组合，内容及来源版本由同一来源结果交付。
 - 表格写入缓冲持有候选行和最终文本，实际变更集应用成功后由会话能力接纳正式状态。
 - 媒体和查询等待按 session 释放，投影恢复归事务与提交同步入口。
 - 持久化来源成果由来源读取交付，query 消费所属会话投影。

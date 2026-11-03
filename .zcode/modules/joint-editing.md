@@ -31,6 +31,8 @@
 - `src-tauri/src/models/project_identity.rs`：联合来源消费的实体、CSV 表与版本身份。
 - `src-tauri/src/models/write_commit.rs`：联合提交消费的公共回执与行键映射。
 - `src-tauri/src/services/project/model.rs`：来源装配消费的已加载记录。
+- `src-tauri/src/services/project/query/json_layers.rs`：会话所属的正式有序 JSON 来源组合与版本。
+- `src-tauri/src/services/project/resources/entity_references.rs`：联合内容及提交结果的实体资源引用。
 - `src-tauri/src/services/project/session/csv_writes.rs`：所属表格写入缓冲与成功接纳。
 - `src-tauri/src/services/project/sources/`：带版本来源读取与共享 Core 文档成果。
 - `src-tauri/src/services/project/write/entity_write.rs`：实体暂存、描述及父引用的写入规则。

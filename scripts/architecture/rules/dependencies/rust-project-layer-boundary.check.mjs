@@ -175,7 +175,7 @@ test('history scope authorization belongs to its facade while records remain ind
   });
   assert.equal(rustProjectLayerBoundaryRule.check(records).length, 1);
   assert.equal(rustServiceEdgeBoundaryRule.check(records).length, 1);
-  for (const target of ['unregister_project_session', 'release_session_content']) {
+  for (const target of ['unregister_project_session', 'resources::media_cache::clear_session_media']) {
     const allowed = architectureFixtures({
       'src-tauri/src/services/project_sync.rs': 'fn release() { crate::services::project::' + target + '(id); }',
     });
@@ -203,5 +203,22 @@ test('source catalog queries retain read-only layers and consume session facts o
       rustProjectLayerBoundaryRule.check(architectureFixtures({ [query]: 'fn run() { std::fs::write(path, bytes); }' })).length,
       1,
     );
+  }
+});
+
+test('formal content stays below resource products while lifecycle owns media configuration and release', () => {
+  const target = 'crate::services::project::resources::entity_references::entity_resource_refs';
+  for (const source of ['definitions/entity_definitions.rs', 'model.rs', 'session.rs', 'query/json_layers.rs']) {
+    const files = architectureFixtures({ ['src-tauri/src/services/project/' + source]: 'fn run() { ' + target + '(); }' });
+    assert.ok(rustProjectLayerBoundaryRule.check(files).some((item) => item.message.includes('formal project content')));
+  }
+  for (const [source, capability] of [
+    ['app_lifecycle', 'configure_media_cache'],
+    ['project_sync', 'clear_session_media'],
+  ]) {
+    const files = architectureFixtures({
+      ['src-tauri/src/services/' + source + '.rs']: 'fn run() { crate::services::project::resources::media_cache::' + capability + '(); }',
+    });
+    assert.deepEqual(rustProjectLayerBoundaryRule.check(files), []);
   }
 });

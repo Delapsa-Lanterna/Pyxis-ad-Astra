@@ -1220,4 +1220,38 @@ mod tests {
         assert_eq!(changed["demo"].data["spriteName"], "after");
         root.close().unwrap();
     }
+
+    #[test]
+    fn core_composition_reads_once_across_calls_threads_and_invalidation() {
+        let work = project_workspace("composition_read_counts");
+        let path = work.join("starsector-core/data/config/settings.json");
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        fs::write(&path, "{sample:1}").unwrap();
+        let path = path.canonicalize().unwrap();
+        let root = work.to_string_lossy().into_owned();
+        for _ in 0..2 {
+            read_core_json_layer(&root, "data/config/settings.json").unwrap();
+        }
+        assert_eq!(work_counts::count("read", &path), 1);
+        thread::scope(|scope| {
+            let tasks = (0..4)
+                .map(|_| {
+                    scope
+                        .spawn(|| read_core_json_layer(&root, "data/config/settings.json").unwrap())
+                })
+                .collect::<Vec<_>>();
+            for task in tasks {
+                task.join().unwrap();
+            }
+        });
+        assert_eq!(work_counts::count("read", &path), 1);
+        fs::write(&path, "{sample:2}").unwrap();
+        invalidate_core_cache(&root).unwrap();
+        let updated = read_core_json_layer(&root, "data/config/settings.json")
+            .unwrap()
+            .unwrap();
+        assert_eq!(updated.data["sample"], 2);
+        assert_eq!(work_counts::count("read", &path), 2);
+        work.close().unwrap();
+    }
 }

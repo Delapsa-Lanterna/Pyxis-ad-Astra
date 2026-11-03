@@ -37,7 +37,8 @@ test('application assembly consumes the media cache configuration capability', (
     messages(
       rustServiceEdgeBoundaryRule.check(
         architectureFixtures({
-          'src-tauri/src/commands/app_lifecycle.rs': 'fn load() { crate::services::project::configure_media_cache(&limits); }',
+          'src-tauri/src/commands/app_lifecycle.rs':
+            'fn load() { crate::services::project::resources::media_cache::configure_media_cache(&limits); }',
         }),
       ),
     ),

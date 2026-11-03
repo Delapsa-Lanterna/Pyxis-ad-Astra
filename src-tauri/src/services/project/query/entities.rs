@@ -2,7 +2,10 @@ use super::super::definitions::entity_definitions::entity_definition;
 use super::super::session::{lock_ready_session, session_handle};
 use crate::errors::AppResult;
 use crate::models::{EntityData, EntityKind};
-use crate::services::project::query::{entity_targets, json_composition as query_json_composition};
+use crate::services::project::query::{
+    entity_presentation as query_entity_presentation, entity_targets,
+};
+use crate::services::project::resources::entity_references::entity_list_resource_refs;
 
 pub fn query_entity(session_id: &str, kind: EntityKind, id: &str) -> AppResult<Option<EntityData>> {
     let handle = session_handle(session_id)?;
@@ -29,7 +32,7 @@ pub fn query_entity(session_id: &str, kind: EntityKind, id: &str) -> AppResult<O
         return Ok(None);
     };
     let (composition, resource_refs) =
-        query_json_composition::entity_presentation(&session, &info.target, &data, None)?;
+        query_entity_presentation::entity_presentation(&session, &info.target, &data, None)?;
     entity_targets::remember_edit_target(&mut session, &info.target);
     Ok(Some(EntityData {
         composition,
@@ -47,25 +50,32 @@ pub fn query_entity_list(session_id: &str, kind: EntityKind) -> AppResult<Vec<En
     let mut session = lock_ready_session(&handle)?;
     let definition = entity_definition(kind)?;
     (definition.prepare)(&mut session)?;
-    let projections = (definition.list)(&mut session)?;
-    let targets = entity_targets::prepare_entity_targets(&mut session, kind)?;
-    let records: Vec<EntityData> = projections
+    let entries = (definition.list)(&mut session)?
         .into_iter()
-        .map(|projection| {
-            let info = targets.describe(&session, &projection.id);
-            let (composition, resource_refs) = query_json_composition::entity_presentation(
+        .map(|entry| {
+            let resources =
+                entity_list_resource_refs(&session, entry.kind, &entry.id, &entry.data)?;
+            Ok((entry, resources))
+        })
+        .collect::<AppResult<Vec<_>>>()?;
+    let targets = entity_targets::prepare_entity_targets(&mut session, kind)?;
+    let records: Vec<EntityData> = entries
+        .into_iter()
+        .map(|(entry, resources)| {
+            let info = targets.describe(&session, &entry.id);
+            let (composition, resource_refs) = query_entity_presentation::entity_presentation(
                 &session,
                 &info.target,
-                &projection.data,
-                Some(projection.resource_refs),
+                &entry.data,
+                Some(resources),
             )?;
             Ok(EntityData {
                 composition,
                 target: info.target,
                 base_versions: info.base_versions,
-                kind: projection.kind,
-                id: projection.id,
-                data: projection.data,
+                kind: entry.kind,
+                id: entry.id,
+                data: entry.data,
                 resource_refs,
             })
         })

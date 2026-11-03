@@ -1,112 +1,22 @@
-use super::super::model::ProjectSession;
-use crate::domain::entity_definitions;
-use crate::domain::json_composition as domain_json_composition;
 use crate::errors::{AppError, AppResult};
-use crate::io;
-use crate::io::FsRootBoundary;
+use crate::io::{self, FsRootBoundary};
 use crate::models::{
-    EntityEditTarget, EntityFileLocation, EntityKind, JsonComposition, JsonSourceLayer,
-    ResourceRef, ResourceSource,
+    EntityFileLocation, EntityKind, JsonComposition, JsonSourceLayer, ResourceSource,
 };
-use crate::services::project::definitions::entity_definitions::entity_definition;
+use crate::services::project::model::ProjectSession;
 use crate::services::project::session::{lock_ready_session, session_handle};
-
 use crate::services::project::sources::core;
 use serde_json::Value;
-use std::collections::BTreeMap;
 use std::path::Path;
 
-pub(in crate::services::project) fn entity_presentation(
-    session: &ProjectSession,
-    target: &EntityEditTarget,
-    data: &Value,
-    resources: Option<BTreeMap<String, ResourceRef>>,
-) -> AppResult<(Option<JsonComposition>, BTreeMap<String, ResourceRef>)> {
-    let composition = entity_composition(session, target)?;
-    let wrapped = matches!(target.kind, EntityKind::Weapon | EntityKind::Skill);
-    let content = if wrapped { &data["spec"] } else { data };
-    let mut resources = match (composition.as_ref(), resources) {
-        (None, Some(resources)) => resources,
-        (composition, _) => {
-            let effective = composition
-                .map(|sources| domain_json_composition::compose_game_json(sources, content))
-                .transpose()?
-                .unwrap_or_else(|| content.clone());
-            let mut resource_data = data.clone();
-            if wrapped {
-                resource_data["spec"] = effective;
-            } else {
-                resource_data = effective;
-            }
-            (entity_definition(target.kind)?.resources)(session, &target.id, &resource_data)
-        }
-    };
-    if target.kind != EntityKind::Variant
-        && !(target.kind == EntityKind::Skin && data.get("spriteName").is_none())
-        && let Some(source) = &target.source
-    {
-        session.reference_resource(source, &mut resources);
-    }
-    if let Some(composition) = &composition {
-        resource_origins(&mut resources, content, composition);
-    }
-    Ok((composition, resources))
-}
-
-pub(in crate::services::project) fn resource_origins(
-    resources: &mut BTreeMap<String, ResourceRef>,
-    local: &Value,
-    composition: &JsonComposition,
-) {
-    for (key, resource) in resources {
-        let field = match key.as_str() {
-            "sprite"
-                if resource.owner_kind == EntityKind::Ship.into()
-                    || resource.owner_kind == EntityKind::Skin.into() =>
-            {
-                "spriteName"
-            }
-            _ => key.split('[').next().expect("resource field"),
-        };
-        if local.get(field).is_some() || composition.replace {
-            continue;
-        }
-        if let Some(layer) = composition
-            .layers
-            .iter()
-            .rev()
-            .find(|layer| layer.data.get(field).is_some())
-        {
-            resource.source = layer.source.source;
-            resource.reference = layer.source.reference.as_deref().cloned();
-        }
-    }
-}
-
-pub(in crate::services) fn composition_for_session(
+/// Captures ordered source layers from a ready session and preserves their versions and errors.
+pub(crate) fn query_json_composition(
     session_id: &str,
     relative: &str,
 ) -> AppResult<JsonComposition> {
     let handle = session_handle(session_id)?;
     let session = lock_ready_session(&handle)?;
     json_composition(&session, relative)
-}
-
-/// Composition of a local entity file. The game merges every entity file it loads through
-/// `LoadingUtils.readJSON` (all spec kinds, including variants); `loadJSON` files such as
-/// `mod_info.json` and mission descriptors are read alone and have no spec definition here.
-pub(in crate::services::project) fn entity_composition(
-    session: &ProjectSession,
-    target: &EntityEditTarget,
-) -> AppResult<Option<JsonComposition>> {
-    let local = target
-        .source
-        .as_ref()
-        .is_some_and(|source| source.source == ResourceSource::Mod);
-    if !local || entity_definitions::entity_spec_definition(target.kind).is_none() {
-        return Ok(None);
-    }
-    json_composition(session, &target.write.rel_path).map(Some)
 }
 
 pub(in crate::services::project) fn json_composition(
@@ -201,179 +111,19 @@ fn source_layer(session: &ProjectSession, relative: &str) -> AppResult<Option<Js
 
 #[cfg(test)]
 mod tests {
-    use crate::services::project_sync::release_project_session;
-
-    #[cfg(test)]
     use crate::domain::json_composition;
+    use crate::io;
     use crate::models::*;
-    #[cfg(test)]
     use crate::services::misc_config;
     use crate::services::project;
-    #[cfg(test)]
     use crate::services::project::query::entities;
     use crate::services::project::query::json_recovery::prepare_json_source_recovery;
-    #[cfg(test)]
-    use crate::services::project::sources::core;
-    #[cfg(test)]
     use crate::services::project::{PerformanceTrace, test_support};
     use crate::services::project_save::execute_save_action;
-    #[cfg(test)]
-    use crate::test_support::work_counts::count;
-    #[cfg(test)]
-    use crate::{io, test_support as source_test_support};
+    use crate::services::project_sync::release_project_session;
+    use crate::test_support as source_test_support;
     use serde_json::json;
-    #[cfg(test)]
-    use std::{fs, thread};
-
-    #[test]
-    fn entity_presentations_share_composed_resources_and_keep_local_content() {
-        for (kind, relative, field, base) in [
-            (
-                EntityKind::Faction,
-                "data/world/factions/sample.faction",
-                "logo",
-                json!({"displayName":"Inherited","logo":"graphics/base.png","color":[1,2,3,255]}),
-            ),
-            (
-                EntityKind::Ship,
-                "data/hulls/sample.ship",
-                "spriteName",
-                json!({"hullName":"Inherited","spriteName":"graphics/base.png"}),
-            ),
-            (
-                EntityKind::Weapon,
-                "data/weapons/sample.wpn",
-                "turretSprite",
-                json!({"turretSprite":"graphics/base.png"}),
-            ),
-            (
-                EntityKind::Projectile,
-                "data/weapons/proj/sample.proj",
-                "sprite",
-                json!({"sprite":"graphics/base.png"}),
-            ),
-            (
-                EntityKind::Skin,
-                "data/hulls/skins/sample.skin",
-                "spriteName",
-                json!({"hullName":"Inherited","spriteName":"graphics/base.png"}),
-            ),
-            (
-                EntityKind::Variant,
-                "data/variants/sample.variant",
-                "displayName",
-                json!({"variantId":"sample","hullId":"base_hull","displayName":"Inherited"}),
-            ),
-        ] {
-            let work = test_support::project_workspace("entity_presentation");
-            let root = work.join("mods/local");
-            let source = root.join(relative);
-            let core_file = work.join("starsector-core").join(relative);
-            fs::create_dir_all(source.parent().unwrap()).unwrap();
-            fs::create_dir_all(core_file.parent().unwrap()).unwrap();
-            let initial = if kind == EntityKind::Variant {
-                json!({"variantId":"sample","hullId":"base_hull","localField":1})
-            } else {
-                json!({"localField":1})
-            };
-            fs::write(&source, initial.to_string()).unwrap();
-            fs::write(&core_file, base.to_string()).unwrap();
-            let hull = root.join("data/hulls/base_hull.ship");
-            fs::create_dir_all(hull.parent().unwrap()).unwrap();
-            fs::write(
-                &hull,
-                r#"{"hullId":"base_hull","spriteName":"graphics/hull.png"}"#,
-            )
-            .unwrap();
-            let manifest = project::open_project_session_traced(
-                &root,
-                Some(&work),
-                &mut PerformanceTrace::new("presentation.open"),
-            )
-            .unwrap();
-            let mut overridden = initial.clone();
-            overridden[field] = json!("graphics/local.png");
-            for (local, replace) in [
-                (initial.clone(), false),
-                (overridden, false),
-                (initial, true),
-            ] {
-                fs::write(&source, local.to_string()).unwrap();
-                fs::write(
-                    root.join("mod_info.json"),
-                    json!({"id":"fixture","replace":if replace { vec![relative] } else { vec![] }})
-                        .to_string(),
-                )
-                .unwrap();
-                project::refresh_project_sources(
-                    &manifest.session_id,
-                    [relative, "mod_info.json"]
-                        .map(|path| InvalidatedResourceScope {
-                            source: ResourceSource::Mod,
-                            rel_path: path.into(),
-                        })
-                        .to_vec(),
-                )
-                .unwrap();
-                let list = entities::query_entity_list(&manifest.session_id, kind).unwrap();
-                let item = list.iter().find(|record| record.id == "sample").unwrap();
-                let detail = entities::query_entity(&manifest.session_id, kind, "sample")
-                    .unwrap()
-                    .unwrap();
-                assert_eq!(
-                    serde_json::to_value(&item.composition).unwrap(),
-                    serde_json::to_value(&detail.composition).unwrap()
-                );
-                assert_eq!(
-                    serde_json::to_value(&item.resource_refs).unwrap(),
-                    serde_json::to_value(&detail.resource_refs).unwrap()
-                );
-                let content = if kind == EntityKind::Weapon {
-                    &detail.data["spec"]
-                } else {
-                    &detail.data
-                };
-                assert_eq!(content, &local);
-                if kind != EntityKind::Variant {
-                    let resource_key = if field == "spriteName" {
-                        "sprite"
-                    } else {
-                        field
-                    };
-                    if replace && local.get(field).is_none() {
-                        assert!(!detail.resource_refs.contains_key(resource_key));
-                    } else {
-                        assert_eq!(
-                            detail.resource_refs[resource_key].source,
-                            if local.get(field).is_some() {
-                                ResourceSource::Mod
-                            } else {
-                                ResourceSource::Core
-                            }
-                        );
-                    }
-                }
-                if kind == EntityKind::Faction {
-                    let plan = prepare_json_source_recovery(JsonRecoveryRequest {
-                        session_id: manifest.session_id.clone(),
-                        mod_root: manifest.mod_root.clone(),
-                        origin: (&detail.target).into(),
-                    })
-                    .unwrap();
-                    assert_eq!(plan.current_sources["file"], local);
-                    assert_eq!(
-                        serde_json::to_value(&plan.resource_refs).unwrap(),
-                        serde_json::to_value(&detail.resource_refs).unwrap()
-                    );
-                }
-            }
-            assert_eq!(count("read", &core_file), 1);
-            assert_eq!(count("parse", &core_file), 1);
-            release_project_session(manifest.session_id).unwrap();
-            work.close().unwrap();
-        }
-    }
-
+    use std::fs;
     #[test]
     fn twelve_file_kinds_keep_local_contents_through_save_and_reopen() {
         let work = test_support::project_workspace("composition_twelve_kinds");
@@ -624,85 +374,6 @@ mod tests {
         for manifest in [base, local, later] {
             release_project_session(manifest.session_id).unwrap();
         }
-        work.close().unwrap();
-    }
-
-    #[test]
-    fn core_composition_reads_once_across_calls_threads_and_invalidation() {
-        let work = test_support::project_workspace("composition_read_counts");
-        let path = work.join("starsector-core/data/config/settings.json");
-        fs::create_dir_all(path.parent().unwrap()).unwrap();
-        fs::write(&path, "{sample:1}").unwrap();
-        let path = path.canonicalize().unwrap();
-        let root = work.to_string_lossy().into_owned();
-        for _ in 0..2 {
-            core::read_core_json_layer(&root, "data/config/settings.json").unwrap();
-        }
-        assert_eq!(count("read", &path), 1);
-        thread::scope(|scope| {
-            let tasks = (0..4)
-                .map(|_| {
-                    scope.spawn(|| {
-                        core::read_core_json_layer(&root, "data/config/settings.json").unwrap()
-                    })
-                })
-                .collect::<Vec<_>>();
-            for task in tasks {
-                task.join().unwrap();
-            }
-        });
-        assert_eq!(count("read", &path), 1);
-        fs::write(&path, "{sample:2}").unwrap();
-        core::invalidate_core_cache(&root).unwrap();
-        let updated = core::read_core_json_layer(&root, "data/config/settings.json")
-            .unwrap()
-            .unwrap();
-        assert_eq!(updated.data["sample"], 2);
-        assert_eq!(count("read", &path), 2);
-        work.close().unwrap();
-    }
-
-    #[test]
-    fn keeping_filename_preserves_merge_path_and_missing_id_after_save() {
-        let work = test_support::project_workspace("composition_identity_save");
-        let path = work.join("data/hulls/sample.ship");
-        fs::create_dir_all(path.parent().unwrap()).unwrap();
-        fs::write(&path, "{hullId:'sample',hullName:'Local'}").unwrap();
-        let manifest = project::open_project_session_traced(
-            &work,
-            None,
-            &mut PerformanceTrace::new("composition.identity"),
-        )
-        .unwrap();
-        for (id, data) in [
-            ("sample", json!({"hullId":"other","hullName":"Changed"})),
-            ("other", json!({"hullName":"Partial"})),
-        ] {
-            let entity = entities::query_entity(&manifest.session_id, EntityKind::Ship, id)
-                .unwrap()
-                .unwrap();
-            execute_save_action(SaveAction::SaveEditorSpec(SpecSave {
-                session_id: manifest.session_id.clone(),
-                mod_root: manifest.mod_root.clone(),
-                target: entity.target,
-                base_versions: entity.base_versions,
-                data: data.clone(),
-                ordered_json: None,
-                json_write: JsonWriteOptions {
-                    keep_filename: true,
-                    ..Default::default()
-                },
-            }))
-            .unwrap();
-            assert_eq!(io::read_json_file(&path).unwrap(), data);
-        }
-        assert!(!work.join("data/hulls/other.ship").exists());
-        assert!(
-            entities::query_entity(&manifest.session_id, EntityKind::Ship, "sample")
-                .unwrap()
-                .is_some()
-        );
-        release_project_session(manifest.session_id).unwrap();
         work.close().unwrap();
     }
 }

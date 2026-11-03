@@ -81,7 +81,7 @@ mod tests {
     use super::*;
     use crate::services::project::test_support::project_workspace;
     use crate::services::project::{
-        PerformanceTrace, open_project_session_traced, release_session_content,
+        PerformanceTrace, open_project_session_traced, reference_sources_changed,
     };
 
     #[test]
@@ -92,10 +92,10 @@ mod tests {
         let second = open_project_session_traced(&root, None, &mut trace).unwrap();
         let captured = session_handle(&first.session_id).unwrap();
         let first_result = unregister_project_session(&first.session_id).unwrap();
-        release_session_content(&first.session_id).unwrap();
+        reference_sources_changed(Some(&first.session_id)).unwrap();
         let duplicate = unregister_project_session(&first.session_id).unwrap();
         let last_result = unregister_project_session(&second.session_id).unwrap();
-        release_session_content(&second.session_id).unwrap();
+        reference_sources_changed(Some(&second.session_id)).unwrap();
         assert!(first_result.is_none());
         assert!(duplicate.is_none());
         assert_eq!(last_result, Some(first.mod_root));

@@ -1,6 +1,6 @@
-use super::super::cache::media;
 use super::super::session::{lock_ready_session, lock_registry, session_handle};
-use super::refs::media_resource_key;
+use super::media_cache as media;
+use super::resource_identity::media_resource_key;
 use crate::errors::{AppError, AppResult};
 use crate::io::FsRootBoundary;
 use crate::models::{ReferenceSource, ResourceRef, ResourceSource};
@@ -313,7 +313,7 @@ mod tests {
     use crate::models::ResourceOwnerKind;
     use crate::services::project::model::WEAPON_SPRITE_FIELDS;
     #[cfg(test)]
-    use crate::services::project::resources::refs;
+    use crate::services::project::resources;
 
     use crate::services::project::test_support::project_workspace;
     #[cfg(test)]
@@ -439,7 +439,7 @@ mod tests {
         let manifest =
             open_project_session_traced(&root, None, &mut PerformanceTrace::new("sprite.test"))
                 .unwrap();
-        let resource = refs::resource_ref(
+        let resource = resources::resource_ref(
             ResourceSource::Mod,
             "cached.png",
             ResourceOwnerKind::Ship,

@@ -10,11 +10,11 @@ use crate::errors::{AppError, AppResult};
 use crate::io;
 use crate::io::{FsRootBoundary, file_version};
 use crate::models::*;
-use crate::services::project::definitions::entity_resources;
 use crate::services::project::model::SessionCsvRow;
 use crate::services::project::query::{
-    entity_targets, hull_references, json_composition as query_json_composition,
+    entity_presentation as query_entity_presentation, entity_targets, hull_references,
 };
+use crate::services::project::resources::entity_references;
 use crate::services::project::resources::table_references;
 use crate::services::project::sources::documents::LoadedSpecRecord;
 use crate::services::project::sources::{core, documents};
@@ -464,7 +464,7 @@ fn variant_catalog(
                 let (version, content) =
                     session.read_spec_source(EntityKind::Weapon, &id, &source.location)?;
                 spec_version = Some(version);
-                refs = entity_resources::weapon_resource_refs(&id, &content);
+                refs = entity_references::weapon_resource_refs(&id, &content);
                 for resource in refs.values_mut() {
                     resource.source = source.location.source;
                 }
@@ -530,7 +530,7 @@ fn variant_catalog(
                 .map(|source| -> AppResult<JointPreviewSpec> {
                     let (version, data) =
                         session.read_spec_source(EntityKind::Projectile, &id, &source.location)?;
-                    let mut resource_refs = entity_resources::projectile_resource_refs(&id, &data);
+                    let mut resource_refs = entity_references::projectile_resource_refs(&id, &data);
                     for resource in resource_refs.values_mut() {
                         resource.source = source.location.source;
                     }
@@ -1228,7 +1228,7 @@ impl JointGraph<'_> {
         let source_version = source_read.as_ref().map(|(version, _)| version.clone());
         let value = source_read.map(|(_, value)| value);
         let value = self.projected_value(&key, value);
-        let composition = query_json_composition::entity_composition(self.session, &target)?;
+        let composition = query_entity_presentation::entity_composition(self.session, &target)?;
         let effective = value
             .as_ref()
             .map(|value| {
@@ -1258,10 +1258,10 @@ impl JointGraph<'_> {
             }
         }
         let resources = match (&effective, kind) {
-            (Some(data), EntityKind::Ship) => entity_resources::ship_resource_refs(id, data),
-            (Some(data), EntityKind::Weapon) => entity_resources::weapon_resource_refs(id, data),
+            (Some(data), EntityKind::Ship) => entity_references::ship_resource_refs(id, data),
+            (Some(data), EntityKind::Weapon) => entity_references::weapon_resource_refs(id, data),
             (Some(data), EntityKind::Projectile) => {
-                entity_resources::projectile_resource_refs(id, data)
+                entity_references::projectile_resource_refs(id, data)
             }
             (Some(data), EntityKind::Skin) => string_field(data, "spriteName")
                 .map(|path| {
@@ -1306,7 +1306,7 @@ impl JointGraph<'_> {
                 base_versions: versions,
                 resource_refs: {
                     if let (Some(local), Some(sources)) = (&value, &composition) {
-                        query_json_composition::resource_origins(&mut resources, local, sources);
+                        entity_references::apply_resource_origins(&mut resources, local, sources);
                     }
                     resources
                 },

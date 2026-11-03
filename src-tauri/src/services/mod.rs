@@ -38,6 +38,7 @@ pub(crate) use project::query::hull_references::query_hull_references;
 pub(crate) use project::query::joint_edit::{
     prepare_joint_edit, query_joint_edit_request, query_variant_catalog,
 };
+pub(crate) use project::query::json_layers::query_json_composition;
 pub(crate) use project::query::json_recovery::prepare_json_source_recovery;
 pub(crate) use project::query::mod_file_browser::{
     query_mod_directory, query_mod_file_search, query_mod_text_file_target,
@@ -51,6 +52,7 @@ pub(crate) use project::resources::core_assets::{
     query_core_root, scan_core_fields, scan_core_graphics,
 };
 pub(crate) use project::resources::fonts::query_original_font;
+pub(crate) use project::resources::media_cache::{clear_session_media, configure_media_cache};
 pub(crate) use project::resources::sprites::resolve_mod_relative_path;
 pub(crate) use project::write::csv_patch::save_csv_patch_snapshot;
 pub(crate) use project::write::csv_patch::{prepare_csv_save, write_csv_request};

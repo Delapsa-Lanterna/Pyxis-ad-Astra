@@ -2,7 +2,7 @@ use super::sources::core::CoreSourceRequirements;
 use super::sources::documents::LoadedSpecRecord;
 use crate::models::{
     CsvTableKey, EntityEditTarget, EntityKind, EntitySummaries, FileVersion, GameScanWarning,
-    ProjectManifest, ReferenceSource, ResourceRef, SkinFile, VariantFile,
+    ProjectManifest, ReferenceSource, SkinFile, VariantFile,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
@@ -11,11 +11,10 @@ use std::sync::{Arc, Mutex};
 
 pub(super) const MISSION_LIST_TABLE_KEY: &str = "missions";
 
-pub(super) struct EntityProjection {
+pub(super) struct EntityListEntry {
     pub kind: EntityKind,
     pub id: String,
     pub data: Value,
-    pub resource_refs: BTreeMap<String, ResourceRef>,
 }
 pub(super) const MISSION_LIST_REL_PATH: &str = "data/missions/mission_list.csv";
 

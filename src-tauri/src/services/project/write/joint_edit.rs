@@ -14,8 +14,8 @@ use crate::models::{
     EntityIdentityChange, EntityKind, EntityLinkedRecord, JointEditKind, JointEditQuery,
     JointEditSubmission, JointRecordTarget, JointValue, SaveEdit, WriteContentTarget, *,
 };
-use crate::services::project::definitions::entity_resources;
 use crate::services::project::query::joint_edit;
+use crate::services::project::resources::entity_references;
 use crate::services::project::sources::core;
 use crate::services::project::write::entity_write::descriptions;
 use crate::services::query_joint_edit_request;
@@ -245,10 +245,10 @@ pub fn save_joint_edit(payload: &JointEditSubmission) -> AppResult<WriteResult<J
                 if let JointValue::Present(data) = &next.value {
                     next.resource_refs = match staged.identity.after.kind {
                         EntityKind::Ship => {
-                            entity_resources::ship_resource_refs(&staged.identity.after.id, data)
+                            entity_references::ship_resource_refs(&staged.identity.after.id, data)
                         }
                         EntityKind::Weapon => {
-                            entity_resources::weapon_resource_refs(&staged.identity.after.id, data)
+                            entity_references::weapon_resource_refs(&staged.identity.after.id, data)
                         }
                         _ => next.resource_refs.clone(),
                     };

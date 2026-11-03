@@ -3,7 +3,7 @@ use super::super::model::{MISSION_LIST_TABLE_KEY, ProjectSession, string_from_ro
 use super::super::session::csv_tables::{ensure_registered_table_rows, ensure_session_table_rows};
 use super::super::session::{lock_ready_session, session_handle};
 use super::super::versions::version_for_path;
-use super::json_composition;
+use super::entity_presentation;
 use crate::domain::{entity_definitions, entity_identity, variant_modules};
 use crate::errors::{AppError, AppResult};
 use crate::io;
@@ -177,7 +177,7 @@ pub fn query_entity_identity_intent(
         });
     }
     let inherits = next_id != source.id
-        && json_composition::entity_composition(&session, source)?
+        && entity_presentation::entity_composition(&session, source)?
             .is_some_and(|composition| !composition.layers.is_empty() && !composition.replace);
     let mut next_write = source.write.clone();
     next_write.rel_path = relative;

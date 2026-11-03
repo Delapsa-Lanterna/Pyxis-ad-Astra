@@ -1,15 +1,10 @@
 use super::super::model::{
-    EntityProjection, MISSION_LIST_REL_PATH, MISSION_LIST_TABLE_KEY, ProjectSession, SessionCsvRow,
+    EntityListEntry, MISSION_LIST_REL_PATH, MISSION_LIST_TABLE_KEY, ProjectSession, SessionCsvRow,
     string_from_row,
 };
-use super::super::resources::resource_ref;
 use super::super::session::csv_tables::{
     ensure_registered_table_rows, ensure_session_table_rows, loaded_csv_rows,
     loaded_registered_csv_rows,
-};
-use super::entity_resources::{
-    faction_resource_refs, mission_resource_refs, projectile_resource_refs, ship_resource_refs,
-    skin_entity_resource_refs, system_resource_refs, variant_resource_refs, weapon_resource_refs,
 };
 use super::factions;
 use crate::domain::entity_definitions::{
@@ -23,13 +18,12 @@ use crate::domain::entity_identity;
 use crate::domain::entity_identity::path_is_or_in_dir;
 use crate::errors::{AppError, AppResult};
 use crate::io;
-use crate::io::{read_json_file, relative_path_contains};
+use crate::io::relative_path_contains;
 use crate::models::{
     CsvTableKey, EntityKind, EntitySummaries, GameScanWarning, InvalidatedQueryKind,
-    ResourceOwnerKind, ResourceRef, ResourceSource, SkinFile, VariantFile,
+    ResourceSource, SkinFile, VariantFile,
 };
 use crate::services::project::definitions::projectiles;
-use crate::services::project::resources::table_references::csv_icon_resource_ref;
 use crate::services::project::session::source_projection::capture_projection_versions;
 
 use crate::services::project::sources::core::load_core_variant_files;
@@ -43,8 +37,8 @@ use std::collections::{BTreeMap, HashMap};
 use std::path::Path;
 use std::sync::Arc;
 
-type EntityListLoader = fn(&mut ProjectSession) -> AppResult<Vec<EntityProjection>>;
-type EntityCoreListLoader = fn(&ProjectSession) -> AppResult<Vec<EntityProjection>>;
+type EntityListLoader = fn(&mut ProjectSession) -> AppResult<Vec<EntityListEntry>>;
+type EntityCoreListLoader = fn(&ProjectSession) -> AppResult<Vec<EntityListEntry>>;
 
 pub(in crate::services::project) struct ProjectEntityDefinition {
     pub kind: EntityKind,
@@ -57,7 +51,6 @@ pub(in crate::services::project) struct ProjectEntityDefinition {
     pub detail: fn(&mut ProjectSession, &str) -> AppResult<Option<Value>>,
     pub list: EntityListLoader,
     pub core_list: Option<EntityCoreListLoader>,
-    pub resources: fn(&ProjectSession, &str, &Value) -> BTreeMap<String, ResourceRef>,
     pub refresh: fn(&ProjectSession, &mut SourceReader) -> AppResult<EntityRefresh>,
 }
 
@@ -98,7 +91,6 @@ const PROJECT_ENTITY_DEFINITIONS: [ProjectEntityDefinition; 9] = [
         detail: ship_detail,
         list: ship_list,
         core_list: None,
-        resources: ship_resources,
         refresh: refresh_ship,
     },
     ProjectEntityDefinition {
@@ -112,7 +104,6 @@ const PROJECT_ENTITY_DEFINITIONS: [ProjectEntityDefinition; 9] = [
         detail: weapon_detail,
         list: weapon_list,
         core_list: None,
-        resources: weapon_entity_resources,
         refresh: refresh_weapon,
     },
     ProjectEntityDefinition {
@@ -126,7 +117,6 @@ const PROJECT_ENTITY_DEFINITIONS: [ProjectEntityDefinition; 9] = [
         detail: projectile_detail,
         list: projectile_list,
         core_list: None,
-        resources: projectile_resources,
         refresh: refresh_projectile,
     },
     ProjectEntityDefinition {
@@ -140,7 +130,6 @@ const PROJECT_ENTITY_DEFINITIONS: [ProjectEntityDefinition; 9] = [
         detail: system_detail,
         list: system_list,
         core_list: None,
-        resources: system_resources,
         refresh: refresh_system,
     },
     ProjectEntityDefinition {
@@ -154,7 +143,6 @@ const PROJECT_ENTITY_DEFINITIONS: [ProjectEntityDefinition; 9] = [
         detail: skill_detail,
         list: skill_list,
         core_list: None,
-        resources: skill_resources,
         refresh: refresh_skill,
     },
     ProjectEntityDefinition {
@@ -168,7 +156,6 @@ const PROJECT_ENTITY_DEFINITIONS: [ProjectEntityDefinition; 9] = [
         detail: faction_detail,
         list: faction_list,
         core_list: None,
-        resources: faction_resources,
         refresh: refresh_faction,
     },
     ProjectEntityDefinition {
@@ -182,7 +169,6 @@ const PROJECT_ENTITY_DEFINITIONS: [ProjectEntityDefinition; 9] = [
         detail: mission_detail,
         list: mission_list,
         core_list: None,
-        resources: mission_resources,
         refresh: refresh_mission,
     },
     ProjectEntityDefinition {
@@ -196,7 +182,6 @@ const PROJECT_ENTITY_DEFINITIONS: [ProjectEntityDefinition; 9] = [
         detail: variant_detail,
         list: variant_list,
         core_list: Some(variant_core_list),
-        resources: variant_resources,
         refresh: refresh_variant,
     },
     ProjectEntityDefinition {
@@ -210,7 +195,6 @@ const PROJECT_ENTITY_DEFINITIONS: [ProjectEntityDefinition; 9] = [
         detail: skin_detail,
         list: skin_list,
         core_list: None,
-        resources: skin_resources,
         refresh: refresh_skin,
     },
 ];
@@ -281,32 +265,30 @@ fn mission_detail(session: &mut ProjectSession, id: &str) -> AppResult<Option<Va
 }
 
 fn variant_detail(session: &mut ProjectSession, id: &str) -> AppResult<Option<Value>> {
-    session
+    Ok(session
         .variant_files
         .iter()
         .find(|item| item.variant_id == id)
-        .map(variant_file_data)
-        .transpose()
+        .map(|item| item.data.clone()))
 }
 
 fn skin_detail(session: &mut ProjectSession, id: &str) -> AppResult<Option<Value>> {
-    session
+    Ok(session
         .skin_files
         .iter()
         .find(|item| item.skin_hull_id == id)
-        .map(skin_file_data)
-        .transpose()
+        .map(|item| item.data.clone()))
 }
 
-fn ship_list(session: &mut ProjectSession) -> AppResult<Vec<EntityProjection>> {
-    session
+fn ship_list(session: &mut ProjectSession) -> AppResult<Vec<EntityListEntry>> {
+    Ok(session
         .ship_files
         .iter()
-        .map(|(id, data)| plain_entity(session, EntityKind::Ship, id, data.data.clone()))
-        .collect()
+        .map(|(id, record)| entity_list_entry(EntityKind::Ship, id, record.data.clone()))
+        .collect())
 }
 
-fn weapon_list(session: &mut ProjectSession) -> AppResult<Vec<EntityProjection>> {
+fn weapon_list(session: &mut ProjectSession) -> AppResult<Vec<EntityListEntry>> {
     let mut rows = registered_weapon_rows(session)?
         .into_iter()
         .map(|entry| build_weapon_list_entity(session, EntityKind::Weapon, &entry.id, entry.data))
@@ -328,23 +310,23 @@ fn weapon_list(session: &mut ProjectSession) -> AppResult<Vec<EntityProjection>>
     Ok(rows)
 }
 
-fn projectile_list(session: &mut ProjectSession) -> AppResult<Vec<EntityProjection>> {
-    session
+fn projectile_list(session: &mut ProjectSession) -> AppResult<Vec<EntityListEntry>> {
+    Ok(session
         .projectile_specs
         .iter()
-        .map(|(id, data)| plain_entity(session, EntityKind::Projectile, id, data.data.clone()))
-        .collect()
+        .map(|(id, record)| entity_list_entry(EntityKind::Projectile, id, record.data.clone()))
+        .collect())
 }
 
-fn system_list(session: &mut ProjectSession) -> AppResult<Vec<EntityProjection>> {
-    session
+fn system_list(session: &mut ProjectSession) -> AppResult<Vec<EntityListEntry>> {
+    Ok(session
         .system_files
         .iter()
-        .map(|(id, data)| plain_entity(session, EntityKind::System, id, data.data.clone()))
-        .collect()
+        .map(|(id, record)| entity_list_entry(EntityKind::System, id, record.data.clone()))
+        .collect())
 }
 
-fn skill_list(session: &mut ProjectSession) -> AppResult<Vec<EntityProjection>> {
+fn skill_list(session: &mut ProjectSession) -> AppResult<Vec<EntityListEntry>> {
     let mut rows = registered_skill_rows(session)?
         .into_iter()
         .map(|entry| build_skill_list_entity(session, EntityKind::Skill, &entry.id, entry.data))
@@ -366,176 +348,55 @@ fn skill_list(session: &mut ProjectSession) -> AppResult<Vec<EntityProjection>> 
     Ok(rows)
 }
 
-fn faction_list(session: &mut ProjectSession) -> AppResult<Vec<EntityProjection>> {
-    session
+fn faction_list(session: &mut ProjectSession) -> AppResult<Vec<EntityListEntry>> {
+    Ok(session
         .faction_files
         .iter()
-        .map(|(id, data)| plain_entity(session, EntityKind::Faction, id, data.data.clone()))
-        .collect()
+        .map(|(id, record)| entity_list_entry(EntityKind::Faction, id, record.data.clone()))
+        .collect())
 }
 
-fn mission_list(session: &mut ProjectSession) -> AppResult<Vec<EntityProjection>> {
+fn mission_list(session: &mut ProjectSession) -> AppResult<Vec<EntityListEntry>> {
     registered_mission_rows(session)?
         .into_iter()
         .map(|entry| build_mission_list_entity(session, EntityKind::Mission, &entry.id, entry.data))
         .collect()
 }
 
-fn variant_list(session: &mut ProjectSession) -> AppResult<Vec<EntityProjection>> {
-    session
+fn variant_list(session: &mut ProjectSession) -> AppResult<Vec<EntityListEntry>> {
+    Ok(session
         .variant_files
         .iter()
-        .map(|item| variant_entity(session, ResourceSource::Mod, item))
-        .collect()
+        .map(|item| entity_list_entry(EntityKind::Variant, &item.variant_id, item.data.clone()))
+        .collect())
 }
 
 /// Core-only variant entities: the complement a variant reference domain
 /// offers on top of the Mod's own list when a Starsector root is configured.
-fn variant_core_list(session: &ProjectSession) -> AppResult<Vec<EntityProjection>> {
+fn variant_core_list(session: &ProjectSession) -> AppResult<Vec<EntityListEntry>> {
     let Some(root) = session.manifest.starsector_root.as_ref() else {
         return Ok(Vec::new());
     };
-    load_core_variant_files(root)?
+    Ok(load_core_variant_files(root)?
         .iter()
-        .map(|item| variant_entity(session, ResourceSource::Core, item))
-        .collect()
+        .map(|item| entity_list_entry(EntityKind::Variant, &item.variant_id, item.data.clone()))
+        .collect())
 }
 
-fn variant_entity(
-    session: &ProjectSession,
-    origin: ResourceSource,
-    item: &VariantFile,
-) -> AppResult<EntityProjection> {
-    let data = variant_file_data(item)?;
-    Ok(EntityProjection {
-        kind: EntityKind::Variant,
-        id: item.variant_id.clone(),
-        resource_refs: variant_resource_refs(session, origin, &data),
-        data,
-    })
-}
-
-fn skin_list(session: &mut ProjectSession) -> AppResult<Vec<EntityProjection>> {
-    session
+fn skin_list(session: &mut ProjectSession) -> AppResult<Vec<EntityListEntry>> {
+    Ok(session
         .skin_files
         .iter()
-        .map(|item| build_skin_entity(session, EntityKind::Skin, item))
-        .collect()
+        .map(|item| entity_list_entry(EntityKind::Skin, &item.skin_hull_id, item.data.clone()))
+        .collect())
 }
 
-fn plain_entity(
-    session: &ProjectSession,
-    kind: EntityKind,
-    id: &str,
-    data: Value,
-) -> AppResult<EntityProjection> {
-    let definition = entity_definition(kind)?;
-    Ok(EntityProjection {
+fn entity_list_entry(kind: EntityKind, id: &str, data: Value) -> EntityListEntry {
+    EntityListEntry {
         kind,
         id: id.to_string(),
-        resource_refs: (definition.resources)(session, id, &data),
         data,
-    })
-}
-
-fn weapon_entity_resources(
-    _session: &ProjectSession,
-    id: &str,
-    data: &Value,
-) -> BTreeMap<String, ResourceRef> {
-    data.get("spec")
-        .map(|spec| weapon_resource_refs(id, spec))
-        .unwrap_or_default()
-}
-
-fn ship_resources(
-    _session: &ProjectSession,
-    id: &str,
-    data: &Value,
-) -> BTreeMap<String, ResourceRef> {
-    ship_resource_refs(id, data)
-}
-
-fn projectile_resources(
-    _session: &ProjectSession,
-    id: &str,
-    data: &Value,
-) -> BTreeMap<String, ResourceRef> {
-    projectile_resource_refs(id, data)
-}
-
-fn system_resources(
-    _session: &ProjectSession,
-    id: &str,
-    data: &Value,
-) -> BTreeMap<String, ResourceRef> {
-    system_resource_refs(id, data)
-}
-
-fn skill_resources(
-    _session: &ProjectSession,
-    _id: &str,
-    data: &Value,
-) -> BTreeMap<String, ResourceRef> {
-    data.get("csvRow")
-        .and_then(Value::as_object)
-        .and_then(|row| csv_icon_resource_ref(ResourceSource::Mod, CsvTableKey::Skills, row))
-        .map(|resource| BTreeMap::from([("icon".to_string(), resource)]))
-        .unwrap_or_default()
-}
-
-fn faction_resources(
-    _session: &ProjectSession,
-    id: &str,
-    data: &Value,
-) -> BTreeMap<String, ResourceRef> {
-    faction_resource_refs(id, data)
-}
-
-fn mission_resources(
-    _session: &ProjectSession,
-    id: &str,
-    data: &Value,
-) -> BTreeMap<String, ResourceRef> {
-    mission_resource_refs(id, data)
-}
-
-fn variant_resources(
-    session: &ProjectSession,
-    _id: &str,
-    data: &Value,
-) -> BTreeMap<String, ResourceRef> {
-    variant_resource_refs(session, ResourceSource::Mod, data)
-}
-
-fn skin_resources(
-    session: &ProjectSession,
-    id: &str,
-    data: &Value,
-) -> BTreeMap<String, ResourceRef> {
-    skin_entity_resource_refs(session, id, data)
-}
-
-fn build_skin_entity(
-    session: &ProjectSession,
-    kind: EntityKind,
-    item: &SkinFile,
-) -> AppResult<EntityProjection> {
-    let data = skin_file_data(item)?;
-    Ok(EntityProjection {
-        kind,
-        id: item.skin_hull_id.clone(),
-        resource_refs: skin_entity_resource_refs(session, &item.skin_hull_id, &item.data),
-        data,
-    })
-}
-
-fn variant_file_data(item: &VariantFile) -> AppResult<Value> {
-    Ok(item.data.clone())
-}
-
-fn skin_file_data(item: &SkinFile) -> AppResult<Value> {
-    Ok(item.data.clone())
+    }
 }
 
 #[derive(Debug)]
@@ -594,7 +455,7 @@ fn build_weapon_list_entity(
     kind: EntityKind,
     id: &str,
     row: Map<String, Value>,
-) -> AppResult<EntityProjection> {
+) -> AppResult<EntityListEntry> {
     let spec = session
         .weapon_specs
         .get(id)
@@ -603,10 +464,9 @@ fn build_weapon_list_entity(
     let mut data = Map::new();
     data.insert("spec".to_string(), spec.clone());
     data.insert("csvRow".to_string(), Value::Object(row));
-    Ok(EntityProjection {
+    Ok(EntityListEntry {
         kind,
         id: id.to_string(),
-        resource_refs: weapon_resource_refs(id, &spec),
         data: Value::Object(data),
     })
 }
@@ -639,7 +499,7 @@ fn build_skill_list_entity(
     kind: EntityKind,
     id: &str,
     row: Map<String, Value>,
-) -> AppResult<EntityProjection> {
+) -> AppResult<EntityListEntry> {
     let spec = session
         .skill_files
         .get(id)
@@ -649,10 +509,9 @@ fn build_skill_list_entity(
     data.insert("spec".to_string(), spec);
     data.insert("csvRow".to_string(), Value::Object(row));
     let data = Value::Object(data);
-    Ok(EntityProjection {
+    Ok(EntityListEntry {
         kind,
         id: id.to_string(),
-        resource_refs: skill_resources(session, id, &data),
         data,
     })
 }
@@ -681,20 +540,16 @@ fn build_skill_entity_data(session: &mut ProjectSession, id: &str) -> AppResult<
 }
 
 fn build_mission_list_entity(
-    session: &ProjectSession,
+    _session: &ProjectSession,
     kind: EntityKind,
     id: &str,
     row: Map<String, Value>,
-) -> AppResult<EntityProjection> {
+) -> AppResult<EntityListEntry> {
     let mut data = Map::new();
     data.insert("list".to_string(), Value::Object(row));
-    let resource_refs = mission_icon_resource_ref(session, id)?
-        .map(|resource| BTreeMap::from([("icon".to_string(), resource)]))
-        .unwrap_or_default();
-    Ok(EntityProjection {
+    Ok(EntityListEntry {
         kind,
         id: id.to_string(),
-        resource_refs,
         data: Value::Object(data),
     })
 }
@@ -738,28 +593,6 @@ fn build_mission_entity(session: &mut ProjectSession, id: &str) -> AppResult<Opt
     capture_projection_versions(&mut sources, &[&format!("data/missions/{clean}")])?;
     Arc::make_mut(&mut session.source_versions).extend(sources.versions);
     Ok(Some(Value::Object(data)))
-}
-
-fn mission_icon_resource_ref(session: &ProjectSession, id: &str) -> AppResult<Option<ResourceRef>> {
-    let clean = entity_identity::validate_entity_id(id, "无效战役 ID")?;
-    let descriptor_path = Path::new(&session.manifest.mod_root)
-        .join("data/missions")
-        .join(clean)
-        .join("descriptor.json");
-    if !descriptor_path.exists() {
-        return Ok(None);
-    }
-    let descriptor = read_json_file(&descriptor_path)?;
-    let Some(icon) = descriptor.get("icon").and_then(Value::as_str) else {
-        return Ok(None);
-    };
-    Ok(Some(resource_ref(
-        ResourceSource::Mod,
-        &format!("data/missions/{clean}/{icon}"),
-        ResourceOwnerKind::Mission,
-        id,
-        "icon",
-    )))
 }
 
 pub(in crate::services::project) enum EntityRefresh {
