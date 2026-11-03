@@ -12,7 +12,7 @@ import JsonDocumentList from './JsonDocumentList.vue';
 import { NInput } from 'naive-ui/es/input';
 import { NDropdown } from 'naive-ui/es/dropdown';
 import type { CommittedWriteEvent, WriteResult } from '@/shared/types';
-import SchemaFormRenderer from '@/app/components/schema/SchemaFormRenderer.vue';
+import SchemaFormRenderer from '@/app/components/field-editor/SchemaFormRenderer.vue';
 import { useJsonEditorStore } from '@/stores/json-editor.store';
 import { useCsvEditorStore } from '@/stores/csv-editor.store';
 import { useProjectStore } from '@/stores/project.store';

@@ -2,8 +2,8 @@ import type { CsvRowRecord, CsvTableKey } from '@/shared/types';
 import { cell } from '@/shared/lib/starsector';
 import { csvColumnSchemaFor, csvListValues } from '@/domain/csv-editor/csv-column-schema';
 import type { CsvColumnSchema } from '@/domain/schema/schema.types';
-import { createCsvSourceIndex, sourceOptions, type CsvSourceIndex } from '@/domain/schema/csv-source-options';
-import { flattenSelectOptions, type SelectOption } from '@/domain/schema/schema-options';
+import { createCsvSourceIndex, sourceOptions, type CsvSourceIndex } from '@/domain/field-editor/csv-source-options';
+import { flattenSelectOptions, type SelectOption } from '@/domain/field-editor/field-options';
 
 export interface CsvGridColumn {
   className: string;

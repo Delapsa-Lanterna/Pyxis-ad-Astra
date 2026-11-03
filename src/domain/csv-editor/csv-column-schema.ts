@@ -1,5 +1,5 @@
 import type { CsvTableKey } from '@/shared/types';
-import type { SelectOption } from '@/domain/schema/schema-options';
+import type { SelectOption } from '@/domain/field-editor/field-options';
 import type { CsvColumnControl, CsvColumnSchema } from '@/domain/schema/schema.types';
 import { getCsvColumnSchemas } from '@/domain/schema/csv-schema-registry';
 

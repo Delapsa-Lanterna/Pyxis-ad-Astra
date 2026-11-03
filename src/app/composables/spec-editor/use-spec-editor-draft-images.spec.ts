@@ -7,7 +7,7 @@ import { flushPromises } from '@vue/test-utils';
 import type { EditContext, RowData } from '@/shared/types/index';
 import type { SpecEditorTarget } from './spec-editor.types';
 import { useSpecEditorDraftImages } from './use-spec-editor-draft-images';
-import type { ResourceRef } from '@/shared/types';
+import type { ResourceRef } from '@/shared/types/index';
 
 const mocks = vi.hoisted(() => ({
   feedback: vi.fn(),

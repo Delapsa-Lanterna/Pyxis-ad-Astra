@@ -45,7 +45,7 @@
 </template>
 <script setup lang="ts">
 import type { useVisibleResourceMedia } from '@/app/composables/use-visible-resource-media';
-import type { FlatSelectOption, SelectOptionGroup } from '@/domain/schema/schema-options';
+import type { FlatSelectOption, SelectOptionGroup } from '@/domain/field-editor/field-options';
 import ResourceThumbnail from '@/app/components/media/ResourceThumbnail.vue';
 defineProps<{
   group: SelectOptionGroup;

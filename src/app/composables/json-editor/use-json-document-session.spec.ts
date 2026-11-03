@@ -3,7 +3,7 @@ import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
 import { h, ref } from 'vue';
 import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils';
-import SchemaFieldRenderer from '@/app/components/schema/SchemaFieldRenderer.vue';
+import SchemaFieldRenderer from '@/app/components/field-editor/SchemaFieldRenderer.vue';
 import { editorUiStubs, nSelect } from '@/test/unit/ui-stubs';
 import { provideFieldInputs } from '@/shared/runtime/field-inputs';
 import { provideAppFeedback } from '@/app/composables/use-app-feedback';

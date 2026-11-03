@@ -11,7 +11,7 @@
       :status="invalid ? 'error' : undefined"
       :clearable="!field.schema.required"
       :filterable="Boolean(field.schema.source)"
-      :tag="isConfigSource(field.schema.source)"
+      :tag="isConfigFieldSource(field.schema.source)"
       @update:value="update($event ?? '')"
     />
     <n-input
@@ -33,12 +33,12 @@ import { computed, ref, watch } from 'vue';
 import type { ImmersiveField } from '@/domain/immersive/fields';
 import { convertSchemaScalarInput, schemaStringValue } from '@/domain/schema/schema-values';
 import type { SchemaFieldUpdate } from '@/domain/schema/schema.types';
-import type { SchemaRuntimeContext } from '@/domain/schema/schema-runtime';
-import { useSchemaSourceOptions } from '@/app/composables/editors/use-schema-source-options';
+import type { FieldEditorContext } from '@/domain/field-editor/field-editor-context';
+import { useFieldSourceOptions } from '@/app/composables/field-editor/use-field-source-options';
 import { useRawFieldInput } from '@/shared/runtime/raw-field-input';
-import { includeCurrentSelectOptions, selectOptionValues } from '@/domain/schema/schema-options';
-import { useInputEditMode } from '@/app/composables/use-input-edit-mode';
-import { isConfigSource } from '@/domain/source-catalog/source-definitions';
+import { includeCurrentSelectOptions, selectOptionValues } from '@/domain/field-editor/field-options';
+import { useFieldEditMode } from '@/app/composables/field-editor/use-field-edit-mode';
+import { isConfigFieldSource } from '@/domain/schema/schema-source-definitions';
 import { parseJsonInput, formatJsonInput } from '@/shared/lib/json-input';
 import ImmersiveText from './ImmersiveText.vue';
 const props = defineProps<{
@@ -46,14 +46,14 @@ const props = defineProps<{
   value: unknown;
   inheritedValue?: unknown;
   inputKey: string;
-  runtimeContext: SchemaRuntimeContext;
+  runtimeContext: FieldEditorContext;
   active: boolean;
   autofocus: boolean;
   disabled?: boolean;
 }>();
 const emit = defineEmits<{ update: [update: SchemaFieldUpdate] }>();
 const input = ref<{ focus: () => void } | null>(null);
-const mode = useInputEditMode();
+const mode = useFieldEditMode();
 const jsonShape = computed(() => (props.field.schema.type === 'array' ? 'array' : props.field.schema.type === 'object' ? 'object' : null));
 watch(input, (control) => {
   if (props.active && props.autofocus && !props.disabled) control?.focus();
@@ -76,7 +76,7 @@ const { raw, invalid, update } = useRawFieldInput<unknown>({
   apply: (converted) => emit('update', converted.kind === 'value' ? { kind: 'set', value: converted.value } : converted),
   focus: () => input.value?.focus(),
 });
-const source = useSchemaSourceOptions({
+const source = useFieldSourceOptions({
   field: () => props.field.schema,
   value: () => raw.value,
   runtimeContext: () => props.runtimeContext,

@@ -96,8 +96,8 @@ import { useCsvTableInputs } from '@/app/composables/csv-editor/use-csv-table-in
 import { useFieldInputActions } from '@/app/composables/use-field-input-actions';
 import { useThumbnailPreload } from '@/app/composables/use-thumbnail-preload';
 import { resourceThumbnailRequest } from '@/app/composables/use-resource-thumbnail';
-import { sourceValue } from '@/domain/schema/csv-source-options';
-import { useInputEditMode } from '@/app/composables/use-input-edit-mode';
+import { sourceValue } from '@/domain/field-editor/csv-source-options';
+import { useFieldEditMode } from '@/app/composables/field-editor/use-field-edit-mode';
 import { provideCsvGridMedia } from '@/app/composables/csv-editor/use-csv-grid-media';
 import { useCsvRowDrag } from '@/app/composables/csv-editor/use-csv-row-drag';
 import { useWindowShortcuts } from '@/app/composables/use-window-shortcuts';
@@ -261,7 +261,7 @@ watch(
   { immediate: true },
 );
 watch([editorRow, editorColumn], locateEditorAnchor, { flush: 'post', immediate: true });
-const mode = useInputEditMode(),
+const mode = useFieldEditMode(),
   preload = useThumbnailPreload('CSV 网格');
 provideCsvGridMedia({ url: (resource) => preload.url(context.target.sessionId, resource) });
 // Keep media demand independent of row mounting; per-batch rescans consume the 4 ms mount budget.

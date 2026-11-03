@@ -17,7 +17,7 @@ import type { ImmersiveFontRole } from './font-roles';
 import { parseInputNumber } from '@/shared/lib/input-number';
 import { createDefaultVariant, createDefaultSkin } from '@/domain/entity-write/spec-construction';
 import { setVariantModule, variantModuleEntries } from '@/shared/lib/starsector/variant-modules';
-import { composeJson, editComposedJson } from '@/domain/schema/json-composition';
+import { composeJson, editComposedJson } from '@/domain/json-composition';
 import { AppError } from '@/shared/lib/errors';
 
 export interface ImmersivePanel {

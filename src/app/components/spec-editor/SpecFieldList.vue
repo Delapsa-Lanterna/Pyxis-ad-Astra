@@ -53,11 +53,11 @@
 </template>
 <script setup lang="ts">
 import { computed, inject } from 'vue';
-import SchemaValueInput from '@/app/components/schema/SchemaValueInput.vue';
+import SchemaValueInput from '@/app/components/field-editor/SchemaValueInput.vue';
 import { specSchemaContext } from '@/app/composables/spec-editor/spec-schema-context';
 import FieldRow from '@/shared/ui/FieldRow.vue';
 import { toOptions } from '@/domain/editors/lib/editor-constants';
-import { schemaContextField } from '@/domain/schema/schema-runtime';
+import { fieldSchemaForContext } from '@/domain/field-editor/field-editor-context';
 import { schemaCollection, schemaFieldRequired } from '@/domain/schema/schema-values';
 import { specFieldParent, type SpecField } from '@/domain/spec-editor/spec-fields';
 import type { JsonValue, RowData } from '@/shared/types';
@@ -71,7 +71,7 @@ const fieldRuntime = computed(() => (schemaRuntime?.value ? { ...schemaRuntime.v
 const fields = computed(() =>
   props.fields.map((field) =>
     fieldRuntime.value?.partial
-      ? schemaContextField(field, fieldRuntime.value)
+      ? fieldSchemaForContext(field, fieldRuntime.value)
       : field.requiredWhen
         ? {
             ...field,

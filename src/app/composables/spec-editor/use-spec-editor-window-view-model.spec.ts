@@ -123,7 +123,7 @@ import { createWeaponSpec } from '@/domain/entity-write/spec-construction';
 import { createProjectileSpec } from '@/domain/entity-write/spec-construction';
 import { formatError } from '@/shared/lib/errors';
 import { useSaveCommandStore } from '@/stores/save-command.store';
-import type { AppFeedback, JsonComposition, CommittedWriteEvent } from '@/shared/types';
+import type { AppFeedback, JsonComposition, CommittedWriteEvent } from '@/shared/types/index';
 
 function shipBundleFixture(isNew = false): SpecEditorData<'ship'> {
   return {

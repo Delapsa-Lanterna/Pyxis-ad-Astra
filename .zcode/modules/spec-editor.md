@@ -34,7 +34,7 @@ Spec 编辑器基础模块提供规格窗口宿主、共同输入契约和业务
 - `src/app/components/editors/common/EditorFooter.vue`：编辑与预览共用的说明及操作插槽。
 - `src/app/components/editors/common/EditorHeader.vue`：编辑与预览共用的标题、dirty、外部基线及动作插槽。
 - `src/app/components/editors/common/EditorInspector.vue`：编辑与预览共用的属性区标题及独立滚动容器。
-- `src/app/components/schema/SchemaValueInput.vue`：声明来源的规格引用字段控件。
+- `src/app/components/field-editor/SchemaValueInput.vue`：声明来源的规格引用字段控件。
 - `src/app/composables/use-field-input-actions.ts`：所属输入集合登记、活动输入提交与释放。
 - `src/domain/edit-session.ts`：编辑会话与撤销栈原语，拥有 base/draft/dirty/revision/pending external 状态机与双栈状态工厂。
 - `src/domain/entity-write/spec-construction.ts`：规格与嵌套对象初始内容。

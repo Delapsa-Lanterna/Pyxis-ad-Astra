@@ -8,7 +8,7 @@ import type { CsvGridModel } from '@/domain/csv-editor/csv-grid-model';
 import { mountCsvInputHost } from '@/test/unit/csv-input-host';
 import { createPinia, setActivePinia } from 'pinia';
 import { initializeSettingsStore, useSettingsStore } from '@/stores/settings.store';
-import { createCsvSourceIndex } from '@/domain/schema/csv-source-options';
+import { createCsvSourceIndex } from '@/domain/field-editor/csv-source-options';
 import type { ResourceRef } from '@/shared/types';
 import { createSettingsFixture } from '@/test/fixtures/settings';
 import { NCollapse, NCollapseItem } from 'naive-ui/es/collapse';

@@ -2,7 +2,7 @@ import { dialogBody, dialogFiles, dialogSelect } from '@/shared/ui/dialog-conten
 import { ref } from 'vue';
 import type { EntityEditTarget, AppFeedback, EntityIdentityIntent, RowData, JsonComposition } from '@/shared/types';
 import { entityContentIdField, trimmedEntityStringField } from '@/domain/project/entity-definitions';
-import { composeJson } from '@/domain/schema/json-composition';
+import { composeJson } from '@/domain/json-composition';
 
 interface EntityIdChange {
   target: EntityEditTarget;

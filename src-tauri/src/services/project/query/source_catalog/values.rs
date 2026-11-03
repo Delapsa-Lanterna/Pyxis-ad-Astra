@@ -8,7 +8,7 @@ use super::super::super::session::csv_tables::{
     ensure_registered_table_rows, loaded_csv_rows, loaded_registered_csv_rows,
 };
 use super::super::super::session::{lock_ready_session, session_handle};
-use super::config_sources::CONFIG_OPTION_SOURCES;
+use crate::domain::schema_sources::CONFIG_FIELD_SOURCES;
 use crate::domain::well_known_labels::{WellKnownCatalog, well_known_catalog};
 use crate::errors::{AppError, AppResult};
 use crate::models::{
@@ -231,9 +231,7 @@ fn config_source_option_groups(
     session: &ProjectSession,
     source: &str,
 ) -> AppResult<Option<Vec<SourceOptionGroup>>> {
-    let Some((_, relative, section)) = CONFIG_OPTION_SOURCES
-        .iter()
-        .find(|(id, _, _)| *id == source)
+    let Some((_, relative, section)) = CONFIG_FIELD_SOURCES.iter().find(|(id, _, _)| *id == source)
     else {
         return Ok(None);
     };
@@ -878,7 +876,7 @@ mod tests {
         }
         let mut trace = PerformanceTrace::new("catalog.open");
         let manifest = open_project_session_traced(&local, Some(&root), &mut trace).unwrap();
-        for &(source, relative, section) in CONFIG_OPTION_SOURCES {
+        for &(source, relative, section) in CONFIG_FIELD_SOURCES {
             assert!(
                 query_source_option_catalog(&manifest.session_id, source)
                     .unwrap()

@@ -54,7 +54,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref, useTemplateRef, watch } from 'vue';
-import { groupSelectOptions, type FlatSelectOption, type SelectOption } from '@/domain/schema/schema-options';
+import { groupSelectOptions, type FlatSelectOption, type SelectOption } from '@/domain/field-editor/field-options';
 import { useVisibleResourceMedia } from '@/app/composables/use-visible-resource-media';
 import CsvCellPickerGroup from './CsvCellPickerGroup.vue';
 import { useCsvFloatingPanel } from '@/app/composables/csv-editor/use-csv-floating-panel';

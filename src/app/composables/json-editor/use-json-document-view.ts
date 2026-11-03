@@ -4,7 +4,7 @@ import { computed, onScopeDispose, ref, watch } from 'vue';
 import { querySessionEntityEditTarget } from '@/services/entity-query.service';
 import { useQueryReadOwner } from '@/app/composables/use-query-read-owner';
 import { useSaveCommandStore } from '@/stores/save-command.store';
-import { observeSchemaSourceOptions } from '@/app/composables/editors/use-schema-source-options';
+import { observeFieldSourceOptions } from '@/app/composables/field-editor/use-field-source-options';
 import { querySourceOptionCatalog } from '@/services/source-catalog.service';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
 import { queryBuiltInWeaponSlotOptions, hasHullReferencesInvalidation } from '@/services/hull-reference.service';
@@ -16,9 +16,9 @@ import { AppError } from '@/shared/lib/errors';
 import { isExternalSource } from '@/shared/lib/resource-ref';
 import type { JsonDocumentSession } from './use-json-document-session';
 import type { JsonEditorHost } from './json-editor-context';
-import type { SchemaRuntimeContext } from '@/domain/schema/schema-runtime';
+import type { FieldEditorContext } from '@/domain/field-editor/field-editor-context';
 import type { JsonDocumentDefinition } from '@/domain/json-editor/json-document-definitions';
-import { composeJson, setCompositionValue } from '@/domain/schema/json-composition';
+import { composeJson, setCompositionValue } from '@/domain/json-composition';
 import type { JsonValue } from '@/shared/types';
 
 export function useJsonDocumentView(
@@ -43,7 +43,7 @@ export function useJsonDocumentView(
   const partial = computed(() =>
     Boolean(document.composition.value && definition.kind !== 'variant' && !jsonDocumentId(definition, document.draftValue.value)),
   );
-  const schemaRuntimeContext = computed<SchemaRuntimeContext>(() => {
+  const schemaRuntimeContext = computed<FieldEditorContext>(() => {
     const target = document.target.value!;
     const context = {
       modRoot: target.modRoot,
@@ -89,7 +89,7 @@ export function useJsonDocumentView(
               if (!update) return;
               if (update.manifest.sessionId === target.sessionId && hasHullReferencesInvalidation(update.invalidation)) return listener();
             })
-          : observeSchemaSourceOptions(context, source, resources, listener),
+          : observeFieldSourceOptions(context, source, resources, listener),
     };
   });
   const previewContent = computed(() =>

@@ -1,7 +1,7 @@
 import { describe, expect, expectTypeOf, it } from 'vitest';
 import { hullWeaponSlotOptions, hullReferenceOptions } from './hull-references';
-import { mapSourceGroupsToSelectOptions } from '@/domain/schema/schema-options';
-import type { SelectOption, FlatSelectOption } from '@/domain/schema/schema-options';
+import { mapSourceGroupsToSelectOptions } from '@/domain/field-editor/field-options';
+import type { SelectOption, FlatSelectOption } from '@/domain/field-editor/field-options';
 import type { ResourceRef } from '@/shared/types';
 
 describe('built-in slot origins', () => {

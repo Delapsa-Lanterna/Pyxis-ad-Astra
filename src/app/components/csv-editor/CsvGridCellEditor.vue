@@ -87,8 +87,14 @@ import { useCsvFloatingViewport, type CsvFloatingAnchor } from '@/app/composable
 import { cell } from '@/shared/lib/starsector';
 import type { CsvRowRecord } from '@/shared/types';
 import type { CsvGridColumn } from '@/domain/csv-editor/csv-grid-model';
-import type { CsvSourceIndex } from '@/domain/schema/csv-source-options';
-import { includeCurrentValue, includeCurrentValues, sourceOptions, sourceValue, sourceValueSet } from '@/domain/schema/csv-source-options';
+import type { CsvSourceIndex } from '@/domain/field-editor/csv-source-options';
+import {
+  includeCurrentValue,
+  includeCurrentValues,
+  sourceOptions,
+  sourceValue,
+  sourceValueSet,
+} from '@/domain/field-editor/csv-source-options';
 import {
   csvBooleanOptions,
   csvColumnControl,
@@ -100,13 +106,13 @@ import {
 } from '@/domain/csv-editor/csv-column-schema';
 import { useCsvGridMedia } from '@/app/composables/csv-editor/use-csv-grid-media';
 import { useCsvTableInputs } from '@/app/composables/csv-editor/use-csv-table-inputs';
-import { useInputEditMode } from '@/app/composables/use-input-edit-mode';
+import { useFieldEditMode } from '@/app/composables/field-editor/use-field-edit-mode';
 import { registerFieldInput } from '@/shared/runtime/field-inputs';
 import { focusFieldInput } from '@/shared/runtime/focus-field-input';
 import CsvCellPicker from '@/app/components/csv-editor/CsvCellPicker.vue';
 import CsvCellTextEditor from '@/app/components/csv-editor/CsvCellTextEditor.vue';
 import ResourceThumbnail from '@/app/components/media/ResourceThumbnail.vue';
-import { useImageSourceOptions } from '@/app/composables/editors/use-image-source-options';
+import { useImageSourceOptions } from '@/app/composables/field-editor/use-image-source-options';
 import { focusCsvCellText, type CsvCellEdit } from '@/app/composables/csv-editor/csv-cell-edit';
 
 const props = defineProps<{
@@ -122,7 +128,7 @@ const emit = defineEmits<{
   close: [];
 }>();
 
-const mode = useInputEditMode();
+const mode = useFieldEditMode();
 const context = useCsvTableInputs();
 const media = useCsvGridMedia();
 const floating = useCsvFloatingViewport();

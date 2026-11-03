@@ -6,7 +6,7 @@ import { buildModNavigationSections } from '@/domain/workspace/mod-navigation';
 import { createBrowserWorkspace } from './workspace-runtime';
 import { createWorkspaceProject, coreRoot, gameRoot, workspaceRoots } from './workspace-project';
 import { jsonDocumentMedia, jsonDocumentRecord, jsonDocumentSummary } from '@/domain/json-editor/json-document-definitions';
-import { composeJson } from '@/domain/schema/json-composition';
+import { composeJson } from '@/domain/json-composition';
 
 describe('complete browser workspace fixtures', () => {
   it('keeps browser faction lists, details and inherited media aligned', async () => {

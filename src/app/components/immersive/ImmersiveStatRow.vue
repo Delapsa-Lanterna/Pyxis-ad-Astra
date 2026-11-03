@@ -49,7 +49,7 @@ import { inject, ref, watch, onScopeDispose } from 'vue';
 import { immersiveBlockedKey } from './immersive-render-context';
 import type { ImmersiveStat, ImmersiveFieldChange, ImmersiveField } from '@/domain/immersive/fields';
 import type { JointEditSnapshot, JointValue } from '@/shared/types';
-import type { SchemaRuntimeContext } from '@/domain/schema/schema-runtime';
+import type { FieldEditorContext } from '@/domain/field-editor/field-editor-context';
 import ImmersiveFieldPopover from './ImmersiveFieldPopover.vue';
 import ImmersiveText from './ImmersiveText.vue';
 const props = defineProps<{
@@ -59,7 +59,7 @@ const props = defineProps<{
   fieldEditable?: (field: ImmersiveField) => boolean;
   values?: Record<string, JointValue>;
   snapshot?: JointEditSnapshot;
-  runtimeContext?: SchemaRuntimeContext;
+  runtimeContext?: FieldEditorContext;
 }>();
 const trigger = ref<HTMLButtonElement | null>(null),
   popover = ref<{ syncPosition: () => void } | null>(null);

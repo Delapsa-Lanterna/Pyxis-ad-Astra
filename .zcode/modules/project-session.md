@@ -11,7 +11,6 @@
 - `src-tauri/src/commands/project_session.rs`：session 打开 command。
 - `src-tauri/src/domain/entity_definitions.rs`：八种实体的目录、后缀、ID 字段及规格、表格关联登记。
 - `src-tauri/src/domain/entity_identity.rs`：跨编辑器实体 ID、路径与来源范围纯规则。
-- `src-tauri/src/domain/json_composition.rs`：正式有序 JSON 来源的游戏合并、replace、排除字段和本地替代标记纯规则。
 - `src-tauri/src/services/project/definitions/entity_definitions.rs`：实体来源、读取准备、刷新与摘要的登记规则。
 - `src-tauri/src/services/project/definitions/factions.rs`：势力来源装载、诊断与蓝图标签。
 - `src-tauri/src/services/project/definitions/mod.rs`：实体来源与资源定义的模块登记。
@@ -42,6 +41,7 @@
 ### 消费
 
 - `src-tauri/src/app_data_dir.rs`：持久化来源索引所属的工具私有目录解析。
+- `src-tauri/src/domain/json_composition.rs`：正式来源组合消费的游戏 JSON 纯规则。
 - `src-tauri/src/models/collections.rs`：内容更新和失效范围的稳定去重追加。
 - `src-tauri/src/models/mod.rs`：正式模型登记及聚合导出。
 - `src-tauri/src/models/project_identity.rs`：会话、实体、表、资源、目标及版本身份与 session 范围实现宏。

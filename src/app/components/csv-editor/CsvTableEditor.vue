@@ -35,7 +35,7 @@ import CsvGrid from '@/app/components/csv-editor/CsvGrid.vue';
 import type { CsvTableViewModel } from '@/app/composables/csv-editor/use-csv-table-view-model';
 import { useCsvEditorStore } from '@/stores/csv-editor.store';
 import { provideCsvTableInputs } from '@/app/composables/csv-editor/use-csv-table-inputs';
-import { useInputEditMode } from '@/app/composables/use-input-edit-mode';
+import { useFieldEditMode } from '@/app/composables/field-editor/use-field-edit-mode';
 
 const props = defineProps<{ csvTable: CsvTableViewModel }>();
 const tables = useCsvEditorStore();
@@ -73,7 +73,7 @@ provideCsvTableInputs({
     position: (key, after = false) => tables.getCsvModState(target.modRoot)!.documents[target.table].rowOrder.indexOf(key) + Number(after),
   },
 });
-useInputEditMode(inputs);
+useFieldEditMode(inputs);
 onScopeDispose(() => tables.setActiveCell(null, target.modRoot));
 const effectiveGridModel = computed(() => ({
   ...props.csvTable.gridModel.value,

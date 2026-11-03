@@ -1,12 +1,12 @@
-import type { SpecSave, LoadImportedEditorSpecPayload } from '@/shared/types';
+import type { SpecSave, LoadImportedEditorSpecPayload } from '@/shared/types/index';
 import { querySessionEntityIdentityIntent } from '@/services/entity-query.service';
 import { AppError, withCause } from '@/shared/lib/errors';
 import { invokeCommand, invokeSaveCommand, type SaveCommandRequest } from '@/shared/runtime/command.runtime';
 import { entityContentId, entityContentIdField } from '@/domain/project/entity-definitions';
 import { requireRowData } from '@/shared/lib/row-data';
 import { cloneQuerySnapshot } from '@/shared/lib/query-snapshot';
-import { captureSaveEdits } from '@/domain/project/save-edits';
-import type { EntityEditTarget, SpecEditorKind, RowData, WriteResult } from '@/shared/types';
+import { captureJsonEdits } from '@/shared/lib/json-edits';
+import type { EntityEditTarget, SpecEditorKind, RowData, WriteResult } from '@/shared/types/index';
 import type { JsonWriteOptions, FileVersion, EntityIdentityIntent } from '@/shared/types/index';
 
 export async function saveSpecEditorSpecByKind(
@@ -50,7 +50,7 @@ export function saveSpecEditorSpec(
         ...(jsonWrite ? { jsonWrite, orderedJson: JSON.stringify(data) } : {}),
       } satisfies SpecSave,
     },
-    original === undefined ? [{ kind: 'set', path: [], value: data }] : captureSaveEdits(original, data),
+    original === undefined ? [{ kind: 'set', path: [], value: data }] : captureJsonEdits(original, data),
     request,
   );
 }

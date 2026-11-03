@@ -98,7 +98,7 @@ import { useSettingsStore } from '@/stores/settings.store';
 import { useVisibleResourceMedia } from '@/app/composables/use-visible-resource-media';
 import type { useJsonEditorViewModel } from '@/app/composables/json-editor/use-json-editor-view-model';
 import type { JsonDocumentDefinition } from '@/domain/json-editor/json-document-definitions';
-import type { SelectOption } from '@/domain/schema/schema-options';
+import type { SelectOption } from '@/domain/field-editor/field-options';
 import FieldRow from '@/shared/ui/FieldRow.vue';
 import ResourceThumbnail from '@/app/components/media/ResourceThumbnail.vue';
 const props = defineProps<{

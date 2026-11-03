@@ -1,5 +1,5 @@
 import type { JsonValue, RowData } from '@/shared/types';
-import { parseCsvSource, isEntitySource, isConfigSource } from '@/domain/source-catalog/source-definitions';
+import { parseCsvFieldSource, isEntityFieldSource, isConfigFieldSource } from '@/domain/schema/schema-source-definitions';
 import type { FieldSchema, FileSchema } from '@/domain/schema/schema.types';
 
 export function validateSchemaSources(schema: FileSchema): void {
@@ -42,10 +42,10 @@ function scalarToJsonValue(value: unknown): JsonValue {
 function validateSchemaFieldSources(fields: FieldSchema[], parentPath: string): void {
   for (const field of fields) {
     const path = `${parentPath}.${field.key}`;
-    if (field.source?.startsWith('csv:') && !parseCsvSource(field.source) && !isEntitySource(field.source)) {
+    if (field.source?.startsWith('csv:') && !parseCsvFieldSource(field.source) && !isEntityFieldSource(field.source)) {
       throw new Error(`Invalid CSV source "${field.source}" at schema field "${path}"`);
     }
-    if (field.source?.startsWith('config:') && !isConfigSource(field.source)) {
+    if (field.source?.startsWith('config:') && !isConfigFieldSource(field.source)) {
       throw new Error(`Invalid config source "${field.source}" at schema field "${path}"`);
     }
     if (field.nested) validateSchemaFieldSources(field.nested, path);

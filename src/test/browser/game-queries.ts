@@ -2,7 +2,7 @@ import type * as T from '@/shared/types';
 import type { WorkspaceProject, GameSource } from './game-project';
 import { coreRoot, gameImages, gameTablePaths } from './game-files';
 import { renderGameCsv } from './game-format';
-import { CONFIG_OPTION_SOURCES, isConfigSource, parseCsvSource } from '@/domain/source-catalog/source-definitions';
+import { CONFIG_FIELD_SOURCES, isConfigFieldSource, parseCsvFieldSource } from '@/domain/schema/schema-source-definitions';
 import { createShipSpec, createSystemSpec, createSkillSpec } from '@/domain/entity-write/spec-construction';
 import { createWeaponSpec } from '@/domain/entity-write/spec-construction';
 import { miscConfigDefinition } from '@/domain/misc-config';
@@ -485,10 +485,10 @@ export function gameQuery(project: WorkspaceProject, command: string, payload: R
     }));
   if (command === 'query_csv_source_options') {
     const query = String(payload.source),
-      parsed = parseCsvSource(query);
+      parsed = parseCsvFieldSource(query);
     return groups.map(({ source, origin, reference }) => {
-      const data = isConfigSource(query)
-        ? (JSON.parse(source.textFiles.get(source.manifest.modRoot + '/' + CONFIG_OPTION_SOURCES[query]) ?? '{}') as T.RowData)
+      const data = isConfigFieldSource(query)
+        ? (JSON.parse(source.textFiles.get(source.manifest.modRoot + '/' + CONFIG_FIELD_SOURCES[query]) ?? '{}') as T.RowData)
         : {};
       const entityKind =
         query === 'csv:projectiles.id'

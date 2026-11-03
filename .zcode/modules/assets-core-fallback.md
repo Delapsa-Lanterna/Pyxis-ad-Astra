@@ -24,7 +24,6 @@
 - `src/app/composables/use-resource-images.ts`：场景与图片展示的解码引用和迟到接纳。
 - `src/app/composables/use-resource-media-registry.ts`：持有集合差量、业务引用、媒体租约与所属反馈。
 - `src/app/composables/use-resource-thumbnail.ts`：交付普通缩略图需求与静态成品展示生命周期。
-- `src/app/composables/use-schema-select-media.ts`：当前选项图片、超额结果及菜单释放。
 - `src/app/composables/use-thumbnail-preload.ts`：可见优先与邻近预读队列的资源集合消费。
 - `src/app/composables/use-visible-resource-media.ts`：可视区媒体解析。
 - `src/app/composables/use-window-image-runtime.ts`：窗口图片、成品、代次、引用与预读并发。

@@ -28,7 +28,7 @@ import { refreshProjectSourcePaths, observeSavedContent, sessionContentUpdate } 
 import { focusExistingEntityWindow } from '@/orchestrators/window-target-focus.orchestrator';
 import { warningNotice } from '@/shared/lib/errors';
 import { startPerformance } from '@/shared/runtime/performance';
-import type { SelectOption } from '@/domain/schema/schema-options';
+import type { SelectOption } from '@/domain/field-editor/field-options';
 import type { DeepReadonly, JsonValue, MiscConfigEntry, JsonComposition } from '@/shared/types';
 
 export function useJsonEditorViewModel(definition: JsonDocumentDefinition, context: JsonEditorContext) {

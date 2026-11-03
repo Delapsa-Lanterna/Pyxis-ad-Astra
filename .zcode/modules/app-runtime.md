@@ -75,7 +75,7 @@
 - `src/app/composables/use-context-menu.ts`：菜单所需的 ContextMenuHost 输入契约。
 - `src/app/composables/use-workspace-json-editor-host.ts`：工作区 JSON 页面目标及定位与导航宿主。
 - `src/app/composables/use-workspace-shell-actions.ts`：主窗口工作区动作及绑定当前窗口关闭能力的来源切换。
-- `src/domain/source-catalog/source-definitions.ts`：规格窗口装配捕获配置候选的正式刷新路径。
+- `src/domain/schema/schema-source-definitions.ts`：规格窗口装配捕获配置候选的正式刷新路径。
 - `src/orchestrators/mod-save.orchestrator.ts`：所属窗口的 Mod 保存协调实例与结果交付。
 - `src/services/app-settings.service.ts`：启动消费的主窗口 settings 读取能力。
 - `src/stores/csv-editor.store.ts`：窗口装配消费的历史容量正式输入入口。

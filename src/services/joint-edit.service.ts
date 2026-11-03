@@ -15,7 +15,7 @@ import type {
 } from '@/shared/types';
 import { invokeCommand, invokeSaveCommand, type SaveCommandRequest } from '@/shared/runtime/command.runtime';
 import { readLiveSessionQuery, type SessionQueryDefinition, CachedSessionQuery } from '@/services/query-cache.service';
-import { captureSaveEdits } from '@/domain/project/save-edits';
+import { captureJsonEdits } from '@/shared/lib/json-edits';
 
 export function hasJointEditInvalidation(invalidation: ProjectInvalidation) {
   return invalidation.session || invalidation.paths.length > 0;
@@ -111,5 +111,5 @@ export function saveJointEdit(payload: SaveJointEditPayload, request?: SaveComma
   const original = Object.fromEntries(
     payload.snapshot.records.filter((record) => Object.hasOwn(payload.values, record.key)).map((record) => [record.key, record.value]),
   );
-  return invokeSaveCommand('save_joint_edit', { payload }, captureSaveEdits(original, payload.values), request);
+  return invokeSaveCommand('save_joint_edit', { payload }, captureJsonEdits(original, payload.values), request);
 }

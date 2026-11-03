@@ -8,7 +8,7 @@ import { shipBuiltInWeaponIds, type ShipWeaponSources, type ShipWeaponSource } f
 import { formatError } from '@/shared/lib/errors';
 import { requireRowData } from '@/shared/lib/row-data';
 import { cloneQuerySnapshot } from '@/shared/lib/query-snapshot';
-import type { EntityData, ProjectSessionId, JointEditRoot, ResourceRef, RowData } from '@/shared/types';
+import type { EntityData, ProjectSessionId, JointEditRoot, ResourceRef, RowData } from '@/shared/types/index';
 import type { SpecEditorData, FileVersion } from '@/shared/types/index';
 
 export async function querySpecShipWeaponSources(root: JointEditRoot, ship: RowData, signal?: AbortSignal): Promise<ShipWeaponSources> {

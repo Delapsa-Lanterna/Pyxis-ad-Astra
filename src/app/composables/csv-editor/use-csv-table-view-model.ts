@@ -4,7 +4,7 @@ import { hasTableInvalidation, queryTableRowPreviewDataUrl, queryTableIndex, que
 import { relativePathFromRoot } from '@/shared/lib/paths';
 import { useContextMenuScope } from '@/app/composables/use-context-menu';
 import { refreshProjectSourcePaths, observeSavedContent, sessionContentUpdate } from '@/orchestrators/project-sync.orchestrator';
-import { parseCsvSource, CONFIG_OPTION_SOURCES, isConfigSource } from '@/domain/source-catalog/source-definitions';
+import { parseCsvFieldSource, CONFIG_FIELD_SOURCES, isConfigFieldSource } from '@/domain/schema/schema-source-definitions';
 import { useQueryReadOwner } from '@/app/composables/use-query-read-owner';
 import { computed, onUnmounted, ref, watch } from 'vue';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
@@ -14,7 +14,7 @@ import type { CsvEditorHost } from './csv-editor-context';
 import type { CsvEditorModel } from './use-csv-editor-model';
 import { createCsvGridColumns } from '@/domain/csv-editor/csv-grid-model';
 import { csvColumnSchemaFor } from '@/domain/csv-editor/csv-column-schema';
-import { mapSourceGroupsToSelectOptions, type SelectOption } from '@/domain/schema/schema-options';
+import { mapSourceGroupsToSelectOptions, type SelectOption } from '@/domain/field-editor/field-options';
 import { stableStringify } from '@/shared/lib/stable-compare';
 import { cloneQuerySnapshot } from '@/shared/lib/query-snapshot';
 
@@ -81,12 +81,12 @@ export function useCsvTableViewModel(model: CsvEditorModel, host: CsvEditorHost)
       const tables = new Set([
         captured.table,
         ...[...visibleSourceIds()].flatMap((source) => {
-          const parsed = parseCsvSource(source);
+          const parsed = parseCsvFieldSource(source);
           return parsed ? [parsed.table] : [];
         }),
       ]);
       const targets = project.tableWriteTargets.filter((target) => target.sessionId === captured.sessionId && tables.has(target.table));
-      const configPaths = [...visibleSourceIds()].filter(isConfigSource).map((source) => CONFIG_OPTION_SOURCES[source]);
+      const configPaths = [...visibleSourceIds()].filter(isConfigFieldSource).map((source) => CONFIG_FIELD_SOURCES[source]);
       const coreSources = host.manifest.value!.coreAvailable
         ? [...targets.map((target) => relativePathFromRoot(captured.modRoot, target.path)), ...configPaths].map((relPath) => ({
             source: 'core' as const,

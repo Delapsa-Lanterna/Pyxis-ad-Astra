@@ -2,7 +2,7 @@ import { querySessionEntity, querySessionEntityEditTarget } from '@/services/ent
 import { createSystemSpec } from '@/domain/entity-write/spec-construction';
 import { requireRowData } from '@/shared/lib/row-data';
 import { cloneQuerySnapshot } from '@/shared/lib/query-snapshot';
-import type { EntityData, ProjectSessionId } from '@/shared/types';
+import type { EntityData, ProjectSessionId } from '@/shared/types/index';
 import type { SpecEditorData, FileVersion } from '@/shared/types/index';
 
 export async function querySpecSystemEditorData(

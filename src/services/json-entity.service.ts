@@ -1,5 +1,5 @@
 import type { SaveCommandRequest } from '@/shared/runtime/command.runtime';
-import { captureSaveEdits } from '@/domain/project/save-edits';
+import { captureJsonEdits } from '@/shared/lib/json-edits';
 import type {
   ModInfoSave,
   ProjectSessionId,
@@ -35,7 +35,7 @@ export function saveModInfo(
     {
       payload: { baseVersions, sessionId, modRoot, data, jsonWrite, orderedJson: JSON.stringify(data) } satisfies ModInfoSave,
     },
-    original === undefined ? [{ kind: 'set', path: [], value: data }] : captureSaveEdits(original, data),
+    original === undefined ? [{ kind: 'set', path: [], value: data }] : captureJsonEdits(original, data),
     request,
   );
 }
@@ -63,7 +63,7 @@ export function saveIndexedConfigEntity(
           : {}),
       } satisfies IndexedConfigSave,
     },
-    original === undefined ? [{ kind: 'set', path: [], value: write.entityData }] : captureSaveEdits(original, write.entityData),
+    original === undefined ? [{ kind: 'set', path: [], value: write.entityData }] : captureJsonEdits(original, write.entityData),
     request,
   );
 }

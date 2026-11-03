@@ -1,5 +1,5 @@
 import type { SaveCommandRequest } from '@/shared/runtime/command.runtime';
-import { captureSaveEdits } from '@/domain/project/save-edits';
+import { captureJsonEdits } from '@/shared/lib/json-edits';
 import type { JsonValue } from '@/shared/types';
 import { invokeCommand, invokeSaveCommand } from '@/shared/runtime/command.runtime';
 import { pathBelongsToRoot } from '@/shared/lib/paths';
@@ -48,7 +48,7 @@ export function saveMiscConfig(
   return invokeSaveCommand(
     'save_misc_config',
     { payload },
-    original === undefined ? [{ kind: 'set', path: [], value: payload.data }] : captureSaveEdits(original, payload.data),
+    original === undefined ? [{ kind: 'set', path: [], value: payload.data }] : captureJsonEdits(original, payload.data),
     request,
   );
 }

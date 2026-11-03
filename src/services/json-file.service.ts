@@ -1,5 +1,5 @@
 import type { SaveCommandRequest } from '@/shared/runtime/command.runtime';
-import { captureSaveEdits } from '@/domain/project/save-edits';
+import { captureJsonEdits } from '@/shared/lib/json-edits';
 import type { RowData } from '@/shared/types';
 import type { VariantFile, SkinFile, JsonFileSave, JsonFileDelete, JsonWriteOptions, WriteResult } from '@/shared/types';
 import { invokeSaveCommand } from '@/shared/runtime/command.runtime';
@@ -15,7 +15,7 @@ export function saveVariantEntity(
     {
       payload: { ...write, ...(jsonWrite ? { jsonWrite, orderedJson: JSON.stringify(write.data) } : {}) } satisfies JsonFileSave,
     },
-    original === undefined ? [{ kind: 'set', path: [], value: write.data }] : captureSaveEdits(original, write.data),
+    original === undefined ? [{ kind: 'set', path: [], value: write.data }] : captureJsonEdits(original, write.data),
     request,
   );
 }
@@ -42,7 +42,7 @@ export function saveSkinEntity(
     {
       payload: { ...write, ...(jsonWrite ? { jsonWrite, orderedJson: JSON.stringify(write.data) } : {}) } satisfies JsonFileSave,
     },
-    original === undefined ? [{ kind: 'set', path: [], value: write.data }] : captureSaveEdits(original, write.data),
+    original === undefined ? [{ kind: 'set', path: [], value: write.data }] : captureJsonEdits(original, write.data),
     request,
   );
 }

@@ -18,7 +18,7 @@
 
 ### 消费
 
-- `src/app/components/schema/SchemaFieldRenderer.vue`：系统字段、颜色及对象的共同展示。
+- `src/app/components/field-editor/SchemaFieldRenderer.vue`：系统字段、颜色及对象的共同展示。
 - `src/app/composables/editors/use-editor-fields.ts`：系统消费的文档字段、颜色与对象绑定入口。
 - `src/app/composables/spec-editor/use-spec-editor-window-view-model.ts`：四类规格目标会话、保存、身份与外部基线接纳。
 - `src/domain/schema/schema.types.ts`：系统表单消费的正式 schema 类型。

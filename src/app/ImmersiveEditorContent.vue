@@ -68,7 +68,7 @@ import { useImmersiveEditorViewModel, editableRenderContext } from '@/app/compos
 import { useWindowCloseParticipant } from '@/app/composables/use-window-close-state';
 import { useWindowShortcuts } from '@/app/composables/use-window-shortcuts';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
-import { useInputEditMode } from '@/app/composables/use-input-edit-mode';
+import { useFieldEditMode } from '@/app/composables/field-editor/use-field-edit-mode';
 import { closeCurrentWindow } from '@/windows/current.window';
 import ImmersiveEditorShell from '@/app/components/immersive/ImmersiveEditorShell.vue';
 import ShipImmersivePanel from '@/app/components/immersive/ship/ShipImmersivePanel.vue';
@@ -101,7 +101,7 @@ const { joint, panel, errorText, history } = vm;
 const { saving, loading, ready, handoffLocked, externalUpdateNotice } = joint;
 const fileWaiting = computed(() => useProjectSyncStore().isWaiting(modRoot));
 const dirty = computed(() => joint.dirty.value || vm.variantActionPending.value);
-useInputEditMode(joint.inputs);
+useFieldEditMode(joint.inputs);
 const closeParticipant = useWindowCloseParticipant({
   dirty,
   title: '关闭沉浸式编辑器？',

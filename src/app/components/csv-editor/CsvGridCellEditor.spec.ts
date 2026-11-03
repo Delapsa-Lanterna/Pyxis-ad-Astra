@@ -2,7 +2,7 @@ import { createPinia, setActivePinia } from 'pinia';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { initializeSettingsStore, useSettingsStore } from '@/stores/settings.store';
 import { createSettingsFixture } from '@/test/fixtures/settings';
-import type { CsvSourceIndex } from '@/domain/schema/csv-source-options';
+import type { CsvSourceIndex } from '@/domain/field-editor/csv-source-options';
 import { createCsvGridColumns, type CsvGridColumn } from '@/domain/csv-editor/csv-grid-model';
 import CsvGridCellEditor from './CsvGridCellEditor.vue';
 import { editorUiStubs } from '@/test/unit/ui-stubs';
@@ -33,8 +33,8 @@ vi.mock('@/app/composables/use-app-feedback', () => ({ useAppFeedback: () => ({ 
 const sourceIndex: CsvSourceIndex = { optionsBySource: new Map(), valueIndexBySource: new Map(), valueSetsBySource: new Map() };
 
 const media = vi.hoisted(() => ({ replace: vi.fn(async () => {}), sprite: vi.fn(() => undefined) }));
-vi.mock('@/app/composables/use-schema-select-media', () => ({
-  useSchemaSelectMedia: () => ({ schemaSelectSprite: media.sprite, replaceSchemaSelectSprites: media.replace }),
+vi.mock('@/app/composables/field-editor/use-field-option-media', () => ({
+  useFieldOptionMedia: () => ({ dataUrl: media.sprite, replaceCollection: media.replace }),
 }));
 
 function columnFixture(control: string): CsvGridColumn {

@@ -26,7 +26,7 @@ import { sessionUpdateFixture, savedWriteFixture } from '../../fixtures/write-re
 import { createBrowserModel, type BrowserModel } from '../scenarios/model';
 import { emit } from './events';
 import { MISC_CONFIG_DEFINITIONS, miscConfigDefinition } from '@/domain/misc-config';
-import { CONFIG_OPTION_SOURCES, isConfigSource } from '@/domain/source-catalog/source-definitions';
+import { CONFIG_FIELD_SOURCES, isConfigFieldSource } from '@/domain/schema/schema-source-definitions';
 import type { RowData } from '@/shared/types';
 
 let model: BrowserModel;
@@ -250,8 +250,8 @@ export async function dispatch(command: string, args: Record<string, unknown>, m
       return { resourceRef: null };
     case 'query_csv_source_options': {
       const source = (args.payload as { source: string }).source;
-      if (isConfigSource(source)) {
-        const data = model.miscFiles.find((file) => file.relPath === CONFIG_OPTION_SOURCES[source])?.data as RowData | undefined;
+      if (isConfigFieldSource(source)) {
+        const data = model.miscFiles.find((file) => file.relPath === CONFIG_FIELD_SOURCES[source])?.data as RowData | undefined;
         const values = Object.keys((source === 'config:designTypes' ? data?.designTypeColors : data) ?? {}).filter(
           (key) => source !== 'config:sounds' || key !== 'music',
         );

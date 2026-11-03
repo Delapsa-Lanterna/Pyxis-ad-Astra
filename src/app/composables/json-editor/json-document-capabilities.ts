@@ -7,7 +7,7 @@ import { prepareJsonSourceRecovery } from '@/services/json-recovery.service';
 import { deleteIndexedConfigEntity } from '@/services/json-entity.service';
 import { deleteVariantEntity, deleteSkinEntity } from '@/services/json-file.service';
 import { runConfirmedJsonWrite } from '@/orchestrators/json-write-confirmation.orchestrator';
-import { takeReplaceBase } from '@/domain/schema/json-composition';
+import { takeReplaceBase } from '@/domain/json-composition';
 import type { FileSchema } from '@/domain/schema/schema.types';
 import { useProjectStore } from '@/stores/project.store';
 import { querySessionEntity } from '@/services/entity-query.service';

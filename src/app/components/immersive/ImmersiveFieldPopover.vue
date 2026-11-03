@@ -31,18 +31,18 @@ import type { ImmersiveField, ImmersiveStat, ImmersiveFieldChange } from '@/doma
 import { immersiveFieldValue } from '@/domain/immersive/fields';
 import type { JointValue, JointEditSnapshot, RowData } from '@/shared/types';
 import type { SchemaFieldUpdate } from '@/domain/schema/schema.types';
-import type { SchemaRuntimeContext } from '@/domain/schema/schema-runtime';
+import type { FieldEditorContext } from '@/domain/field-editor/field-editor-context';
 import { useFieldInputs } from '@/shared/runtime/field-inputs';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
 import ImmersiveFieldInput from './ImmersiveFieldInput.vue';
 import ImmersiveText from './ImmersiveText.vue';
-import { composeJson, compositionValue, compositionPath } from '@/domain/schema/json-composition';
+import { composeJson, compositionValue, compositionPath } from '@/domain/json-composition';
 import { jointObject } from '@/domain/joint-edit';
 const props = defineProps<{
   stat: ImmersiveStat;
   values: Record<string, JointValue>;
   snapshot: JointEditSnapshot;
-  runtimeContext: SchemaRuntimeContext;
+  runtimeContext: FieldEditorContext;
   active: boolean;
   fieldEditable?: (field: ImmersiveField) => boolean;
 }>();

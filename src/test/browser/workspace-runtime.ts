@@ -14,7 +14,7 @@ import { windowsPathCaseFixture } from '../fixtures/windows-path-case';
 import { cell, formatModVersion } from '@/shared/lib/starsector';
 import { stableDeepEqual } from '@/shared/lib/stable-compare';
 import { miscConfigDefinition } from '@/domain/misc-config';
-import { composeJson } from '@/domain/schema/json-composition';
+import { composeJson } from '@/domain/json-composition';
 import { isRowData } from '@/shared/lib/row-data';
 
 type Handler = (event: { event: string; id: number; payload: unknown }) => void | Promise<void>;

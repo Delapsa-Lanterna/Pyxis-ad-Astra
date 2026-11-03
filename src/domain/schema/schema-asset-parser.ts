@@ -1,5 +1,5 @@
 import { validateSchemaSources } from '@/domain/schema/schema-sources';
-import { isConfigSource } from '@/domain/source-catalog/source-definitions';
+import { isConfigFieldSource } from '@/domain/schema/schema-source-definitions';
 import {
   CSV_COLUMN_CONTROL_SET,
   FIELD_TYPE_SET,
@@ -216,7 +216,7 @@ export function parseCsvColumnSchemas(table: string, raw: unknown): CsvColumnSch
     if (record.imageDirectories !== undefined) schema.imageDirectories = parseImageDirectories(record.imageDirectories);
     if (isString(record.label)) schema.label = record.label;
     if (isString(record.source)) schema.source = record.source;
-    if (schema.source?.startsWith('config:') && !isConfigSource(schema.source)) {
+    if (schema.source?.startsWith('config:') && !isConfigFieldSource(schema.source)) {
       throw new Error(`csv column schema ${table}: 非法配置来源 ${schema.source}`);
     }
     if (isStringArray(record.options)) schema.options = record.options;

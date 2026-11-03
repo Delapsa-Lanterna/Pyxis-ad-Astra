@@ -72,7 +72,7 @@ import type { JsonDocumentSession } from '@/app/composables/json-editor/use-json
 import type { JsonEditorHost } from '@/app/composables/json-editor/json-editor-context';
 import { jsonDocumentContent, type JsonDocumentDefinition, type JsonDocumentRecord } from '@/domain/json-editor/json-document-definitions';
 import EditorHeader from '@/app/components/editors/common/EditorHeader.vue';
-import SchemaFormRenderer from '@/app/components/schema/SchemaFormRenderer.vue';
+import SchemaFormRenderer from '@/app/components/field-editor/SchemaFormRenderer.vue';
 import JsonTargetNotice from './JsonTargetNotice.vue';
 import JsonDeleteSourceDialog from './JsonDeleteSourceDialog.vue';
 const props = defineProps<{

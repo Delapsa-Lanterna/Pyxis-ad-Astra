@@ -6,7 +6,7 @@ import { mountCsvInputHost } from '@/test/unit/csv-input-host';
 import { editorUiStubs } from '@/test/unit/ui-stubs';
 import CsvGridEditorHost from './CsvGridEditorHost.vue';
 import type { CsvGridColumn } from '@/domain/csv-editor/csv-grid-model';
-import type { CsvSourceIndex } from '@/domain/schema/csv-source-options';
+import type { CsvSourceIndex } from '@/domain/field-editor/csv-source-options';
 import type { CsvCellTarget } from '@/shared/types';
 
 vi.mock('@/app/composables/use-app-feedback', () => ({ useAppFeedback: () => ({ error: vi.fn() }) }));

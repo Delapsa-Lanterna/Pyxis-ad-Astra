@@ -18,7 +18,7 @@ import { entityContentIdField } from '@/domain/project/entity-definitions';
 import { isRowData } from '@/shared/lib/row-data';
 import { stableDeepEqual } from '@/shared/lib/stable-compare';
 import { renameVariantModules } from '@/shared/lib/starsector/variant-modules';
-import { composeJson, editComposedJson, takeReplaceBase } from '@/domain/schema/json-composition';
+import { composeJson, editComposedJson, takeReplaceBase } from '@/domain/json-composition';
 
 export function jointObject(value: DeepReadonly<JointValue> | undefined): Readonly<RowData> {
   return value?.state === 'present' && isRowData(value.value) ? value.value : {};

@@ -2,7 +2,7 @@ import { dialogBody, dialogFiles, dialogGroup, dialogSelect } from '@/shared/ui/
 import { releaseNativeWindowTargets } from '@/services/window.service';
 import { useProjectSyncStore } from '@/stores/project-sync.store';
 import { beginSavedWrite } from '@/orchestrators/project-sync.orchestrator';
-import type { SchemaRuntimeContext } from '@/domain/schema/schema-runtime';
+import type { FieldEditorContext } from '@/domain/field-editor/field-editor-context';
 import { querySourceOptionCatalog } from '@/services/source-catalog.service';
 import { hasEntityInvalidation } from '@/services/entity-query.service';
 import {
@@ -32,7 +32,7 @@ import { normalizeFsPath } from '@/shared/lib/paths';
 import { captureIdentityVersions } from '@/domain/project/entity-versions';
 
 import { reserveEntityIntent, retargetEntityWindow } from '@/orchestrators/spec-editor-identity.orchestrator';
-import { composeJson, editComposedJson, compositionPath, compositionValue, takeReplaceBase } from '@/domain/schema/json-composition';
+import { composeJson, editComposedJson, compositionPath, compositionValue, takeReplaceBase } from '@/domain/json-composition';
 
 import { runConfirmedJsonWrite } from '@/orchestrators/json-write-confirmation.orchestrator';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
@@ -210,7 +210,7 @@ export function useSpecEditorWindowViewModel(
   const sourceNotices = shallowReactive(new Map<string, string>());
   const sourceIdentity = () => JSON.stringify([currentTarget.value, draftSession.context.value?.baselineGeneration]);
   watch(sourceIdentity, () => sourceNotices.clear());
-  const schemaRuntimeContext = computed<SchemaRuntimeContext | null>(() => {
+  const schemaRuntimeContext = computed<FieldEditorContext | null>(() => {
     if (!currentTarget.value) return null;
     const identity = sourceIdentity(),
       runtime = { modRoot: currentTarget.value.modRoot, sessionId: currentTarget.value.sessionId };

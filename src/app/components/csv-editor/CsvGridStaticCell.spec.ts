@@ -3,7 +3,7 @@ import { createPinia, setActivePinia } from 'pinia';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { initializeSettingsStore } from '@/stores/settings.store';
 import { createSettingsFixture } from '@/test/fixtures/settings';
-import type { CsvSourceIndex } from '@/domain/schema/csv-source-options';
+import type { CsvSourceIndex } from '@/domain/field-editor/csv-source-options';
 import type { CsvGridColumn } from '@/domain/csv-editor/csv-grid-model';
 import type { ResourceRef } from '@/shared/types';
 import CsvGridStaticCell from './CsvGridStaticCell.vue';

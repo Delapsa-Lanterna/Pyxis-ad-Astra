@@ -23,7 +23,7 @@
 import { computed } from 'vue';
 import type { CsvRowRecord } from '@/shared/types';
 import type { CsvGridColumn, CsvRenderColumn } from '@/domain/csv-editor/csv-grid-model';
-import type { CsvSourceIndex } from '@/domain/schema/csv-source-options';
+import type { CsvSourceIndex } from '@/domain/field-editor/csv-source-options';
 import type { RetainedListEntry } from '@/shared/runtime/retained-list';
 import CsvGridRow from './CsvGridRow.vue';
 const props = defineProps<{

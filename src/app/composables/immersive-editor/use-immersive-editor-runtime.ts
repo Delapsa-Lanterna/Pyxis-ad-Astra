@@ -21,7 +21,7 @@ import type { ImmersiveEditorDefinition, ImmersivePanel } from '@/domain/immersi
 
 import { immersiveFieldValue, updateImmersiveField, type ImmersiveField, type ImmersiveFieldChange } from '@/domain/immersive/fields';
 import type { SchemaFieldUpdate } from '@/domain/schema/schema.types';
-import type { SchemaRuntimeContext } from '@/domain/schema/schema-runtime';
+import type { FieldEditorContext } from '@/domain/field-editor/field-editor-context';
 import { jointWriteTargets, mapJointDraftIdentity, rebaseJointDraft } from '@/domain/joint-edit';
 import { queryJointEdit, queryJointEditRow, queryJointEditPreview } from '@/services/joint-edit.service';
 import { querySourceOptionCatalog } from '@/services/source-catalog.service';
@@ -37,7 +37,7 @@ import { querySessionHullReferences } from '@/services/hull-reference.service';
 import { hullReferenceSourceGroups } from '@/domain/resources/hull-references';
 import { recordLogBestEffort } from '@/services/app-log.service';
 import { logFields } from '@/shared/lib/log-fields';
-import { composeJson, replacesBase } from '@/domain/schema/json-composition';
+import { composeJson, replacesBase } from '@/domain/json-composition';
 
 function jointValueData(value: JointValue | undefined) {
   return value?.state === 'present' ? value.value : undefined;
@@ -115,7 +115,7 @@ export function useImmersiveEditorRuntime<TPanel extends ImmersivePanel>(
         )
       : [],
   );
-  const runtimeContext = computed<SchemaRuntimeContext>(() => ({
+  const runtimeContext = computed<FieldEditorContext>(() => ({
     sessionId: joint.currentTarget.value?.sessionId ?? root.sessionId,
     modRoot: root.modRoot,
     sourceContextKey: joint.currentTargetKey.value ?? '',

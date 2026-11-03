@@ -6,12 +6,9 @@ import { capabilityBoundaryRule } from '../capabilities/capability-boundary.mjs'
 
 test('editing and resource projections consume their own rules and public contracts', () => {
   for (const [source, target] of [
-    ['src/domain/edit-session.ts', 'src/domain/project/save-edits.ts'],
-    ['src/app/composables/use-edit-target-draft-session.ts', 'src/domain/project/save-edits.ts'],
     ['src/app/composables/use-edit-target-draft-session.ts', 'src/stores/project-sync.store.ts'],
-    ['src/domain/resources/hull-references.ts', 'src/domain/schema/schema-options.ts'],
-    ['src/domain/source-catalog/source-definitions.ts', 'src/domain/schema/schema-sources.ts'],
-    ['src/services/source-catalog.service.ts', 'src/domain/schema/csv-source-options.ts'],
+    ['src/domain/resources/hull-references.ts', 'src/domain/field-editor/field-options.ts'],
+    ['src/services/source-catalog.service.ts', 'src/domain/field-editor/csv-source-options.ts'],
   ])
     for (const typeOnly of [false, true]) {
       assert.ok(source && target);
@@ -26,11 +23,12 @@ test('editing and resource projections consume their own rules and public contra
       assert.equal(diagnostic.file, source);
       assert.equal(diagnostic.line, 2);
       assert.equal(diagnostic.target, target);
-      assert.ok(
-        ['owned projection or shared contract', 'source catalog definitions or public contracts'].includes(diagnostic.expected ?? ''),
-      );
+      assert.ok(['owned projection or shared contract', 'field definitions or public contracts'].includes(diagnostic.expected ?? ''));
     }
   for (const [source, target] of [
+    ['src/domain/edit-session.ts', 'src/shared/lib/json-edits.ts'],
+    ['src/app/composables/use-edit-target-draft-session.ts', 'src/shared/lib/json-edits.ts'],
+    ['src/services/source-catalog.service.ts', 'src/domain/schema/schema-source-definitions.ts'],
     ['src/app/composables/use-edit-target-draft-session.ts', 'src/domain/edit-session.ts'],
     ['src/domain/resources/hull-references.ts', 'src/shared/types/resources.types.ts'],
     ['src/stores/project-sync.store.ts', 'src/shared/types/write-commit.types.ts'],
@@ -53,7 +51,7 @@ for (const [source, target] of /** @type {const} */ ([
   ['src/services/query-cache.service.ts', 'src/services/entity-query.service.ts'],
   ['src/services/query-cache.service.ts', 'src/services/source-catalog.service.ts'],
   ['src/services/query-cache.service.ts', 'src/shared/types/source-catalog.types.ts'],
-  ['src/services/query-cache.service.ts', 'src/domain/source-catalog/source-definitions.ts'],
+  ['src/services/query-cache.service.ts', 'src/domain/schema/schema-source-definitions.ts'],
   ['src/services/query-cache.service.ts', 'src/services/hull-reference.service.ts'],
   ['src/services/query-cache.service.ts', 'src/services/resource-reference.service.ts'],
 ])) {
@@ -79,3 +77,31 @@ for (const [source, target, name] of /** @type {const} */ ([
     });
     assert.deepEqual([...messages(frontendLayerBoundaryRule.check(files)), ...messages(capabilityBoundaryRule.check(files))], []);
   });
+
+test('field definitions and JSON composition consume their own pure contracts', () => {
+  for (const [source, target] of /** @type {const} */ ([
+    ['src/domain/schema/schema-source-definitions.ts', 'src/domain/field-editor/field-options.ts'],
+    ['src/domain/schema/schema-values.ts', 'src/domain/json-composition.ts'],
+    ['src/domain/json-composition.ts', 'src/domain/schema/schema-values.ts'],
+    ['src/domain/json-composition.ts', 'src/domain/project/versions.ts'],
+  ]))
+    for (const typeOnly of [false, true]) {
+      const context = architectureFixtures({
+        [source]: '\nimport ' + (typeOnly ? 'type ' : '') + '{Value as Selected} from "@/' + target.slice(4, -3) + '";',
+        [target]: 'export interface Value {}',
+      });
+      const [diagnostic] = frontendLayerBoundaryRule.check(context);
+      assert.equal(diagnostic?.ruleId, 'frontend-layer-boundary');
+      assert.equal(diagnostic?.file, source);
+      assert.equal(diagnostic?.line, 2);
+      assert.equal(diagnostic?.target, target);
+      assert.equal(diagnostic?.expected, 'owned definitions or public contracts');
+    }
+  const allowed = architectureFixtures({
+    'src/domain/schema/schema-asset-parser.ts': 'import {source} from "./schema-source-definitions";',
+    'src/domain/schema/schema-source-definitions.ts': 'export const source = "config:sounds";',
+    'src/domain/json-composition.ts': 'import {captureJsonEdits} from "@/shared/lib/json-edits";',
+    'src/shared/lib/json-edits.ts': 'export function captureJsonEdits() {}',
+  });
+  assert.deepEqual(frontendLayerBoundaryRule.check(allowed), []);
+});

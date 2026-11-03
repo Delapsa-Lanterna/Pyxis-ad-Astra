@@ -12,7 +12,7 @@ import { useWorkspaceStore } from '@/stores/workspace.store';
 import { TABLE_KEYS } from '@/shared/types';
 import type { CsvTableIndex, ProjectManifest } from '@/shared/types';
 import CsvRowDetails from './CsvRowDetails.vue';
-import { createCsvSourceIndex } from '@/domain/schema/csv-source-options';
+import { createCsvSourceIndex } from '@/domain/field-editor/csv-source-options';
 import { editorUiStubs } from '@/test/unit/ui-stubs';
 
 function tableSummariesFixture(): ProjectManifest['tableSummaries'] {
@@ -41,11 +41,11 @@ vi.mock('@/app/composables/use-app-feedback', () => ({
   }),
 }));
 
-vi.mock('@/app/composables/use-schema-select-media', () => ({
-  useSchemaSelectMedia: () => ({
-    schemaSelectSprite: vi.fn(() => 'data:image/png;base64,thumb'),
-    replaceSchemaSelectSprites: vi.fn(async () => {}),
-    releaseSchemaSelectSprites: vi.fn(),
+vi.mock('@/app/composables/field-editor/use-field-option-media', () => ({
+  useFieldOptionMedia: () => ({
+    dataUrl: vi.fn(() => 'data:image/png;base64,thumb'),
+    replaceCollection: vi.fn(async () => {}),
+    releaseCollection: vi.fn(),
   }),
 }));
 

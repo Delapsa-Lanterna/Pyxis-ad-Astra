@@ -70,6 +70,8 @@
 - 来源读取与解析：授权来源根 → 同次字节读取及 `FileVersion` → 匹配来源记录复用或 CSV-like、JSON-like、spec parser → 业务索引与诊断 → 所属打开或刷新完成时集中持久化来源成果
 - CSV 编辑：工作区宿主交付完整表格目标与列宽 → keyed CSV 页面及所属内存投影 → 表格窗口查询 → `CsvRow`、源索引与 `rowKey` → CSV store 与可视区网格 → 列 schema、原始输入及单元格动作 → 行草稿、edit 历史与 dirty → patches 和关联规格动作
 - JSON 与杂项配置编辑：工作区宿主交付 session、Mod 根与页面目标 → keyed JSON 页面 → 正式记录、缺失版本及 schema → JSON 文档会话 → `FieldInputs` 提交字段动作 → 本地 draft 与快照历史 → 所属创建、保存或删除动作
+- 字段定义与输入：唯一 schema 资产 → 定义解析、来源声明及值规则 → 所属文档交付 `FieldEditorContext` → 字段控件与 `FieldInputs` → 原文提交、模式确认和稳定行身份 → 所属草稿；候选与媒体沿原票据及同步失效读取、接纳和释放
+- JSON 来源组合：正式有序来源与版本、本地内容 → `composeJson` 或 `compose_game_json` → 有效内容及来源定位 → `editComposedJson` 交付稀疏修改或整体覆盖 → 保存准备提取 `replace` 意图并消费实际本地内容
 - Spec 字段与画布编辑：规格窗口定义 → 正式目标、规格与依赖 → 舰船、武器、弹体或战术系统 ViewModel → schema 字段或画布手势 → 领域投影与工作值 → Draft Session、历史及保存动作
 - 联合与沉浸式编辑：ship、weapon、wing 或 variant 的 `JointEditRoot` → `query_joint_edit` → 规格、CSV、描述、Skin 与模块来源图 → `JointEditSnapshot` → 所属字段、装备、场景与关联编辑器动作 → 联合草稿
 - 文件浏览与文本打开：宿主交付 session 与正式 Mod 根 → Mod 文件页 → 目录查询或全目录搜索 → 按 session 接纳条目 → `query_mod_text_file_target` 核对路径与内容 → 完整文件窗口请求 → 文本加载与行列定位

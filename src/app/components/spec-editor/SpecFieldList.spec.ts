@@ -13,7 +13,7 @@ import { createSettingsFixture } from '@/test/fixtures/settings';
 import { editorUiStubs, nSelect } from '@/test/unit/ui-stubs';
 import { specSchema } from '@/domain/spec-editor/spec-schemas';
 import { createFieldInputs, provideFieldInputs } from '@/shared/runtime/field-inputs';
-import SchemaValueInput from '@/app/components/schema/SchemaValueInput.vue';
+import SchemaValueInput from '@/app/components/field-editor/SchemaValueInput.vue';
 import type { RowData, SourceOptionGroup } from '@/shared/types';
 
 vi.mock('@/app/composables/use-core-assets', () => ({ useCoreGraphics: () => ({ graphicsPaths: ref([]), loadGraphics: vi.fn() }) }));

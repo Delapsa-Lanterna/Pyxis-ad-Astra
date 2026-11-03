@@ -16,7 +16,7 @@
 <script setup lang="ts">
 import type { CsvCellTarget, CsvRowRecord } from '@/shared/types';
 import type { CsvGridColumn } from '@/domain/csv-editor/csv-grid-model';
-import type { CsvSourceIndex } from '@/domain/schema/csv-source-options';
+import type { CsvSourceIndex } from '@/domain/field-editor/csv-source-options';
 import type { CsvFloatingAnchor } from '@/app/composables/csv-editor/use-csv-floating-panel';
 import CsvGridCellEditor from './CsvGridCellEditor.vue';
 import type { CsvCellEdit } from '@/app/composables/csv-editor/csv-cell-edit';

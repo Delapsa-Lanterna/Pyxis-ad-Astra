@@ -27,7 +27,7 @@ import { queryResourceDataUrls } from '@/services/resource-media.service';
 
 import { infoLog } from '@/shared/runtime/app-log-queue';
 import { logIdentity } from '@/shared/lib/log-fields';
-import { captureSaveEdits } from '@/domain/project/save-edits';
+import { captureJsonEdits } from '@/shared/lib/json-edits';
 
 const readTableIndex = new CachedSessionQuery<Omit<CsvTableIndexPayload, 'sessionId'>, CsvTableIndex>({
   queryKind: 'csv-table-window',
@@ -120,7 +120,7 @@ export function saveCsvPatch(
         ...(jsonWrite ? { jsonWrite } : {}),
       } satisfies CsvSave,
     },
-    captureSaveEdits(before, after),
+    captureJsonEdits(before, after),
     request,
   );
 }

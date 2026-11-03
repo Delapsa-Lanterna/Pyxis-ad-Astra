@@ -8,7 +8,7 @@ import type {
 
 import type { ProjectInvalidation } from '@/shared/types';
 
-import { CONFIG_OPTION_SOURCES, isConfigSource, parseCsvSource } from '@/domain/source-catalog/source-definitions';
+import { CONFIG_FIELD_SOURCES, isConfigFieldSource, parseCsvFieldSource } from '@/domain/schema/schema-source-definitions';
 import { invokeCommand } from '@/shared/runtime/command.runtime';
 import { CachedSessionQuery, readLiveSessionQuery, type SessionQueryDefinition } from '@/services/query-cache.service';
 
@@ -44,16 +44,16 @@ export function hasSourceInvalidation(invalidation: ProjectInvalidation, source:
   return (
     invalidation.session ||
     invalidation.queryScopes.some((scope) => matchesSourceOptionsScope(scope, source)) ||
-    (isConfigSource(source) &&
+    (isConfigFieldSource(source) &&
       invalidation.resources.some(
         ({ relPath }) =>
-          relPath === '' || relPath === CONFIG_OPTION_SOURCES[source] || CONFIG_OPTION_SOURCES[source].startsWith(relPath + '/'),
+          relPath === '' || relPath === CONFIG_FIELD_SOURCES[source] || CONFIG_FIELD_SOURCES[source].startsWith(relPath + '/'),
       ))
   );
 }
 function matchesSourceOptionsScope(scope: InvalidatedQueryScope, source: string | null): boolean {
   if (scope.kind !== 'csv-source-options') return false;
   if (scope.source) return scope.source === source;
-  if (scope.table) return parseCsvSource(source)?.table === scope.table;
+  if (scope.table) return parseCsvFieldSource(source)?.table === scope.table;
   return true;
 }

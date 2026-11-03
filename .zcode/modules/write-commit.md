@@ -11,7 +11,6 @@
 - `src-tauri/src/domain/save_edits.rs`：当前正式内容的字段修改应用。
 - `src-tauri/src/services/write_transactions.rs`：根租约、实际写入结果、历史登记、回放及正式内容提交。
 - `src-tauri/src/services/write_transactions/session_updates.rs`：已提交 changeset 的正式会话正式内容更新、pending 标记及重试交接。
-- `src/domain/project/save-edits.ts`：本次保存的实际字段赋值、移除及数组整体修改提取。
 - `src/orchestrators/json-write-confirmation.orchestrator.ts`：JSON 原文保留、逐源重排确认及版本绑定的写入重试。
 
 ### 消费
@@ -25,6 +24,7 @@
 - `src-tauri/src/models/write_commit.rs`：字段修改、实际结果及内容交付。
 - `src-tauri/src/services/file_history.rs`：文件撤销重做。
 - `src-tauri/src/services/project/mod.rs`：会话授权和正式结果。
+- `src/shared/lib/json-edits.ts`：所属保存请求消费的实际 JSON 字段差异。
 - `src/shared/types/document-identity.types.ts`：JSON 文档来源与内容身份。
 - `src/shared/types/joint-target.types.ts`：联合保存的根身份。
 - `src/shared/types/json-write.types.ts`：JSON 原文保留与逐源确认输入。
@@ -42,7 +42,7 @@
 
 - 业务写入必须在所属事务内生成各文件的实际最终内容。
 - 保存输入必须归发起编辑会话，捕获后的草稿操作必须保持独立。
-- 事务修改提取必须归保存提交，正式结果与后续草稿合并必须消费编辑会话领域规则。
+- 保存请求必须消费公共 JSON 差异提取，正式结果与后续草稿合并必须消费编辑会话领域规则。
 - 多文件修改必须共同交给一次历史登记和一个保存事件。
 - 正式内容恢复必须持有实际写入范围及未完成状态。
 - 文件历史必须独立持有配置范围内的撤销重做内容。

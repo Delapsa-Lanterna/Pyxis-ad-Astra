@@ -19,7 +19,7 @@ import { configFactionListItems } from './json-config-entities';
 import { variantFileDefinition, skinFileDefinition, jsonFileTitle, type JsonFileDefinition } from './json-file-definitions';
 import { requireRowData } from '@/shared/lib/row-data';
 import { miscConfigDefinition } from '@/domain/misc-config';
-import { composeJson } from '@/domain/schema/json-composition';
+import { composeJson } from '@/domain/json-composition';
 
 export type JsonDocumentKind = 'mod-info' | 'faction' | 'mission' | 'variant' | 'skin' | 'misc-config';
 export interface ConfigDocumentTarget {

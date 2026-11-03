@@ -12,18 +12,19 @@
 - `src-tauri/src/commands/source_catalog.rs`：字段候选与图片目录查询 command。
 - `src-tauri/src/domain/well_known_labels.rs`：候选已知值、范围标签与数字模板的纯目录。
 - `src-tauri/src/services/project/query/source_catalog.rs`：候选查询的所属职责模块登记。
-- `src-tauri/src/services/project/query/source_catalog/`：值候选、配置来源登记、图片目录、来源分组与标签元数据查询。
-- `src/domain/source-catalog/`：候选来源名称、配置路径及 CSV 来源解析。
+- `src-tauri/src/services/project/query/source_catalog/`：值候选、图片目录、来源分组与标签元数据查询。
 - `src/services/source-catalog.service.ts`：正式查询参数、缓存身份、实时图片读取和所属失效。
 
 ### 消费
 
+- `src-tauri/src/domain/schema_sources.rs`：配置字段来源的相对路径及对象分组声明。
 - `src-tauri/src/models/source_catalog.rs`：候选请求、选项、来源分组及模板的公共协议。
 - `src-tauri/src/services/project/definitions/entity_definitions.rs`：实体来源和列表定义。
 - `src-tauri/src/services/project/model.rs`：会话内容、EntityListEntry、表格定义及引用视图。
 - `src-tauri/src/services/project/resources/`：候选名称、船体引用与授权图片投影。
 - `src-tauri/src/services/project/session/`：会话就绪、正式行、引用快照与稳定身份。
 - `src-tauri/src/services/project/sources/`：对应来源的内容、版本、Core 文档及配置读取。
+- `src/domain/schema/schema-source-definitions.ts`：候选读取的字段来源名称、配置路径及 CSV 来源语法。
 - `src/services/query-cache.service.ts`：候选读取的会话缓存、实时请求与读取就绪门控。
 - `src/shared/types/source-catalog.types.ts`：候选请求、选项、来源分组和模板协议。
 
@@ -35,12 +36,12 @@
 
 ## 边界
 
-- 字段定义、列序及控件由 schema 维护，目录读取交付当前项目实际可用候选。
+- 字段定义与列序由定义能力维护，控件由字段编辑维护，目录读取交付当前项目实际可用候选。
 - 候选查询拥有范围、来源优先级、去重、分组、标签与资源投影。
 - 会话拥有授权根、正式内容及引用顺序，候选查询消费捕获的就绪状态。
 - 通用查询框架拥有共享任务与缓存，业务查询定义拥有身份和失效条件。
 - 已知值资产按表列交付标签和模板，动态蓝图标签来自实际项目内容。
-- 候选来源名称、配置文件及对象分组归目录登记，配置失效由目录解释实际资源变化。
+- 候选查询消费字段来源声明的名称、配置路径及对象分组，配置失效由目录解释实际资源变化。
 - 图片目录读取捕获所属根并执行路径授权，只交付实际路径元数据。
 
 ## 链路
@@ -62,3 +63,6 @@
 - 已知值和数字模板必须按表列隔离，动态标签必须消费实际来源内容。
 - 候选失效必须共同消费正式 query scope 与配置资源范围，缓存和字段刷新必须调用同一判定，实时读取必须沿所属框架结束等待。
 - 查询只允许读取，文件写入与正式状态接纳必须由所属业务维护者执行。
+- Bundled schema 的 `config:` 来源必须属于正式配置目录登记，声音、设计类型、船体样式与引擎样式必须按当前 Mod 优先和原版补全交付候选。
+- 原版 tags、hints 与 UI 标签必须按 Starsector 版本及完整表列 source 查询；数字规则必须通过独立模板选项交付默认输入值与有效上限，选择必须填入标签自定义输入，并经所属 FieldInputs 提交；具体数字说明必须来自匹配的来源规则。
+- 图片候选必须按声明目录及子目录查询当前 Mod 和原版，同路径必须采用 Mod 优先，任务图片必须按当前任务目录交付相对路径；查询只允许交付路径元数据。

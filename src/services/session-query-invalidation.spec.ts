@@ -19,7 +19,7 @@ import {
   prepareJointEdit,
 } from './joint-edit.service';
 import { invalidateQueryCacheByProject, invalidateQueryCacheForSession } from './query-cache.service';
-import { CONFIG_OPTION_SOURCES } from '@/domain/source-catalog/source-definitions';
+import { CONFIG_FIELD_SOURCES } from '@/domain/schema/schema-source-definitions';
 import { entityTargetFixture } from '@/test/fixtures/entity-target';
 import type { JointEditSnapshot, ProjectInvalidation, InvalidatedQueryScope } from '@/shared/types';
 
@@ -55,7 +55,7 @@ const cases: Array<{
   unrelated: ProjectInvalidation;
   value: unknown;
 }> = [
-  ...Object.entries(CONFIG_OPTION_SOURCES).map(([source, relPath]) => ({
+  ...Object.entries(CONFIG_FIELD_SOURCES).map(([source, relPath]) => ({
     name: source,
     read: () => querySourceOptionCatalog(session, source),
     matching: { ...empty, resources: [{ source: 'mod' as const, relPath }] },
@@ -224,7 +224,7 @@ describe('business-owned query invalidation', () => {
     await expect(pending).resolves.toEqual(value);
   });
   it.each(
-    Object.entries(CONFIG_OPTION_SOURCES).flatMap(([source, path]) =>
+    Object.entries(CONFIG_FIELD_SOURCES).flatMap(([source, path]) =>
       (['mod', 'core'] as const).flatMap((origin) => [path, 'data/config'].map((relPath) => ({ source, origin, relPath }))),
     ),
   )('reloads $source for $origin resource scope $relPath', async ({ source, origin, relPath }) => {

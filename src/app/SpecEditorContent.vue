@@ -109,7 +109,7 @@ import { useContextMenuScope } from '@/app/composables/use-context-menu';
 import { computed, onMounted, onUnmounted, provide } from 'vue';
 import { specSchemaContext } from '@/app/composables/spec-editor/spec-schema-context';
 import { specProblemsKey } from '@/app/composables/spec-editor/use-spec-problems';
-import { CONFIG_OPTION_SOURCES } from '@/domain/source-catalog/source-definitions';
+import { CONFIG_FIELD_SOURCES } from '@/domain/schema/schema-source-definitions';
 import SpecShipEditor from '@/app/components/spec-editor/ship/SpecShipEditor.vue';
 import SpecWeaponEditor from '@/app/components/spec-editor/weapon/SpecWeaponEditor.vue';
 import SpecProjectileEditor from '@/app/components/spec-editor/projectile/SpecProjectileEditor.vue';
@@ -188,9 +188,9 @@ useContextMenuScope({
         ...(shipImages?.value.value?.resourceRefs ?? []),
         ...(projectileImages?.value.value?.resourceRefs ?? []),
         ...(weaponDependencies?.resourceRefs.value ?? []),
-        ...(starsectorRoot.value ? Object.values(CONFIG_OPTION_SOURCES).map((relPath) => ({ source: 'core' as const, relPath })) : []),
+        ...(starsectorRoot.value ? Object.values(CONFIG_FIELD_SOURCES).map((relPath) => ({ source: 'core' as const, relPath })) : []),
       ],
-      Object.values(CONFIG_OPTION_SOURCES).map((path) => target.value!.modRoot + '/' + path),
+      Object.values(CONFIG_FIELD_SOURCES).map((path) => target.value!.modRoot + '/' + path),
     ),
 });
 useManagedWindowRequests(async () => {

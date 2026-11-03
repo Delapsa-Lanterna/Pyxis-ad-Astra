@@ -42,7 +42,7 @@ import { inject } from 'vue';
 import type { JsonValue } from '@/shared/types';
 import NCollapse from '@/app/components/editors/common/EditorCollapse.vue';
 import NCollapseItem from '@/app/components/editors/common/EditorCollapseItem.vue';
-import SchemaFieldRenderer from '@/app/components/schema/SchemaFieldRenderer.vue';
+import SchemaFieldRenderer from '@/app/components/field-editor/SchemaFieldRenderer.vue';
 import { specSchemaContext } from '@/app/composables/spec-editor/spec-schema-context';
 import SpecProblems from '../SpecProblems.vue';
 import EditorFooter from '@/app/components/editors/common/EditorFooter.vue';

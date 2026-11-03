@@ -59,11 +59,14 @@ export function frontendDependencyFailure(current, target, edge) {
     return { message: 'file browser targets belong to the calling workspace host', expected: 'explicit file browser target' };
   if (current.domain === 'misc-config' && target.path.startsWith('src/domain/json-editor/'))
     return { message: 'configuration files own their registry independently of editor projections', expected: 'misc config definitions' };
+  if (
+    (current.path.startsWith('src/domain/schema/') && target.layer === 'domain' && target.domain !== 'schema') ||
+    (current.path === 'src/domain/json-composition.ts' && target.layer !== 'shared')
+  )
+    return { message: 'field definitions and JSON composition own pure rules', expected: 'owned definitions or public contracts' };
   const ownedProjection = [
-    ['src/domain/edit-session.ts', 'src/domain/project/save-edits.ts'],
-    ['src/app/composables/use-edit-target-draft-session.ts', 'src/domain/project/save-edits.ts'],
     ['src/app/composables/use-edit-target-draft-session.ts', 'src/stores/project-sync.store.ts'],
-    ['src/domain/resources/hull-references.ts', 'src/domain/schema/schema-options.ts'],
+    ['src/domain/resources/hull-references.ts', 'src/domain/field-editor/field-options.ts'],
   ];
   if (ownedProjection.some(([source, provider]) => current.path === source && target.path === provider))
     return {
@@ -75,20 +78,17 @@ export function frontendDependencyFailure(current, target, edge) {
     ((target.role === 'service' && target.domain === 'spec-editor') || target.path === 'src/domain/spec-editor/spec-editor-definitions.ts')
   )
     return { message: 'native identity handoff consumes prepared identities and titles', expected: 'window identity capability' };
-  if (
-    (current.path.startsWith('src/domain/source-catalog/') || current.path === 'src/services/source-catalog.service.ts') &&
-    target.path.startsWith('src/domain/schema/')
-  )
+  if (current.path === 'src/services/source-catalog.service.ts' && target.path.startsWith('src/domain/field-editor/'))
     return {
-      message: 'source catalogs own source definitions below field presentation',
-      expected: 'source catalog definitions or public contracts',
+      message: 'source catalogs consume field definitions below field presentation',
+      expected: 'field definitions or public contracts',
     };
   const queryKernel = current.path === 'src/services/query-cache.service.ts' || current.path === 'src/shared/types/query-cache.types.ts';
   const businessQuery = [
     'src/services/entity-query.service.ts',
     'src/services/csv-table.service.ts',
     'src/services/source-catalog.service.ts',
-    'src/domain/source-catalog/source-definitions.ts',
+    'src/domain/schema/schema-source-definitions.ts',
     'src/services/hull-reference.service.ts',
     'src/services/resource-reference.service.ts',
     'src/services/joint-edit.service.ts',

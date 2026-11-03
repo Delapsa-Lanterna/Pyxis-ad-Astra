@@ -95,13 +95,13 @@ import { computed, onMounted } from 'vue';
 import { debugLog } from '@/shared/runtime/app-log-queue';
 import type { CsvRowRecord } from '@/shared/types';
 import type { CsvGridColumn, CsvRenderColumn } from '@/domain/csv-editor/csv-grid-model';
-import type { CsvSourceIndex } from '@/domain/schema/csv-source-options';
-import { sourceValue } from '@/domain/schema/csv-source-options';
+import type { CsvSourceIndex } from '@/domain/field-editor/csv-source-options';
+import { sourceValue } from '@/domain/field-editor/csv-source-options';
 import { csvColumnControl, csvControlUsesPicker, csvListValues, isCsvListControl } from '@/domain/csv-editor/csv-column-schema';
 import { cell } from '@/shared/lib/starsector';
 import { useCsvTableInputs } from '@/app/composables/csv-editor/use-csv-table-inputs';
 import { useCsvGridMedia } from '@/app/composables/csv-editor/use-csv-grid-media';
-import { useInputEditMode } from '@/app/composables/use-input-edit-mode';
+import { useFieldEditMode } from '@/app/composables/field-editor/use-field-edit-mode';
 import ResourceThumbnail from '@/app/components/media/ResourceThumbnail.vue';
 const props = defineProps<{
   row: CsvRowRecord;
@@ -132,7 +132,7 @@ function handleClick(event: MouseEvent) {
 }
 const context = useCsvTableInputs(),
   media = useCsvGridMedia(),
-  mode = useInputEditMode();
+  mode = useFieldEditMode();
 onMounted(() =>
   debugLog('list.item_mounted', () => ({
     kind: 'csv',

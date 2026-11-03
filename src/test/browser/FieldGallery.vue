@@ -35,7 +35,7 @@
 </template>
 <script setup lang="ts">
 import { computed, onScopeDispose, ref } from 'vue';
-import SchemaFieldRenderer from '@/app/components/schema/SchemaFieldRenderer.vue';
+import SchemaFieldRenderer from '@/app/components/field-editor/SchemaFieldRenderer.vue';
 import { useSettingsStore } from '@/stores/settings.store';
 import { provideFieldInputs } from '@/shared/runtime/field-inputs';
 import { applySchemaFieldUpdate } from '@/domain/schema/schema-values';

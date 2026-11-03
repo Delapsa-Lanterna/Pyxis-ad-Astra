@@ -118,7 +118,9 @@
 - [画布编辑器骨架](modules/editor-canvas.md)：说明画布交互、选区、镜像、动作提交及唯一共享引擎绘制与运行态。
 - [Mod 文件浏览器](modules/mod-file-browser.md)：说明按 session 隔离的目录树、内容判定、读取接纳与文本窗口交付。
 - [文件编辑器](modules/file-editor.md)：说明独立文本窗口、`sessionId + modRoot + path`、文本 Draft Session、保存和外部文本同步。
-- [字段模式系统](modules/schema.md)：说明 schema 资产加载、runtime、字段渲染、editMode、校验、引用 source、SelectOption 与资源选择。
+- [字段定义与校验](modules/schema.md)：说明字段与列资产、唯一列序、来源声明、值规则及保存校验。
+- [字段编辑与输入交互](modules/field-editor.md)：说明表单控件、原文提交、输入模式、稳定行身份、来源候选与选项媒体寿命。
+- [JSON 来源组合与覆盖](modules/json-composition.md)：说明前后端游戏 JSON 合并、来源定位、稀疏本地修改、整体覆盖和撤销。
 - [JSON 文档编辑](modules/json-editor.md)：说明 Mod 信息、势力、战役、装配与皮肤的文档会话、草稿历史、共同列表与宿主、类型规则及统一保存。
 - [杂项配置](modules/misc-config.md)：说明已登记文件的路径、读取、创建、保存、删除及文件历史交接。
 - [Spec 舰船编辑器](modules/spec-ship-editor.md)：说明 `.ship` 画布注入、槽位、引擎、shield、贴图引用选择与独立窗口保存。

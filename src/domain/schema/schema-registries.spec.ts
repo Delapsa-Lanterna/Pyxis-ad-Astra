@@ -96,4 +96,20 @@ describe('schema asset registries', () => {
     }
     expect(getCsvColumnSchemas('ships').length).toBeGreaterThan(0);
   });
+
+  it('preserves every authoritative CSV column key and its declared position', () => {
+    const assets = import.meta.glob<{ columns: Array<{ key: string }> }>('../../../schemas/csv/*.schema.json', {
+      eager: true,
+      import: 'default',
+    });
+    expect(TABLE_KEYS).toHaveLength(14);
+    expect(Object.keys(assets)).toHaveLength(14);
+    let columnCount = 0;
+    for (const table of TABLE_KEYS) {
+      const declared = assets['../../../schemas/csv/' + table + '.schema.json']!.columns.map(({ key }) => key);
+      expect(getCsvColumnSchemas(table).map(({ key }) => key)).toEqual(declared);
+      columnCount += declared.length;
+    }
+    expect(columnCount).toBe(285);
+  });
 });

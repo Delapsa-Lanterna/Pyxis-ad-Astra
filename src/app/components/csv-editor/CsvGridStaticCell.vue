@@ -39,8 +39,8 @@ import { computed } from 'vue';
 import { cell } from '@/shared/lib/starsector';
 import type { CsvRowRecord } from '@/shared/types';
 import type { CsvGridColumn } from '@/domain/csv-editor/csv-grid-model';
-import type { CsvSourceIndex } from '@/domain/schema/csv-source-options';
-import { sourceValue } from '@/domain/schema/csv-source-options';
+import type { CsvSourceIndex } from '@/domain/field-editor/csv-source-options';
+import { sourceValue } from '@/domain/field-editor/csv-source-options';
 import {
   csvColumnControl,
   csvControlUsesPicker,
@@ -49,7 +49,7 @@ import {
   isCsvReferenceControl,
 } from '@/domain/csv-editor/csv-column-schema';
 import { useCsvTableInputs } from '@/app/composables/csv-editor/use-csv-table-inputs';
-import { useInputEditMode } from '@/app/composables/use-input-edit-mode';
+import { useFieldEditMode } from '@/app/composables/field-editor/use-field-edit-mode';
 import { useCsvGridMedia } from '@/app/composables/csv-editor/use-csv-grid-media';
 import ResourceThumbnail from '@/app/components/media/ResourceThumbnail.vue';
 
@@ -60,7 +60,7 @@ const props = defineProps<{
 }>();
 
 const rawValue = computed(() => cell(props.row.data[props.column.key]));
-const mode = useInputEditMode();
+const mode = useFieldEditMode();
 const context = useCsvTableInputs();
 const media = useCsvGridMedia();
 const control = computed(() => csvColumnControl(props.column.schema));

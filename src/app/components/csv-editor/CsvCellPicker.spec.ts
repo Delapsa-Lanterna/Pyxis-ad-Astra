@@ -1,7 +1,7 @@
 import { flushPromises, mount } from '@vue/test-utils';
 import { createPinia } from 'pinia';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { SelectOption } from '@/domain/schema/schema-options';
+import type { SelectOption } from '@/domain/field-editor/field-options';
 import CsvCellPicker from './CsvCellPicker.vue';
 import { NCollapse, NCollapseItem } from 'naive-ui/es/collapse';
 import { installNaiveUi } from '@/app/naive-ui.runtime';

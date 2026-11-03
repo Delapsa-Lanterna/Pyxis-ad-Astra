@@ -95,7 +95,7 @@ import { computed, watch } from 'vue';
 import { useCsvRowPreview } from '@/app/composables/csv-editor/use-csv-row-preview';
 import type { CsvEditorModel } from '@/app/composables/csv-editor/use-csv-editor-model';
 import { useSettingsStore } from '@/stores/settings.store';
-import { useSchemaSelectMedia } from '@/app/composables/use-schema-select-media';
+import { useFieldOptionMedia } from '@/app/composables/field-editor/use-field-option-media';
 import { cell, MODULE_LABELS, rowDisplayId } from '@/shared/lib/starsector';
 import { detailActionKey, detailActionLabel, detailActionsForRow, type TableDetailAction } from '@/domain/csv-editor/table-detail-actions';
 import { isCsvCommentRow } from '@/domain/csv-editor/csv-comment-row';
@@ -108,8 +108,8 @@ import {
   isCsvReferenceControl,
 } from '@/domain/csv-editor/csv-column-schema';
 import type { CsvColumnSchema } from '@/domain/schema/schema.types';
-import { sourceValue, type CsvSourceIndex } from '@/domain/schema/csv-source-options';
-import type { SelectOption } from '@/domain/schema/schema-options';
+import { sourceValue, type CsvSourceIndex } from '@/domain/field-editor/csv-source-options';
+import type { SelectOption } from '@/domain/field-editor/field-options';
 import type { CsvRowPreviewTarget, RowData, CsvTableKey } from '@/shared/types';
 
 const props = defineProps<{
@@ -124,7 +124,7 @@ defineEmits<{
 }>();
 
 const view = props.model.view;
-const { schemaSelectSprite, replaceSchemaSelectSprites } = useSchemaSelectMedia();
+const { dataUrl, replaceCollection } = useFieldOptionMedia();
 const settings = useSettingsStore();
 const showReferenceDecorations = computed(() => settings.editMode === 'smart');
 
@@ -210,7 +210,7 @@ const summaryResources = computed(() => {
 watch(
   () => [props.model.target.value?.sessionId, summaryResources.value] as const,
   ([sessionId, resources]) => {
-    void replaceSchemaSelectSprites(sessionId, 'summary', resources);
+    void replaceCollection(sessionId, 'summary', resources);
   },
   { immediate: true },
 );
@@ -254,7 +254,7 @@ function schemaPreviewItem(schema: CsvColumnSchema, row: RowData): SchemaPreview
       base.meta = match.group ? `${csvColumnControlLabel(schema.control)} · ${match.group}` : csvColumnControlLabel(schema.control);
       const sid = props.model.target.value?.sessionId ?? undefined;
       if (match.option.resourceRef && sid) {
-        base.sprite = schemaSelectSprite(sid, match.option.resourceRef) ?? '';
+        base.sprite = dataUrl(sid, match.option.resourceRef) ?? '';
       }
     }
     return base;
