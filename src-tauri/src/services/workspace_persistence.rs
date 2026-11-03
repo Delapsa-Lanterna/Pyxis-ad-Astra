@@ -1,53 +1,28 @@
 use crate::errors::{AppError, AppResult};
-use crate::io::{FsRootBoundary, path_belongs_to_root, read_utf8_no_bom, write_utf8_no_bom};
+use crate::io::{FsRootBoundary, read_utf8_no_bom, write_utf8_no_bom};
 use crate::models::PersistedWorkspace;
 use crate::{app_data_dir, parsers};
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use tauri::AppHandle;
 
 const WORKSPACE_FILE: &str = "workspace.json";
 
-/// Rejects directories that would place tool-private files inside a Mod or a
-/// tracked workspace root; the tracked-root knowledge lives here because this
-/// module owns the persisted workspace state.
-pub fn reject_mod_or_workspace_directory(app_data_dir: &Path, directory: &Path) -> AppResult<()> {
-    if directory
-        .ancestors()
-        .any(|ancestor| ancestor.join("mod_info.json").is_file())
-    {
-        return Err(AppError::message(
-            "workspace.dir_inside_mod",
-            format!(
-                "directory must not be inside a Mod: {}",
-                directory.display()
-            ),
-        ));
-    }
+/// Captures the existing physical roots recorded in the persisted workspace.
+pub fn load_persisted_workspace_roots(app_data_dir: &Path) -> AppResult<Vec<PathBuf>> {
     let workspace = load_workspace(app_data_dir)?;
-    for root in workspace
+    workspace
         .mods
         .iter()
-        .map(|mod_entry| mod_entry.mod_root.as_str())
+        .map(|entry| entry.mod_root.as_str())
         .chain(workspace.starsector_root.iter().map(String::as_str))
-    {
-        let path = Path::new(root);
-        if path.is_dir() {
-            let canonical_root = FsRootBoundary::new(path, "workspace directory")?
-                .root()
-                .to_path_buf();
-            if path_belongs_to_root(directory, &canonical_root) {
-                return Err(AppError::message(
-                    "workspace.dir_inside_tracked_root",
-                    format!(
-                        "directory must not be inside a workspace directory: {}",
-                        directory.display()
-                    ),
-                ));
-            }
-        }
-    }
-    Ok(())
+        .map(Path::new)
+        .filter(|root| root.is_dir())
+        .map(|root| {
+            FsRootBoundary::new(root, "workspace directory")
+                .map(|boundary| boundary.root().to_path_buf())
+        })
+        .collect()
 }
 
 pub fn load_app_workspace(app_handle: AppHandle) -> AppResult<PersistedWorkspace> {
@@ -93,7 +68,7 @@ mod tests {
     use super::*;
     use crate::io::write_utf8_no_bom;
     use crate::models::PersistedMod;
-    use crate::test_support::TestWorkspace;
+    use crate::test_support::{TestWorkspace, work_counts};
     use std::collections::BTreeMap;
 
     #[test]
@@ -177,5 +152,72 @@ mod tests {
         let result = load_workspace(&dir);
         assert!(result.is_err());
         dir.close().unwrap();
+    }
+
+    #[test]
+    fn captured_roots_follow_one_persisted_snapshot() {
+        let app_data = TestWorkspace::new("persisted_root_capture");
+        let mod_root = app_data.outer().join("saved_mod");
+        let game_root = app_data.outer().join("saved_game");
+        let unsaved_root = app_data.outer().join("unsaved_mod");
+        for root in [&mod_root, &game_root, &unsaved_root] {
+            fs::create_dir(root).unwrap();
+        }
+        let state = PersistedWorkspace {
+            mods: vec![
+                PersistedMod {
+                    mod_root: mod_root.to_string_lossy().into_owned(),
+                    display_name: "Saved".into(),
+                    version: String::new(),
+                    referenceable: None,
+                },
+                PersistedMod {
+                    mod_root: app_data
+                        .outer()
+                        .join("missing")
+                        .to_string_lossy()
+                        .into_owned(),
+                    display_name: "Missing".into(),
+                    version: String::new(),
+                    referenceable: None,
+                },
+            ],
+            starsector_root: Some(game_root.to_string_lossy().into_owned()),
+            ..Default::default()
+        };
+        save_workspace(&app_data, &state).unwrap();
+        let path = app_data.join(WORKSPACE_FILE);
+        let before = work_counts::count("read", &path);
+        let roots = load_persisted_workspace_roots(&app_data).unwrap();
+        assert_eq!(work_counts::count("read", &path) - before, 1);
+        assert_eq!(
+            roots,
+            vec![
+                mod_root.canonicalize().unwrap(),
+                game_root.canonicalize().unwrap()
+            ]
+        );
+        let mut changed = state;
+        changed.mods.clear();
+        save_workspace(&app_data, &changed).unwrap();
+        assert_eq!(roots.len(), 2);
+        assert_eq!(
+            load_persisted_workspace_roots(&app_data).unwrap(),
+            vec![game_root.canonicalize().unwrap()]
+        );
+        write_utf8_no_bom(&path, "{").unwrap();
+        assert_eq!(
+            load_persisted_workspace_roots(&app_data)
+                .unwrap_err()
+                .code(),
+            "parse.json"
+        );
+        fs::remove_file(path).unwrap();
+        assert!(
+            load_persisted_workspace_roots(&app_data)
+                .unwrap()
+                .is_empty()
+        );
+        app_data.close().unwrap();
     }
 }

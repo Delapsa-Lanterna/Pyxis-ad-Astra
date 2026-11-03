@@ -68,7 +68,9 @@
 
 ### 消费
 
+- `src-tauri/src/services/app_log.rs`：日志运行参数及目录准备与已有目录解析能力。
 - `src-tauri/src/services/project/resources/media_cache.rs`：正式设置接纳时配置后端媒体预算。
+- `src-tauri/src/services/workspace_persistence.rs`：单次目录操作捕获的已持久化工作区物理根。
 - `src/app/composables/use-workspace-json-editor-host.ts`：工作区 JSON 页面目标及定位与导航宿主。
 - `src/app/composables/use-workspace-shell-actions.ts`：主窗口工作区动作及绑定当前窗口关闭能力的来源切换。
 - `src/domain/source-catalog/source-definitions.ts`：规格窗口装配捕获配置候选的正式刷新路径。
@@ -166,4 +168,5 @@
 - 窗口根组件必须按窗口类型懒加载，严禁建立包含全部窗口根的公共入口模块。
 - 窗口种类与业务输入必须共同消费原生 bootstrap 及已接纳上下文。
 - 窗口鼠标提示统一消费 title 内容，由窗口壳中的单个提示宿主展示；输入、滚动、失焦与关闭结束当前提示，离开目标或宿主释放时恢复所属属性。
-- 设置 IPC 必须由应用装配连接设置服务与运行参数 owner；正式提交顺序必须由设置服务独占。
+- 设置 IPC 必须由应用装配连接设置服务、日志目录动作与运行参数 owner；正式提交顺序必须由设置服务独占。
+- 自定义日志目录操作必须先捕获同次持久化根集合再交付目录能力；存在工作区快照时每次准备或解析必须只读取该快照一次，默认目录必须读取零次，重复正式设置读取必须复用初始化结果。

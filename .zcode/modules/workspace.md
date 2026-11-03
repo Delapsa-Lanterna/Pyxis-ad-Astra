@@ -9,7 +9,7 @@
 ### 拥有
 
 - `src-tauri/src/commands/workspace_persistence.rs`：工作区快照加载与保存 command。
-- `src-tauri/src/services/workspace_persistence.rs`：工具私有快照读写。
+- `src-tauri/src/services/workspace_persistence.rs`：工具私有快照读写与现存持久化工作区物理根查询。
 - `src/app/components/LoadedModsPanel.vue`：已载入 Mod 及工作区动作展示。
 - `src/app/components/ModNavigation.vue`：当前 Mod 的页面与业务导航。
 - `src/app/components/ModTabsBar.vue`：Mod 页签选择与移除动作展示。
@@ -57,6 +57,7 @@
 
 ## 边界
 
+- 持久化根查询从单次快照交付现存 Mod 与游戏目录的规范路径，日志目录保护决策归日志模块。
 - JSON 会话与 CSV 提供未保存判定，导航及关闭消费所属输入和保存句柄。
 - JSON 文档运行态归所属模块，工作区宿主持有当前页面目标的只读投影、定位完成及基础船体导航动作。
 - Mod 概览、文件历史和 JSON 编辑使用独立工作区视图，业务侧栏消费各自导航目标。
@@ -118,6 +119,7 @@
 
 ## 规范
 
+- 已持久化工作区根查询必须在单次操作内读取一次现存快照并交付其现存记录根；严禁将结果表达为全部活跃会话范围。
 - CSV 宿主必须派生完整 session、Mod 根及表格目标，定位完成与取消必须核对原请求，联队引用导航必须消费原行与确定目标。
 - JSON 宿主必须交付完整 session、Mod 根及页面目标；定位完成必须核对原请求对象，实际船体导航必须消费原皮肤范围及正式行键。
 - 文件回放必须列正式摘要的全部路径及准确数量；清空历史必须说明所属 Mod、目录及实际撤销和重做数量，磁盘内容必须保留。

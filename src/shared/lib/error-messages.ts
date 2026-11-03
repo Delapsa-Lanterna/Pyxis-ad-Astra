@@ -33,6 +33,8 @@ const ERROR_MESSAGES: Record<string, string> = {
   'io.unexpected': '发生意外的基础文件错误',
   'io.walk_failed': '遍历目录失败',
   'log.dir_inside_app_data': '日志目录不能位于工具数据目录内',
+  'log.dir_inside_mod': '日志目录不能位于某个 Mod 内部',
+  'log.dir_inside_workspace': '日志目录不能位于已保存工作区的根目录内',
   'log.dir_is_log_file': '日志目录不能是日志文件本身',
   'log.dir_no_existing_parent': '日志目录的父路径不存在',
   'log.dir_unavailable': '日志目录不可用',
@@ -101,8 +103,6 @@ const ERROR_MESSAGES: Record<string, string> = {
   'text.transcode_encoding_unknown': '未知的源编码',
   'text.transcode_not_needed': '文件已经是有效的 UTF-8，无需转码',
   'text.transcode_undecodable': '所选编码无法完整解码该文件，请尝试其它编码',
-  'workspace.dir_inside_mod': '目录不能位于某个 Mod 内部',
-  'workspace.dir_inside_tracked_root': '目录不能位于工作区已跟踪的根目录内',
 };
 
 export function commandErrorCopy(code: string): string | undefined {

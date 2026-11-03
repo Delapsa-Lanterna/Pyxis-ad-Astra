@@ -4,9 +4,11 @@ use crate::models::{AppSettings, CloseIntent, ClosePhase, CloseResult, CloseScop
 use crate::services::configure_media_cache;
 use crate::services::{
     app_lifecycle, app_log, file_history, performance_monitor, project, project_sync, windows,
+    workspace_persistence,
 };
 use serde_json::json;
 use std::collections::{BTreeMap, BTreeSet};
+use std::path::{Path, PathBuf};
 use std::slice;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Condvar, LazyLock, Mutex, MutexGuard};
@@ -47,6 +49,16 @@ pub fn close_displaced(
         }
     }
     Ok(())
+}
+
+pub fn prepare_log_directory(app_data: &Path, directory: &str) -> AppResult<PathBuf> {
+    let roots = workspace_persistence::load_persisted_workspace_roots(app_data)?;
+    app_log::prepare_log_directory(app_data, directory, &roots)
+}
+
+pub fn resolve_existing_log_directory(app_data: &Path, directory: &str) -> AppResult<PathBuf> {
+    let roots = workspace_persistence::load_persisted_workspace_roots(app_data)?;
+    app_log::resolve_existing_log_directory(app_data, directory, &roots)
 }
 
 pub fn apply_settings_runtime(value: &AppSettings) -> Result<bool, AppError> {
@@ -436,6 +448,10 @@ fn execute_close(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::io::write_utf8_no_bom;
+    use crate::models::{LOG_FILE, PersistedWorkspace};
+    use crate::services::workspace_persistence::save_workspace;
+    use crate::test_support::{TestWorkspace, work_counts};
 
     #[test]
     fn child_window_stages_include_every_managed_window() {
@@ -493,5 +509,33 @@ mod tests {
         destroyed("close-fixture-owner").unwrap();
         assert!(operation.state().unwrap().cancelled);
         OPERATIONS.lock().unwrap().remove(&id);
+    }
+
+    #[test]
+    fn directory_actions_read_one_workspace_snapshot_each() {
+        let app_data = TestWorkspace::new("directory_action_reads");
+        save_workspace(&app_data, &PersistedWorkspace::default()).unwrap();
+        let path = app_data.join("workspace.json");
+        let requested = app_data.outer().join("custom_logs");
+        let before = work_counts::count("read", &path);
+        let canonical = prepare_log_directory(&app_data, &requested.to_string_lossy()).unwrap();
+        assert_eq!(work_counts::count("read", &path) - before, 1);
+        assert!(canonical.join(LOG_FILE).is_file());
+        let before = work_counts::count("read", &path);
+        assert_eq!(
+            resolve_existing_log_directory(&app_data, &requested.to_string_lossy()).unwrap(),
+            canonical
+        );
+        assert_eq!(work_counts::count("read", &path) - before, 1);
+        write_utf8_no_bom(&path, "{").unwrap();
+        let before = work_counts::count("read", &path);
+        assert_eq!(
+            prepare_log_directory(&app_data, &requested.to_string_lossy())
+                .unwrap_err()
+                .code(),
+            "parse.json"
+        );
+        assert_eq!(work_counts::count("read", &path) - before, 1);
+        app_data.close().unwrap();
     }
 }

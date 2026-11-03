@@ -75,7 +75,11 @@ pub fn fail_window_startup(
 
 #[command_macros::command(async)]
 pub fn read_settings(app_handle: AppHandle) -> Result<SettingsSnapshot, AppError> {
-    app_settings::read_settings(&app_handle, app_lifecycle::apply_settings_runtime)
+    app_settings::read_settings(
+        &app_handle,
+        app_lifecycle::resolve_existing_log_directory,
+        app_lifecycle::apply_settings_runtime,
+    )
 }
 
 #[command_macros::command(async)]
@@ -88,6 +92,7 @@ pub fn save_settings(
         &app_handle,
         window.label(),
         payload.settings,
+        app_lifecycle::prepare_log_directory,
         app_lifecycle::apply_settings_runtime,
     )
 }

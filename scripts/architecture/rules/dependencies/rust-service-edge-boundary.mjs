@@ -10,7 +10,7 @@ const allowedServiceEdges = new Set([
   'app_config -> system_open',
   'app_log -> app_settings',
   'app_log -> system_open',
-  'app_settings -> workspace_persistence',
+  'app_lifecycle -> workspace_persistence',
   'project_session -> app_settings',
   'project_session -> project',
   'project_sync -> windows',

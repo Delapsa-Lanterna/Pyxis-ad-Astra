@@ -16,6 +16,9 @@ use std::time::Duration;
 use std::{fs, mem, thread};
 use tauri::{AppHandle, Emitter};
 
+mod directory;
+pub(crate) use directory::{prepare_log_directory, resolve_existing_log_directory};
+
 static LOG_WRITE_LOCK: Mutex<()> = Mutex::new(());
 static NATIVE_DRAIN: Mutex<()> = Mutex::new(());
 static NATIVE_QUEUE: LazyLock<Mutex<NativeQueue>> =
@@ -24,9 +27,28 @@ static LOG_RUNTIME: LazyLock<Mutex<LogState>> = LazyLock::new(|| Mutex::new(LogS
 
 #[derive(Default)]
 struct LogState {
-    settings: Option<AppSettings>,
+    settings: Option<LogSettings>,
     last_error: Option<String>,
     losses: BTreeMap<String, u64>,
+}
+
+#[derive(Clone)]
+struct LogSettings {
+    directory: Option<PathBuf>,
+    level: AppLogLevel,
+    rotation_size_mib: u32,
+    backup_count: u32,
+}
+
+impl From<&AppSettings> for LogSettings {
+    fn from(settings: &AppSettings) -> Self {
+        Self {
+            directory: settings.log_directory.as_ref().map(PathBuf::from),
+            level: settings.log_level,
+            rotation_size_mib: settings.log_rotation_size_mib,
+            backup_count: settings.log_backup_count,
+        }
+    }
 }
 
 #[derive(Default)]
@@ -67,15 +89,14 @@ fn runtime() -> AppResult<MutexGuard<'static, LogState>> {
 }
 
 pub fn configure_runtime(settings: &AppSettings) -> AppResult<()> {
+    let settings = LogSettings::from(settings);
     let mut state = runtime()?;
-    diagnostics::enable_debug(
-        settings.log_level == AppLogLevel::Debug && state.last_error.is_none(),
-    );
+    diagnostics::enable_debug(settings.level == AppLogLevel::Debug && state.last_error.is_none());
     state.settings = Some(settings.clone());
     NATIVE_QUEUE
         .lock()
         .expect("native queue lock is scoped to data changes")
-        .level = Some(settings.log_level);
+        .level = Some(settings.level);
     Ok(())
 }
 
@@ -167,16 +188,13 @@ fn append_with_runtime(
             .get_or_insert_with(BTreeMap::new)
             .insert("process".into(), process::id().to_string());
     }
-    let settings = state.settings.clone().unwrap_or_default();
+    let settings = state
+        .settings
+        .clone()
+        .unwrap_or_else(|| LogSettings::from(&AppSettings::default()));
     let result = state.write(owner, entries.len(), || {
         let app_data = app_data_dir::data_directory(app.clone())?;
-        let directory = configured_log_directory(&app_data, &settings);
-        if settings.log_directory.is_none() {
-            fs::create_dir_all(&directory).map_err(|cause| {
-                AppError::context("创建日志目录失败".to_string(), cause.into()).at_path(&directory)
-            })?;
-        }
-        append_logs(&directory, &entries, &settings)
+        append_configured_logs(&app_data, &entries, &settings)
     });
     if let Err(cause) = result {
         let message = state
@@ -193,17 +211,33 @@ fn append_with_runtime(
     Ok(())
 }
 
-fn configured_log_directory(app_data: &Path, settings: &AppSettings) -> PathBuf {
+fn append_configured_logs(
+    app_data: &Path,
+    entries: &[AppLogEntry],
+    settings: &LogSettings,
+) -> AppResult<()> {
+    let directory = configured_log_directory(app_data, settings);
+    if settings.directory.is_none() {
+        fs::create_dir_all(&directory).map_err(|cause| {
+            AppError::context("创建日志目录失败".to_string(), cause.into()).at_path(&directory)
+        })?;
+    }
+    append_logs(&directory, entries, settings)
+}
+
+fn configured_log_directory(app_data: &Path, settings: &LogSettings) -> PathBuf {
     settings
-        .log_directory
-        .as_ref()
-        .map(PathBuf::from)
+        .directory
+        .clone()
         .unwrap_or_else(|| app_data.to_path_buf())
 }
 
 pub fn app_log_status(app: AppHandle) -> AppResult<AppLogStatus> {
     let state = runtime()?;
-    let settings = state.settings.clone().unwrap_or_default();
+    let settings = state
+        .settings
+        .clone()
+        .unwrap_or_else(|| LogSettings::from(&AppSettings::default()));
     let directory = configured_log_directory(&app_data_dir::data_directory(app)?, &settings);
     let mut status = log_status(&directory)?;
     status.recording = if state.last_error.is_some() {
@@ -214,7 +248,7 @@ pub fn app_log_status(app: AppHandle) -> AppResult<AppLogStatus> {
         "uninitialized"
     }
     .to_string();
-    status.level = settings.log_level;
+    status.level = settings.level;
     status.last_error = state.last_error.clone();
     status.dropped = state.losses.values().sum();
     status.pending = NATIVE_QUEUE
@@ -238,10 +272,14 @@ pub fn clear_app_log_file(app: AppHandle) -> AppResult<AppLogStatus> {
 
 #[cfg(test)]
 pub fn append_log(directory: &Path, entry: &AppLogEntry, settings: &AppSettings) -> AppResult<()> {
-    append_logs(directory, slice::from_ref(entry), settings)
+    append_logs(
+        directory,
+        slice::from_ref(entry),
+        &LogSettings::from(settings),
+    )
 }
 
-fn append_logs(directory: &Path, entries: &[AppLogEntry], settings: &AppSettings) -> AppResult<()> {
+fn append_logs(directory: &Path, entries: &[AppLogEntry], settings: &LogSettings) -> AppResult<()> {
     let _guard = lock_log()?;
     if !directory.is_dir() {
         return Err(AppError::message(
@@ -355,7 +393,7 @@ fn lock_log() -> AppResult<MutexGuard<'static, ()>> {
         .map_err(|_| AppError::message("log.lock_poisoned", "log write lock poisoned"))
 }
 
-fn rotate_log_file(log_directory: &Path, settings: &AppSettings) -> AppResult<()> {
+fn rotate_log_file(log_directory: &Path, settings: &LogSettings) -> AppResult<()> {
     let path = log_path(log_directory);
     let metadata = match fs::metadata(&path) {
         Ok(metadata) => metadata,
@@ -366,7 +404,7 @@ fn rotate_log_file(log_directory: &Path, settings: &AppSettings) -> AppResult<()
             );
         }
     };
-    if metadata.len() < u64::from(settings.log_rotation_size_mib) * 1024 * 1024 {
+    if metadata.len() < u64::from(settings.rotation_size_mib) * 1024 * 1024 {
         return Ok(());
     }
     let mut backups = Vec::new();
@@ -393,7 +431,7 @@ fn rotate_log_file(log_directory: &Path, settings: &AppSettings) -> AppResult<()
     // Descending moves preserve every retained generation before its source is replaced.
     backups.sort_by_key(|(index, _)| Reverse(*index));
     for (index, source) in backups {
-        if index >= settings.log_backup_count {
+        if index >= settings.backup_count {
             fs::remove_file(&source).map_err(|error| {
                 AppError::context("删除日志备份失败".to_string(), error.into()).at_path(&source)
             })?;
@@ -425,8 +463,11 @@ mod tests {
     #[cfg(test)]
     use crate::io;
     use crate::io::read_utf8_no_bom;
-    use crate::models::AppLogLevel;
+    use crate::models::{AppLogLevel, PersistedWorkspace};
+    use crate::services::workspace_persistence::save_workspace;
+    use crate::test_support;
     use crate::test_support::TestWorkspace;
+    use crate::test_support::work_counts;
     #[cfg(test)]
     use serde_json::Value;
     use std::collections::BTreeMap;
@@ -452,7 +493,7 @@ mod tests {
         fn single(directory: &Path, item: &AppLogEntry, settings: &AppSettings) {
             let _guard = lock_log().unwrap();
             io::ensure_file_appendable(&log_path(directory)).unwrap();
-            rotate_log_file(directory, settings).unwrap();
+            rotate_log_file(directory, &LogSettings::from(settings)).unwrap();
             OpenOptions::new()
                 .create(true)
                 .append(true)
@@ -482,7 +523,7 @@ mod tests {
                     }
                 } else {
                     for items in entries.chunks(64) {
-                        append_logs(&dir, items, &settings).unwrap();
+                        append_logs(&dir, items, &LogSettings::from(&settings)).unwrap();
                     }
                 }
                 let ms = start.elapsed().as_secs_f64() * 1000.0;
@@ -511,14 +552,18 @@ mod tests {
         let records = vec![entry("first"), entry("second")];
         state
             .write("window-a", records.len(), || {
-                append_logs(&dir.join("unavailable"), &records, &AppSettings::default())
+                append_logs(
+                    &dir.join("unavailable"),
+                    &records,
+                    &LogSettings::from(&AppSettings::default()),
+                )
             })
             .unwrap_err();
         assert!(state.last_error.as_ref().unwrap().contains("不可用"));
-        state.settings = Some(AppSettings {
+        state.settings = Some(LogSettings::from(&AppSettings {
             log_level: AppLogLevel::Debug,
             ..AppSettings::default()
-        });
+        }));
         let mut executed = false;
         state
             .write("window-b", 3, || {
@@ -531,7 +576,7 @@ mod tests {
         let mut fresh = LogState::default();
         fresh
             .write("window-a", records.len(), || {
-                append_logs(&dir, &records, &AppSettings::default())
+                append_logs(&dir, &records, &LogSettings::from(&AppSettings::default()))
             })
             .unwrap();
         assert!(fresh.last_error.is_none());
@@ -556,7 +601,12 @@ mod tests {
             ("sequence".to_string(), "1".to_string()),
             ("window".to_string(), "fixture".to_string()),
         ]));
-        append_logs(&dir, &[first, entry("second")], &AppSettings::default()).unwrap();
+        append_logs(
+            &dir,
+            &[first, entry("second")],
+            &LogSettings::from(&AppSettings::default()),
+        )
+        .unwrap();
         let text = read_utf8_no_bom(&log_path(&dir)).unwrap();
         assert_eq!(text.lines().count(), 2);
         assert!(text.starts_with("[2024-01-01T00:00:00.000Z] [info] [fixture  code] first message | path=fixture path sequence=1 window=fixture"));
@@ -802,5 +852,58 @@ mod tests {
         let status = log_status(&dir).unwrap();
         assert_eq!(status.size_bytes, 0);
         dir.close().unwrap();
+    }
+
+    #[test]
+    fn runtime_log_settings_use_four_fields_and_no_workspace_reads() {
+        if test_support::isolated_test() {
+            return;
+        }
+        let app_data = TestWorkspace::new("log_runtime_workspace_reads");
+        save_workspace(&app_data, &PersistedWorkspace::default()).unwrap();
+        let workspace_path = app_data.join("workspace.json");
+        let directory = app_data.outer().join("custom_logs");
+        fs::create_dir(&directory).unwrap();
+        let settings = AppSettings {
+            log_directory: Some(directory.to_string_lossy().into_owned()),
+            log_level: AppLogLevel::Debug,
+            log_rotation_size_mib: 1,
+            log_backup_count: 3,
+            ..Default::default()
+        };
+        configure_runtime(&settings).unwrap();
+        let captured = runtime().unwrap().settings.clone().unwrap();
+        assert_eq!(captured.directory.as_deref(), Some(directory.as_path()));
+        assert_eq!(captured.level, AppLogLevel::Debug);
+        assert_eq!(captured.rotation_size_mib, 1);
+        assert_eq!(captured.backup_count, 3);
+        let before = work_counts::count("read", &workspace_path);
+        write_utf8_no_bom(&log_path(&directory), &"x".repeat(1024 * 1024)).unwrap();
+        append_configured_logs(&app_data, &[entry("captured runtime")], &captured).unwrap();
+        assert!(directory.join(format!("{LOG_FILE}.1")).is_file());
+        assert!(log_status(&directory).unwrap().size_bytes > 0);
+        clear_log_file(&directory).unwrap();
+        assert_eq!(log_status(&directory).unwrap().size_bytes, 0);
+        assert_eq!(work_counts::count("read", &workspace_path) - before, 0);
+        configure_runtime(&AppSettings::default()).unwrap();
+        let default_settings = runtime().unwrap().settings.clone().unwrap();
+        assert!(default_settings.directory.is_none());
+        let before = work_counts::count("read", &workspace_path);
+        append_configured_logs(&app_data, &[entry("default runtime")], &default_settings).unwrap();
+        let default_directory = configured_log_directory(&app_data, &default_settings);
+        assert_eq!(default_directory, app_data.as_path());
+        assert!(log_status(&default_directory).unwrap().size_bytes > 0);
+        clear_log_file(&default_directory).unwrap();
+        assert_eq!(work_counts::count("read", &workspace_path) - before, 0);
+        assert_eq!(default_settings.level, AppSettings::default().log_level);
+        assert_eq!(
+            default_settings.rotation_size_mib,
+            AppSettings::default().log_rotation_size_mib
+        );
+        assert_eq!(
+            default_settings.backup_count,
+            AppSettings::default().log_backup_count
+        );
+        app_data.close().unwrap();
     }
 }

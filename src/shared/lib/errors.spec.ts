@@ -16,6 +16,19 @@ const diagnostic = {
 };
 
 describe('error diagnostic projections', () => {
+  it.each([
+    ['log.dir_inside_mod', '日志目录不能位于某个 Mod 内部'],
+    ['log.dir_inside_workspace', '日志目录不能位于已保存工作区的根目录内'],
+  ])('keeps log-directory copy and physical location for %s', (code, copy) => {
+    const error = {
+      code: code!,
+      message: 'Raw directory boundary detail',
+      location: { path: 'D:/fixture/logs', line: null, column: null },
+    };
+    expect(formatError(error)).toBe(copy);
+    expect(errorDiagnosticOf(error)).toEqual(error);
+    expect(extractFileReferenceFromError(error)).toMatchObject({ path: error.location.path, message: copy });
+  });
   it.each(['constructor', '__proto__', 'toString'])('keeps an unmapped code %s as its raw diagnostic', (code) => {
     expect(formatError({ code, message: 'Raw unknown detail', location: null })).toBe('Raw unknown detail');
   });

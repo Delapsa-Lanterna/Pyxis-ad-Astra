@@ -1,10 +1,8 @@
 use crate::errors::{AppError, AppResult};
-use crate::io::{
-    FsRootBoundary, ensure_file_appendable, path_belongs_to_root, read_utf8_no_bom,
-    validate_safe_absolute_path, write_utf8_no_bom,
-};
-use crate::models::{AppSettings, CacheLimits, LOG_FILE, SettingsSnapshot};
-use crate::services::workspace_persistence;
+use crate::io::{FsRootBoundary, read_utf8_no_bom, validate_safe_absolute_path, write_utf8_no_bom};
+use crate::models::{AppSettings, CacheLimits, SettingsSnapshot};
+#[cfg(test)]
+use crate::services::app_lifecycle::resolve_existing_log_directory;
 use crate::{app_data_dir, diagnostics, parsers};
 use serde_json::{Value, json};
 use std::fs;
@@ -39,13 +37,15 @@ pub fn starsector_root() -> AppResult<Option<String>> {
 
 pub fn read_settings(
     app: &AppHandle,
+    resolve_log_directory: impl FnOnce(&Path, &str) -> AppResult<PathBuf>,
     apply_runtime: impl FnOnce(&AppSettings) -> AppResult<bool>,
 ) -> AppResult<SettingsSnapshot> {
     read_settings_with(
         || {
-            Ok(load_settings_report(&app_data_dir::data_directory(
-                app.clone(),
-            )?))
+            Ok(load_settings_report(
+                &app_data_dir::data_directory(app.clone())?,
+                resolve_log_directory,
+            ))
         },
         apply_runtime,
         |snapshot| app.emit("app-settings-changed", snapshot),
@@ -75,15 +75,6 @@ fn read_settings_with(
     });
     Ok(snapshot)
 }
-fn commit_settings(
-    app: &AppHandle,
-    value: AppSettings,
-    apply_runtime: impl FnOnce(&AppSettings) -> AppResult<bool>,
-) -> AppResult<SettingsSnapshot> {
-    commit_snapshot(value, apply_runtime, |snapshot| {
-        app.emit("app-settings-changed", snapshot)
-    })
-}
 
 fn commit_snapshot(
     value: AppSettings,
@@ -110,8 +101,27 @@ fn commit_snapshot(
 pub fn save_settings_snapshot(
     app: &AppHandle,
     window: &str,
-    mut settings: AppSettings,
+    settings: AppSettings,
+    prepare_directory: impl FnOnce(&Path, &str) -> AppResult<PathBuf>,
     apply_runtime: impl FnOnce(&AppSettings) -> AppResult<bool>,
+) -> AppResult<SettingsSnapshot> {
+    save_settings_with(
+        window,
+        || app_data_dir::data_directory(app.clone()),
+        settings,
+        prepare_directory,
+        apply_runtime,
+        |snapshot| app.emit("app-settings-changed", snapshot),
+    )
+}
+
+fn save_settings_with(
+    window: &str,
+    app_data: impl FnOnce() -> AppResult<PathBuf>,
+    mut settings: AppSettings,
+    prepare_directory: impl FnOnce(&Path, &str) -> AppResult<PathBuf>,
+    apply_runtime: impl FnOnce(&AppSettings) -> AppResult<bool>,
+    notify: impl FnOnce(&SettingsSnapshot) -> Result<()>,
 ) -> AppResult<SettingsSnapshot> {
     if window != "main" {
         return Err(AppError::message(
@@ -122,10 +132,13 @@ pub fn save_settings_snapshot(
     let _guard = SETTINGS_WRITE_LOCK
         .lock()
         .map_err(|_| AppError::message("settings.lock_poisoned", "settings write lock poisoned"))?;
-    let app_data = app_data_dir::data_directory(app.clone())?;
-    prepare_log_directory(&app_data, &mut settings)?;
+    let app_data = app_data()?;
+    if let Some(directory) = settings.log_directory.as_deref() {
+        let canonical = prepare_directory(&app_data, directory)?;
+        settings.log_directory = Some(canonical.to_string_lossy().into_owned());
+    }
     save_settings(&app_data, &settings)?;
-    commit_settings(app, settings, apply_runtime)
+    commit_snapshot(settings, apply_runtime, notify)
 }
 pub fn ensure_core_editing_allowed(mod_root: &str) -> AppResult<()> {
     let boundary = FsRootBoundary::new(Path::new(mod_root), "mod root")?;
@@ -147,10 +160,13 @@ pub fn ensure_core_editing_allowed(mod_root: &str) -> AppResult<()> {
 
 #[cfg(test)]
 pub fn load_settings(app_data_dir: &Path) -> AppResult<AppSettings> {
-    Ok(load_settings_report(app_data_dir).0)
+    Ok(load_settings_report(app_data_dir, resolve_existing_log_directory).0)
 }
 
-fn load_settings_report(app_data_dir: &Path) -> (AppSettings, Vec<String>) {
+fn load_settings_report(
+    app_data_dir: &Path,
+    resolve_log_directory: impl FnOnce(&Path, &str) -> AppResult<PathBuf>,
+) -> (AppSettings, Vec<String>) {
     let path = settings_path(app_data_dir);
     if !path.exists() {
         return (AppSettings::default(), Vec::new());
@@ -171,11 +187,16 @@ fn load_settings_report(app_data_dir: &Path) -> (AppSettings, Vec<String>) {
             AppSettings::default()
         }
     };
-    if let Some(directory) = &settings.log_directory
-        && let Err(error) = resolve_saved_log_directory(app_data_dir, directory)
-    {
-        diagnostics.push(format!("/logDirectory: {error}"));
-        settings.log_directory = None;
+    if let Some(directory) = &settings.log_directory {
+        match resolve_log_directory(app_data_dir, directory) {
+            Ok(canonical) => {
+                settings.log_directory = Some(canonical.to_string_lossy().into_owned())
+            }
+            Err(error) => {
+                diagnostics.push(format!("/logDirectory: {error}"));
+                settings.log_directory = None;
+            }
+        }
     }
     let diagnostics = diagnostics
         .into_iter()
@@ -326,112 +347,6 @@ fn validate_settings(settings: &AppSettings) -> AppResult<()> {
     Ok(())
 }
 
-#[cfg(test)]
-pub fn log_output_directory(app_data_dir: &Path, settings: &AppSettings) -> AppResult<PathBuf> {
-    match &settings.log_directory {
-        Some(directory) => resolve_saved_log_directory(app_data_dir, directory),
-        None => Ok(app_data_dir.to_path_buf()),
-    }
-}
-
-fn prepare_log_directory(app_data_dir: &Path, settings: &mut AppSettings) -> AppResult<()> {
-    let Some(directory) = settings.log_directory.as_deref() else {
-        return Ok(());
-    };
-    let canonical = prepare_log_directory_for_save(app_data_dir, directory)?;
-    settings.log_directory = Some(canonical.to_string_lossy().to_string());
-    Ok(())
-}
-
-fn prepare_log_directory_for_save(app_data_dir: &Path, directory: &str) -> AppResult<PathBuf> {
-    let (requested, _) = check_log_directory_boundary(app_data_dir, directory)?;
-    fs::create_dir_all(&requested).map_err(|error| {
-        AppError::context(
-            format!("创建日志目录失败 ({})", requested.display()),
-            error.into(),
-        )
-    })?;
-    let canonical = FsRootBoundary::new(&requested, "log directory")?
-        .root()
-        .to_path_buf();
-    reject_log_directory_boundary(app_data_dir, &canonical)?;
-    ensure_file_appendable(&canonical.join(LOG_FILE))?;
-    Ok(canonical)
-}
-
-fn resolve_saved_log_directory(app_data_dir: &Path, directory: &str) -> AppResult<PathBuf> {
-    let (requested, _) = check_log_directory_boundary(app_data_dir, directory)?;
-    if !requested.is_dir() {
-        return Err(AppError::message(
-            "log.dir_unavailable",
-            format!(
-                "configured log directory is unavailable: {}",
-                requested.display()
-            ),
-        ));
-    }
-    let canonical = FsRootBoundary::new(&requested, "log directory")?
-        .root()
-        .to_path_buf();
-    reject_log_directory_boundary(app_data_dir, &canonical)?;
-    Ok(canonical)
-}
-
-fn check_log_directory_boundary(
-    app_data_dir: &Path,
-    directory: &str,
-) -> AppResult<(PathBuf, PathBuf)> {
-    let requested = Path::new(directory);
-    validate_safe_absolute_path(requested, "log directory")?;
-    if requested
-        .file_name()
-        .is_some_and(|name| name.eq_ignore_ascii_case(LOG_FILE))
-    {
-        return Err(AppError::message(
-            "log.dir_is_log_file",
-            format!("log directory must not include the log file name: {directory}"),
-        ));
-    }
-    let existing_parent = requested
-        .ancestors()
-        .find(|candidate| candidate.exists())
-        .ok_or_else(|| {
-            AppError::message(
-                "log.dir_no_existing_parent",
-                format!("log directory has no existing parent: {directory}"),
-            )
-        })?;
-    let parent_boundary = FsRootBoundary::new(existing_parent, "log directory")?;
-    let suffix = requested.strip_prefix(existing_parent).map_err(|error| {
-        AppError::message(
-            "path.relative_failed",
-            format!(
-                "log directory cannot be related to existing parent ({}): {error}",
-                requested.display()
-            ),
-        )
-    })?;
-    let canonical = parent_boundary.root().join(suffix);
-    reject_log_directory_boundary(app_data_dir, &canonical)?;
-    Ok((requested.to_path_buf(), canonical))
-}
-
-fn reject_log_directory_boundary(app_data_dir: &Path, canonical: &Path) -> AppResult<()> {
-    let app_data = FsRootBoundary::new(app_data_dir, "app data directory")?
-        .root()
-        .to_path_buf();
-    if path_belongs_to_root(canonical, &app_data) {
-        return Err(AppError::message(
-            "log.dir_inside_app_data",
-            format!(
-                "custom log directory must not be inside app data: {}",
-                canonical.display()
-            ),
-        ));
-    }
-    workspace_persistence::reject_mod_or_workspace_directory(app_data_dir, canonical)
-}
-
 pub fn settings_path(app_data_dir: &Path) -> PathBuf {
     app_data_dir.join(SETTINGS_FILE)
 }
@@ -440,9 +355,13 @@ pub fn settings_path(app_data_dir: &Path) -> PathBuf {
 mod tests {
     use super::*;
     #[cfg(test)]
-    use crate::models::{AccentPreset, AppLogLevel, AppSettings, AppTheme, EditMode};
+    use crate::models::{
+        AccentPreset, AppLogLevel, AppSettings, AppTheme, EditMode, PersistedWorkspace,
+    };
+    use crate::services::app_lifecycle::prepare_log_directory;
     #[cfg(test)]
     use crate::services::app_settings::{load_settings, save_settings};
+    use crate::services::workspace_persistence::save_workspace;
     #[cfg(test)]
     use crate::test_support;
     use crate::test_support::TestWorkspace;
@@ -464,6 +383,7 @@ mod tests {
 
         let dir = TestWorkspace::new("settings_snapshot_work");
         save_settings(&dir, &AppSettings::default()).unwrap();
+        save_workspace(&dir, &PersistedWorkspace::default()).unwrap();
         let loads = AtomicUsize::new(0);
         let applies = AtomicUsize::new(0);
         let notifications = AtomicUsize::new(0);
@@ -471,7 +391,7 @@ mod tests {
             read_settings_with(
                 || {
                     loads.fetch_add(1, Ordering::Relaxed);
-                    Ok(load_settings_report(&dir))
+                    Ok(load_settings_report(&dir, resolve_existing_log_directory))
                 },
                 |_| {
                     applies.fetch_add(1, Ordering::Relaxed);
@@ -509,6 +429,7 @@ mod tests {
         assert_eq!(applies.load(Ordering::Relaxed), 1);
         assert_eq!(notifications.load(Ordering::Relaxed), 1);
         assert_eq!(work_counts::count("read", &settings_path(&dir)), 1);
+        assert_eq!(work_counts::count("read", &dir.join("workspace.json")), 0);
         dir.close().unwrap();
     }
     #[test]
@@ -647,70 +568,6 @@ mod tests {
         dir.close().unwrap();
     }
 
-    #[test]
-    fn custom_log_directory_is_created_and_canonicalized() {
-        let app_data = TestWorkspace::new("settings_log_app_data");
-        let log_directory = app_data.outer().join("custom_logs");
-        let mut settings = AppSettings {
-            log_directory: Some(log_directory.to_string_lossy().to_string()),
-            ..AppSettings::default()
-        };
-
-        prepare_log_directory(&app_data, &mut settings).unwrap();
-        let configured = Path::new(settings.log_directory.as_deref().unwrap());
-        assert!(configured.is_absolute());
-        app_data.close().unwrap();
-    }
-
-    #[test]
-    fn custom_log_directory_rejects_mod_and_app_data_locations() {
-        let app_data = TestWorkspace::new("settings_log_reject_app_data");
-        let mod_root = app_data.outer().join("mod");
-        fs::create_dir_all(&mod_root).unwrap();
-        write_utf8_no_bom(&mod_root.join("mod_info.json"), "{}").unwrap();
-
-        let mod_error =
-            prepare_log_directory_for_save(&app_data, &mod_root.join("logs").to_string_lossy())
-                .unwrap_err();
-        let app_data_error =
-            prepare_log_directory_for_save(&app_data, &app_data.join("logs").to_string_lossy())
-                .unwrap_err();
-
-        assert!(!mod_root.join("logs").exists());
-        assert!(mod_error.to_string().contains("inside a Mod"));
-        assert!(app_data_error.to_string().contains("inside app data"));
-        app_data.close().unwrap();
-    }
-
-    #[test]
-    fn configured_custom_log_directory_does_not_recreate_a_missing_directory() {
-        let app_data = TestWorkspace::new("settings_log_missing_app_data");
-        let log_directory = app_data.outer().join("missing_logs");
-        let mut settings = AppSettings {
-            log_directory: Some(log_directory.to_string_lossy().to_string()),
-            ..AppSettings::default()
-        };
-
-        prepare_log_directory(&app_data, &mut settings).unwrap();
-        fs::remove_dir_all(&log_directory).unwrap();
-        let result = log_output_directory(&app_data, &settings);
-
-        assert!(result.is_err());
-        assert!(!log_directory.exists());
-        app_data.close().unwrap();
-    }
-
-    #[test]
-    fn custom_log_directory_rejects_a_complete_log_file_path() {
-        let app_data = TestWorkspace::new("settings_log_file_path_app_data");
-        let file_path = app_data.outer().join(LOG_FILE);
-        let result = prepare_log_directory_for_save(&app_data, &file_path.to_string_lossy());
-
-        assert!(result.is_err());
-        assert!(!file_path.exists());
-        app_data.close().unwrap();
-    }
-
     fn setting_paths(value: &Value, pointer: &str) -> Vec<String> {
         let mut paths = vec![pointer.to_string()];
         if let Some(fields) = value.as_object() {
@@ -791,7 +648,7 @@ mod tests {
         }
         source["fileHistoryLimit"] = serde_json::json!(42);
         write_utf8_no_bom(&settings_path(&dir), &source.to_string()).unwrap();
-        let (loaded, diagnostics) = load_settings_report(&dir);
+        let (loaded, diagnostics) = load_settings_report(&dir, resolve_existing_log_directory);
         let expected = AppSettings {
             file_history_limit: 42,
             ..AppSettings::default()
@@ -819,7 +676,8 @@ mod tests {
         assert_eq!(load_settings(&dir).unwrap(), AppSettings::default());
         for text in ["{", "", "null", "[]", "42", "{\"cacheLimits\":null}"] {
             write_utf8_no_bom(&settings_path(&dir), text).unwrap();
-            let (settings, diagnostics) = load_settings_report(&dir);
+            let (settings, diagnostics) =
+                load_settings_report(&dir, resolve_existing_log_directory);
             assert_eq!(settings, AppSettings::default());
             assert!(!diagnostics.is_empty());
         }
@@ -827,7 +685,7 @@ mod tests {
         assert_eq!(load_settings(&dir).unwrap(), AppSettings::default());
         let wire = serde_json::json!({"logDirectory": dir.join("unavailable").to_string_lossy(), "theme": "dark"});
         write_utf8_no_bom(&settings_path(&dir), &wire.to_string()).unwrap();
-        let (settings, diagnostics) = load_settings_report(&dir);
+        let (settings, diagnostics) = load_settings_report(&dir, resolve_existing_log_directory);
         assert_eq!(settings.theme, Some(AppTheme::Dark));
         assert_eq!(settings.log_directory, None);
         assert!(
@@ -839,5 +697,159 @@ mod tests {
         fs::create_dir(settings_path(&dir)).unwrap();
         assert_eq!(load_settings(&dir).unwrap(), AppSettings::default());
         dir.close().unwrap();
+    }
+
+    #[test]
+    fn settings_save_workspace_reads_follow_directory_choice() {
+        if test_support::isolated_test() {
+            return;
+        }
+        let app_data = TestWorkspace::new("settings_save_directory_reads");
+        save_workspace(&app_data, &PersistedWorkspace::default()).unwrap();
+        let workspace_path = app_data.join("workspace.json");
+        let requested = app_data.outer().join("custom_logs");
+        for custom in [false, true, false, true] {
+            let before = work_counts::count("read", &workspace_path);
+            let snapshot = save_settings_with(
+                "main",
+                || Ok(app_data.to_path_buf()),
+                AppSettings {
+                    log_directory: custom.then(|| requested.to_string_lossy().into_owned()),
+                    ..Default::default()
+                },
+                prepare_log_directory,
+                |_| Ok(false),
+                |_| Ok(()),
+            )
+            .unwrap();
+            assert_eq!(
+                work_counts::count("read", &workspace_path) - before,
+                usize::from(custom)
+            );
+            let expected = custom.then(|| {
+                requested
+                    .canonicalize()
+                    .unwrap()
+                    .to_string_lossy()
+                    .into_owned()
+            });
+            assert_eq!(snapshot.value.log_directory, expected);
+            let saved: AppSettings =
+                serde_json::from_str(&fs::read_to_string(settings_path(&app_data)).unwrap())
+                    .unwrap();
+            assert_eq!(saved.log_directory, expected);
+        }
+        app_data.close().unwrap();
+    }
+
+    #[test]
+    fn concurrent_settings_reads_resolve_custom_directory_once() {
+        if test_support::isolated_test() {
+            return;
+        }
+        let app_data = TestWorkspace::new("settings_custom_directory_reads");
+        save_workspace(&app_data, &PersistedWorkspace::default()).unwrap();
+        let requested = app_data.outer().join("custom_logs");
+        fs::create_dir(&requested).unwrap();
+        save_settings(
+            &app_data,
+            &AppSettings {
+                log_directory: Some(requested.to_string_lossy().into_owned()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        let barrier = Barrier::new(8);
+        let workspace_path = app_data.join("workspace.json");
+        let before = work_counts::count("read", &workspace_path);
+        let read = || {
+            read_settings_with(
+                || {
+                    Ok(load_settings_report(
+                        &app_data,
+                        resolve_existing_log_directory,
+                    ))
+                },
+                |_| Ok(false),
+                |_| Ok(()),
+            )
+            .unwrap()
+        };
+        let snapshots = thread::scope(|scope| {
+            let workers = (0..8)
+                .map(|_| {
+                    scope.spawn(|| {
+                        barrier.wait();
+                        read()
+                    })
+                })
+                .collect::<Vec<_>>();
+            workers
+                .into_iter()
+                .map(|task| task.join().unwrap())
+                .collect::<Vec<_>>()
+        });
+        assert_eq!(work_counts::count("read", &workspace_path) - before, 1);
+        assert_eq!(work_counts::count("read", &settings_path(&app_data)), 1);
+        let expected = requested
+            .canonicalize()
+            .unwrap()
+            .to_string_lossy()
+            .into_owned();
+        for snapshot in snapshots {
+            assert_eq!(
+                snapshot.value.log_directory.as_deref(),
+                Some(expected.as_str())
+            );
+        }
+        let before = work_counts::count("read", &workspace_path);
+        assert_eq!(
+            read().value.log_directory.as_deref(),
+            Some(expected.as_str())
+        );
+        assert_eq!(work_counts::count("read", &workspace_path) - before, 0);
+        app_data.close().unwrap();
+    }
+
+    #[test]
+    fn custom_directory_recovery_uses_canonical_result_and_scope_error() {
+        let app_data = TestWorkspace::new("settings_directory_recovery_scope");
+        let requested = app_data.outer().join("custom_logs");
+        fs::create_dir(&requested).unwrap();
+        save_workspace(&app_data, &PersistedWorkspace::default()).unwrap();
+        let settings = AppSettings {
+            log_directory: Some(requested.to_string_lossy().into_owned()),
+            theme: Some(AppTheme::Dark),
+            ..Default::default()
+        };
+        save_settings(&app_data, &settings).unwrap();
+        let workspace_path = app_data.join("workspace.json");
+        let before = work_counts::count("read", &workspace_path);
+        let (loaded, diagnostics) = load_settings_report(&app_data, resolve_existing_log_directory);
+        assert_eq!(
+            loaded.log_directory,
+            Some(
+                requested
+                    .canonicalize()
+                    .unwrap()
+                    .to_string_lossy()
+                    .into_owned()
+            )
+        );
+        assert!(diagnostics.is_empty());
+        assert_eq!(work_counts::count("read", &workspace_path) - before, 1);
+        write_utf8_no_bom(&workspace_path, "{").unwrap();
+        let before = work_counts::count("read", &workspace_path);
+        let (loaded, diagnostics) = load_settings_report(&app_data, resolve_existing_log_directory);
+        assert!(loaded.log_directory.is_none());
+        assert_eq!(loaded.theme, settings.theme);
+        assert_eq!(diagnostics.len(), 1);
+        assert!(diagnostics[0].contains("/logDirectory"));
+        assert_eq!(work_counts::count("read", &workspace_path) - before, 1);
+        assert_eq!(
+            fs::read_to_string(settings_path(&app_data)).unwrap(),
+            serde_json::to_string_pretty(&settings).unwrap()
+        );
+        app_data.close().unwrap();
     }
 }

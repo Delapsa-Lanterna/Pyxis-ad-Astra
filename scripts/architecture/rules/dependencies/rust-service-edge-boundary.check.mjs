@@ -84,3 +84,22 @@ test('session foundations consume their own release primitives', () => {
     assert.equal(diagnostic.target, 'crate::services::' + target + '::release_session');
   }
 });
+
+test('log directory assembly captures workspace roots at its actual owner', () => {
+  const allowed = architectureFixtures({
+    'src-tauri/src/services/app_lifecycle.rs':
+      'fn prepare() { crate::services::workspace_persistence::load_persisted_workspace_roots(root); crate::services::app_log::prepare_log_directory(root, path, roots); }',
+  });
+  assert.deepEqual(rustServiceEdgeBoundaryRule.check(allowed), []);
+  for (const consumer of ['app_settings', 'app_log/directory', 'app_log']) {
+    const source = 'src-tauri/src/services/' + consumer + '.rs';
+    const context = architectureFixtures({
+      [source]: '\nfn prepare() { crate::services::workspace_persistence::load_persisted_workspace_roots(root); }',
+    });
+    const [diagnostic] = rustServiceEdgeBoundaryRule.check(context);
+    assert.ok(diagnostic);
+    assert.equal(diagnostic.file, source);
+    assert.equal(diagnostic.line, 2);
+    assert.equal(diagnostic.target, 'crate::services::workspace_persistence::load_persisted_workspace_roots');
+  }
+});
