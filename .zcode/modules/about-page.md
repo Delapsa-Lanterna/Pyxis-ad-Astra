@@ -13,12 +13,14 @@
 
 ### 消费
 
+- `src/env.d.ts`：构建版本常量的公共类型声明。
 - `src/shared/ui/FieldRow.vue`：只读信息字段的共同展示入口。
 
 ### 装配
 
 - `src/app/AppContent.vue`：挂载入口，按当前视图挂载关于页面。
 - `src/app/TitleBar.vue`：标题栏入口，触发 `showAbout` 导航。
+- `vite.config.ts`：从 package.json 注入构建版本常量。
 
 ### 关联
 
@@ -49,7 +51,7 @@
 ## 规范
 
 - Markdown 渲染必须消费构建时内联内容，并必须保留语义节点。
-- changelog 必须由构建入口内联，版本元信息必须由页面的静态模型提供。
+- changelog 必须由构建入口内联，版本元信息必须消费从 package.json 注入的 `__APP_VERSION__`。
 - 信息字段必须显式提供名称，正文渲染必须保留内联内容的语义节点。
 - 启动恢复完成后的视图必须为工作区总览。
 - 渲染输入仅限仓库内联 changelog，严禁接收运行时字符串进入 `v-html`。

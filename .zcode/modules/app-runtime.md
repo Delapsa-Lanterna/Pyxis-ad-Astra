@@ -18,6 +18,7 @@
 - `package-lock.json`：前端依赖的固定解析结果。
 - `package.json`：应用依赖及正式开发、检查和构建命令。
 - `rust-toolchain.toml`：Rust 工具链版本。
+- `scripts/sync-version.mjs`：从 package.json 同步 npm 锁文件与 Rust 主程序版本。
 - `showcase/`：应用展示图标资产。
 - `src-tauri/Cargo.lock`：原生依赖的固定解析结果。
 - `src-tauri/Cargo.toml`：原生依赖、编译特性与 crate 配置。
@@ -106,6 +107,12 @@
 
 ## 链路
 
+### 构建版本同步
+
+1. build、build:demo 与 npm version 执行同一版本同步脚本，读取 package.json 的 version。
+2. 同步脚本准备 npm 锁文件两处版本及 Rust 主程序清单、锁文件版本，并写入变化的文件。
+3. Vite 将 package.json 版本注入 `__APP_VERSION__`，Tauri 配置经 `../package.json` 读取应用版本，Rust 经 `CARGO_PKG_VERSION` 读取主程序版本。
+
 ### 主窗口启动
 
 1. main.ts 经 IPC 读取 bootstrap，main 种类进入主窗口装配。
@@ -141,6 +148,7 @@
 
 ## 规范
 
+- 应用版本必须以 package.json 的 version 为唯一维护来源，构建与 npm version 必须同步 npm 锁文件及 Rust 主程序版本。
 - 关闭确认必须按实际关闭范围筛选未保存参与者并展开对象及全部路径；退出、关闭与 Esc 必须保留原编辑状态并沿所属关闭恢复流程交还焦点。
 - 应用阶段动作与参与者工厂必须由应用装配提供；窗口内容必须经窗口登记能力接入并随所属挂载释放。
 - 启动入口必须在页面释放时结束接纳权，上下文、窗口根与设置、日志等待后的挂载、显示及失败呈现必须服从该寿命。

@@ -14,7 +14,7 @@
           ><strong class="ui-emphasis ui-text-normal ui-layout-shrink ui-text-wrap">星界罗盘 [Pyxis ad Astra]</strong></FieldRow
         >
         <FieldRow readonly label="当前版本"
-          ><strong class="ui-emphasis ui-text-normal ui-layout-shrink ui-text-wrap">0.1.0</strong></FieldRow
+          ><strong class="ui-emphasis ui-text-normal ui-layout-shrink ui-text-wrap">{{ appVersion }}</strong></FieldRow
         >
         <FieldRow readonly label="作者"
           ><strong class="ui-emphasis ui-text-normal ui-layout-shrink ui-text-wrap">cake、AnyIDElse</strong></FieldRow
@@ -31,11 +31,13 @@
 </template>
 
 <script setup lang="ts">
+/* global __APP_VERSION__: readonly */
 import FieldRow from '@/shared/ui/FieldRow.vue';
 import { computed } from 'vue';
 import { marked } from 'marked';
 import changelogRaw from '../../../CHANGELOG.md?raw';
 
+const appVersion = __APP_VERSION__;
 const changelogHtml = computed(() =>
   marked.parse(changelogRaw, { async: false }).replace(/<([a-z][a-z0-9]*)(?=[\s>])/g, '<$1 class="rich-text-node rich-text-$1"'),
 );
