@@ -147,20 +147,20 @@ export function exportedFunctionNames(file) {
   return file.exportedFunctions;
 }
 
-/** @param {ResolvedImport} edge @param {ReadonlyMap<string, import('./context.mjs').ArchitectureFile>} nodes @param {(rel: string, name: string) => boolean} terminal @param {(rel: string) => string[]} [externalNames] @returns {ExportOrigin[]} */
-export function dependencyOrigins(edge, nodes, terminal, externalNames = () => []) {
+/** @param {ResolvedImport} edge @param {ReadonlyMap<string, import('./context.mjs').ArchitectureFile>} nodes @param {(rel: string, name: string) => boolean} terminal @param {(rel: string) => string[]} [externalNames] @param {boolean} [includeTypes] @returns {ExportOrigin[]} */
+export function dependencyOrigins(edge, nodes, terminal, externalNames = () => [], includeTypes = false) {
   /** @type {Map<string, ExportOrigin>} */
   const origins = new Map();
   for (const binding of edge.bindings) {
-    if (binding.typeOnly || binding.importedName === null) continue;
-    for (const origin of exportOrigins(edge.resolved, binding.importedName, nodes, new Set(), terminal, externalNames))
+    if ((!includeTypes && binding.typeOnly) || binding.importedName === null) continue;
+    for (const origin of exportOrigins(edge.resolved, binding.importedName, nodes, new Set(), terminal, externalNames, includeTypes))
       origins.set(JSON.stringify(origin), origin);
   }
   return [...origins.values()];
 }
 
-/** @param {string} rel @param {string} name @param {ReadonlyMap<string, import('./context.mjs').ArchitectureFile>} nodes @param {Set<string>} visiting @param {(rel: string, name: string) => boolean} terminal @param {(rel: string) => string[]} externalNames @returns {ExportOrigin[]} */
-function exportOrigins(rel, name, nodes, visiting, terminal, externalNames) {
+/** @param {string} rel @param {string} name @param {ReadonlyMap<string, import('./context.mjs').ArchitectureFile>} nodes @param {Set<string>} visiting @param {(rel: string, name: string) => boolean} terminal @param {(rel: string) => string[]} externalNames @param {boolean} includeTypes @returns {ExportOrigin[]} */
+function exportOrigins(rel, name, nodes, visiting, terminal, externalNames, includeTypes) {
   if (name !== '*' && terminal(rel, name)) return [{ rel, name }];
   const key = JSON.stringify([rel, name]);
   if (visiting.has(key)) return [];
@@ -168,17 +168,18 @@ function exportOrigins(rel, name, nodes, visiting, terminal, externalNames) {
   const file = nodes.get(rel);
   if (!file) return name === '*' ? externalNames(rel).map((name) => ({ rel, name })) : [{ rel, name }];
   if (name === '*')
-    return runtimeExportNames(rel, nodes, new Set(), externalNames).flatMap((exportedName) =>
-      exportOrigins(rel, exportedName, nodes, next, terminal, externalNames),
+    return exportNames(rel, nodes, new Set(), externalNames, includeTypes).flatMap((exportedName) =>
+      exportOrigins(rel, exportedName, nodes, next, terminal, externalNames, includeTypes),
     );
   /** @type {ExportOrigin[]} */
   const origins = [];
-  const explicit = file.exports.filter((binding) => !binding.typeOnly && binding.exportedName === name);
-  const declarations = explicit.length ? explicit : file.exports.filter((binding) => !binding.typeOnly && binding.exportedName === '*');
+  const exports = file.exports.filter((binding) => includeTypes || !binding.typeOnly);
+  const explicit = exports.filter((binding) => binding.exportedName === name);
+  const declarations = explicit.length ? explicit : exports.filter((binding) => binding.exportedName === '*');
   for (const declaration of declarations) {
     if (declaration.specifier) {
       const edge = file.dependencies.find(
-        (edge) => !edge.typeOnly && edge.bindings.some((binding) => binding.specifier === declaration.specifier),
+        (edge) => (includeTypes || !edge.typeOnly) && edge.bindings.some((binding) => binding.specifier === declaration.specifier),
       );
       if (edge)
         origins.push(
@@ -189,10 +190,17 @@ function exportOrigins(rel, name, nodes, visiting, terminal, externalNames) {
             next,
             terminal,
             externalNames,
+            includeTypes,
           ),
         );
     } else {
-      const imported = file.referenceBindings.get(declaration.localName);
+      const imported =
+        file.referenceBindings.get(declaration.localName) ??
+        (includeTypes
+          ? file.dependencies
+              .flatMap((edge) => edge.bindings.map((binding) => ({ edge, binding })))
+              .find(({ binding }) => binding.localName === declaration.localName)
+          : undefined);
       if (imported)
         origins.push(
           ...exportOrigins(
@@ -202,6 +210,7 @@ function exportOrigins(rel, name, nodes, visiting, terminal, externalNames) {
             next,
             terminal,
             externalNames,
+            includeTypes,
           ),
         );
       else origins.push({ rel, name: declaration.exportedName });
@@ -211,21 +220,23 @@ function exportOrigins(rel, name, nodes, visiting, terminal, externalNames) {
   return origins;
 }
 
-/** @param {string} rel @param {ReadonlyMap<string, import('./context.mjs').ArchitectureFile>} nodes @param {Set<string>} visiting @param {(rel: string) => string[]} externalNames @returns {string[]} */
-function runtimeExportNames(rel, nodes, visiting, externalNames) {
+/** @param {string} rel @param {ReadonlyMap<string, import('./context.mjs').ArchitectureFile>} nodes @param {Set<string>} visiting @param {(rel: string) => string[]} externalNames @param {boolean} includeTypes @returns {string[]} */
+function exportNames(rel, nodes, visiting, externalNames, includeTypes) {
   if (visiting.has(rel)) return [];
   const next = new Set(visiting).add(rel);
   const file = nodes.get(rel);
   if (!file) return externalNames(rel);
   const names = new Set(
-    file.exports.filter((binding) => !binding.typeOnly && binding.exportedName !== '*').map((binding) => binding.exportedName),
+    file.exports
+      .filter((binding) => (includeTypes || !binding.typeOnly) && binding.exportedName !== '*')
+      .map((binding) => binding.exportedName),
   );
-  for (const declaration of file.exports.filter((binding) => !binding.typeOnly && binding.exportedName === '*')) {
+  for (const declaration of file.exports.filter((binding) => (includeTypes || !binding.typeOnly) && binding.exportedName === '*')) {
     const edge = file.dependencies.find(
-      (edge) => !edge.typeOnly && edge.bindings.some((binding) => binding.specifier === declaration.specifier),
+      (edge) => (includeTypes || !edge.typeOnly) && edge.bindings.some((binding) => binding.specifier === declaration.specifier),
     );
     if (!edge) continue;
-    for (const name of runtimeExportNames(edge.resolved, nodes, next, externalNames)) if (name !== 'default') names.add(name);
+    for (const name of exportNames(edge.resolved, nodes, next, externalNames, includeTypes)) if (name !== 'default') names.add(name);
   }
   return [...names];
 }

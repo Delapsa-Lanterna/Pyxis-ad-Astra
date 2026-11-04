@@ -1,6 +1,7 @@
 import { defineRule } from '../../diagnostics.mjs';
 import { frontendDependencyFailure } from './frontend-policy.mjs';
 import { frontendFile, specFile, classifyFrontendPath } from '../../facts/classify.mjs';
+import { dependencyCycles } from '../../facts/dependency-cycles.mjs';
 
 export const frontendLayerBoundaryRule = defineRule(
   'frontend-layer-boundary',
@@ -26,33 +27,19 @@ export const frontendLayerBoundaryRule = defineRule(
       }
     }
     const modules = context.files.filter((file) => frontendFile(file.rel) && !specFile(file.rel));
-    const graph = new Map(
-      modules.map((file) => [
-        file.rel,
-        file.dependencies.filter((edge) => context.byPath.has(edge.resolved) && frontendFile(edge.resolved) && !specFile(edge.resolved)),
-      ]),
+    const edges = modules.flatMap((file) =>
+      file.dependencies
+        .filter((edge) => context.byPath.has(edge.resolved) && frontendFile(edge.resolved) && !specFile(edge.resolved))
+        .map((edge) => ({ source: file.rel, target: edge.resolved, file, edge })),
     );
-    const visited = new Set();
-    const active = new Set();
-    /** @param {string} rel @param {string[]} trail */
-    function visit(rel, trail) {
-      if (visited.has(rel)) return;
-      active.add(rel);
-      const file = context.byPath.get(rel);
-      if (!file) return;
-      for (const edge of /** @type {import('../../facts/imports.mjs').ResolvedImport[]} */ (graph.get(rel))) {
-        if (active.has(edge.resolved))
-          report(
-            file,
-            edge,
-            'frontend dependency cycle detected: ' + [...trail.slice(trail.indexOf(edge.resolved)), rel, edge.resolved].join(' -> '),
-            { target: edge.resolved, expected: 'acyclic frontend dependencies' },
-          );
-        else visit(edge.resolved, [...trail, rel]);
-      }
-      active.delete(rel);
-      visited.add(rel);
+    for (const cycle of dependencyCycles(edges)) {
+      const closing = /** @type {typeof edges[number]} */ (cycle.at(-1));
+      report(
+        closing.file,
+        closing.edge,
+        'frontend dependency cycle detected: ' + [...cycle.map((edge) => edge.source), closing.target].join(' -> '),
+        { target: closing.target, expected: 'acyclic frontend dependencies' },
+      );
     }
-    for (const rel of graph.keys()) visit(rel, []);
   },
 );

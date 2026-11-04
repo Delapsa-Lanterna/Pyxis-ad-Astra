@@ -1,5 +1,6 @@
 import { splitTopLevel } from './shared/rust-source.mjs';
 import { rustImportFacts } from './check-rust-imports.mjs';
+import { sourcePositions } from './shared/source-position.mjs';
 
 const technicalExports = new Set([
   'src-tauri/src/commands/mod.rs',
@@ -117,6 +118,44 @@ function isTestModule(scope) {
 function belongsToScope(scope, parent) {
   for (let current = /** @type {RustScope | null} */ (scope); current; current = current.parent) if (current === parent) return true;
   return false;
+}
+
+/** @param {RustModuleBoundaryContext} context */
+export function rustImportDependencies(context) {
+  /** @type {{file:string,target:string,offset:number,line:number,column:number,symbol:string}[]} */
+  const dependencies = [];
+  for (const source of context.sources.values()) {
+    const at = sourcePositions(source.text);
+    for (const entry of source.facts.uses) {
+      if (entry.exported || !entry.scope.module || isTestModule(entry.scope)) continue;
+      for (const item of rustUseItems(entry.body)) {
+        const target = resolveUseTarget(source.rel, entry.scope, item.path, context);
+        if (!target) continue;
+        const references = target.module
+          ? source.facts.paths.filter((reference) => reference.parts[0] === item.alias && belongsToScope(reference.scope, entry.scope))
+          : [];
+        const targets = references.length
+          ? references.flatMap((reference) => {
+              const parts = [...item.path, ...reference.parts.slice(1)];
+              for (let length = parts.length; length > item.path.length; length--) {
+                const used = resolveUseTarget(source.rel, entry.scope, parts.slice(0, length), context);
+                if (used) return [{ target: used, offset: reference.start }];
+              }
+              return [];
+            })
+          : [{ target, offset: entry.start }];
+        for (const resolved of targets)
+          dependencies.push({
+            file: source.rel,
+            target: resolved.target.file,
+            offset: resolved.offset,
+            ...at(resolved.offset),
+            symbol: item.path.join('::'),
+          });
+      }
+    }
+  }
+  return dependencies;
 }
 
 /** @param {import('./shared/files.mjs').SourceFile} file @param {RustModuleBoundaryContext} context */

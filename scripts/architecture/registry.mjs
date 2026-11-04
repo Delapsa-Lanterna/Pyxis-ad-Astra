@@ -1,4 +1,5 @@
 import { frontendLayerBoundaryRule } from './rules/dependencies/frontend-layer-boundary.mjs';
+import { moduleImportCycleRule } from './rules/dependencies/module-import-cycle.mjs';
 import { rustProjectLayerBoundaryRule } from './rules/dependencies/rust-project-layer-boundary.mjs';
 import { rustServiceEdgeBoundaryRule } from './rules/dependencies/rust-service-edge-boundary.mjs';
 import { sharedTypesBoundaryRule } from './rules/dependencies/shared-types-boundary.mjs';
@@ -35,6 +36,7 @@ import { ruleBoundaryRule } from './rules/meta/rule-boundary.mjs';
 
 export const rules = [
   frontendLayerBoundaryRule,
+  moduleImportCycleRule,
   rustProjectLayerBoundaryRule,
   rustServiceEdgeBoundaryRule,
   sharedTypesBoundaryRule,
