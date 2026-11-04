@@ -25,7 +25,8 @@ export function moduleFacts(text) {
 const MODULE_DIRECTORY = '.zcode/modules/';
 const MODULE_NAME = /^[a-z0-9]+(?:-[a-z0-9]+)*\.md$/;
 
-/** @param {readonly import('./context.mjs').ArchitectureFile[]} files @param {ReadonlySet<string>} paths */
+/** @param {readonly {rel: string, document: ModuleFacts}[]} files @param {ReadonlySet<string>} paths
+ * @returns {{descendants:Map<string,string[]>,index:Map<string,{title:string,line:number}>,shared:Set<string>,owners:Map<string,string>,ownershipReferences:{rel:string,file:string,line:number,path:string}[],failures:import('../../shared/frontend-source.mjs').SourceFailure[]}} */
 export function moduleMapFacts(files, paths) {
   /** @type {Map<string, string[]>} */
   const descendants = new Map();
@@ -49,12 +50,36 @@ export function moduleMapFacts(files, paths) {
       descendants,
       index: new Map(),
       shared: new Set(),
+      owners: new Map(),
+      ownershipReferences: [],
       failures: [{ line: 1, column: 1, message: 'module map index file is missing' }],
     };
-  return { descendants, index: readModuleIndex(map, report), shared: readSharedPaths(map, paths, report), failures };
+  const index = readModuleIndex(map, report);
+  const shared = readSharedPaths(map, paths, report);
+  const ownershipReferences = readOwnershipReferences(files, descendants);
+  const owners = new Map(ownershipReferences.filter(({ rel }) => !shared.has(rel)).map(({ rel, file }) => [rel, file]));
+  return { descendants, index, shared, owners, ownershipReferences, failures };
 }
 
-/** @param {import('./context.mjs').ArchitectureFile} map @param {ReadonlySet<string>} paths @param {(line: number, message: string) => void} report */
+/** @param {readonly {rel: string, document: ModuleFacts}[]} files @param {ReadonlyMap<string, string[]>} descendants */
+function readOwnershipReferences(files, descendants) {
+  return files.flatMap((file) =>
+    file.rel.startsWith(MODULE_DIRECTORY)
+      ? file.document.references.flatMap((reference) =>
+          reference.group === '拥有'
+            ? (descendants.get(reference.path.replace(/\/$/, '')) ?? []).map((rel) => ({
+                rel,
+                file: file.rel,
+                line: reference.line,
+                path: reference.path,
+              }))
+            : [],
+        )
+      : [],
+  );
+}
+
+/** @param {{rel: string, document: ModuleFacts}} map @param {ReadonlySet<string>} paths @param {(line: number, message: string) => void} report */
 function readSharedPaths(map, paths, report) {
   const shared = new Set([...paths].filter((path) => /(?:^|\/)shared\//.test(path)));
   let section = '',
@@ -88,7 +113,7 @@ function readSharedPaths(map, paths, report) {
   return shared;
 }
 
-/** @param {import('./context.mjs').ArchitectureFile} file @param {(line: number, message: string) => void} report @returns {Map<string, {title: string, line: number}>} */
+/** @param {{rel: string, document: ModuleFacts}} file @param {(line: number, message: string) => void} report @returns {Map<string, {title: string, line: number}>} */
 function readModuleIndex(file, report) {
   const lines = file.document.lines;
   const starts = lines.flatMap((line, index) => (line === '### 正式模块' ? [index] : []));

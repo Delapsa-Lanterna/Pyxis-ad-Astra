@@ -1,3 +1,4 @@
+import type { AppFeedback } from '@/shared/types';
 import { createPinia, setActivePinia } from 'pinia';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { enableAutoUnmount, flushPromises } from '@vue/test-utils';
@@ -11,8 +12,8 @@ const mocks = vi.hoisted(() => ({
     info: vi.fn(),
     warning: vi.fn(),
     error: vi.fn(),
-    confirmDanger: vi.fn(),
-    confirmWarning: vi.fn(),
+    confirmDanger: vi.fn<AppFeedback['confirmDanger']>(),
+    confirmWarning: vi.fn<AppFeedback['confirmWarning']>(),
     choose: vi.fn(async () => null),
   },
   pickDirectoryDialog: vi.fn(async () => null as string | null),

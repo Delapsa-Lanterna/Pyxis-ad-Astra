@@ -1,8 +1,16 @@
+import type * as JointEditServiceModule from '@/services/joint-edit.service';
+import type * as ProjectSyncOrchestratorModule from '@/orchestrators/project-sync.orchestrator';
+import type * as AppLogServiceModule from '@/services/app-log.service';
+import type * as ImmersiveEditorOrchestratorModule from '@/orchestrators/immersive-editor.orchestrator';
+import type * as SpecEditorWindowModule from '@/windows/spec-editor.window';
+import type * as WeaponFirePreviewWindowModule from '@/windows/weapon-fire-preview.window';
+import type * as ImmersiveEditorWindowModule from '@/windows/immersive-editor.window';
 import { dialogText, selectDialogOption } from '@/test/unit/dialog-text';
 import { projectChangeFixture, closeProjectChangeFixture, savedContentWorks } from '@/test/unit/project-changes';
 import { flushPromises, mount } from '@vue/test-utils';
 import { ref } from 'vue';
 import { jointObject } from '@/domain/joint-edit';
+import { isRowData } from '@/shared/lib/row-data';
 import { entityTargetFixture } from '@/test/fixtures/entity-target';
 import { createPinia, setActivePinia } from 'pinia';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -11,7 +19,8 @@ import { weaponJointFixture } from '@/test/fixtures/joint-edit/weapon-joint-edit
 import { wingJointFixture } from '@/test/fixtures/joint-edit/wing-joint-edit';
 import { variantJointFixture } from '@/test/fixtures/joint-edit/variant-joint-edit';
 import { setVariantHullmod, equipVariantWing } from '@/domain/immersive/variant/variant-actions';
-import type { JointEditSnapshot, SessionContentUpdate, JsonValue } from '@/shared/types';
+import type { AppFeedback, JointEditSnapshot, SessionContentUpdate, JsonValue } from '@/shared/types';
+import type { queryJointEditPreview } from '@/services/joint-edit.service';
 import { initializeSettingsStore } from '@/stores/settings.store';
 import { createSettingsFixture } from '@/test/fixtures/settings';
 import { savedWriteFixture, sessionUpdateFixture } from '@/test/fixtures/write-result';
@@ -20,19 +29,19 @@ import type { CommittedWriteEvent } from '@/shared/types';
 const mocks = vi.hoisted(() => ({
   query: vi.fn(),
   save: vi.fn(),
-  preview: vi.fn(),
-  catalog: vi.fn(),
-  candidate: vi.fn(),
-  listen: vi.fn(),
+  preview: vi.fn<typeof queryJointEditPreview>(),
+  catalog: vi.fn<typeof JointEditServiceModule.queryJointVariantCatalog>(),
+  candidate: vi.fn<typeof JointEditServiceModule.queryJointCandidate>(),
+  listen: vi.fn<typeof ProjectSyncOrchestratorModule.listenSavedIdentity>(),
   stop: vi.fn(),
   error: vi.fn(),
-  log: vi.fn(),
-  retarget: vi.fn(),
+  log: vi.fn<typeof AppLogServiceModule.recordLogBestEffort>(),
+  retarget: vi.fn<typeof ImmersiveEditorOrchestratorModule.retargetImmersiveWindow>(),
   media: vi.fn(),
-  choose: vi.fn(),
-  openProjectile: vi.fn(),
-  openPreview: vi.fn(),
-  openImmersive: vi.fn(),
+  choose: vi.fn<AppFeedback['choose']>(),
+  openProjectile: vi.fn<typeof SpecEditorWindowModule.openSpecProjectileEditorWindow>(),
+  openPreview: vi.fn<typeof WeaponFirePreviewWindowModule.openWeaponFirePreviewWindow>(),
+  openImmersive: vi.fn<typeof ImmersiveEditorWindowModule.openImmersiveEditorWindow>(),
   invalidations: [] as Array<(event: unknown) => void>,
   projectUpdates: [] as Array<(event: SessionContentUpdate) => Promise<void>>,
 }));
@@ -216,6 +225,11 @@ describe('variant joint actions', () => {
     mocks.query.mockResolvedValue(snapshot);
     mocks.preview.mockImplementation(async (draft) => structuredClone(draft.baseline));
     const entry = {
+      specVersion: null,
+      resourceRefs: {},
+      preview: null,
+      projectile: null,
+      primaryRole: null,
       id: 'test_weapon',
       label: 'Test Weapon',
       spec,
@@ -224,7 +238,11 @@ describe('variant joint actions', () => {
       specSource: source,
       sourceVersion: { path: source.path, fingerprint: 'v' },
     };
-    mocks.catalog.mockResolvedValue({ catalog: { entries: [entry] } });
+    mocks.catalog.mockResolvedValue({
+      root: snapshot.root,
+      referenceSettings: snapshot.referenceSettings,
+      catalog: { kind: 'weapons', entries: [entry] },
+    });
     return { snapshot, entry };
   }
   it('confirms an incompatible weapon then records one action for install, undo and redo', async () => {
@@ -300,11 +318,19 @@ describe('variant joint actions', () => {
     expect(vm.history.canUndo.value).toBe(false);
   });
   it('rejects a changed candidate source and late confirmation after picker cancellation', async () => {
-    const { entry } = weaponCatalog();
+    const { entry, snapshot } = weaponCatalog();
     mocks.choose.mockResolvedValue('install');
     mocks.catalog
-      .mockResolvedValueOnce({ catalog: { entries: [entry] } })
-      .mockResolvedValueOnce({ catalog: { entries: [{ ...entry, sourceVersion: { ...entry.sourceVersion, fingerprint: 'next' } }] } });
+      .mockResolvedValueOnce({
+        root: snapshot.root,
+        referenceSettings: snapshot.referenceSettings,
+        catalog: { kind: 'weapons', entries: [entry] },
+      })
+      .mockResolvedValueOnce({
+        root: snapshot.root,
+        referenceSettings: snapshot.referenceSettings,
+        catalog: { kind: 'weapons', entries: [{ ...entry, sourceVersion: { ...entry.sourceVersion, fingerprint: 'next' } }] },
+      });
     const { vm, wrapper } = editor('variant');
     await vm.initialize();
     expect(await vm.variant!.installVariantWeapon('variant', 'WS2', 'test_weapon')).toBe(false);
@@ -1020,7 +1046,9 @@ describe('immersive ship lifecycle and reference channels', () => {
           },
     );
     if (action === 'openPreview') {
-      mocks.openPreview.mock.calls[0]![0].source.weapon.unknown.retained = false;
+      const source = mocks.openPreview.mock.calls[0]![0].source;
+      if (source.kind !== 'draft' || !isRowData(source.weapon.unknown)) throw new Error('Expected a draft preview object');
+      source.weapon.unknown.retained = false;
       expect(jointObject(vm.joint.draftValue.value.spec).unknown).toEqual({ retained: true });
     }
     expect(vm.history.canUndo.value).toBe(true);

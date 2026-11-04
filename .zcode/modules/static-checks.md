@@ -26,8 +26,11 @@
 - `scripts/architecture/testing/`：维护公共夹具与跨规则验收。
 - `scripts/check-architecture.mjs`：采集事实、执行检查并交付退出码。
 - `scripts/check-encoding.mjs`：检查 UTF-8 无 BOM 文本。
+- `scripts/check-frontend-imports.mjs`：检查前端内联类型导入及字符串 mock 的模块来源。
 - `scripts/check-identifier-length.mjs`：检查变量与函数长度。
-- `scripts/check-imports.mjs`：按语法检查前端内联类型导入、Rust 使用点模块路径及所属模块顶部导入。
+- `scripts/check-imports.mjs`：统一扫描前端与 Rust 源码并交付导入检查结果。
+- `scripts/check-rust-imports.mjs`：检查 Rust 跨模块顶部导入及使用点模块路径。
+- `scripts/check-rust-module-boundaries.mjs`：检查业务模块转导出来源、层数与跨模块类型导入。
 - `scripts/check-styles.mjs`：检查展示依赖、语法、声明与变量来源。
 - `scripts/test-rust-paths.ps1`：验证 Windows 长路径与实际 8.3 短路径。
 - `scripts/test-rust.mjs`：Rust 测试运行、能力探测、工作区释放及结果记录。
@@ -86,6 +89,8 @@
 ## 规范
 
 - 最终验证与 CI 必须执行 lint:full，日常快速检查必须消费 lint，自动修复必须消费 lint:fix。
+- 共享单元测试基础必须消费正式类型检查调用与成员访问；有意未使用的参数必须以 `_` 开头。
+- 字符串 mock 来源必须通过 Vite 模块解析核对；测试函数签名的参数提取与返回类型擦除必须由默认 lint 检查。
 - 完整检查必须覆盖异步任务接纳、异步回调使用、等待对象、错误处理范围与封闭分支完整性。
 - Node 测试登记必须由所属测试框架管理异步结果；显式后台任务必须保持所属失败接纳边界。
 - 混合同步与异步结果的集合、显式默认分支及短路调用必须沿用实际执行语义。

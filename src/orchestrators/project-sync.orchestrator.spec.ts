@@ -1,3 +1,7 @@
+import type * as ProjectSyncServiceModule from '@/services/project-sync.service';
+import type * as ResourceMediaServiceModule from '@/services/resource-media.service';
+import type * as QueryCacheServiceModule from '@/services/query-cache.service';
+import type * as WindowEventErrorsOrchestratorModule from '@/orchestrators/window-event-errors.orchestrator';
 import { dialogText } from '@/test/unit/dialog-text';
 import { createPinia, setActivePinia } from 'pinia';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -8,16 +12,16 @@ import { entityTargetFixture } from '@/test/fixtures/entity-target';
 
 const mocks = vi.hoisted(() => ({
   receive: null as null | ((message: SaveDelivery) => void),
-  register: vi.fn(),
-  references: vi.fn(),
-  unregister: vi.fn(),
-  resolve: vi.fn(),
-  wait: vi.fn(),
-  abandon: vi.fn(),
-  retry: vi.fn(),
-  media: vi.fn(),
-  query: vi.fn(),
-  report: vi.fn(),
+  register: vi.fn<typeof ProjectSyncServiceModule.registerSaveWindow>(),
+  references: vi.fn<typeof ProjectSyncServiceModule.setReferenceSources>(),
+  unregister: vi.fn<typeof ProjectSyncServiceModule.unregisterSaveWindow>(),
+  resolve: vi.fn<typeof ProjectSyncServiceModule.resolveSaveSources>(),
+  wait: vi.fn<typeof ProjectSyncServiceModule.waitProjectSaves>(),
+  abandon: vi.fn<typeof ProjectSyncServiceModule.abandonProjectSaves>(),
+  retry: vi.fn<typeof ProjectSyncServiceModule.retryProjectSave>(),
+  media: vi.fn<typeof ResourceMediaServiceModule.invalidateResourceMediaByProject>(),
+  query: vi.fn<typeof QueryCacheServiceModule.invalidateQueryCacheByProject>(),
+  report: vi.fn<typeof WindowEventErrorsOrchestratorModule.recordWindowEventHandlerError>(),
 }));
 vi.mock('@/services/project-sync.service', () => ({
   registerSaveWindow: mocks.register,

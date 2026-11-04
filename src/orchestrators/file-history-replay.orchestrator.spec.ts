@@ -1,3 +1,4 @@
+import type * as FileHistoryServiceModule from '@/services/file-history.service';
 import { savedWriteFixture } from '@/test/fixtures/write-result';
 import { createPinia, setActivePinia } from 'pinia';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -6,7 +7,7 @@ import type { AppFeedback, FileChangeRecord, FileHistoryEntrySummary, WriteResul
 const mocks = vi.hoisted(() => ({
   replayFileChangeSet: vi.fn(),
   acceptContent: vi.fn<(root: string, result: WriteResult, session: string, reason: string) => Promise<unknown[]>>().mockResolvedValue([]),
-  loadFileHistory: vi.fn(),
+  loadFileHistory: vi.fn<typeof FileHistoryServiceModule.loadFileHistory>(),
 }));
 vi.mock('@/services/file-history.service', async () => ({
   ...(await vi.importActual('@/services/file-history.service')),

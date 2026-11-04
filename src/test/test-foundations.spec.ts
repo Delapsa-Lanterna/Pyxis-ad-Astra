@@ -1,4 +1,7 @@
-import { afterEach, expect, it, vi } from 'vitest';
+import type { SelectProps } from 'naive-ui/es/select';
+import { afterEach, expect, expectTypeOf, it, vi } from 'vitest';
+import { mount } from '@vue/test-utils';
+import { nSelect, nInputNumber, editorUiStubs } from './unit/ui-stubs';
 import { installCanvas2DStub } from './unit/canvas-stub';
 import { createCanvasRecorder } from './unit/canvas-recorder';
 import { shipJointFixture } from './fixtures/joint-edit/ship-joint-edit';
@@ -84,4 +87,53 @@ it('computes even and odd medians and nearest-rank P95 without changing samples'
   expect(summarize(values)).toEqual({ n: 30, min: 1, max: 30, mean: 15.5, median: 15.5, p95: 29 });
   expect(summarize([9, 1, 4]).median).toBe(4);
   expect(values[0]).toBe(30);
+});
+
+it('renders flat and grouped select options and delivers their actual string and numeric values', async () => {
+  const wrapper = mount(nSelect, {
+    props: {
+      value: 'kept',
+      options: [
+        { label: 'Kept', value: 'kept' },
+        {
+          type: 'group',
+          key: 'source',
+          label: 'Source',
+          children: [
+            { label: 'Picked', value: 'picked' },
+            { label: 'Seven', value: 7 },
+          ],
+        },
+      ],
+    },
+  });
+  expect(wrapper.findAll('option').map((option) => option.text())).toEqual(['Kept', 'Picked', 'Seven']);
+  expect(wrapper.get('optgroup').attributes('label')).toBe('Source');
+  expect(wrapper.get('select').element.value).toBe(JSON.stringify('kept'));
+  await wrapper.get('select').setValue(JSON.stringify('picked'));
+  await wrapper.get('select').setValue(JSON.stringify(7));
+  expect(wrapper.emitted('update:value')).toEqual([['picked'], [7]]);
+  await wrapper.setProps({ value: 7 });
+  expect(wrapper.get('select').element.value).toBe(JSON.stringify(7));
+  wrapper.unmount();
+});
+
+it('delivers numeric and cleared values and delegates declared raw input handling', async () => {
+  const wrapper = mount(nInputNumber, { props: { value: 12 } });
+  await wrapper.get('input').setValue('34');
+  await wrapper.get('input').setValue('');
+  expect(wrapper.emitted('update:value')).toEqual([[34], [null]]);
+  const onInput = vi.fn();
+  await wrapper.setProps({ inputProps: { onInput }, format: (value) => String(value ?? '') });
+  await wrapper.get('input').setValue('raw');
+  expect(onInput).toHaveBeenCalledOnce();
+  expect(onInput.mock.calls[0]![0]).toBeInstanceOf(Event);
+  expect(wrapper.emitted('update:value')).toEqual([[34], [null]]);
+  wrapper.unmount();
+});
+
+it('preserves shared component instances and selection contracts', () => {
+  expectTypeOf<InstanceType<typeof nSelect>['$props']['options']>().toEqualTypeOf<SelectProps['options']>();
+  expectTypeOf<InstanceType<typeof nInputNumber>['$props']['value']>().toEqualTypeOf<number | null | undefined>();
+  expectTypeOf(editorUiStubs['n-select']).toEqualTypeOf<typeof nSelect>();
 });

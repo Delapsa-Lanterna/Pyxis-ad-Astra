@@ -1,3 +1,6 @@
+import SchemaCollectionInput from '@/app/components/field-editor/SchemaCollectionInput.vue';
+import SchemaReferenceInput from '@/app/components/field-editor/SchemaReferenceInput.vue';
+import type { AppFeedback } from '@/shared/types';
 import { mount, flushPromises, type VueWrapper } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -20,7 +23,9 @@ import type { FieldSchema } from '@/domain/schema/schema.types';
 
 vi.mock('@/services/core-assets.service', () => ({ queryCoreFields: vi.fn(async () => ({})), queryCoreGraphics: vi.fn(async () => []) }));
 vi.mock('@/app/composables/use-core-assets', () => ({ useCoreGraphics: () => ({ graphicsPaths: ref([]), loadGraphics: vi.fn() }) }));
-vi.mock('@/app/composables/use-app-feedback', () => ({ useAppFeedback: () => ({ error: vi.fn(), choose: vi.fn(), warning: vi.fn() }) }));
+vi.mock('@/app/composables/use-app-feedback', () => ({
+  useAppFeedback: () => ({ error: vi.fn(), choose: vi.fn<AppFeedback['choose']>(), warning: vi.fn() }),
+}));
 let wrapper: VueWrapper | undefined;
 beforeEach(() => {
   setActivePinia(createPinia());
@@ -85,9 +90,7 @@ describe('misc config fields', () => {
     await input.setValue('example.runtime.Other');
     await inputs.commit();
     expect(value.value.plugins).toEqual({ sample: 'example.runtime.Other' });
-    const images = wrapper!
-      .findAllComponents({ name: 'SchemaReferenceInput' })
-      .filter((input) => input.props('field').type === 'path-image');
+    const images = wrapper!.findAllComponents(SchemaReferenceInput).filter((input) => input.props('field').type === 'path-image');
     expect(images.map((image) => image.props('value'))).toEqual(['graphics/sample_a.png', 'graphics/sample_b.png']);
     images[1]!.vm.$emit('update', { kind: 'set', value: 'graphics/changed.png' });
     await nextTick();
@@ -155,10 +158,10 @@ describe('misc config fields', () => {
     await flushPromises();
     expect(value.value.plugins).toEqual({ newField: '' });
     expect(wrapper!.getComponent(SchemaFormRenderer).props('modelValue').file).toHaveProperty('plugins.newField', '');
-    expect(wrapper!.findAllComponents({ name: 'SchemaCollectionInput' })[0]!.props('value')).toHaveProperty('plugins.newField', '');
+    expect(wrapper!.findAllComponents(SchemaCollectionInput)[0]!.props('value')).toHaveProperty('plugins.newField', '');
     expect(
       wrapper!
-        .findAllComponents({ name: 'SchemaCollectionInput' })
+        .findAllComponents(SchemaCollectionInput)
         .find((input) => input.props('field').key === 'plugins')!
         .props('value'),
     ).toEqual({ newField: '' });

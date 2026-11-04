@@ -20,6 +20,7 @@
 - `src-tauri/src/models/entity_query.rs`：实体详情、列表请求及返回记录。
 - `src-tauri/src/services/project/query/json_layers.rs`：会话所属的正式有序 JSON 来源和版本。
 - `src-tauri/src/services/project/resources/entity_references.rs`：详情、列表资源映射及实际资源来源。
+- `src-tauri/src/services/project/resources/resource_identity.rs`：实体呈现按正式来源接纳资源集合的引用身份。
 - `src/domain/project/query-scopes.ts`：标准实体失效 scope 匹配。
 - `src/services/query-cache.service.ts`：会话缓存、实时请求与失效通知。
 - `src/shared/types/entity-query.types.ts`：与 Rust 对应的实体请求与返回协议。

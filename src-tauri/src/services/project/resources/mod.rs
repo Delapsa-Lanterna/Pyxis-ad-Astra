@@ -3,7 +3,7 @@ pub(in crate::services::project) mod entity_references;
 pub(in crate::services) mod fonts;
 mod hull_references;
 pub(in crate::services) mod media_cache;
-mod resource_identity;
+pub(in crate::services::project) mod resource_identity;
 pub(in crate::services) mod sprites;
 pub(in crate::services::project) mod table_references;
 

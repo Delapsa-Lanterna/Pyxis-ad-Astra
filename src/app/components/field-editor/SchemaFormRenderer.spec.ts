@@ -1,3 +1,6 @@
+import SchemaValueInput from '@/app/components/field-editor/SchemaValueInput.vue';
+import SchemaFieldRenderer from '@/app/components/field-editor/SchemaFieldRenderer.vue';
+import type { AppFeedback } from '@/shared/types';
 import { enableAutoUnmount, mount } from '@vue/test-utils';
 import { afterEach, describe, expect, it } from 'vitest';
 import { nextTick } from 'vue';
@@ -10,7 +13,7 @@ import { vi } from 'vitest';
 import { initializeSettingsStore } from '@/stores/settings.store';
 import { createSettingsFixture } from '@/test/fixtures/settings';
 
-vi.mock('@/app/composables/use-app-feedback', () => ({ useAppFeedback: () => ({ choose: vi.fn() }) }));
+vi.mock('@/app/composables/use-app-feedback', () => ({ useAppFeedback: () => ({ choose: vi.fn<AppFeedback['choose']>() }) }));
 
 const schema: FileSchema = {
   $schema: 'pyxis-ad-astra/field-schema/v1',
@@ -54,7 +57,7 @@ describe('SchemaFormRenderer', () => {
     expect(form.find('.json-stub').exists()).toBe(allowed === true);
     await form.setProps({ modelValue: { name: 'kept', custom: null } });
     expect(form.find('.json-stub').exists()).toBe(allowed === true);
-    form.findComponent({ name: 'SchemaFieldRenderer' }).vm.$emit('update', { kind: 'set', value: 'updated' });
+    form.findComponent(SchemaFieldRenderer).vm.$emit('update', { kind: 'set', value: 'updated' });
     await nextTick();
     expect(form.emitted('update:modelValue')?.at(-1)).toEqual([{ name: 'updated', custom: null }]);
   });
@@ -82,7 +85,7 @@ describe('SchemaFormRenderer', () => {
 
   it('writes field updates back into the model with dotted paths', async () => {
     const form = mountForm({ name: 'a' });
-    const fields = form.findAllComponents({ name: 'SchemaFieldRenderer' });
+    const fields = form.findAllComponents(SchemaFieldRenderer);
     fields[0]!.vm.$emit('update', { kind: 'set', value: 'renamed' });
     await nextTick();
     expect(form.emitted('update:modelValue')?.at(-1)).toEqual([{ name: 'renamed' }]);
@@ -90,7 +93,7 @@ describe('SchemaFormRenderer', () => {
 
   it('renders extra keys through the JSON editor and writes them back', async () => {
     const form = mountForm({ name: 'a', bonus: 5 }, true);
-    const json = form.findComponent({ name: 'SchemaValueInput' });
+    const json = form.findComponent(SchemaValueInput);
     expect(json.exists()).toBe(true);
     expect(json.props('value')).toEqual({ bonus: 5 });
     expect(json.props('field').reservedKeys).toEqual(['name', 'level']);
@@ -102,7 +105,7 @@ describe('SchemaFormRenderer', () => {
 
   it('projects underscore-prefixed business fields into the extra editor', () => {
     const form = mountForm({ name: 'a', _rowKey: 'business', nested: { _slot: 'weapon' } }, true);
-    expect(form.findComponent({ name: 'SchemaValueInput' }).props('value')).toEqual({
+    expect(form.findComponent(SchemaValueInput).props('value')).toEqual({
       _rowKey: 'business',
       nested: { _slot: 'weapon' },
     });

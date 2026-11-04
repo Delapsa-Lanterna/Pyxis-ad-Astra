@@ -1,3 +1,4 @@
+import type * as PerformanceMonitorServiceModule from '@/services/performance-monitor.service';
 import { createApp } from 'vue';
 import { createPinia, defineStore } from 'pinia';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -10,7 +11,10 @@ import {
 import { performanceMonitorEnabled, recordPerformance } from '@/shared/runtime/performance';
 import type { PerformanceBatch } from '@/shared/types/performance-monitor.types';
 
-const api = vi.hoisted(() => ({ deliver: vi.fn(), report: vi.fn() }));
+const api = vi.hoisted(() => ({
+  deliver: vi.fn<typeof PerformanceMonitorServiceModule.deliverPerformanceBatch>(),
+  report: vi.fn<typeof PerformanceMonitorServiceModule.performanceMonitorReport>(),
+}));
 vi.mock('@/services/performance-monitor.service', () => ({ deliverPerformanceBatch: api.deliver, performanceMonitorReport: api.report }));
 let callback: PerformanceObserverCallback;
 const observe = vi.fn(),
@@ -19,7 +23,18 @@ beforeEach(() => {
   vi.useFakeTimers();
   vi.clearAllMocks();
   api.deliver.mockResolvedValue(undefined);
-  api.report.mockResolvedValue({ enabled: true });
+  api.report.mockResolvedValue({
+    enabled: true,
+    records: 0,
+    overwritten: 0,
+    startedAt: 0,
+    path: '',
+    traceAvailable: false,
+    traceState: 'idle',
+    traceSeconds: 15,
+    traceStartedAt: 0,
+    traceError: '',
+  });
   performanceMonitorError.value = '';
   vi.stubGlobal(
     'PerformanceObserver',
@@ -153,8 +168,8 @@ describe('window performance collection', () => {
     recordPerformance('during-delivery', 2);
     done();
     await first;
-    expect(api.deliver.mock.calls[1]![0].samples[0].name).toBe('retained');
-    expect(api.deliver.mock.calls[2]![0].samples[0].name).toBe('during-delivery');
+    expect(api.deliver.mock.calls[1]![0].samples[0]!.name).toBe('retained');
+    expect(api.deliver.mock.calls[2]![0].samples[0]!.name).toBe('during-delivery');
     expect(performanceMonitorError.value).toBe('');
   });
   it('flushes local observations before control operations and releases on pagehide', async () => {
@@ -165,7 +180,7 @@ describe('window performance collection', () => {
     );
     await controlPerformanceMonitor('export');
     expect(api.deliver.mock.invocationCallOrder[0]).toBeLessThan(api.report.mock.invocationCallOrder[0]!);
-    expect(api.deliver.mock.calls[0]![0].samples[0].category).toBe('event');
+    expect(api.deliver.mock.calls[0]![0].samples[0]!.category).toBe('event');
     window.dispatchEvent(new Event('pagehide'));
     expect(disconnect).toHaveBeenCalledOnce();
     expect(vi.getTimerCount()).toBe(0);

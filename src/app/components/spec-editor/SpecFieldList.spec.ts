@@ -125,11 +125,7 @@ describe('Spec field source integration', () => {
     const select = wrapper.getComponent(nSelect);
     select.vm.$emit('search', 'new_reference');
     expect(inputs.dirty.value).toBe(true);
-    const matches = () =>
-      select
-        .props('options')
-        .flatMap((option: { children?: { value: string }[]; value: string }) => option.children ?? [option])
-        .filter((option: { value: string }) => option.value === 'new_reference');
+    const matches = () => select.findAll('option').filter((option) => option.element.value === JSON.stringify('new_reference'));
     await flushPromises();
     expect(matches()).toHaveLength(1);
     await inputs.commit();
@@ -279,13 +275,10 @@ describe('Spec field source integration', () => {
     await flushPromises();
     expect(query).toHaveBeenCalledWith(field.source, expect.any(AbortSignal));
     const select = wrapper.getComponent(nSelect);
-    expect(
-      select
-        .props('options')
-        .flatMap((group: { children: { value: string }[] }) => group.children)
-        .map((option: { value: string }) => option.value),
-    ).toEqual(['sample_existing', 'sample_new']);
-    select.vm.$emit('update:value', 'sample_new');
+    expect(select.findAll('option').map((option) => option.element.value)).toEqual(
+      ['sample_existing', 'sample_new'].map((value) => JSON.stringify(value)),
+    );
+    await select.get('select').setValue(JSON.stringify('sample_new'));
     await flushPromises();
     const fields = wrapper.getComponent(SpecFieldList);
     expect(fields.emitted('update')!.at(-1)).toEqual([field.key, 'sample_new']);

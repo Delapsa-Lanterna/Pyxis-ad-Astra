@@ -1,3 +1,4 @@
+import SchemaReferenceInput from '@/app/components/field-editor/SchemaReferenceInput.vue';
 import { mount, flushPromises } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
@@ -61,18 +62,22 @@ function openShip(overrides: Partial<SpecShipEditorProps> = {}, inputs?: FieldIn
     global: { stubs: editorUiStubs },
     attachTo: document.body,
   };
-  wrapper = inputs
-    ? mount(
-        {
-          setup() {
-            provideFieldInputs(inputs);
-            return () => h(SpecShipEditor, props);
-          },
+  if (inputs) {
+    const mounted = mount(
+      {
+        setup() {
+          provideFieldInputs(inputs);
+          return () => h(SpecShipEditor, props);
         },
-        options,
-      )
-    : mount(SpecShipEditor, { props, ...options });
-  return inputs ? wrapper.getComponent(SpecShipEditor) : wrapper;
+      },
+      options,
+    );
+    wrapper = mounted;
+    return mounted.getComponent(SpecShipEditor);
+  }
+  const mounted = mount(SpecShipEditor, { props, ...options });
+  wrapper = mounted;
+  return mounted;
 }
 const shortcut = async (editor: Pick<ReturnType<typeof mount>, 'get'>, key: string, ctrl = false) => {
   editor.get('.editor-window').element.dispatchEvent(new KeyboardEvent('keydown', { key, ctrlKey: ctrl, bubbles: true }));
@@ -128,33 +133,40 @@ describe('ship pointer and inspector actions', () => {
         .slice(1)
         .map((label) => label.text()),
     ).toEqual(['last', 'first.with.dot']);
-    expect(group.findAllComponents(nSelect).map((select: { props: () => Record<string, unknown> }) => select.props().value)).toEqual([
-      'weapon',
-      '',
-    ]);
+    expect(
+      editor
+        .findAllComponents(nSelect)
+        .filter((select) => group.element.contains(select.get('select').element))
+        .map((select: { props: () => Record<string, unknown> }) => select.props().value),
+    ).toEqual(['weapon', '']);
     expect(group.findAll('button, input.field-map-key-editor')).toHaveLength(0);
     expect(editor.emitted('draft-changed')).toBeUndefined();
     await flushPromises();
-    const retained = group.findAllComponents(nSelect)[1]!;
-    retained.element.focus();
+    const retained = editor.findAllComponents(nSelect).filter((select) => group.element.contains(select.get('select').element))[1]!;
+    retained.get('select').element.focus();
     retained.vm.$emit('update:value', 'second-weapon');
     await flushPromises();
-    expect(group.findAllComponents(nSelect)[1]!.element).toBe(retained.element);
-    expect(document.activeElement).toBe(retained.element);
+    expect(editor.findAllComponents(nSelect).filter((select) => group.element.contains(select.get('select').element))[1]!.element).toBe(
+      retained.get('select').element,
+    );
+    expect(document.activeElement).toBe(retained.get('select').element);
     expect(editor.emitted('draft-changed')!.at(-1)![0]).toHaveProperty('builtInWeapons', {
       last: 'weapon',
       ordinary: 'kept',
       orphan: 'retained',
       'first.with.dot': 'second-weapon',
     });
-    group.findAllComponents(nSelect)[0]!.vm.$emit('update:value', '');
+    editor
+      .findAllComponents(nSelect)
+      .filter((select) => group.element.contains(select.get('select').element))[0]!
+      .vm.$emit('update:value', '');
     await flushPromises();
     expect(editor.emitted('draft-changed')!.at(-1)![0]).toHaveProperty('builtInWeapons', {
       ordinary: 'kept',
       orphan: 'retained',
       'first.with.dot': 'second-weapon',
     });
-    expect(group.findAllComponents(nSelect)).toHaveLength(2);
+    expect(editor.findAllComponents(nSelect).filter((select) => group.element.contains(select.get('select').element))).toHaveLength(2);
   });
 
   it.each(['BUILT_IN', 'DECORATIVE'])('follows %s slot type changes, deletion and external acceptance', async (type) => {
@@ -174,7 +186,7 @@ describe('ship pointer and inspector actions', () => {
     await flushPromises();
     const typeOptions = editor.get('[data-field-path="weaponSlots[0].type"]').getComponent(nSelect).props('options');
     expect(typeOptions).toHaveLength(11);
-    expect(typeOptions.map((option: { value: string }) => option.value)).not.toContain('LAUNCH_BAY');
+    expect(typeOptions!.map((option) => option.value)).not.toContain('LAUNCH_BAY');
     await editor.get('[data-field-path="weaponSlots[0].type"] select').setValue(JSON.stringify(type));
     expect(labels().filter((label) => label === 'A' || label === 'B')).toEqual(['A', 'B']);
     await editor.get('[data-field-path="weaponSlots[0].type"] select').setValue(JSON.stringify('ENERGY'));
@@ -216,7 +228,9 @@ describe('ship pointer and inspector actions', () => {
     });
     await shortcut(editor, 'z', true);
     expect(editor.emitted('draft-changed')!.at(-1)![0]).toMatchObject({ weaponSlots: [{ id: 'A' }], builtInWeapons: { A: 'laser' } });
-    editor.element.dispatchEvent(new KeyboardEvent('keydown', { key: 'z', ctrlKey: true, shiftKey: true, bubbles: true }));
+    editor
+      .get('.editor-window')
+      .element.dispatchEvent(new KeyboardEvent('keydown', { key: 'z', ctrlKey: true, shiftKey: true, bubbles: true }));
     await flushPromises();
     expect(editor.emitted('draft-changed')!.at(-1)![0]).toMatchObject({
       weaponSlots: [{ id: 'renamed' }],
@@ -392,10 +406,7 @@ describe('ship pointer and inspector actions', () => {
       loaded.at(-1)!.onload?.();
       await flushPromises();
     }
-    editor
-      .get('[data-field-path="spriteName"]')
-      .getComponent({ name: 'SchemaReferenceInput' })
-      .vm.$emit('update', { kind: 'set', value: 'new.png' });
+    editor.get('[data-field-path="spriteName"]').getComponent(SchemaReferenceInput).vm.$emit('update', { kind: 'set', value: 'new.png' });
     await editor.vm.$nextTick();
     await editor.setProps({ spriteData: 'new', spriteSourcePath: 'new.png' });
     loaded.at(-1)!.onload?.();
@@ -437,10 +448,7 @@ describe('ship pointer and inspector actions', () => {
     loaded.at(-1)!.onload?.();
     await flushPromises();
     expect(editor.emitted('draft-changed')).toBeUndefined();
-    editor
-      .get('[data-field-path="spriteName"]')
-      .getComponent({ name: 'SchemaReferenceInput' })
-      .vm.$emit('update', { kind: 'set', value: 'old.png' });
+    editor.get('[data-field-path="spriteName"]').getComponent(SchemaReferenceInput).vm.$emit('update', { kind: 'set', value: 'old.png' });
     await editor.vm.$nextTick();
     loaded.at(-1)!.onload?.();
     await flushPromises();

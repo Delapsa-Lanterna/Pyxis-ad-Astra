@@ -6,11 +6,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { savedWriteFixture, sessionUpdateFixture } from '@/test/fixtures/write-result';
 import type { JointEditSnapshot, JointEditWriteResult } from '@/shared/types';
 
-const mocks = vi.hoisted(() => ({ open: vi.fn(), save: vi.fn(), complete: vi.fn(), error: vi.fn() }));
+const mocks = vi.hoisted(() => ({ open: vi.fn(), save: vi.fn(), complete: vi.fn<() => Promise<void>>(), error: vi.fn() }));
 vi.mock('@/orchestrators/project-sync.orchestrator', async () => ({
   ...(await import('@/test/unit/project-changes')),
   beginSavedWrite: (await import('@/test/unit/project-changes')).withSavedCompletion(() => mocks.complete()),
-  completeSavedWrite: mocks.complete,
 }));
 
 vi.mock('@/app/composables/use-joint-edit-actions', () => ({ useJointEditActions: () => ({ open: mocks.open, save: mocks.save }) }));

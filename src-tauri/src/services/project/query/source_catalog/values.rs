@@ -16,7 +16,7 @@ use crate::models::{
 };
 use crate::services::project::model;
 use crate::services::project::model::EntityListEntry;
-use crate::services::project::resources::entity_references;
+use crate::services::project::resources::{entity_references, resource_identity};
 use crate::services::project::sources::core::{
     CoreSourceData, load_core_csv_table, load_core_skin_files, load_core_source_data,
 };
@@ -59,7 +59,7 @@ pub fn query_source_option_catalog(
             for option in &mut group.options {
                 option.origin = ResourceSource::Reference;
                 if let Some(resource) = &mut option.resource_ref {
-                    view.resource(resource);
+                    resource_identity::apply_reference_origin(resource, &view.identity);
                 }
             }
             groups.push(group);

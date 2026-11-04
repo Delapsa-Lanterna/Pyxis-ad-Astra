@@ -16,7 +16,7 @@
 - `src-tauri/src/services/project/resources/hull_references.rs`：按会话与有序来源解析船体名称、贴图和皮肤继承。
 - `src-tauri/src/services/project/resources/media_cache.rs`：按 session 隔离媒体指纹、LRU、预算及所属清理。
 - `src-tauri/src/services/project/resources/mod.rs`：资源实现模块登记及内部引用能力。
-- `src-tauri/src/services/project/resources/resource_identity.rs`：资源引用构造及包含来源与引用代次的物理媒体键。
+- `src-tauri/src/services/project/resources/resource_identity.rs`：资源引用构造、单项及集合的引用来源接纳与物理媒体键。
 - `src-tauri/src/services/project/resources/sprites.rs`：批次来源边界、媒体读取、缓存接纳和相对路径解析。
 - `src-tauri/src/services/project/resources/table_references.rs`：表格行与来源引用的图片、图标及显示名称投影。
 - `src/app/components/media/`：授权图片与配置选项消费的缩略图展示。
@@ -61,6 +61,7 @@
 - 后端拥有资源授权与当前 Mod、标签顺序内可引用 Mod、原版的查找顺序；query 返回 `ResourceRef`，组件消费引用和媒体结果；字体 FNT 与图集按原版字体只读能力交给所属字体运行态。
 - 媒体服务拥有合批、single-flight、就绪数据与失效；registry 持有集合差量和所属租约。
 - 实体内容由正式会话交付，资源能力分别维护详情与列表资源映射，完整媒体清理由项目同步调用。
+- 资源身份能力消费捕获的文件来源或引用身份，为单项及集合接纳所属引用来源。
 - 舰船内置展示消费共享媒体集合，几何调整复用当前解码结果，资源失败按所属槽位、武器引用和路径交付诊断。
 - 船体引用能力分别提供创建目录和指定 ID 元数据，名称按 Mod CSV 优先、Core 补集解析。
 - 船体选项投影必须消费资源协议的只读字段，实体和表格资源必须直接消费资源所属船体解析器。
@@ -108,6 +109,7 @@
 - 批量媒体结果必须按请求顺序保留完整资源身份，成功必须交付 nullable 图片内容，失败必须逐项交付原始诊断；同一物理资源必须复用本批读取结果。
 - 媒体消费者必须接纳本批成功项，失败项必须保留可重试状态；同批错误必须共享一个错误对象并经所属窗口汇总一次反馈、逐项记录原始诊断。
 - 外部 Mod 资源必须携带实际来源会话与根，媒体缓存必须区分来源身份及引用范围版本，关闭或取消来源后必须撤销所属读取。
+- 引用来源转换必须由资源身份能力维护；Core 资源与已有引用身份必须保留，普通 Mod 资源必须接纳捕获的引用身份，资源路径、业务 owner 与字段键必须保留。
 - Core fallback 只允许提供只读资源。
 - Core root 与所有资源路径必须 canonicalize，拒绝 `..` 与已有父链链接或 reparse point。
 - Core 缓存注册表、条目、加载与完整失效必须由 Core 缓存实现维护；注册表锁只允许用于登记、查找、移除与句柄复制，磁盘读取必须在释放注册表锁后执行。

@@ -1,3 +1,6 @@
+import SchemaReferenceInput from '@/app/components/field-editor/SchemaReferenceInput.vue';
+import SchemaValueInput from '@/app/components/field-editor/SchemaValueInput.vue';
+import type * as SpecEditorServiceModule from '@/services/spec-editor.service';
 import { selectDialogOption } from '@/test/unit/dialog-text';
 import { chooseEntityFilename } from '@/orchestrators/entity-write.orchestrator';
 import { savedWriteFixture } from '@/test/fixtures/write-result';
@@ -30,8 +33,8 @@ vi.mock('@/services/window.service', () => ({ releaseNativeWindowTargets: vi.fn(
 const mocks = vi.hoisted(() => ({
   identityHandler: null as null | ((event: CommittedWriteEvent) => Promise<void>),
   querySpecEditorData: vi.fn(),
-  saveSpecEditorSpecByKind: vi.fn(),
-  loadSpecEditorImport: vi.fn(),
+  saveSpecEditorSpecByKind: vi.fn<typeof SpecEditorServiceModule.saveSpecEditorSpecByKind>(),
+  loadSpecEditorImport: vi.fn<typeof SpecEditorServiceModule.loadSpecEditorImport>(),
   refreshBundleResources: vi.fn(),
   queryDraftEditorImages: vi.fn(),
   publishCommittedWrite: vi.fn<(...args: unknown[]) => Promise<void>>(async () => {}),
@@ -42,8 +45,8 @@ const mocks = vi.hoisted(() => ({
     info: vi.fn(),
     warning: vi.fn(),
     error: vi.fn(),
-    confirmDanger: vi.fn(),
-    confirmWarning: vi.fn(),
+    confirmDanger: vi.fn<AppFeedback['confirmDanger']>(),
+    confirmWarning: vi.fn<AppFeedback['confirmWarning']>(),
     choose: vi.fn<AppFeedback['choose']>(async () => null),
   },
 }));
@@ -308,7 +311,7 @@ describe.each(['ship', 'weapon', 'projectile', 'system'] as const)('%s composed 
       await vm.commitInputs();
       await flushPromises();
       expect(vm.draftValue.value[field]).toBe(next);
-      expect(wrapper.get(`[data-field-path="${field}"]`).getComponent({ name: 'SchemaValueInput' }).props('value')).toBe(next);
+      expect(wrapper.get(`[data-field-path="${field}"]`).getComponent(SchemaValueInput).props('value')).toBe(next);
       expect(vm.editorData.value!.spec.extension).toBe('local');
       expect(vm.draftDirty.value).toBe(true);
       if (layered) {
@@ -649,7 +652,7 @@ describe('useSpecEditorWindowViewModel saving', () => {
       });
       expect(vm.draftValue.value.custom).toBe('later');
       vm.loadPendingExternalSpec();
-      mocks.feedback.confirmWarning.mock.calls.at(-1)![0].onConfirm();
+      await mocks.feedback.confirmWarning.mock.calls.at(-1)![0].onConfirm();
       expect(vm.draftValue.value).toEqual(external);
       expect(vm.editorData.value?.spec).toBe(vm.draftValue.value);
       expect(vm.draftDirty.value).toBe(false);
@@ -909,7 +912,7 @@ describe('useSpecEditorWindowViewModel external updates', () => {
     });
 
     viewModel.loadPendingExternalSpec();
-    mocks.feedback.confirmWarning.mock.calls.at(-1)![0].onConfirm();
+    await mocks.feedback.confirmWarning.mock.calls.at(-1)![0].onConfirm();
     expect(viewModel.draftValue.value).toEqual({ hullId: 'XY', hullName: 'Remote' });
     expect(viewModel.draftDirty.value).toBe(false);
     expect(viewModel.externalUpdateNotice.value).toBe('');
@@ -1045,7 +1048,7 @@ describe.each(['ship', 'weapon'] as const)('%s draft resource lifecycle', (kind)
     await flushPromises();
     expectImage(vm, 'local.png');
     vm.loadPendingExternalSpec();
-    mocks.feedback.confirmWarning.mock.calls.at(-1)![0].onConfirm();
+    await mocks.feedback.confirmWarning.mock.calls.at(-1)![0].onConfirm();
     await flushPromises();
     expectImage(vm, 'pending.png');
     expect(vm.draftDirty.value).toBe(false);
@@ -1125,7 +1128,7 @@ describe.each(['ship', 'weapon'] as const)('%s draft resource lifecycle', (kind)
       { global: { stubs: editorUiStubs }, attachTo: document.body },
     );
     try {
-      const pathInput = wrapper.get(`[data-field-path="${field}"]`).getComponent({ name: 'SchemaReferenceInput' });
+      const pathInput = wrapper.get(`[data-field-path="${field}"]`).getComponent(SchemaReferenceInput);
       pathInput.vm.$emit('update', { kind: 'set', value: 'new.png' });
       await flushPromises();
       expect(sources).toContain('new.png');

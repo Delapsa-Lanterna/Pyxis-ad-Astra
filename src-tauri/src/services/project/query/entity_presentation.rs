@@ -6,6 +6,7 @@ use crate::services::project::model::ProjectSession;
 use crate::services::project::resources::entity_references::{
     apply_resource_origins, entity_resource_refs,
 };
+use crate::services::project::resources::resource_identity;
 use serde_json::Value;
 use std::collections::BTreeMap;
 
@@ -38,7 +39,7 @@ pub(in crate::services::project) fn entity_presentation(
         && !(target.kind == EntityKind::Skin && data.get("spriteName").is_none())
         && let Some(source) = &target.source
     {
-        session.reference_resource(source, &mut resources);
+        resource_identity::apply_source_reference(source, &mut resources);
     }
     if let Some(composition) = &composition {
         apply_resource_origins(&mut resources, content, composition);

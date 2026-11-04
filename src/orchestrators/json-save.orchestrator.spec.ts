@@ -1,3 +1,6 @@
+import type { WriteResult, VariantFile, SkinFile } from '@/shared/types';
+import type * as JsonEntityServiceModule from '@/services/json-entity.service';
+import type * as JsonFileServiceModule from '@/services/json-file.service';
 import { savedWriteFixture } from '@/test/fixtures/write-result';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { entityTargetFixture } from '@/test/fixtures/entity-target';
@@ -6,16 +9,16 @@ import { initializeSettingsStore } from '@/stores/settings.store';
 import { createSettingsFixture } from '@/test/fixtures/settings';
 
 const mocks = vi.hoisted(() => ({
-  writeModInfo: vi.fn(),
-  writeIndexedConfigEntity: vi.fn(),
-  writeCreateIndexedConfigEntity: vi.fn(),
-  writeDeleteIndexedConfigEntity: vi.fn(),
-  writeVariantEntity: vi.fn(),
-  writeCreateVariantEntity: vi.fn(),
-  writeDeleteVariantEntity: vi.fn(),
-  writeSkinEntity: vi.fn(),
-  writeCreateSkinEntity: vi.fn(),
-  writeDeleteSkinEntity: vi.fn(),
+  writeModInfo: vi.fn<typeof JsonEntityServiceModule.saveModInfo>(),
+  writeIndexedConfigEntity: vi.fn<typeof JsonEntityServiceModule.saveIndexedConfigEntity>(),
+  writeCreateIndexedConfigEntity: vi.fn<typeof JsonEntityServiceModule.createIndexedConfigEntity>(),
+  writeDeleteIndexedConfigEntity: vi.fn<typeof JsonEntityServiceModule.deleteIndexedConfigEntity>(),
+  writeVariantEntity: vi.fn<typeof JsonFileServiceModule.saveVariantEntity>(),
+  writeCreateVariantEntity: vi.fn<typeof JsonFileServiceModule.createVariantEntity>(),
+  writeDeleteVariantEntity: vi.fn<typeof JsonFileServiceModule.deleteVariantEntity>(),
+  writeSkinEntity: vi.fn<typeof JsonFileServiceModule.saveSkinEntity>(),
+  writeCreateSkinEntity: vi.fn<typeof JsonFileServiceModule.createSkinEntity>(),
+  writeDeleteSkinEntity: vi.fn<typeof JsonFileServiceModule.deleteSkinEntity>(),
 }));
 
 vi.mock('@/orchestrators/window-identity.orchestrator', () => ({
@@ -61,7 +64,7 @@ import type { AppFeedback, RowData, EntityKind } from '@/shared/types';
 const MOD_ROOT = 'M:\\test-mod';
 const SESSION_ID = 'sess-1';
 
-function writeResult(refreshedEntity: Record<string, unknown> | null = null) {
+function writeResult<T extends RowData = never>(refreshedEntity: T | null = null): WriteResult<T> {
   const kind = refreshedEntity?.variantId ? 'variant' : 'skin';
   const id = (refreshedEntity?.variantId ?? refreshedEntity?.skinHullId ?? '') as string;
   const target = entityTargetFixture(kind, id);
@@ -83,11 +86,35 @@ function writeResult(refreshedEntity: Record<string, unknown> | null = null) {
       },
     ],
     identityChanges: id ? [{ before: target, after: target }] : [],
-    content: { target: { kind: 'json', origin: { kind: 'modInfo' } }, value: refreshedEntity },
-    warnings: [],
+    content: refreshedEntity === null ? null : { target: { kind: 'json', origin: { kind: 'modInfo' } }, value: refreshedEntity },
   };
 }
 
+const variantFile: VariantFile = {
+  baseVersions: [],
+  variantId: 'variant_new',
+  hullId: 'npc_dave',
+  path: 'data/variants/variant_new.variant',
+  relPath: 'variants/variant_new.variant',
+  data: {},
+  weaponGroupCount: 0,
+  hullModCount: 0,
+  permaModCount: 0,
+  wingCount: 0,
+};
+const skinFile: SkinFile = {
+  baseVersions: [],
+  skinHullId: 'skin_new',
+  baseHullId: 'npc_dave',
+  path: 'data/hulls/skin_new.skin',
+  relPath: 'skins/skin_new.skin',
+  data: {},
+  builtInModCount: 0,
+  builtInWeaponCount: 0,
+  builtInWingCount: 0,
+  weaponSlotChangeCount: 0,
+  engineSlotChangeCount: 0,
+};
 function indexedEntity(entityId: string) {
   return { entityId, indexPath: `${entityId}.csv`, indexHeader: ['id'], indexRows: [], entityData: null };
 }
@@ -107,7 +134,9 @@ describe('JSON save orchestrator', () => {
     const write = kind === 'variant' ? mocks.writeVariantEntity : mocks.writeSkinEntity;
     const field = kind === 'variant' ? 'variantId' : 'skinHullId';
     for (const nextId of ['Demo', 'demo']) {
-      write.mockResolvedValue(writeResult({ [field]: nextId, data: { [field]: nextId } }));
+      if (kind === 'variant')
+        mocks.writeVariantEntity.mockResolvedValue(writeResult({ ...variantFile, variantId: nextId, data: { variantId: nextId } }));
+      else mocks.writeSkinEntity.mockResolvedValue(writeResult({ ...skinFile, skinHullId: nextId, data: { skinHullId: nextId } }));
       await save(kind, SESSION_ID, MOD_ROOT, nextId, { [field]: nextId }, 'Demo', source.write.relPath, undefined, baseVersions);
       expect(write.mock.lastCall?.[0].baseVersions).toEqual(baseVersions);
     }
@@ -194,16 +223,10 @@ describe('JSON save orchestrator', () => {
   it('variant create seeds the default variant payload', async () => {
     mocks.writeCreateVariantEntity.mockResolvedValue(
       writeResult({
-        baseVersions: [],
+        ...variantFile,
         variantId: 'variant_new',
-        hullId: 'npc_dave',
         path: 'data/variants/variant_new.variant',
         relPath: 'variants/variant_new.variant',
-        data: {},
-        weaponGroupCount: 0,
-        hullModCount: 0,
-        permaModCount: 0,
-        wingCount: 0,
       }),
     );
 
@@ -218,16 +241,10 @@ describe('JSON save orchestrator', () => {
   it('variant save forwards the previous id for renames', async () => {
     mocks.writeVariantEntity.mockResolvedValue(
       writeResult({
-        baseVersions: [],
+        ...variantFile,
         variantId: 'variant_b',
-        hullId: 'npc_dave',
         path: 'data/variants/variant_b.variant',
         relPath: 'variants/variant_b.variant',
-        data: {},
-        weaponGroupCount: 0,
-        hullModCount: 0,
-        permaModCount: 0,
-        wingCount: 0,
       }),
     );
 
@@ -276,19 +293,7 @@ describe('JSON save orchestrator', () => {
 
   it('skin create seeds the default skin payload', async () => {
     mocks.writeCreateSkinEntity.mockResolvedValue(
-      writeResult({
-        baseVersions: [],
-        skinHullId: 'skin_new',
-        baseHullId: 'npc_dave',
-        path: 'data/hulls/skin_new.skin',
-        relPath: 'skins/skin_new.skin',
-        data: {},
-        builtInModCount: 0,
-        builtInWeaponCount: 0,
-        builtInWingCount: 0,
-        weaponSlotChangeCount: 0,
-        engineSlotChangeCount: 0,
-      }),
+      writeResult({ ...skinFile, skinHullId: 'skin_new', path: 'data/hulls/skin_new.skin', relPath: 'skins/skin_new.skin' }),
     );
 
     const skin = await createJsonFileAction('skin', SESSION_ID, MOD_ROOT, 'npc_dave', 'skin_new');
@@ -299,19 +304,7 @@ describe('JSON save orchestrator', () => {
 
   it('skin save forwards the previous id', async () => {
     mocks.writeSkinEntity.mockResolvedValue(
-      writeResult({
-        baseVersions: [],
-        skinHullId: 'skin_b',
-        baseHullId: 'npc_dave',
-        path: 'data/hulls/skin_b.skin',
-        relPath: 'skins/skin_b.skin',
-        data: {},
-        builtInModCount: 0,
-        builtInWeaponCount: 0,
-        builtInWingCount: 0,
-        weaponSlotChangeCount: 0,
-        engineSlotChangeCount: 0,
-      }),
+      writeResult({ ...skinFile, skinHullId: 'skin_b', path: 'data/hulls/skin_b.skin', relPath: 'skins/skin_b.skin' }),
     );
 
     await saveJsonFileAction('skin', SESSION_ID, MOD_ROOT, 'skin_b', { skinHullId: 'skin_b' }, 'skin_a', 'data/hulls/skins/skin_a.skin');
@@ -362,7 +355,7 @@ describe('JSON local identity presence', () => {
     const before: RowData = beforeId ? { skinHullId: 'sample' } : {};
     const after: RowData = afterId ? { skinHullId: 'sample' } : {};
     const target = entityTargetFixture('skin', 'sample');
-    mocks.writeSkinEntity.mockResolvedValue(writeResult({ skinHullId: 'sample', data: after }));
+    mocks.writeSkinEntity.mockResolvedValue(writeResult({ ...skinFile, skinHullId: 'sample', data: after }));
     const save = () =>
       saveJsonFileAction('skin', SESSION_ID, MOD_ROOT, 'sample', after, 'sample', target.write.relPath, feedback, [], before);
     expect(await save()).not.toBeNull();

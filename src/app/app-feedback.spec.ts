@@ -1,3 +1,4 @@
+import type * as AppLogServiceModule from '@/services/app-log.service';
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { MessageApiInjection } from 'naive-ui/es/message/src/MessageProvider';
@@ -5,7 +6,7 @@ import type { DialogApiInjection } from 'naive-ui/es/dialog/src/DialogProvider';
 import { createAppFeedback, type FeedbackFileActions } from './app-feedback';
 import { AppError, withCause, MediaReadError } from '@/shared/lib/errors';
 import { createSettingsFixture } from '@/test/fixtures/settings';
-const mocks = vi.hoisted(() => ({ log: vi.fn() }));
+const mocks = vi.hoisted(() => ({ log: vi.fn<typeof AppLogServiceModule.recordLogBestEffort>() }));
 vi.mock('@/services/app-log.service', () => ({ recordLogBestEffort: mocks.log }));
 let wrapper: VueWrapper | null = null;
 beforeEach(() => vi.clearAllMocks());

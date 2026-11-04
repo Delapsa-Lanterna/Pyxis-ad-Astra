@@ -8,7 +8,6 @@ import { useEditTargetHandoff } from './use-edit-target-handoff';
 
 const api = vi.hoisted(() => ({ update: vi.fn() }));
 vi.mock('@/services/window.service', () => ({ updateEditTargetRegistration: api.update }));
-vi.mock('@/orchestrators/edit-target-handoff.orchestrator', () => ({ listenEditTargetHandoff: async () => () => {} }));
 
 it('settles registrations before close and publishes the surviving targets after cleanup', async () => {
   setActivePinia(createPinia());

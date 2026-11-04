@@ -10,7 +10,29 @@ const fastConfig = [
   js.configs.recommended,
   ...tseslint.configs.recommended,
   ...pluginVue.configs['flat/recommended'],
-  { files: ['src/**/*.spec.ts'], rules: { 'vue/one-component-per-file': 'off' } },
+  { files: ['src/**/*.spec.ts', 'src/test/**/*.ts'], rules: { 'vue/one-component-per-file': 'off' } },
+  {
+    files: ['src/**/*.spec.ts', 'src/test/unit/**/*.ts'],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector:
+            'CallExpression > TSTypeParameterInstantiation > TSFunctionType[returnType.typeAnnotation.type=TSUnknownKeyword]:has(TSTypeReference[typeName.name=Parameters] > TSTypeParameterInstantiation > TSTypeQuery)',
+          message: 'Reuse the complete function signature instead of erasing its return type.',
+        },
+      ],
+    },
+  },
+  {
+    files: ['src/test/unit/**/*.ts'],
+    languageOptions: { parserOptions: { project: './tsconfig.test.json', tsconfigRootDir: import.meta.dirname } },
+    rules: {
+      '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
+      '@typescript-eslint/no-unsafe-call': 'error',
+      '@typescript-eslint/no-unsafe-member-access': 'error',
+    },
+  },
   {
     files: ['**/*.vue', '**/*.ts'],
     languageOptions: {

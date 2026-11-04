@@ -1,3 +1,4 @@
+import ImmersiveHullScene from '@/app/components/immersive/ImmersiveHullScene.vue';
 import { describe, expect, it, vi } from 'vitest';
 import { mount } from '@vue/test-utils';
 import { h, shallowRef, nextTick } from 'vue';
@@ -117,12 +118,12 @@ describe('shared immersive content renderers', () => {
     const customText = () => own.findAll('.immersive-custom-text').map((row) => row.text());
     if (kind === 'weapon') expect(customText()).toEqual(['Burst 25%', '2 × beams']);
     const images = own.findAll('img').map((image) => image.attributes('src'));
-    const formation = panel.kind === 'wing' ? own.findComponent({ name: 'ImmersiveHullScene' }) : null;
+    const formation = panel.kind === 'wing' ? own.findComponent(ImmersiveHullScene) : null;
     if (formation) {
-      expect(formation.props('wingLayout').points).toHaveLength(3);
-      expect(formation.props('wingLayout').points[0].y).toBeCloseTo(13.2);
+      expect(formation.props('wingLayout')!.points).toHaveLength(3);
+      expect(formation.props('wingLayout')!.points[0]!.y).toBeCloseTo(13.2);
       expect(formation.props('iconSize')).toBe(80);
-      expect(formation.props('variant').spec.hullId).toBe('sarissa');
+      expect(formation.props('variant')!.spec.hullId).toBe('sarissa');
     }
     if (kind === 'weapon') {
       const weapon = own.findComponent(WeaponImmersivePanel);
@@ -162,7 +163,7 @@ describe('shared immersive content renderers', () => {
     await nextTick();
     expect(content()).toEqual(editableContent);
     if (kind === 'weapon') expect(customText()).toEqual(['Burst 25%', '2 × beams']);
-    if (formation) expect(own.findComponent({ name: 'ImmersiveHullScene' }).element).toBe(formation.element);
+    if (formation) expect(own.findComponent(ImmersiveHullScene).element).toBe(formation.element);
     if (kind === 'ship') {
       expect(own.find('.ship-immersive-header').exists()).toBe(false);
       expect(own.findAll('.immersive-source-note')).toHaveLength(0);

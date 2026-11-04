@@ -18,7 +18,6 @@ const mocks = vi.hoisted(() => ({
   error: vi.fn(),
 }));
 vi.mock('@/services/window.service', () => ({ updateEditTargetRegistration: mocks.registration }));
-vi.mock('@/orchestrators/edit-target-handoff.orchestrator', () => ({ listenEditTargetHandoff: async () => () => {} }));
 vi.mock('@/orchestrators/csv-save.orchestrator', () => ({ saveCsvChanges: mocks.save, pendingCsvSave: () => null }));
 beforeEach(() => {
   setActivePinia(createPinia());

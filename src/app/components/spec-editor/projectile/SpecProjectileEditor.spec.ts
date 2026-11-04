@@ -1,3 +1,4 @@
+import type { AppFeedback } from '@/shared/types';
 import { mount, type VueWrapper } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -18,8 +19,8 @@ const mocks = vi.hoisted(() => ({
     info: vi.fn(),
     warning: vi.fn(),
     error: vi.fn(),
-    confirmDanger: vi.fn(),
-    confirmWarning: vi.fn(),
+    confirmDanger: vi.fn<AppFeedback['confirmDanger']>(),
+    confirmWarning: vi.fn<AppFeedback['confirmWarning']>(),
     choose: vi.fn(async () => null),
   },
 }));
@@ -80,7 +81,7 @@ describe('SpecProjectileEditor', () => {
       .trigger('click');
     await flushPromises();
     expect(editor.emitted('draft-changed')!.at(-1)![0]).toHaveProperty('engineSlots.0.styleSpec.mode', 'QUAD_STRIP');
-    editor.element.dispatchEvent(new KeyboardEvent('keydown', { key: 'z', ctrlKey: true, bubbles: true }));
+    editor.get('.editor-window').element.dispatchEvent(new KeyboardEvent('keydown', { key: 'z', ctrlKey: true, bubbles: true }));
     await flushPromises();
     expect(editor.emitted('draft-changed')!.at(-1)![0]).toMatchObject({
       engineSlots: [],

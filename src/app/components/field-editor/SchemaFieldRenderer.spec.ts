@@ -1,3 +1,8 @@
+import { defineComponent } from 'vue';
+import SchemaScalarInput from '@/app/components/field-editor/SchemaScalarInput.vue';
+import SchemaCollectionInput from '@/app/components/field-editor/SchemaCollectionInput.vue';
+import SchemaReferenceInput from '@/app/components/field-editor/SchemaReferenceInput.vue';
+import type { AppFeedback } from '@/shared/types';
 import { beginSavedWrite } from '@/test/unit/project-changes';
 import { createFieldInputs, provideFieldInputs } from '@/shared/runtime/field-inputs';
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils';
@@ -27,7 +32,7 @@ const mocks = vi.hoisted(() => ({
   queryCoreFields: vi.fn(async () => ({})),
   queryCoreGraphics: vi.fn(async () => ['graphics/one.png', 'graphics/two.png']),
 }));
-const slotUiStubs = { ...editorUiStubs, 'n-select': { ...nSelect, methods: { focusInput: vi.fn() } } };
+const slotUiStubs = { ...editorUiStubs, 'n-select': defineComponent({ extends: nSelect, methods: { focusInput: vi.fn() } }) };
 vi.mock('@/services/source-catalog.service', () => ({ queryImageSourceOptions: mocks.queryImages }));
 
 vi.mock('@/services/core-assets.service', () => ({
@@ -45,8 +50,8 @@ vi.mock('@/app/composables/use-app-feedback', () => ({
     info: vi.fn(),
     warning: vi.fn(),
     error: vi.fn(),
-    confirmDanger: vi.fn(),
-    confirmWarning: vi.fn(),
+    confirmDanger: vi.fn<AppFeedback['confirmDanger']>(),
+    confirmWarning: vi.fn<AppFeedback['confirmWarning']>(),
     choose: vi.fn(async () => null),
   }),
 }));
@@ -114,8 +119,8 @@ describe('SchemaFieldRenderer smart mode', () => {
     select.vm.$emit('update:show', true);
     await flushPromises();
     expect(mocks.queryImages).toHaveBeenCalledWith('images', ['graphics/backgrounds'], null, expect.any(AbortSignal));
-    expect(select.props('options')[0].children[0].value).toBe('graphics/backgrounds/sample.png');
-    select.vm.$emit('update:value', 'graphics/backgrounds/sample.png');
+    expect(select.get('optgroup').get('option').element.value).toBe(JSON.stringify('graphics/backgrounds/sample.png'));
+    await select.get('select').setValue(JSON.stringify('graphics/backgrounds/sample.png'));
     await flushPromises();
     expect(mounted.value.value).toBe('graphics/backgrounds/sample.png');
     select.vm.$emit('search', 'graphics/custom/manual.png');
@@ -168,7 +173,7 @@ describe('SchemaFieldRenderer smart mode', () => {
           .findAll('option')
           .map((option) => option.text()),
       ).toEqual(['M1', 'M2']);
-      const reference = wrapper.findAllComponents({ name: 'SchemaReferenceInput' })[0]!;
+      const reference = wrapper.findAllComponents(SchemaReferenceInput)[0]!;
       expect(reference.props('field')).toMatchObject({ type: 'enum', source: 'csv:variants.variantId' });
       expect(query.mock.calls.map(([source]) => source)).toContain('csv:variants.variantId');
       reference.findComponent(slotUiStubs['n-select']).vm.$emit('update:value', 'sample_variant');
@@ -221,8 +226,8 @@ describe('SchemaFieldRenderer smart mode', () => {
     const pending = () => wrapper!.findAllComponents(slotUiStubs['n-select']).find((select) => select.props('value') === null)!;
     expect(
       pending()
-        .props('options')
-        .map((option: { value: string }) => option.value),
+        .props('options')!
+        .map((option) => option.value),
     ).toEqual(['A']);
     await pending().trigger('keydown', { key: 'Escape' });
     expect(value.value).toEqual({ B: 'gun' });
@@ -349,7 +354,7 @@ describe('SchemaFieldRenderer smart mode', () => {
       group,
       Array.from({ length: 6 }, () => ({ mode: 'LINKED', weapons: {}, autofire: false })),
     );
-    const collection = wrapper!.findAllComponents({ name: 'SchemaCollectionInput' })[0]!;
+    const collection = wrapper!.findAllComponents(SchemaCollectionInput)[0]!;
     const add = () => collection.findAll(':scope > .ui-control-row > button');
     expect(add()).toHaveLength(1);
     await add()[0]!.trigger('click');
@@ -366,10 +371,10 @@ describe('SchemaFieldRenderer smart mode', () => {
     const schema = (await import('@/domain/schema/config-schema-registry')).getSchema('sounds')!;
     const track = schema.root!.nested![0]!.valueSchema!.item!;
     const { value, inputs } = mountBoundField(track, { source: 'sounds/music', file: 'solo.ogg', volume: 1 });
-    const files = wrapper!.findAllComponents({ name: 'SchemaCollectionInput' }).find((input) => input.props('field').key === 'files')!;
+    const files = wrapper!.findAllComponents(SchemaCollectionInput).find((input) => input.props('field').key === 'files')!;
     await files.findAll('button').at(-1)!.trigger('click');
     expect(value.value).toEqual({ source: 'sounds/music', volume: 1, files: [''] });
-    const file = wrapper!.findAllComponents({ name: 'SchemaScalarInput' }).find((input) => input.props('field').key === 'file')!;
+    const file = wrapper!.findAllComponents(SchemaScalarInput).find((input) => input.props('field').key === 'file')!;
     await file.get('input').setValue('other.ogg');
     await inputs.commit();
     expect(value.value).toEqual({ source: 'sounds/music', volume: 1, file: 'other.ogg' });
@@ -535,7 +540,7 @@ describe('SchemaFieldRenderer smart mode', () => {
     await nextTick();
     expect(field.find('.field-description').exists()).toBe(false);
     expect(field.findAll('.field-warning, .field-danger')).toHaveLength(2);
-    field.element.remove();
+    field.get('.schema-field').element.remove();
   });
 
   it.each(['object', 'array', 'object-list'] as const)('applies description display to nested %s fields', async (type) => {
@@ -702,14 +707,14 @@ describe('SchemaFieldRenderer smart mode', () => {
     await nextTick();
     const select = field.findComponent(nSelect);
     expect(select.props('options')).toContainEqual(expect.objectContaining({ label: '数字标签' }));
-    await select.vm.$emit('update:value', ['kinetic*']);
+    select.vm.$emit('update:value', ['kinetic*']);
     await nextTick();
     expect(inputs.dirty.value).toBe(true);
     inputs.cancel();
     expect(value.value).toEqual([]);
     expect(inputs.dirty.value).toBe(false);
     await nextTick();
-    await select.vm.$emit('update:value', ['kinetic*']);
+    select.vm.$emit('update:value', ['kinetic*']);
     await nextTick();
     const input = field.findAll('input').at(-1)!;
     expect((input.element as HTMLInputElement).value).toBe('kinetic0');

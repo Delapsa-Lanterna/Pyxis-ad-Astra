@@ -1,7 +1,10 @@
 use crate::models;
-use crate::models::{ResourceOwnerKind, ResourceRef, ResourceSource};
+use crate::models::{
+    EntityFileLocation, ReferenceSource, ResourceOwnerKind, ResourceRef, ResourceSource,
+};
 use crate::services::project::session::references::reference_revision;
 use serde_json::json;
+use std::collections::BTreeMap;
 
 pub(in crate::services::project) fn media_resource_key(resource: &ResourceRef) -> String {
     json!([
@@ -34,9 +37,120 @@ pub(in crate::services::project) fn resource_ref(
     }
 }
 
+/// Assigns the captured reference identity to an unbound non-Core resource.
+pub(in crate::services::project) fn apply_reference_origin(
+    resource: &mut ResourceRef,
+    identity: &ReferenceSource,
+) {
+    if resource.source != ResourceSource::Core && resource.reference.is_none() {
+        resource.source = ResourceSource::Reference;
+        resource.reference = Some(identity.clone());
+    }
+}
+
+/// Applies the file's captured reference identity to its resource collection.
+pub(in crate::services::project) fn apply_source_reference(
+    source: &EntityFileLocation,
+    resources: &mut BTreeMap<String, ResourceRef>,
+) {
+    if let Some(identity) = source.reference.as_deref() {
+        for resource in resources.values_mut() {
+            apply_reference_origin(resource, identity);
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn reference_origin_retains_resource_content_and_first_reference_identity() {
+        let identity = ReferenceSource {
+            session_id: "source-a".into(),
+            mod_root: "M:/source-a".into(),
+        };
+        let next = ReferenceSource {
+            session_id: "source-b".into(),
+            mod_root: "M:/source-b".into(),
+        };
+        for source in [
+            ResourceSource::Mod,
+            ResourceSource::Core,
+            ResourceSource::Reference,
+        ] {
+            let mut resource = resource_ref(
+                source,
+                "graphics/icon.png",
+                ResourceOwnerKind::Ship,
+                "ship",
+                "sprite",
+            );
+            if source == ResourceSource::Reference {
+                resource.reference = Some(next.clone());
+            }
+            let mut expected = serde_json::to_value(&resource).unwrap();
+            if source == ResourceSource::Mod {
+                expected["source"] = json!("reference");
+                expected["reference"] = json!(identity);
+            }
+            apply_reference_origin(&mut resource, &identity);
+            assert_eq!(serde_json::to_value(&resource).unwrap(), expected);
+            apply_reference_origin(&mut resource, &next);
+            assert_eq!(serde_json::to_value(&resource).unwrap(), expected);
+        }
+    }
+
+    #[test]
+    fn file_reference_origin_applies_one_identity_to_mixed_resources() {
+        let identity = ReferenceSource {
+            session_id: "source-a".into(),
+            mod_root: "M:/source-a".into(),
+        };
+        let existing = ReferenceSource {
+            session_id: "source-b".into(),
+            mod_root: "M:/source-b".into(),
+        };
+        for source in [
+            ResourceSource::Mod,
+            ResourceSource::Core,
+            ResourceSource::Reference,
+        ] {
+            let location = EntityFileLocation {
+                reference: (source == ResourceSource::Reference)
+                    .then(|| Box::new(identity.clone())),
+                source,
+                root: "M:/source-a".into(),
+                rel_path: "data/hulls/ship.ship".into(),
+                path: "M:/source-a/data/hulls/ship.ship".into(),
+            };
+            let mut resources = BTreeMap::new();
+            for (key, origin) in [
+                ("local", ResourceSource::Mod),
+                ("core", ResourceSource::Core),
+                ("bound", ResourceSource::Reference),
+            ] {
+                let mut resource = resource_ref(
+                    origin,
+                    "graphics/icon.png",
+                    ResourceOwnerKind::Ship,
+                    "ship",
+                    key,
+                );
+                if origin == ResourceSource::Reference {
+                    resource.reference = Some(existing.clone());
+                }
+                resources.insert(key.into(), resource);
+            }
+            let mut expected = serde_json::to_value(&resources).unwrap();
+            if source == ResourceSource::Reference {
+                expected["local"]["source"] = json!("reference");
+                expected["local"]["reference"] = json!(identity);
+            }
+            apply_source_reference(&location, &mut resources);
+            assert_eq!(serde_json::to_value(&resources).unwrap(), expected);
+        }
+    }
+
     #[test]
     fn media_key_ignores_presentation_owner() {
         let ship = resource_ref(

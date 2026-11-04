@@ -586,8 +586,8 @@ fn write_trace(
         let mut first = true;
         while let Ok(message) = receiver.recv() {
             match message {
-                TraceMessage::Data(raw) => {
-                    let value = parse_starsector_json(&raw)?;
+                TraceMessage::Data(trace_json) => {
+                    let value = parse_starsector_json(&trace_json)?;
                     let frames = frames.lock().expect("frame lock");
                     for event in value["value"].as_array().into_iter().flatten() {
                         if is_main_webview_event(event, &frames) {

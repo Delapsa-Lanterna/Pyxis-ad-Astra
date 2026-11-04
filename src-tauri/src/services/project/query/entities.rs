@@ -105,11 +105,9 @@ mod tests {
     #[cfg(test)]
     use crate::models::{EntityLinkedRecord, EntitySummaries, ProjectManifest};
     #[cfg(test)]
-    use crate::services::project::PerformanceTrace;
-    #[cfg(test)]
     use crate::services::project::model::{ProjectSession, SessionCsvTable};
     #[cfg(test)]
-    use crate::services::project::performance::PerformanceTrace as PerformancePerformanceTrace;
+    use crate::services::project::performance::PerformanceTrace;
     use crate::services::project::test_support::project_workspace;
     use serde_json::{Map, Value};
     use std::collections::BTreeMap;
@@ -181,7 +179,7 @@ mod tests {
         )
         .unwrap();
 
-        let mut trace = PerformancePerformanceTrace::new("project.openSession");
+        let mut trace = PerformanceTrace::new("project.openSession");
         let manifest = open_project_session_traced(&root, None, &mut trace).unwrap();
         let list = query_entity_list(&manifest.session_id, EntityKind::Mission).unwrap();
         let entity = query_entity(&manifest.session_id, EntityKind::Mission, "demo")
@@ -214,7 +212,7 @@ mod tests {
         )
         .unwrap();
 
-        let mut trace = PerformancePerformanceTrace::new("project.openSession");
+        let mut trace = PerformanceTrace::new("project.openSession");
         let manifest = open_project_session_traced(&root, None, &mut trace).unwrap();
         let entity = query_entity(&manifest.session_id, EntityKind::Mission, "missing").unwrap();
 
@@ -234,7 +232,7 @@ mod tests {
         .unwrap();
         write_utf8_no_bom(&root.join("data/missions/demo/descriptor.json"), "{").unwrap();
 
-        let mut trace = PerformancePerformanceTrace::new("project.openSession");
+        let mut trace = PerformanceTrace::new("project.openSession");
         let manifest = open_project_session_traced(&root, None, &mut trace).unwrap();
         let error = query_entity_list(&manifest.session_id, EntityKind::Mission)
             .unwrap_err()
@@ -310,7 +308,7 @@ mod tests {
         )
         .unwrap();
 
-        let mut trace = PerformancePerformanceTrace::new("project.openSession");
+        let mut trace = PerformanceTrace::new("project.openSession");
         let manifest = open_project_session_traced(&root, None, &mut trace).unwrap();
         let entities = query_entity_list(&manifest.session_id, EntityKind::Mission).unwrap();
 
@@ -335,7 +333,7 @@ mod tests {
         )
         .unwrap();
 
-        let mut trace = PerformancePerformanceTrace::new("project.openSession");
+        let mut trace = PerformanceTrace::new("project.openSession");
         let manifest = open_project_session_traced(&root, None, &mut trace).unwrap();
         let entity = query_entity(&manifest.session_id, EntityKind::Weapon, "demo_weapon")
             .unwrap()
@@ -364,7 +362,7 @@ mod tests {
         )
         .unwrap();
 
-        let mut trace = PerformancePerformanceTrace::new("project.openSession");
+        let mut trace = PerformanceTrace::new("project.openSession");
         let manifest = open_project_session_traced(&root, None, &mut trace).unwrap();
         let entity = query_entity(&manifest.session_id, EntityKind::Weapon, "demo_weapon")
             .unwrap()
@@ -391,7 +389,7 @@ mod tests {
         )
         .unwrap();
 
-        let mut trace = PerformancePerformanceTrace::new("project.openSession");
+        let mut trace = PerformanceTrace::new("project.openSession");
         let manifest = open_project_session_traced(&root, None, &mut trace).unwrap();
         let entities = query_entity_list(&manifest.session_id, EntityKind::Weapon).unwrap();
 
@@ -413,7 +411,7 @@ mod tests {
         )
         .unwrap();
 
-        let mut trace = PerformancePerformanceTrace::new("project.openSession");
+        let mut trace = PerformanceTrace::new("project.openSession");
         let manifest = open_project_session_traced(&root, None, &mut trace).unwrap();
         let entities = query_entity_list(&manifest.session_id, EntityKind::Weapon).unwrap();
 
@@ -438,7 +436,7 @@ mod tests {
         )
         .unwrap();
 
-        let mut trace = PerformancePerformanceTrace::new("project.openSession");
+        let mut trace = PerformanceTrace::new("project.openSession");
         let manifest = open_project_session_traced(&root, None, &mut trace).unwrap();
         let entity = query_entity(&manifest.session_id, EntityKind::Weapon, "demo_weapon").unwrap();
 
@@ -467,7 +465,7 @@ mod tests {
         )
         .unwrap();
 
-        let mut trace = PerformancePerformanceTrace::new("project.openSession");
+        let mut trace = PerformanceTrace::new("project.openSession");
         let manifest = open_project_session_traced(&root, None, &mut trace).unwrap();
         let entities = query_entity_list(&manifest.session_id, EntityKind::Skill).unwrap();
 
@@ -496,7 +494,7 @@ mod tests {
         )
         .unwrap();
 
-        let mut trace = PerformancePerformanceTrace::new("project.openSession");
+        let mut trace = PerformanceTrace::new("project.openSession");
         let manifest = open_project_session_traced(&root, None, &mut trace).unwrap();
         let entity = query_entity(&manifest.session_id, EntityKind::Skill, "skill_one")
             .unwrap()
@@ -524,7 +522,7 @@ mod tests {
         )
         .unwrap();
 
-        let mut trace = PerformancePerformanceTrace::new("project.openSession");
+        let mut trace = PerformanceTrace::new("project.openSession");
         let manifest = open_project_session_traced(&root, None, &mut trace).unwrap();
         let entity = query_entity(&manifest.session_id, EntityKind::Skill, "missing").unwrap();
 
@@ -543,7 +541,7 @@ mod tests {
         )
         .unwrap();
 
-        let mut trace = PerformancePerformanceTrace::new("project.openSession");
+        let mut trace = PerformanceTrace::new("project.openSession");
         let manifest = open_project_session_traced(&root, None, &mut trace).unwrap();
         let entities = query_entity_list(&manifest.session_id, EntityKind::Skill).unwrap();
 

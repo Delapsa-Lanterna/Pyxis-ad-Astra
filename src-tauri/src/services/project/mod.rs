@@ -29,7 +29,7 @@ pub use session::{
 };
 pub(crate) use sources::configure_persistent_index_cache;
 pub(crate) use sources::core::core_dir;
-pub(crate) use sources::resolve_core_root;
+pub(crate) use sources::roots::resolve_core_root;
 pub(crate) use sources::roots::{
     infer_starsector_root, is_game_root, is_mod_root, resolve_game_mods_directory,
 };

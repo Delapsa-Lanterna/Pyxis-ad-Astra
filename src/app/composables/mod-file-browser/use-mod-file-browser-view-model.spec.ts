@@ -1,4 +1,7 @@
-import { observeSavedContentFixture, committedChangeFixture } from '@/test/unit/project-changes';
+import type * as ModFileBrowserServiceModule from '@/services/mod-file-browser.service';
+import type * as FileEditorWindowModule from '@/windows/file-editor.window';
+import type * as ProjectSyncOrchestratorModule from '@/orchestrators/project-sync.orchestrator';
+import { observeSavedContentFixture, committedChangeFixture, dispatchProjectChangeFixture } from '@/test/unit/project-changes';
 import { projectChangeFixture } from '@/test/unit/project-changes';
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
@@ -11,15 +14,13 @@ import { useModFileBrowserStore } from '@/stores/mod-file-browser.store';
 import { sessionUpdateFixture, savedWriteFixture } from '@/test/fixtures/write-result';
 
 import type { ModDirectory, ModFileEntry } from '@/shared/types/mod-file-browser.types';
-import type { CommittedWriteEvent, SaveAcceptanceTask } from '@/shared/types';
 const mocks = vi.hoisted(() => ({
-  directory: vi.fn(),
-  search: vi.fn(),
-  file: vi.fn(),
-  open: vi.fn(),
+  directory: vi.fn<typeof ModFileBrowserServiceModule.queryModDirectory>(),
+  search: vi.fn<typeof ModFileBrowserServiceModule.queryModFileSearch>(),
+  file: vi.fn<typeof ModFileBrowserServiceModule.queryModTextFileTarget>(),
+  open: vi.fn<typeof FileEditorWindowModule.openFileEditorWindow>(),
   error: vi.fn(),
-  listen: vi.fn(),
-  handler: null as null | ((event: CommittedWriteEvent) => SaveAcceptanceTask[] | undefined),
+  listen: vi.fn<typeof ProjectSyncOrchestratorModule.listenSavedContent>(),
 }));
 vi.mock('@/services/mod-file-browser.service', () => ({
   queryModDirectory: mocks.directory,
@@ -71,7 +72,6 @@ beforeEach(() => {
   });
   vi.stubGlobal('cancelAnimationFrame', (id: number) => frames.delete(id));
   mocks.listen.mockImplementation(async (handler) => {
-    mocks.handler = handler;
     return observeSavedContentFixture(handler);
   });
   mocks.directory.mockImplementation(async (_id: string, path: string | null) => ({
@@ -83,7 +83,7 @@ beforeEach(() => {
           ? [entry('data/nested', 'directory'), entry('data/spec.wpn')]
           : [entry('data/nested/file.txt')],
   }));
-  mocks.open.mockResolvedValue({ status: 'accepted' });
+  mocks.open.mockResolvedValue({ status: 'accepted', label: 'file', requestId: 1 });
   register();
 });
 afterEach(() => {
@@ -289,7 +289,7 @@ describe('mod file browser actions and read lifetime', () => {
     ];
     result.invalidation.paths = ['data/old.wpn', 'data/new.wpn'];
     const change = committedChangeFixture(result, 's1', 'M:/A');
-    for (const task of mocks.handler!(change) ?? []) await task();
+    await dispatchProjectChangeFixture(change);
     await flushPromises();
     expect(mocks.directory).toHaveBeenCalledExactlyOnceWith('s1', 'data');
     mocks.directory.mockClear();
@@ -348,7 +348,7 @@ describe('directory preload and display continuity', () => {
     vm.actions.setScroll(45);
     await paint();
     expect(mocks.directory).toHaveBeenLastCalledWith('s1', 'data/nested');
-    expect(vm.view.directories.get('data').loading).toBe(true);
+    expect(vm.view.directories.get('data')!.loading).toBe(true);
     complete({ directory: 'data', entries: [entry('data/nested', 'directory'), entry('data/spec.wpn')] });
     const before = vm.view.nodes;
     await flushPromises();

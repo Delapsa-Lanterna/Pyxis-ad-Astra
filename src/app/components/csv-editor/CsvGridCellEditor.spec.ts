@@ -1,3 +1,6 @@
+import CsvCellTextEditor from '@/app/components/csv-editor/CsvCellTextEditor.vue';
+import CsvCellPicker from '@/app/components/csv-editor/CsvCellPicker.vue';
+import type { AppFeedback } from '@/shared/types';
 import { createPinia, setActivePinia } from 'pinia';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { initializeSettingsStore, useSettingsStore } from '@/stores/settings.store';
@@ -28,7 +31,9 @@ const images = vi.hoisted(() => ({
 }));
 vi.mock('@/services/source-catalog.service', () => ({ queryImageSourceOptions: images.query }));
 
-vi.mock('@/app/composables/use-app-feedback', () => ({ useAppFeedback: () => ({ choose: vi.fn(), error: vi.fn() }) }));
+vi.mock('@/app/composables/use-app-feedback', () => ({
+  useAppFeedback: () => ({ choose: vi.fn<AppFeedback['choose']>(), error: vi.fn() }),
+}));
 
 const sourceIndex: CsvSourceIndex = { optionsBySource: new Map(), valueIndexBySource: new Map(), valueSetsBySource: new Map() };
 
@@ -196,7 +201,7 @@ describe('CsvGridCellEditor', () => {
     const editor = mountEditor({ column: columnFixture('enum'), anchorElement: document.createElement('div') });
     await editor.vm.$nextTick();
     await editor.vm.$nextTick();
-    const picker = editor.findComponent({ name: 'CsvCellPicker' });
+    const picker = editor.findComponent(CsvCellPicker);
     expect(picker.exists()).toBe(true);
     picker.vm.$emit('commit', ['LARGE']);
     await editor.vm.$nextTick();
@@ -207,7 +212,7 @@ describe('CsvGridCellEditor', () => {
     const editor = mountEditor({ column: columnFixture('text'), anchorElement: document.createElement('div') });
     await editor.vm.$nextTick();
     await editor.vm.$nextTick();
-    const textEditor = editor.findComponent({ name: 'CsvCellTextEditor' });
+    const textEditor = editor.findComponent(CsvCellTextEditor);
     expect(textEditor.exists()).toBe(true);
     await textEditor.get('textarea').setValue('committed');
     textEditor.vm.$emit('commit', 'committed');

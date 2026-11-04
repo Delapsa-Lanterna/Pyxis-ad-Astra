@@ -159,11 +159,11 @@ mod tests {
     #[cfg(test)]
     use crate::models::EntityKind;
     #[cfg(test)]
-    use crate::services::project::performance::PerformanceTrace as PerformancePerformanceTrace;
+    use crate::services::project::performance::PerformanceTrace;
     #[cfg(test)]
     use crate::services::project::resources::media_cache as media;
     #[cfg(test)]
-    use crate::services::project::{PerformanceTrace, test_support};
+    use crate::services::project::test_support;
     use base64::Engine as _;
     #[cfg(test)]
     use std::fs;
@@ -301,7 +301,7 @@ mod tests {
         fs::create_dir_all(root.join("graphics/ships")).unwrap();
         fs::write(root.join("graphics/ships/ship.png"), [137, 80, 78, 71]).unwrap();
 
-        let mut trace = PerformancePerformanceTrace::new("project.openSession");
+        let mut trace = PerformanceTrace::new("project.openSession");
         let manifest = open_project_session_traced(&root, None, &mut trace).unwrap();
         let result = query_resource_data_urls(
             &manifest.session_id,
@@ -346,7 +346,7 @@ mod tests {
         fs::create_dir_all(sprite.parent().unwrap()).unwrap();
         fs::write(&sprite, [137, 80, 78, 71]).unwrap();
 
-        let mut trace = PerformancePerformanceTrace::new("project.openSession");
+        let mut trace = PerformanceTrace::new("project.openSession");
         let manifest = open_project_session_traced(&root, None, &mut trace).unwrap();
         let before = sprite_read_count(&sprite);
         let result = query_resource_data_urls(
@@ -411,7 +411,7 @@ mod tests {
         fs::write(&mod_sprite, [1u8, 2, 3]).unwrap();
         fs::write(&core_sprite, [4u8, 5, 6]).unwrap();
 
-        let mut trace = PerformancePerformanceTrace::new("project.openSession");
+        let mut trace = PerformanceTrace::new("project.openSession");
         let manifest =
             open_project_session_traced(&root.join("mods/demo"), Some(&root), &mut trace).unwrap();
         let result = query_resource_data_urls(
@@ -446,7 +446,7 @@ mod tests {
     fn core_resource_requires_starsector_root() {
         let root = project_workspace("core_resource_without_root");
 
-        let mut trace = PerformancePerformanceTrace::new("project.openSession");
+        let mut trace = PerformanceTrace::new("project.openSession");
         let manifest = open_project_session_traced(&root, None, &mut trace).unwrap();
         let error = query_resource_data_urls(
             &manifest.session_id,
@@ -484,7 +484,7 @@ mod tests {
         )
         .unwrap();
 
-        let mut trace = PerformancePerformanceTrace::new("project.openSession");
+        let mut trace = PerformanceTrace::new("project.openSession");
         let manifest = open_project_session_traced(&mod_root, Some(&root), &mut trace).unwrap();
         let result = query_resource_data_urls(
             &manifest.session_id,
@@ -508,7 +508,7 @@ mod tests {
     fn resource_query_rejects_parent_dir_escape() {
         let root = project_workspace("resource_query_parent_escape");
 
-        let mut trace = PerformancePerformanceTrace::new("project.openSession");
+        let mut trace = PerformanceTrace::new("project.openSession");
         let manifest = open_project_session_traced(&root, None, &mut trace).unwrap();
         let error = query_resource_data_urls(
             &manifest.session_id,
@@ -541,7 +541,7 @@ mod tests {
         let root = root.with_cleanup(test_support::release_workspace);
         fs::write(outside.join("outside.png"), [137, 80, 78, 71]).unwrap();
 
-        let mut trace = PerformancePerformanceTrace::new("project.openSession");
+        let mut trace = PerformanceTrace::new("project.openSession");
         let manifest = open_project_session_traced(&root, None, &mut trace).unwrap();
         let result = query_resource_data_urls(
             &manifest.session_id,
@@ -568,7 +568,7 @@ mod tests {
         let sprite = sprite_dir.join("demo.png");
         fs::write(&sprite, [1u8]).unwrap();
 
-        let mut trace = PerformancePerformanceTrace::new("project.openSession");
+        let mut trace = PerformanceTrace::new("project.openSession");
         let manifest = open_project_session_traced(&root, None, &mut trace).unwrap();
         let resource = ResourceRef {
             reference: None,
@@ -634,7 +634,7 @@ mod tests {
             });
         }
 
-        let mut trace = PerformancePerformanceTrace::new("project.openSession");
+        let mut trace = PerformanceTrace::new("project.openSession");
         let manifest = open_project_session_traced(&root, None, &mut trace).unwrap();
         let result = query_resource_data_urls(&manifest.session_id.clone(), resources).unwrap();
 
@@ -696,7 +696,7 @@ mod tests {
             key: "ship".to_string(),
         };
 
-        let mut trace = PerformancePerformanceTrace::new("project.openSession");
+        let mut trace = PerformanceTrace::new("project.openSession");
         let manifest = open_project_session_traced(&root, None, &mut trace).unwrap();
         let session_id = manifest.session_id.clone();
         query_resource_data_urls(&session_id, vec![resource.clone()]).unwrap();

@@ -72,7 +72,6 @@ vi.mock('@/stores/workspace.store', () => ({ useWorkspaceStore: () => mocks.work
 vi.mock('@/stores/project.store', () => ({ useProjectStore: () => mocks.project }));
 vi.mock('@/stores/csv-editor.store', () => ({ useCsvEditorStore: () => mocks.tables }));
 vi.mock('@/stores/file-history.store', () => ({ useFileHistoryStore: () => mocks.fileHistory }));
-vi.mock('@/stores/csv-table-history.store', () => ({ useCsvEditorStore: () => mocks.csvHistory }));
 vi.mock('@/stores/project-sync.store', () => ({ useProjectSyncStore: () => mocks.writeSync }));
 vi.mock('@/stores/mod-file-browser.store', () => ({ useModFileBrowserStore: () => mocks.fileBrowser }));
 vi.mock('@/services/project-sync.service', () => ({ closeProjectSession: mocks.closeProjectSession }));

@@ -734,7 +734,7 @@ fn render_array(
         }
     } else {
         for (index, value) in after.iter().enumerate() {
-            let raw = if let Some(old_index) = matched[index] {
+            let element_text = if let Some(old_index) = matched[index] {
                 render_node(
                     source,
                     &elements[old_index],
@@ -750,7 +750,7 @@ fn render_array(
                     value,
                 )?
             };
-            rendered.push_str(&raw);
+            rendered.push_str(&element_text);
             let old_index = matched[index];
             if let Some(old_index) = old_index {
                 rendered.push_str(&prefixes[old_index]);

@@ -1,4 +1,3 @@
-/* eslint-disable vue/one-component-per-file -- Browser scenes compose the formal providers and content. */
 import { createApp, defineComponent, h, nextTick, onScopeDispose, ref, type App } from 'vue';
 import { createPinia, disposePinia, type Pinia } from 'pinia';
 import WindowShell from '@/app/WindowShell.vue';

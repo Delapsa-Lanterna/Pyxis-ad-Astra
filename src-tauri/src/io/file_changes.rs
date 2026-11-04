@@ -20,8 +20,14 @@ use walkdir::WalkDir;
 static ROOT_WRITE_COORDINATORS: LazyLock<Mutex<BTreeMap<String, Weak<RootWriteCoordinator>>>> =
     LazyLock::new(|| Mutex::new(BTreeMap::new()));
 
+#[derive(Default)]
+struct RootWriteTurns {
+    next: u64,
+    serving: u64,
+}
+
 struct RootWriteCoordinator {
-    turns: Mutex<(u64, u64)>,
+    turns: Mutex<RootWriteTurns>,
     released: Condvar,
 }
 
@@ -99,7 +105,7 @@ pub fn retry_write<T>(root: &str, mut action: impl FnMut() -> AppResult<T>) -> A
 impl Drop for RootWriteLease {
     fn drop(&mut self) {
         if let Ok(mut turns) = self.coordinator.turns.lock() {
-            turns.1 += 1;
+            turns.serving += 1;
             self.coordinator.released.notify_all();
         }
     }
@@ -172,7 +178,7 @@ fn acquire_root_write_lock_with_retry(
             coordinator
         } else {
             let coordinator = Arc::new(RootWriteCoordinator {
-                turns: Mutex::new((0, 0)),
+                turns: Mutex::new(RootWriteTurns::default()),
                 released: Condvar::new(),
             });
             coordinators.insert(canonical_root.clone(), Arc::downgrade(&coordinator));
@@ -183,9 +189,9 @@ fn acquire_root_write_lock_with_retry(
         .turns
         .lock()
         .map_err(|_| AppError::message("write.lock_poisoned", "write coordinator lock poisoned"))?;
-    let turn = turns.0;
-    turns.0 += 1;
-    while turns.1 != turn {
+    let turn = turns.next;
+    turns.next += 1;
+    while turns.serving != turn {
         turns = coordinator.released.wait(turns).map_err(|_| {
             AppError::message("write.lock_poisoned", "write coordinator lock poisoned")
         })?;
@@ -1263,7 +1269,7 @@ mod tests {
                 sent.send(index).unwrap();
             }));
             let start = Instant::now();
-            while held._lease.coordinator.turns.lock().unwrap().0 < index + 1 {
+            while held._lease.coordinator.turns.lock().unwrap().next < index + 1 {
                 assert!(start.elapsed() < Duration::from_secs(3));
                 thread::yield_now();
             }

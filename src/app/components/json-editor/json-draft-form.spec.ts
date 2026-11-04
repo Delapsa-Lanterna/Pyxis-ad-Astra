@@ -1,3 +1,8 @@
+import type * as JsonSaveOrchestratorModule from '@/orchestrators/json-save.orchestrator';
+import type * as JsonRecoveryServiceModule from '@/services/json-recovery.service';
+import type * as HullReferenceServiceModule from '@/services/hull-reference.service';
+import type * as JsonEntityServiceModule from '@/services/json-entity.service';
+import type * as ImmersiveEditorOrchestratorModule from '@/orchestrators/immersive-editor.orchestrator';
 import { dialogText } from '@/test/unit/dialog-text';
 import { miscConfigDocumentValue, miscConfigDocumentContent } from '@/domain/json-editor/json-document-definitions';
 import { dispatchProjectChangeFixture, committedChangeFixture } from '@/test/unit/project-changes';
@@ -38,30 +43,30 @@ import type { Component, VNode } from 'vue';
 vi.mock('@/services/window.service', () => ({ releaseNativeWindowTargets: vi.fn(async () => {}) }));
 const mocks = vi.hoisted(() => ({
   listeners: new Set<(event: CommittedWriteEvent) => Promise<void>>(),
-  list: vi.fn(),
-  read: vi.fn(),
+  list: vi.fn<typeof EntityQueryServiceModule.querySessionEntityList>(),
+  read: vi.fn<typeof EntityQueryServiceModule.querySessionEntity>(),
   saveFile: vi.fn(),
-  saveIndexed: vi.fn(),
-  saveMod: vi.fn(),
+  saveIndexed: vi.fn<typeof JsonSaveOrchestratorModule.saveIndexedEntityAction>(),
+  saveMod: vi.fn<typeof JsonSaveOrchestratorModule.saveModInfoAction>(),
   remove: vi.fn(),
-  create: vi.fn(),
+  create: vi.fn<(...args: unknown[]) => unknown>(),
   complete: vi.fn(),
-  prepare: vi.fn(),
-  slots: vi.fn(),
-  previews: vi.fn(),
-  missionPreview: vi.fn(),
-  miscRead: vi.fn(),
-  miscList: vi.fn(),
-  miscSave: vi.fn(),
-  miscDelete: vi.fn(),
-  openImmersive: vi.fn(),
-  hullTarget: vi.fn(),
+  prepare: vi.fn<typeof JsonRecoveryServiceModule.prepareJsonSourceRecovery>(),
+  slots: vi.fn<typeof HullReferenceServiceModule.queryBuiltInWeaponSlotOptions>(),
+  previews: vi.fn<typeof JsonEntityServiceModule.queryFactionPreviewImages>(),
+  missionPreview: vi.fn<typeof JsonEntityServiceModule.queryMissionDraftIcon>(),
+  miscRead: vi.fn<typeof MiscConfigServiceModule.queryMiscConfigFile>(),
+  miscList: vi.fn<typeof MiscConfigServiceModule.queryMiscConfigFiles>(),
+  miscSave: vi.fn<typeof MiscConfigServiceModule.saveMiscConfig>(),
+  miscDelete: vi.fn<typeof MiscConfigServiceModule.deleteMiscConfig>(),
+  openImmersive: vi.fn<typeof ImmersiveEditorOrchestratorModule.openVariantImmersiveEditor>(),
+  hullTarget: vi.fn<typeof EntityQueryServiceModule.querySessionEntityEditTarget>(),
   feedback: {
     error: vi.fn(),
     warning: vi.fn(),
     success: vi.fn(),
     info: vi.fn(),
-    choose: vi.fn(),
+    choose: vi.fn<AppFeedback['choose']>(),
     confirmWarning: vi.fn<AppFeedback['confirmWarning']>(),
     confirmDanger: vi.fn<AppFeedback['confirmDanger']>(),
   },
@@ -165,6 +170,7 @@ vi.mock('@/app/composables/use-visible-resource-media', () => ({
 }));
 let wrapper: VueWrapper | null;
 let entities: Map<string, EntityData>;
+const stringsFile = { kind: 'strings' as const, path: 'M:/one/data/strings/strings.json', relPath: 'data/strings/strings.json' };
 const pages = (Object.keys(JSON_DOCUMENT_DEFINITIONS) as JsonEditorPageId[]).filter((page) => page !== 'misc-config');
 const key = (session: string, kind: string, id: string) => [session, kind, id].join(':');
 function manifest(session = 's1', root = 'M:/one') {
@@ -235,7 +241,7 @@ beforeEach(() => {
   mocks.list.mockImplementation(async (session: string, kind: string) =>
     [...entities.entries()]
       .filter(([id]) => id.startsWith(session + ':' + kind + ':'))
-      .map(([, entity]) => (entity.kind === 'mission' ? { ...entity, data: { list: (entity.data as RowData).list } } : entity)),
+      .map(([, entity]) => (entity.kind === 'mission' ? { ...entity, data: { list: (entity.data as RowData).list! } } : entity)),
   );
   mocks.read.mockImplementation(async (session: string, kind: string, id: string) => entities.get(key(session, kind, id)) ?? null);
   mocks.saveFile.mockImplementation(async (...args: Parameters<typeof savedFile>) => savedFile(...args));
@@ -249,29 +255,41 @@ beforeEach(() => {
     receipt.identityChanges = [{ before: before.target, after: after.target }];
     entities.delete(key(write.sessionId, write.kind, before.id));
     entities.set(key(write.sessionId, write.kind, after.id), after);
-    return { entity: { entityData: write.entityData, indexRows: [{ data: write.indexRow, isComment: false }] }, receipt };
+    return {
+      entity: {
+        baseVersions: receipt.baseVersions,
+        entityId: write.nextId,
+        indexPath: write.modRoot + (write.kind === 'faction' ? '/data/world/factions/factions.csv' : '/data/missions/mission_list.csv'),
+        indexHeader: [],
+        entityData: write.entityData,
+        indexRows: [{ data: write.indexRow, isComment: false }],
+      },
+      receipt,
+    };
   });
   mocks.complete.mockImplementation(async (modRoot: string, _session: string, result: WriteResult) => {
     await dispatchProjectChangeFixture(committedChangeFixture(result, _session, modRoot));
   });
-  mocks.prepare.mockImplementation(async (request: JsonRecoveryRequest) => {
-    if (request.origin.kind === 'entity') {
-      const entity = entities.get(key(request.sessionId, request.origin.target.kind, request.origin.target.id))!;
-      const data = entity.data as RowData;
-      return {
-        request,
-        missingPaths: [],
-        baseVersions: entity.baseVersions,
-        currentSources:
-          entity.kind === 'mission'
-            ? { descriptor: data.descriptor, text: data.text, index: { rows: [{ isComment: false, data: data.list }] } }
-            : { file: data },
-        resourceRefs: entity.resourceRefs,
-      };
-    }
-    const source = useProjectStore().getManifest(request.modRoot)!;
-    return { request, missingPaths: [], baseVersions: source.baseVersions, currentSources: { file: source.modInfo }, resourceRefs: {} };
-  });
+  mocks.prepare.mockImplementation(
+    async (request: JsonRecoveryRequest): ReturnType<typeof JsonRecoveryServiceModule.prepareJsonSourceRecovery> => {
+      if (request.origin.kind === 'entity') {
+        const entity = entities.get(key(request.sessionId, request.origin.target.kind, request.origin.target.id))!;
+        const data = entity.data as RowData;
+        return {
+          request,
+          missingPaths: [],
+          baseVersions: entity.baseVersions,
+          currentSources:
+            entity.kind === 'mission'
+              ? { descriptor: data.descriptor!, text: data.text!, index: { rows: [{ isComment: false, data: data.list! }] } }
+              : { file: data },
+          resourceRefs: entity.resourceRefs,
+        };
+      }
+      const source = useProjectStore().getManifest(request.modRoot)!;
+      return { request, missingPaths: [], baseVersions: source.baseVersions, currentSources: { file: source.modInfo! }, resourceRefs: {} };
+    },
+  );
   mocks.feedback.choose.mockImplementation(async (options) => options.choices[0]?.value ?? null);
   mocks.feedback.confirmWarning.mockImplementation((options) => {
     void options.onConfirm();
@@ -279,9 +297,7 @@ beforeEach(() => {
   mocks.previews.mockResolvedValue({ logoSrc: '', crestSrc: '' });
   mocks.missionPreview.mockResolvedValue('');
   mocks.slots.mockResolvedValue([]);
-  mocks.miscList.mockResolvedValue([
-    { kind: 'strings', path: 'M:/one/data/strings/strings.json', relPath: 'data/strings/strings.json', state: 'missing', error: null },
-  ]);
+  mocks.miscList.mockResolvedValue([{ ...stringsFile, state: 'missing', error: null }]);
   mocks.miscRead.mockResolvedValue(null);
 });
 afterEach(() => {
@@ -337,9 +353,13 @@ describe('JSON common workspace and form', () => {
   it.each(['factions', 'mission'] as const)(
     '%s updates image sources without replacing nodes and rejects obsolete results',
     async (page) => {
-      const faction = page === 'factions',
-        query = faction ? mocks.previews : mocks.missionPreview;
-      const result = (value: string) => (faction ? { logoSrc: value, crestSrc: value } : value);
+      const faction = page === 'factions';
+      const query = vi.fn<() => Promise<string>>();
+      mocks.previews.mockImplementation(async () => {
+        const value = await query();
+        return { logoSrc: value, crestSrc: value };
+      });
+      mocks.missionPreview.mockImplementation(query);
       const resource = {
         source: 'mod' as const,
         relPath: 'graphics/preview.png',
@@ -348,7 +368,7 @@ describe('JSON common workspace and form', () => {
         key: faction ? 'logo' : 'icon',
       };
       entities.get(key('s1', faction ? 'faction' : 'mission', 'a'))!.resourceRefs = { preview: resource };
-      query.mockResolvedValue(result('original-image'));
+      query.mockResolvedValue('original-image');
       await mountPage(page);
       const editor = wrapper!.getComponent(JsonDocumentEditor),
         doc = editor.props('document');
@@ -363,7 +383,7 @@ describe('JSON common workspace and form', () => {
       });
       await flushPromises();
       expect(query).toHaveBeenCalledTimes(initialCalls);
-      query.mockResolvedValueOnce(result('refreshed-image'));
+      query.mockResolvedValueOnce('refreshed-image');
       await projectChangeFixture('s1', { ...savedWriteFixture().invalidation, resources: [resource] });
       await flushPromises();
       expect(query).toHaveBeenCalledTimes(initialCalls + 1);
@@ -377,7 +397,7 @@ describe('JSON common workspace and form', () => {
         };
         await flushPromises();
       };
-      let finishOld!: (value: unknown) => void, finishNew!: (value: unknown) => void;
+      let finishOld!: (value: string) => void, finishNew!: (value: string) => void;
       const calls = query.mock.calls.length;
       query.mockImplementationOnce(
         () =>
@@ -395,9 +415,9 @@ describe('JSON common workspace and form', () => {
           }),
       );
       await update('graphics/new.png');
-      finishNew(result('new-image'));
+      finishNew('new-image');
       await flushPromises();
-      finishOld(result('obsolete-image'));
+      finishOld('obsolete-image');
       await flushPromises();
       expect(query).toHaveBeenCalledTimes(calls + 2);
       expect(editor.get('.json-image-preview img').element).toBe(image);
@@ -406,12 +426,12 @@ describe('JSON common workspace and form', () => {
       await update('graphics/failed.png');
       expect(image.getAttribute('src')).toBe('new-image');
       expect(mocks.feedback.error).toHaveBeenCalledWith(expect.any(Error), '刷新 JSON 预览失败');
-      query.mockResolvedValueOnce(result(''));
+      query.mockResolvedValueOnce('');
       await update('');
       expect(editor.find('.json-image-preview img').element).toBe(image);
       expect(editor.find('.panel-card').element).toBe(panel);
       expect((panel as HTMLElement).style.display).toBe('none');
-      query.mockResolvedValueOnce(result('restored-image'));
+      query.mockResolvedValueOnce('restored-image');
       await update('graphics/restored.png');
       expect(editor.get('.json-image-preview img').element).toBe(image);
       expect(image.getAttribute('src')).toBe('restored-image');
@@ -426,7 +446,7 @@ describe('JSON common workspace and form', () => {
       await wrapper!.getComponent(JsonDocumentList).get('[data-entity-id="b"]').trigger('click');
       await flushPromises();
       const next = wrapper!.getComponent(JsonDocumentEditor);
-      finishOld(result('late-image'));
+      finishOld('late-image');
       await flushPromises();
       expect(next.props('document').target.value!.id).toBe('b');
       expect(next.text()).not.toContain('late-image');
@@ -688,9 +708,9 @@ describe('JSON common workspace and form', () => {
     vi.spyOn(miscConfig, 'miscConfigDefinition').mockReturnValue(definition);
     let saved = false;
     const path = 'M:/one/data/strings/strings.json';
-    mocks.miscList.mockImplementation(async () => [{ kind: 'strings', state: saved ? 'present' : 'missing', error: null }]);
+    mocks.miscList.mockImplementation(async () => [{ ...stringsFile, state: saved ? 'present' : 'missing', error: null }]);
     mocks.miscRead.mockImplementation(async () => ({
-      kind: 'strings',
+      ...stringsFile,
       data: definition.initial,
       baseVersions: [{ path, fingerprint: 'created' }],
     }));
@@ -725,7 +745,7 @@ describe('JSON common workspace and form', () => {
       location: { path: 'M:/one/data/strings/strings.json', line: 3, column: 2 },
     };
     mocks.miscRead.mockRejectedValueOnce(error);
-    mocks.miscList.mockResolvedValue([{ kind: 'strings', state: 'present', error: null }]);
+    mocks.miscList.mockResolvedValue([{ ...stringsFile, state: 'present', error: null }]);
     await mountPage('misc-config');
     expect(wrapper!.get('.empty-state').text()).toContain('第 3 行，第 2 列');
     expect(wrapper!.find('.json-entity-list-footer').exists()).toBe(false);
@@ -735,7 +755,7 @@ describe('JSON common workspace and form', () => {
       .trigger('click');
     expect(mocks.feedback.error.mock.lastCall![0]).toBe(error);
     expect(mocks.miscSave).not.toHaveBeenCalled();
-    mocks.miscRead.mockResolvedValue({ kind: 'strings', data: {}, baseVersions: [{ path: error.location.path, fingerprint: 'fixed' }] });
+    mocks.miscRead.mockResolvedValue({ ...stringsFile, data: {}, baseVersions: [{ path: error.location.path, fingerprint: 'fixed' }] });
     await wrapper!
       .findAll('.empty-state button')
       .find((button) => button.text() === '重试')!
@@ -746,11 +766,9 @@ describe('JSON common workspace and form', () => {
   it('creates and selects a registered file, retains its draft across navigation, and confirms deletion', async () => {
     let exists = false;
     const path = 'M:/one/data/strings/strings.json';
-    mocks.miscList.mockImplementation(async () => [
-      { kind: 'strings', path, relPath: 'data/strings/strings.json', state: exists ? 'present' : 'missing', error: null },
-    ]);
+    mocks.miscList.mockImplementation(async () => [{ ...stringsFile, path, state: exists ? 'present' : 'missing', error: null }]);
     mocks.miscRead.mockImplementation(async () =>
-      exists ? { kind: 'strings', data: {}, baseVersions: [{ path, fingerprint: 'v1' }] } : null,
+      exists ? { ...stringsFile, data: {}, baseVersions: [{ path, fingerprint: 'v1' }] } : null,
     );
     mocks.prepare.mockImplementation(async (request) => ({
       request,
@@ -802,8 +820,8 @@ describe('JSON common workspace and form', () => {
     expect(useJsonEditorStore().documentStates('s1')).toHaveLength(0);
   });
   it.each(['success', 'failure'] as const)('rejects late file %s after switching Mod and returning to the same file', async (outcome) => {
-    let resolve!: (value: object) => void, reject!: (error: Error) => void;
-    mocks.miscList.mockResolvedValue([{ kind: 'strings', state: 'present', error: null }]);
+    let resolve!: (value: Awaited<ReturnType<typeof MiscConfigServiceModule.queryMiscConfigFile>>) => void, reject!: (error: Error) => void;
+    mocks.miscList.mockResolvedValue([{ ...stringsFile, state: 'present', error: null }]);
     mocks.miscRead.mockImplementationOnce(
       () =>
         new Promise((done, fail) => {
@@ -815,14 +833,15 @@ describe('JSON common workspace and form', () => {
     expect(wrapper!.text()).toContain('正在读取');
     const path = 'M:/two/data/strings/strings.json';
     mocks.miscRead.mockResolvedValue({
-      kind: 'strings',
+      ...stringsFile,
+      path: path,
       data: { group: { line: 'current' } },
       baseVersions: [{ path, fingerprint: 'v1' }],
     });
     useWorkspaceNavigationActions().navigateToModJson('M:/two', 'misc-config');
     await flushPromises();
     const current = useJsonEditorStore().active!;
-    if (outcome === 'success') resolve({ kind: 'strings', data: { group: { line: 'late' } }, baseVersions: [] });
+    if (outcome === 'success') resolve({ ...stringsFile, path: path, data: { group: { line: 'late' } }, baseVersions: [] });
     else reject(new Error('late failure'));
     await flushPromises();
     expect(useJsonEditorStore().active).toBe(current);

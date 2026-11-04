@@ -24,7 +24,6 @@ vi.mock('@/orchestrators/project-sync.orchestrator', async (importOriginal) => (
   ...(await importOriginal<typeof ProjectSyncOrchestratorModule>()),
   publishReferenceSources: mocks.publish,
 }));
-vi.mock('@/orchestrators/editor-window.orchestrator', () => ({ listenEditorSpecSaved: mocks.events }));
 vi.mock('@/orchestrators/workspace-persistence.orchestrator', () => ({
   restorePersistedWorkspace: mocks.restore,
   watchWorkspacePersistence: () => ({ beginRestore: vi.fn(), finishRestore: mocks.finishRestore, stop: mocks.stopPersistence }),

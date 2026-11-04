@@ -1,3 +1,5 @@
+import type * as AppLogServiceModule from '@/services/app-log.service';
+import type * as FilesServiceModule from '@/services/files.service';
 import { selectDialogOption } from '@/test/unit/dialog-text';
 import { mount, flushPromises, type VueWrapper } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
@@ -19,9 +21,9 @@ import { nButton } from '@/test/unit/ui-stubs';
 import type { FileEditorRequest } from '@/windows/file-editor.window';
 
 const mocks = vi.hoisted(() => ({
-  log: vi.fn(),
+  log: vi.fn<typeof AppLogServiceModule.recordLogBestEffort>(),
   open: vi.fn<(request: FileEditorRequest) => Promise<void>>(async () => {}),
-  transcode: vi.fn(),
+  transcode: vi.fn<typeof FilesServiceModule.transcodeFileToUtf8>(),
   sync: vi.fn(),
   context: { value: null as ManagedWindowContext | null },
 }));

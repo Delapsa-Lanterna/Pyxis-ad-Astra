@@ -1,11 +1,13 @@
+import type { WindowRequestReceipt } from '@/shared/types';
+import type * as WindowServiceModule from '@/services/window.service';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { requestWindow } from './managed.window';
-const api = vi.hoisted(() => ({ request: vi.fn() }));
+const api = vi.hoisted(() => ({ request: vi.fn<typeof WindowServiceModule.requestNativeWindow>() }));
 vi.mock('@/services/window.service', () => ({ requestNativeWindow: api.request }));
 beforeEach(() => vi.clearAllMocks());
 describe('managed window request delivery', () => {
   it('resolves only after the receiver accepts its registered request', async () => {
-    let finish!: (value: unknown) => void;
+    let finish!: (value: WindowRequestReceipt) => void;
     api.request.mockImplementation(
       () =>
         new Promise((resolve) => {
@@ -25,7 +27,7 @@ describe('managed window request delivery', () => {
     });
     await vi.waitFor(() => expect(api.request).toHaveBeenCalled());
     expect(done).toBe(false);
-    expect(api.request.mock.lastCall![0].input.source).toEqual(source);
+    expect(api.request.mock.lastCall![0].input).toEqual({ kind: 'weapon-fire-preview', source });
     finish({ label: 'managed-1', requestId: 9, status: 'accepted' });
     expect(await opening).toEqual({ label: 'managed-1', requestId: 9, status: 'accepted' });
   });

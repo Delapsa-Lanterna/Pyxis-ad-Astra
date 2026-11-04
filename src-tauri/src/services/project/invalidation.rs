@@ -819,12 +819,12 @@ mod tests {
     use crate::services::project::model::{MISSION_LIST_REL_PATH, MISSION_LIST_TABLE_KEY};
     use crate::services::project::performance::PerformanceTrace;
     #[cfg(test)]
+    use crate::services::project::session;
+    #[cfg(test)]
     use crate::services::project::session::csv_tables;
     #[cfg(test)]
     use crate::services::project::sources::json_documents::take_load_counts;
     use crate::services::project::test_support::project_workspace;
-    #[cfg(test)]
-    use crate::services::project::{PerformanceTrace as ProjectPerformanceTrace, session};
     use std::fs;
     use std::path::PathBuf;
     use std::slice;
@@ -835,7 +835,7 @@ mod tests {
         let path = root.join(MISSION_LIST_REL_PATH);
         fs::create_dir_all(path.parent().unwrap()).unwrap();
         write_utf8_no_bom(&path, "mission\r\nfirst\r\n").unwrap();
-        let mut trace = ProjectPerformanceTrace::new("project.openSession");
+        let mut trace = PerformanceTrace::new("project.openSession");
         let mut session = session::build_project_session(&root, None, &mut trace).unwrap();
         let definition = entity_definitions::entity_definition(EntityKind::Mission).unwrap();
         for (before, after, ids) in [
@@ -929,7 +929,7 @@ mod tests {
             fs::write(root.join(format!("data/variants/{name}.variant")), variant).unwrap();
             fs::write(root.join(format!("data/hulls/skins/{name}.skin")), skin).unwrap();
         }
-        let mut trace = ProjectPerformanceTrace::new("project.openSession");
+        let mut trace = PerformanceTrace::new("project.openSession");
         let mut session = session::build_project_session(&root, None, &mut trace).unwrap();
         take_load_counts();
         assert_eq!(session.manifest.warnings.len(), 2);
@@ -985,7 +985,7 @@ mod tests {
         let before = r#"{"variantId":"old","hullId":"hull"}"#;
         let after = r#"{"variantId":"new","hullId":"hull"}"#;
         fs::write(root.join("data/variants/a.variant"), before).unwrap();
-        let mut trace = ProjectPerformanceTrace::new("project.openSession");
+        let mut trace = PerformanceTrace::new("project.openSession");
         let mut session = session::build_project_session(&root, None, &mut trace).unwrap();
         fs::write(root.join("data/variants/a.variant"), after).unwrap();
         fs::write(root.join("data/hulls/skins/b.skin"), "{").unwrap();

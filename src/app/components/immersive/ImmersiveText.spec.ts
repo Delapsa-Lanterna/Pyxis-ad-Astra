@@ -25,7 +25,7 @@ describe('immersive font role entry', () => {
     expect(own.findComponent(FontText).props('font')).toBe('insignia15LTaa');
     expect(own.findComponent(FontText).props('runs')).toEqual(runs);
     expect(own.attributes('data-field')).toBe('capacity');
-    expect(own.element.style.color).toBe('rgb(220, 220, 220)');
+    expect(own.get('span').element.style.color).toBe('rgb(220, 220, 220)');
     own.unmount();
   });
 });

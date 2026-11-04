@@ -34,6 +34,14 @@ test('canonical modules accept exact headings, compact lists, real files, empty 
   assert.deepEqual(messages(moduleDiagnostics(fixtures())), []);
 });
 
+test('module ownership facts resolve owned descendants and exclude public paths', () => {
+  const context = fixtures();
+  assert.equal(context.moduleMap.owners.get('src/domain/sample.ts'), moduleRel);
+  assert.equal(context.moduleMap.owners.get('assets/icon.png'), moduleRel);
+  assert.equal(context.moduleMap.owners.has('src/shared/value.ts'), false);
+  assert.ok(context.moduleMap.ownershipReferences.some(({ rel, file }) => rel === 'src/domain/sample.ts' && file === moduleRel));
+});
+
 test('module documents reject stylesheet references and style constraints', () => {
   for (const text of ['CSS 规则必须统一。', '共享样式位于 `src/styles/sample.css`。']) {
     const doc = validDoc.replace('样例模块提供样例能力。', text);

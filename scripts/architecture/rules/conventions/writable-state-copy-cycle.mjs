@@ -179,6 +179,7 @@ export const writableStateCopyCycleRule = defineRule(
           if (from) {
             if (key(from) !== key(to)) copies.push({ from, to, write, excluded: [] });
           } else if (ts.isObjectLiteralExpression(expression)) {
+            /** @type {Set<string>} */
             const overridden = new Set();
             for (const property of [...expression.properties].reverse()) {
               if (ts.isSpreadAssignment(property)) {

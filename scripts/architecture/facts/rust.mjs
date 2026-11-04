@@ -164,7 +164,13 @@ function embeddedLiteral(expression) {
   ]);
   return (quoted?.[1] ?? '').replace(
     /\\(?:u\{([\da-fA-F_]+)\}|x([\da-fA-F]{2})|(\r?\n\s*)|([\s\S]))/g,
-    (_match, unicode, hex, continuation, character) => {
+    (
+      /** @type {string} */ _match,
+      /** @type {string|undefined} */ unicode,
+      /** @type {string|undefined} */ hex,
+      /** @type {string|undefined} */ continuation,
+      /** @type {string} */ character,
+    ) => {
       if (unicode) return String.fromCodePoint(parseInt(unicode.replaceAll('_', ''), 16));
       if (hex) return String.fromCodePoint(parseInt(hex, 16));
       if (continuation) return '';

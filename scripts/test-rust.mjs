@@ -129,16 +129,22 @@ try {
   const binaries = built.stdout
     .split('\n')
     .filter(Boolean)
-    .map((line) => JSON.parse(line))
-    .filter((item) => item.reason === 'compiler-artifact' && item.profile.test && item.executable)
-    .map((item) => item.executable);
+    .map(
+      (line) =>
+        /** @type {{reason:'compiler-artifact',profile:{test:boolean},executable:string|null}|{reason:'build-finished'|'compiler-message'|'build-script-executed'}} */ (
+          JSON.parse(line)
+        ),
+    )
+    .flatMap((item) => (item.reason === 'compiler-artifact' && item.profile.test && item.executable ? [item.executable] : []));
   if (!binaries.length) throw new Error('Cargo did not return any test executables');
-  const library = binaries.find((binary) => binary.includes('pyxis_ad_astra_lib'));
+  const library = /** @type {string} */ (binaries.find((binary) => binary.includes('pyxis_ad_astra_lib')));
   const probe = await run(library, ['--exact', 'test_support::tests::workspace_capabilities', '--ignored', '--nocapture'], false);
   if (probe.exitCode) throw new Error(probe.stdout + probe.stderr);
   const result = probe.stdout.split('\n').find((line) => line.startsWith('TEST_CAPABILITIES '));
   if (!result) throw new Error('The filesystem capability probe did not return results');
-  const capabilities = JSON.parse(result.slice('TEST_CAPABILITIES '.length));
+  const capabilities = /** @type {Record<'directory_link'|'file_link'|'junction'|'short',string|null>} */ (
+    JSON.parse(result.slice('TEST_CAPABILITIES '.length))
+  );
   if (values['path-form'] === 'Short') {
     if (capabilities.short) {
       unavailable.push({ test: 'path-form:Short', reason: capabilities.short });

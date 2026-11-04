@@ -1,4 +1,4 @@
-import { mount, type VueWrapper } from '@vue/test-utils';
+import { mount } from '@vue/test-utils';
 import { ref } from 'vue';
 import { createPinia, setActivePinia } from 'pinia';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -77,7 +77,7 @@ describe('settings limit controls', () => {
       section = sections[index]!;
     expect(sections[index - 1]!.get('h3').text()).toBe('缓存限制');
     expect(section.findAll('.field-label').map((label) => label.text())).toEqual(['成功', '信息', '警告', '错误']);
-    const controls: VueWrapper[] = section.findAllComponents(nInputNumber);
+    const controls = wrapper.findAllComponents(nInputNumber).filter((control) => section.element.contains(control.get('input').element));
     expect(controls.map((control) => control.get<HTMLInputElement>('input').element.value)).toEqual(['5', '7', '7', '0']);
     expect(section.text()).toContain('0 表示持续显示');
     for (const control of controls) {
@@ -274,7 +274,13 @@ describe('settings limit controls', () => {
       expect(control.props('value')).toBe(0);
       expect(control.props('min')).toBe(0);
     }
-    const controls = [...history.findAllComponents(nInputNumber).slice(0, 2), ...config.findAllComponents(nInputNumber)];
+    const controls = [
+      ...wrapper
+        .findAllComponents(nInputNumber)
+        .filter((control) => history.element.contains(control.get('input').element))
+        .slice(0, 2),
+      ...wrapper.findAllComponents(nInputNumber).filter((control) => config.element.contains(control.get('input').element)),
+    ];
     expect(controls.map((control) => [control.props('value'), control.props('min'), control.props('max')])).toEqual([
       [20, 1, 1000],
       [250, 1, 1000],

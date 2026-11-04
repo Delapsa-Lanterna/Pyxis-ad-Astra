@@ -3,6 +3,7 @@ import type { AppFeedback, JsonSourceConfirmation, JsonWriteOptions } from '@/sh
 import { infoLog } from '@/shared/runtime/app-log-queue';
 import { commandErrorCode, errorContextOf } from '@/shared/lib/errors';
 import { useSettingsStore } from '@/stores/settings.store';
+import { isRowData } from '@/shared/lib/row-data';
 
 interface RewriteFile extends JsonSourceConfirmation {
   reason: string;
@@ -14,12 +15,8 @@ function rewriteFiles(error: unknown): RewriteFile[] | null {
     const files = (error as { files?: unknown }).files;
     if (!Array.isArray(files)) return null;
     const valid = files.every(
-      (file) =>
-        typeof file === 'object' &&
-        file !== null &&
-        typeof file.path === 'string' &&
-        typeof file.reason === 'string' &&
-        typeof file.sourceFingerprint === 'string',
+      (file: unknown) =>
+        isRowData(file) && typeof file.path === 'string' && typeof file.reason === 'string' && typeof file.sourceFingerprint === 'string',
     );
     return valid ? (files as RewriteFile[]) : null;
   }

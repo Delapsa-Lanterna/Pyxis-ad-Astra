@@ -1,3 +1,4 @@
+import ImmersiveHullThumbnail from '@/app/components/immersive/ImmersiveHullThumbnail.vue';
 import { mount, flushPromises } from '@vue/test-utils';
 import { describe, expect, it, vi } from 'vitest';
 import type { JointEditSnapshot } from '@/shared/types';
@@ -30,12 +31,12 @@ function harness() {
 describe('wing bay and candidate formation consumer', () => {
   it('reads the actual wing record formation and scales identically in the bay and card', async () => {
     const wrapper = harness();
-    const scene = wrapper.findComponent({ name: 'ImmersiveHullThumbnail' });
-    expect(scene.props('wingLayout').points[0].y).toBeCloseTo(11.88);
-    expect(scene.props('wingLayout').spriteHeight).toBeCloseTo(21.6);
+    const scene = wrapper.findComponent(ImmersiveHullThumbnail);
+    expect(scene.props('wingLayout')!.points[0]!.y).toBeCloseTo(11.88);
+    expect(scene.props('wingLayout')!.spriteHeight).toBeCloseTo(21.6);
     await wrapper.setProps({ size: 69 });
     expect(scene.props('size')).toBe(69);
-    expect(scene.props('wingLayout').spriteHeight).toBeCloseTo(21.6);
+    expect(scene.props('wingLayout')!.spriteHeight).toBeCloseTo(21.6);
     wrapper.unmount();
   });
   it('shows source diagnostics when the wing formation is missing', async () => {

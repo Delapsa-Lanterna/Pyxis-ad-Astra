@@ -1,3 +1,4 @@
+import type * as JointEditServiceModule from '@/services/joint-edit.service';
 import { h } from 'vue';
 import { mount } from '@vue/test-utils';
 import { editorUiStubs, nSelect } from '@/test/unit/ui-stubs';
@@ -8,14 +9,15 @@ import { jointFixtureValues } from '@/test/fixtures/joint-edit/joint-record';
 import { savedWriteFixture } from '@/test/fixtures/write-result';
 import { appLogQueue } from '@/shared/runtime/app-log-queue';
 import type { AppLogEntry, AppFeedback, JointEditDraft } from '@/shared/types';
-const mocks = vi.hoisted(() => ({ prepare: vi.fn(), save: vi.fn(), query: vi.fn() }));
+const mocks = vi.hoisted(() => ({
+  prepare: vi.fn<typeof JointEditServiceModule.prepareJointEdit>(),
+  save: vi.fn<typeof JointEditServiceModule.saveJointEdit>(),
+  query: vi.fn<typeof JointEditServiceModule.queryJointEdit>(),
+}));
 vi.mock('@/services/joint-edit.service', () => ({
   prepareJointEdit: mocks.prepare,
   saveJointEdit: mocks.save,
   queryJointEdit: mocks.query,
-}));
-vi.mock('@/orchestrators/edit-target-handoff.orchestrator', () => ({
-  withEditTargetHandoff: async (_targets: unknown, _feedback: unknown, action: () => unknown) => action(),
 }));
 vi.mock('@/orchestrators/json-write-confirmation.orchestrator', () => ({
   runConfirmedJsonWrite: async (_feedback: unknown, action: (options: unknown) => unknown) =>
@@ -100,7 +102,7 @@ describe('joint declared editing scope confirmation', () => {
       'cancelled',
       'confirmed',
     ]);
-    expect(records.find((entry) => entry.code === 'joint.targets_submitted')!.fields?.requestId).toBe(mocks.save.mock.calls[0]![1].id);
+    expect(records.find((entry) => entry.code === 'joint.targets_submitted')!.fields?.requestId).toBe(mocks.save.mock.calls[0]![1]!.id);
   });
 });
 

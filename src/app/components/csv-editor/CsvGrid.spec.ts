@@ -1,3 +1,5 @@
+import CsvGridEditorHost from '@/app/components/csv-editor/CsvGridEditorHost.vue';
+import CsvGridBody from '@/app/components/csv-editor/CsvGridBody.vue';
 import { csvDraftRow } from '@/test/fixtures/csv-row';
 import { flushPromises, type VueWrapper } from '@vue/test-utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -128,7 +130,7 @@ describe('CsvGrid', () => {
     Object.assign(panel.element, { setPointerCapture: vi.fn(), hasPointerCapture: () => false });
     const commit = vi.fn(() => null);
     fixture.inputs.register({ key: 'raw', label: 'Raw', dirty: ref(true), commit, cancel: vi.fn(), focus: vi.fn() });
-    grid.findComponent({ name: 'CsvGridBody' }).vm.$emit('start-row-drag', 'key-0', {
+    grid.findComponent(CsvGridBody).vm.$emit('start-row-drag', 'key-0', {
       button: 0,
       pointerId: 7,
       clientX: 10,
@@ -268,23 +270,23 @@ describe('CsvGrid', () => {
     await vi.waitFor(() => expect(grid.find('.row-slot').exists()).toBe(true));
     await grid.find('.row-slot').trigger('dblclick');
     expect(grid.emitted('select-row')?.at(-1)).toEqual(['key-0']);
-    expect(grid.findComponent({ name: 'CsvGridEditorHost' }).props('target')).toMatchObject({ column: 'id', rowKey: 'key-0' });
+    expect(grid.findComponent(CsvGridEditorHost).props('target')).toMatchObject({ column: 'id', rowKey: 'key-0' });
   });
 
   it('keeps the active cell when the same target model is replaced', async () => {
     const grid = mountGrid();
     await vi.waitFor(() => expect(grid.find('.row-slot').exists()).toBe(true));
     await grid.find('.row-slot').trigger('dblclick');
-    expect(grid.findComponent({ name: 'CsvGridEditorHost' }).props('target')).not.toBeNull();
+    expect(grid.findComponent(CsvGridEditorHost).props('target')).not.toBeNull();
 
     fixture.props.value = { ...fixture.props.value, model: reactive(modelFixture()) };
     await grid.vm.$nextTick();
-    expect(grid.findComponent({ name: 'CsvGridEditorHost' }).props('target')).toMatchObject({ rowKey: 'key-0', column: 'id' });
+    expect(grid.findComponent(CsvGridEditorHost).props('target')).toMatchObject({ rowKey: 'key-0', column: 'id' });
   });
 
   it('forwards selection from the body', async () => {
     const grid = mountGrid();
-    const body = grid.findComponent({ name: 'CsvGridBody' });
+    const body = grid.findComponent(CsvGridBody);
     body.vm.$emit('select-row', 'key-1');
     await grid.vm.$nextTick();
     expect(grid.emitted('select-row')?.at(-1)).toEqual(['key-1']);

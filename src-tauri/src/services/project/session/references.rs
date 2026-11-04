@@ -246,12 +246,6 @@ impl ReferenceSnapshot {
                 .into(),
         }
     }
-    pub fn resource(&self, resource: &mut ResourceRef) {
-        if resource.source != ResourceSource::Core && resource.reference.is_none() {
-            resource.source = ResourceSource::Reference;
-            resource.reference = Some(self.identity.clone());
-        }
-    }
 }
 
 impl ProjectSession {
@@ -301,20 +295,6 @@ impl ProjectSession {
     }
     pub fn reference_spec(&self, kind: EntityKind, id: &str) -> Option<LoadedSpecRecord> {
         self.references.iter().find_map(|view| view.spec(kind, id))
-    }
-    pub fn reference_resource(
-        &self,
-        source: &EntityFileLocation,
-        resources: &mut BTreeMap<String, ResourceRef>,
-    ) {
-        if let Some(identity) = source.reference.as_deref() {
-            for resource in resources.values_mut().filter(|resource| {
-                resource.source != ResourceSource::Core && resource.reference.is_none()
-            }) {
-                resource.source = ResourceSource::Reference;
-                resource.reference = Some(identity.clone());
-            }
-        }
     }
 }
 

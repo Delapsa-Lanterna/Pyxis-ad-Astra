@@ -1,3 +1,6 @@
+import type * as UseContextMenuModule from '@/app/composables/use-context-menu';
+import type * as WorkspaceHistoryOrchestratorModule from '@/orchestrators/workspace-history.orchestrator';
+import type { AppFeedback } from '@/shared/types';
 import { createPinia, setActivePinia } from 'pinia';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { nextTick } from 'vue';
@@ -12,18 +15,18 @@ const mocks = vi.hoisted(() => ({
     info: vi.fn(),
     warning: vi.fn(),
     error: vi.fn(),
-    confirmDanger: vi.fn(),
-    confirmWarning: vi.fn(),
+    confirmDanger: vi.fn<AppFeedback['confirmDanger']>(),
+    confirmWarning: vi.fn<AppFeedback['confirmWarning']>(),
     choose: vi.fn(async () => null),
   },
-  historyScope: vi.fn(),
+  historyScope: vi.fn<typeof UseContextMenuModule.useContextMenuScope>(),
   loadFileHistory: vi.fn(async () => ({
     revision: 0,
     undoStack: [] as FileHistoryEntrySummary[],
     redoStack: [] as FileHistoryEntrySummary[],
   })),
-  replayWorkspaceFileUndo: vi.fn(),
-  replayWorkspaceFileRedo: vi.fn(),
+  replayWorkspaceFileUndo: vi.fn<typeof WorkspaceHistoryOrchestratorModule.replayWorkspaceFileUndo>(),
+  replayWorkspaceFileRedo: vi.fn<typeof WorkspaceHistoryOrchestratorModule.replayWorkspaceFileRedo>(),
   clearSavedFileHistory: vi.fn(async () => ({ revision: 10, undoStack: [], redoStack: [] })),
 }));
 
@@ -80,13 +83,13 @@ describe('useWorkspaceFileHistoryViewModel', () => {
   it('registers history refresh and accepts authoritative stack counts', async () => {
     const { root, wrapper, vm } = activateHistory();
     await flushPromises();
-    expect(mocks.historyScope.mock.calls.at(-1)![0].canRefresh()).toBe(true);
+    expect(mocks.historyScope.mock.calls.at(-1)![0].canRefresh!(document.body)).toBe(true);
     mocks.loadFileHistory.mockResolvedValueOnce({
       revision: 3,
       undoStack: [{ id: 1, timestamp: 0, label: 'save', paths: ['a'] }],
       redoStack: [],
     });
-    await mocks.historyScope.mock.calls.at(-1)![0].refresh(() => true);
+    await mocks.historyScope.mock.calls.at(-1)![0].refresh!(() => true, document.body);
     expect(vm.historyCount.value).toBe(1);
     expect(vm.canUndo.value).toBe(true);
     expect(useFileHistoryStore().getHistoryStacks(root).revision).toBe(3);

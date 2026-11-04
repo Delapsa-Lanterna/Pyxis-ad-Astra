@@ -60,8 +60,8 @@ describe('font text presentation', () => {
     });
     expect(own.text()).toBe('舰船 75');
     expect(own.classes()).toContain('font-default');
-    expect(own.element.style.fontSize).toBe('20px');
-    expect(own.element.style.fontWeight).toBe('700');
+    expect(own.get('span').element.style.fontSize).toBe('20px');
+    expect(own.get('span').element.style.fontWeight).toBe('700');
     expect(own.findAll('span').some((element) => element.element.style.color === 'rgb(255, 210, 0)')).toBe(true);
     current.value = { definition: parseOriginalBitmapFont(originalFontFixture().definition), pages: new Map([[0, new Image()]]) };
     await flushPromises();
@@ -70,7 +70,7 @@ describe('font text presentation', () => {
     current.value = null;
     await flushPromises();
     expect(own.text()).toBe('舰船 75');
-    expect(own.element.style.height).toBe('');
+    expect(own.get('span').element.style.height).toBe('');
     own.unmount();
   });
   it('uses the glyph page and renders missing graphemes as intentional question marks', async () => {
@@ -106,7 +106,7 @@ describe('font text presentation', () => {
     resize([{ target: own.element, contentRect: { width: 30 } }] as ResizeObserverEntry[], {} as ResizeObserver);
     await flushPromises();
     expect(own.get('canvas').element.width).toBe(60);
-    expect(Number.parseFloat(own.element.style.height)).toBeGreaterThan(10);
+    expect(Number.parseFloat(own.get('span').element.style.height)).toBeGreaterThan(10);
     expect(context.scale).not.toHaveBeenCalled();
     vi.stubGlobal(
       'requestAnimationFrame',

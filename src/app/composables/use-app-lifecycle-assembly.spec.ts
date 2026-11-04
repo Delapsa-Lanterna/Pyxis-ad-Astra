@@ -1,3 +1,5 @@
+import type * as AppSettingsServiceModule from '@/services/app-settings.service';
+import type * as FileHistoryReplayOrchestratorModule from '@/orchestrators/file-history-replay.orchestrator';
 import { mount, flushPromises, type VueWrapper } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 import { ref } from 'vue';
@@ -11,7 +13,13 @@ import { sessionUpdateFixture } from '@/test/fixtures/write-result';
 import { csvDraftRow } from '@/test/fixtures/csv-row';
 import type { AppSettings, CsvTableTarget, AppFeedback, WindowFeedback } from '@/shared/types';
 
-const api = vi.hoisted(() => ({ read: vi.fn(), save: vi.fn(), listen: vi.fn(), stop: vi.fn(), committed: vi.fn() }));
+const api = vi.hoisted(() => ({
+  read: vi.fn<typeof AppSettingsServiceModule.readSettings>(),
+  save: vi.fn<typeof AppSettingsServiceModule.saveSettings>(),
+  listen: vi.fn<typeof AppSettingsServiceModule.listenSettingsChanged>(),
+  stop: vi.fn(),
+  committed: vi.fn<typeof FileHistoryReplayOrchestratorModule.refreshLoadedFileHistory>(),
+}));
 vi.mock('@/services/app-settings.service', () => ({ readSettings: api.read, saveSettings: api.save, listenSettingsChanged: api.listen }));
 vi.mock('@/services/app-log.service', () => ({ recordLogBestEffort: vi.fn(), flushApplicationLogs: vi.fn() }));
 vi.mock('@/orchestrators/file-history-replay.orchestrator', () => ({ refreshLoadedFileHistory: api.committed }));
@@ -113,17 +121,17 @@ it('keeps current capacity during a failed save and refreshes history after retr
   expect(api.committed).toHaveBeenCalledOnce();
   expect(history(target).limit).toBe(2);
 });
-it('accepts only newer child snapshots and stops mirror reception on unmount', () => {
+it('accepts only newer child snapshots and stops mirror reception on unmount', async () => {
   const target = open('M:/mirror')[0]!;
   mountSettings('child');
   const receive = api.listen.mock.calls[0]![0];
   const next = snapshot(createSettingsFixture({ editHistoryLimit: 2 }));
-  receive(next);
+  await receive(next);
   expect(history(target).limit).toBe(2);
-  receive({ ...next, revision: next.revision - 1, value: createSettingsFixture({ editHistoryLimit: 8 }) });
+  await receive({ ...next, revision: next.revision - 1, value: createSettingsFixture({ editHistoryLimit: 8 }) });
   expect(history(target).limit).toBe(2);
   wrapper!.unmount();
-  receive(snapshot(createSettingsFixture({ editHistoryLimit: 9 })));
+  await receive(snapshot(createSettingsFixture({ editHistoryLimit: 9 })));
   expect(useSettingsStore().editHistoryLimit).toBe(2);
   expect(history(target).limit).toBe(2);
   mountSettings('child');

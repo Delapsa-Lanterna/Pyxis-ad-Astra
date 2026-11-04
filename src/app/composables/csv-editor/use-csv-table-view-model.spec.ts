@@ -1,3 +1,5 @@
+import type * as CsvTableServiceModule from '@/services/csv-table.service';
+import type * as SourceCatalogServiceModule from '@/services/source-catalog.service';
 import { useWorkspaceCsvEditorHost } from '@/app/composables/use-workspace-csv-editor-host';
 import { useCsvEditorModel } from './use-csv-editor-model';
 import { csvEditorView } from '@/app/composables/csv-editor/tests/csv-editor-view';
@@ -17,11 +19,11 @@ import { csvDraftRow, csvTableIndex } from '@/test/fixtures/csv-row';
 import { deepClone } from '@/shared/lib/starsector';
 import type { CsvDraftRow, CsvTableIndex, CsvTableRowsRead } from '@/shared/types';
 const mocks = vi.hoisted(() => ({
-  index: vi.fn(),
-  rows: vi.fn(),
+  index: vi.fn<typeof CsvTableServiceModule.queryTableIndex>(),
+  rows: vi.fn<typeof CsvTableServiceModule.queryTableRows>(),
   error: vi.fn(),
   choose: vi.fn<AppFeedback['choose']>(),
-  sources: vi.fn(),
+  sources: vi.fn<typeof SourceCatalogServiceModule.querySourceOptionCatalog>(),
   preview: vi.fn(async () => 'preview'),
   affected: vi.fn(() => false),
 }));
@@ -210,7 +212,9 @@ describe('CSV index and keyed content owner', () => {
   });
   it.each(['system id', 'defense id', 'travel drive'])('loads ship-system options when %s is the only column', async (key) => {
     mocks.index.mockResolvedValue(csvTableIndex([csvDraftRow({ [key]: '' }, 'key-0')], { header: [key] }));
-    mocks.sources.mockResolvedValue([{ origin: 'mod', options: [{ label: 'Sample system', value: 'sample-system' }] }]);
+    mocks.sources.mockResolvedValue([
+      { origin: 'mod', options: [{ label: 'Sample system', value: 'sample-system', description: null, resourceRef: null, origin: 'mod' }] },
+    ]);
     const vm = harness();
     await flushPromises();
     expect(mocks.sources).toHaveBeenCalledExactlyOnceWith('session', 'csv:shipSystems.id', expect.any(AbortSignal));

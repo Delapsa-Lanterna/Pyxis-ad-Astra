@@ -1,3 +1,6 @@
+import { defineComponent } from 'vue';
+import type * as JsonSaveOrchestratorModule from '@/orchestrators/json-save.orchestrator';
+import type * as JsonRecoveryServiceModule from '@/services/json-recovery.service';
 import { projectChangeFixture, savedContentWorks } from '@/test/unit/project-changes';
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
@@ -42,15 +45,18 @@ import type * as MiscConfigServiceModule from '@/services/misc-config.service';
 
 vi.mock('@/services/window.service', () => ({ releaseNativeWindowTargets: vi.fn(async () => {}) }));
 const mocks = vi.hoisted(() => ({
-  read: vi.fn(),
+  read: vi.fn<typeof EntityQueryServiceModule.querySessionEntity>(),
   saveFile: vi.fn(),
-  saveIndexed: vi.fn(),
-  saveMod: vi.fn(),
-  prepare: vi.fn(),
-  recreate: vi.fn(),
+  saveIndexed:
+    vi.fn<
+      (...args: Parameters<typeof JsonSaveOrchestratorModule.saveIndexedEntityAction>) => Promise<{ entity: unknown; receipt: WriteResult }>
+    >(),
+  saveMod: vi.fn<typeof JsonSaveOrchestratorModule.saveModInfoAction>(),
+  prepare: vi.fn<typeof JsonRecoveryServiceModule.prepareJsonSourceRecovery>(),
+  recreate: vi.fn<typeof JsonSaveOrchestratorModule.recreateJsonSourcesAction>(),
   complete: vi.fn(),
-  readMisc: vi.fn(),
-  saveMisc: vi.fn(),
+  readMisc: vi.fn<typeof MiscConfigServiceModule.queryMiscConfigFile>(),
+  saveMisc: vi.fn<typeof MiscConfigServiceModule.saveMiscConfig>(),
   listeners: new Set<(event: CommittedWriteEvent) => Promise<void>>(),
 }));
 vi.mock('@/services/entity-query.service', async (original) => ({
@@ -187,6 +193,8 @@ beforeEach(() => {
   mocks.complete.mockResolvedValue(undefined);
   mocks.readMisc.mockResolvedValue({
     kind: 'strings',
+    path: 'M:/one/data/strings/strings.json',
+    relPath: 'data/strings/strings.json',
     data: {},
     baseVersions: [{ path: 'M:/one/data/strings/strings.json', fingerprint: 'v1' }],
   });
@@ -243,7 +251,7 @@ describe('complete JSON document runtime', () => {
     const doc = document();
     doc.draftValue.value = { ...doc.draftValue.value, weaponGroups: [{ weapons: { A: 'gun' } }, { weapons: { B: 'other' } }] };
     const before = deepClone(doc.draftValue.value);
-    const selectStub = { ...nSelect, methods: { focusInput: vi.fn() } };
+    const selectStub = defineComponent({ extends: nSelect, methods: { focusInput: vi.fn() } });
     const field = getSchema('variant')!
       .sections!.flatMap((section) => section.fields)
       .find((field) => field.key === 'weaponGroups')!;
@@ -281,7 +289,10 @@ describe('complete JSON document runtime', () => {
     await destination.findAll('select').at(-1)!.trigger('keydown', { key: 'Escape' });
     expect(doc.draftValue.value).toEqual(before);
     await destination.findAll('button').at(-1)!.trigger('click');
-    const picker = destination.findAllComponents(selectStub).at(-1)!;
+    const picker = view
+      .findAllComponents(selectStub)
+      .filter((select) => destination.element.contains(select.get('select').element))
+      .at(-1)!;
     picker.vm.$emit('update:show', false);
     picker.vm.$emit('update:value', 'A');
     await flushPromises();
@@ -595,13 +606,13 @@ describe('complete JSON document runtime', () => {
       const doc = document(definition),
         baseline = deepClone(doc.record.value);
       edit(doc, definition, 'Local');
-      mocks.prepare.mockResolvedValue({
-        request: {},
+      mocks.prepare.mockImplementation(async (request) => ({
+        request,
         baseVersions: baseline.baseVersions,
         missingPaths: ['missing.json'],
         currentSources: {},
         resourceRefs: {},
-      });
+      }));
       doc.setActive(true);
       await flushPromises();
       expect(doc.sourceMissing.value).toBe(true);

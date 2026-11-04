@@ -1,3 +1,6 @@
+import type * as FontServiceModule from '@/services/font.service';
+import type * as FontProviderModule from '@/app/fonts/font-provider';
+import type * as AppLogServiceModule from '@/services/app-log.service';
 import { flushPromises, mount } from '@vue/test-utils';
 import { computed, defineComponent, h, ref } from 'vue';
 import { createPinia, setActivePinia } from 'pinia';
@@ -10,7 +13,11 @@ import { originalFontFixture } from '@/test/fixtures/font';
 import type { FontId } from '@/domain/fonts/font.types';
 import type { OriginalFontResult } from '@/shared/types/font.types';
 
-const mocks = vi.hoisted(() => ({ query: vi.fn(), decode: vi.fn(), log: vi.fn() }));
+const mocks = vi.hoisted(() => ({
+  query: vi.fn<typeof FontServiceModule.queryOriginalFont>(),
+  decode: vi.fn<typeof FontProviderModule.decodeOriginalFont>(),
+  log: vi.fn<typeof AppLogServiceModule.recordLogBestEffort>(),
+}));
 vi.mock('@/services/font.service', () => ({ queryOriginalFont: mocks.query }));
 vi.mock('@/app/fonts/font-provider', () => ({ decodeOriginalFont: mocks.decode }));
 vi.mock('@/services/app-log.service', () => ({ recordLogBestEffort: mocks.log }));
@@ -84,7 +91,7 @@ describe('independent original font lifecycle', () => {
     expect(wrapper.text()).toBe('bitmapbitmap');
     expect(mocks.query.mock.calls.map((call) => call[2])).toEqual(['F:/fonts', null]);
     expect(mocks.log).toHaveBeenCalledTimes(failure === 'unavailable' ? 0 : 1);
-    if (failure !== 'unavailable') expect(mocks.log.mock.calls[0]![0].fields.root).toBe('F:/fonts');
+    if (failure !== 'unavailable') expect(mocks.log.mock.calls[0]![0].fields?.root).toBe('F:/fonts');
     wrapper.unmount();
   });
   it('selects custom, game and general fonts independently', async () => {

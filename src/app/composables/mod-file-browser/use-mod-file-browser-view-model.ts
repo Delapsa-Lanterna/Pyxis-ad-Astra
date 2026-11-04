@@ -11,7 +11,7 @@ import { formatError } from '@/shared/lib/errors';
 import { relativePathFromRoot, normalizeFsPath, isAbsoluteFsPath } from '@/shared/lib/paths';
 import { createModDirectoryReads } from './use-mod-directory-reads';
 import { recordPerformance, startPerformance, performanceMonitorEnabled } from '@/shared/runtime/performance';
-import type { ModFileSortKey, ProjectManifest } from '@/shared/types';
+import type { ModDirectoryState, ModFileSortKey, ProjectManifest } from '@/shared/types';
 
 export type ModFileBrowserTarget = Readonly<Pick<ProjectManifest, 'sessionId' | 'modRoot'>>;
 export function useModFileBrowserViewModel(getTarget: () => ModFileBrowserTarget | null) {
@@ -342,7 +342,7 @@ export function useModFileBrowserViewModel(getTarget: () => ModFileBrowserTarget
         searching.value ? state.value?.search.result !== null : root.value?.entries !== null && root.value?.entries !== undefined,
       ),
       error: computed(() => (searching.value ? (state.value?.search.error ?? '') : (root.value?.error ?? ''))),
-      directories: computed(() => state.value?.directories ?? new Map()),
+      directories: computed(() => state.value?.directories ?? new Map<string | null, ModDirectoryState>()),
     }),
     actions: {
       load,

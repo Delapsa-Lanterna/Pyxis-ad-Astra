@@ -1,17 +1,31 @@
+import type * as AppLogServiceModule from '@/services/app-log.service';
 import { createApp } from 'vue';
 import { flushPromises } from '@vue/test-utils';
 import { createPinia, defineStore } from 'pinia';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { AppLogEntry } from '@/shared/types';
+import type { AppLogEntry, AppLogStatus } from '@/shared/types';
 
-const api = vi.hoisted(() => ({ load: vi.fn(), listen: vi.fn(), stop: vi.fn() }));
+const api = vi.hoisted(() => ({
+  load: vi.fn<typeof AppLogServiceModule.loadLogStatus>(),
+  listen: vi.fn<typeof AppLogServiceModule.listenLogStopped>(),
+  stop: vi.fn(),
+}));
 vi.mock('@/services/app-log.service', () => ({ loadLogStatus: api.load, listenLogStopped: api.listen }));
+const logStatus: AppLogStatus = {
+  path: 'C:/log/app.log',
+  sizeBytes: 0,
+  recording: 'active',
+  level: 'info',
+  lastError: null,
+  dropped: 0,
+  pending: 0,
+};
 let records: AppLogEntry[];
 beforeEach(async () => {
   vi.resetModules();
   vi.clearAllMocks();
   records = [];
-  api.load.mockResolvedValue({ lastError: null });
+  api.load.mockResolvedValue(logStatus);
   api.listen.mockResolvedValue(api.stop);
   const { appLogQueue } = await import('@/shared/runtime/app-log-queue');
   appLogQueue.install(async (entries) => {
@@ -109,20 +123,28 @@ describe('automatic action logging', () => {
   it.each(['registration', 'status'] as const)('releases during %s waiting and ignores late results', async (stage) => {
     const { startApplicationLog } = await import('./application-log');
     const { appLogQueue, applicationLogError } = await import('@/shared/runtime/app-log-queue');
-    let finish!: (value: unknown) => void;
-    api[stage === 'registration' ? 'listen' : 'load'].mockReturnValueOnce(
-      new Promise((resolve) => {
-        finish = resolve;
-      }),
-    );
+    let finish!: () => void;
+    const paused = new Promise<void>((resolve) => {
+      finish = resolve;
+    });
+    if (stage === 'registration')
+      api.listen.mockImplementationOnce(async () => {
+        await paused;
+        return api.stop;
+      });
+    else
+      api.load.mockImplementationOnce(async () => {
+        await paused;
+        return { ...logStatus, lastError: 'late fixture' };
+      });
     const pinia = createPinia(),
       install = vi.spyOn(pinia, 'use');
     const pending = startApplicationLog(pinia);
     await flushPromises();
     window.dispatchEvent(new Event('pagehide'));
-    finish(stage === 'registration' ? api.stop : { lastError: 'late fixture' });
+    finish();
     await pending;
-    api.listen.mock.calls[0]![0]('late notification');
+    await api.listen.mock.calls[0]![0]('late notification');
     expect(api.stop).toHaveBeenCalledOnce();
     expect(install).not.toHaveBeenCalled();
     expect(applicationLogError.value).toBe('');
@@ -134,7 +156,7 @@ describe('automatic action logging', () => {
     const { applicationLogError } = await import('@/shared/runtime/app-log-queue');
     let fail!: (error: Error) => void;
     api[stage === 'registration' ? 'listen' : 'load'].mockReturnValueOnce(
-      new Promise((_resolve, reject) => {
+      new Promise<never>((_resolve, reject) => {
         fail = reject;
       }),
     );

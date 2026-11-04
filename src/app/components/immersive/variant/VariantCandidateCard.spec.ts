@@ -1,10 +1,19 @@
+import ImmersiveHullThumbnail from '@/app/components/immersive/ImmersiveHullThumbnail.vue';
+import ImmersiveWeaponIcon from '@/app/components/immersive/ImmersiveWeaponIcon.vue';
+import ResourceThumbnail from '@/app/components/media/ResourceThumbnail.vue';
+import type * as JointEditServiceModule from '@/services/joint-edit.service';
 import { mount, flushPromises } from '@vue/test-utils';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { JointVariantEntry } from '@/shared/types';
 import { wingJointFixture } from '@/test/fixtures/joint-edit/wing-joint-edit';
 import VariantCandidateCard from './VariantCandidateCard.vue';
 import { jointObject } from '@/domain/joint-edit';
-const media = vi.hoisted(() => ({ replace: vi.fn(), query: vi.fn(), error: vi.fn(), warning: vi.fn() }));
+const media = vi.hoisted(() => ({
+  replace: vi.fn(),
+  query: vi.fn<typeof JointEditServiceModule.queryJointCandidate>(),
+  error: vi.fn(),
+  warning: vi.fn(),
+}));
 vi.mock('@/app/composables/use-resource-media-registry', () => ({
   useResourceMediaRegistry: () => ({ replaceCollection: media.replace, dataUrl: () => '' }),
 }));
@@ -62,7 +71,7 @@ describe('catalog-driven candidate cards', () => {
     expect(own.wrapper.text()).toContain('候选');
     expect(own.wrapper.text()).toContain('Sample hull');
     expect(own.wrapper.get('.variant-module-id').text()).toBe('candidate');
-    const image = own.wrapper.findComponent({ name: 'ResourceThumbnail' });
+    const image = own.wrapper.findComponent(ResourceThumbnail);
     expect(image.props()).toMatchObject({ resource: { relPath: 'hull.png' }, width: 69, height: 69, active: false });
     await own.show(true);
     expect(image.props('active')).toBe(true);
@@ -98,9 +107,9 @@ describe('catalog-driven candidate cards', () => {
     expect(own.wrapper.text()).toContain('测试用途，500');
     await own.show(true);
     await flushPromises();
-    const icon = own.wrapper.findComponent({ name: 'ImmersiveWeaponIcon' });
+    const icon = own.wrapper.findComponent(ImmersiveWeaponIcon);
     expect(icon.props('mountType')).toBe('ENERGY');
-    expect(icon.props('layers')[0].resource.relPath).toBe('weapon.png');
+    expect(icon.props('layers')[0]!.resource.relPath).toBe('weapon.png');
     expect(media.replace).not.toHaveBeenCalled();
     expect(media.query).not.toHaveBeenCalled();
     await own.show(false);
@@ -112,10 +121,10 @@ describe('catalog-driven candidate cards', () => {
     const own = harness('wings');
     await own.show(true);
     await flushPromises();
-    const scene = own.wrapper.findComponent({ name: 'ImmersiveHullThumbnail' });
-    expect(scene.props('wingLayout').points).toHaveLength(3);
-    expect(scene.props('wingLayout').points[0].y).toBeCloseTo(11.88);
-    expect(scene.props('variant').spec.hullId).toBe('sarissa');
+    const scene = own.wrapper.findComponent(ImmersiveHullThumbnail);
+    expect(scene.props('wingLayout')!.points).toHaveLength(3);
+    expect(scene.props('wingLayout')!.points[0]!.y).toBeCloseTo(11.88);
+    expect(scene.props('variant')!.spec.hullId).toBe('sarissa');
     expect(media.query).not.toHaveBeenCalled();
     own.wrapper.unmount();
   });

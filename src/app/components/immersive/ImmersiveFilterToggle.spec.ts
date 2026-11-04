@@ -10,8 +10,8 @@ describe('shared original checkbox rectangle', () => {
     });
     expect(wrapper.attributes('role')).toBe('checkbox');
     expect(wrapper.attributes('aria-checked')).toBe('true');
-    expect(wrapper.element.style.color).toBe('rgb(135, 219, 255)');
-    expect(wrapper.element.style.backgroundColor).toBe('rgba(28, 80, 102, 0.686)');
+    expect(wrapper.get('button').element.style.color).toBe('rgb(135, 219, 255)');
+    expect(wrapper.get('button').element.style.backgroundColor).toBe('rgba(28, 80, 102, 0.686)');
     await wrapper.trigger('click');
     expect(wrapper.emitted('toggle')).toHaveLength(1);
     await wrapper.setProps({ checked: false });

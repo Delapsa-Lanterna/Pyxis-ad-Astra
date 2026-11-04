@@ -420,7 +420,7 @@ mod tests {
     use crate::services::project::session::open_project_session_traced;
     use crate::services::project::test_support::project_workspace;
     #[cfg(test)]
-    use crate::services::project::{PerformanceTrace as ProjectPerformanceTrace, model, session};
+    use crate::services::project::{model, session};
     #[cfg(test)]
     use crate::services::{project_save, write_transactions};
     use serde_json::{Map, Value};
@@ -518,7 +518,7 @@ mod tests {
                 "{id:'Demo',specClass:'projectile',custom:{'_key':1}}\n",
             )
             .unwrap();
-            let mut trace = ProjectPerformanceTrace::new("project.openSession");
+            let mut trace = PerformanceTrace::new("project.openSession");
             let manifest = open_project_session_traced(&root, None, &mut trace).unwrap();
             let info = entity_targets::query_entity_edit_target(
                 &manifest.session_id,
@@ -691,7 +691,7 @@ mod tests {
         let path = root.join("data/hulls/ship_data.csv");
         let before = "id,name,custom\na,Alpha,001\n#note,Comment,002\n,,\nb,Beta,003\n";
         write_utf8_no_bom(&path, before).unwrap();
-        let mut trace = ProjectPerformanceTrace::new("project.openSession");
+        let mut trace = PerformanceTrace::new("project.openSession");
         let manifest = open_project_session_traced(&root, None, &mut trace).unwrap();
         let window = query_csv_table_window(
             &manifest.session_id,
@@ -807,7 +807,7 @@ mod tests {
             )
             .unwrap();
         }
-        let mut trace = ProjectPerformanceTrace::new("project.openSession");
+        let mut trace = PerformanceTrace::new("project.openSession");
         let manifest = open_project_session_traced(&root, None, &mut trace).unwrap();
         assert_eq!(manifest.table_entity_summaries[&CsvTableKey::Ships], 5);
         let window = query_csv_table_window(
@@ -926,7 +926,7 @@ mod tests {
         assert_eq!(replayed.rows[1].data["name"], "#edited");
         assert!(!replayed.rows[1].is_comment);
         release_project_session(manifest.session_id).unwrap();
-        let mut reopened_trace = ProjectPerformanceTrace::new("project.openSession");
+        let mut reopened_trace = PerformanceTrace::new("project.openSession");
         let reopened = open_project_session_traced(&root, None, &mut reopened_trace).unwrap();
         assert_eq!(reopened.table_entity_summaries[&CsvTableKey::Ships], 5);
         release_project_session(reopened.session_id).unwrap();

@@ -1,3 +1,7 @@
+import type * as AppSettingsServiceModule from '@/services/app-settings.service';
+import type * as DirectoryServiceModule from '@/services/directory.service';
+import type * as ProjectSessionServiceModule from '@/services/project-session.service';
+import type * as WorkspaceStateServiceModule from '@/services/workspace-state.service';
 import type * as SettingsPersistence from './settings-persistence.orchestrator';
 import type * as WorkspaceSource from './workspace-core-source.orchestrator';
 import { createPinia, setActivePinia } from 'pinia';
@@ -12,16 +16,16 @@ import { useProjectStore } from '@/stores/project.store';
 import { useSaveCommandStore } from '@/stores/save-command.store';
 import { sessionUpdateFixture } from '@/test/fixtures/write-result';
 const api = vi.hoisted(() => ({
-  defaults: vi.fn(),
-  save: vi.fn(),
-  read: vi.fn(),
-  listen: vi.fn(),
+  defaults: vi.fn<typeof AppSettingsServiceModule.readDefaultSettings>(),
+  save: vi.fn<typeof AppSettingsServiceModule.saveSettings>(),
+  read: vi.fn<typeof AppSettingsServiceModule.readSettings>(),
+  listen: vi.fn<typeof AppSettingsServiceModule.listenSettingsChanged>(),
   history: vi.fn(),
   stop: vi.fn(),
-  detect: vi.fn(),
-  scan: vi.fn(),
-  open: vi.fn(),
-  workspaceSave: vi.fn(),
+  detect: vi.fn<typeof DirectoryServiceModule.detectDirectoryTarget>(),
+  scan: vi.fn<typeof DirectoryServiceModule.scanDirectoryGameOverview>(),
+  open: vi.fn<typeof ProjectSessionServiceModule.openProject>(),
+  workspaceSave: vi.fn<typeof WorkspaceStateServiceModule.savePersistedWorkspace>(),
 }));
 vi.mock('@/services/directory.service', () => ({ detectDirectoryTarget: api.detect, scanDirectoryGameOverview: api.scan }));
 vi.mock('@/services/project-session.service', () => ({ openProject: api.open }));
@@ -35,6 +39,9 @@ vi.mock('@/services/app-settings.service', () => ({
   listenSettingsChanged: api.listen,
 }));
 vi.mock('@/services/app-log.service', () => ({ recordLogBestEffort: vi.fn() }));
+function settingsSnapshot(value: AppSettings, revision: number): SettingsSnapshot {
+  return { performanceMonitorActive: false, revision, value };
+}
 let settingsRuntime: typeof SettingsPersistence;
 let switchSource: typeof WorkspaceSource.switchWorkspaceCoreSource;
 beforeEach(async () => {
@@ -46,13 +53,13 @@ beforeEach(async () => {
   setActivePinia(createPinia());
   initializeSettingsStore(createSettingsFixture());
   useSettingsStore();
-  api.read.mockResolvedValue({ revision: 1, value: createSettingsFixture() });
+  api.read.mockResolvedValue(settingsSnapshot(createSettingsFixture(), 1));
   api.defaults.mockResolvedValue(createSettingsFixture());
   api.listen.mockResolvedValue(api.stop);
   api.history.mockResolvedValue(undefined);
   api.workspaceSave.mockResolvedValue(undefined);
   let revision = 1;
-  api.save.mockImplementation(async (value: AppSettings) => ({ revision: ++revision, value }));
+  api.save.mockImplementation(async (value: AppSettings) => settingsSnapshot(value, ++revision));
   settingsRuntime = await import('./settings-persistence.orchestrator');
   switchSource = (await import('./workspace-core-source.orchestrator')).switchWorkspaceCoreSource;
 });
@@ -107,14 +114,21 @@ describe('formal settings commits', () => {
     const previous = createSettingsFixture({ starsectorRoot: 'G:/previous' });
     useSettingsStore().replaceSettings(previous);
     useSettingsStore().confirmSavedSettings(previous);
-    api.read.mockResolvedValue({ revision: 1, value: previous });
+    api.read.mockResolvedValue(settingsSnapshot(previous, 1));
     const { runtime, settings, switchSource } = await setup();
     const workspace = useWorkspaceStore();
     const overview = { starsectorRoot: 'G:/workspace', modsDir: 'G:/workspace/mods', coreAvailable: true, mods: [], warnings: [] };
     workspace.setGameOverview(overview);
     workspace.registerMod({ modRoot: 'M:/sample', displayName: 'Sample', version: '', status: 'ready' });
     useProjectStore().registerProjectManifest(sessionUpdateFixture('before', 'M:/sample').content.manifest);
-    api.detect.mockResolvedValue({ kind: stage === 'validate' ? 'unknown' : 'game-root' });
+    api.detect.mockResolvedValue({
+      selectedPath: 'G:/next',
+      starsectorRoot: 'G:/next',
+      modRoot: null,
+      overview: null,
+      warnings: [],
+      kind: stage === 'validate' ? 'unknown' : 'game-root',
+    });
     api.scan.mockResolvedValue(overview);
     api.open.mockImplementation(async () => ({
       ...sessionUpdateFixture('after', 'M:/sample').content.manifest,
@@ -182,7 +196,14 @@ describe('formal settings commits', () => {
       }),
     );
     api.open.mockImplementation(async () => sessionUpdateFixture('after', 'M:/waiting').content.manifest);
-    api.detect.mockResolvedValue({ kind: 'game-root' });
+    api.detect.mockResolvedValue({
+      selectedPath: 'G:/next',
+      starsectorRoot: 'G:/next',
+      modRoot: null,
+      overview: null,
+      warnings: [],
+      kind: 'game-root',
+    });
     const { openWorkspaceMod } = await import('./workspace-opening.orchestrator');
     const opening = openWorkspaceMod('M:/waiting', null);
     const close = vi.fn(async () => {
@@ -227,7 +248,14 @@ describe('formal settings commits', () => {
         fail = reject;
       }),
     );
-    api.detect.mockResolvedValue({ kind: 'game-root' });
+    api.detect.mockResolvedValue({
+      selectedPath: 'G:/next',
+      starsectorRoot: 'G:/next',
+      modRoot: null,
+      overview: null,
+      warnings: [],
+      kind: 'game-root',
+    });
     const close = async () => {
       await commands.settleCloseActions();
       if (status === 'error') throw closeError;
@@ -309,12 +337,12 @@ describe('formal settings commits', () => {
     );
     const resetting = runtime.resetSettings(vi.fn());
     onTestFinished(async () => {
-      finish({ revision: 3, performanceMonitorActive: false, value: createSettingsFixture() });
+      finish(settingsSnapshot(createSettingsFixture(), 3));
       await resetting;
     });
     await vi.waitFor(() => expect(finish).toBeDefined());
     settings.setGeneralFont('Later Font');
-    finish({ revision: 3, performanceMonitorActive: false, value: createSettingsFixture() });
+    finish(settingsSnapshot(createSettingsFixture(), 3));
     await resetting;
     expect(settings.generalFont).toBe('Later Font');
     expect(api.save.mock.calls.at(-1)![0].generalFont).toBe('Later Font');
@@ -347,14 +375,14 @@ describe('formal settings commits', () => {
     );
     settings.setLogDirectory('D:/fixture');
     onTestFinished(async () => {
-      finish({ revision: 2, performanceMonitorActive: false, value: settings.settingsSnapshot() });
+      finish(settingsSnapshot(settings.settingsSnapshot(), 2));
       await runtime.flushSettings();
     });
     await nextTick();
     await vi.waitFor(() => expect(finish).toBeDefined());
     const submitted = api.save.mock.calls[0]![0];
     settings.setGeneralFont('Later Font');
-    finish({ revision: 2, performanceMonitorActive: false, value: { ...submitted, logDirectory: 'D:/Fixture' } });
+    finish(settingsSnapshot({ ...submitted, logDirectory: 'D:/Fixture' }, 2));
     await runtime.flushSettings();
     expect(settings.generalFont).toBe('Later Font');
     expect(settings.logDirectory).toBe('D:/Fixture');
@@ -371,7 +399,7 @@ describe('formal settings commits', () => {
     expect(settings.generalFont).toBe('Retry Font');
     expect(windowCacheLimits().thumbnails.MiB).toBe(32);
     expect(api.save).toHaveBeenCalledOnce();
-    api.save.mockImplementation(async (value: AppSettings) => ({ revision: 2, value }));
+    api.save.mockImplementation(async (value: AppSettings) => settingsSnapshot(value, 2));
     await runtime.flushSettings();
     expect(windowCacheLimits().thumbnails.MiB).toBe(8);
   });
@@ -383,8 +411,8 @@ describe('formal settings commits', () => {
     const next = createSettingsFixture({ generalFont: 'Latest Font', expandFieldDescriptions: true, immersiveFontDirectory: 'F:/fonts' });
     next.cacheLimits.decodedImages.entries = 7;
     next.toastDurations = { success: 0, info: 3600, warning: 8, error: 9 };
-    receive({ revision: 4, value: next });
-    receive({ revision: 3, value: createSettingsFixture({ generalFont: 'Earlier Font' }) });
+    await receive(settingsSnapshot(next, 4));
+    await receive(settingsSnapshot(createSettingsFixture({ generalFont: 'Earlier Font' }), 3));
     expect(useSettingsStore().generalFont).toBe('Latest Font');
     expect(useSettingsStore().toastDurations).toEqual(next.toastDurations);
     expect(useSettingsStore().expandFieldDescriptions).toBe(true);
@@ -407,16 +435,25 @@ describe('formal settings commits', () => {
     if (stage === 'focus') await runtime.initializeSettings();
     const { windowCacheLimits } = await import('@/shared/runtime/cache-limits');
     const before = windowCacheLimits();
-    let finish!: (value: unknown) => void;
-    api[stage === 'registration' ? 'listen' : 'read'].mockReturnValueOnce(
-      new Promise((resolve) => {
-        finish = resolve;
-      }),
-    );
+    let finish!: () => void;
+    let value = createSettingsFixture();
+    const paused = new Promise<void>((resolve) => {
+      finish = resolve;
+    });
+    if (stage === 'registration')
+      api.listen.mockImplementationOnce(async () => {
+        await paused;
+        return api.stop;
+      });
+    else
+      api.read.mockImplementationOnce(async () => {
+        await paused;
+        return settingsSnapshot(value, 9);
+      });
     const pending = stage === 'focus' ? Promise.resolve() : runtime.initializeSettings();
     const ended = stage === 'focus' ? pending : expect(pending).rejects.toMatchObject({ code: 'query.invalidated' });
     onTestFinished(async () => {
-      finish(stage === 'registration' ? api.stop : { revision: 9, value: createSettingsFixture() });
+      finish();
       await ended;
       await flushPromises();
     });
@@ -425,12 +462,13 @@ describe('formal settings commits', () => {
     window.dispatchEvent(new Event('pagehide'));
     const later = createSettingsFixture();
     later.cacheLimits.mediaData.entries = 9;
-    finish(stage === 'registration' ? api.stop : { revision: 9, value: later });
+    value = later;
+    finish();
     await ended;
     await flushPromises();
     const reads = api.read.mock.calls.length;
     window.dispatchEvent(new Event('focus'));
-    api.listen.mock.calls[0]![0]({ revision: 10, value: later });
+    await api.listen.mock.calls[0]![0](settingsSnapshot(later, 10));
     expect(api.read).toHaveBeenCalledTimes(reads);
     expect(api.stop).toHaveBeenCalledOnce();
     expect(windowCacheLimits()).toBe(before);

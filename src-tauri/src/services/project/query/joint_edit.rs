@@ -15,7 +15,7 @@ use crate::services::project::query::{
     entity_presentation as query_entity_presentation, entity_targets, hull_references,
 };
 use crate::services::project::resources::entity_references;
-use crate::services::project::resources::table_references;
+use crate::services::project::resources::{resource_identity, table_references};
 use crate::services::project::sources::documents::LoadedSpecRecord;
 use crate::services::project::sources::{core, documents};
 use crate::services::project::{ensure_project_session_mod_root, resources, versions};
@@ -468,7 +468,7 @@ fn variant_catalog(
                 for resource in refs.values_mut() {
                     resource.source = source.location.source;
                 }
-                session.reference_resource(&source.location, &mut refs);
+                resource_identity::apply_source_reference(&source.location, &mut refs);
                 Some(content)
             } else {
                 None
@@ -597,11 +597,11 @@ fn variant_catalog(
                     .and_then(Value::as_str)
                     .map(str::to_owned)
             });
-        session.reference_resource(&row.source, &mut refs);
+        resource_identity::apply_source_reference(&row.source, &mut refs);
         if let Some(projectile) = &mut projectile
             && let Some(source) = &projectile.source
         {
-            session.reference_resource(source, &mut projectile.resource_refs);
+            resource_identity::apply_source_reference(source, &mut projectile.resource_refs);
         }
         entries.push(JointVariantEntry {
             module_hull: None,
@@ -1171,7 +1171,7 @@ impl JointGraph<'_> {
         {
             resource_refs.insert("icon".into(), icon);
             if let Some(source) = &source {
-                self.session.reference_resource(source, &mut resource_refs);
+                resource_identity::apply_source_reference(source, &mut resource_refs);
             }
         }
         let record = JointEditRecord {
@@ -1281,7 +1281,7 @@ impl JointGraph<'_> {
         };
         let mut resources = resources;
         if let Some(source) = &source {
-            self.session.reference_resource(source, &mut resources);
+            resource_identity::apply_source_reference(source, &mut resources);
         }
         if source
             .as_ref()

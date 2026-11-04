@@ -11,7 +11,7 @@ function pairedSources(rel) {
 }
 
 export const moduleOwnershipRule = defineRule('module-ownership', '.zcode/module-map.md#登记与归属', import.meta.url, (context, report) => {
-  const { index, shared, descendants } = context.moduleMap;
+  const { index, shared, owners, ownershipReferences } = context.moduleMap;
   const map = { rel: '.zcode/module-map.md' };
   for (const rel of context.paths) {
     if (!rel.startsWith(moduleDirectory) || rel === moduleDirectory) continue;
@@ -26,42 +26,39 @@ export const moduleOwnershipRule = defineRule('module-ownership', '.zcode/module
         symbol: entry.title,
         expected: 'existing module document',
       });
-  /** @type {Map<string, {file: import('../../facts/context.mjs').ArchitectureFile, line: number}>} */
-  const owners = new Map();
   for (const file of context.documents) {
     for (const line of file.document.styleLines)
       report(file, { line, column: 1 }, 'module documents must not contain CSS references or rules');
-    for (const reference of file.document.references) {
-      if (reference.group !== '拥有') continue;
-      const target = reference.path.replace(/\/$/, '');
-      for (const rel of descendants.get(target) ?? []) {
-        if (shared.has(rel)) {
-          report(file, { line: reference.line, column: 1 }, 'public file ' + rel + ' cannot have module ownership', {
-            target: rel,
-            symbol: reference.path,
-            expected: 'public file consumer',
-          });
-          continue;
-        }
-        const previous = owners.get(rel);
-        if (previous && previous.file.rel !== file.rel)
-          report(file, { line: reference.line, column: 1 }, 'ownership of ' + rel + ' conflicts with ' + previous.file.rel, {
-            target: rel,
-            symbol: reference.path,
-            expected: previous.file.rel,
-          });
-        owners.set(rel, { file, line: reference.line });
-      }
-    }
   }
-  for (const [rel, owner] of owners)
+  /** @type {Map<string,{file:string,line:number}>} */
+  const declarations = new Map();
+  for (const reference of ownershipReferences) {
+    const owner = { file: context.byPath.get(reference.file), line: reference.line, path: reference.path };
+    if (shared.has(reference.rel)) {
+      report(owner.file ?? map, { line: owner.line, column: 1 }, 'public file ' + reference.rel + ' cannot have module ownership', {
+        target: reference.rel,
+        symbol: reference.path,
+        expected: 'public file consumer',
+      });
+      continue;
+    }
+    const previous = declarations.get(reference.rel);
+    if (previous && previous.file !== reference.file)
+      report(owner.file ?? map, { line: owner.line, column: 1 }, 'ownership of ' + reference.rel + ' conflicts with ' + previous.file, {
+        target: reference.rel,
+        symbol: reference.path,
+        expected: previous.file,
+      });
+    else declarations.set(reference.rel, { file: reference.file, line: owner.line });
+  }
+  for (const [rel, module] of owners)
     for (const source of pairedSources(rel)) {
       const implementation = owners.get(source);
-      if (implementation && implementation.file.rel !== owner.file.rel)
-        report({ rel }, { line: 1, column: 1 }, 'test ownership conflicts with ' + source + ' in ' + implementation.file.rel, {
+      if (implementation && implementation !== module)
+        report({ rel }, { line: 1, column: 1 }, 'test ownership conflicts with ' + source + ' in ' + implementation, {
           target: source,
           symbol: rel,
-          expected: implementation.file.rel,
+          expected: implementation,
         });
     }
 });

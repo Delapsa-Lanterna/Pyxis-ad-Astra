@@ -22,6 +22,7 @@
 - `src-tauri/src/services/project/definitions/entity_definitions.rs`：实体来源和列表定义。
 - `src-tauri/src/services/project/model.rs`：会话内容、EntityListEntry、表格定义及引用视图。
 - `src-tauri/src/services/project/resources/`：候选名称、船体引用与授权图片投影。
+- `src-tauri/src/services/project/resources/resource_identity.rs`：候选资源按所属快照的引用身份接纳实际资源来源。
 - `src-tauri/src/services/project/session/`：会话就绪、正式行、引用快照与稳定身份。
 - `src-tauri/src/services/project/sources/`：对应来源的内容、版本、Core 文档及配置读取。
 - `src/domain/schema/schema-source-definitions.ts`：候选读取的字段来源名称、配置路径及 CSV 来源语法。

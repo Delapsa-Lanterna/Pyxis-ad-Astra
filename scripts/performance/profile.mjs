@@ -11,16 +11,17 @@ await new Promise((resolve, reject) => {
   socket.onerror = reject;
 });
 let sequence = 0;
+/** @type {Map<number,{resolve:(value:Record<string,unknown>)=>void,reject:(error:Error)=>void}>} */
 const pending = new Map();
 socket.onmessage = (/** @type {{data: unknown}} */ { data }) => {
-  const response = JSON.parse(String(data));
+  const response = /** @type {{id?:number,error?:{message:string},result:Record<string,unknown>}} */ (JSON.parse(String(data)));
   if (!response.id) return;
-  const request = pending.get(response.id);
+  const request = /** @type {{resolve:(value:Record<string,unknown>)=>void,reject:(error:Error)=>void}} */ (pending.get(response.id));
   pending.delete(response.id);
   if (response.error) request.reject(new Error(response.error.message));
   else request.resolve(response.result);
 };
-/** @param {string} method */
+/** @param {string} method @returns {Promise<Record<string,unknown>>} */
 function send(method) {
   return new Promise((resolve, reject) => {
     const id = ++sequence;
