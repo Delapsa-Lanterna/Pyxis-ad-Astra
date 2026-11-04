@@ -51,11 +51,10 @@
 - `src/app/composables/spec-editor-assembly.ts`：Spec 查询定义与依赖实现选择。
 - `src/app/composables/use-app-close-participant.ts`：应用关闭六阶段、业务动作注入、保存等待、确认和恢复。
 - `src/app/composables/use-app-lifecycle-assembly.ts`：窗口关闭、参与者工厂、菜单宿主、项目展示准备、设置提交与编辑历史容量装配。
-- `src/app/naive-ui.d.ts`：模板全局组件及项目包装组件的类型声明。
+- `src/app/global-components.d.ts`：模板全局组件与项目包装组件的类型契约，和运行注册共同维护。
 - `src/app/naive-ui.runtime.ts`：Naive UI 按需注册。
 - `src/app/theme-overrides.ts`：Naive UI 主题覆盖构建，消费主题令牌生成 provider 覆盖。
 - `src/assets/app-icon.svg`：标题栏透明罗盘图标资源。
-- `src/env.d.ts`：Vite 环境及构建常量的声明入口。
 - `src/main.ts`：启动入口，消费原生上下文窗口类型、加载 settings、初始化 settings store、创建 Vue 与 Pinia、注册 Naive UI，并按窗口类型异步加载唯一窗口根。
 - `src/services/app-lifecycle.service.ts`：关闭范围、阶段回复与启动就绪的类型化 IPC。
 - `tsconfig.base.json`：共同严格检查与逐文件转换约束。
@@ -76,6 +75,7 @@
 - `src/app/composables/use-workspace-json-editor-host.ts`：工作区 JSON 页面目标及定位与导航宿主。
 - `src/app/composables/use-workspace-shell-actions.ts`：主窗口工作区动作及绑定当前窗口关闭能力的来源切换。
 - `src/domain/schema/schema-source-definitions.ts`：规格窗口装配捕获配置候选的正式刷新路径。
+- `src/env.d.ts`：启动诊断消费的公共构建版本声明。
 - `src/orchestrators/mod-save.orchestrator.ts`：所属窗口的 Mod 保存协调实例与结果交付。
 - `src/services/app-settings.service.ts`：启动消费的主窗口 settings 读取能力。
 - `src/stores/csv-editor.store.ts`：窗口装配消费的历史容量正式输入入口。
