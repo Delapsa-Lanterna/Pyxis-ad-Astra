@@ -6,4 +6,6 @@ src-tauri/gen/
 *.log
 *.tsbuildinfo
 .zcode/plans
-.audit-tools/
+.audit-tools/.runtime/
+.audit-tools/output/
+.audit-tools/startup-ui-cache*/

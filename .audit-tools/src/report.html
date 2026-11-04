@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>架构关系审计</title>
+    <style>
+      /* AUDIT_STYLE */
+    </style>
+    <script>
+      /* AUDIT_LIBRARY */
+    </script>
+  </head>
+  <body>
+    <header>
+      <div class="brand-row">
+        <h1>架构关系审计</h1>
+        <span id="identity"></span>
+        <div id="metrics" aria-label="报告规模"></div>
+      </div>
+      <nav id="toolbar" aria-label="关系工具">
+        <label class="search-control" for="search">查找模块<input id="search" type="search" placeholder="输入模块名" /></label>
+        <label for="relationScope"
+          >关系范围<select id="relationScope">
+            <option value="source">代码依赖</option>
+            <option value="communication">窗口消息</option>
+            <option value="combined">代码与消息</option>
+          </select></label
+        >
+        <label for="mode"
+          >主要视图<select id="mode">
+            <option value="module">全部模块</option>
+            <option value="file">文件关系</option>
+            <option value="rust">Rust 文件</option>
+            <option value="exploration">探索分组</option>
+          </select></label
+        >
+        <button id="moreToggle" aria-expanded="false" aria-controls="moreControls">更多筛选</button>
+        <details id="exportMenu">
+          <summary>导出</summary>
+          <div id="exports"></div>
+        </details>
+        <button id="regenerate" type="button" hidden>重新生成</button>
+        <button id="refreshReport" type="button" hidden>载入最新报告</button>
+      </nav>
+      <div id="moreControls" hidden>
+        <label for="basis"
+          >关系口径<select id="basis">
+            <option value="usage">实际依赖</option>
+            <option value="complete">完整引用</option>
+          </select></label
+        >
+        <label for="scope"
+          >文件范围<select id="scope">
+            <option value="production">生产代码</option>
+            <option value="all">全部文件</option>
+            <option value="test">测试</option>
+            <option value="document">文档</option>
+            <option value="engineering">工程文件</option>
+            <option value="asset">资源</option>
+          </select></label
+        >
+        <label for="kind"
+          >联系类型<select id="kind">
+            <option value="all">全部类型</option>
+          </select></label
+        >
+        <label for="direction"
+          >关系方向<select id="direction">
+            <option value="both">上下游</option>
+            <option value="out">依赖方向</option>
+            <option value="in">使用方</option>
+          </select></label
+        >
+      </div>
+    </header>
+    <div id="statusBanner" role="status" aria-live="polite" hidden></div>
+    <dialog id="sidePanel" aria-labelledby="sidePanelTitle">
+      <div class="drawer-heading">
+        <h2 id="sidePanelTitle">模块</h2>
+        <button id="closePanels" type="button" autofocus>关闭</button>
+      </div>
+      <div id="sidePanelBody"></div>
+    </dialog>
+    <section id="emptyState" aria-live="polite" hidden>
+      <h2 id="emptyTitle">尚无报告</h2>
+      <p id="emptyMessage">生成报告后，这里会显示全部模块关系。</p>
+      <p id="scanProgress" hidden></p>
+      <details id="scanFailure" hidden>
+        <summary>查看失败详情</summary>
+        <pre id="scanError"></pre>
+      </details>
+      <button id="startScan" type="button">开始生成</button>
+    </section>
+    <main id="workspace" hidden>
+      <aside id="navigation" aria-label="模块列表">
+        <h2>模块</h2>
+        <div id="entries"></div>
+        <p id="listCount"></p>
+      </aside>
+      <section class="center-column">
+        <div class="graph-actions">
+          <button id="toggleNav" aria-expanded="false">模块列表</button>
+          <button id="overview">全部模块</button>
+          <button id="fit">完整全图</button>
+          <button id="readableZoom">100%</button>
+          <button id="toggleDetail" aria-expanded="false">证据详情</button>
+          <span id="graphStatus" aria-live="polite"></span>
+        </div>
+        <div id="graph" role="region" aria-label="从基础层到上层的模块依赖" tabindex="0"></div>
+        <nav id="sectionTabs" role="tablist" aria-label="报告内容">
+          <button role="tab" aria-selected="true" aria-controls="graph">关系图</button>
+          <button role="tab" aria-selected="false" aria-controls="filesPanel" data-panel="filesPanel">文件</button>
+          <button role="tab" aria-selected="false" aria-controls="issuesPanel" data-panel="issuesPanel">待核线索</button>
+          <button role="tab" aria-selected="false" aria-controls="cyclesPanel" data-panel="cyclesPanel">循环</button>
+        </nav>
+        <section id="filesPanel" class="content-panel" role="tabpanel" hidden>
+          <div class="panel-heading">
+            <h2 id="filesTitle">文件</h2>
+            <label for="ownership"
+              >归属状态<select id="ownership">
+                <option value="all">全部状态</option>
+                <option value="shared">公共</option>
+                <option value="declared">已声明</option>
+                <option value="candidate">候选</option>
+                <option value="conflict">冲突</option>
+                <option value="unmatched">未覆盖</option>
+              </select></label
+            >
+            <input id="fileSearch" type="search" aria-label="查找文件" placeholder="路径或模块名" />
+          </div>
+          <div id="fileTable"></div>
+          <p id="ownershipSummary" class="muted"></p>
+          <div class="pager">
+            <button id="previousFiles" disabled>上一页</button><span id="filePage"></span><button id="nextFiles">下一页</button>
+          </div>
+        </section>
+        <section id="issuesPanel" class="content-panel" role="tabpanel" hidden>
+          <div id="issueCategories"></div>
+          <div class="panel-heading">
+            <h2>待核线索</h2>
+            <button id="allIssueCategories" hidden>全部类别</button>
+            <label for="issueCategory">类别<select id="issueCategory"></select></label>
+            <input id="issueSearch" type="search" aria-label="查找待核线索" placeholder="路径、说明或候选位置" />
+          </div>
+          <p id="issueSummary"></p>
+          <div id="issues"></div>
+          <div class="pager">
+            <button id="previousIssues" disabled>上一页</button><span id="issuePage"></span><button id="nextIssues" disabled>下一页</button>
+          </div>
+        </section>
+        <section id="cyclesPanel" class="content-panel" role="tabpanel" hidden>
+          <h2>循环关系</h2>
+          <div id="cycleList"></div>
+        </section>
+      </section>
+      <aside id="detail" aria-label="证据详情">
+        <h2>证据详情</h2>
+        <p>选择模块或文件查看关系、依据和扫描时的源码。</p>
+      </aside>
+    </main>
+    <script id="audit-data" type="application/json">
+      /* AUDIT_DATA */
+    </script>
+    <script type="module">
+      /* AUDIT_CLIENT */
+    </script>
+  </body>
+</html>

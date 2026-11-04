@@ -1,0 +1,5 @@
+{
+  "extends": "../tsconfig.browser-scripts.json",
+  "compilerOptions": { "types": ["node", "emscripten"] },
+  "include": ["src/**/*.mjs", "src/**/*.d.ts", "test/**/*.mjs"]
+}

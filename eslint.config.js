@@ -5,7 +5,16 @@ import tseslint from 'typescript-eslint';
 
 const fastConfig = [
   {
-    ignores: ['.audit-tools/**', '.zcode/plans/**', 'dist/**', 'release/**', 'src-tauri/target/**', 'src-tauri/gen/**'],
+    ignores: [
+      '.audit-tools/.runtime/**',
+      '.audit-tools/output/**',
+      '.audit-tools/startup-ui-cache*/**',
+      '.zcode/plans/**',
+      'dist/**',
+      'release/**',
+      'src-tauri/target/**',
+      'src-tauri/gen/**',
+    ],
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,
@@ -59,19 +68,23 @@ const fastConfig = [
     },
   },
   {
-    files: ['scripts/**/*.mjs', '*.config.js'],
+    files: ['scripts/**/*.mjs', '.audit-tools/**/*.mjs', '*.config.js'],
     languageOptions: {
       globals: {
         ...globals.node,
       },
     },
   },
+  {
+    files: ['.audit-tools/src/report-client.mjs', '.audit-tools/test/report.test.mjs'],
+    languageOptions: { globals: globals.browser },
+  },
 ];
 
 export const fullConfig = [
   ...fastConfig,
   {
-    files: ['**/*.ts', '**/*.vue', 'scripts/**/*.mjs', 'eslint*.config.js'],
+    files: ['**/*.ts', '**/*.vue', 'scripts/**/*.mjs', '.audit-tools/**/*.mjs', 'eslint*.config.js'],
     languageOptions: {
       parserOptions: {
         project: [
@@ -80,6 +93,7 @@ export const fullConfig = [
           './tsconfig.node.json',
           './tsconfig.scripts.json',
           './tsconfig.browser-scripts.json',
+          './.audit-tools/tsconfig.json',
         ],
         tsconfigRootDir: import.meta.dirname,
         extraFileExtensions: ['.vue'],
