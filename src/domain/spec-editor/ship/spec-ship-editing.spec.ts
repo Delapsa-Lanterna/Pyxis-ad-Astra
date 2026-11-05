@@ -161,7 +161,7 @@ describe('ship edit operations', () => {
     ['boundInsert', [0, 10, 20, 10, 20, 0, 0, 0], [5, 11], true, [0, 10, 5, 11, 20, 10, 20, 0, 5, -11, 0, 0]],
   ] as const)('applies %s to %j at %j with mirror %s', (kind, bounds, coord, mirror, expected) => {
     const source = { ...ship(), bounds: [...bounds] },
-      keys = input(kind === 'boundAppend' ? { ctrlKey: true } : { shiftKey: true }),
+      keys = input(kind === 'boundAppend' ? { shiftKey: true } : { ctrlKey: true }),
       absolute = shipRelativeToAbsolute([...coord], [10, 20]);
     expect(shipOperationKind('bounds', keys, null)).toBe(kind);
     const preview = previewShipOperation(source, 'bounds', null, keys, absolute, mirror)!;
@@ -176,6 +176,67 @@ describe('ship edit operations', () => {
     if (mirror && coord[1] !== 0) expect(source.bounds.slice(gesture.pair!.i * 2, gesture.pair!.i * 2 + 2)).toEqual([coord[0], -coord[1]]);
     else expect(gesture.pair).toBeNull();
   });
+  it.each([false, true].flatMap((reverse) => [0, 1, 2, 3].flatMap((start) => [-1, 1].map((side) => ({ reverse, start, side })))))(
+    'keeps mirrored corner insertion symmetric with reverse=$reverse start=$start side=$side',
+    ({ reverse, start, side }) => {
+      const points = [
+          [0, 18],
+          [32, 18],
+          [32, -18],
+          [0, -18],
+        ],
+        ordered = reverse ? points.reverse() : points,
+        initial = [...ordered.slice(start), ...ordered.slice(0, start)].flat(),
+        source = { ...ship(), bounds: [...initial] },
+        coord = [35, side * 21],
+        absolute = shipRelativeToAbsolute(coord, [10, 20]),
+        preview = previewShipOperation(source, 'bounds', null, input({ ctrlKey: true }), absolute, true)!;
+      expect(source.bounds).toEqual(initial);
+      expect(preview).toMatchObject({ kind: 'boundInsert', coord });
+      const gesture = beginShipOperation(source, 'boundInsert', null, absolute, true)!;
+      updateShipOperation(source, gesture, absolute);
+      expect(source.bounds).toHaveLength(12);
+      expect(source.bounds.slice(gesture.target.i * 2, gesture.target.i * 2 + 2)).toEqual(coord);
+      expect(source.bounds.slice(gesture.pair!.i * 2, gesture.pair!.i * 2 + 2)).toEqual([coord[0], -coord[1]!]);
+      if (preview.kind === 'boundInsert') expect(preview.insertAfter + 1).toBe(gesture.target.i);
+      const result = Array.from({ length: 6 }, (_, i) => source.bounds.slice(i * 2, i * 2 + 2)),
+        edges = result.map((point, i) => [point, result[(i + 1) % result.length]!]);
+      for (const [a, b] of edges)
+        expect(edges).toContainEqual([
+          [b![0], -b![1]!],
+          [a![0], -a![1]!],
+        ]);
+    },
+  );
+  it.each([false, true].flatMap((reverse) => [0, 1, 2, 3, 4, 5].flatMap((start) => [-1, 1].map((side) => ({ reverse, start, side })))))(
+    'inserts next to the closer opposite endpoint with reverse=$reverse start=$start side=$side',
+    ({ reverse, start, side }) => {
+      const points = [
+          [54, 12],
+          [30, 50],
+          [22, 25],
+          [22, -25],
+          [30, -50],
+          [54, -12],
+        ],
+        ordered = reverse ? points.reverse() : points,
+        bounds = [...ordered.slice(start), ...ordered.slice(0, start)].flat(),
+        source = { ...ship(), bounds },
+        coord = [7, side * 64],
+        absolute = shipRelativeToAbsolute(coord, [10, 20]),
+        preview = previewShipOperation(source, 'bounds', null, input({ ctrlKey: true }), absolute, true)!,
+        gesture = beginShipOperation(source, 'boundInsert', null, absolute, true)!;
+      updateShipOperation(source, gesture, absolute);
+      expect(preview).toMatchObject({ kind: 'boundInsert', coord, insertAfter: gesture.target.i - 1 });
+      for (const target of [gesture.target, gesture.pair!]) {
+        const i = target.i,
+          side = source.bounds[i * 2 + 1]! > 0 ? 1 : -1,
+          neighbors = [(i + 7) % 8, (i + 1) % 8].map((index) => source.bounds.slice(index * 2, index * 2 + 2));
+        expect(neighbors).toContainEqual([30, side * 50]);
+        expect(neighbors).toContainEqual([22, side * 25]);
+      }
+    },
+  );
   it('adds paired ports inside one bay, addresses the exact port and removes the final bay', () => {
     const source = ship(),
       target = { kind: 'launchBayPort', i: 2, port: 1 },

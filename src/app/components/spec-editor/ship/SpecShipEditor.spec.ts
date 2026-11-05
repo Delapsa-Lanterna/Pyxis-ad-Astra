@@ -94,8 +94,8 @@ function observeReveal(editor: Pick<ReturnType<typeof mount>, 'get'>) {
 }
 describe('ship pointer and inspector actions', () => {
   it.each([
-    ['ctrlKey', [5, -11.5, 0, 10, 20, 10, 20, -10, 0, -10, 5, 11.5]],
-    ['shiftKey', [0, 10, 5, 11.5, 20, 10, 20, -10, 5, -11.5, 0, -10]],
+    ['shiftKey', [5, -11.5, 0, 10, 20, 10, 20, -10, 0, -10, 5, 11.5]],
+    ['ctrlKey', [0, 10, 5, 11.5, 20, 10, 20, -10, 5, -11.5, 0, -10]],
   ] as const)('previews and commits the same snapped bounds using %s', async (key, expected) => {
     const editor = openShip({ ship: { center: [0, 0], bounds: [0, 10, 20, 10, 20, -10, 0, -10] } });
     await shortcut(editor, 'b');
@@ -107,6 +107,25 @@ describe('ship pointer and inspector actions', () => {
     const preview = draw.mock.calls.at(-1)![2];
     expect(preview).toEqual(
       Array.from({ length: expected.length / 2 }, (_, i) => ({ x: 250 + expected[i * 2]!, y: 250 - expected[i * 2 + 1]! })),
+    );
+    await canvas.trigger('mousedown', { button: 0, ...pointer });
+    await canvas.trigger('mouseup');
+    await flushPromises();
+    expect(editor.emitted('draft-changed')!.at(-1)![0]).toHaveProperty('bounds', expected);
+  });
+  it.each([
+    [21, [0, 18, 35, 21, 32, 18, 32, -18, 35, -21, 0, -18]],
+    [-21, [0, 18, 35, 21, 32, 18, 32, -18, 35, -21, 0, -18]],
+  ] as const)('previews and commits symmetric corner bounds from side %s', async (side, expected) => {
+    const editor = openShip({ ship: { center: [0, 0], bounds: [0, 18, 32, 18, 32, -18, 0, -18] } });
+    await shortcut(editor, 'b');
+    await shortcut(editor, ' ');
+    const draw = vi.spyOn(canvasScene, 'renderCanvasBounds'),
+      canvas = editor.get('canvas'),
+      pointer = { ctrlKey: true, clientX: 285, clientY: 250 - side };
+    await canvas.trigger('mousemove', pointer);
+    expect(draw.mock.calls.at(-1)![2]).toEqual(
+      Array.from({ length: 6 }, (_, i) => ({ x: 250 + expected[i * 2]!, y: 250 - expected[i * 2 + 1]! })),
     );
     await canvas.trigger('mousedown', { button: 0, ...pointer });
     await canvas.trigger('mouseup');

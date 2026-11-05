@@ -63,6 +63,31 @@ describe('point math', () => {
     expect(nearestBoundsSegment([], [0, 0])).toBe(-1);
   });
 
+  it.each([false, true].flatMap((reverse) => [0, 1, 2].map((start) => ({ reverse, start }))))(
+    'resolves a shared endpoint tie with reverse=$reverse start=$start',
+    ({ reverse, start }) => {
+      const points = [
+          [0, 0],
+          [-6, 12],
+          [18, 24],
+        ],
+        ordered = reverse ? points.reverse() : points,
+        bounds = [...ordered.slice(start), ...ordered.slice(0, start)].flat(),
+        index = nearestBoundsSegment(bounds, [-9, -6]);
+      expect([bounds.slice(index * 2, index * 2 + 2), bounds.slice(((index + 1) % 3) * 2, ((index + 1) % 3) * 2 + 2)]).toEqual(
+        reverse
+          ? [
+              [-6, 12],
+              [0, 0],
+            ]
+          : [
+              [0, 0],
+              [-6, 12],
+            ],
+      );
+    },
+  );
+
   it('computes distance treating missing coordinates as zero', () => {
     expect(distance([3, 4], [0, 0])).toBe(5);
     expect(distance([1], [1, 0])).toBe(0);

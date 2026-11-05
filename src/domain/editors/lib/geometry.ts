@@ -77,13 +77,17 @@ export function nearestBoundsSegment(bounds: readonly number[], point: number[])
   if (count < 2) return count - 1;
   let bestIndex = 0;
   let bestDistance = Number.POSITIVE_INFINITY;
+  let bestEndpointDistance = Number.POSITIVE_INFINITY;
   for (let i = 0; i < count; i++) {
     const a = [bounds[i * 2] ?? 0, bounds[i * 2 + 1] ?? 0];
     const next = (i + 1) % count;
     const b = [bounds[next * 2] ?? 0, bounds[next * 2 + 1] ?? 0];
-    const d = distanceToSegment(point, a, b);
-    if (d < bestDistance) {
+    const d = distanceToSegment(point, a, b),
+      endpointDistance = Math.max(distance(point, a), distance(point, b));
+    // Shared endpoints tie on segment distance; the opposite endpoint resolves the choice.
+    if (d < bestDistance || (d === bestDistance && endpointDistance < bestEndpointDistance)) {
       bestDistance = d;
+      bestEndpointDistance = endpointDistance;
       bestIndex = i;
     }
   }

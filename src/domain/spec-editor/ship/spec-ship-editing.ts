@@ -12,6 +12,7 @@ import type {
 import { arr, deepClone, num, str } from '@/shared/lib/starsector';
 import {
   distance,
+  distanceToSegment,
   nearestBoundsSegment,
   pointAngle,
   pointArc,
@@ -25,6 +26,7 @@ import {
   findMirrorEngineIndex,
   findMirrorBoundIndex,
   mirrorOffsetPoint,
+  isMirrorPointPair,
   mirrorBayPort,
   mirrorWeaponSlotForAdd,
   mirrorEngineForAdd,
@@ -98,7 +100,7 @@ export interface ShipGesture {
 }
 export function shipOperationKind(mode: ShipEditorMode, m: CanvasModifiers, target: EditorTarget | null): ShipOperationKind | null {
   if (mode === 'overview') return null;
-  if (mode === 'bounds') return m.ctrlKey ? 'boundAppend' : m.shiftKey ? 'boundInsert' : target ? 'bound' : null;
+  if (mode === 'bounds') return m.shiftKey ? 'boundAppend' : m.ctrlKey ? 'boundInsert' : target ? 'bound' : null;
   if (mode === 'launchBay') return m.ctrlKey ? 'launchBayAdd' : m.shiftKey ? 'launchBayPortAdd' : target ? 'launchBayPort' : null;
   if (mode === 'weapon') return m.shiftKey ? 'weaponCopy' : target ? (m.altKey ? 'weaponArc' : m.ctrlKey ? 'weapon' : 'weaponAngle') : null;
   if (mode === 'engine')
@@ -118,17 +120,45 @@ export function nextShipSlotId(ship: RowData, bay = false) {
   );
   return nextFormattedId(used, bay ? formatLaunchBayId : formatWeaponSlotId);
 }
+function mirrorShipBoundSegment(bounds: number[], point: number[], segment: number) {
+  const mirrored = mirrorOffsetPoint(point),
+    count = bounds.length / 2,
+    start = bounds.slice(segment * 2, segment * 2 + 2),
+    end = bounds.slice(((segment + 1) % count) * 2, ((segment + 1) % count) * 2 + 2),
+    nearest = nearestBoundsSegment(bounds, mirrored),
+    minimumDistance = distanceToSegment(
+      mirrored,
+      bounds.slice(nearest * 2, nearest * 2 + 2),
+      bounds.slice(((nearest + 1) % count) * 2, ((nearest + 1) % count) * 2 + 2),
+    );
+  // Equal-distance choices must preserve the reflected outline's adjacency.
+  for (let i = 0; i < count; i++) {
+    const a = bounds.slice(i * 2, i * 2 + 2),
+      b = bounds.slice(((i + 1) % count) * 2, ((i + 1) % count) * 2 + 2);
+    if (
+      isMirrorPointPair(start, b) &&
+      isMirrorPointPair(end, a) &&
+      Math.abs(distanceToSegment(mirrored, a, b) - minimumDistance) <= Number.EPSILON * Math.max(1, minimumDistance) * 8
+    )
+      return i;
+  }
+  return nearest;
+}
 export function addShipBound(bounds: number[], point: number[], mirror: boolean, insert = false) {
   // Resolve both positions on the original outline before either insertion shifts its indexes.
+  // A fixed click side keeps tied edges and shared-edge point order consistent under reflection.
   const inserting = insert && bounds.length >= 6,
     paired = mirror && Math.abs(point[1] || 0) > MIRROR_EPSILON,
-    at = inserting ? nearestBoundsSegment(bounds, point) + 1 : bounds.length / 2,
-    other = inserting && paired ? nearestBoundsSegment(bounds, mirrorOffsetPoint(point)) + 1 : 0;
+    reflected = inserting && paired && point[1]! < 0,
+    coord = reflected ? mirrorOffsetPoint(point) : point,
+    at = inserting ? nearestBoundsSegment(bounds, coord) + 1 : bounds.length / 2,
+    other = inserting && paired ? mirrorShipBoundSegment(bounds, coord, at - 1) + 1 : 0;
   const i = at + (paired && (other < at || !inserting) ? 1 : 0),
     pair = paired ? { kind: 'bound', i: other + (inserting && at <= other ? 1 : 0) } : null;
-  bounds.splice(at * 2, 0, ...point);
-  if (pair) bounds.splice(pair.i * 2, 0, ...mirrorOffsetPoint(point));
-  return { target: { kind: 'bound', i }, pair };
+  bounds.splice(at * 2, 0, ...coord);
+  if (pair) bounds.splice(pair.i * 2, 0, ...mirrorOffsetPoint(coord));
+  const target = { kind: 'bound', i };
+  return reflected ? { target: pair!, pair: target } : { target, pair };
 }
 export function addShipElement(
   ship: RowData,
