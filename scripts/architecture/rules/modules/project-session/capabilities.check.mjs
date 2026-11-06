@@ -42,6 +42,7 @@ const cases = [
     'setReferenceSources',
   ],
   ['save-retry', 'src/orchestrators/project-sync.orchestrator.ts', 'src/services/project-sync.service.ts', 'retryProjectSave'],
+  ['source-watch-retry', 'src/app/composables/use-project-sync-view-model.ts', 'src/services/project-sync.service.ts', 'retrySourceWatch'],
   [
     'commit-complete',
     'src/app/composables/json-editor/use-json-document-session.ts',
@@ -50,7 +51,7 @@ const cases = [
   ],
   [
     'commit-publication',
-    'src/app/composables/use-write-sync-view-model.ts',
+    'src/app/composables/use-project-sync-view-model.ts',
     'src/orchestrators/project-sync.orchestrator.ts',
     'retryPendingWrites',
   ],

@@ -4,6 +4,9 @@ import { invokeCommand } from '@/shared/runtime/command.runtime';
 export function queryCoreRoot(payload: CoreRootPayload): Promise<string | null> {
   return invokeCommand('query_core_root', { payload });
 }
+export function setWindowCoreSubscription(root: string | null): Promise<void> {
+  return invokeCommand('set_window_core_subscription', { root });
+}
 
 export function queryCoreFields(starsectorRoot: string): Promise<Record<string, DiscoveredField[]>> {
   return invokeCommand('scan_core_fields', { payload: { starsectorRoot } satisfies CoreScanPayload });

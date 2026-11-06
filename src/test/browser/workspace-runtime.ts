@@ -18,7 +18,7 @@ import { composeJson } from '@/domain/json-composition';
 import { isRowData } from '@/shared/lib/row-data';
 
 type Handler = (event: { event: string; id: number; payload: unknown }) => void | Promise<void>;
-type DeliveryChannel = { onmessage: (delivery: T.SaveDelivery) => void };
+type DeliveryChannel = { onmessage: (delivery: T.ProjectSyncDelivery) => void };
 export function createBrowserWorkspace(systemTheme: T.AppTheme = 'light') {
   initializeWindowsPathCase(windowsPathCaseFixture);
   let references: T.ReferenceSource[] = [];
@@ -454,6 +454,8 @@ export function createBrowserWorkspace(systemTheme: T.AppTheme = 'light') {
               .map((path) => path.slice(coreRoot.length + 1)),
           );
       case 'invalidate_core_cache':
+      case 'set_window_core_subscription':
+      case 'retry_source_watch':
         return;
       case 'query_csv_table_index':
       case 'query_csv_validation':

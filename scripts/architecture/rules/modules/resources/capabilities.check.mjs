@@ -7,6 +7,12 @@ import { projectResourcesBoundaryRule } from './project-resources-boundary.mjs';
 const cases = [
   ['core-root-read', 'src/app/composables/use-core-assets.ts', 'src/services/core-assets.service.ts', 'queryCoreRoot'],
   ['core-fields-read', 'src/orchestrators/core-assets.orchestrator.ts', 'src/services/core-assets.service.ts', 'queryCoreFields'],
+  [
+    'core-source-watch',
+    'src/orchestrators/core-assets.orchestrator.ts',
+    'src/services/core-assets.service.ts',
+    'setWindowCoreSubscription',
+  ],
   ['core-graphics-read', 'src/orchestrators/core-assets.orchestrator.ts', 'src/services/core-assets.service.ts', 'queryCoreGraphics'],
   [
     'core-refresh-clear',

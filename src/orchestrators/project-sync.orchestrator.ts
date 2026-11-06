@@ -4,8 +4,8 @@ import { logIdentity } from '@/shared/lib/log-fields';
 import { recordWindowEventHandlerError } from '@/orchestrators/window-event-errors.orchestrator';
 import { useProjectStore } from '@/stores/project.store';
 import { useFileHistoryStore } from '@/stores/file-history.store';
-import { useProjectSyncStore, type PendingWriteSync } from '@/stores/project-sync.store';
-import type { SaveAcceptanceTask, AppFeedback, ReferenceSource, SaveDelivery } from '@/shared/types';
+import { useProjectSyncStore, type PendingWriteSync, type PendingContentSync } from '@/stores/project-sync.store';
+import type { SaveAcceptanceTask, AppFeedback, ReferenceSource, ProjectSyncDelivery } from '@/shared/types';
 import { markSessionReady, acceptReferenceRevision, setReferenceReadiness } from '@/services/project-readiness.service';
 import { AppError, errorDiagnosticOf } from '@/shared/lib/errors';
 import type { InvalidatedResourceScope, CommittedWriteEvent, SessionContentUpdate } from '@/shared/types';
@@ -27,11 +27,13 @@ import { invalidateResourceMediaByProject } from '@/services/resource-media.serv
 import type { SaveTask, SaveCommandRequest } from '@/shared/runtime/command.runtime';
 
 type SaveHandler = (event: CommittedWriteEvent) => ReturnType<SaveAcceptanceTask>;
+type CoreHandler = (root: string, sources: readonly InvalidatedResourceScope[]) => ReturnType<SaveAcceptanceTask>;
 interface SavedContentHandler {
   handler: SaveHandler;
   release?: (sessionId: string) => void;
 }
 interface SaveConsumers {
+  core: Set<CoreHandler>;
   feedback?: AppFeedback;
   content: Set<SavedContentHandler>;
   identity: Set<SaveHandler>;
@@ -79,10 +81,46 @@ function consumers() {
   if (window) return window;
   const content = new Set<SavedContentHandler>(),
     identity = new Set<SaveHandler>();
-  window = { content, identity, ready: Promise.resolve(), processing: Promise.resolve(), sources: new Map() };
+  window = { core: new Set(), content, identity, ready: Promise.resolve(), processing: Promise.resolve(), sources: new Map() };
   windows.set(sync, window);
   const registration = window;
   registration.ready = registerSaveWindow((delivery) => {
+    if (delivery.kind === 'coreChanged') {
+      const changed = delivery;
+      const entry = sync.receive({
+        id: crypto.randomUUID(),
+        event: null,
+        modRoot: changed.root,
+        sessionId: null,
+        tasks: [...registration.core].map((receive) => async () => {
+          if (!registration.core.has(receive)) return;
+          const tasks = await receive(changed.root, changed.sources);
+          if (!Array.isArray(tasks)) return;
+          let unfinished = tasks;
+          return [
+            async () => {
+              if (!registration.core.has(receive)) return;
+              const results = await Promise.allSettled(unfinished.map((task) => task()));
+              unfinished = unfinished.filter((_, index) => results[index]!.status === 'rejected');
+              const failures = results.filter((result) => result.status === 'rejected');
+              if (failures.length)
+                throw new AggregateError(
+                  failures.map((result) => result.reason),
+                  'Core content acceptance failed',
+                );
+            },
+          ];
+        }),
+        running: null,
+        error: null,
+      });
+      void consume(entry).catch((error) => recordWindowEventHandlerError(error, 'core-refresh'));
+      return;
+    }
+    if (delivery.kind === 'sourceStatus') {
+      sync.setSourceStatus(delivery);
+      return;
+    }
     if (delivery.kind === 'references') {
       if (!acceptReferenceRevision(delivery.snapshot.revision) || !delivery.event) return;
       delivery = { kind: 'saved', requestId: `references:${delivery.snapshot.revision}`, event: delivery.event };
@@ -115,6 +153,7 @@ function consumers() {
       changes: String(event.result.changes.length),
     }));
     for (const previous of sync.pending) {
+      if (!previous.event) continue;
       if (!previous.error) continue;
       if (normalizeRelPath(previous.event.modRoot).toLowerCase() !== normalizeRelPath(event.modRoot).toLowerCase()) continue;
       const earlier = previous.event.result;
@@ -180,7 +219,7 @@ function consumers() {
   return registration;
 }
 
-async function consume(entry: PendingWriteSync): Promise<void> {
+async function consume(entry: PendingContentSync): Promise<void> {
   if (entry.running) return entry.running;
   const sync = useProjectSyncStore();
   entry.error = null;
@@ -197,12 +236,16 @@ async function consume(entry: PendingWriteSync): Promise<void> {
       if (windows.get(sync) !== window) return;
       window.sources.delete(entry.id);
       sync.complete(entry.id);
-      debugLog('save.accepted', () => ({ requestId: entry.id, modRoot: entry.event.modRoot, sessionId: entry.event.sessionId ?? '' }));
+      debugLog('save.accepted', () => ({
+        requestId: entry.id,
+        modRoot: entry.event ? entry.event.modRoot : entry.modRoot,
+        sessionId: entry.event?.sessionId ?? '',
+      }));
     } catch (error) {
       entry.error = errorDiagnosticOf(error);
       debugLog('save.acceptance_failed', () => ({
         requestId: entry.id,
-        modRoot: entry.event.modRoot,
+        modRoot: entry.event ? entry.event.modRoot : entry.modRoot,
         remaining: String(entry.tasks.length),
         errorCode: entry.error!.code,
         error: entry.error!.message,
@@ -221,7 +264,7 @@ async function consume(entry: PendingWriteSync): Promise<void> {
   return operation;
 }
 
-async function confirmMissingSources(window: SaveConsumers, delivery: Extract<SaveDelivery, { kind: 'missing' }>) {
+async function confirmMissingSources(window: SaveConsumers, delivery: Extract<ProjectSyncDelivery, { kind: 'missing' }>) {
   const choice = await window.feedback?.choose({
     title: '重新创建文件并保存？',
     content:
@@ -351,6 +394,16 @@ export async function listenSavedContent(handler: SaveHandler, release?: SavedCo
   const stop = observeSavedContent(handler, release);
   await consumers().ready;
   return stop;
+}
+export function observeCoreContent(handler: CoreHandler) {
+  const window = consumers();
+  window.core.add(handler);
+  return {
+    ready: window.ready,
+    release: () => {
+      window.core.delete(handler);
+    },
+  };
 }
 
 export async function listenSavedIdentity(handler: SaveHandler) {

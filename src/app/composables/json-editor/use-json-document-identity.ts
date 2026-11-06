@@ -1,6 +1,6 @@
 import { normalizeFsPath } from '@/shared/lib/paths';
 import { onScopeDispose, shallowRef, watch, type Ref } from 'vue';
-import { listenSavedIdentity } from '@/orchestrators/project-sync.orchestrator';
+import { listenSavedIdentity, sessionContentUpdate } from '@/orchestrators/project-sync.orchestrator';
 import { useQueryReadOwner } from '@/app/composables/use-query-read-owner';
 import type { EditTargetDraftSession, EditTargetSnapshot } from '@/app/composables/use-edit-target-draft-session';
 import type { useSnapshotHistory } from '@/app/composables/use-snapshot-history';
@@ -63,9 +63,17 @@ export function useJsonDocumentIdentity<TValue, TTarget extends { sessionId: str
   if (identity) {
     void listenSavedIdentity(async (event) => {
       const target = session.currentTarget.value;
-      if (!target || target.sessionId !== event.sessionId || normalizeFsPath(target.modRoot) !== normalizeFsPath(event.modRoot)) return;
+      if (
+        !target ||
+        (target.sessionId !== event.sessionId && !sessionContentUpdate(event, target.sessionId)) ||
+        normalizeFsPath(target.modRoot) !== normalizeFsPath(event.modRoot)
+      )
+        return;
       const change = event.result.identityChanges.find(
-        (change) => change.before.kind === identity.kind && change.before.id === target.id && change.before.id !== change.after.id,
+        (change) =>
+          change.before.kind === identity.kind &&
+          change.before.id === target.id &&
+          (change.before.id !== change.after.id || normalizeFsPath(change.before.write.path) !== normalizeFsPath(change.after.write.path)),
       );
       if (!change || !session.acceptsSaveDelivery(target, event.result.requestId)) return;
       try {

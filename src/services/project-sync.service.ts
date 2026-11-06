@@ -8,15 +8,15 @@ import type {
   WriteResult,
 } from '@/shared/types';
 import { commandChannel, invokeCommand, invokeSaveCommand } from '@/shared/runtime/command.runtime';
-import type { SaveDelivery } from '@/shared/types';
+import type { ProjectSyncDelivery } from '@/shared/types';
 
-export function registerSaveWindow(receive: (delivery: SaveDelivery) => void) {
+export function registerSaveWindow(receive: (delivery: ProjectSyncDelivery) => void) {
   let received!: () => void;
   const snapshot = new Promise<void>((resolve) => {
     received = resolve;
   });
   return invokeCommand<void>('register_save_window', {
-    channel: commandChannel((delivery: SaveDelivery) => {
+    channel: commandChannel((delivery: ProjectSyncDelivery) => {
       receive(delivery);
       if (delivery.kind === 'references') received();
     }),
@@ -41,6 +41,9 @@ export function unregisterSaveWindow() {
 
 export function retryProjectSave(requestId: string) {
   return invokeCommand<void>('retry_project_save', { requestId });
+}
+export function retrySourceWatch(root: string) {
+  return invokeCommand<void>('retry_source_watch', { root });
 }
 
 export function waitProjectSaves(modRoots: string[]) {

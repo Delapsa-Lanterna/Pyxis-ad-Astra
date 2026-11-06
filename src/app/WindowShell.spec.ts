@@ -17,6 +17,7 @@ vi.mock('@/services/core-assets.service', () => ({
   queryCoreRoot: mocks.root,
   queryCoreFields: mocks.fields,
   queryCoreGraphics: mocks.graphics,
+  setWindowCoreSubscription: vi.fn(async () => {}),
 }));
 vi.mock('@/services/app-log.service', () => ({ recordLogBestEffort: mocks.log }));
 vi.mock('./WindowRuntime.vue', () => ({ default: { template: '<div><slot /></div>' } }));

@@ -27,6 +27,8 @@ pub struct ProjectManifest {
 #[derive(Debug, Serialize, Deserialize, Clone, Default, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct ProjectInvalidation {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub renames: Option<Vec<(String, String)>>,
     pub paths: Vec<String>,
     pub tables: Vec<CsvTableKey>,
     pub entities: Vec<InvalidatedEntityRef>,
@@ -131,6 +133,9 @@ pub struct SourceRefresh {
 
 impl ProjectInvalidation {
     pub fn merge(&mut self, other: Self) {
+        if let Some(renames) = other.renames {
+            self.renames.get_or_insert_with(Vec::new).extend(renames);
+        }
         push_unique_all(&mut self.paths, other.paths);
         push_unique_all(&mut self.tables, other.tables);
         push_unique_all(&mut self.entities, other.entities);

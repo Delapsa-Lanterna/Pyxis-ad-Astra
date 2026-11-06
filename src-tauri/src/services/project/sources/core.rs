@@ -659,7 +659,17 @@ pub(in crate::services::project) fn invalidate_core_sources(
     let Some(handle) = lock_core_caches()?.get(&key).cloned() else {
         return Ok(());
     };
-    let mut data = lock_core_cache(&handle)?.data.clone();
+    let entry = lock_core_cache(&handle)?;
+    let mut data = entry.data.clone();
+    let mut reader = entry.sources.fork_loaded();
+    drop(entry);
+    reader.invalidate_paths(
+        &sources
+            .iter()
+            .filter(|source| source.source == ResourceSource::Core)
+            .map(|source| source.rel_path.as_str())
+            .collect::<Vec<_>>(),
+    );
     for source in sources
         .iter()
         .filter(|source| source.source == ResourceSource::Core)
@@ -714,10 +724,38 @@ pub(in crate::services::project) fn invalidate_core_sources(
         Arc::new(Mutex::new(CoreCacheEntry {
             data,
             dirty: true,
-            sources: SourceReader::new(&core_dir(root)?)?,
+            sources: reader,
         })),
     );
     Ok(())
+}
+
+pub(crate) fn prepare_core_source_refresh(
+    game: &str,
+    paths: &[String],
+    rescan: bool,
+) -> AppResult<Vec<InvalidatedResourceScope>> {
+    let handle = core_cache_handle(game)?;
+    let mut entry = lock_core_cache(&handle)?;
+    entry.sources.begin_batch();
+    let mut sources = Vec::new();
+    for path in paths {
+        let path = entry.sources.path(path)?;
+        let key = entry.sources.key(&path);
+        let before = entry.sources.versions.get(&key).cloned();
+        let changed = rescan
+            || path.is_dir()
+            || before.as_ref() != Some(&entry.sources.stage_version(&path)?);
+        if changed {
+            sources.push(InvalidatedResourceScope {
+                source: ResourceSource::Core,
+                rel_path: key,
+            });
+        }
+    }
+    drop(entry);
+    invalidate_core_sources(game, &sources)?;
+    Ok(sources)
 }
 
 #[cfg(test)]
@@ -752,6 +790,56 @@ mod tests {
             "csv" => load_core_csv_table(root, "data/hulls/ship_data.csv").map(|_| ()),
             _ => unreachable!(),
         }
+    }
+
+    #[test]
+    fn source_watch_review_core_rescan_reads_current_bytes_after_an_accepted_batch() {
+        let root = project_workspace("review_core_rescan");
+        let relative = "data/weapons/proj/review.proj";
+        let path = root.join("starsector-core").join(relative);
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        fs::write(&path, r#"{"id":"review","damage":1}"#).unwrap();
+        let game = root.to_string_lossy();
+        assert_eq!(
+            load_core_projectile_specs(&game).unwrap()["review"].data["damage"],
+            1
+        );
+        fs::write(&path, r#"{"id":"review","damage":2}"#).unwrap();
+        prepare_core_source_refresh(&game, &[relative.into()], false).unwrap();
+        assert_eq!(
+            load_core_projectile_specs(&game).unwrap()["review"].data["damage"],
+            2
+        );
+        let reads = work_counts::count("read", &path);
+        fs::write(&path, r#"{"id":"review","damage":3}"#).unwrap();
+        prepare_core_source_refresh(&game, &["data".into()], true).unwrap();
+        let current = load_core_projectile_specs(&game).unwrap();
+        let actual = current["review"].data["damage"].clone();
+        let read_count = work_counts::count("read", &path) - reads;
+        invalidate_core_cache(&game).unwrap();
+        root.close().unwrap();
+        assert_eq!((actual, read_count), (json!(3), 1));
+    }
+
+    #[test]
+    fn source_watch_review_core_rescan_accepts_a_repaired_parse_failure() {
+        let root = project_workspace("review_core_repair");
+        let relative = "data/weapons/proj/review.proj";
+        let path = root.join("starsector-core").join(relative);
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        fs::write(&path, r#"{"id":"review","damage":1}"#).unwrap();
+        let game = root.to_string_lossy();
+        load_core_projectile_specs(&game).unwrap();
+        fs::write(&path, "{").unwrap();
+        prepare_core_source_refresh(&game, &[relative.into()], false).unwrap();
+        assert!(load_core_projectile_specs(&game).is_err());
+        fs::write(&path, r#"{"id":"review","damage":2}"#).unwrap();
+        prepare_core_source_refresh(&game, &["data".into()], true).unwrap();
+        let repaired = load_core_projectile_specs(&game)
+            .map(|records| records["review"].data["damage"].clone());
+        invalidate_core_cache(&game).unwrap();
+        root.close().unwrap();
+        assert_eq!(repaired.unwrap(), json!(2));
     }
 
     #[test]

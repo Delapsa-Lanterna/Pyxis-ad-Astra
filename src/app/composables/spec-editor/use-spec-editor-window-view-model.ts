@@ -413,9 +413,17 @@ export function useSpecEditorWindowViewModel(
 
   async function handleIdentityApplied(event: CommittedWriteEvent) {
     const target = editorWindowTarget();
-    if (!target || event.sessionId !== target.sessionId || normalizeFsPath(event.modRoot) !== normalizeFsPath(target.modRoot)) return;
+    if (
+      !target ||
+      (event.sessionId !== target.sessionId && !sessionContentUpdate(event, target.sessionId)) ||
+      normalizeFsPath(event.modRoot) !== normalizeFsPath(target.modRoot)
+    )
+      return;
     const change = event.result.identityChanges.find(
-      (change) => change.before.kind === target.kind && change.before.id === target.id && change.after.id !== target.id,
+      (change) =>
+        change.before.kind === target.kind &&
+        change.before.id === target.id &&
+        (change.after.id !== target.id || normalizeFsPath(change.before.write.path) !== normalizeFsPath(change.after.write.path)),
     );
     if (!change) return;
     if (disposed || !sameEditorWindowTarget(target, editorWindowTarget())) return;

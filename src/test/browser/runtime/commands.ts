@@ -16,7 +16,7 @@ import type {
   AppLogStatus,
   MiscConfigWrite,
   JsonRecoveryRequest,
-  SaveDelivery,
+  ProjectSyncDelivery,
   SaveRequest,
   WriteResult,
   SourceRefresh,
@@ -35,7 +35,7 @@ const modelQueries = new WeakMap<BrowserModel, (command: string, payload: Record
 export function installModelQueries(model: BrowserModel, query: (command: string, payload: Record<string, unknown>) => unknown) {
   modelQueries.set(model, query);
 }
-let saveChannel: { onmessage: (delivery: SaveDelivery) => void } | null = null;
+let saveChannel: { onmessage: (delivery: ProjectSyncDelivery) => void } | null = null;
 export function installBrowserModel(next: BrowserModel) {
   model = next;
 }
@@ -122,6 +122,8 @@ export async function dispatch(command: string, args: Record<string, unknown>, m
     case 'scan_core_graphics':
       return ['graphics/sample.svg'];
     case 'invalidate_core_cache':
+    case 'set_window_core_subscription':
+    case 'retry_source_watch':
       return;
     case 'get_app_log_status':
       return {

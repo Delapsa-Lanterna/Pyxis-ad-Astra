@@ -994,6 +994,31 @@ pub fn query_edit_target_owners(targets: &[EditWriteTarget]) -> AppResult<Vec<St
     Ok(state.edit_target_owners(targets))
 }
 
+pub fn project_source_paths(session_id: &str) -> AppResult<Vec<String>> {
+    let state = registry()?;
+    let mut paths = state
+        .edit_targets
+        .values()
+        .flatten()
+        .filter(|target| target.session_id == session_id)
+        .map(|target| target.path.clone())
+        .collect::<Vec<_>>();
+    paths.extend(
+        state
+            .instances
+            .values()
+            .filter_map(|instance| match &instance.identity {
+                WindowIdentity::File {
+                    session_id: owner,
+                    path,
+                    ..
+                } if owner == session_id => Some(path.clone()),
+                _ => None,
+            }),
+    );
+    Ok(paths)
+}
+
 fn edit_targets_overlap(left: &EditWriteTarget, right: &EditWriteTarget) -> bool {
     if left.session_id != right.session_id
         || models::windows_path_key(&left.mod_root) != models::windows_path_key(&right.mod_root)

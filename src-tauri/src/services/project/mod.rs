@@ -21,14 +21,21 @@ pub(crate) use session::references::{
     reference_revision, reference_sources, reference_sources_changed, set_reference_order,
     set_reference_sources,
 };
+pub(crate) use session::registered_manifests;
 pub(crate) use session::registry::unregister_project_session;
+pub(crate) use session::source_refresh::refresh_core_session;
+#[cfg(test)]
+pub use session::source_refresh::refresh_project_sources;
+pub(crate) use session::source_refresh::refresh_root_sources;
+pub(crate) use session::source_refresh::{loaded_source_targets, refresh_mod_root_sources};
 pub(crate) use session::{affected_session_ids, current_project_manifest, mark_session_pending};
 pub use session::{
     ensure_project_session_mod_root, hold_session_openings, invalidate_core_cache,
-    invalidate_project_session, refresh_project_sources, registered_session_ids,
+    invalidate_project_session, registered_session_ids,
 };
 pub(crate) use sources::configure_persistent_index_cache;
 pub(crate) use sources::core::core_dir;
+pub(crate) use sources::core::prepare_core_source_refresh;
 pub(crate) use sources::roots::resolve_core_root;
 pub(crate) use sources::roots::{
     infer_starsector_root, is_game_root, is_mod_root, resolve_game_mods_directory,

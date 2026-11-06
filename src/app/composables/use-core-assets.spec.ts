@@ -1,4 +1,21 @@
-vi.mock('@/orchestrators/project-sync.orchestrator', async () => ({ ...(await import('@/test/unit/project-changes')) }));
+vi.mock('@/orchestrators/project-sync.orchestrator', async () => ({
+  ...(await import('@/test/unit/project-changes')),
+  observeCoreContent: (
+    handler: (root: string, sources: readonly { source: 'core'; relPath: string }[]) => (() => Promise<void>)[] | undefined,
+  ) => {
+    const receive = async (root: string, sources: readonly { source: 'core'; relPath: string }[]) => {
+      const results = await Promise.allSettled((handler(root, sources) ?? []).map((task) => task()));
+      const failed = results.filter((result) => result.status === 'rejected');
+      if (failed.length)
+        throw new AggregateError(
+          failed.map((result) => result.reason),
+          'Core content acceptance failed',
+        );
+    };
+    mocks.coreChanged.add(receive);
+    return { ready: Promise.resolve(), release: () => mocks.coreChanged.delete(receive) };
+  },
+}));
 import { createPinia, setActivePinia } from 'pinia';
 import { effectScope, ref, type Ref } from 'vue';
 import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest';
@@ -11,11 +28,19 @@ import { dispatchProjectChangeFixture, projectChangeListeners } from '@/test/uni
 import { sessionUpdateFixture } from '@/test/fixtures/write-result';
 import { flushPromises } from '@vue/test-utils';
 
-const mocks = vi.hoisted(() => ({ fields: vi.fn(), graphics: vi.fn(), log: vi.fn(), clear: vi.fn() }));
+const mocks = vi.hoisted(() => ({
+  fields: vi.fn(),
+  graphics: vi.fn(),
+  log: vi.fn(),
+  clear: vi.fn(),
+  setSource: vi.fn(async () => {}),
+  coreChanged: new Set<(root: string, sources: readonly { source: 'core'; relPath: string }[]) => Promise<void>>(),
+}));
 vi.mock('@/services/core-assets.service', () => ({
   queryCoreFields: mocks.fields,
   queryCoreGraphics: mocks.graphics,
   invalidateCoreCacheForRoot: mocks.clear,
+  setWindowCoreSubscription: mocks.setSource,
 }));
 vi.mock('@/services/app-log.service', () => ({ recordLogBestEffort: mocks.log }));
 const fields: Record<string, DiscoveredField[]> = { faction: [{ key: 'bonus', type: 'string', origin: 'core' }] };
@@ -38,6 +63,62 @@ afterEach(() => {
 });
 
 describe('Core asset ownership and acceptance', () => {
+  it('source watch review establishes the initial root subscription before reading a product', async () => {
+    stop();
+    await flushPromises();
+    let subscribed!: () => void;
+    mocks.setSource.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          subscribed = resolve;
+        }),
+    );
+    stop = scope.run(() => startCoreAssetsLoading(root))!;
+    await flushPromises();
+    const pending = loadCoreGraphics();
+    onTestFinished(async () => {
+      subscribed();
+      await pending;
+    });
+    await flushPromises();
+    expect(mocks.graphics).toHaveBeenCalledTimes(0);
+    subscribed();
+    await pending;
+    expect(mocks.graphics).toHaveBeenCalledExactlyOnceWith('D:/A');
+  });
+  it('source watch review refreshes graphics when the same batch fails field loading', async () => {
+    await Promise.all([loadCoreFields(), loadCoreGraphics()]);
+    mocks.fields.mockRejectedValueOnce(new Error('review fields failure'));
+    mocks.graphics.mockResolvedValueOnce(['graphics/review.png']);
+    const results = await Promise.allSettled(
+      [...mocks.coreChanged].map((receive) =>
+        receive('D:/A', [
+          { source: 'core', relPath: 'data/hulls' },
+          { source: 'core', relPath: 'graphics' },
+        ]),
+      ),
+    );
+    expect(results[0]?.status).toBe('rejected');
+    expect(useCoreAssetsStore().fields.status).toBe('error');
+    expect(useCoreAssetsStore().graphics.content).toEqual(['graphics/review.png']);
+    expect(mocks.fields).toHaveBeenCalledTimes(2);
+    expect(mocks.graphics).toHaveBeenCalledTimes(2);
+  });
+  it('subscribes and releases the actual window root and accepts changes without Mod sessions', async () => {
+    await loadCoreGraphics();
+    await flushPromises();
+    expect(mocks.setSource).toHaveBeenLastCalledWith('D:/A');
+    mocks.graphics.mockResolvedValueOnce(['graphics/replaced.png']);
+    for (const receive of mocks.coreChanged) await receive('D:/A', [{ source: 'core', relPath: 'graphics/replaced.png' }]);
+    expect(useCoreAssetsStore().graphics.content).toEqual(['graphics/replaced.png']);
+    root.value = 'D:/B';
+    await flushPromises();
+    expect(mocks.setSource).toHaveBeenLastCalledWith('D:/B');
+    stop();
+    await flushPromises();
+    expect(mocks.setSource).toHaveBeenLastCalledWith(null);
+    expect(mocks.coreChanged.size).toBe(0);
+  });
   it('releases a second loader when its operation fails and ignores subsequent changes', async () => {
     setActivePinia(createPinia());
     const releasedRoot = ref<string | null>('D:/released');
@@ -233,6 +314,7 @@ describe('Core asset ownership and acceptance', () => {
       resolve(fields);
       await second;
     });
+    await flushPromises();
     expect(second).toBe(first);
     expect(mocks.fields).toHaveBeenCalledTimes(1);
     resolve(fields);
@@ -312,6 +394,7 @@ describe('Core asset ownership and acceptance', () => {
       resolve(fields);
       await pending;
     });
+    await flushPromises();
     if (action === 'clear') root.value = null;
     else stop();
     resolve(fields);

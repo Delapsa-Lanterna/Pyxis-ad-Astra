@@ -85,10 +85,11 @@
 - 写后接纳：`CommittedWriteEvent` 有序交付 → File History 摘要 → `sessionUpdates` 正式清单及资源、query 缓存失效 → 发起会话 `SaveAcceptanceTask` → 窗口身份交接 → 所属内容与后续草稿接纳
 - 文件修改失败恢复：根租约内写入失败 → 实际 before 字节、路径与存在状态 → 逆序恢复已执行及部分执行步骤 → 受阻位置保留项目工作 → 恢复或明确放弃 → 所属请求结束与后续队列推进
 - 正式登记恢复：文件及历史已登记后的正式内容构建失败 → session 正式内容标记 `pending` 并保留所属项目工作 → `project_sync::retry` 继续未完成正式内容登记 → 完整正式结果发布 → 释放项目工作
-- 内容接纳重试：窗口内容处理失败 → `PendingWriteSync` 保留未完成步骤 → 所属重试入口 → 当前有效身份、基线或必要读取接纳 → 释放已完成步骤并结束所属待办
+- 内容接纳重试：窗口内容处理失败 → `PendingContentSync` 保留未完成步骤 → 所属重试入口 → 当前有效身份、基线或必要读取接纳 → 释放已完成步骤并结束所属待办
 - 文件历史读取与清空：捕获 `sessionId + modRoot` → 历史 service 核对范围 → 根历史摘要或根租约内清空双栈 → revision → 所属读取寿命与项目身份接纳
 - 草稿历史与文件回放：workspace history dispatch → 当前 JSON 或 CSV 草稿历史 → 草稿耗尽时构造 File History replay plan → 影响文件确认 → 项目队列复核当前路径、版本与授权 → changeset replay → 历史及窗口内容交付
 - 来源刷新：所属业务根刷新动作 → 保存等待与活动输入交接 → `refreshProjectSourcePaths` → 项目队列按实际来源重读 → 正式内容及失效交付 → 所属内容接纳或 dirty 外部版本暂存
+- 来源监听：基线读取前订阅实际 Mod/Core 根 → notify 路径合批 → 项目同步根队列接纳及后续合并 → 匹配字节与版本比较 → 同根候选构造与正式接纳 → 窗口有序内容任务与独立 Core 通知 → 所属成功或未完成步骤重试
 - Core 生命周期：`WindowShell` 有效原版根 → `startCoreAssetsLoading` → fields 与 graphics 独立读取并复用所属在途任务 → 后端 Core 产品 → 根与产品代次接纳 → Core store；根清空或窗口释放撤销所属读取
 - 资源读取与展示：后端授权 `ResourceRef` → 媒体集合与租约 → media 合批、共享读取及 Mod/引用/Core 根授权 → data URL → 窗口图像解码及缩略图成品 → 展示；引用替换、失效或释放交还所属租约
 - 字体加载与绘制：沉浸式窗口登记字体身份 → `ReadTicket` → 指定目录或所属游戏根的 FNT 与图集 → 字体解析、解码及来源回退 → `FontText` 排版与 canvas 绘制 → 来源切换或窗口释放清理所属字体

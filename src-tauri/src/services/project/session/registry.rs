@@ -9,6 +9,7 @@ use std::sync::{Arc, LazyLock, Mutex, MutexGuard};
 pub(in crate::services::project) struct RegisteredSession {
     pub session_id: String,
     pub root: String,
+    pub core_root: Option<String>,
     pub handle: Arc<Mutex<ProjectSession>>,
     pub reference: Option<Arc<ReferenceSnapshot>>,
 }

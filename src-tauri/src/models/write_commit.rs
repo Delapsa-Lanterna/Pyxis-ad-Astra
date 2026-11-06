@@ -1,9 +1,9 @@
 use super::collections::push_unique_all;
-use crate::errors::ErrorDiagnostic;
+#[cfg(test)]
+use crate::models::ProjectSyncDelivery;
 use crate::models::{
     CsvTableKey, EntityEditTarget, EntityIdentityChange, FileChangeRecord, FileHistorySnapshot,
-    FileVersion, JointEditRoot, JsonDocumentOrigin, ProjectInvalidation, ReferenceSources,
-    SessionContentUpdate,
+    FileVersion, JointEditRoot, JsonDocumentOrigin, ProjectInvalidation, SessionContentUpdate,
 };
 #[cfg(test)]
 use crate::test_support::TestWorkspace;
@@ -11,39 +11,6 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::path::Path;
 use std::sync::Arc;
-
-#[derive(Clone, Serialize)]
-#[serde(tag = "kind", rename_all = "camelCase")]
-pub enum SaveDelivery {
-    References {
-        snapshot: ReferenceSources,
-        event: Option<Value>,
-    },
-    Missing {
-        #[serde(rename = "requestId")]
-        request_id: String,
-        paths: Vec<String>,
-    },
-    Saved {
-        #[serde(rename = "requestId")]
-        request_id: String,
-        event: Value,
-    },
-    Waiting {
-        #[serde(rename = "modRoot")]
-        mod_root: String,
-        waiting: bool,
-    },
-    Blocked {
-        #[serde(rename = "requestId")]
-        request_id: String,
-        #[serde(rename = "modRoot")]
-        mod_root: String,
-        #[serde(rename = "sessionId")]
-        session_id: Option<String>,
-        diagnostic: ErrorDiagnostic,
-    },
-}
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(tag = "kind", rename_all = "camelCase")]
@@ -209,7 +176,7 @@ mod tests {
         let value = json!({"sessionId":"s","modRoot":"M:/mod","content":{"manifest":manifest,"invalidation":invalidation}});
         let update: CommittedSessionUpdate = serde_json::from_value(value.clone()).unwrap();
         assert_eq!(serde_json::to_value(update).unwrap(), value);
-        let blocked = SaveDelivery::Blocked {
+        let blocked = ProjectSyncDelivery::Blocked {
             request_id: "request".into(),
             mod_root: "M:/mod".into(),
             session_id: Some("s".into()),

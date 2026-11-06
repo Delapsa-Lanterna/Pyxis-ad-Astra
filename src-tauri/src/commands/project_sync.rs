@@ -1,6 +1,7 @@
 use crate::errors::{AppError, ErrorDiagnostic};
 use crate::models::{
-    CloseProjectSessionPayload, InvalidateProjectSessionPayload, SaveDelivery, SessionContentUpdate,
+    CloseProjectSessionPayload, InvalidateProjectSessionPayload, ProjectSyncDelivery,
+    SessionContentUpdate,
 };
 use crate::services::{project, project_sync, windows};
 use tauri::ipc::Channel;
@@ -9,7 +10,7 @@ use tauri::{WebviewWindow, async_runtime};
 #[command_macros::command]
 pub fn register_save_window(
     window: WebviewWindow,
-    channel: Channel<SaveDelivery>,
+    channel: Channel<ProjectSyncDelivery>,
 ) -> Result<(), AppError> {
     let root = if window.label() == "main" {
         None
@@ -64,6 +65,11 @@ pub fn abandon_project_saves(mod_roots: Vec<String>) -> Result<(), AppError> {
 #[command_macros::command]
 pub fn retry_project_save(request_id: String) -> Result<(), AppError> {
     project_sync::retry(&request_id)
+}
+
+#[command_macros::command(async)]
+pub fn retry_source_watch(window: WebviewWindow, root: String) -> Result<(), AppError> {
+    project_sync::retry_source_watch(window.label(), &root)
 }
 
 #[command_macros::command(async)]

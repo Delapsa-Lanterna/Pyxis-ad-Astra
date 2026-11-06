@@ -6,7 +6,7 @@
     :data-theme="settings.theme"
     ><template #titlebar><TitleBar /></template
     ><template #tabs><ModTabsBar :refresh-actions="actions" @remove-mod="actions.confirmRemoveMod" /></template
-    ><template #navigation><ModNavigation /></template><template #notice><WriteSyncNotice /></template
+    ><template #navigation><ModNavigation /></template><template #notice><ProjectSyncNotice /></template
     ><OverviewPage
       v-if="workspace.currentView === 'overview'"
       @import-mod="actions.openDirectory"
@@ -50,7 +50,7 @@ import { computed, defineAsyncComponent, onMounted, onUnmounted, provide, ref, w
 import { createModNavigationPanel, modNavigationPanelKey } from '@/app/composables/use-mod-navigation-panel';
 import MainWindowFrame from '@/app/components/MainWindowFrame.vue';
 import TitleBar from '@/app/TitleBar.vue';
-import WriteSyncNotice from '@/app/components/WriteSyncNotice.vue';
+import ProjectSyncNotice from '@/app/components/ProjectSyncNotice.vue';
 import ModNavigation from '@/app/components/ModNavigation.vue';
 import ModTabsBar from '@/app/components/ModTabsBar.vue';
 import { useSettingsStore } from '@/stores/settings.store';

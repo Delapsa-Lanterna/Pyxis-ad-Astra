@@ -70,6 +70,7 @@ import {
 import { createEditorProblems } from '@/shared/runtime/editor-problems';
 import { csvTableIssues } from '@/domain/csv-editor/csv-validation';
 import { cloneQuerySnapshot } from '@/shared/lib/query-snapshot';
+import { stableDeepEqual } from '@/shared/lib/stable-compare';
 
 interface CsvTableRuntime extends CsvTableState {
   problems: Raw<ReturnType<typeof createEditorProblems>> | null;
@@ -174,7 +175,13 @@ export const useCsvEditorStore = defineStore('csv-editor', () => {
     const state = stateMap.get(target.modRoot)!;
     const document = state.documents[target.table],
       query = !filtered && state.searchText.trim() ? document.queryRowKeys : undefined;
-    applyCsvTableIndexDraft(document, index, filtered, getTableInputs(target.modRoot, target.table).dirty.value);
+    const versions = document.baseVersions;
+    const result = applyCsvTableIndexDraft(document, index, filtered, getTableInputs(target.modRoot, target.table).dirty.value);
+    if (result.changed && !stableDeepEqual(versions, document.baseVersions)) {
+      clearCsvTableHistory(target.modRoot, target.table);
+      document.inputs.cancel();
+      if (state.currentTab === target.table) state.editing = null;
+    }
     if (document.validationRows) markRaw(document.validationRows);
     if (query) {
       document.queryRowKeys = query;
@@ -345,6 +352,7 @@ export const useCsvEditorStore = defineStore('csv-editor', () => {
 
   function discardTableDraftForReload(target: CsvTableTarget) {
     revokeTableReads(target.modRoot, target.table);
+    clearCsvTableHistory(target.modRoot, target.table);
     getTableInputs(target.modRoot, target.table).cancel();
     const state = stateMap.get(target.modRoot)!;
     discardCsvTableWindowForReloadDraft(state.documents[target.table]);

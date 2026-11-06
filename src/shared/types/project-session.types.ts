@@ -19,6 +19,7 @@ export interface ProjectManifest {
 }
 
 export interface ProjectInvalidation {
+  renames?: [string, string][];
   paths: string[];
   tables: CsvTableKey[];
   entities: InvalidatedEntityRef[];

@@ -12,7 +12,7 @@ import { computed, ref, watch } from 'vue';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
 import { loadEditableFileData, writeEditableFileText, followFileTextIdentity } from '@/services/files.service';
 import { committedFileText } from '@/orchestrators/file-editor-window.orchestrator';
-import { isAbsoluteFsPath, joinRootRelativePath, normalizeFsPath, pathBelongsToRoot } from '@/shared/lib/paths';
+import { isAbsoluteFsPath, joinRootRelativePath, normalizeFsPath, pathBelongsToRoot, relativePathFromRoot } from '@/shared/lib/paths';
 import { useEditTargetDraftSession, type EditTargetDraftSession } from '@/app/composables/use-edit-target-draft-session';
 import { useSnapshotHistory } from '@/app/composables/use-snapshot-history';
 import { useSettingsStore } from '@/stores/settings.store';
@@ -47,7 +47,8 @@ export function useFileEditorViewModel(params: FileEditorViewModelParams) {
   const feedback = useAppFeedback();
   const currentPath = ref(params.filePath);
   let pendingIdentity: {
-    change: EntityIdentityChange;
+    change?: EntityIdentityChange;
+    nextPath: string;
     event: Pick<CommittedWriteEvent, 'sessionId' | 'modRoot' | 'result'>;
     target: FileEditorTarget;
     preserve: boolean;
@@ -219,7 +220,8 @@ export function useFileEditorViewModel(params: FileEditorViewModelParams) {
       if (pendingIdentity) {
         await followPendingIdentity();
         if (pendingIdentity) {
-          await followFileTextIdentity(pendingIdentity.change.after.kind, text.value, pendingIdentity.change.after.id);
+          if (pendingIdentity.change)
+            await followFileTextIdentity(pendingIdentity.change.after.kind, text.value, pendingIdentity.change.after.id);
           return;
         }
       }
@@ -288,8 +290,13 @@ export function useFileEditorViewModel(params: FileEditorViewModelParams) {
 
   async function handleIdentityApplied(event: CommittedWriteEvent) {
     const target = fileEditorTarget();
-    if (!target || target.sessionId !== event.sessionId || normalizeFsPath(target.modRoot) !== normalizeFsPath(event.modRoot)) return;
-    const reference = pendingIdentity?.change.after.write.path ?? target.filePath;
+    if (
+      !target ||
+      (target.sessionId !== event.sessionId && !sessionContentUpdate(event, target.sessionId)) ||
+      normalizeFsPath(target.modRoot) !== normalizeFsPath(event.modRoot)
+    )
+      return;
+    const reference = pendingIdentity?.nextPath ?? target.filePath;
     const change = event.result.identityChanges.find(
       (change) =>
         normalizeFsPath(change.before.write.path) === normalizeFsPath(reference) &&
@@ -313,7 +320,7 @@ export function useFileEditorViewModel(params: FileEditorViewModelParams) {
       if (choice !== 'follow')
         throw new AppError('文件身份交接尚未确认', { code: 'write.identity_pending', action: 'follow-saved-identity' });
     }
-    pendingIdentity = { change, event, target, preserve };
+    pendingIdentity = { change, nextPath: change.after.write.path, event, target, preserve };
     await followPendingIdentity(true);
   }
 
@@ -323,10 +330,14 @@ export function useFileEditorViewModel(params: FileEditorViewModelParams) {
     const sequence = ++identitySequence;
     const raw = text.value;
     try {
-      const followed = pending.preserve ? await followFileTextIdentity(pending.change.after.kind, raw, pending.change.after.id) : null;
-      const loaded = await loadEditableFileData(pending.target.sessionId, pending.target.modRoot, pending.change.after.write.path);
+      const followed = pending.preserve
+        ? pending.change
+          ? await followFileTextIdentity(pending.change.after.kind, raw, pending.change.after.id)
+          : raw
+        : null;
+      const loaded = await loadEditableFileData(pending.target.sessionId, pending.target.modRoot, pending.nextPath);
       if (disposed || sequence !== identitySequence || pending !== pendingIdentity || raw !== text.value) return;
-      const target = { ...pending.target, filePath: pending.change.after.write.path };
+      const target = { ...pending.target, filePath: pending.nextPath };
       await retargetFileWindow(pending.target.sessionId!, pending.event.modRoot, target.filePath, title.value);
       if (disposed || sequence !== identitySequence || pending !== pendingIdentity || raw !== text.value) return;
       draftSession.adoptIdentity(
@@ -338,6 +349,7 @@ export function useFileEditorViewModel(params: FileEditorViewModelParams) {
           meta: { entity: loaded.entity, receipt: null },
         },
         () => followed ?? loaded.text,
+        pending.change ? 'external' : 'identity',
       );
       pendingIdentity = null;
       identityNotice.value = '';
@@ -372,6 +384,30 @@ export function useFileEditorViewModel(params: FileEditorViewModelParams) {
     if (!target || disposed || pendingIdentity || update.manifest.sessionId !== target.sessionId) return undefined;
 
     if (normalizeFsPath(update.manifest.modRoot) !== normalizeFsPath(target.modRoot)) return undefined;
+    const renamed = update.invalidation.renames?.find(([before]) => pathBelongsToRoot(target.filePath, before));
+    if (renamed)
+      return [
+        async () => {
+          const [before, after] = renamed;
+          const nextPath =
+            normalizeFsPath(target.filePath) === normalizeFsPath(before)
+              ? after
+              : joinRootRelativePath(after, relativePathFromRoot(before, target.filePath));
+          const preserve = draftSession.dirty.value;
+          if (preserve) {
+            const choice = await feedback.choose({
+              title: '跟随文件改名？',
+              content: `原文件：\n${target.filePath}\n\n新文件：\n${nextPath}\n\n跟随后保留当前文本。`,
+              choices: [{ label: '保留文本并跟随', value: 'follow', type: 'primary' }],
+              cancelText: '稍后处理',
+            });
+            if (disposed || fileEditorTargetKey(target) !== draftSession.currentTargetKey.value) return;
+            if (choice !== 'follow') throw new AppError('文件身份交接尚未确认', { code: 'write.identity_pending' });
+          }
+          pendingIdentity = { nextPath, event: change, target, preserve };
+          await followPendingIdentity(true);
+        },
+      ];
     const receipt = change.reason === 'refresh' ? null : change.result;
     if (receipt && !draftSession.acceptsSaveDelivery(target, receipt.requestId)) return undefined;
     if (
@@ -383,7 +419,7 @@ export function useFileEditorViewModel(params: FileEditorViewModelParams) {
       )
     )
       return undefined;
-    const entity = draftSession.baselineSnapshot.value!.meta.entity;
+    const entity = draftSession.baselineSnapshot.value?.meta.entity ?? null;
     const identity = receipt?.identityChanges.find((entry) => normalizeFsPath(entry.after.write.path) === normalizeFsPath(target.filePath));
     const content = receipt ? committedFileText(receipt, target.filePath) : undefined;
     if (

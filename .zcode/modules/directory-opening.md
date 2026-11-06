@@ -20,7 +20,7 @@
 
 - `src-tauri/src/models/directory_opening.rs`：目录识别、游戏概览及打开诊断 wire 契约。
 - `src-tauri/src/services/project/sources/roots.rs`：目录识别消费的游戏与 Mod 根判定和位置推断。
-- `src/app/components/FeedbackFileActions.vue`：必须消费统一文件动作并展示扫描警告与打开失败的恢复按钮。
+- `src/app/components/FeedbackFileActions.vue`：消费统一文件动作并展示扫描警告与打开失败的恢复按钮。
 - `src/shared/lib/paths.ts`：文件系统、资源及游戏目录的路径纯规则。
 - `src/shared/runtime/dialog.runtime.ts`：目录、文件、规格与图片的原生选择适配。
 - `src/shared/types/directory-opening.types.ts`：目录请求、识别结果、游戏概览与结构化诊断。
@@ -54,10 +54,8 @@
 
 ## 规范
 
-- 目录识别必须交付实际授权路径和明确种类，路径错误必须保留原始诊断。
+- 目录识别必须交付实际授权路径和明确种类，路径错误保留原始诊断。
 - 游戏 mods 目录必须由同一游戏根判定及路径边界解析。
-- 游戏概览的 Mod 清单必须只包含 mods 目录下实际读取的 Mod 摘要，Mod 会话必须由工作区动作接纳。
-- 文件问题必须交付结构化位置与恢复目标，恢复展示必须消费统一反馈文件动作。
-- 目录 service 必须交付所属后端能力的完整结果，工作区选择与导航必须由工作区维护。
-- 目录探测及概览扫描的路径边界错误必须保留实际路径，未识别目录必须交付 Unknown 结果。
-- 扫描警告与打开失败的展示必须消费结构化文件位置及统一反馈动作，关闭提示必须交付宿主事件。
+- 游戏概览的 Mod 清单必须只包含 mods 目录下实际读取的 Mod 摘要，Mod 会话由工作区动作接纳。
+- 文件问题必须交付结构化位置与恢复目标，恢复展示消费统一反馈文件动作。
+- 目录探测及概览扫描的路径边界错误必须保留实际路径，未识别目录交付 Unknown 结果。

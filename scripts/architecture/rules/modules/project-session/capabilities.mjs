@@ -16,11 +16,11 @@ export const projectCapabilities = [
     {
       capability: 'commit-retry',
       names: ['retryPendingSessionSyncs', 'retryPendingWrites'],
-      owners: [{ layer: 'app', role: 'composable', domain: 'write-sync-view-model' }],
+      owners: [{ layer: 'app', role: 'composable', domain: 'project-sync-view-model' }],
     },
     {
       capability: 'commit-observe',
-      names: ['sessionContentUpdate', 'listenSavedContent', 'observeSavedContent', 'listenSavedIdentity'],
+      names: ['sessionContentUpdate', 'listenSavedContent', 'observeSavedContent', 'listenSavedIdentity', 'observeCoreContent'],
       owners: [{ layer: 'orchestrators' }, { layer: 'app', role: 'composable' }],
     },
     {
@@ -173,6 +173,11 @@ export const projectCapabilities = [
     { capability: 'session-open', names: ['openProject'], owners: [{ layer: 'orchestrators', domain: 'workspace-opening' }] },
   ]),
   ...capabilities({ role: 'service', domain: 'project-sync' }, [
+    {
+      capability: 'source-watch-retry',
+      names: ['retrySourceWatch'],
+      owners: [{ layer: 'app', role: 'composable', domain: 'project-sync-view-model' }],
+    },
     {
       capability: 'session-close',
       names: ['closeProjectSession'],

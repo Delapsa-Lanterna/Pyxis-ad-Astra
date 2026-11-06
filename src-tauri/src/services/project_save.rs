@@ -1,7 +1,7 @@
 use crate::errors::{AppError, AppResult};
 use crate::models::{
-    CommittedSessionUpdate, EntityIdentityChange, EntityKind, FileChangeReplayDirection,
-    IndexedConfigKind, SaveAction, SaveEdit, SaveRequest, WriteContent, WriteResult,
+    EntityIdentityChange, EntityKind, FileChangeReplayDirection, IndexedConfigKind, SaveAction,
+    SaveEdit, SaveRequest, WriteContent, WriteResult,
 };
 use crate::services::{
     config_entity, file_editor, json_file, misc_config, project, project_sync, write_transactions,
@@ -11,7 +11,6 @@ use serde::Serialize;
 #[cfg(test)]
 use serde::de::DeserializeOwned;
 use serde_json::{Value, json};
-use std::sync::Arc;
 use tauri::async_runtime;
 
 pub async fn submit_project_save(
@@ -225,15 +224,10 @@ pub(crate) fn execute_save_action(mut action: SaveAction) -> AppResult<WriteResu
             )?);
         }
         SaveAction::RefreshProjectSources(input) => {
-            let update = project::refresh_project_sources(&input.session_id, input.sources)?;
-            let mut result = WriteResult::from_changes(Vec::new());
-            result.invalidation = update.invalidation.clone();
-            result.session_updates.push(CommittedSessionUpdate {
-                session_id: input.session_id,
-                mod_root: update.manifest.mod_root.clone(),
-                content: Arc::new(update),
-            });
-            return json_result(result);
+            return json_result(project::refresh_root_sources(
+                &input.session_id,
+                input.sources,
+            )?);
         }
     };
     transaction

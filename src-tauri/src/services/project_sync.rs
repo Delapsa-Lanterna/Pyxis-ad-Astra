@@ -2,18 +2,27 @@ use crate::errors::{AppError, AppResult, ErrorDiagnostic};
 use crate::io::RootWriteLock;
 use crate::models::{
     CommittedSessionUpdate, CommittedWriteEvent, EntityIdentityChange, FileVersion,
-    ReferenceSources, SaveDelivery, WriteResult, windows_path_key,
+    ProjectSyncDelivery, ReferenceSources, SourceSyncState, WriteResult, windows_path_key,
 };
 use crate::services::clear_session_media;
+#[cfg(test)]
+use crate::services::source_watch::SourceChangeBatch;
 use crate::services::{file_history, project, windows};
 #[cfg(test)]
 use crate::test_support::TestWorkspace;
 use crate::{diagnostics, io};
 use serde::Serialize;
 use serde_json::json;
+#[cfg(test)]
+use source_changes::{SOURCE_WATCHES, consume_core_batch, consume_source_batch};
+#[cfg(test)]
+use source_changes::{begin_source_watch, retain_source_watch};
+pub use source_changes::{open_project_session, retry_source_watch, set_window_core_subscription};
+use source_changes::{publish_source_status, release_source_watch};
 use std::collections::{BTreeMap, VecDeque};
 use std::path::Path;
 use std::sync::{Arc, Condvar, LazyLock, Mutex, MutexGuard};
+use std::time::Instant;
 use tauri::ipc::Channel;
 
 #[derive(Default)]
@@ -43,7 +52,8 @@ struct QueuedSave {
 #[derive(Clone)]
 struct SaveWindow {
     root: Option<String>,
-    channel: Channel<SaveDelivery>,
+    core_root: Option<String>,
+    channel: Channel<ProjectSyncDelivery>,
 }
 impl SaveWindow {
     fn belongs_to(&self, root: &str) -> bool {
@@ -54,6 +64,7 @@ impl SaveWindow {
 }
 #[derive(Default)]
 struct ProjectSaves {
+    source_states: BTreeMap<String, ProjectSyncDelivery>,
     references: ReferenceSources,
     windows: BTreeMap<String, SaveWindow>,
     roots: BTreeMap<String, VecDeque<QueuedSave>>,
@@ -90,7 +101,7 @@ impl ProjectSaves {
             })
             .map(|(label, window)| (label.clone(), window.channel.clone()));
         if let Some((label, channel)) = selected {
-            channel.send(SaveDelivery::Missing {
+            channel.send(ProjectSyncDelivery::Missing {
                 request_id: task.id.clone(),
                 paths,
             })?;
@@ -130,7 +141,7 @@ impl ProjectSaves {
             .values()
             .filter(|window| window.belongs_to(root))
         {
-            if let Err(error) = window.channel.send(SaveDelivery::Waiting {
+            if let Err(error) = window.channel.send(ProjectSyncDelivery::Waiting {
                 mod_root: root.to_string(),
                 waiting,
             }) {
@@ -149,7 +160,7 @@ impl ProjectSaves {
             .values()
             .filter(|window| window.belongs_to(&task.root))
         {
-            if let Err(error) = window.channel.send(SaveDelivery::Blocked {
+            if let Err(error) = window.channel.send(ProjectSyncDelivery::Blocked {
                 request_id: task.id.clone(),
                 mod_root: task.root.clone(),
                 session_id: task.session_id.clone(),
@@ -165,6 +176,8 @@ impl ProjectSaves {
         SAVES.1.notify_all();
     }
 }
+mod source_changes;
+
 static SAVES: LazyLock<(Mutex<ProjectSaves>, Condvar)> = LazyLock::new(Default::default);
 fn saves() -> AppResult<MutexGuard<'static, ProjectSaves>> {
     SAVES
@@ -197,16 +210,25 @@ fn task(id: &str) -> AppResult<Arc<SaveTask>> {
 pub fn register(
     label: &str,
     root: Option<String>,
-    channel: Channel<SaveDelivery>,
+    channel: Channel<ProjectSyncDelivery>,
 ) -> AppResult<()> {
     let mut saves = saves()?;
-    let window = SaveWindow { root, channel };
-    window.channel.send(SaveDelivery::References {
+    let window = SaveWindow {
+        root,
+        core_root: None,
+        channel,
+    };
+    window.channel.send(ProjectSyncDelivery::References {
         snapshot: saves.references.clone(),
         event: None,
     })?;
+    for (root, delivery) in &saves.source_states {
+        if window.belongs_to(root) {
+            window.channel.send(delivery.clone())?;
+        }
+    }
     for root in saves.roots.keys().filter(|root| window.belongs_to(root)) {
-        window.channel.send(SaveDelivery::Waiting {
+        window.channel.send(ProjectSyncDelivery::Waiting {
             mod_root: root.clone(),
             waiting: true,
         })?;
@@ -265,6 +287,7 @@ pub fn execute_queued<T: Serialize>(
     reason: &str,
     mut action: impl FnMut(&[EntityIdentityChange], &[FileVersion]) -> AppResult<WriteResult<T>>,
 ) -> AppResult<WriteResult<T>> {
+    let queued = Instant::now();
     let (identities, versions) = {
         let mut saves = saves()?;
         while saves.roots[&task.root]
@@ -283,6 +306,7 @@ pub fn execute_queued<T: Serialize>(
         let progress = saves.progress(&task);
         (progress.identities.clone(), progress.versions.clone())
     };
+    let started = Instant::now();
     let recovery = task.clone();
     let result = io::with_write_retry(
         Path::new(event_root),
@@ -297,6 +321,14 @@ pub fn execute_queued<T: Serialize>(
             }
         },
     );
+    diagnostics::debug("project.queue_read", || {
+        format!(
+            "requestId={} waitMs={} runMs={}",
+            task.id,
+            started.duration_since(queued).as_millis(),
+            started.elapsed().as_millis()
+        )
+    });
     let mut saves = saves()?;
     let result = match result {
         Ok(result) => result,
@@ -329,12 +361,10 @@ pub fn execute_queued<T: Serialize>(
         reason,
         result: &result,
     })?;
-    for window in saves
-        .windows
-        .values()
-        .filter(|window| window.belongs_to(&task.root))
-    {
-        if let Err(error) = window.channel.send(SaveDelivery::Saved {
+    for window in saves.windows.values().filter(|window| {
+        window.belongs_to(&task.root) && (reason != "refresh" || !result.session_updates.is_empty())
+    }) {
+        if let Err(error) = window.channel.send(ProjectSyncDelivery::Saved {
             request_id: task.id.clone(),
             event: event.clone(),
         }) {
@@ -368,7 +398,7 @@ pub fn publish_references(
     }
     saves.references = snapshot.clone();
     for window in saves.windows.values() {
-        if let Err(error) = window.channel.send(SaveDelivery::References {
+        if let Err(error) = window.channel.send(ProjectSyncDelivery::References {
             snapshot: snapshot.clone(),
             event: Some(event.clone()),
         }) {
@@ -540,6 +570,7 @@ pub fn wait_projects(roots: &[String]) -> Result<(), ErrorDiagnostic> {
     }
 }
 pub fn release_window(label: &str) -> AppResult<()> {
+    release_source_watch(&format!("core-window:{label}"))?;
     let mut saves = saves()?;
     saves.windows.remove(label);
     let mut confirmations = Vec::new();
@@ -577,8 +608,11 @@ fn execute<T: Serialize>(
 }
 
 pub fn release_project_session(session_id: String) -> AppResult<()> {
+    release_source_watch(&format!("core:{session_id}"))?;
+    release_source_watch(&session_id)?;
     let revision = project::reference_revision();
     if let Some(root) = project::unregister_project_session(&session_id)? {
+        publish_source_status(&root, SourceSyncState::Released, None)?;
         file_history::release_root_history(&root)?;
     }
     clear_session_media(&session_id);
@@ -609,7 +643,7 @@ mod tests {
     use crate::models::{EntityKind, JointEditSnapshot, SaveAction, TextSave};
     #[cfg(test)]
     use crate::services::project::PerformanceTrace;
-    use crate::services::project::test_support::project_workspace;
+    use crate::services::project::test_support::{project_workspace, release_workspace};
     #[cfg(test)]
     use crate::services::{file_editor, file_history, project, project_save, write_transactions};
     #[cfg(test)]
@@ -630,6 +664,498 @@ mod tests {
     use tauri::ipc::InvokeResponseBody;
 
     static TEST_QUEUE: Mutex<()> = Mutex::new(());
+
+    #[test]
+    fn source_watch_review_following_batch_enters_the_root_queue_before_the_maximum_wait() {
+        let serial = TEST_QUEUE.lock().unwrap();
+        let root = project_workspace("review_following_batch");
+        fs::create_dir_all(root.join("data/hulls")).unwrap();
+        let path = root.join("data/hulls/ship_data.csv");
+        fs::write(&path, "id,name\nreview,Initial\n").unwrap();
+        let subscription = begin_source_watch(&root).unwrap();
+        let manifest = project::open_project_session_traced(
+            &root,
+            None,
+            &mut PerformanceTrace::new("review.queue"),
+        )
+        .unwrap();
+        retain_source_watch(
+            manifest.session_id.clone(),
+            subscription,
+            ResourceSource::Mod,
+        )
+        .unwrap();
+        let blocker = enqueue(
+            "review-queue",
+            "review-blocker".into(),
+            &manifest.mod_root,
+            Some(&manifest.session_id),
+        )
+        .unwrap();
+        fs::write(&path, "id,name\nreview,First\n").unwrap();
+        let started = Instant::now();
+        while started.elapsed() < Duration::from_secs(5) {
+            if saves().unwrap().roots[&blocker.root].len() >= 2 {
+                break;
+            }
+            thread::sleep(Duration::from_millis(10));
+        }
+        fs::write(&path, "id,name\nreview,Following\n").unwrap();
+        thread::sleep(Duration::from_millis(1250));
+        let queued = saves().unwrap().roots[&blocker.root].len();
+        execute_queued(
+            blocker,
+            &manifest.mod_root,
+            Some(&manifest.session_id),
+            "save",
+            |_, _| Ok(WriteResult::<()>::from_changes(Vec::new())),
+        )
+        .unwrap();
+        release_project_session(manifest.session_id).unwrap();
+        root.close().unwrap();
+        drop(serial);
+        assert_eq!(
+            queued, 3,
+            "save, executing source batch and merged following batch are queued"
+        );
+    }
+
+    #[test]
+    fn source_watch_review_core_subscription_replays_its_existing_failure_to_a_scoped_window() {
+        let serial = TEST_QUEUE.lock().unwrap();
+        let root = project_workspace("review_core_status_replay");
+        let core = root.join("starsector-core");
+        fs::create_dir_all(&core).unwrap();
+        let subscription = begin_source_watch(&core).unwrap();
+        let actual_root = subscription.root().to_string();
+        retain_source_watch(
+            "review-core-existing".into(),
+            subscription,
+            ResourceSource::Core,
+        )
+        .unwrap();
+        let receiver = window("review-core-replay");
+        saves()
+            .unwrap()
+            .windows
+            .get_mut("review-core-replay")
+            .unwrap()
+            .root = Some(root.join("mod").to_string_lossy().into_owned());
+        publish_source_status(
+            &actual_root,
+            SourceSyncState::Failed,
+            Some(AppError::message("source.watch_failed", "review existing failure").diagnostic()),
+        )
+        .unwrap();
+        set_window_core_subscription("review-core-replay", Some(&root.to_string_lossy())).unwrap();
+        let failures = receiver
+            .try_iter()
+            .filter(|delivery| {
+                delivery["kind"] == "sourceStatus"
+                    && delivery["state"] == "failed"
+                    && windows_path_key(delivery["root"].as_str().unwrap())
+                        == windows_path_key(&actual_root)
+            })
+            .count();
+        release_window("review-core-replay").unwrap();
+        release_source_watch("review-core-existing").unwrap();
+        root.close().unwrap();
+        drop(serial);
+        assert_eq!(failures, 1);
+    }
+
+    #[test]
+    fn source_watch_review_source_kind_follows_registered_root_role() {
+        let serial = TEST_QUEUE.lock().unwrap();
+        let work = project_workspace("review_source_role");
+        let root = work.join("starsector-core");
+        fs::create_dir_all(&root).unwrap();
+        let manifest = project::open_project_session_traced(
+            &root,
+            None,
+            &mut PerformanceTrace::new("review.role"),
+        )
+        .unwrap();
+        let receiver = window("review-source-role");
+        publish_source_status(
+            &manifest.mod_root,
+            SourceSyncState::Failed,
+            Some(AppError::message("source.watch_failed", "review role failure").diagnostic()),
+        )
+        .unwrap();
+        let source = receiver
+            .try_iter()
+            .find(|delivery| {
+                delivery["kind"] == "sourceStatus"
+                    && windows_path_key(delivery["root"].as_str().unwrap())
+                        == windows_path_key(&manifest.mod_root)
+            })
+            .unwrap()["source"]
+            .clone();
+        release_project_session(manifest.session_id).unwrap();
+        release_window("review-source-role").unwrap();
+        work.close().unwrap();
+        drop(serial);
+        assert_eq!(source, "mod");
+    }
+
+    #[test]
+    fn source_watch_review_manual_refresh_updates_every_same_root_session() {
+        let serial = TEST_QUEUE.lock().unwrap();
+        let root = project_workspace("review_manual_sessions");
+        fs::create_dir_all(root.join("data/hulls")).unwrap();
+        let path = root.join("data/hulls/ship_data.csv");
+        fs::write(&path, "id,name\nreview,Original\n").unwrap();
+        let first = project::open_project_session_traced(
+            &root,
+            None,
+            &mut PerformanceTrace::new("review.first"),
+        )
+        .unwrap();
+        let second = project::open_project_session_traced(
+            &root,
+            None,
+            &mut PerformanceTrace::new("review.second"),
+        )
+        .unwrap();
+        for manifest in [&first, &second] {
+            services::query_csv_table_index(
+                &manifest.session_id,
+                CsvTableKey::Ships,
+                1,
+                None,
+                CsvSearchField::IdName,
+                &[],
+            )
+            .unwrap();
+        }
+        fs::write(&path, "id,name\nreview,Updated\n").unwrap();
+        let result = project_save::execute_typed_save::<Value>(SaveAction::RefreshProjectSources(
+            SourceRefresh {
+                session_id: first.session_id.clone(),
+                sources: vec![InvalidatedResourceScope {
+                    source: ResourceSource::Mod,
+                    rel_path: "data/hulls/ship_data.csv".into(),
+                }],
+            },
+        ))
+        .unwrap();
+        let names = [&first, &second].map(|manifest| {
+            services::query_csv_table_index(
+                &manifest.session_id,
+                CsvTableKey::Ships,
+                1,
+                None,
+                CsvSearchField::IdName,
+                &[],
+            )
+            .unwrap()
+            .rows[0]
+                .data["name"]
+                .clone()
+        });
+        release_project_session(first.session_id).unwrap();
+        release_project_session(second.session_id).unwrap();
+        root.close().unwrap();
+        drop(serial);
+        assert_eq!(
+            (result.session_updates.len(), names),
+            (2, [json!("Updated"), json!("Updated")])
+        );
+    }
+
+    #[test]
+    fn source_watch_review_core_listener_failure_remains_failed_after_content_delivery() {
+        let serial = TEST_QUEUE.lock().unwrap();
+        let root = project_workspace("review_core_status");
+        let path = root.join("starsector-core/graphics/review.png");
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        fs::write(&path, "image").unwrap();
+        let receiver = window("review-core-status");
+        saves()
+            .unwrap()
+            .windows
+            .get_mut("review-core-status")
+            .unwrap()
+            .core_root = Some(root.to_string_lossy().into_owned());
+        consume_source_batch(SourceChangeBatch {
+            root: root.join("starsector-core").to_string_lossy().into_owned(),
+            paths: [path].into(),
+            diagnostic: Some(
+                AppError::message("source.watch_failed", "review listener failure").diagnostic(),
+            ),
+            ..Default::default()
+        });
+        let deliveries = receiver
+            .try_iter()
+            .filter(|delivery| delivery["kind"] == "sourceStatus")
+            .collect::<Vec<_>>();
+        let final_state = deliveries.last().unwrap()["state"].clone();
+        release_window("review-core-status").unwrap();
+        root.close().unwrap();
+        drop(serial);
+        assert_eq!(final_state, "failed");
+    }
+
+    #[test]
+    fn source_watch_review_failed_core_receiver_preserves_other_window_delivery() {
+        let serial = TEST_QUEUE.lock().unwrap();
+        let root = project_workspace("review_core_receivers");
+        let path = root.join("starsector-core/graphics/review.png");
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        fs::write(&path, "image").unwrap();
+        drop(window("review-core-a-broken"));
+        let receiver = window("review-core-b-live");
+        for label in ["review-core-a-broken", "review-core-b-live"] {
+            saves().unwrap().windows.get_mut(label).unwrap().core_root =
+                Some(root.to_string_lossy().into_owned());
+        }
+        let result = consume_core_batch(&SourceChangeBatch {
+            root: root.join("starsector-core").to_string_lossy().into_owned(),
+            paths: [path].into(),
+            ..Default::default()
+        });
+        let delivered = receiver
+            .try_iter()
+            .filter(|delivery| delivery["kind"] == "coreChanged")
+            .count();
+        release_window("review-core-a-broken").unwrap();
+        release_window("review-core-b-live").unwrap();
+        root.close().unwrap();
+        drop(serial);
+        assert_eq!((result.is_ok(), delivered), (true, 1));
+    }
+
+    #[test]
+    fn source_watch_core_mods_progress_independently_and_keep_mod_priority() {
+        let _serial = TEST_QUEUE.lock().unwrap();
+        let work = project_workspace("core_mod_fanout").with_cleanup(release_watched_workspace);
+        let game = work.join("game");
+        let core = game.join("starsector-core");
+        let path = core.join("data/weapons/proj/shared.proj");
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        fs::write(&path, r#"{"id":"shared","damage":1}"#).unwrap();
+        let mut manifests = Vec::new();
+        for index in 0..2 {
+            let root = game.join(format!("mods/sample{index}"));
+            fs::create_dir_all(root.join("data/weapons/proj")).unwrap();
+            if index == 0 {
+                fs::write(
+                    root.join("data/weapons/proj/shared.proj"),
+                    r#"{"id":"shared","damage":3}"#,
+                )
+                .unwrap();
+            }
+            let subscription = begin_source_watch(&core).unwrap();
+            let manifest = project::open_project_session_traced(
+                &root,
+                Some(&game),
+                &mut PerformanceTrace::new("core.fanout"),
+            )
+            .unwrap();
+            retain_source_watch(
+                format!("core:{}", manifest.session_id),
+                subscription,
+                ResourceSource::Core,
+            )
+            .unwrap();
+            manifests.push(manifest);
+        }
+        let receiver = window("core-watch-first");
+        let lease = io::acquire_root_write_lock(Path::new(&manifests[0].mod_root)).unwrap();
+        fs::write(&path, r#"{"id":"shared","damage":2}"#).unwrap();
+        loop {
+            let delivery = receiver.recv_timeout(Duration::from_secs(15)).unwrap();
+            if delivery["kind"] != "saved"
+                || !manifests
+                    .iter()
+                    .any(|manifest| delivery["event"]["sessionId"] == manifest.session_id)
+            {
+                continue;
+            }
+            assert_eq!(delivery["event"]["sessionId"], manifests[1].session_id);
+            break;
+        }
+        assert_eq!(
+            services::query_entity(&manifests[1].session_id, EntityKind::Projectile, "shared")
+                .unwrap()
+                .unwrap()
+                .data["damage"],
+            2
+        );
+        drop(lease);
+        loop {
+            let delivery = receiver.recv_timeout(Duration::from_secs(15)).unwrap();
+            if delivery["kind"] == "saved"
+                && delivery["event"]["sessionId"] == manifests[0].session_id
+            {
+                break;
+            }
+        }
+        assert_eq!(
+            services::query_entity(&manifests[0].session_id, EntityKind::Projectile, "shared")
+                .unwrap()
+                .unwrap()
+                .data["damage"],
+            3
+        );
+        for manifest in manifests {
+            release_project_session(manifest.session_id).unwrap();
+        }
+        release_window("core-watch-first").unwrap();
+        work.close().unwrap();
+    }
+
+    fn release_watched_workspace(root: &Path) -> Vec<String> {
+        let mut errors = release_workspace(root);
+        for label in ["core-watch-first", "core-watch-second"] {
+            if let Err(error) = release_window(label) {
+                errors.push(error.to_string());
+            }
+        }
+        if let Err(error) = release_window(&format!(
+            "watch:{}",
+            windows_path_key(&root.to_string_lossy())
+        )) {
+            errors.push(error.to_string());
+        }
+        errors
+    }
+    #[test]
+    fn source_watch_core_notifies_windows_without_mods_and_releases_each_subscription() {
+        let _serial = TEST_QUEUE.lock().unwrap();
+        let root = project_workspace("core_windows").with_cleanup(release_watched_workspace);
+        let graphics = root.join("starsector-core/graphics");
+        fs::create_dir_all(&graphics).unwrap();
+        fs::write(graphics.join("before.png"), "first").unwrap();
+        let first = window("core-watch-first");
+        let second = window("core-watch-second");
+        set_window_core_subscription("core-watch-first", Some(&root.to_string_lossy())).unwrap();
+        set_window_core_subscription("core-watch-second", Some(&root.to_string_lossy())).unwrap();
+        assert_eq!(
+            services::scan_core_graphics(&root.to_string_lossy()).unwrap(),
+            vec!["graphics/before.png"]
+        );
+        fs::remove_file(graphics.join("before.png")).unwrap();
+        fs::write(graphics.join("after.png"), "second").unwrap();
+        for receiver in [&first, &second] {
+            loop {
+                let delivery = receiver.recv_timeout(Duration::from_secs(15)).unwrap();
+                if delivery["kind"] == "coreChanged" {
+                    break;
+                }
+            }
+        }
+        assert_eq!(
+            services::scan_core_graphics(&root.to_string_lossy()).unwrap(),
+            vec!["graphics/after.png"]
+        );
+        retry_source_watch(
+            "core-watch-first",
+            &root.join("starsector-core").to_string_lossy(),
+        )
+        .unwrap();
+        loop {
+            let delivery = second.recv_timeout(Duration::from_secs(15)).unwrap();
+            if delivery["kind"] == "coreChanged" {
+                break;
+            }
+        }
+        release_window("core-watch-first").unwrap();
+        assert!(
+            !SOURCE_WATCHES
+                .lock()
+                .unwrap()
+                .contains_key("core-window:core-watch-first")
+        );
+        assert!(
+            SOURCE_WATCHES
+                .lock()
+                .unwrap()
+                .contains_key("core-window:core-watch-second")
+        );
+        release_window("core-watch-second").unwrap();
+        assert!(
+            !SOURCE_WATCHES
+                .lock()
+                .unwrap()
+                .contains_key("core-window:core-watch-second")
+        );
+        root.close().unwrap();
+    }
+    #[test]
+    fn source_watch_updates_same_root_sessions_once_and_deduplicates_accepted_bytes() {
+        let _serial = TEST_QUEUE.lock().unwrap();
+        let root = project_workspace("watched_sessions").with_cleanup(release_watched_workspace);
+        fs::create_dir_all(root.join("data/hulls")).unwrap();
+        let path = root.join("data/hulls/ship_data.csv");
+        fs::write(&path, "id,name\nsample,Initial\n").unwrap();
+        let first_watch = begin_source_watch(&root).unwrap();
+        let first = project::open_project_session_traced(
+            &root,
+            None,
+            &mut PerformanceTrace::new("watch.first"),
+        )
+        .unwrap();
+        retain_source_watch(first.session_id.clone(), first_watch, ResourceSource::Mod).unwrap();
+        let second_watch = begin_source_watch(&root).unwrap();
+        let second = project::open_project_session_traced(
+            &root,
+            None,
+            &mut PerformanceTrace::new("watch.second"),
+        )
+        .unwrap();
+        retain_source_watch(second.session_id.clone(), second_watch, ResourceSource::Mod).unwrap();
+        let owner = format!("watch:{}", windows_path_key(&root.to_string_lossy()));
+        let receive = window(&owner);
+        fs::write(&path, "id,name\nsample,Updated\n").unwrap();
+        let event = loop {
+            let delivery = receive.recv_timeout(Duration::from_secs(15)).unwrap();
+            if delivery["kind"] == "saved" && delivery["event"]["modRoot"] == first.mod_root {
+                break delivery["event"].clone();
+            }
+        };
+        assert_eq!(event["reason"], "refresh");
+        assert_eq!(
+            event["result"]["sessionUpdates"].as_array().unwrap().len(),
+            2
+        );
+        assert_eq!(event["result"]["changes"].as_array().unwrap().len(), 0);
+        for manifest in [&first, &second] {
+            let index = services::query_csv_table_index(
+                &manifest.session_id,
+                CsvTableKey::Ships,
+                2,
+                None,
+                CsvSearchField::IdName,
+                &[],
+            )
+            .unwrap();
+            assert_eq!(index.rows[0].data["name"], "Updated");
+            assert_eq!(
+                query_file_history(&manifest.session_id, &manifest.mod_root)
+                    .unwrap()
+                    .undo_stack
+                    .len(),
+                0
+            );
+        }
+        consume_source_batch(SourceChangeBatch {
+            root: first.mod_root.clone(),
+            paths: [path].into(),
+            ..Default::default()
+        });
+        assert!(
+            receive
+                .try_iter()
+                .all(|delivery| delivery["kind"] != "saved"
+                    || delivery["event"]["modRoot"] != first.mod_root)
+        );
+        release_project_session(first.session_id).unwrap();
+        release_project_session(second.session_id).unwrap();
+        release_window(&owner).unwrap();
+        root.close().unwrap();
+    }
 
     #[test]
     fn release_existing_and_removed_roots_cleans_session_and_history() {

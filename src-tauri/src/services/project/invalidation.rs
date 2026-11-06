@@ -2,11 +2,10 @@ use super::definitions::entity_definitions;
 use super::model::ProjectSession;
 use crate::errors::{AppError, AppResult};
 use crate::io::{FsRootBoundary, parse_csv_text, relative_path_contains};
-use crate::models;
 use crate::models::{
-    CsvTableKey, EntityKind, FileChangeKind, FileChangeRecord, InvalidatedEntityRef,
-    InvalidatedQueryKind, InvalidatedQueryScope, InvalidatedResourceScope, ProjectInvalidation,
-    ResourceSource, push_unique_all,
+    CsvRow, CsvTable, CsvTableKey, EntityKind, FileChangeKind, FileChangeRecord,
+    InvalidatedEntityRef, InvalidatedQueryKind, InvalidatedQueryScope, InvalidatedResourceScope,
+    ProjectInvalidation, ResourceSource, push_unique_all,
 };
 use crate::parsers::parse_starsector_json;
 use crate::services::project::model::{
@@ -18,6 +17,7 @@ use crate::services::project::session::source_versions::{
 };
 use crate::services::project::sources::{SourceReader, core};
 use crate::services::project::{model, versions};
+use crate::{io, models};
 use serde_json::{Map, Value};
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
@@ -31,7 +31,7 @@ pub(crate) fn invalidate_session_changes(
     let files = changed_project_files(changes, &boundary)?;
     let mut sources = source_reader_for_session(session)?;
     sources.accept_changes(changes)?;
-    let invalidation = invalidate_files(session, files, false, sources)?;
+    let invalidation = invalidate_files(session, files, false, &mut sources)?;
     session.loaded_edit_targets.retain(|target| {
         !changes.iter().any(|change| {
             (!change.after_exists || change.before_path != change.after_path)
@@ -44,6 +44,7 @@ pub(crate) fn invalidate_session_changes(
                         ))))
         })
     });
+    sources.flush();
     Ok(invalidation)
 }
 
@@ -51,8 +52,42 @@ fn invalidate_files(
     session: &mut ProjectSession,
     files: Vec<ChangedProjectFile>,
     preserve_rows: bool,
-    mut sources: SourceReader,
+    sources: &mut SourceReader,
 ) -> AppResult<ProjectInvalidation> {
+    if preserve_rows {
+        for table in session
+            .csv_tables
+            .values()
+            .filter(|table| table.rows.is_some())
+        {
+            let path = sources.path(&table.path)?;
+            if !path
+                .try_exists()
+                .map_err(|error| AppError::from(error).at_path(&path))?
+            {
+                sources.tables.insert(
+                    table.path.clone(),
+                    CsvTable {
+                        path: path.to_string_lossy().into_owned(),
+                        header: table.header.clone(),
+                        rows: table
+                            .rows
+                            .as_ref()
+                            .expect("loaded CSV")
+                            .iter()
+                            .map(|row| CsvRow {
+                                data: row.data.clone(),
+                                is_comment: row.is_comment,
+                            })
+                            .collect(),
+                    },
+                );
+                sources
+                    .versions
+                    .insert(table.path.clone(), io::file_version(&path)?);
+            }
+        }
+    }
     let impacts = files
         .iter()
         .map(ChangedProjectImpact::new)
@@ -72,7 +107,7 @@ fn invalidate_files(
     }
     if !affected_kinds.is_empty() {
         retain_session_sources(
-            &mut sources,
+            sources,
             session,
             &files
                 .iter()
@@ -92,7 +127,7 @@ fn invalidate_files(
         .collect::<BTreeSet<_>>();
     let updates = affected_kinds
         .into_iter()
-        .map(|kind| (entity_definitions::entity_definition(kind)?.refresh)(session, &mut sources))
+        .map(|kind| (entity_definitions::entity_definition(kind)?.refresh)(session, sources))
         .collect::<AppResult<Vec<_>>>()?;
     let mut summaries = session.manifest.entity_summaries.clone();
     for update in &updates {
@@ -104,13 +139,33 @@ fn invalidate_files(
             path.exists().then(|| sources.json(&path)).transpose()
         })
         .transpose()?;
+    for table in content_tables
+        .iter()
+        .filter(|table| preserve_rows && session.csv_tables[table.as_str()].rows.is_none())
+    {
+        let path = sources.path(&session.csv_tables[table.as_str()].path)?;
+        if !path
+            .try_exists()
+            .map_err(|error| AppError::from(error).at_path(&path))?
+        {
+            csv_tables::read_table_snapshot(session, *table)?;
+        }
+    }
     let refreshed_rows = if preserve_rows {
         content_tables
             .iter()
             .filter(|table| session.csv_tables[table.as_str()].rows.is_some())
             .map(|table| {
                 let state = &session.csv_tables[table.as_str()];
-                let csv = sources.csv(&sources.path(&state.path)?)?;
+                let path = sources.path(&state.path)?;
+                if !path
+                    .try_exists()
+                    .map_err(|error| AppError::from(error).at_path(&path))?
+                {
+                    return csv_tables::read_table_snapshot(session, *table)
+                        .map(|rows| (*table, rows));
+                }
+                let csv = sources.csv(&path)?;
                 csv_tables::table_snapshot_from_csv(state, *table, csv).map(|rows| (*table, rows))
             })
             .collect::<AppResult<Vec<_>>>()?
@@ -159,13 +214,14 @@ fn invalidate_files(
         .collect::<Vec<_>>();
     let tables = tables.into_iter().collect::<Vec<_>>();
     capture_changed_versions(
-        &mut sources,
+        sources,
         &files
             .iter()
             .map(|file| file.path.as_str())
             .collect::<Vec<_>>(),
     )?;
     let invalidation = ProjectInvalidation {
+        renames: None,
         paths: impacts
             .iter()
             .map(|impact| impact.file.path.clone())
@@ -220,6 +276,7 @@ fn invalidate_files(
     if files
         .iter()
         .any(|file| relative_path_contains(&file.path, MISSION_LIST_REL_PATH))
+        && (!preserve_rows || sources.path(MISSION_LIST_REL_PATH)?.exists())
     {
         let table = session
             .csv_tables
@@ -265,8 +322,7 @@ fn invalidate_files(
         .chain(&session.skin_warnings)
         .cloned()
         .collect();
-    sources.flush();
-    Arc::make_mut(&mut session.source_versions).extend(sources.versions);
+    Arc::make_mut(&mut session.source_versions).extend(sources.versions.clone());
     Ok(invalidation)
 }
 
@@ -730,9 +786,23 @@ fn affected_csv_tables(path: &str) -> Vec<CsvTableKey> {
         .collect()
 }
 
+#[cfg(test)]
 pub(super) fn refresh_sources(
     session: &mut ProjectSession,
     sources: &[InvalidatedResourceScope],
+) -> AppResult<ProjectInvalidation> {
+    let mut reader = source_reader_for_session(session)?;
+    if let Some(root) = session.manifest.starsector_root.as_deref() {
+        core::invalidate_core_sources(root, sources)?;
+    }
+    let result = refresh_sources_from(session, sources, &mut reader)?;
+    reader.flush();
+    Ok(result)
+}
+pub(super) fn refresh_sources_from(
+    session: &mut ProjectSession,
+    sources: &[InvalidatedResourceScope],
+    reader: &mut SourceReader,
 ) -> AppResult<ProjectInvalidation> {
     let mod_root = FsRootBoundary::new(Path::new(&session.manifest.mod_root), "mod root")?;
     let mut files = Vec::new();
@@ -756,34 +826,12 @@ pub(super) fn refresh_sources(
         let path = boundary.resolve_relative(&source.rel_path, "refresh source")?;
         paths.push(path.to_string_lossy().to_string());
         if source.source == ResourceSource::Mod {
-            if let Some((key, table)) = session
-                .csv_tables
-                .iter()
-                .find(|(_, table)| table.path == source.rel_path)
-                && !path
-                    .try_exists()
-                    .map_err(|error| AppError::from(error).at_path(&path))?
-                && table.rows.is_some()
-            {
-                if let Some(table_key) = CsvTableKey::from_key(key) {
-                    session
-                        .manifest
-                        .table_summaries
-                        .get_mut(&table_key)
-                        .expect("registered CSV summary")
-                        .available = false;
-                }
-                continue;
-            }
             files.push(ChangedProjectFile {
                 path: source.rel_path.clone(),
                 before_text: None,
                 after_text: None,
             });
         }
-    }
-    if let Some(root) = session.manifest.starsector_root.as_deref() {
-        core::invalidate_core_sources(root, sources)?;
     }
     let core_projectiles = if sources.iter().any(|source| {
         source.source == ResourceSource::Core
@@ -809,7 +857,7 @@ pub(super) fn refresh_sources(
     } else {
         None
     };
-    let mut result = invalidate_files(session, files, true, source_reader_for_session(session)?)?;
+    let mut result = invalidate_files(session, files, true, reader)?;
     if let Some(records) = core_projectiles {
         session.manifest.entity_summaries.projectiles = records.len();
         session.projectile_specs = records.into();

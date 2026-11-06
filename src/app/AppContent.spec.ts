@@ -77,7 +77,7 @@ function mountMain(requestClose: (scope: CloseScope) => Promise<CloseResult>) {
         stubs: {
           MainWindowFrame: { template: '<div><slot /></div>' },
           TitleBar: true,
-          WriteSyncNotice: true,
+          ProjectSyncNotice: true,
           ModNavigation: true,
           ModTabsBar: true,
           NSpin: true,

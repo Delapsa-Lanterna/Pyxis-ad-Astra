@@ -7,7 +7,7 @@ type AuditWindow = Window &
   };
 type AppHost = HTMLElement & { __vue_app__: { _container: { _vnode: VNode } } };
 
-export function installAudit() {
+export function installCsvAudit() {
   const targetWindow = window as AuditWindow;
   const frame = () => new Promise((done) => requestAnimationFrame(done));
   const calls: { command: string; start: number; end: number | null }[] = [],
@@ -101,7 +101,14 @@ export function installAudit() {
       if (!state(label)) continue;
       await frame();
       const ready = state(label);
-      if (ready) return { ms: performance.now() - start, rows: ready.rows, columns: ready.columns };
+      if (ready)
+        return {
+          ms: performance.now() - start,
+          rows: ready.rows,
+          columns: ready.columns,
+          totalRows: ready.model.rowKeys.length,
+          totalColumns: ready.model.columns.length,
+        };
     }
     throw Error('Visible fields incomplete: ' + label);
   }

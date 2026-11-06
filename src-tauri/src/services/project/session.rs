@@ -9,8 +9,8 @@ use crate::domain::entity_definitions::WEAPON_SPEC_DEFINITION;
 use crate::errors::{AppError, AppResult};
 use crate::io::FsRootBoundary;
 use crate::models::{
-    EntitySummaries, FileChangeRecord, InvalidatedResourceScope, ProjectInvalidation,
-    ProjectManifest, ResourceSource, SessionContentUpdate, TableSummary,
+    EntitySummaries, FileChangeRecord, ProjectInvalidation, ProjectManifest, ResourceSource,
+    SessionContentUpdate, TableSummary,
 };
 use crate::services::project::definitions::entity_definitions;
 use crate::services::project::model::{ProjectContent, SessionCsvRow};
@@ -31,7 +31,10 @@ pub(in crate::services::project) mod csv_tables;
 pub(in crate::services::project) mod csv_writes;
 pub(super) mod references;
 pub(super) mod registry;
+pub(in crate::services::project) mod source_refresh;
 pub(in crate::services::project) mod source_versions;
+#[cfg(test)]
+use source_refresh::{refresh_mod_root_sources, refresh_project_sources};
 
 pub(crate) use access::lock_ready_session;
 pub(super) use registry::{RegisteredSession, lock_registry};
@@ -62,6 +65,27 @@ pub fn hold_session_openings() -> AppResult<SessionOpeningPause> {
 }
 pub fn registered_session_ids() -> AppResult<Vec<String>> {
     Ok(lock_registry()?.keys().cloned().collect())
+}
+
+pub(crate) fn registered_manifests(
+    root: &str,
+    source: ResourceSource,
+) -> AppResult<Vec<ProjectManifest>> {
+    let handles = lock_registry()?
+        .values()
+        .filter(|handle| {
+            models::windows_path_key(if source == ResourceSource::Core {
+                handle.core_root.as_deref().unwrap_or("")
+            } else {
+                &handle.root
+            }) == models::windows_path_key(root)
+        })
+        .cloned()
+        .collect::<Vec<_>>();
+    handles
+        .iter()
+        .map(|handle| Ok(lock_session(handle)?.manifest.clone()))
+        .collect()
 }
 
 pub fn ensure_project_session_mod_root(session_id: &str, mod_root: &str) -> AppResult<()> {
@@ -161,6 +185,12 @@ pub(crate) fn open_project_session_traced(
         RegisteredSession {
             session_id: manifest.session_id.clone(),
             root: manifest.mod_root.clone(),
+            core_root: manifest.starsector_root.as_ref().map(|root| {
+                Path::new(root)
+                    .join("starsector-core")
+                    .to_string_lossy()
+                    .into_owned()
+            }),
             handle: Arc::new(Mutex::new(session)),
             reference: None,
         },
@@ -952,22 +982,6 @@ mod tests {
     }
 }
 
-/// Refreshes authorized sources while retaining session and CSV row identities.
-pub fn refresh_project_sources(
-    session_id: &str,
-    sources: Vec<InvalidatedResourceScope>,
-) -> AppResult<SessionContentUpdate> {
-    let handle = session_handle(session_id)?;
-    let root = lock_ready_session(&handle)?.manifest.mod_root.clone();
-    let _lease = io::acquire_root_write_lock(Path::new(&root))?;
-    let mut session = lock_ready_session(&handle)?;
-    let invalidation = invalidation::refresh_sources(&mut session, &sources)?;
-    Ok(SessionContentUpdate {
-        manifest: session.manifest.clone(),
-        invalidation,
-    })
-}
-
 #[cfg(test)]
 mod source_refresh_tests {
     use crate::services::project_sync::release_project_session;
@@ -976,10 +990,192 @@ mod source_refresh_tests {
     #[cfg(test)]
     use crate::models::{CsvSearchField, EntityKind};
     use crate::models::{CsvTableKey, InvalidatedResourceScope, ResourceSource};
+    use crate::test_support::work_counts;
     #[cfg(test)]
     use crate::{io, services};
     #[cfg(test)]
-    use std::fs;
+    use std::{fs, slice};
+
+    #[test]
+    fn source_watch_review_deleted_parent_directory_updates_loaded_csv_availability() {
+        let root = project_workspace("review_deleted_parent");
+        fs::create_dir_all(root.join("data/hulls")).unwrap();
+        fs::write(
+            root.join("data/hulls/ship_data.csv"),
+            "id,name\nreview,Original\n",
+        )
+        .unwrap();
+        let manifest =
+            open_project_session_traced(&root, None, &mut PerformanceTrace::new("review.delete"))
+                .unwrap();
+        let original = services::query_csv_table_index(
+            &manifest.session_id,
+            CsvTableKey::Ships,
+            1,
+            None,
+            CsvSearchField::IdName,
+            &[],
+        )
+        .unwrap();
+        fs::remove_dir_all(root.join("data/hulls")).unwrap();
+        let updated = refresh_mod_root_sources(
+            &manifest.mod_root,
+            slice::from_ref(&manifest.session_id),
+            &[root.join("data/hulls").to_string_lossy().into_owned()],
+            false,
+        )
+        .unwrap();
+        let available = current_project_manifest(&manifest.session_id)
+            .unwrap()
+            .table_summaries[&CsvTableKey::Ships]
+            .available;
+        let retained = services::query_csv_table_index(
+            &manifest.session_id,
+            CsvTableKey::Ships,
+            1,
+            None,
+            CsvSearchField::IdName,
+            &[],
+        )
+        .unwrap();
+        let observations = (
+            available,
+            updated.session_updates.len(),
+            retained.rows[0].row_key == original.rows[0].row_key,
+            retained.base_versions[0].fingerprint.is_none(),
+        );
+        release_project_session(manifest.session_id).unwrap();
+        root.close().unwrap();
+        assert_eq!(observations, (false, 1, true, true));
+    }
+
+    #[test]
+    fn watched_refresh_is_atomic_across_sessions_and_reuses_one_source_read() {
+        let root = project_workspace("watched_atomic");
+        fs::write(
+            root.join("mod_info.json"),
+            r#"{"id":"atomic","name":"Atomic"}"#,
+        )
+        .unwrap();
+        fs::create_dir_all(root.join("data/hulls")).unwrap();
+        let path = root.join("data/hulls/ship_data.csv");
+        fs::write(&path, "id,name\nrecord,Original\n").unwrap();
+        let first =
+            open_project_session_traced(&root, None, &mut PerformanceTrace::new("atomic.first"))
+                .unwrap();
+        let second =
+            open_project_session_traced(&root, None, &mut PerformanceTrace::new("atomic.second"))
+                .unwrap();
+        let ids = vec![first.session_id.clone(), second.session_id.clone()];
+        for id in &ids {
+            services::query_csv_table_index(
+                id,
+                CsvTableKey::Ships,
+                1,
+                None,
+                CsvSearchField::IdName,
+                &[],
+            )
+            .unwrap();
+        }
+        let descriptor = root.join("mod_info.json");
+        let original = fs::read_to_string(&descriptor).unwrap();
+        fs::write(&descriptor, "{").unwrap();
+        fs::write(&path, "id,name\nrecord,Changed\n").unwrap();
+        let paths = vec![
+            path.to_string_lossy().into_owned(),
+            descriptor.to_string_lossy().into_owned(),
+        ];
+        assert!(refresh_mod_root_sources(&first.mod_root, &ids, &paths, false).is_err());
+        for id in &ids {
+            let index = services::query_csv_table_index(
+                id,
+                CsvTableKey::Ships,
+                1,
+                None,
+                CsvSearchField::IdName,
+                &[],
+            )
+            .unwrap();
+            assert_eq!(index.rows[0].data["name"], "Original");
+        }
+        fs::write(&descriptor, original).unwrap();
+        let reads = work_counts::count("read", &path);
+        let parses = work_counts::count("parse", &path);
+        let refreshed =
+            refresh_mod_root_sources(&first.mod_root, &ids, &paths[..1], false).unwrap();
+        assert_eq!(refreshed.session_updates.len(), 2);
+        assert_eq!(work_counts::count("read", &path) - reads, 1);
+        assert_eq!(work_counts::count("parse", &path) - parses, 1);
+        for id in ids {
+            assert_eq!(
+                services::query_csv_table_index(
+                    &id,
+                    CsvTableKey::Ships,
+                    1,
+                    None,
+                    CsvSearchField::IdName,
+                    &[]
+                )
+                .unwrap()
+                .rows[0]
+                    .data["name"],
+                "Changed"
+            );
+            release_project_session(id).unwrap();
+        }
+        root.close().unwrap();
+    }
+    #[test]
+    fn deleted_loaded_csv_keeps_recovery_rows_for_file_and_directory_scopes() {
+        for scope in ["data/hulls/ship_data.csv", "data/hulls", "data"] {
+            let root = project_workspace("watched_missing_csv");
+            fs::create_dir_all(root.join("data/hulls")).unwrap();
+            let path = root.join("data/hulls/ship_data.csv");
+            fs::write(&path, "id,name\nrecord,Retained\n").unwrap();
+            let manifest = open_project_session_traced(
+                &root,
+                None,
+                &mut PerformanceTrace::new("missing.loaded"),
+            )
+            .unwrap();
+            let original = services::query_csv_table_index(
+                &manifest.session_id,
+                CsvTableKey::Ships,
+                1,
+                None,
+                CsvSearchField::IdName,
+                &[],
+            )
+            .unwrap();
+            fs::remove_file(&path).unwrap();
+            let result = refresh_mod_root_sources(
+                &manifest.mod_root,
+                slice::from_ref(&manifest.session_id),
+                &[root.join(scope).to_string_lossy().into_owned()],
+                false,
+            )
+            .unwrap();
+            assert!(
+                !result.session_updates[0].content.manifest.table_summaries[&CsvTableKey::Ships]
+                    .available
+            );
+            let retained = services::query_csv_table_index(
+                &manifest.session_id,
+                CsvTableKey::Ships,
+                1,
+                None,
+                CsvSearchField::IdName,
+                &[],
+            )
+            .unwrap();
+            assert_eq!(retained.rows[0].data, original.rows[0].data);
+            assert_eq!(retained.rows[0].row_key, original.rows[0].row_key);
+            assert!(retained.base_versions[0].fingerprint.is_none());
+            release_project_session(manifest.session_id).unwrap();
+            root.close().unwrap();
+        }
+    }
 
     #[test]
     fn missing_unloaded_csv_reports_its_unavailable_recovery_source() {

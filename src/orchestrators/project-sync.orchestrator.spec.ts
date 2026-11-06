@@ -4,14 +4,14 @@ import type * as QueryCacheServiceModule from '@/services/query-cache.service';
 import type * as WindowEventErrorsOrchestratorModule from '@/orchestrators/window-event-errors.orchestrator';
 import { dialogText } from '@/test/unit/dialog-text';
 import { createPinia, setActivePinia } from 'pinia';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 import { flushPromises } from '@vue/test-utils';
-import type { SaveDelivery, CommittedWriteEvent, WriteResult, AppFeedback } from '@/shared/types';
+import type { ProjectSyncDelivery, CommittedWriteEvent, WriteResult, AppFeedback } from '@/shared/types';
 import { savedWriteFixture, sessionUpdateFixture } from '@/test/fixtures/write-result';
 import { entityTargetFixture } from '@/test/fixtures/entity-target';
 
 const mocks = vi.hoisted(() => ({
-  receive: null as null | ((message: SaveDelivery) => void),
+  receive: null as null | ((message: ProjectSyncDelivery) => void),
   register: vi.fn<typeof ProjectSyncServiceModule.registerSaveWindow>(),
   references: vi.fn<typeof ProjectSyncServiceModule.setReferenceSources>(),
   unregister: vi.fn<typeof ProjectSyncServiceModule.unregisterSaveWindow>(),
@@ -51,6 +51,7 @@ import {
   startProjectSync,
   settleProjectSaves,
   publishReferenceSources,
+  observeCoreContent,
 } from './project-sync.orchestrator';
 import { useProjectSyncStore } from '@/stores/project-sync.store';
 import { useProjectStore } from '@/stores/project.store';
@@ -91,6 +92,58 @@ beforeEach(() => {
 });
 
 describe('ordered save consumption', () => {
+  it('retries only the failed Core product while retaining the ordered event', async () => {
+    const release = await startProjectSync();
+    const fields = vi.fn().mockRejectedValueOnce(new Error('fields')).mockResolvedValue(undefined);
+    const graphics = vi.fn().mockResolvedValue(undefined);
+    const subscription = observeCoreContent(() => [fields, graphics]);
+    onTestFinished(() => {
+      subscription.release();
+      release();
+    });
+    mocks.receive!({
+      kind: 'coreChanged',
+      root: 'G:/products',
+      sources: [
+        { source: 'core', relPath: 'data' },
+        { source: 'core', relPath: 'graphics' },
+      ],
+    });
+    await flushPromises();
+    expect(fields).toHaveBeenCalledTimes(1);
+    expect(graphics).toHaveBeenCalledTimes(1);
+    expect(useProjectSyncStore().blocked).toHaveLength(1);
+    await retryPendingWrites();
+    expect(fields).toHaveBeenCalledTimes(2);
+    expect(graphics).toHaveBeenCalledTimes(1);
+    expect(useProjectSyncStore().blocked).toHaveLength(0);
+  });
+  it('source watch review retains and retries a failed Core content step', async () => {
+    const release = await startProjectSync();
+    const receive = vi.fn().mockRejectedValueOnce(new Error('review Core content failure')).mockResolvedValue(undefined);
+    const subscription = observeCoreContent(receive);
+    onTestFinished(() => {
+      subscription.release();
+      release();
+    });
+    mocks.receive!({ kind: 'coreChanged', root: 'G:/review', sources: [{ source: 'core', relPath: 'graphics' }] });
+    await flushPromises();
+    const pending = useProjectSyncStore().blocked.length;
+    await retryPendingWrites();
+    await flushPromises();
+    expect({ pending, calls: receive.mock.calls.length }).toEqual({ pending: 1, calls: 2 });
+  });
+
+  it('source watch review releases a Core consumer before queued delivery starts', async () => {
+    const release = await startProjectSync();
+    const receive = vi.fn().mockResolvedValue(undefined);
+    const subscription = observeCoreContent(receive);
+    onTestFinished(release);
+    mocks.receive!({ kind: 'coreChanged', root: 'G:/review', sources: [{ source: 'core', relPath: 'graphics' }] });
+    subscription.release();
+    await flushPromises();
+    expect(receive).toHaveBeenCalledTimes(0);
+  });
   it('waits for source saves before publishing the captured reference order', async () => {
     await publishReferenceSources([
       { sessionId: 'source-b', modRoot: 'M:/beta' },

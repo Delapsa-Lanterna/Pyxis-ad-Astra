@@ -15,6 +15,8 @@ const allowedServiceEdges = new Set([
   'project_session -> project',
   'project_sync -> windows',
   'project_sync -> project',
+  'project_sync -> project_session',
+  'project_sync -> source_watch',
   'project_sync -> file_history',
   'file_editor -> project',
   'config_entity -> project',

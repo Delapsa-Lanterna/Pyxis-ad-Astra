@@ -339,6 +339,39 @@ describe('useFileEditorViewModel editing', () => {
 });
 
 describe('useFileEditorViewModel external text', () => {
+  it('accepts a repaired source after the initial read failed', async () => {
+    mocks.loadEditableFileData.mockRejectedValueOnce(new Error('source unavailable'));
+    const { value: vm } = mountSetup(() => useFileEditorViewModel(paramsFixture()));
+    await expect(vm.initialize()).rejects.toThrow('source unavailable');
+    mocks.loadEditableFileData.mockResolvedValueOnce(editableFileFixture('repaired'));
+    await projectChangeFixture('s1', { ...savedWriteFixture().invalidation, paths: ['data/hulls/test.file'] }, 'C:/mods/alpha');
+    expect(vm.contentReady.value).toBe(true);
+    expect(vm.text.value).toBe('repaired');
+    expect(vm.contextMessage.value).toBe('');
+    vm.dispose();
+  });
+  it.each([false, true])('follows a reliable plain-file rename and retains text history when dirty=%s', async (dirty) => {
+    const before = 'C:/mods/alpha/notes.txt',
+      after = 'C:/mods/alpha/archive/notes.txt';
+    mocks.loadEditableFileData.mockResolvedValueOnce(editableFileFixture('baseline', { path: before }));
+    const vm = await initializeViewModel(paramsFixture({ filePath: before }));
+    if (dirty) vm.updateText('unfinished text');
+    mocks.feedback.choose.mockResolvedValueOnce('follow');
+    mocks.loadEditableFileData.mockResolvedValueOnce(editableFileFixture('baseline', { path: after }));
+    await projectChangeFixture(
+      's1',
+      { ...savedWriteFixture().invalidation, paths: [before, after], renames: [[before, after]] },
+      'C:/mods/alpha',
+    );
+    expect(vm.filePath.value).toBe(after);
+    expect(vm.text.value).toBe(dirty ? 'unfinished text' : 'baseline');
+    expect(vm.dirty.value).toBe(dirty);
+    if (dirty) {
+      vm.undoEdit();
+      expect(vm.text.value).toBe('baseline');
+    }
+    vm.dispose();
+  });
   it.each([true, false])('uses a text receipt once with complete entity metadata=%s', async (complete) => {
     const target = entityTargetFixture('ship', 'probe', 'existing', 'C:/mods/alpha');
     const loaded = editableFileFixture('base', { entity: { target, baseVersions: [] } });

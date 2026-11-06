@@ -6,7 +6,13 @@ import { openConfigFolder } from './app-config.service';
 import { clearLog, loadLogStatus, flushApplicationLogs } from './app-log.service';
 import { loadPersistedWorkspace, savePersistedWorkspace } from './workspace-state.service';
 import { createNewModProject } from './mod-creation.service';
-import { queryCoreRoot, queryCoreFields, queryCoreGraphics, invalidateCoreCacheForRoot } from './core-assets.service';
+import {
+  queryCoreRoot,
+  queryCoreFields,
+  queryCoreGraphics,
+  invalidateCoreCacheForRoot,
+  setWindowCoreSubscription,
+} from './core-assets.service';
 import { detectDirectoryTarget, scanDirectoryGameOverview } from './directory.service';
 import { requestProjectSessionRefresh, refreshProjectSources, setReferenceSources, closeProjectSession } from './project-sync.service';
 import { queryOriginalFont } from './font.service';
@@ -74,6 +80,7 @@ const cases: Array<[string, () => unknown, Record<string, unknown> | undefined]>
     { payload: { sessionId: 's1', starsectorRoot: null } },
   ],
   ['scan_core_graphics', () => queryCoreGraphics('G:/core'), { payload: { starsectorRoot: 'G:/core' } }],
+  ['set_window_core_subscription', () => setWindowCoreSubscription('G:/core'), { root: 'G:/core' }],
   ['invalidate_core_cache', () => invalidateCoreCacheForRoot('G:/core'), { payload: { starsectorRoot: 'G:/core' } }],
   ['detect_directory', () => detectDirectoryTarget('M:/mod', null), { payload: { path: 'M:/mod', knownStarsectorRoot: null } }],
   ['scan_game_overview', () => scanDirectoryGameOverview('G:/core'), { payload: { starsectorRoot: 'G:/core' } }],

@@ -61,7 +61,7 @@ export const resourcesCapabilities = [
     { capability: 'core-root-read', names: ['queryCoreRoot'], owners: [{ layer: 'app', role: 'composable', domain: 'core-assets' }] },
     {
       capability: 'core-index-read',
-      names: ['queryCoreFields', 'queryCoreGraphics'],
+      names: ['queryCoreFields', 'queryCoreGraphics', 'setWindowCoreSubscription'],
       owners: [{ layer: 'orchestrators', domain: 'core-assets' }],
     },
     {

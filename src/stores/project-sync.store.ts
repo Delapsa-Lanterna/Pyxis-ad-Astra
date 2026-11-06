@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia';
 import { computed, shallowReactive } from 'vue';
-import type { CommittedWriteEvent, ErrorDiagnostic, SaveDelivery, SaveAcceptanceTask } from '@/shared/types';
+import type { CommittedWriteEvent, ErrorDiagnostic, ProjectSyncDelivery, SaveAcceptanceTask } from '@/shared/types';
 import { normalizeFsPath } from '@/shared/lib/paths';
 
 export interface PendingWriteSync {
@@ -10,6 +10,12 @@ export interface PendingWriteSync {
   running: Promise<void> | null;
   error: ErrorDiagnostic | null;
 }
+export interface PendingCoreSync extends Omit<PendingWriteSync, 'event'> {
+  event: null;
+  modRoot: string;
+  sessionId: null;
+}
+export type PendingContentSync = PendingWriteSync | PendingCoreSync;
 
 interface PreparingSave {
   id: string;
@@ -20,9 +26,17 @@ interface PreparingSave {
 }
 
 export const useProjectSyncStore = defineStore('project-sync', () => {
-  const requests = shallowReactive(new Map<string, PendingWriteSync | PreparingSave>());
+  const requests = shallowReactive(new Map<string, PendingContentSync | PreparingSave>());
   const waitingRoots = shallowReactive(new Set<string>());
-  const pending = computed(() => [...requests.values()].filter((work): work is PendingWriteSync => work.event !== null));
+  const sources = shallowReactive(new Map<string, Extract<ProjectSyncDelivery, { kind: 'sourceStatus' }>>());
+  const sourceIssues = computed(() => [...sources.values()].filter((source) => source.state === 'failed'));
+  const scanningSources = computed(() => [...sources.values()].filter((source) => source.state === 'scanning').length);
+  function setSourceStatus(delivery: Extract<ProjectSyncDelivery, { kind: 'sourceStatus' }>) {
+    const key = normalizeFsPath(delivery.root);
+    if (delivery.state === 'released') sources.delete(key);
+    else sources.set(key, delivery);
+  }
+  const pending = computed(() => [...requests.values()].filter((work): work is PendingContentSync => 'tasks' in work));
   const blocked = computed(() =>
     [...requests.values()]
       .filter((work) => work.error !== null)
@@ -31,11 +45,11 @@ export const useProjectSyncStore = defineStore('project-sync', () => {
         modRoot: work.event ? work.event.modRoot : work.modRoot,
         sessionId: work.event ? work.event.sessionId : work.sessionId,
         sessionIds: work.event ? work.event.result.sessionUpdates.map((update) => update.sessionId) : [],
-        phase: work.event ? 'content' : 'preparing',
+        phase: 'tasks' in work ? 'content' : 'preparing',
         diagnostic: work.error!,
       })),
   );
-  function receive(entry: PendingWriteSync) {
+  function receive(entry: PendingContentSync) {
     const owned = shallowReactive(entry);
     requests.set(entry.id, owned);
     return owned;
@@ -55,11 +69,11 @@ export const useProjectSyncStore = defineStore('project-sync', () => {
       waitingRoots.delete(root);
       for (const work of requests.values()) {
         const modRoot = work.event ? work.event.modRoot : work.modRoot;
-        if (normalizeFsPath(modRoot) === root && work.event === null) requests.delete(work.id);
+        if (normalizeFsPath(modRoot) === root && !('tasks' in work)) requests.delete(work.id);
       }
     }
   }
-  function setBlocked(delivery: Extract<SaveDelivery, { kind: 'blocked' }>) {
+  function setBlocked(delivery: Extract<ProjectSyncDelivery, { kind: 'blocked' }>) {
     waitingRoots.add(normalizeFsPath(delivery.modRoot));
     const work = requests.get(delivery.requestId);
     if (work) work.error = delivery.diagnostic;
@@ -79,10 +93,12 @@ export const useProjectSyncStore = defineStore('project-sync', () => {
     requests.delete(id);
   }
   function releaseWindow() {
+    sources.clear();
     requests.clear();
     waitingRoots.clear();
   }
   function removeModState(modRoot: string, _sessionId: string | null) {
+    sources.delete(normalizeFsPath(modRoot));
     void _sessionId;
     for (const work of requests.values()) {
       const root = work.event ? work.event.modRoot : work.modRoot;
@@ -90,5 +106,18 @@ export const useProjectSyncStore = defineStore('project-sync', () => {
     }
     setWaiting(modRoot, false);
   }
-  return { pending, blocked, isWaiting, setWaiting, setBlocked, complete, releaseWindow, removeModState, receive };
+  return {
+    sourceIssues,
+    scanningSources,
+    setSourceStatus,
+    pending,
+    blocked,
+    isWaiting,
+    setWaiting,
+    setBlocked,
+    complete,
+    releaseWindow,
+    removeModState,
+    receive,
+  };
 });

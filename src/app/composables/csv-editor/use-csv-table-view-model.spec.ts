@@ -18,6 +18,7 @@ import { sessionUpdateFixture, savedWriteFixture } from '@/test/fixtures/write-r
 import { dispatchProjectChangeFixture, committedChangeFixture } from '@/test/unit/project-changes';
 import { csvDraftRow, csvTableIndex } from '@/test/fixtures/csv-row';
 import { deepClone } from '@/shared/lib/starsector';
+import { ref } from 'vue';
 import type { CsvDraftRow, CsvTableIndex, CsvTableRowsRead } from '@/shared/types';
 const mocks = vi.hoisted(() => ({
   index: vi.fn<typeof CsvTableServiceModule.queryTableIndex>(),
@@ -43,6 +44,7 @@ vi.mock('@/services/csv-table.service', () => ({
   hasTableInvalidation: mocks.affected,
 }));
 vi.mock('@/orchestrators/project-sync.orchestrator', () => import('@/test/unit/project-changes'));
+vi.mock('@/windows/current.window', () => ({ currentWindowLabel: () => 'peer' }));
 vi.mock('@/services/source-catalog.service', () => ({ querySourceOptionCatalog: mocks.sources, hasSourceInvalidation: () => false }));
 vi.mock('@/app/composables/use-app-feedback', () => ({ useAppFeedback: () => ({ error: mocks.error, choose: mocks.choose }) }));
 const target = { sessionId: 'session', modRoot: 'M:/mod', table: 'ships' as const };
@@ -89,6 +91,97 @@ beforeEach(() => {
 });
 afterEach(() => wrapper?.unmount());
 describe('CSV index and keyed content owner', () => {
+  it('accepts a clean external baseline and releases the prior redo history', async () => {
+    harness();
+    await flushPromises();
+    const tables = useCsvEditorStore(),
+      state = tables.getCsvModState(target.modRoot)!,
+      document = state.documents.ships;
+    tables.updateCellValue({ ...target, rowKey: 'key-0', column: 'name' }, 'Local');
+    tables.getTableEditor(target);
+    await tables.getTableEditor(target).undo();
+    expect(document.history.redoStack).toHaveLength(1);
+    mocks.index.mockResolvedValueOnce(
+      csvTableIndex([csvDraftRow({ id: 'changed', name: 'External' }, 'key-0')], {
+        baseVersions: [{ path: 'ships.csv', fingerprint: 'external' }],
+      }),
+    );
+    mocks.affected.mockReturnValueOnce(true);
+    const event = committedChangeFixture(savedWriteFixture(), target.sessionId, target.modRoot);
+    await dispatchProjectChangeFixture({ ...event, reason: 'refresh' });
+    expect(document.rows['key-0']?.data.name).toBe('External');
+    expect(document.baseVersions[0]?.fingerprint).toBe('external');
+    expect(document.history.redoStack).toEqual([]);
+    expect(document.externalUpdatePending).toBe(false);
+  });
+  it.each(['refresh', 'save'] as const)('stages a foreign %s while retaining row order, baseline and history', async (reason) => {
+    rows = rows.slice(0, 2);
+    harness();
+    await flushPromises();
+    const tables = useCsvEditorStore(),
+      document = tables.getCsvModState(target.modRoot)!.documents.ships;
+    tables.moveRows(target, ['key-1'], 0);
+    const history = deepClone(document.history);
+    rows.push(csvDraftRow({ id: 'added', name: 'Added' }, 'key-2'));
+    mocks.index.mockResolvedValueOnce(csvTableIndex(rows, { baseVersions: [{ path: 'ships.csv', fingerprint: 'external' }] }));
+    mocks.affected.mockReturnValueOnce(true);
+    const event = committedChangeFixture(savedWriteFixture(), target.sessionId, target.modRoot);
+    await dispatchProjectChangeFixture({ ...event, reason, originWindowLabel: 'external' });
+    expect(document.baselineRowOrder).toEqual(['key-0', 'key-1']);
+    expect(document.rowOrder).toEqual(['key-1', 'key-0']);
+    expect(document.baseVersions).toEqual(versions);
+    expect(document.dirty).toEqual({});
+    expect(document.history).toEqual(history);
+    expect(document.externalUpdatePending).toBe(true);
+  });
+  it('stages an external version while preserving an unfinished raw input', async () => {
+    harness();
+    await flushPromises();
+    const tables = useCsvEditorStore(),
+      document = tables.getCsvModState(target.modRoot)!.documents.ships;
+    const dirty = ref(true),
+      cancel = vi.fn();
+    const release = tables
+      .getTableInputs(target.modRoot, target.table)
+      .register({ key: 'key-0/name', label: 'Name', dirty, cancel, commit: () => null, focus: vi.fn() });
+    try {
+      mocks.index.mockResolvedValueOnce(
+        csvTableIndex(rows.slice(0, 2), { baseVersions: [{ path: 'ships.csv', fingerprint: 'external' }] }),
+      );
+      mocks.affected.mockReturnValueOnce(true);
+      const event = committedChangeFixture(savedWriteFixture(), target.sessionId, target.modRoot);
+      await dispatchProjectChangeFixture({ ...event, reason: 'refresh' });
+      expect(document.externalUpdatePending).toBe(true);
+      expect(document.baseVersions).toEqual(versions);
+      expect(dirty.value).toBe(true);
+      expect(cancel).not.toHaveBeenCalled();
+    } finally {
+      release();
+    }
+  });
+  it.each(['resolve', 'reject'] as const)('ends an external index %s when the view is released', async (completion) => {
+    harness();
+    await flushPromises();
+    let finish!: (index: CsvTableIndex) => void, fail!: (error: Error) => void;
+    mocks.index.mockImplementationOnce(
+      () =>
+        new Promise((resolve, reject) => {
+          finish = resolve;
+          fail = reject;
+        }),
+    );
+    mocks.affected.mockReturnValueOnce(true);
+    const event = committedChangeFixture(savedWriteFixture(), target.sessionId, target.modRoot);
+    const delivered = dispatchProjectChangeFixture({ ...event, reason: 'refresh' });
+    await flushPromises();
+    wrapper.unmount();
+    await delivered;
+    if (completion === 'resolve') finish(csvTableIndex([], { baseVersions: [{ path: 'ships.csv', fingerprint: 'late' }] }));
+    else fail(new Error('Late refresh'));
+    await flushPromises();
+    expect(useCsvEditorStore().getCsvModState(target.modRoot)!.documents.ships.baseVersions).toEqual(versions);
+    expect(mocks.error).not.toHaveBeenCalled();
+  });
   it.each(['key-900/name', 'key-900'])('locates the hidden unloaded target %s and preserves drafts', async (path) => {
     const vm = harness();
     await flushPromises();

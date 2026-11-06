@@ -58,6 +58,7 @@ pub(super) struct SourceReader {
     paths: BTreeMap<String, Vec<PathBuf>>,
     pub versions: BTreeMap<String, FileVersion>,
     pub tables: BTreeMap<String, CsvTable>,
+    bytes: BTreeMap<String, (FileVersion, Vec<u8>)>,
     reused: usize,
     dirty: bool,
 }
@@ -120,6 +121,7 @@ impl SourceReader {
             paths: BTreeMap::new(),
             versions: BTreeMap::new(),
             tables: BTreeMap::new(),
+            bytes: BTreeMap::new(),
             reused: 0,
             dirty: false,
         }
@@ -134,6 +136,7 @@ impl SourceReader {
         fork.paths = self.paths.clone();
         fork.versions = self.versions.clone();
         fork.tables = self.tables.clone();
+        fork.bytes = self.bytes.clone();
         fork.reused = self.reused;
         fork
     }
@@ -142,6 +145,49 @@ impl SourceReader {
     }
     pub fn key(&self, path: &Path) -> String {
         forward_slash_relative_path(self.root(), path)
+    }
+    pub fn stage_version(&mut self, path: &Path) -> AppResult<FileVersion> {
+        let path = self.boundary.resolve_absolute(path, "changed source")?;
+        let version = if path.is_file() {
+            let (version, bytes) = io::read_authorized_bytes(&path)?;
+            self.bytes.insert(self.key(&path), (version.clone(), bytes));
+            version
+        } else {
+            io::file_version(&path)?
+        };
+        self.versions.insert(self.key(&path), version.clone());
+        Ok(version)
+    }
+    pub fn begin_batch(&mut self) {
+        self.bytes.clear();
+    }
+    pub fn invalidate_paths(&mut self, paths: &[&str]) {
+        let affected = |path: &str| {
+            paths
+                .iter()
+                .any(|scope| io::relative_path_contains(scope, path))
+        };
+        self.loaded.retain(|path| !affected(path));
+        self.tables.retain(|path, _| !affected(path));
+        self.paths.retain(|path, _| {
+            !paths.iter().any(|scope| {
+                io::relative_path_contains(scope, path) || io::relative_path_contains(path, scope)
+            })
+        });
+        self.versions.retain(|path, _| {
+            !paths
+                .iter()
+                .any(|scope| io::relative_path_contains(scope, path))
+        });
+        for (path, (version, _)) in &self.bytes {
+            self.versions.insert(path.clone(), version.clone());
+        }
+    }
+    fn read_bytes(&mut self, path: &Path) -> AppResult<(FileVersion, Vec<u8>)> {
+        self.bytes
+            .remove(&self.key(path))
+            .map(Ok)
+            .unwrap_or_else(|| io::read_authorized_bytes(path))
     }
     pub fn json(&mut self, path: &Path) -> AppResult<Value> {
         let authorized = self.boundary.resolve_absolute(path, "JSON source")?;
@@ -155,7 +201,7 @@ impl SourceReader {
                 _ => unreachable!("JSON source"),
             });
         }
-        let (version, bytes) = io::read_authorized_bytes(path)?;
+        let (version, bytes) = self.read_bytes(path)?;
         let parsed = match self
             .records
             .get(&key)
@@ -197,7 +243,15 @@ impl SourceReader {
         if let Some(table) = self.tables.get(&key) {
             return Ok(table.clone());
         }
-        let (version, table) = io::read_versioned_csv(path)?;
+        let (version, table) = if path.exists() {
+            let (version, bytes) = self.read_bytes(path)?;
+            #[cfg(test)]
+            work_counts::record("parse", path);
+            let table = io::parse_csv_data(&version.path, &bytes)?;
+            (version, table)
+        } else {
+            io::read_versioned_csv(path)?
+        };
         self.versions.insert(key.clone(), version);
         self.tables.insert(key, table.clone());
         Ok(table)
@@ -229,7 +283,7 @@ impl SourceReader {
         {
             return Ok(*count);
         }
-        let (version, bytes) = io::read_versioned_bytes(path)?;
+        let (version, bytes) = self.read_bytes(path)?;
         let (header, count) = match self
             .records
             .get(&key)
@@ -244,6 +298,8 @@ impl SourceReader {
             }
             _ => {
                 self.dirty = true;
+                #[cfg(test)]
+                work_counts::record("parse", path);
                 let table = io::parse_csv_data(&version.path, &bytes)?;
                 let count = table
                     .rows
@@ -391,6 +447,7 @@ impl SourceReader {
     pub fn absorb(&mut self, mut sources: Self) {
         self.dirty |= sources.dirty;
         for key in sources.loaded {
+            self.bytes.remove(&key);
             self.records.insert(
                 key.clone(),
                 sources.records.remove(&key).expect("loaded source record"),

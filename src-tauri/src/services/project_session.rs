@@ -1,20 +1,18 @@
 use crate::errors::AppResult;
 use crate::io::FsRootBoundary;
-use crate::models::{ProjectManifest, SessionModScope};
-use crate::services::project::{
-    PerformanceTrace, configure_persistent_index_cache, open_project_session_traced,
-};
+use crate::models::SessionModScope;
+use crate::services::project::configure_persistent_index_cache;
 use crate::services::{app_settings, project};
 use crate::{app_data_dir, diagnostics};
 use serde_json::json;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use tauri::AppHandle;
 
-pub fn open_project_session_with_root(
+pub fn resolve_project_session_roots(
     app_handle: AppHandle,
     mod_root: String,
     starsector_root: Option<String>,
-) -> AppResult<ProjectManifest> {
+) -> AppResult<(PathBuf, Option<PathBuf>)> {
     if let Ok(app_data_dir) = app_data_dir::data_directory(app_handle.clone())
         && let Err(error) = configure_persistent_index_cache(&app_data_dir)
     {
@@ -24,7 +22,6 @@ pub fn open_project_session_with_root(
             json!({"modRoot":mod_root,"directory":app_data_dir}),
         );
     }
-    let mut trace = PerformanceTrace::new("project.openSession");
     let mod_root_boundary = FsRootBoundary::new(Path::new(&mod_root), "mod root")?;
     let mod_root_path = mod_root_boundary.root();
     let starsector_root = project::resolve_core_root(
@@ -32,7 +29,7 @@ pub fn open_project_session_with_root(
         starsector_root.as_deref(),
         Some(mod_root_path),
     )?;
-    open_project_session_traced(mod_root_path, starsector_root.as_deref(), &mut trace)
+    Ok((mod_root_path.to_path_buf(), starsector_root))
 }
 
 pub fn ensure_session_mod_scope(scope: &impl SessionModScope) -> AppResult<()> {

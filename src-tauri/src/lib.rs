@@ -167,6 +167,8 @@ pub fn run() {
                     commands::abandon_project_saves,
                     commands::resolve_save_sources,
                     commands::retry_project_save,
+                    commands::retry_source_watch,
+                    commands::set_window_core_subscription,
                     commands::wait_project_saves,
                     commands::invalidate_core_cache,
                     commands::detect_directory,

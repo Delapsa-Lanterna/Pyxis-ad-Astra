@@ -3,6 +3,14 @@ import test from 'node:test';
 import { rustServiceEdgeBoundaryRule } from './rust-service-edge-boundary.mjs';
 import { messages, architectureFixtures } from '../../testing/fixtures.mjs';
 
+test('project synchronization assembles authorized roots and source watches', () => {
+  const context = architectureFixtures({
+    'src-tauri/src/services/project_sync.rs':
+      'fn open() { crate::services::project_session::resolve_project_session_roots(); crate::services::source_watch::subscribe(); }',
+  });
+  assert.deepEqual(rustServiceEdgeBoundaryRule.check(context), []);
+});
+
 test('directory opening and Mod creation consume the formal source root capability', () => {
   for (const source of ['src-tauri/src/services/directory_opening/detection.rs', 'src-tauri/src/services/mod_creation.rs']) {
     const context = architectureFixtures({ [source]: 'fn resolve() { crate::services::project::resolve_game_mods_directory(root); }' });

@@ -128,12 +128,12 @@ export type {
   WriteResult,
   WriteContent,
   WriteContentTarget,
-  SaveDelivery,
   SaveAcceptanceTask,
   SaveEdit,
   CommittedSessionUpdate,
   CommittedWriteEvent,
 } from '@/shared/types/write-commit.types';
+export type { ProjectSyncDelivery, SourceSyncState } from '@/shared/types/project-sync.types';
 export type { JsonEntityFile, JsonFileSave, JsonFileDelete, VariantFile, SkinFile } from '@/shared/types/json-file.types';
 export type {
   SavedConfig,

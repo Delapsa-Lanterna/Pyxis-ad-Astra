@@ -9,5 +9,5 @@
     "checkJs": true
   },
   "include": ["eslint.config.js", "eslint.full.config.js", "scripts/**/*.mjs", "scripts/**/*.d.ts"],
-  "exclude": ["scripts/browser/**"]
+  "exclude": ["scripts/browser/**", "scripts/desktop/**"]
 }

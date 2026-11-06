@@ -359,7 +359,7 @@ test('browser facilities have one test owner while formal sources and shared hel
   ])
     assert.equal(context.moduleMap.shared.has(path), true);
   assert.equal(
-    context.frontend.some(({ rel }) => rel === 'src/test/browser/cases/csv-desktop.ts'),
+    context.frontend.some(({ rel }) => rel === 'src/test/desktop/csv-audit.ts'),
     false,
   );
   assert.ok(context.frontend.some(({ rel }) => rel === 'src/app/App.vue'));
@@ -371,6 +371,25 @@ test('browser facilities have one test owner while formal sources and shared hel
     monitor.document.references.some(({ path }) => path.includes('browser/') || path.endsWith('performance_retained_tests.rs')),
     false,
   );
+});
+
+test('desktop facilities own their native drivers, probes, build configuration and type environment', async () => {
+  const context = await collectArchitectureContext(process.cwd());
+  const document = context.byPath.get('.zcode/modules/desktop-testing.md');
+  assert.ok(document);
+  const owned = document.document.references.filter(({ group }) => group === '拥有').map(({ path }) => path);
+  assert.deepEqual(owned, [
+    'scripts/desktop/',
+    'src-tauri/tauri.desktop-testing.conf.json',
+    'src/test/desktop/',
+    'tsconfig.desktop-scripts.json',
+  ]);
+  for (const path of ['scripts/desktop/run.mjs', 'scripts/desktop/runtime.mjs', 'src/test/desktop/csv-audit.ts']) {
+    assert.equal(context.moduleMap.shared.has(path), false);
+    assert.equal(context.moduleMap.owners.get(path), '.zcode/modules/desktop-testing.md');
+  }
+  assert.equal(context.paths.has('scripts/browser/source-watch-desktop.mjs'), false);
+  assert.equal(context.paths.has('scripts/browser/csv-desktop.mjs'), false);
 });
 
 test('reference existence consumes the complete repository inventory rather than only parsed source files', () => {

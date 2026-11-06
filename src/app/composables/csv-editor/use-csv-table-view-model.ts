@@ -24,6 +24,7 @@ import { useFieldInputActions } from '@/app/composables/use-field-input-actions'
 import { queryCsvValidation } from '@/services/csv-table.service';
 import { csvValidationRows } from '@/domain/csv-editor/csv-validation';
 import { csvValidationRequest } from '@/domain/csv-editor/csv-rule-context';
+import { currentWindowLabel } from '@/windows/current.window';
 
 export function useCsvTableViewModel(model: CsvEditorModel, host: CsvEditorHost) {
   const tables = useCsvEditorStore();
@@ -240,26 +241,46 @@ export function useCsvTableViewModel(model: CsvEditorModel, host: CsvEditorHost)
 
   const stopQueryInvalidation = observeSavedContent(
     (event) => {
-      const update = sessionContentUpdate(event, target.value?.sessionId);
-      if (!update) return;
+      const captured = target.value;
+      const update = sessionContentUpdate(event, captured?.sessionId);
+      if (!captured || !update) return;
+      const identity = targetKey.value;
+      const state = tables.getCsvModState(captured.modRoot);
+      const fromSave = event.reason !== 'refresh' && event.originWindowLabel === currentWindowLabel();
       const tasks: SaveAcceptanceTask[] = [];
       if (hasTableInvalidation(update.invalidation, 'csv-table-window', view.currentTab)) {
         tasks.push(async () => {
-          const captured = target.value!;
+          if (disposed || identity !== targetKey.value || state !== tables.getCsvModState(captured.modRoot)) return;
           reads.revoke();
           clearRowQueue();
-          const index = await queryTableIndex(
-            captured.sessionId,
-            captured.table,
-            Math.max(lastRange.count, 240),
-            view.searchText || null,
-            view.searchField,
+          const filtered = Boolean(view.searchText.trim());
+          await reads.consume(
+            'index',
+            { ...captured, requestId: event.result.requestId },
+            (signal) =>
+              queryTableIndex(
+                captured.sessionId,
+                captured.table,
+                Math.max(lastRange.count, 240),
+                view.searchText || null,
+                view.searchField,
+                signal,
+              ),
+            {
+              ready: (index) => {
+                if (identity !== targetKey.value || state !== tables.getCsvModState(captured.modRoot)) return;
+                if (fromSave) tables.acceptSavedTableIndex(captured, index, filtered);
+                else tables.applyTableIndex(captured, index, filtered);
+                refreshAfterSave = false;
+                widthSample.value = cloneQuerySnapshot<CsvDraftRow[]>(index.rows);
+                windowReady.value = true;
+                lockColumnWidthsForLoadedModel();
+              },
+              error: (error) => {
+                if (identity === targetKey.value && state === tables.getCsvModState(captured.modRoot)) throw error;
+              },
+            },
           );
-          tables.acceptSavedTableIndex(captured, index, Boolean(view.searchText.trim()));
-          refreshAfterSave = false;
-          widthSample.value = cloneQuerySnapshot<CsvDraftRow[]>(index.rows);
-          windowReady.value = true;
-          lockColumnWidthsForLoadedModel();
         });
       }
       if (

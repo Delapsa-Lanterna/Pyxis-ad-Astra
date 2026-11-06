@@ -93,6 +93,7 @@ export const fullConfig = [
           './tsconfig.node.json',
           './tsconfig.scripts.json',
           './tsconfig.browser-scripts.json',
+          './tsconfig.desktop-scripts.json',
           './.audit-tools/tsconfig.json',
         ],
         tsconfigRootDir: import.meta.dirname,

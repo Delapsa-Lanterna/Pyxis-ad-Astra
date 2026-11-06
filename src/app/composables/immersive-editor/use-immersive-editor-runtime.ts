@@ -410,7 +410,7 @@ export function useImmersiveEditorRuntime<TPanel extends ImmersivePanel>(
       const target = joint.currentTarget.value;
       if (
         !target ||
-        event.sessionId !== target.sessionId ||
+        (event.sessionId !== target.sessionId && !sessionContentUpdate(event, target.sessionId)) ||
         normalizeFsPath(event.modRoot) !== normalizeFsPath(target.modRoot) ||
         !joint.acceptsSaveDelivery(target, event.result.requestId)
       )
@@ -418,7 +418,8 @@ export function useImmersiveEditorRuntime<TPanel extends ImmersivePanel>(
       const changes = event.result.identityChanges.filter(
         (change) =>
           change.before.kind === root.kind &&
-          change.before.id !== change.after.id &&
+          (change.before.id !== change.after.id ||
+            normalizeFsPath(change.before.write.path) !== normalizeFsPath(change.after.write.path)) &&
           (change.before.id === target.id ||
             (root.kind === 'variant' &&
               snapshot.value?.records.some(

@@ -1,11 +1,11 @@
 import { watch, type Ref } from 'vue';
 import { useCoreAssetsStore, type CoreAssetState } from '@/stores/core-assets.store';
-import { queryCoreFields, queryCoreGraphics, invalidateCoreCacheForRoot } from '@/services/core-assets.service';
+import { queryCoreFields, queryCoreGraphics, invalidateCoreCacheForRoot, setWindowCoreSubscription } from '@/services/core-assets.service';
 import { recordLogBestEffort } from '@/services/app-log.service';
 import { errorContextOf, errorDiagnosticOf } from '@/shared/lib/errors';
 import { logFields } from '@/shared/lib/log-fields';
 import { normalizeFsPath, pathBelongsToRoot } from '@/shared/lib/paths';
-import { observeSavedContent, sessionContentUpdate } from '@/orchestrators/project-sync.orchestrator';
+import { observeSavedContent, sessionContentUpdate, observeCoreContent } from '@/orchestrators/project-sync.orchestrator';
 import type { DiscoveredField } from '@/shared/types';
 
 class CoreAssetLoader<T> {
@@ -16,6 +16,7 @@ class CoreAssetLoader<T> {
     private readonly lifetime: { generation: number; disposed: boolean },
     private readonly state: () => CoreAssetState<T>,
     private readonly query: (root: string) => Promise<T>,
+    private readonly ready: () => Promise<void>,
   ) {}
   load(refresh = false, required = false): Promise<void> {
     if (refresh) {
@@ -32,7 +33,8 @@ class CoreAssetLoader<T> {
     capturedState.status = 'loading';
     capturedState.error = null;
     const accepts = () => !this.lifetime.disposed && this.lifetime.generation === capturedGeneration && this.revision === capturedRevision;
-    const promise = this.query(capturedRoot)
+    const promise = this.ready()
+      .then(() => this.query(capturedRoot))
       .then((content) => {
         if (!accepts()) return;
         capturedState.content = content;
@@ -71,15 +73,58 @@ const loaders = new WeakMap<ReturnType<typeof useCoreAssetsStore>, CoreLoader>()
 export function startCoreAssetsLoading(root: Readonly<Ref<string | null>>): () => void {
   const store = useCoreAssetsStore();
   const lifetime = { generation: 0, disposed: false };
+  let settingSource = Promise.resolve();
 
   const runtime = {
-    fields: new CoreAssetLoader(store, lifetime, () => store.fields, queryCoreFields),
-    graphics: new CoreAssetLoader(store, lifetime, () => store.graphics, queryCoreGraphics),
+    fields: new CoreAssetLoader(
+      store,
+      lifetime,
+      () => store.fields,
+      queryCoreFields,
+      () => settingSource,
+    ),
+    graphics: new CoreAssetLoader(
+      store,
+      lifetime,
+      () => store.graphics,
+      queryCoreGraphics,
+      () => settingSource,
+    ),
   };
   loaders.set(store, runtime);
   store.reset(root.value);
+  const refreshTasks = (sources: readonly { relPath: string }[]) => {
+    const affected = (directory: string) =>
+      sources.some(({ relPath }) => pathBelongsToRoot(relPath, directory) || pathBelongsToRoot(directory, relPath));
+    const tasks = [];
+    if (['data/world/factions', 'data/hulls', 'data/weapons', 'data/shipsystems/wpn'].some(affected))
+      tasks.push(() => runtime.fields.load(true, true));
+    if (affected('graphics')) tasks.push(() => runtime.graphics.load(true, true));
+    return tasks;
+  };
+  const subscription = observeCoreContent((changedRoot, sources) => {
+    if (lifetime.disposed || !store.root || normalizeFsPath(store.root) !== normalizeFsPath(changedRoot)) return;
+    return refreshTasks(sources);
+  });
+  settingSource = subscription.ready;
+  const registerSource = (value: string | null) => {
+    settingSource = settingSource
+      .then(() => setWindowCoreSubscription(value))
+      .catch((error) => {
+        const diagnostic = errorDiagnosticOf(error);
+        recordLogBestEffort({
+          level: 'error',
+          code: diagnostic.code,
+          message: diagnostic.message,
+          path: diagnostic.location?.path ?? null,
+          line: null,
+          fields: logFields({ root: value }),
+        });
+      });
+  };
+  registerSource(root.value);
   const stopChanges = observeSavedContent((change) => {
-    const update = sessionContentUpdate(change, change.sessionId);
+    const update = change.originWindowLabel === 'source-watch' ? null : sessionContentUpdate(change, change.sessionId);
     if (!update) return;
 
     const { manifest, invalidation } = update;
@@ -90,18 +135,13 @@ export function startCoreAssetsLoading(root: Readonly<Ref<string | null>>): () =
       normalizeFsPath(store.root) !== normalizeFsPath(manifest.starsectorRoot)
     )
       return;
-    const paths = invalidation.resources.filter((source) => source.source === 'core').map((source) => source.relPath);
-    const affected = (directory: string) => paths.some((path) => pathBelongsToRoot(path, directory) || pathBelongsToRoot(directory, path));
-    const tasks = [];
-    if (['data/world/factions', 'data/hulls', 'data/weapons', 'data/shipsystems/wpn'].some(affected))
-      tasks.push(() => runtime.fields.load(true, true));
-    if (affected('graphics')) tasks.push(() => runtime.graphics.load(true, true));
-    return tasks;
+    return refreshTasks(invalidation.resources.filter((source) => source.source === 'core'));
   });
   const stop = watch(
     root,
     (nextRoot) => {
       lifetime.generation++;
+      registerSource(nextRoot);
       store.reset(nextRoot);
       void runtime.fields.load();
       void runtime.graphics.load();
@@ -113,6 +153,8 @@ export function startCoreAssetsLoading(root: Readonly<Ref<string | null>>): () =
     lifetime.generation++;
     stop();
     stopChanges();
+    subscription.release();
+    registerSource(null);
     loaders.delete(store);
     store.reset(null);
   };

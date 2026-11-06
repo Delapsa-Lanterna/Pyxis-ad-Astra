@@ -18,6 +18,7 @@ pub mod project;
 pub mod project_save;
 pub mod project_session;
 pub mod project_sync;
+pub mod source_watch;
 pub mod system_open;
 pub mod windows;
 pub mod workspace_persistence;

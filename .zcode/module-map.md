@@ -58,7 +58,7 @@
 
 ## 公共文件
 
-- `scripts/shared/`：工程检查与浏览器验收共享的仓库遍历、语言解析、位置及样本统计工具。
+- `scripts/shared/`：工程检查、浏览器与桌面验收共享的仓库遍历、语言解析、位置及样本统计工具。
 - `src-tauri/src/app_data_dir.rs`：Tauri 工具私有数据目录解析。
 - `src-tauri/src/diagnostics.rs`：跨层诊断写入接口。
 - `src-tauri/src/domain/variant_modules.rs`：装配模块格式的纯读取与引用替换。
@@ -98,7 +98,8 @@
 - [工作区运行态与持久化](modules/workspace.md)：说明多 Mod 页签、项目打开、创建结果接纳、导航上下文、快照恢复及运行态释放。
 - [项目会话与正式内容](modules/project-session.md)：说明 `sessionId + modRoot`、正式实体与 JSON 来源、生命周期、原子接纳及提交恢复。
 - [项目来源读取](modules/project-sources.md)：说明授权来源、带版本读取、解析复用、来源缓存与持久化。
-- [项目同步](modules/project-sync.md)：说明来源刷新、提交接纳、同步重试、缓存失效与跨窗口通知。
+- [项目同步](modules/project-sync.md)：说明根订阅、来源批次排队、提交接纳、同步重试、缓存失效与跨窗口通知。
+- [来源变化监听](modules/source-watch.md)：说明共享根订阅、原生事件合批、监听诊断和工作线程释放。
 - [项目查询与缓存](modules/project-query-cache.md)：说明类型化查询定义、会话共享读取、缓存、门控与失效通知。
 - [来源候选目录](modules/source-catalog.md)：说明实际来源分组、候选查询、图片目录、标签元数据与所属失效。
 - [实体查询](modules/entity-query.md)：说明实体详情、列表、编辑目标、身份意图及所属失效。
@@ -133,5 +134,6 @@
 - [后端文件读写与变更集](modules/rust-file-io-changeset.md)：说明 UTF-8 IO、canonical 路径、父链校验、文件或目录快照与 replay。
 - [性能监视](modules/performance-monitor.md)：说明正式应用自动计时、运行开关、独立缓冲、时间线报告与 CPU 采样。
 - [浏览器预览与测试](modules/browser-testing.md)：说明浏览器预览、场景与窗口替身、功能验收、testbed、性能评估与报告。
+- [桌面测试](modules/desktop-testing.md)：说明独立原生应用构建、桌面运行、场景、页面探针、报告及资源释放。
 - [静态检查系统](modules/static-checks.md)：说明文本、格式配置、架构静态检查与模块文档契约的入口、边界和规则自检原则。
 - [关于页面](modules/about-page.md)：说明主窗口只读信息页、构建时内联 `CHANGELOG.md`、marked 渲染与 about 路由。

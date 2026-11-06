@@ -72,23 +72,37 @@ npm.cmd run build
 
 ## 浏览器预览、自动测试与性能测量
 
-### 启动预览与测试台
+### 模块入口
+
+`scripts/browser/` 提供服务、生产构建、浏览器执行及报告；`src/test/browser/` 提供浏览器模拟、场景、操作和基准。共享基础位于 `src/test/`：`fixtures/` 提供数据工厂，`unit/` 提供单元测试辅助。
+
+### 构建与启动
+
+#### 预览与测试台
 
 - 浏览器测试工作区：`npm.cmd run dev:browser`，默认地址为 `http://127.0.0.1:1461`。
 - 性能测试台：`npm.cmd run dev:testbed`，默认地址为 `http://127.0.0.1:1462`。
 
 地址参数 `?scene=csv&count=300&theme=dark` 选择独立场景、规模和主题。测试台提供各类候选列表的规模基准、重复使用压力和资源压力，点击预览或执行后加载样本。
 
-共享基础位于 `src/test/`：`fixtures/` 提供数据工厂，`unit/` 提供单元测试辅助，`browser/` 提供浏览器模拟、场景、操作和基准。`scripts/browser/` 提供服务、生产构建、浏览器执行及报告。
-
-### 构建与预览公开演示
+#### 公开演示
 
 ```powershell
 npm.cmd run build:demo -- --base /Pyxis-ad-Astra/
-node scripts/browser/serve.mjs browser --production --existing --directory dist/browser-demo --base /Pyxis-ad-Astra/ --port 1463
+npm.cmd run dev:browser -- --production --existing --directory dist/browser-demo --base /Pyxis-ad-Astra/ --port 1463
 ```
 
 演示产物位于 `dist/browser-demo/`。
+
+#### 比较两份构建
+
+先分别准备两份生产构建，再使用各自服务输出的端口填写测量命令：
+
+```powershell
+npm.cmd run dev:testbed -- --production --directory node_modules/.cache/browser/A
+npm.cmd run dev:testbed -- --production --directory node_modules/.cache/browser/B
+npm.cmd run test:browser -- --url http://127.0.0.1:端口A --variant A,http://127.0.0.1:端口A,off,code --variant B,http://127.0.0.1:端口B,off,code
+```
 
 ### 自动执行
 
@@ -117,22 +131,14 @@ npm.cmd run test:browser -- --suite smoke --scene weapons --aa
 npm.cmd run test:browser -- --suite lists --scene csv --count 50 --monitor-compare
 ```
 
+资源寿命检查：`npm.cmd run test:resources`。
+
 ### 执行参数
 
 - `--warmup 2 --rounds 30`：指定预热 2 次、测量 30 次。
 - `--first-open`：为每次首次打开创建新浏览器上下文并单独记录。
 - `--output <report.json>`：指定报告位置，默认位于 `node_modules/.cache/browser/reports/`。
 - `--url <地址>`：指定已运行服务；默认 `browser-ui` 连接 1461，其余测试连接 1462。
-
-### 比较两份构建
-
-先分别准备两份生产构建，再使用各自服务输出的端口填写测量命令：
-
-```powershell
-node scripts/browser/serve.mjs testbed --production --directory node_modules/.cache/browser/A
-node scripts/browser/serve.mjs testbed --production --directory node_modules/.cache/browser/B
-npm.cmd run test:browser -- --url http://127.0.0.1:端口A --variant A,http://127.0.0.1:端口A,off,code --variant B,http://127.0.0.1:端口B,off,code
-```
 
 构建参数：
 
@@ -147,9 +153,51 @@ npm.cmd run test:browser -- --url http://127.0.0.1:端口A --variant A,http://12
 
 行为失败和已有预算超限必须返回失败退出码。
 
-### 报告与采样
+### 报告与资源管理
 
 报告包含完整构建哈希、样本参数、运行设置、浏览器、视口、DPR、缓存条件、逐轮顺序、预热及正式样本，以及最小值、最大值、均值、中位数和 nearest-rank P95。首次打开与预热后结果请分别判读。
 
+报告与截图位于 `node_modules/.cache/browser/reports/`。每次运行排他持有输出文件与截图目录，执行结束释放所属浏览器连接与上下文。测试服务器启停必须取得明确授权，已有可用服务必须持续保留并复用。
+
 - CPU 采样：`node scripts/performance/profile.mjs <DevTools地址> <输出.cpuprofile> <毫秒>`。
-- 真实 EXE 的 CSV 测量：`scripts/browser/csv-desktop.mjs`。
+
+## 桌面测试
+
+### 模块入口
+
+`scripts/desktop/` 提供独立应用构建、真实窗口驱动、来源同步验收与 CSV 显示性能测量；`src/test/desktop/` 提供页面探针。
+
+### 构建与启动
+
+```powershell
+npm.cmd run build:desktop
+```
+
+独立可执行文件位于 `src-tauri/target/desktop-testing/release/pyxis-ad-astra.exe`，调试端口为 `9233`。Tauri 构建前运行正式 `build` 流程一次；测试运行器以普通用户权限在独立 Windows 桌面内启动应用，窗口操作在所属桌面内进行，用户输入桌面保持原状。
+
+### 自动执行
+
+来源同步验收与 CSV 显示性能测量：
+
+```powershell
+npm.cmd run test:desktop -- --suite sources
+npm.cmd run test:desktop -- --suite csv --rounds 30
+```
+
+资源寿命检查：`npm.cmd run test:resources`。
+
+### 执行参数
+
+- `--exe <可执行文件>`：指定使用相同桌面测试配置构建的应用。
+- `--mod <目录>`：复制指定 Mod 作为本次测量样本。
+- `--phase cold|warm|all`：选择首次进入、返回与滚动或完整测量。
+- `--count 50 --rounds 30`：指定生成样本行数与测量次数。
+- `--screenshots`：保存 CSV 测量窗口的明暗与宽窄截图。
+- `--output <report.json>`：排他预留 JSON、Markdown 与附件目录。
+- `--dry-run`：输出实际配置。
+
+### 报告与资源管理
+
+JSON 与 Markdown 报告包含场景参数、可执行文件及脚本哈希、窗口环境、逐项断言耗时、原始测量、统计、诊断和资源释放结果。报告、日志与截图位于 `node_modules/.cache/desktop-testing/reports/`，样本在所属工作区中生成或复制。
+
+桌面测试必须使用独立应用构建及所属工具目录；文件操作必须作用于本次样本，结束必须经正常关闭流程交还进程和目录。
