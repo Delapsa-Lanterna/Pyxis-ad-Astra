@@ -3,7 +3,7 @@ import { getCsvColumnSchemas } from '@/domain/schema/csv-schema-registry';
 import { csvValueError } from '@/domain/schema/csv-value-validation';
 import { cell } from '@/shared/lib/starsector';
 import { isRowData } from '@/shared/lib/row-data';
-import { CSV_SPEC_KINDS, DESCRIPTION_KINDS } from './csv-rule-context';
+import { CSV_SPEC_KINDS, DESCRIPTION_KINDS, isCsvBusinessRow } from './csv-rule-context';
 
 export function csvRowProblems(
   table: CsvTableKey,
@@ -17,7 +17,7 @@ export function csvRowProblems(
     columns = definitions.filter((column) => header.includes(column.key) || column.required);
   const add = (severity: FieldProblem['severity'], code: string, path: string, message: string) =>
     issues.push({ severity, code: `csv.${code}`, path, message });
-  const business = new Set(rows.filter((row) => !row.isComment && Object.values(row.data).some((v) => cell(v) !== '')));
+  const business = new Set(rows.filter((row) => isCsvBusinessRow(row, table === 'simOpponents' ? 'variant id' : 'id')));
   if (business.size)
     for (const column of definitions)
       if ((column.requiredColumn || column.required) && !header.includes(column.key))
@@ -98,7 +98,6 @@ export function csvRowProblems(
     if (id && id !== id.trim()) problem('id', 'ID 包含首尾空白，游戏按原值区分身份。');
     if (header.includes('name') && !text('name') && (table !== 'ships' || !text('designation')))
       problem('name', table === 'ships' ? '名称与定位均为空，请确认显示效果。' : '名称为空，请确认显示效果。');
-    if (!id && table !== 'simOpponents') problem('id', '本行已有内容，但 ID 为空，请确认该行的用途。');
     const ownKind = CSV_SPEC_KINDS[table];
     const spec = context && ownKind ? context.entities[`${ownKind}:${id}`] : null;
     if (id && context && ownKind && !spec)

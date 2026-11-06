@@ -14,6 +14,9 @@ export const DESCRIPTION_KINDS: Partial<Record<string, EntityKind>> = {
   SHIP_SYSTEM: 'system',
   FACTION: 'faction',
 };
+export function isCsvBusinessRow(row: CsvDraftRow, identityColumn = 'id'): boolean {
+  return !row.isComment && cell(row.data[identityColumn]) !== '';
+}
 export function csvValidationRequest(table: CsvTableKey, rows: readonly CsvDraftRow[]): CsvValidationRequest {
   const columns = getCsvColumnSchemas(table).filter(
     (column) => column.control === 'reference' || column.control === 'path-image' || column.script,
@@ -26,8 +29,9 @@ export function csvValidationRequest(table: CsvTableKey, rows: readonly CsvDraft
   const entity = (kind: CsvValidationRequest['entities'][number]['kind'], id: string) => {
     if (id) entities.set(`${kind}:${id}`, { kind, id });
   };
-  for (const { data, isComment } of rows) {
-    if (isComment || !Object.values(data).some((value) => cell(value) !== '')) continue;
+  for (const row of rows) {
+    if (!isCsvBusinessRow(row, table === 'simOpponents' ? 'variant id' : 'id')) continue;
+    const { data } = row;
     const id = cell(data.id);
     const ownKind = CSV_SPEC_KINDS[table];
     if (ownKind) entity(ownKind, id);

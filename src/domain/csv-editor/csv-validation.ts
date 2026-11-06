@@ -3,7 +3,7 @@ import { cell } from '@/shared/lib/starsector';
 import { csvDirtyCells } from './csv-dirty';
 import { getCsvColumnSchemas } from '@/domain/schema/csv-schema-registry';
 import { csvRowProblems } from './csv-row-validation';
-import { csvValidationRequest } from './csv-rule-context';
+import { csvValidationRequest, isCsvBusinessRow } from './csv-rule-context';
 
 interface CsvValidationDefinition {
   columns: string[];
@@ -13,7 +13,7 @@ function uniqueIdentities(rows: readonly CsvDraftRow[], columns = ['id']): Field
   const groups = new Map<string, number[]>();
   rows.forEach((row, index) => {
     const values = columns.map((key) => cell(row.data[key]));
-    if (row.isComment || values.every((value) => value === '')) return;
+    if (!isCsvBusinessRow(row)) return;
     const key = JSON.stringify(values);
     const positions = groups.get(key) ?? [];
     positions.push(index + 1);

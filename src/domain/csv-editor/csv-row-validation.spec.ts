@@ -46,6 +46,14 @@ function context(table: CsvTableKey, values: RowData): CsvValidationContext {
   };
 }
 describe('CSV declared types and complete row rules', () => {
+  it.each(TABLE_KEYS)('preserves annotation rows in %s', (table) => {
+    const columns = getCsvColumnSchemas(table),
+      row = sample(table, Object.fromEntries(columns.map((column) => [column.key, 'Section']))),
+      header = columns.map((column) => column.key);
+    row.data[table === 'simOpponents' ? 'variant id' : 'id'] = '';
+    expect(csvRowProblems(table, [row], header, null)).toEqual([]);
+    expect(csvValidationRequest(table, [row])).toEqual({ entities: [], sources: [], files: [], classes: [], stationData: [] });
+  });
   it.each(TABLE_KEYS)('accepts the declared required values of %s', (table) => {
     expect(check(table, {}).filter((issue) => issue.severity === 'error')).toEqual([]);
   });

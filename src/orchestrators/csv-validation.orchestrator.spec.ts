@@ -6,7 +6,8 @@ import { useCsvEditorStore } from '@/stores/csv-editor.store';
 import { useProjectStore } from '@/stores/project.store';
 import { initializeSettingsStore } from '@/stores/settings.store';
 import { createSettingsFixture } from '@/test/fixtures/settings';
-import { sessionUpdateFixture } from '@/test/fixtures/write-result';
+import { savedWriteFixture, sessionUpdateFixture } from '@/test/fixtures/write-result';
+import { savedContentWorks } from '@/test/unit/project-changes';
 import { csvDraftRow } from '@/test/fixtures/csv-row';
 import { replaceCsvTableDraft } from '@/domain/csv-editor/csv-table-draft';
 import { saveCsvChanges } from './csv-save.orchestrator';
@@ -17,6 +18,10 @@ vi.mock('@/services/csv-table.service', async (original) => ({
   ...(await original<typeof importType>()),
   queryCsvValidation: mocks.read,
   saveCsvPatch: mocks.write,
+}));
+vi.mock('@/orchestrators/project-sync.orchestrator', async () => ({
+  ...(await vi.importActual('@/orchestrators/project-sync.orchestrator')),
+  beginSavedWrite: (await import('@/test/unit/project-changes')).beginSavedWrite,
 }));
 vi.mock('@/services/window.service', () => ({ reserveNativeWindowTargets: async () => {}, releaseNativeWindowTargets: async () => {} }));
 import type * as importType from '@/services/csv-table.service';
@@ -58,6 +63,29 @@ function fixture() {
   return { tables, target, document, edit, save, context, choose };
 }
 describe('CSV schema checks in the actual save entry', () => {
+  it('saves annotation content through the formal save entry', async () => {
+    const f = fixture();
+    replaceCsvTableDraft(f.document, [csvDraftRow({ id: '', name: '', mass: '', 'shield type': '', hints: '' }, 'row')]);
+    f.edit('name', 'Section');
+    const content = { ...f.document.rows.row!.data };
+    mocks.read.mockResolvedValueOnce(f.context);
+    mocks.write.mockResolvedValueOnce(savedWriteFixture());
+    await expect(f.save()).resolves.toMatchObject({ status: 'saved' });
+    await savedContentWorks.at(-1)!.content;
+    expect(f.tables.getTableProblems(f.target).issues.value).toEqual([]);
+    expect(f.choose).toHaveBeenCalledTimes(0);
+    expect(mocks.read).toHaveBeenCalledExactlyOnceWith(f.target.sessionId, {
+      entities: [],
+      sources: [],
+      files: [],
+      classes: [],
+      stationData: [],
+    });
+    expect(mocks.write).toHaveBeenCalledTimes(1);
+    expect(mocks.write.mock.calls[0]![3]).toEqual([{ rowKey: 'row', action: 'upsert', isComment: false, row: content }]);
+    expect(f.document.baselineRows.row!.data).toEqual(content);
+    expect(f.document.dirty).toEqual({});
+  });
   it('blocks a submitted numeric input before reading dependencies', async () => {
     const f = fixture(),
       dirty = ref(true);

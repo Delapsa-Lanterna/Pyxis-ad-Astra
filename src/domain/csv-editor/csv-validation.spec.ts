@@ -46,6 +46,26 @@ describe('CSV table-specific validation', () => {
     expect(csvValidationDefinitions.descriptions.validate(rows)).toMatchObject([{ path: 'row-0/id' }]);
     expect(csvValidationDefinitions.simOpponents.validate(rows)).toEqual([]);
   });
+  it('checks description identities alongside annotation rows', () => {
+    const rows = [row('', 0, false, 'SHIP'), row('', 1, false, 'SHIP'), row('sample', 2, false, 'SHIP'), row('sample', 3, false, 'SHIP')];
+    const issues = csvValidationDefinitions.descriptions.validate(rows);
+    expect(issues).toHaveLength(1);
+    expect(issues[0]).toMatchObject({ path: 'row-2/id' });
+    expect(issues[0]!.message).toContain('2 行，行号：3、4');
+  });
+  it('rechecks the document when an annotation gains and loses its ID', () => {
+    const state = document();
+    state.header = ['id', 'name', 'mass', 'shield type'];
+    replaceCsvTableDraft(state, [csvDraftRow({ id: '', name: 'Section', mass: '', 'shield type': '' }, 'section')]);
+    expect(allTableIssues(state)).toEqual([]);
+    setCsvCellValueDraft(state, 'section', 'id', 'sample');
+    expect(allTableIssues(state)).toMatchObject([
+      { severity: 'error', path: 'section/mass' },
+      { severity: 'error', path: 'section/shield type' },
+    ]);
+    setCsvCellValueDraft(state, 'section', 'id', '');
+    expect(allTableIssues(state)).toEqual([]);
+  });
   it('checks the literal wing suffix for each nonempty business ID', () => {
     const rows = [row('sample_wing', 0), row('sample_WING', 1), row('other', 2), row('', 3), row('comment', 4, true)];
     expect(csvValidationDefinitions.wings.validate(rows)).toMatchObject([
