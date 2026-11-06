@@ -1102,8 +1102,14 @@ mod source_refresh_tests {
         fs::write(&descriptor, original).unwrap();
         let reads = work_counts::count("read", &path);
         let parses = work_counts::count("parse", &path);
+        fs::create_dir_all(root.join("data/hulls-extra")).unwrap();
+        let directory_paths = vec![
+            root.join("data/hulls").to_string_lossy().into_owned(),
+            root.join("data/hulls-extra").to_string_lossy().into_owned(),
+            paths[0].clone(),
+        ];
         let refreshed =
-            refresh_mod_root_sources(&first.mod_root, &ids, &paths[..1], false).unwrap();
+            refresh_mod_root_sources(&first.mod_root, &ids, &directory_paths, false).unwrap();
         assert_eq!(refreshed.session_updates.len(), 2);
         assert_eq!(work_counts::count("read", &path) - reads, 1);
         assert_eq!(work_counts::count("parse", &path) - parses, 1);
@@ -1126,6 +1132,66 @@ mod source_refresh_tests {
         }
         root.close().unwrap();
     }
+    #[test]
+    fn directory_refresh_compares_created_renamed_deleted_and_unchanged_sources() {
+        let root = project_workspace("directory_source_versions");
+        let directory = root.join("data/hulls");
+        fs::create_dir_all(&directory).unwrap();
+        let manifest = open_project_session_traced(
+            &root,
+            None,
+            &mut PerformanceTrace::new("directory.versions"),
+        )
+        .unwrap();
+        let ids = slice::from_ref(&manifest.session_id);
+        let paths = vec![directory.to_string_lossy().into_owned()];
+        for (before, after, count) in [
+            (None, Some("created.ship"), 1),
+            (Some("created.ship"), Some("renamed.ship"), 1),
+            (Some("renamed.ship"), None, 0),
+        ] {
+            if let Some(before) = before {
+                if let Some(after) = after {
+                    fs::rename(directory.join(before), directory.join(after)).unwrap();
+                } else {
+                    fs::remove_file(directory.join(before)).unwrap();
+                }
+            } else {
+                fs::write(
+                    directory.join(after.expect("created source")),
+                    r#"{"hullId":"record"}"#,
+                )
+                .unwrap();
+            }
+            let refreshed =
+                refresh_mod_root_sources(&manifest.mod_root, ids, &paths, false).unwrap();
+            assert_eq!(refreshed.session_updates.len(), 1);
+            assert_eq!(
+                refreshed.session_updates[0]
+                    .content
+                    .manifest
+                    .entity_summaries
+                    .ships,
+                count
+            );
+            let file = directory.join(after.unwrap_or("renamed.ship"));
+            let reads = work_counts::count("read", &file);
+            let parses = work_counts::count("parse", &file);
+            for requested in [&paths[..], &[file.to_string_lossy().into_owned()]] {
+                let repeated =
+                    refresh_mod_root_sources(&manifest.mod_root, ids, requested, false).unwrap();
+                assert!(repeated.session_updates.is_empty());
+            }
+            assert_eq!(
+                work_counts::count("read", &file) - reads,
+                usize::from(after.is_some()) * 2
+            );
+            assert_eq!(work_counts::count("parse", &file), parses);
+        }
+        release_project_session(manifest.session_id).unwrap();
+        root.close().unwrap();
+    }
+
     #[test]
     fn deleted_loaded_csv_keeps_recovery_rows_for_file_and_directory_scopes() {
         for scope in ["data/hulls/ship_data.csv", "data/hulls", "data"] {

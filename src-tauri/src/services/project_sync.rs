@@ -1084,6 +1084,62 @@ mod tests {
         root.close().unwrap();
     }
     #[test]
+    fn source_watch_reports_failure_and_explicit_retry_progress() {
+        let _serial = TEST_QUEUE.lock().unwrap();
+        let root = project_workspace("source_retry_status").with_cleanup(release_watched_workspace);
+        let path = root.join("mod_info.json");
+        fs::write(&path, r#"{"id":"sample","name":"Sample"}"#).unwrap();
+        let manifest = project::open_project_session_traced(
+            &root,
+            None,
+            &mut PerformanceTrace::new("source.retry"),
+        )
+        .unwrap();
+        let owner = format!("watch:{}", windows_path_key(&root.to_string_lossy()));
+        let receive = window(&owner);
+        fs::write(&path, "{").unwrap();
+        consume_source_batch(SourceChangeBatch {
+            root: manifest.mod_root.clone(),
+            paths: [path.clone()].into(),
+            ..Default::default()
+        });
+        assert!(
+            receive
+                .try_iter()
+                .any(|delivery| delivery["state"] == "failed")
+        );
+        fs::write(&path, r#"{"id":"sample","name":"Recovered"}"#).unwrap();
+        let subscription = begin_source_watch(&root).unwrap();
+        retain_source_watch(
+            manifest.session_id.clone(),
+            subscription,
+            ResourceSource::Mod,
+        )
+        .unwrap();
+        retry_source_watch(&owner, &manifest.mod_root).unwrap();
+        assert_eq!(
+            receive.recv_timeout(Duration::from_secs(15)).unwrap()["state"],
+            "scanning"
+        );
+        loop {
+            let delivery = receive.recv_timeout(Duration::from_secs(15)).unwrap();
+            if delivery["kind"] == "sourceStatus" && delivery["state"] == "watching" {
+                break;
+            }
+        }
+        assert_eq!(
+            project::current_project_manifest(&manifest.session_id)
+                .unwrap()
+                .mod_info
+                .unwrap()["name"],
+            "Recovered"
+        );
+        release_project_session(manifest.session_id).unwrap();
+        release_window(&owner).unwrap();
+        root.close().unwrap();
+    }
+
+    #[test]
     fn source_watch_updates_same_root_sessions_once_and_deduplicates_accepted_bytes() {
         let _serial = TEST_QUEUE.lock().unwrap();
         let root = project_workspace("watched_sessions").with_cleanup(release_watched_workspace);
@@ -1111,6 +1167,7 @@ mod tests {
         fs::write(&path, "id,name\nsample,Updated\n").unwrap();
         let event = loop {
             let delivery = receive.recv_timeout(Duration::from_secs(15)).unwrap();
+            assert!(delivery["kind"] != "sourceStatus" || delivery["state"] != "scanning");
             if delivery["kind"] == "saved" && delivery["event"]["modRoot"] == first.mod_root {
                 break delivery["event"].clone();
             }

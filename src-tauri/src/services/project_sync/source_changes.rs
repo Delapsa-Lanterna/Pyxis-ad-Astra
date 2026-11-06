@@ -15,6 +15,7 @@ use std::path::Path;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Condvar, LazyLock, Mutex};
 use std::thread;
+use std::time::Instant;
 use tauri::AppHandle;
 
 pub(super) struct RootSubscription {
@@ -223,15 +224,24 @@ pub fn retry_source_watch(label: &str, root: &str) -> AppResult<()> {
             "来源监听不属于当前窗口",
         ));
     }
-    let watched = SOURCE_WATCHES
-        .lock()
-        .map_err(|_| AppError::message("source.watch_lock", "来源监听状态不可用"))?;
-    watched
-        .values()
-        .find(|subscription| windows_path_key(subscription.watch.root()) == windows_path_key(root))
-        .ok_or_else(|| AppError::message("source.watch_closed", "来源监听已释放"))?
-        .watch
-        .retry()
+    publish_source_status(root, SourceSyncState::Scanning, None)?;
+    let result = (|| {
+        let watched = SOURCE_WATCHES
+            .lock()
+            .map_err(|_| AppError::message("source.watch_lock", "来源监听状态不可用"))?;
+        watched
+            .values()
+            .find(|subscription| {
+                windows_path_key(subscription.watch.root()) == windows_path_key(root)
+            })
+            .ok_or_else(|| AppError::message("source.watch_closed", "来源监听已释放"))?
+            .watch
+            .retry()
+    })();
+    if let Err(error) = &result {
+        publish_source_status(root, SourceSyncState::Failed, Some(error.diagnostic()))?;
+    }
+    result
 }
 pub(super) fn release_source_watch(owner: &str) -> AppResult<()> {
     let subscription = SOURCE_WATCHES
@@ -310,6 +320,7 @@ pub(super) fn consume_source_batch(batch: SourceChangeBatch) {
 }
 fn consume_queued_source_batch(batch: SourceChangeBatch, queued: Option<Arc<SaveTask>>) {
     let root = batch.root.clone();
+    let started = Instant::now();
     let result = (|| -> AppResult<()> {
         if let Some(diagnostic) = &batch.diagnostic {
             publish_source_status(&root, SourceSyncState::Failed, Some(diagnostic.clone()))?;
@@ -342,7 +353,6 @@ fn consume_queued_source_batch(batch: SourceChangeBatch, queued: Option<Arc<Save
                 Some(&first.session_id),
             )?,
         };
-        publish_source_status(&root, SourceSyncState::Scanning, None)?;
         let paths = batch
             .paths
             .iter()
@@ -438,6 +448,12 @@ fn consume_queued_source_batch(batch: SourceChangeBatch, queued: Option<Arc<Save
             batch.diagnostic.clone(),
         )
     })();
+    diagnostics::debug("source.batch", || {
+        json!({"root":root,"paths":batch.paths,"renames":batch.renames,
+            "rescan":batch.rescan,"elapsedMs":started.elapsed().as_millis(),
+            "success":result.is_ok()})
+        .to_string()
+    });
     if let Err(error) = result {
         if let Err(delivery) =
             publish_source_status(&root, SourceSyncState::Failed, Some(error.diagnostic()))

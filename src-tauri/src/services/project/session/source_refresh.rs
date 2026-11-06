@@ -120,28 +120,29 @@ fn refresh_candidates(
         .filter(|handle| ids.contains(&handle.session_id))
         .cloned()
         .collect::<Vec<_>>();
-    let mut candidates = handles
-        .iter()
-        .map(|handle| Ok(lock_ready_session(handle)?.clone()))
-        .collect::<AppResult<Vec<_>>>()?;
     let mut result = WriteResult::from_changes(Vec::new());
-    let Some(first) = candidates.first() else {
+    let Some(first) = handles.first() else {
         return Ok(result);
     };
+    let first = lock_ready_session(first)?;
+    let mut reader = source_versions::source_reader_for_session(&first)?;
+    drop(first);
+    let versions = handles
+        .iter()
+        .map(|handle| Ok(lock_ready_session(handle)?.source_versions.clone()))
+        .collect::<AppResult<Vec<_>>>()?;
     let boundary = FsRootBoundary::new(Path::new(root), "source root")?;
-    let mut reader = source_versions::source_reader_for_session(first)?;
     let mut requested = paths.to_vec();
     if rescan {
         requested.extend(
             ["mod_info.json", "data", "graphics"]
                 .map(|path| Path::new(root).join(path).to_string_lossy().into_owned()),
         );
-        requested.extend(candidates.iter().flat_map(|candidate| {
-            candidate
-                .source_versions
-                .values()
-                .map(|version| version.path.clone())
-        }));
+        requested.extend(
+            versions
+                .iter()
+                .flat_map(|versions| versions.values().map(|version| version.path.clone())),
+        );
     }
     let mut relative = requested
         .iter()
@@ -150,53 +151,90 @@ fn refresh_candidates(
         .into_iter()
         .flatten()
         .collect::<Vec<_>>();
-    relative.sort_by_cached_key(|path| models::windows_path_key(path));
-    relative
-        .dedup_by(|left, right| models::windows_path_key(left) == models::windows_path_key(right));
+    relative.sort_by_cached_key(|path| Path::new(&models::windows_path_key(path)).to_path_buf());
+    relative.dedup_by(|left, right| {
+        io::relative_path_contains(
+            &models::windows_path_key(right),
+            &models::windows_path_key(left),
+        )
+    });
     let mut scopes: Vec<InvalidatedResourceScope> = Vec::new();
     for relative in relative {
-        if scopes
-            .last()
-            .is_some_and(|parent| io::relative_path_contains(&parent.rel_path, &relative))
-        {
-            continue;
-        }
+        let scope_count = scopes.len();
         let path = boundary.resolve_relative(&relative, "source change")?;
         let directory = path.is_dir();
-        let changed = rescan || directory || {
-            let version = reader.stage_version(&path)?;
-            candidates.iter().any(|candidate| {
-                (!path.exists()
-                    && candidate.source_versions.keys().any(|known| {
-                        known != &relative && io::relative_path_contains(&relative, known)
-                    }))
-                    || candidate
-                        .source_versions
-                        .get(&relative)
-                        .and_then(|version| version.fingerprint.as_ref())
-                        != version.fingerprint.as_ref()
-            })
+        // Compare retained missing paths together with the files currently on disk.
+        let mut files = if directory {
+            reader.files(&relative)?
+        } else {
+            Vec::new()
         };
-        if changed {
-            if directory {
-                reader.files(&relative)?;
+        if !path.is_file() {
+            files.extend(
+                versions
+                    .iter()
+                    .flat_map(|versions| versions.iter())
+                    .filter(|(known, _)| {
+                        **known != relative && io::relative_path_contains(&relative, known)
+                    })
+                    .map(|(_, version)| Path::new(&version.path).to_path_buf()),
+            );
+        }
+        files.push(path.clone());
+        files.sort();
+        files.dedup();
+        for file in files.iter().filter(|file| !file.is_dir()) {
+            let version = reader.stage_version(file)?;
+            let key = reader.key(file);
+            if rescan
+                || versions.iter().any(|versions| {
+                    versions
+                        .get(&key)
+                        .and_then(|known| known.fingerprint.as_ref())
+                        != version.fingerprint.as_ref()
+                })
+            {
+                scopes.push(InvalidatedResourceScope {
+                    source: ResourceSource::Mod,
+                    rel_path: key,
+                });
             }
-            scopes.push(InvalidatedResourceScope {
-                source: ResourceSource::Mod,
-                rel_path: relative,
-            });
+        }
+        if directory {
+            let version = reader.directory_version(&path)?;
+            let changed = rescan
+                || versions.iter().any(|versions| {
+                    versions
+                        .get(&relative)
+                        .and_then(|known| known.fingerprint.as_ref())
+                        != version.fingerprint.as_ref()
+                });
+            reader.versions.insert(relative.clone(), version);
+            if scopes.len() == scope_count && changed {
+                scopes.push(InvalidatedResourceScope {
+                    source: ResourceSource::Mod,
+                    rel_path: relative,
+                });
+            }
         }
     }
     if scopes.is_empty() && core_sources.is_empty() {
         return Ok(result);
     }
+    let staged = reader.versions.clone();
     reader.invalidate_paths(
         &scopes
             .iter()
             .map(|scope| scope.rel_path.as_str())
             .collect::<Vec<_>>(),
     );
+    // Preserve staged missing-file versions as well as retained file bytes.
+    reader.versions.extend(staged);
     scopes.extend_from_slice(core_sources);
+    let mut candidates = handles
+        .iter()
+        .map(|handle| Ok(lock_ready_session(handle)?.clone()))
+        .collect::<AppResult<Vec<_>>>()?;
     for candidate in &mut candidates {
         let mut update = invalidation::refresh_sources_from(candidate, &scopes, &mut reader)?;
         update.session |= !core_sources.is_empty();
