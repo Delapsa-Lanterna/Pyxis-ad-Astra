@@ -1,3 +1,4 @@
+import type { CsvValidationRequest } from '@/shared/types';
 import { csvEditorView } from '@/app/composables/csv-editor/tests/csv-editor-view';
 import { csvTableIndex } from '@/test/fixtures/csv-row';
 import { enableAutoUnmount, flushPromises, mount, type VueWrapper } from '@vue/test-utils';
@@ -23,6 +24,14 @@ enableAutoUnmount(afterEach);
 const mocks = vi.hoisted(() => ({ query: vi.fn(), error: vi.fn() }));
 vi.mock('@/services/csv-table.service', () => ({
   queryTableIndex: mocks.query,
+  queryCsvValidation: async (_session: string, request: CsvValidationRequest) => ({
+    complete: false,
+    entities: Object.fromEntries(request.entities.map(({ kind, id }) => [kind + ':' + id, {}])),
+    sources: Object.fromEntries(request.sources.map((source) => [source, []])),
+    files: {},
+    classes: {},
+    stationData: {},
+  }),
   queryTableRows: vi.fn(),
   queryTableRowPreviewDataUrl: async () => '',
 }));
@@ -70,6 +79,18 @@ async function mountWorkspace() {
   await flushPromises();
 }
 describe('table workspace search controls', () => {
+  it('retains collapsed details during edits and opens them for a save rejection', async () => {
+    await mountWorkspace();
+    await wrapper.get('[aria-controls]').trigger('click');
+    const problems = useCsvEditorStore().getTableProblems(target);
+    problems.recordFailure(new Error('Save failure'));
+    await flushPromises();
+    expect(wrapper.get('[aria-controls]').attributes('aria-expanded')).toBe('false');
+    problems.reveal();
+    await flushPromises();
+    expect(wrapper.get('[aria-controls]').attributes('aria-expanded')).toBe('true');
+    expect(wrapper.get('[role="alert"]').text()).toContain('Save failure');
+  });
   it('toggles the detail pane without replacing the table, selection or mounted detail pane', async () => {
     await mountWorkspace();
     const table = wrapper.getComponent({ name: 'CsvTableEditor' }).element;

@@ -3,6 +3,35 @@ import { parseCsvColumnSchemas, parseFileSchema } from './schema-asset-parser';
 import { CSV_COLUMN_CONTROLS, type FileSchema } from './schema.types';
 
 describe('schema asset validation', () => {
+  it('projects grouped CSV constraints onto their declared columns', () => {
+    expect(
+      parseCsvColumnSchemas('sample', {
+        $schema: 'pyxis-ad-astra/csv-columns/v1',
+        table: 'sample',
+        columns: [
+          { key: 'count', control: 'number' },
+          { key: 'cost', control: 'number' },
+        ],
+        validation: { integer: ['count'], required: ['count'], requiredColumn: ['count'], warningMin: { cost: 0 } },
+      }),
+    ).toEqual([
+      { key: 'count', control: 'number', valueType: 'integer', required: true, requiredColumn: true },
+      { key: 'cost', control: 'number', valueType: 'float', warningMin: 0 },
+    ]);
+  });
+  it.each([{ integer: 'count' }, { required: true }, { warningMin: { count: 'zero' } }])(
+    'rejects malformed grouped CSV constraints %j',
+    (validation) => {
+      expect(() =>
+        parseCsvColumnSchemas('sample', {
+          $schema: 'pyxis-ad-astra/csv-columns/v1',
+          table: 'sample',
+          columns: [{ key: 'count', control: 'number' }],
+          validation,
+        }),
+      ).toThrow();
+    },
+  );
   it.each([{ imageDirectories: [] }, { imageDirectories: ['.'] }, { imageDirectories: ['graphics/icons', 'graphics/ships'] }])(
     'preserves image directories $imageDirectories in fields and CSV columns',
     ({ imageDirectories }) => {

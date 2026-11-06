@@ -27,6 +27,7 @@ pub fn query_csv_table_index(
     initial_count: usize,
     search: Option<String>,
     search_field: CsvSearchField,
+    validation_columns: &[String],
 ) -> AppResult<CsvTableIndex> {
     let handle = session_handle(session_id)?;
     let mut session = lock_ready_session(&handle)?;
@@ -62,6 +63,17 @@ pub fn query_csv_table_index(
     #[cfg(test)]
     csv_files::record_csv_row_copies(rows.len());
     Ok(CsvTableIndex {
+        validation_rows: rows_ref
+            .iter()
+            .map(|row| CsvRowRecord {
+                row_key: row.row_key.clone(),
+                is_comment: row.is_comment,
+                data: validation_columns
+                    .iter()
+                    .filter_map(|key| row.data.get(key).map(|value| (key.clone(), value.clone())))
+                    .collect(),
+            })
+            .collect(),
         base_versions,
         table,
         header: table_data.header.clone(),
@@ -126,7 +138,8 @@ pub fn query_csv_table_window(
     search: Option<String>,
     search_field: CsvSearchField,
 ) -> AppResult<CsvTableIndex> {
-    let mut index = query_csv_table_index(session_id, table, start + count, search, search_field)?;
+    let mut index =
+        query_csv_table_index(session_id, table, start + count, search, search_field, &[])?;
     index.rows = index.rows.into_iter().skip(start).collect();
     Ok(index)
 }
@@ -209,8 +222,13 @@ mod tests {
             1,
             None,
             CsvSearchField::IdName,
+            &["id".to_string()],
         )
         .unwrap();
+        assert_eq!(index.validation_rows.len(), 4);
+        assert_eq!(index.validation_rows[3].data["id"], "b");
+        assert_eq!(index.validation_rows[3].data.len(), 1);
+        assert!(index.validation_rows[1].is_comment);
         assert_eq!(index.base_versions.len(), 1);
         assert_eq!(
             index.base_versions[0].path,
@@ -346,6 +364,7 @@ mod tests {
             1,
             None,
             CsvSearchField::Id,
+            &[],
         )
         .unwrap();
         let preview = query_csv_row_preview(

@@ -3,5 +3,13 @@
   "singleQuote": true,
   "semi": true,
   "printWidth": 140,
-  "trailingComma": "all"
+  "trailingComma": "all",
+  "overrides": [
+    {
+      "files": "schemas/**/*.schema.json",
+      "options": {
+        "parser": "json-stringify"
+      }
+    }
+  ]
 }

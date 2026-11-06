@@ -13,6 +13,7 @@ export function csvTableIndex(rows: CsvDraftRow[], options: Partial<Omit<CsvTabl
     totalRows: rows.length,
     rowKeys: rows.map((row) => row.rowKey),
     rows,
+    validationRows: rows,
     ...options,
   };
 }

@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { queryTableIndex, querySessionCsvRowPreview } from './csv-table.service';
+import { getCsvColumnSchemas } from '@/domain/schema/csv-schema-registry';
 import { querySourceOptionCatalog, queryImageSourceOptions } from './source-catalog.service';
 import { querySessionHullReferences } from './hull-reference.service';
 import {
@@ -34,7 +35,14 @@ const cases: Array<[string, () => Promise<unknown>, object, unknown]> = [
   [
     'query_csv_table_index',
     () => queryTableIndex(sessionId, 'ships', 240, null, 'id-name'),
-    { sessionId, table: 'ships', initialCount: 240, search: null, searchField: 'id-name' },
+    {
+      sessionId,
+      table: 'ships',
+      initialCount: 240,
+      search: null,
+      searchField: 'id-name',
+      validationColumns: getCsvColumnSchemas('ships').map((column) => column.key),
+    },
     { rows: [] },
   ],
   [

@@ -9,6 +9,7 @@ CSV 文档编辑模块管理整表文件的领域规则、运行态、展示、�
 ### 拥有
 
 - `src-tauri/src/commands/tables.rs`：CSV 读取与 patch command。
+- `src-tauri/src/services/project/query/csv_validation.rs`：校验所需的有效实体、引用候选、图片、脚本条目及类别效果来源读取。
 - `src-tauri/src/services/project/query/csv_window.rs`：CSV 窗口行、搜索与单行预览查询。
 - `src-tauri/src/services/project/write/csv_patch.rs`：CSV patch、关联规格、行键及同根 changeset 装配。
 - `src/app/components/AssociatedSpecSaveDialog.vue`：关联规格选择与武器创建类型的异步确认内容。
@@ -25,6 +26,8 @@ CSV 文档编辑模块管理整表文件的领域规则、运行态、展示、�
 - `src-tauri/src/models/table_save.rs`：CSV 保存请求、行修改、关联规格动作与写入目标。
 - `src-tauri/src/models/tables.rs`：CSV 查询请求、解析记录、搜索与窗口结果。
 - `src-tauri/src/services/project/model.rs`：正式表格路径、身份列、摘要来源与 Core 要求。
+- `src-tauri/src/services/project/query/entities.rs`：按正式来源、目标及组合规则交付校验实体内容。
+- `src-tauri/src/services/project/query/source_catalog/values.rs`：校验消费的完整引用候选。
 - `src-tauri/src/services/project/resources/table_references.rs`：行预览与来源选项的授权图片及显示名称。
 - `src-tauri/src/services/project/session/csv_tables.rs`：正式表格内容、稳定行身份与来源版本。
 - `src-tauri/src/services/project/session/csv_writes.rs`：表格暂存与成功应用后的正式状态接纳。
@@ -37,6 +40,7 @@ CSV 文档编辑模块管理整表文件的领域规则、运行态、展示、�
 - `src/domain/editors/weapon-spec.ts`：武器关联创建消费的统一分支推断。
 - `src/domain/entity-write/spec-construction.ts`：武器分支定义与正式规格构造。
 - `src/domain/schema/csv-schema-registry.ts`：表格消费的列 schema 加载入口。
+- `src/domain/schema/csv-value-validation.ts`：列 schema 所属的数字、整数、布尔、固定选项及必填值检查。
 - `src/domain/schema/schema-source-definitions.ts`：表格字段候选的来源解析与配置刷新路径。
 - `src/orchestrators/json-write-confirmation.orchestrator.ts`：保存提交所属的逐源重排确认。
 - `src/orchestrators/project-sync.orchestrator.ts`：表格保存消费的 receipt 同步与反馈入口。
@@ -44,11 +48,13 @@ CSV 文档编辑模块管理整表文件的领域规则、运行态、展示、�
 - `src/shared/lib/starsector/rows.ts`：表格行显示标识与关联规格标识。
 - `src/shared/lib/starsector/tables.ts`：游戏表格名称。
 - `src/shared/runtime/app-log-queue.ts`：行实际挂载、输入提交及驻留生命周期的详细记录。
+- `src/shared/runtime/editor-problems.ts`：文档问题聚合、原文错误优先、保存失败及问题区展示请求。
 - `src/shared/runtime/use-layout-frame.ts`：网格视口与输入锚点更新的帧合并及作用域释放。
 - `src/shared/types/csv-table-history.types.ts`：CSV 草稿操作及历史条目协议。
 - `src/shared/types/table-save.types.ts`：CSV 保存请求、行修改、关联规格动作及正式写入目标契约。
 - `src/shared/types/tables.types.ts`：CSV 行、单元格目标、窗口与预览契约。
 - `src/shared/types/write-commit.types.ts`：公共保存回执、提交同步、行键映射与正式内容交付。
+- `src/shared/ui/EditorProblems.vue`：完整红黄问题列表、计数与共同展示。
 - `src/stores/project.store.ts`：指定 Mod 的正式清单与 session 查询，异步动作消费捕获目标。
 - `src/test/fixtures/csv-row.ts`：CSV 草稿行的测试构造。
 - `src/test/unit/csv-input-host.ts`：CSV 输入提交的组件测试宿主。
@@ -164,11 +170,12 @@ CSV 文档编辑模块管理整表文件的领域规则、运行态、展示、�
 ### 提交保存
 
 1. 目标为空或已有表无 dirty 时返回 noop；缺表首次保存消费已有准备表头；同文档的排队及进行中保存由同一请求表达。
-2. 关联文件批量准备读取原文件、目标、问题与匹配版本，app 层在同一确认窗口逐项选择读取、覆盖或仅保存 CSV，有效已有目标默认读取；模板创建的武器提供 projectile 与 beam 调整。
-3. 编排复核目标并消费同一快照中的 patches、关联动作与版本。
-4. 调用排他写提交 patches 与关联动作。
-5. 后端复核确认目标与文件版本，读取保留目标原文，覆盖优先采用有效原文件并更新 ID、缺少时消费默认模板；改名移除本地旧文件，CSV 与文件共同进入原子 changeset。
-6. 返回写结果、`rowKey` map 与结构化失效。
+2. 分表校验消费全表精简基线与当前草稿，错误交付保存拒绝和问题区展开请求，警告逐次确认；确认内容变化时重新捕获并检查。
+3. 关联文件批量准备读取原文件、目标、问题与匹配版本，app 层在同一确认窗口逐项选择读取、覆盖或仅保存 CSV，有效已有目标默认读取；模板创建的武器提供 projectile 与 beam 调整。
+4. 编排复核目标并消费同一快照中的 patches、关联动作与版本。
+5. 调用排他写提交 patches 与关联动作。
+6. 后端复核确认目标与文件版本，读取保留目标原文，覆盖优先采用有效原文件并更新 ID、缺少时消费默认模板；改名移除本地旧文件，CSV 与文件共同进入原子 changeset。
+7. 返回写结果、`rowKey` map 与结构化失效。
 
 ### 保存后接纳
 
@@ -181,6 +188,14 @@ CSV 文档编辑模块管理整表文件的领域规则、运行态、展示、�
 ## 规范
 
 - CSV 实现必须消费明确表格目标和宿主契约；内存投影必须派生同一目标的运行态，实际导航和持久列宽写入必须经宿主交付。
+- 分表检查必须登记所需列与纯校验函数，必须共同消费全表精简基线、当前草稿及稳定行身份；顶部提示与保存门控必须消费同一问题结果。
+- 类型错误、必读列缺失与确定失效的必需引用必须阻断保存，字段关系、有效 hints 组合及脚本来源不确定必须交付黄色提醒；USE_VS_FRIGATES 必须允许独立使用。
+- 校验来源请求必须按实体身份、引用来源、图片路径与脚本类名去重，必须消费同一读取票据及项目失效；来源结果必须绑定请求内容，保存必须等待当前来源完成并重新检查内容。
+- 图片及脚本检查必须使用授权的当前 Mod、引用与 Core 根，脚本 JAR 必须每次读取建立一次类条目索引并供同批类名复用；校验严禁执行用户脚本。
+- 原生插件的内嵌游戏 JSON 必须由正式 parser 解析并交付结构化内容或完整错误，前端规则必须分别消费类型、引用及解析诊断。
+- 缺失舰船或技能规格的身份创建必须沿关联规格选择交付，只有 CSV 的提交必须拒绝缺少所需规格的记录。
+- 校验必须覆盖当前 Mod 同一整表的非注释业务记录；实体表必须检查有值 ID 的唯一性，描述必须检查 ID 与类型组合唯一性，模拟对手必须按允许重复的列表处理，联队有值 ID 必须交付小写 _wing 后缀提醒。
+- 红黄问题必须在右栏顶部依次完整展示并分别计数、滚动，总高度必须至多占右栏百分之四十；当前表保存受阻必须展开右栏，警告必须逐次确认，确认目标、版本、内容或问题变化必须重新检查。
 - 页面动作必须随所属页面结束；关联规格确认必须由窗口交付全部表文档保存，输入、保存等待、引用结果和错误必须共同核对原目标及导航意图。
 - 关联保存必须逐文件选择处理方式并只展示所选内容来源、目标、完整诊断及旧文件移除结果，保存按钮必须统一；搜索必须直接消费本次草稿，搜索操作必须保留未保存修改与草稿历史。
 - 单元格选择与编辑必须分别维护，组合输入必须完整保留首字及组字过程，保存行键映射必须保留选中列及所属行身份。
@@ -270,7 +285,7 @@ CSV 文档编辑模块管理整表文件的领域规则、运行态、展示、�
 - 行移动必须捕获稳定行键与移动前后位置，普通行、注释行及空白记录必须各自独立移动；原位放下必须按无变化处理。
 - 行预览必须消费捕获的 session、表和 `rowKey`，目标变化及卸载必须释放等待；资源或行预览失效必须合并后读取当前目标。
 - 表格窗口、来源集合与行预览必须分别经所属通道接纳结果和错误；来源集合必须在全部目录返回后共同发布。
-- 表格窗口必须按可视区及上下各一个视口的提前量请求行，严禁一次加载全表。
+- 表格完整行必须按可视区及上下各一个视口的提前量请求，整表校验只允许取得分表登记列的精简数据。
 - 表格缩略图必须由网格管理可见与邻近资源集合；行组件首次进入提前量时挂载，单批必须最多挂载四行并在组件更新后复核 4ms 调度预算；已访问行必须在当前表内持续驻留，切表、目标替换或卸载时释放所属展示引用与输入登记。
 - 表格身份释放事件必须按原请求的 session 和 Mod 核对当前会话；回执只允许更新所属行与基线，会话重开后必须仅释放原锁。
 - 表运行态只允许接纳所属 CSV 的基线版本；规格版本必须归关联保存快照与实体记录。

@@ -3,7 +3,22 @@ use crate::models::{
     AssociatedSpecPreparation, CsvAssociatedSpecsPayload, CsvRowPreview, CsvRowPreviewPayload,
     CsvTableIndex, CsvTableIndexPayload, CsvTableRowsPayload, CsvTableRowsRead,
 };
+use crate::models::{CsvValidationContext, CsvValidationPayload};
 use crate::services;
+
+#[command_macros::command(async)]
+pub fn query_csv_validation(
+    payload: CsvValidationPayload,
+) -> Result<CsvValidationContext, AppError> {
+    services::query_csv_validation(
+        &payload.session_id,
+        payload.entities,
+        payload.sources,
+        payload.files,
+        payload.classes,
+        payload.station_data,
+    )
+}
 
 #[command_macros::command(async)]
 pub fn prepare_csv_associated_specs(
@@ -20,6 +35,7 @@ pub fn query_csv_table_index(payload: CsvTableIndexPayload) -> Result<CsvTableIn
         payload.initial_count,
         payload.search,
         payload.search_field,
+        &payload.validation_columns,
     )
 }
 

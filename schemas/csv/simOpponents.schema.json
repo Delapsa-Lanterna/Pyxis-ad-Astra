@@ -1,5 +1,20 @@
 {
   "$schema": "pyxis-ad-astra/csv-columns/v1",
   "table": "simOpponents",
-  "columns": [{ "key": "variant id", "label": "装配", "control": "reference", "source": "csv:variants.variantId" }]
+  "columns": [
+    {
+      "key": "variant id",
+      "label": "装配",
+      "control": "reference",
+      "source": "csv:variants.variantId"
+    }
+  ],
+  "validation": {
+    "required": [
+      "variant id"
+    ],
+    "requiredColumn": [
+      "variant id"
+    ]
+  }
 }

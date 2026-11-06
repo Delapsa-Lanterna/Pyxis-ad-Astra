@@ -53,6 +53,7 @@ fn csv_headers_and_first_save() {
                 0,
                 None,
                 CsvSearchField::IdName,
+                &[],
             )
             .unwrap();
             assert_eq!(index.header, expected, "{}: {source}", spec.key.as_str());

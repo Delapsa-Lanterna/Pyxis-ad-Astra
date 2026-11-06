@@ -22,8 +22,16 @@
           "required": true,
           "source": "csv:ships.id"
         },
-        { "key": "displayName", "type": "string", "label": "显示名称" },
-        { "key": "goalVariant", "type": "boolean", "label": "默认可选装配" }
+        {
+          "key": "displayName",
+          "type": "string",
+          "label": "显示名称"
+        },
+        {
+          "key": "goalVariant",
+          "type": "boolean",
+          "label": "默认可选装配"
+        }
       ]
     },
     {
@@ -81,20 +89,32 @@
             "key": "item",
             "label": "武器组",
             "type": "object",
-            "default": { "mode": "LINKED", "weapons": {}, "autofire": false },
+            "default": {
+              "mode": "LINKED",
+              "weapons": {},
+              "autofire": false
+            },
             "nested": [
               {
                 "key": "mode",
                 "type": "enum",
                 "label": "模式",
-                "options": ["LINKED", "ALTERNATING"],
+                "options": [
+                  "LINKED",
+                  "ALTERNATING"
+                ],
                 "required": true
               },
               {
                 "key": "weapons",
                 "type": "object",
                 "label": "武器",
-                "keySchema": { "key": "slotId", "label": "武器槽位", "type": "enum", "source": "hull:weaponSlots" },
+                "keySchema": {
+                  "key": "slotId",
+                  "label": "武器槽位",
+                  "type": "enum",
+                  "source": "hull:weaponSlots"
+                },
                 "valueSchema": {
                   "key": "weaponId",
                   "type": "enum",
@@ -104,7 +124,11 @@
                 "required": true,
                 "allowExtraFields": true
               },
-              { "key": "autofire", "type": "boolean", "label": "自动开火" }
+              {
+                "key": "autofire",
+                "type": "boolean",
+                "label": "自动开火"
+              }
             ]
           }
         }
@@ -137,7 +161,12 @@
           "type": "object",
           "format": "array-of-entries",
           "label": "模块",
-          "keySchema": { "key": "slotId", "label": "模块槽位", "type": "enum", "source": "hull:moduleSlots" },
+          "keySchema": {
+            "key": "slotId",
+            "label": "模块槽位",
+            "type": "enum",
+            "source": "hull:moduleSlots"
+          },
           "valueSchema": {
             "key": "variantId",
             "type": "enum",

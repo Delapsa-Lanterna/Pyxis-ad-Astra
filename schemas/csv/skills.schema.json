@@ -71,7 +71,30 @@
       "key": "icon",
       "label": "图标",
       "control": "path-image",
-      "imageDirectories": ["graphics/icons/skills"]
+      "imageDirectories": [
+        "graphics/icons/skills"
+      ]
     }
-  ]
+  ],
+  "validation": {
+    "requiredColumn": [
+      "id",
+      "name",
+      "description",
+      "icon"
+    ],
+    "required": [
+      "order"
+    ],
+    "integer": [
+      "tier",
+      "reqPoints",
+      "reqPointsPerExtraSkill"
+    ],
+    "warningMin": {
+      "tier": 0,
+      "reqPoints": 0,
+      "reqPointsPerExtraSkill": 0
+    }
+  }
 }

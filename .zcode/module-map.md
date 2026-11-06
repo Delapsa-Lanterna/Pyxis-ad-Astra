@@ -73,7 +73,7 @@
 - `src/domain/cache-limits.ts`：缓存预算的前端校验。
 - `src/domain/project/entity-definitions.ts`：实体内容 ID、可用 ID 规则与目标身份纯投影。
 - `src/env.d.ts`：前端构建环境提供的公共常量声明。
-- `src/shared/`：前端公共协议、原语、工具与控件。
+- `src/shared/`：前端公共协议、原语、工具、控件及编辑问题汇总与红黄展示。
 - `src/styles/`：按业务及关联组件组织的展示规则与样式入口。
 - `src/test/fixtures/`：共享测试数据工厂。
 - `src/test/test-foundations.spec.ts`：公共测试基础设施验证。

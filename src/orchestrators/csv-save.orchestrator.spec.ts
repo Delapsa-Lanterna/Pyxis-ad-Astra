@@ -1,8 +1,9 @@
+import type { CsvValidationRequest } from '@/shared/types';
 import { csvEditorView } from '@/app/composables/csv-editor/tests/csv-editor-view';
 import { savedWriteFixture } from '@/test/fixtures/write-result';
 import { savedContentWorks } from '@/test/unit/project-changes';
 import { replaceCsvTableDraft, markCsvTableSavedDraft } from '@/domain/csv-editor/csv-table-draft';
-import { csvRows } from '@/test/fixtures/csv-row';
+import { csvRows, csvTableIndex } from '@/test/fixtures/csv-row';
 import { csvDraftRow } from '@/test/fixtures/csv-row';
 import { entityTargetFixture } from '@/test/fixtures/entity-target';
 import { flushPromises } from '@vue/test-utils';
@@ -10,11 +11,21 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
 
 const writeCsvPatch = vi.hoisted(() => vi.fn());
+const readCsvIndex = vi.hoisted(() => vi.fn());
 const completeSavedWrite = vi.hoisted(() => vi.fn<(completion: unknown) => Promise<void>>(() => Promise.resolve()));
 
 vi.mock('@/services/csv-table.service', async () => ({
   ...(await vi.importActual('@/services/csv-table.service')),
   saveCsvPatch: writeCsvPatch,
+  queryTableIndex: readCsvIndex,
+  queryCsvValidation: async (_session: string, request: CsvValidationRequest) => ({
+    complete: true,
+    entities: Object.fromEntries(request.entities.map(({ kind, id }) => [kind + ':' + id, {}])),
+    sources: {},
+    files: {},
+    classes: {},
+    stationData: {},
+  }),
   prepareCsvAssociatedSpecs: vi.fn(async (_session: string, _table: string, changes: AssociatedSpecChange[]) =>
     changes.map((change) => {
       const id = change.action === 'rename' ? change.previousId : change.action === 'delete' ? change.id : change.create.id;
@@ -27,6 +38,13 @@ vi.mock('@/services/csv-table.service', async () => ({
       };
     }),
   ),
+}));
+vi.mock('@/domain/schema/csv-schema-registry', () => ({
+  getCsvColumnSchemas: () => [
+    { key: 'id', control: 'text' },
+    { key: 'name', control: 'text' },
+    { key: 'hullName', control: 'text' },
+  ],
 }));
 vi.mock('@/services/window.service', () => ({
   reserveNativeWindowTargets: vi.fn(async () => {}),
@@ -47,6 +65,7 @@ import type {
   AssociatedSpecChange,
   AssociatedSpecPreparation,
   AssociatedSpecWrite,
+  AppFeedback,
 } from '@/shared/types';
 import { TABLE_KEYS } from '@/shared/types';
 import { useProjectStore } from '@/stores/project.store';
@@ -55,6 +74,9 @@ import { useWorkspaceStore } from '@/stores/workspace.store';
 import { saveCsvChanges } from '@/orchestrators/csv-save.orchestrator';
 import { prepareCsvAssociatedSpecs } from '@/services/csv-table.service';
 import { ref } from 'vue';
+import { AppError } from '@/shared/lib/errors';
+import { initializeSettingsStore } from '@/stores/settings.store';
+import { createSettingsFixture } from '@/test/fixtures/settings';
 import type { AssociatedSpecCandidate } from '@/domain/csv-editor/associated-spec-candidates';
 
 import { useDraftSessionsStore } from '@/stores/draft-sessions.store';
@@ -130,6 +152,83 @@ function hydrateActiveTable() {
 }
 
 describe('table-save orchestrator', () => {
+  it('awaits missing validation data and retains read failures for a retry', async () => {
+    const manifest = buildManifest();
+    useProjectStore().manifests.set(MOD_ROOT, manifest);
+    const state = hydrateActiveTable();
+    const tables = useCsvEditorStore();
+    const target = { sessionId: SESSION_ID, modRoot: MOD_ROOT, table: 'ships' as const };
+    state.documents.ships.validationRows = null;
+    tables.updateCellValue({ ...target, rowKey: 'ships:r1', column: 'hullName' }, 'Edited');
+    const save = () => saveCsvChanges({ table: 'ships', manifest, selectAssociatedSpecs: async () => [] });
+    readCsvIndex.mockRejectedValueOnce(new AppError('Read failed', { code: 'io.read' }));
+    await expect(save()).rejects.toMatchObject({ code: 'io.read' });
+    expect(writeCsvPatch).not.toHaveBeenCalled();
+    expect(tables.getTableProblems(target).issues.value).toMatchObject([{ code: 'io.read' }]);
+    readCsvIndex.mockResolvedValueOnce(csvTableIndex([csvDraftRow({ id: 'npc1', hullName: 'A' }, 'ships:r1')]));
+    writeCsvPatch.mockResolvedValueOnce(writeResult());
+    await expect(save()).resolves.toMatchObject({ status: 'saved' });
+    expect(readCsvIndex).toHaveBeenCalledTimes(2);
+    expect(tables.getTableProblems(target).issues.value).toEqual([]);
+  });
+  it('blocks duplicates and preserves the failure until a successful retry', async () => {
+    const manifest = buildManifest();
+    useProjectStore().manifests.set(MOD_ROOT, manifest);
+    const state = hydrateActiveTable();
+    const tables = useCsvEditorStore();
+    const target = { sessionId: SESSION_ID, modRoot: MOD_ROOT, table: 'ships' as const };
+    replaceCsvTableDraft(state.documents.ships, [csvDraftRow({ id: 'same' }, 'one'), csvDraftRow({ id: 'other' }, 'two')]);
+    tables.updateCellValue({ ...target, rowKey: 'two', column: 'id' }, 'same');
+    const save = () => saveCsvChanges({ table: 'ships', manifest, selectAssociatedSpecs: async () => [] });
+    await expect(save()).rejects.toMatchObject({ action: 'csv-validation' });
+    expect(writeCsvPatch).not.toHaveBeenCalled();
+    const problems = tables.getTableProblems(target);
+    expect(problems.revealRevision.value).toBe(1);
+    tables.updateCellValue({ ...target, rowKey: 'two', column: 'id' }, 'unique');
+    writeCsvPatch.mockRejectedValueOnce(new AppError('Denied', { code: 'io.denied' }));
+    await expect(save()).rejects.toMatchObject({ code: 'io.denied' });
+    expect(problems.issues.value).toMatchObject([{ code: 'io.denied' }]);
+    writeCsvPatch.mockResolvedValueOnce(writeResult());
+    await expect(save()).resolves.toMatchObject({ status: 'saved' });
+    expect(problems.issues.value).toEqual([]);
+  });
+  it.each(['cancel', 'save', 'change'] as const)('handles wing warnings with %s and asks again for subsequent saves', async (choice) => {
+    initializeSettingsStore(createSettingsFixture());
+    const manifest = buildManifest();
+    useProjectStore().manifests.set(MOD_ROOT, manifest);
+    const state = hydrateActiveTable();
+    const tables = useCsvEditorStore();
+    const target = { sessionId: SESSION_ID, modRoot: MOD_ROOT, table: 'wings' as const };
+    replaceCsvTableDraft(state.documents.wings, [csvDraftRow({ id: 'sample', name: 'Base' }, 'wing')]);
+    tables.updateCellValue({ ...target, rowKey: 'wing', column: 'name' }, 'Edited');
+    const choose = vi.fn<AppFeedback['choose']>().mockResolvedValue(choice === 'cancel' ? null : 'save');
+    if (choice === 'change')
+      choose.mockImplementationOnce(async () => {
+        tables.updateCellValue({ ...target, rowKey: 'wing', column: 'id' }, 'changed');
+        return 'save';
+      });
+    const feedback: AppFeedback = {
+      choose,
+      success: vi.fn(),
+      info: vi.fn(),
+      warning: vi.fn(),
+      error: vi.fn(),
+      confirmDanger: vi.fn(),
+      confirmWarning: vi.fn(),
+    };
+    const save = () => saveCsvChanges({ table: 'wings', manifest, feedback, selectAssociatedSpecs: async () => [] });
+    writeCsvPatch.mockResolvedValue(writeResult());
+    expect((await save()).status).toBe(choice === 'cancel' ? 'cancelled' : 'saved');
+    expect(writeCsvPatch).toHaveBeenCalledTimes(choice === 'cancel' ? 0 : 1);
+    expect(choose).toHaveBeenCalledTimes(choice === 'change' ? 2 : 1);
+    if (choice !== 'cancel') {
+      tables.updateCellValue({ ...target, rowKey: 'wing', column: 'name' }, 'Again');
+      await save();
+      expect(choose).toHaveBeenCalledTimes(choice === 'change' ? 3 : 2);
+      expect(writeCsvPatch.mock.lastCall![3][0].row.id).toBe(choice === 'change' ? 'changed' : 'sample');
+    }
+    writeCsvPatch.mockReset();
+  });
   it('ends a late preparation when its captured session is removed', async () => {
     const manifest = buildManifest({ associatedSpecTables: ['ships'] });
     useProjectStore().manifests.set(MOD_ROOT, manifest);
@@ -149,6 +248,7 @@ describe('table-save orchestrator', () => {
     const select = vi.fn(async () => []);
     const writes = writeCsvPatch.mock.calls.length;
     const pending = saveCsvChanges({ table: 'ships', manifest, selectAssociatedSpecs: select });
+    await flushPromises();
     useProjectStore().manifests.delete(MOD_ROOT);
     finish([]);
     expect(await pending).toMatchObject({ status: 'noop' });
@@ -212,6 +312,7 @@ describe('table-save orchestrator', () => {
           }),
       );
       const saving = saveCsvChanges({ table: 'ships', manifest, selectAssociatedSpecs: async () => [] });
+      await flushPromises();
       expect(writeCsvPatch.mock.lastCall![7]).toEqual([2, 0, 1].map(rowKey));
       if (later === 'undo') await tables.getTableEditor({ sessionId: SESSION_ID, modRoot: MOD_ROOT, table: 'ships' }).undo();
       if (later === 'edit') tables.updateCellValue({ ...target, rowKey: 'ships:row:1', column: 'id' }, 'edited');
@@ -260,6 +361,7 @@ describe('table-save orchestrator', () => {
         }),
     );
     const saving = saveCsvChanges({ table: 'ships', manifest, selectAssociatedSpecs: async () => [] });
+    await flushPromises();
     await tables.getTableEditor({ sessionId: SESSION_ID, modRoot: MOD_ROOT, table: 'ships' }).undo();
     finish(writeResult({ keyMap: [{ previousKey: added.rowKey, nextKey: 'ships:row:2', rowIndex: 1 }] }));
     await saving;
@@ -294,6 +396,7 @@ describe('table-save orchestrator', () => {
         }),
     );
     const saving = saveCsvChanges({ table: 'ships', manifest, selectAssociatedSpecs: async () => [] });
+    await flushPromises();
     await tables.getTableEditor({ sessionId: SESSION_ID, modRoot: MOD_ROOT, table: 'ships' }).undo();
     await tables.getTableEditor({ sessionId: SESSION_ID, modRoot: MOD_ROOT, table: 'ships' }).undo();
     finish(writeResult());
@@ -329,6 +432,7 @@ describe('table-save orchestrator', () => {
         }),
     );
     const saving = saveCsvChanges({ table: 'ships', manifest, selectAssociatedSpecs: async () => [] });
+    await flushPromises();
     const pending = tables.addNewRow({ sessionId: SESSION_ID, modRoot: MOD_ROOT, table: 'ships' })!;
     await tables.getTableEditor({ sessionId: SESSION_ID, modRoot: MOD_ROOT, table: 'ships' }).undo();
     finish(writeResult());
@@ -355,6 +459,7 @@ describe('table-save orchestrator', () => {
     const first = tables.addNewRow({ sessionId: SESSION_ID, modRoot: MOD_ROOT, table: 'ships' })!;
     tables.selectRowByKey(target, 'ships:row:1');
     const second = tables.addNewRow({ sessionId: SESSION_ID, modRoot: MOD_ROOT, table: 'ships' })!;
+    tables.updateCellValue({ ...target, rowKey: second.rowKey, column: 'id' }, 'middle-second');
     tables.selectRowByKey(target, 'ships:row:0');
     tables.deleteSelectedRow({ sessionId: SESSION_ID, modRoot: MOD_ROOT, table: 'ships' });
     writeCsvPatch.mockResolvedValueOnce(
@@ -424,6 +529,7 @@ describe('table-save orchestrator', () => {
         }),
     );
     const saving = saveCsvChanges({ table: 'ships', manifest, selectAssociatedSpecs: async () => [] });
+    await flushPromises();
     await tables.getTableEditor({ sessionId: SESSION_ID, modRoot: MOD_ROOT, table: 'ships' }).undo();
     await tables.getTableEditor({ sessionId: SESSION_ID, modRoot: MOD_ROOT, table: 'ships' }).undo();
     finish(writeResult());
@@ -470,6 +576,7 @@ describe('table-save orchestrator', () => {
         }),
     );
     const saving = saveCsvChanges({ table: 'ships', manifest, selectAssociatedSpecs: async () => [] });
+    await flushPromises();
     if (before) tables.selectRowByKey(target, 'ships:r1');
     const pending = tables.addNewRow({ sessionId: SESSION_ID, modRoot: MOD_ROOT, table: 'ships' })!;
     if (undone) await tables.getTableEditor({ sessionId: SESSION_ID, modRoot: MOD_ROOT, table: 'ships' }).undo();
@@ -480,6 +587,7 @@ describe('table-save orchestrator', () => {
     await tables.getTableEditor({ sessionId: SESSION_ID, modRoot: MOD_ROOT, table: 'ships' }).undo();
     await tables.getTableEditor({ sessionId: SESSION_ID, modRoot: MOD_ROOT, table: 'ships' }).redo();
     expect(state.documents.ships.rowOrder.indexOf(pending.rowKey)).toBe(before ? 1 : 2);
+    tables.updateCellValue({ ...target, rowKey: pending.rowKey, column: 'id' }, 'pending-unique');
     writeCsvPatch.mockResolvedValueOnce(
       writeResult({ keyMap: [{ previousKey: pending.rowKey, nextKey: 'ships:row:3', rowIndex: before ? 1 : 2 }] }),
     );
@@ -505,6 +613,7 @@ describe('table-save orchestrator', () => {
         }),
     );
     const saving = saveCsvChanges({ table: 'ships', manifest, selectAssociatedSpecs: async () => [] });
+    await flushPromises();
     tables.updateCellValue({ sessionId: SESSION_ID, modRoot: MOD_ROOT, table: 'ships', rowKey: 'ships:r1', column: 'id' }, '#disabled');
     finish(writeResult());
     await saving;
@@ -549,7 +658,7 @@ describe('table-save orchestrator', () => {
     expect(useDraftSessionsStore().hasUnsavedWorkForMod(MOD_ROOT)).toBe(false);
   });
 
-  it('keeps CSV, associated specs, credentials and history fixed while selection is pending', async () => {
+  it('recaptures changed CSV content and credentials after associated selection', async () => {
     const project = useProjectStore();
     const manifest = buildManifest({ associatedSpecTables: ['ships'] });
     project.manifests.set(MOD_ROOT, manifest);
@@ -571,6 +680,7 @@ describe('table-save orchestrator', () => {
         });
       },
     });
+    await flushPromises();
     expect(csvEditorView({ sessionId: SESSION_ID, modRoot: MOD_ROOT, table: 'ships' }).saving).toBe(true);
     tables.updateCellValue(cellTarget, 'later');
     state.documents.ships.baseVersions[0]!.fingerprint = 'later-version';
@@ -584,14 +694,22 @@ describe('table-save orchestrator', () => {
         resolution: { mode: 'overwrite', original: null, destination: candidate.preparation!.destination },
       })),
     );
+    await flushPromises();
+    expect(candidates[0]?.change).toMatchObject({ create: { id: 'later' } });
+    release(
+      candidates.map((candidate) => ({
+        change: candidate.change,
+        target: candidate.preparation!.target,
+        resolution: { mode: 'overwrite', original: null, destination: candidate.preparation!.destination },
+      })),
+    );
     await saving;
     const call = writeCsvPatch.mock.calls.at(-1)!;
-    expect(call[3][0].row.id).toBe('submitted');
-    expect(call[4][0].change.create.id).toBe('submitted');
-    expect(call[6]).toEqual([{ path: 'ships.csv', fingerprint: 'base' }]);
-    expect(csvRows(state)[0]?.data.id).toBe('later');
-    expect(await tables.getTableEditor({ sessionId: SESSION_ID, modRoot: MOD_ROOT, table: 'ships' }).undo()).toBeTruthy();
-    expect(csvRows(state)[0]?.data.id).toBe('submitted');
+    expect(call[3][0].row.id).toBe('later');
+    expect(call[4][0].change.create.id).toBe('later');
+    expect(call[6]).toEqual([{ path: 'ships.csv', fingerprint: 'later-version' }]);
+    expect(csvRows(state, true)[0]?.data.id).toBe('later');
+    expect(state.documents.ships.dirty).toEqual({});
     expect(csvEditorView({ sessionId: SESSION_ID, modRoot: MOD_ROOT, table: 'ships' }).saving).toBe(false);
   });
 
@@ -752,6 +870,7 @@ describe('table-save orchestrator', () => {
     let resolveWrite!: (result: WriteResult) => void;
     writeCsvPatch.mockImplementationOnce(() => new Promise<WriteResult>((resolve) => (resolveWrite = resolve)));
     const pending = saveCsvChanges({ table: 'ships', manifest: project.getManifest(MOD_ROOT), selectAssociatedSpecs: async () => [] });
+    await flushPromises();
     tables.updateCellValue({ sessionId: SESSION_ID, modRoot: MOD_ROOT, table: 'ships', rowKey: 'ships:r1', column: 'hullName' }, 'C');
     resolveWrite(writeResult());
     await pending;
@@ -791,6 +910,7 @@ describe('table-save orchestrator', () => {
     let resolveWrite!: (result: WriteResult) => void;
     writeCsvPatch.mockImplementationOnce(() => new Promise<WriteResult>((resolve) => (resolveWrite = resolve)));
     const pending = saveCsvChanges({ table: 'ships', manifest: project.getManifest(MOD_ROOT), selectAssociatedSpecs: async () => [] });
+    await flushPromises();
     tables.deleteSelectedRow({ sessionId: SESSION_ID, modRoot: MOD_ROOT, table: 'ships' });
     resolveWrite(
       writeResult({
@@ -842,6 +962,7 @@ describe('table-save orchestrator', () => {
         }),
     );
     const saving = saveCsvChanges({ table: 'ships', manifest: project.getManifest(MOD_ROOT), selectAssociatedSpecs: async () => [] });
+    await flushPromises();
     await tables.getTableEditor({ sessionId: SESSION_ID, modRoot: MOD_ROOT, table: 'ships' }).undo();
     release(writeResult());
     await saving;

@@ -3,7 +3,13 @@
   "id": "game-settings",
   "gameVersion": "0.98a-RC8",
   "displayName": "游戏设置",
-  "sources": [{ "id": "file", "type": "json-file", "path": "data/config/settings.json" }],
+  "sources": [
+    {
+      "id": "file",
+      "type": "json-file",
+      "path": "data/config/settings.json"
+    }
+  ],
   "root": {
     "key": "file",
     "type": "object",
@@ -17,7 +23,12 @@
           "key": "color",
           "type": "color-rgba",
           "label": "颜色",
-          "default": [255, 255, 255, 255]
+          "default": [
+            255,
+            255,
+            255,
+            255
+          ]
         },
         "allowExtraFields": true
       },
@@ -37,7 +48,10 @@
             "label": "图片",
             "default": "",
             "variants": [
-              { "type": "path-image", "imageDirectories": [] },
+              {
+                "type": "path-image",
+                "imageDirectories": []
+              },
               {
                 "type": "array",
                 "label": "图片列表",
@@ -83,7 +97,12 @@
           "default": {},
           "allowExtraFields": true
         },
-        { "key": "value", "type": "json", "label": "内容", "default": null }
+        {
+          "key": "value",
+          "type": "json",
+          "label": "内容",
+          "default": null
+        }
       ]
     },
     "allowExtraFields": true

@@ -325,7 +325,7 @@ pub fn prepare_csv_save(input: &mut CsvSave, edits: &[SaveEdit]) -> Result<(), A
         base_versions,
         ..
     } = input;
-    let index = query_csv_table_index(session_id, *table, 0, None, CsvSearchField::IdName)?;
+    let index = query_csv_table_index(session_id, *table, 0, None, CsvSearchField::IdName, &[])?;
     let keys = patches
         .iter()
         .filter(|patch| index.row_keys.contains(&patch.row_key))

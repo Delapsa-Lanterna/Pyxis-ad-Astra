@@ -170,91 +170,117 @@
         {
           "key": "damageDecalSheet",
           "type": "path-image",
-          "imageDirectories": ["graphics/damage"],
+          "imageDirectories": [
+            "graphics/damage"
+          ],
           "label": "损伤贴图",
           "description": "船体损伤贴图集路径。"
         },
         {
           "key": "damageDecalGlowSheet",
           "type": "path-image",
-          "imageDirectories": ["graphics/damage"],
+          "imageDirectories": [
+            "graphics/damage"
+          ],
           "label": "损伤发光贴图",
           "description": "船体损伤发光贴图集路径。"
         },
         {
           "key": "slotCoverSmallTurret",
           "type": "path-image",
-          "imageDirectories": ["graphics/weapons/covers"],
+          "imageDirectories": [
+            "graphics/weapons/covers"
+          ],
           "label": "小型炮塔槽盖",
           "description": "小型炮塔武器槽盖板的贴图路径。"
         },
         {
           "key": "slotCoverSmallHardpoint",
           "type": "path-image",
-          "imageDirectories": ["graphics/weapons/covers"],
+          "imageDirectories": [
+            "graphics/weapons/covers"
+          ],
           "label": "小型固定槽盖",
           "description": "小型固定武器槽盖板的贴图路径。"
         },
         {
           "key": "slotCoverMediumTurret",
           "type": "path-image",
-          "imageDirectories": ["graphics/weapons/covers"],
+          "imageDirectories": [
+            "graphics/weapons/covers"
+          ],
           "label": "中型炮塔槽盖",
           "description": "中型炮塔武器槽盖板的贴图路径。"
         },
         {
           "key": "slotCoverMediumHardpoint",
           "type": "path-image",
-          "imageDirectories": ["graphics/weapons/covers"],
+          "imageDirectories": [
+            "graphics/weapons/covers"
+          ],
           "label": "中型固定槽盖",
           "description": "中型固定武器槽盖板的贴图路径。"
         },
         {
           "key": "slotCoverLargeTurret",
           "type": "path-image",
-          "imageDirectories": ["graphics/weapons/covers"],
+          "imageDirectories": [
+            "graphics/weapons/covers"
+          ],
           "label": "大型炮塔槽盖",
           "description": "大型炮塔武器槽盖板的贴图路径。"
         },
         {
           "key": "slotCoverLargeHardpoint",
           "type": "path-image",
-          "imageDirectories": ["graphics/weapons/covers"],
+          "imageDirectories": [
+            "graphics/weapons/covers"
+          ],
           "label": "大型固定槽盖",
           "description": "大型固定武器槽盖板的贴图路径。"
         },
         {
           "key": "fluxVentTextureSheet",
           "type": "path-image",
-          "imageDirectories": ["graphics/fx"],
+          "imageDirectories": [
+            "graphics/fx"
+          ],
           "label": "散幅能贴图集",
           "description": "主动散幅能效果使用的贴图集路径。"
         },
         {
           "key": "fluxVentRadialTexture",
           "type": "path-image",
-          "imageDirectories": ["graphics/fx"],
+          "imageDirectories": [
+            "graphics/fx"
+          ],
           "label": "散幅能径向贴图",
           "description": "主动散幅能径向效果的贴图路径。"
         },
         {
           "key": "dHullOverlayLight",
           "type": "path-image",
-          "imageDirectories": ["graphics/damage"],
+          "imageDirectories": [
+            "graphics/damage"
+          ],
           "label": "轻度 D 级损伤",
           "description": "轻度 D 级船体损伤覆盖贴图路径。"
         },
         {
           "key": "dHullOverlayMedium",
           "type": "path-image",
-          "imageDirectories": ["graphics/damage"],
+          "imageDirectories": [
+            "graphics/damage"
+          ],
           "label": "中度 D 级损伤",
           "description": "中度 D 级船体损伤覆盖贴图路径。"
         },
         {
           "key": "dHullOverlayHeavy",
           "type": "path-image",
-          "imageDirectories": ["graphics/damage"],
+          "imageDirectories": [
+            "graphics/damage"
+          ],
           "label": "重度 D 级损伤",
           "description": "重度 D 级船体损伤覆盖贴图路径。"
         },
@@ -276,17 +302,72 @@
         }
       ],
       "default": {
-        "hyperspaceJitterColor": [255, 125, 45, 200],
-        "baseCampaignExplosionColor": [255, 125, 25, 255],
-        "baseCombatExplosionColor": [255, 125, 25, 255],
-        "combatExplosionNonFlashColorOverride": [255, 165, 100, 255],
-        "fighterRepairFlickerColor": [255, 125, 25, 255],
-        "fighterChipIconColor": [255, 200, 150, 255],
-        "weaponDisabledExplosionColor": [255, 125, 25, 255],
-        "shieldRingColor": [255, 255, 255, 255],
-        "shieldInnerColor": [255, 125, 125, 75],
-        "fluxVentCoreColor": [255, 255, 255, 255],
-        "fluxVentFringeColor": [125, 0, 155, 255],
+        "hyperspaceJitterColor": [
+          255,
+          125,
+          45,
+          200
+        ],
+        "baseCampaignExplosionColor": [
+          255,
+          125,
+          25,
+          255
+        ],
+        "baseCombatExplosionColor": [
+          255,
+          125,
+          25,
+          255
+        ],
+        "combatExplosionNonFlashColorOverride": [
+          255,
+          165,
+          100,
+          255
+        ],
+        "fighterRepairFlickerColor": [
+          255,
+          125,
+          25,
+          255
+        ],
+        "fighterChipIconColor": [
+          255,
+          200,
+          150,
+          255
+        ],
+        "weaponDisabledExplosionColor": [
+          255,
+          125,
+          25,
+          255
+        ],
+        "shieldRingColor": [
+          255,
+          255,
+          255,
+          255
+        ],
+        "shieldInnerColor": [
+          255,
+          125,
+          125,
+          75
+        ],
+        "fluxVentCoreColor": [
+          255,
+          255,
+          255,
+          255
+        ],
+        "fluxVentFringeColor": [
+          125,
+          0,
+          155,
+          255
+        ],
         "fluxVentTextureSheet": "graphics/fx/nebula_colorless.png",
         "fluxVentRadialTexture": "graphics/fx/radial_fx.png",
         "engineLoopSet": "engine_loop",

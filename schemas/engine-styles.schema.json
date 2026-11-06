@@ -14,7 +14,9 @@
     "key": "file",
     "type": "object",
     "label": "样式",
-    "reservedKeys": ["CUSTOM"],
+    "reservedKeys": [
+      "CUSTOM"
+    ],
     "valueSchema": {
       "key": "style",
       "type": "object",
@@ -26,7 +28,11 @@
           "type": "enum",
           "label": "尾迹模式",
           "description": "PARTICLES 使用粒子尾迹参数，QUAD_STRIP 使用条带尾迹参数，NONE 关闭尾迹。",
-          "options": ["NONE", "PARTICLES", "QUAD_STRIP"],
+          "options": [
+            "NONE",
+            "PARTICLES",
+            "QUAD_STRIP"
+          ],
           "default": "PARTICLES"
         },
         {
@@ -50,14 +56,18 @@
         {
           "key": "glowSprite",
           "type": "path-image",
-          "imageDirectories": ["graphics/fx"],
+          "imageDirectories": [
+            "graphics/fx"
+          ],
           "label": "发光贴图",
           "description": "引擎发光部分的贴图路径。"
         },
         {
           "key": "glowOutline",
           "type": "path-image",
-          "imageDirectories": ["graphics/fx"],
+          "imageDirectories": [
+            "graphics/fx"
+          ],
           "label": "尾焰轮廓贴图",
           "description": "引擎尾焰轮廓的贴图路径。"
         },
@@ -105,7 +115,9 @@
           "label": "粒子尺寸倍数",
           "description": "PARTICLES 模式下的尾迹粒子尺寸倍数。",
           "numberFormat": "starsector",
-          "requiredWhen": { "mode": "PARTICLES" }
+          "requiredWhen": {
+            "mode": "PARTICLES"
+          }
         },
         {
           "key": "contrailParticleDuration",
@@ -113,7 +125,9 @@
           "label": "粒子持续时间",
           "description": "PARTICLES 模式下的尾迹粒子持续时间，单位为秒。",
           "numberFormat": "starsector",
-          "requiredWhen": { "mode": "PARTICLES" }
+          "requiredWhen": {
+            "mode": "PARTICLES"
+          }
         },
         {
           "key": "contrailParticleFinalSizeMult",
@@ -128,7 +142,9 @@
           "label": "条带宽度倍数",
           "description": "QUAD_STRIP 模式下的尾迹宽度倍数。",
           "numberFormat": "starsector",
-          "requiredWhen": { "mode": "QUAD_STRIP" }
+          "requiredWhen": {
+            "mode": "QUAD_STRIP"
+          }
         },
         {
           "key": "contrailDuration",
@@ -136,7 +152,9 @@
           "label": "条带持续时间",
           "description": "QUAD_STRIP 模式下的尾迹持续时间，单位为秒。",
           "numberFormat": "starsector",
-          "requiredWhen": { "mode": "QUAD_STRIP" }
+          "requiredWhen": {
+            "mode": "QUAD_STRIP"
+          }
         },
         {
           "key": "contrailWidthAddedFractionAtEnd",
@@ -181,19 +199,42 @@
           "required": true,
           "label": "混合方式",
           "description": "GLOW 使用叠加发光，SMOKE 使用普通混合。",
-          "options": ["GLOW", "SMOKE"]
+          "options": [
+            "GLOW",
+            "SMOKE"
+          ]
         }
       ],
       "default": {
-        "engineColor": [255, 125, 25, 255],
-        "engineCampaignColor": [200, 90, 70, 255],
+        "engineColor": [
+          255,
+          125,
+          25,
+          255
+        ],
+        "engineCampaignColor": [
+          200,
+          90,
+          70,
+          255
+        ],
         "contrailParticleSizeMult": 2,
         "contrailParticleDuration": 3,
         "contrailParticleFinalSizeMult": 2.5,
         "contrailMaxSpeedMult": 0.5,
         "contrailAngularVelocityMult": 0.5,
-        "contrailColor": [50, 50, 50, 50],
-        "contrailCampaignColor": [200, 90, 70, 75],
+        "contrailColor": [
+          50,
+          50,
+          50,
+          50
+        ],
+        "contrailCampaignColor": [
+          200,
+          90,
+          70,
+          75
+        ],
         "type": "SMOKE"
       }
     },

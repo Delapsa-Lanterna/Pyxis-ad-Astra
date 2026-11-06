@@ -1,8 +1,41 @@
 use super::serde_fields::deserialize_nullable;
-use super::{CsvTableKey, ProjectSessionId, ResourceRef};
+use super::{CsvTableKey, EntityKind, ProjectSessionId, ResourceRef};
 use crate::models::FileVersion;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
+use std::collections::BTreeMap;
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CsvValidationEntity {
+    pub kind: EntityKind,
+    pub id: String,
+}
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CsvValidationPayload {
+    pub session_id: ProjectSessionId,
+    pub entities: Vec<CsvValidationEntity>,
+    pub sources: Vec<String>,
+    pub files: Vec<String>,
+    pub classes: Vec<String>,
+    pub station_data: Vec<String>,
+}
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CsvStationData {
+    pub value: Option<Value>,
+    pub error: Option<String>,
+}
+#[derive(Debug, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct CsvValidationContext {
+    pub complete: bool,
+    pub entities: BTreeMap<String, Value>,
+    pub sources: BTreeMap<String, Vec<String>>,
+    pub files: BTreeMap<String, bool>,
+    pub classes: BTreeMap<String, bool>,
+    pub station_data: BTreeMap<String, CsvStationData>,
+}
 
 #[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Eq)]
 #[serde(rename_all = "kebab-case")]
@@ -38,6 +71,7 @@ pub struct CsvRowRecord {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct CsvTableIndex {
+    pub validation_rows: Vec<CsvRowRecord>,
     pub base_versions: Vec<FileVersion>,
     pub table: CsvTableKey,
     pub header: Vec<String>,
@@ -60,6 +94,7 @@ pub struct CsvTableIndexPayload {
     pub session_id: ProjectSessionId,
     pub table: CsvTableKey,
     pub initial_count: usize,
+    pub validation_columns: Vec<String>,
     #[serde(deserialize_with = "deserialize_nullable")]
     pub search: Option<String>,
     pub search_field: CsvSearchField,
@@ -112,6 +147,7 @@ mod tests {
                 "sessionId": "session-1",
                 "table": "ships",
                 "initialCount": 50,
+                "validationColumns": ["id"],
                 "search": null,
                 "searchField": field
             }))
@@ -122,7 +158,7 @@ mod tests {
 
     #[test]
     fn csv_table_index_payload_requires_search_even_when_it_is_null() {
-        let mut value = json!({"sessionId": "table-session", "table": "ships", "initialCount": 20, "searchField": "id-name"});
+        let mut value = json!({"sessionId": "table-session", "table": "ships", "initialCount": 20, "validationColumns": ["id"], "searchField": "id-name"});
         assert!(serde_json::from_value::<CsvTableIndexPayload>(value.clone()).is_err());
         value["search"] = Value::Null;
         let payload = serde_json::from_value::<CsvTableIndexPayload>(value.clone()).unwrap();

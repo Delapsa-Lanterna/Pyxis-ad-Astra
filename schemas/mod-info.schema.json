@@ -43,7 +43,9 @@
           "editable": true,
           "default": "1.0.0",
           "variants": [
-            { "type": "string" },
+            {
+              "type": "string"
+            },
             {
               "type": "object",
               "nested": [
@@ -52,19 +54,40 @@
                   "type": "string",
                   "label": "主版本",
                   "required": true,
-                  "variants": [{ "type": "string" }, { "type": "float" }]
+                  "variants": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "float"
+                    }
+                  ]
                 },
                 {
                   "key": "minor",
                   "type": "string",
                   "label": "次版本",
-                  "variants": [{ "type": "string" }, { "type": "float" }]
+                  "variants": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "float"
+                    }
+                  ]
                 },
                 {
                   "key": "patch",
                   "type": "string",
                   "label": "修订版本",
-                  "variants": [{ "type": "string" }, { "type": "float" }]
+                  "variants": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "float"
+                    }
+                  ]
                 }
               ]
             }
@@ -79,7 +102,9 @@
           "editable": true,
           "default": "0.98a",
           "variants": [
-            { "type": "string" },
+            {
+              "type": "string"
+            },
             {
               "type": "object",
               "nested": [
@@ -88,19 +113,40 @@
                   "type": "string",
                   "label": "主版本",
                   "required": true,
-                  "variants": [{ "type": "string" }, { "type": "float" }]
+                  "variants": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "float"
+                    }
+                  ]
                 },
                 {
                   "key": "minor",
                   "type": "string",
                   "label": "次版本",
-                  "variants": [{ "type": "string" }, { "type": "float" }]
+                  "variants": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "float"
+                    }
+                  ]
                 },
                 {
                   "key": "patch",
                   "type": "string",
                   "label": "修订版本",
-                  "variants": [{ "type": "string" }, { "type": "float" }]
+                  "variants": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "float"
+                    }
+                  ]
                 }
               ]
             }
@@ -143,7 +189,9 @@
             "key": "item",
             "label": "依赖项",
             "type": "object",
-            "default": { "id": "" },
+            "default": {
+              "id": ""
+            },
             "nested": [
               {
                 "key": "id",
@@ -169,7 +217,9 @@
                 "required": false,
                 "editable": true,
                 "variants": [
-                  { "type": "string" },
+                  {
+                    "type": "string"
+                  },
                   {
                     "type": "object",
                     "nested": [
@@ -178,19 +228,40 @@
                         "type": "string",
                         "label": "主版本",
                         "required": true,
-                        "variants": [{ "type": "string" }, { "type": "float" }]
+                        "variants": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "float"
+                          }
+                        ]
                       },
                       {
                         "key": "minor",
                         "type": "string",
                         "label": "次版本",
-                        "variants": [{ "type": "string" }, { "type": "float" }]
+                        "variants": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "float"
+                          }
+                        ]
                       },
                       {
                         "key": "patch",
                         "type": "string",
                         "label": "修订版本",
-                        "variants": [{ "type": "string" }, { "type": "float" }]
+                        "variants": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "float"
+                          }
+                        ]
                       }
                     ]
                   }
@@ -231,5 +302,12 @@
       ]
     }
   ],
-  "sources": [{ "id": "file", "type": "json-file", "path": "mod_info.json", "extraFields": true }]
+  "sources": [
+    {
+      "id": "file",
+      "type": "json-file",
+      "path": "mod_info.json",
+      "extraFields": true
+    }
+  ]
 }

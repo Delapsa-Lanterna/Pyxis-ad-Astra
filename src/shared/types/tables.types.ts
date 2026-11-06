@@ -1,9 +1,12 @@
-import type { ProjectSessionId, ResourceRef, CsvTableKey, FileVersion } from '@/shared/types/project-identity.types';
+import type { ProjectSessionId, ResourceRef, CsvTableKey, FileVersion, EntityKind } from '@/shared/types/project-identity.types';
 import type { RowData } from '@/shared/types/json.types';
 
 export interface CsvTableState {
   table: CsvTableKey;
   nextRowKey: number;
+  validationRows: CsvRowRecord[] | null;
+  validationContext: CsvValidationContext | null;
+  validationKey: string;
   rowOrder: string[];
   baselineRowOrder: string[];
   queryRowKeys?: string[];
@@ -55,12 +58,29 @@ export type CsvDraftRow = CsvRowRecord;
 export type CsvTableRows = Array<CsvDraftRow | null>;
 
 export interface CsvTableIndex {
+  validationRows: CsvRowRecord[];
   baseVersions: FileVersion[];
   table: CsvTableKey;
   header: string[];
   totalRows: number;
   rowKeys: string[];
   rows: CsvRowRecord[];
+}
+
+export interface CsvValidationRequest {
+  entities: Array<{ kind: EntityKind; id: string }>;
+  sources: string[];
+  files: string[];
+  classes: string[];
+  stationData: string[];
+}
+export interface CsvValidationContext {
+  complete: boolean;
+  entities: Record<string, RowData>;
+  sources: Record<string, string[]>;
+  files: Record<string, boolean>;
+  classes: Record<string, boolean>;
+  stationData: Record<string, { value: RowData | null; error: string | null }>;
 }
 
 export interface CsvTableRowsRead {
@@ -73,6 +93,7 @@ export interface CsvTableIndexPayload {
   sessionId: ProjectSessionId;
   table: CsvTableKey;
   initialCount: number;
+  validationColumns: string[];
   search: string | null;
   searchField: CsvSearchField;
 }

@@ -15,6 +15,7 @@ import { createCsvDeletedRow, createCsvDirtyCells, csvDirtyCells, hasCsvDirtyCel
 import { createTableRowKey } from '@/domain/csv-editor/table-row-key';
 import { stableDeepEqual } from '@/shared/lib/stable-compare';
 import { cloneQuerySnapshot } from '@/shared/lib/query-snapshot';
+import { csvValidationDefinitions } from '@/domain/csv-editor/csv-validation';
 import { retainLaterDraft } from '@/domain/edit-session';
 
 export interface CsvDraftResult {
@@ -70,6 +71,7 @@ export function applyCsvTableIndexDraft(
   } else state.queryRowKeys = [...record.rowKeys];
   if (!stableDeepEqual(state.header, record.header)) state.header = [...record.header];
   state.baseVersions = cloneQuerySnapshot<CsvTableIndex['baseVersions']>(record.baseVersions);
+  state.validationRows = cloneQuerySnapshot<CsvDraftRow[]>(record.validationRows);
   acceptRows(state, record);
   updateCounts(state);
   return { changed: true };
@@ -84,6 +86,8 @@ export function acceptSavedCsvTableRows(state: CsvTableState, rows: DeepReadonly
       current.isComment = retainLaterDraft(current.isComment, before.isComment, entry.isComment);
     } else if (!state.dirty[entry.rowKey]) state.rows[entry.rowKey] = cloneQuerySnapshot<CsvDraftRow>(entry);
     state.baselineRows[entry.rowKey] = cloneQuerySnapshot<CsvDraftRow>(entry);
+    const projected = state.validationRows?.find((row) => row.rowKey === entry.rowKey);
+    if (projected) Object.assign(projected, projectValidationRow(state.table, entry));
   }
   rebuildDirty(state);
   updateCounts(state);
@@ -92,17 +96,17 @@ export function acceptSavedCsvTableRows(state: CsvTableState, rows: DeepReadonly
 export function acceptSavedCsvTableIndex(state: CsvTableState, index: DeepReadonly<CsvTableIndex>, filtered = false) {
   acceptSavedCsvTableRows(state, index.rows);
   if (filtered) state.queryRowKeys ??= [...index.rowKeys];
-  else {
-    const moved = hasCsvRowOrderChanges(state);
-    const formal = new Set(index.rowKeys);
-    for (const key of Object.keys(state.baselineRows)) {
-      if (formal.has(key)) continue;
-      if (!state.dirty[key]) delete state.rows[key];
-      delete state.baselineRows[key];
-    }
-    state.baselineRowOrder = [...index.rowKeys];
-    if (!moved) state.rowOrder = [...index.rowKeys];
+  const moved = hasCsvRowOrderChanges(state);
+  const order = index.validationRows.map((row) => row.rowKey);
+  const formal = new Set(order);
+  for (const key of Object.keys(state.baselineRows)) {
+    if (formal.has(key)) continue;
+    if (!state.dirty[key]) delete state.rows[key];
+    delete state.baselineRows[key];
   }
+  state.baselineRowOrder = order;
+  if (!moved) state.rowOrder = [...order];
+  state.validationRows = cloneQuerySnapshot<CsvDraftRow[]>(index.validationRows);
   state.header = [...index.header];
   state.baseVersions = cloneQuerySnapshot<CsvTableIndex['baseVersions']>(index.baseVersions);
   rebuildDirty(state);
@@ -361,6 +365,7 @@ export function discardCsvTableWindowForReloadDraft(state: CsvTableState): void 
   updateCounts(state);
 }
 export function markCsvTableSavedDraft(state: CsvTableState): void {
+  state.validationRows = state.rowOrder.map((key) => projectValidationRow(state.table, state.rows[key]!));
   state.baselineRows = deepClone(state.rows);
   state.baselineRowOrder = [...state.rowOrder];
   state.dirty = {};
@@ -375,6 +380,7 @@ export function replaceCsvTableDraft(state: CsvTableState, rows: CsvDraftRow[]):
 }
 export function applySavedCsvRowKeyMapDraft(state: CsvTableState, keyMap: CsvRowKeyMapping[]): void {
   const mapped = new Map(keyMap.map((entry) => [entry.previousKey, entry.nextKey]));
+  for (const row of state.validationRows ?? []) row.rowKey = mapped.get(row.rowKey) ?? row.rowKey;
   for (const rows of [state.rows, state.baselineRows]) {
     for (const { previousKey, nextKey } of keyMap) {
       const row = rows[previousKey];
@@ -407,6 +413,18 @@ export function commitCsvTableSaveDraft(
     if (patch.action === 'delete') delete original[patch.rowKey];
     else original[patch.rowKey] = { rowKey: patch.rowKey, data: deepClone(patch.row), isComment: patch.isComment };
   }
+  if (state.validationRows) {
+    const projected = new Map(state.validationRows.map((row) => [row.rowKey, row]));
+    for (const patch of patches) {
+      if (patch.action === 'delete') projected.delete(patch.rowKey);
+      else
+        projected.set(
+          patch.rowKey,
+          projectValidationRow(state.table, { rowKey: patch.rowKey, data: patch.row, isComment: patch.isComment }),
+        );
+    }
+    state.validationRows = [...projected.values()];
+  }
   applySavedCsvRowKeyMapDraft(state, keyMap);
   const mapped = new Map(keyMap.map((entry) => [entry.previousKey, entry.nextKey]));
   state.baselineRowOrder = savedOrder.map((key) => mapped.get(key) ?? key);
@@ -420,6 +438,13 @@ export function commitCsvTableSaveDraft(
   rebuildDirty(state);
   state.externalUpdatePending = false;
   updateCounts(state);
+}
+function projectValidationRow(table: CsvTableState['table'], row: DeepReadonly<CsvDraftRow>): CsvDraftRow {
+  return {
+    rowKey: row.rowKey,
+    isComment: row.isComment,
+    data: Object.fromEntries(csvValidationDefinitions[table].columns.map((key) => [key, cell(row.data[key])])),
+  };
 }
 function updateCounts(state: CsvTableState) {
   state.totalRowCount = state.rowOrder.length;

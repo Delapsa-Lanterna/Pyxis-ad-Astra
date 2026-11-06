@@ -47,6 +47,7 @@ fn read_index(session: &str) -> ReadIndex {
         240,
         None,
         CsvSearchField::IdName,
+        &[],
     )
     .unwrap();
     ReadIndex {
@@ -123,6 +124,7 @@ fn retained_csv_performance() {
                 10,
                 Some("row_".into()),
                 CsvSearchField::IdName,
+                &[],
             )
             .unwrap();
             search.push(started.elapsed().as_secs_f64() * 1000.0);

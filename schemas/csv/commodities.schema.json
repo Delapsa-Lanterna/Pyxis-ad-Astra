@@ -15,7 +15,8 @@
     {
       "key": "demand class",
       "label": "需求类别",
-      "control": "text"
+      "control": "reference",
+      "source": "csv:commodities.id"
     },
     {
       "key": "base price",
@@ -32,8 +33,20 @@
     {
       "key": "price variability",
       "label": "价格波动",
-      "control": "number",
-      "step": 0.01
+      "control": "enum",
+      "options": [
+        "0",
+        "1",
+        "2",
+        "3",
+        "4",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "10"
+      ]
     },
     {
       "key": "utility",
@@ -68,7 +81,9 @@
       "key": "icon",
       "label": "图标",
       "control": "path-image",
-      "imageDirectories": ["graphics/icons/cargo"]
+      "imageDirectories": [
+        "graphics/icons/cargo"
+      ]
     },
     {
       "key": "sound id",
@@ -102,13 +117,21 @@
     {
       "key": "econUnit",
       "label": "经济单位",
-      "control": "text"
+      "control": "number",
+      "step": 0.1
     },
     {
       "key": "baseRaidDanger",
       "label": "袭击危险度",
-      "control": "number",
-      "step": 0.1
+      "control": "enum",
+      "options": [
+        "NONE",
+        "MINIMAL",
+        "LOW",
+        "MEDIUM",
+        "HIGH",
+        "EXTREME"
+      ]
     },
     {
       "key": "eU * base value",
@@ -132,5 +155,33 @@
       "label": "描述",
       "control": "text"
     }
-  ]
+  ],
+  "validation": {
+    "requiredColumn": [
+      "name",
+      "id",
+      "demand class",
+      "price variability",
+      "origin",
+      "icon",
+      "sound id",
+      "sound id drop"
+    ],
+    "warningMin": {
+      "base price": 0,
+      "export value": 0,
+      "utility": 5e-324,
+      "stack size": 5e-324,
+      "cargo space": 0,
+      "econUnit": 5e-324,
+      "iconWidthMult": 5e-324
+    },
+    "integer": [
+      "stack size"
+    ],
+    "required": [
+      "stack size",
+      "order"
+    ]
+  }
 }

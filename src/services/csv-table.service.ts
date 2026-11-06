@@ -18,6 +18,8 @@ import type {
   CsvRowOrderEntry,
   CsvDraftRow,
   AssociatedSpecPreparation,
+  CsvValidationRequest,
+  CsvValidationContext,
 } from '@/shared/types';
 
 import { invokeCommand, invokeSaveCommand, type SaveCommandRequest } from '@/shared/runtime/command.runtime';
@@ -25,6 +27,7 @@ import { CachedSessionQuery, readLiveSessionQuery, type SessionQueryDefinition }
 import type { ProjectInvalidation } from '@/shared/types';
 import { queryResourceDataUrls } from '@/services/resource-media.service';
 
+import { csvValidationDefinitions } from '@/domain/csv-editor/csv-validation';
 import { infoLog } from '@/shared/runtime/app-log-queue';
 import { logIdentity } from '@/shared/lib/log-fields';
 import { captureJsonEdits } from '@/shared/lib/json-edits';
@@ -44,6 +47,15 @@ const readTableRows = {
   invalidates: (parameters, invalidation) =>
     invalidation.queryScopes.some((scope) => scope.kind === 'csv-table-window' && (!scope.table || scope.table === parameters.table)),
 } satisfies SessionQueryDefinition<Omit<CsvTableRowsPayload, 'sessionId'>, CsvTableRowsRead>;
+
+const readValidation = new CachedSessionQuery<CsvValidationRequest, CsvValidationContext>({
+  queryKind: 'csv-table-window',
+  load: ({ sessionId, parameters }) => invokeCommand('query_csv_validation', { payload: { sessionId, ...parameters } }),
+  invalidates: () => true,
+});
+export function queryCsvValidation(sessionId: string, request: CsvValidationRequest, signal?: AbortSignal) {
+  return readValidation.read(sessionId, request, signal);
+}
 
 const readRowPreview = new CachedSessionQuery<Omit<CsvRowPreviewPayload, 'sessionId'>, CsvRowPreview>({
   queryKind: 'csv-row-preview',
@@ -139,7 +151,11 @@ export function queryTableIndex(
   searchField: CsvSearchField,
   signal?: AbortSignal,
 ): Promise<DeepReadonly<CsvTableIndex>> {
-  return readTableIndex.read(sessionId, { table, initialCount, search, searchField }, signal);
+  return readTableIndex.read(
+    sessionId,
+    { table, initialCount, search, searchField, validationColumns: csvValidationDefinitions[table].columns },
+    signal,
+  );
 }
 
 export function queryTableRows(

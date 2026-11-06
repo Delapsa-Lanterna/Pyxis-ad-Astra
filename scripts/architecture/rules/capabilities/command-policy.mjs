@@ -56,6 +56,7 @@ export const commandOwners = {
   'src/services/entity-query.service.ts': ['query_entity', 'query_entity_edit_target', 'query_entity_identity_intent', 'query_entity_list'],
   'src/services/csv-table.service.ts': [
     'query_csv_table_index',
+    'query_csv_validation',
     'query_csv_table_rows',
     'query_csv_row_preview',
     'prepare_csv_associated_specs',

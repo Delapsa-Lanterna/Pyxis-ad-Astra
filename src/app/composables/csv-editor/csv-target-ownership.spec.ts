@@ -14,7 +14,7 @@ import { navigateToModTable } from '@/orchestrators/workspace-navigation.orchest
 import { sessionUpdateFixture } from '@/test/fixtures/write-result';
 import { initializeSettingsStore } from '@/stores/settings.store';
 import { createSettingsFixture } from '@/test/fixtures/settings';
-import { TABLE_KEYS, type CsvTableTarget, type CsvTableIndex, type AppFeedback } from '@/shared/types';
+import { TABLE_KEYS, type CsvTableTarget, type CsvTableIndex, type AppFeedback, type CsvValidationRequest } from '@/shared/types';
 import { csvColumnSchemasForTable } from '@/domain/csv-editor/csv-column-schema';
 
 const mocks = vi.hoisted(() => ({
@@ -25,6 +25,14 @@ const mocks = vi.hoisted(() => ({
 }));
 vi.mock('@/services/csv-table.service', () => ({
   queryTableIndex: mocks.query,
+  queryCsvValidation: async (_session: string, request: CsvValidationRequest) => ({
+    complete: false,
+    entities: Object.fromEntries(request.entities.map(({ kind, id }) => [kind + ':' + id, {}])),
+    sources: {},
+    files: {},
+    classes: {},
+    stationData: {},
+  }),
   queryTableRows: mocks.rows,
   querySourceOptionCatalog: async () => [],
   queryTableRowPreviewDataUrl: async () => '',
@@ -111,7 +119,9 @@ describe('CSV explicit targets and column ownership', () => {
   }
   it('reads the identities currently occupying the requested range after reordering', async () => {
     const rows = Array.from({ length: 500 }, (_, index) => ({ rowKey: 'row-' + index, isComment: false, data: { id: String(index) } }));
-    mocks.query.mockResolvedValue(csvTableIndex(rows.slice(0, 240), { rowKeys: rows.map((row) => row.rowKey), totalRows: 500 }));
+    mocks.query.mockResolvedValue(
+      csvTableIndex(rows.slice(0, 240), { rowKeys: rows.map((row) => row.rowKey), validationRows: rows, totalRows: 500 }),
+    );
     mocks.rows.mockImplementation(async (_session: string, _table: string, keys: string[]) => ({
       table: 'ships',
       baseVersions: [],

@@ -141,6 +141,7 @@ pub fn run() {
                     commands::open_project_session,
                     commands::close_project_session,
                     commands::query_csv_table_index,
+                    commands::query_csv_validation,
                     commands::query_csv_table_rows,
                     commands::query_csv_source_options,
                     commands::query_image_source_options,

@@ -82,7 +82,9 @@ describe('browser sample service', () => {
   it('searches the selected field and reads identities in requested order', async () => {
     installBrowserModel(createBrowserModel('csv', 50));
     const query = async (searchField: string, search: string) =>
-      invoke<CsvTableIndex>('query_csv_table_index', { payload: { table: 'ships', searchField, search, initialCount: 2 } });
+      invoke<CsvTableIndex>('query_csv_table_index', {
+        payload: { table: 'ships', searchField, search, initialCount: 2, validationColumns: ['id'] },
+      });
     expect((await query('name', ' ship 12 ')).rowKeys).toEqual(['ships:row:12']);
     expect((await query('id', 'Sample')).rowKeys).toEqual([]);
     expect((await query('id-name', 'Sample')).rowKeys).toHaveLength(50);
@@ -111,7 +113,7 @@ describe('browser sample service', () => {
     const saved = model.saveCsv(payload);
     expect(saved.keyMap).toEqual([{ previousKey: 'ships:new:1', nextKey: 'ships:row:4', rowIndex: 0 }]);
     const reopened = await invoke<CsvTableIndex>('query_csv_table_index', {
-      payload: { table: 'ships', searchField: 'id-name', search: '', initialCount: 240 },
+      payload: { table: 'ships', searchField: 'id-name', search: '', initialCount: 240, validationColumns: ['id'] },
     });
     expect(reopened.rowKeys).toEqual(['ships:row:4', 'ships:row:3', 'ships:row:0', 'ships:row:1']);
     expect(reopened.rows[0]).toMatchObject({ data: {}, isComment: true });

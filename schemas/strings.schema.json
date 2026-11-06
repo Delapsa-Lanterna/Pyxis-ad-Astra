@@ -2,7 +2,13 @@
   "$schema": "pyxis-ad-astra/field-schema/v1",
   "id": "strings",
   "displayName": "strings.json",
-  "sources": [{ "id": "file", "type": "json-file", "path": "data/strings/strings.json" }],
+  "sources": [
+    {
+      "id": "file",
+      "type": "json-file",
+      "path": "data/strings/strings.json"
+    }
+  ],
   "root": {
     "key": "file",
     "type": "object",
@@ -32,7 +38,11 @@
           "default": {},
           "allowExtraFields": true
         },
-        { "type": "text", "label": "根级文本", "default": "" }
+        {
+          "type": "text",
+          "label": "根级文本",
+          "default": ""
+        }
       ],
       "allowExtraFields": true
     },

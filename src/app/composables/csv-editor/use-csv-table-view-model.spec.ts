@@ -1,3 +1,4 @@
+import type { CsvValidationRequest } from '@/shared/types';
 import type * as CsvTableServiceModule from '@/services/csv-table.service';
 import type * as SourceCatalogServiceModule from '@/services/source-catalog.service';
 import { useWorkspaceCsvEditorHost } from '@/app/composables/use-workspace-csv-editor-host';
@@ -29,6 +30,14 @@ const mocks = vi.hoisted(() => ({
 }));
 vi.mock('@/services/csv-table.service', () => ({
   queryTableIndex: mocks.index,
+  queryCsvValidation: async (_session: string, request: CsvValidationRequest) => ({
+    complete: false,
+    entities: Object.fromEntries(request.entities.map(({ kind, id }) => [kind + ':' + id, {}])),
+    sources: Object.fromEntries(request.sources.map((source) => [source, []])),
+    files: {},
+    classes: {},
+    stationData: {},
+  }),
   queryTableRows: mocks.rows,
   queryTableRowPreviewDataUrl: mocks.preview,
   hasTableInvalidation: mocks.affected,
@@ -70,6 +79,7 @@ beforeEach(() => {
     const result = search ? rows.filter((row) => String(row.data.id).includes(search)) : rows;
     return csvTableIndex(result.slice(0, count), {
       totalRows: rows.length,
+      validationRows: rows.map((row) => ({ rowKey: row.rowKey, isComment: row.isComment, data: { id: row.data.id! } })),
       rowKeys: result.map((row) => row.rowKey),
       header: ['id', 'name'],
       baseVersions: versions,
@@ -148,7 +158,7 @@ describe('CSV index and keyed content owner', () => {
     await vm.setSearchText('id-0');
     await flushPromises();
     useCsvEditorStore().updateCellValue({ ...target, rowKey: 'key-0', column: 'id' }, 'later');
-    finish(csvTableIndex([], { rowKeys: ['key-0'], header: ['id', 'name'], baseVersions: versions }));
+    finish(csvTableIndex([], { rowKeys: ['key-0'], validationRows: rows, header: ['id', 'name'], baseVersions: versions }));
     await flushPromises();
     expect(vm.gridModel.value.rowKeys).toEqual(['key-0']);
     expect(vm.gridModel.value.rowsByKey['key-0']!.data.id).toBe('later');

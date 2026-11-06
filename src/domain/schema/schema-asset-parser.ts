@@ -213,6 +213,26 @@ export function parseCsvColumnSchemas(table: string, raw: unknown): CsvColumnSch
       throw new Error(`csv column schema ${table}[${index}]: 非法控件类型 ${String(record.control)}`);
     }
     const schema: CsvColumnSchema = { key: record.key, control: record.control as CsvColumnSchema['control'] };
+    if (asset.validation !== undefined) {
+      const rules = asRecord(asset.validation, 'CSV validation');
+      if (schema.control === 'number')
+        schema.valueType = isStringArray(rules.integer) && rules.integer.includes(schema.key) ? 'integer' : 'float';
+      for (const key of ['required', 'requiredColumn', 'script'] as const) {
+        const keys = rules[key];
+        if (keys !== undefined && !isStringArray(keys)) throw new Error('CSV 校验列声明必须为字符串列表');
+        if (isStringArray(keys) && keys.includes(schema.key)) schema[key] = true;
+      }
+      if (rules.integer !== undefined && !isStringArray(rules.integer)) throw new Error('CSV 整数列声明必须为字符串列表');
+      for (const key of ['warningMin', 'warningMax'] as const)
+        if (rules[key] !== undefined) {
+          const bounds = asRecord(rules[key], key),
+            value = bounds[schema.key];
+          if (value !== undefined) {
+            if (!isNumber(value)) throw new Error('CSV 数值提醒边界必须为数字');
+            schema[key] = value;
+          }
+        }
+    }
     if (record.imageDirectories !== undefined) schema.imageDirectories = parseImageDirectories(record.imageDirectories);
     if (isString(record.label)) schema.label = record.label;
     if (isString(record.source)) schema.source = record.source;

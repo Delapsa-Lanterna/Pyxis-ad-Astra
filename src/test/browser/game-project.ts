@@ -151,7 +151,7 @@ export function createWorkspaceProject(root: string, index: number) {
     };
     for (const key of Object.values(names)) manifest.entitySummaries[key] = 0;
     for (const entity of entities.values()) manifest.entitySummaries[names[entity.kind]]++;
-    manifest.associatedSpecTables = (['ships', 'weapons', 'wings', 'shipSystems'] as const).filter(
+    manifest.associatedSpecTables = (['ships', 'weapons', 'skills', 'shipSystems'] as const).filter(
       (key) => tables.get(key)!.rows.length > 0,
     );
     model.miscFiles.splice(

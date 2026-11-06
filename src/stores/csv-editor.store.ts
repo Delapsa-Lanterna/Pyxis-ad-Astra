@@ -32,6 +32,7 @@ import {
   type CsvTableKey,
   type DeepReadonly,
   type CsvSearchField,
+  type CsvValidationContext,
 } from '@/shared/types';
 import { recordQueuedLog, shouldQueueLog, infoLog } from '@/shared/runtime/app-log-queue';
 import { logFields } from '@/shared/lib/log-fields';
@@ -66,7 +67,12 @@ import {
   type CsvRowTarget,
 } from '@/domain/csv-editor/csv-table-draft';
 
+import { createEditorProblems } from '@/shared/runtime/editor-problems';
+import { csvTableIssues } from '@/domain/csv-editor/csv-validation';
+import { cloneQuerySnapshot } from '@/shared/lib/query-snapshot';
+
 interface CsvTableRuntime extends CsvTableState {
+  problems: Raw<ReturnType<typeof createEditorProblems>> | null;
   inputs: Raw<FieldInputs>;
   history: UndoStackState<CsvTableHistoryEntry>;
   readGeneration: number;
@@ -87,6 +93,10 @@ function createCsvModRuntime(target: { sessionId: string; modRoot: string }, lim
         {
           table,
           nextRowKey: 0,
+          validationRows: null,
+          validationContext: null,
+          validationKey: '',
+          problems: null,
           rowOrder: [],
           baselineRowOrder: [],
           baseVersions: [],
@@ -165,6 +175,7 @@ export const useCsvEditorStore = defineStore('csv-editor', () => {
     const document = state.documents[target.table],
       query = !filtered && state.searchText.trim() ? document.queryRowKeys : undefined;
     applyCsvTableIndexDraft(document, index, filtered, getTableInputs(target.modRoot, target.table).dirty.value);
+    if (document.validationRows) markRaw(document.validationRows);
     if (query) {
       document.queryRowKeys = query;
       document.filteredRowCount = query.length;
@@ -173,6 +184,7 @@ export const useCsvEditorStore = defineStore('csv-editor', () => {
 
   function acceptSavedTableIndex(target: CsvTableTarget, index: DeepReadonly<CsvTableIndex>, filtered = false) {
     acceptSavedCsvTableIndex(stateMap.get(target.modRoot)!.documents[target.table], index, filtered);
+    markRaw(stateMap.get(target.modRoot)!.documents[target.table].validationRows!);
   }
 
   function acceptSavedTableRows(target: CsvTableTarget, rows: DeepReadonly<CsvTableRowsRead>) {
@@ -512,6 +524,16 @@ export const useCsvEditorStore = defineStore('csv-editor', () => {
     return stateMap.get(modRoot)!.documents[table].saving;
   }
 
+  function getTableProblems(target: CsvTableTarget) {
+    const document = stateMap.get(target.modRoot)!.documents[target.table];
+    return (document.problems ??= markRaw(createEditorProblems(document.inputs, () => csvTableIssues(document))));
+  }
+  function acceptTableValidation(target: CsvTableTarget, key: string, context: DeepReadonly<CsvValidationContext>) {
+    const document = stateMap.get(target.modRoot)!.documents[target.table];
+    document.validationKey = key;
+    document.validationContext = markRaw(cloneQuerySnapshot<CsvValidationContext>(context));
+  }
+
   function getTableEditor(target: CsvTableTarget): DocumentEditorActions<CsvTableTarget> {
     const state = stateMap.get(target.modRoot)!;
     const runtime = state.documents[target.table];
@@ -580,6 +602,8 @@ export const useCsvEditorStore = defineStore('csv-editor', () => {
 
   return {
     getTableEditor,
+    getTableProblems,
+    acceptTableValidation,
     bindSaveActions,
     getCsvModState,
 

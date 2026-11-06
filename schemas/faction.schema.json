@@ -88,7 +88,9 @@
         {
           "key": "file.logo",
           "type": "path-image",
-          "imageDirectories": ["graphics/factions"],
+          "imageDirectories": [
+            "graphics/factions"
+          ],
           "label": "势力标志",
           "description": "势力标志图片路径 (相对于游戏/mod 根目录)",
           "required": true,
@@ -97,7 +99,9 @@
         {
           "key": "file.crest",
           "type": "path-image",
-          "imageDirectories": ["graphics/factions"],
+          "imageDirectories": [
+            "graphics/factions"
+          ],
           "label": "势力徽章",
           "description": "势力徽章图片路径 (用于 intel 等界面)",
           "required": true,
@@ -119,7 +123,12 @@
           "description": "势力主要颜色 [R, G, B, A]，范围 0-255",
           "required": true,
           "editable": true,
-          "default": [255, 255, 255, 255],
+          "default": [
+            255,
+            255,
+            255,
+            255
+          ],
           "min": 0,
           "max": 255
         },
@@ -751,7 +760,9 @@
             "key": "role",
             "type": "object",
             "label": "角色",
-            "default": { "includeDefault": true },
+            "default": {
+              "includeDefault": true
+            },
             "nested": [
               {
                 "key": "includeDefault",
@@ -932,7 +943,9 @@
                 "key": "entry",
                 "type": "object",
                 "label": "名称",
-                "default": { "name": "" },
+                "default": {
+                  "name": ""
+                },
                 "nested": [
                   {
                     "key": "name",
@@ -956,7 +969,9 @@
                 "key": "entry",
                 "type": "object",
                 "label": "名称",
-                "default": { "name": "" },
+                "default": {
+                  "name": ""
+                },
                 "nested": [
                   {
                     "key": "name",

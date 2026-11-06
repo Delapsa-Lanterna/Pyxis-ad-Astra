@@ -10,7 +10,7 @@ import type {
 } from '@/shared/types';
 import { getAssociatedSpecCandidates } from '@/domain/csv-editor/associated-spec-candidates';
 import { isCsvDeletedRow } from '@/domain/csv-editor/csv-dirty';
-import { saveCsvPatch, prepareCsvAssociatedSpecs } from '@/services/csv-table.service';
+import { saveCsvPatch, prepareCsvAssociatedSpecs, queryTableIndex, queryCsvValidation } from '@/services/csv-table.service';
 import { useCsvEditorStore } from '@/stores/csv-editor.store';
 import { useProjectStore } from '@/stores/project.store';
 import type { AssociatedSpecCandidate } from '@/domain/csv-editor/associated-spec-candidates';
@@ -19,8 +19,13 @@ import { beginSavedWrite } from '@/orchestrators/project-sync.orchestrator';
 import { infoLog } from '@/shared/runtime/app-log-queue';
 import { runConfirmedJsonWrite } from '@/orchestrators/json-write-confirmation.orchestrator';
 import { commitCsvTableSaveDraft, hasCsvTableDraftChanges, hasCsvRowOrderChanges } from '@/domain/csv-editor/csv-table-draft';
-import { deepClone } from '@/shared/lib/starsector';
+import { deepClone, MODULE_LABELS } from '@/shared/lib/starsector';
+import { stableDeepEqual } from '@/shared/lib/stable-compare';
+import { AppError } from '@/shared/lib/errors';
+import { dialogBody, dialogFiles } from '@/shared/ui/dialog-content';
 import { retainLaterDraft } from '@/domain/edit-session';
+import { csvValidationRows } from '@/domain/csv-editor/csv-validation';
+import { csvValidationRequest } from '@/domain/csv-editor/csv-rule-context';
 import { isAbsoluteFsPath, joinRootRelativePath, normalizeFsPath } from '@/shared/lib/paths';
 
 import { reserveNativeWindowTargets, releaseNativeWindowTargets } from '@/services/window.service';
@@ -47,10 +52,19 @@ export async function saveCsvChanges(options: TableSaveOptions): Promise<CsvSave
   const target = captureTableSaveTarget(options);
   if (!target) return { status: 'noop' };
   const identity = { sessionId: target.manifest.sessionId, modRoot: target.modRoot, table: target.table };
+  const problems = tables.getTableProblems(identity);
+  problems.clearFailure();
   tables.revokeTableReads(target.modRoot, target.table);
   tables.setSaving(identity, true);
   try {
-    return await saveTarget(target, options);
+    const result = await saveTarget(target, options);
+    if (result.status === 'saved') problems.clearFailure();
+    return result;
+  } catch (error) {
+    if (!(error instanceof AppError && ['csv-validation', 'commit-field-inputs'].includes(error.action ?? '')))
+      problems.recordFailure(error);
+    problems.reveal();
+    throw error;
   } finally {
     await releaseNativeWindowTargets();
     tables.setSaving(identity, false);
@@ -79,13 +93,69 @@ async function saveTarget(target: CapturedTableSaveTarget, options: TableSaveOpt
     baseVersions: deepClone(state.documents[table].baseVersions),
     candidates: deepClone(getAssociatedSpecCandidates(state.documents[table], manifest.associatedSpecTables)),
   });
-  let captured = capture();
-  const pending = tables.getTableInputs(modRoot, table).commit(undefined, true, () => {
-    captured = capture();
-  });
+  const pending = tables.getTableInputs(modRoot, table).commit(undefined, true);
   if (pending && !(await pending)) return { status: 'cancelled' };
   if (!isTableSaveTargetCurrent(target)) return { status: 'noop' };
+  let captured = capture();
   if (!captured.changed) return { status: 'noop' };
+  const identity = { sessionId: manifest.sessionId, modRoot, table };
+  if (state.documents[table].validationRows === null) {
+    const index = await queryTableIndex(manifest.sessionId, table, 0, null, 'id-name');
+    if (!isTableSaveTargetCurrent(target)) return { status: 'noop' };
+    tables.applyTableIndex(identity, index);
+  }
+  if (state.documents[table].externalUpdatePending) throw new AppError('CSV 文件已更新，请先处理外部版本', { code: 'csv.external_update' });
+  const problems = tables.getTableProblems(identity);
+  const refuse = () => {
+    throw new AppError(`${MODULE_LABELS[table]}存在校验错误`, {
+      action: 'csv-validation',
+      userMessage: `${MODULE_LABELS[table]}：请先解决详情栏顶部错误后再保存`,
+    });
+  };
+  if (problems.issues.value.some((issue) => issue.severity === 'error')) refuse();
+  const request = csvValidationRequest(table, csvValidationRows(state.documents[table]));
+  const key = JSON.stringify(request);
+  const context = await queryCsvValidation(manifest.sessionId, request);
+  if (!isTableSaveTargetCurrent(target)) return { status: 'noop' };
+  if (key !== JSON.stringify(csvValidationRequest(table, csvValidationRows(state.documents[table])))) return saveTarget(target, options);
+  tables.acceptTableValidation(identity, key, context);
+  captured = capture();
+  const issues = [...problems.issues.value];
+  if (issues.some((issue) => issue.severity === 'error'))
+    throw new AppError(`${MODULE_LABELS[table]}存在校验错误`, {
+      action: 'csv-validation',
+      userMessage: `${MODULE_LABELS[table]}：请先解决详情栏顶部错误后再保存`,
+    });
+  const confirmed = deepClone([captured.patches, captured.rowOrder, captured.baseVersions, issues]);
+  const unchanged = () => {
+    const document = state.documents[table];
+    return (
+      !tables.getTableInputs(modRoot, table).dirty.value &&
+      stableDeepEqual(confirmed, [
+        buildCurrentTablePatches(state, table),
+        hasCsvRowOrderChanges(document) ? document.rowOrder : null,
+        document.baseVersions,
+        problems.issues.value,
+      ])
+    );
+  };
+  const warnings = issues.filter((issue) => issue.severity === 'warning');
+  if (warnings.length) {
+    const choice = await options.feedback!.choose({
+      title: '仍要保存吗？',
+      content: () =>
+        dialogBody(
+          `${MODULE_LABELS[table]}有 ${warnings.length} 条保存提醒：`,
+          dialogFiles([manifest.tableSummaries[table].path]),
+          ...warnings.map((issue) => issue.message),
+        ),
+      choices: [{ label: '仍然保存', value: 'save', type: 'warning' }],
+      cancelText: '返回编辑',
+    });
+    if (choice !== 'save') return { status: 'cancelled' };
+    if (!isTableSaveTargetCurrent(target)) return { status: 'noop' };
+    if (!unchanged()) return saveTarget(target, options);
+  }
   const { submittedHistory, patches, originalRows, rowOrder, baseVersions, candidates } = captured;
   if (candidates.length) {
     const prepared = await prepareCsvAssociatedSpecs(
@@ -102,7 +172,23 @@ async function saveTarget(target: CapturedTableSaveTarget, options: TableSaveOpt
   const associatedSpecs = candidates.length > 0 ? await options.selectAssociatedSpecs(candidates) : [];
   if (associatedSpecs === null) return { status: 'cancelled' };
   if (!isTableSaveTargetCurrent(target)) return { status: 'noop' };
+  if (candidates.length && !unchanged()) return saveTarget(target, options);
   const writes = associatedSpecs;
+  if (['ships', 'skills'].includes(table) && context.complete) {
+    const kind = table === 'ships' ? 'ship' : 'skill';
+    for (const patch of patches) {
+      if (patch.action !== 'upsert' || patch.isComment) continue;
+      const id = String(patch.row.id ?? '');
+      if (
+        id &&
+        !context.entities[`${kind}:${id}`] &&
+        !writes.some((write) => write.change.action !== 'delete' && write.change.create.id === id)
+      )
+        throw new AppError(`${MODULE_LABELS[table]}规格 ${JSON.stringify(id)} 尚未准备，请选择关联规格后保存`, {
+          code: 'csv.spec_missing',
+        });
+    }
+  }
   for (const write of writes) {
     const candidate = candidates.find(
       (candidate) => candidate.change.action === write.change.action && candidate.preparation!.target.id === write.target.id,
@@ -128,6 +214,8 @@ async function saveTarget(target: CapturedTableSaveTarget, options: TableSaveOpt
     return [...identities, ...identitiesToRemove];
   });
   if (reservations.length > 0) await reserveNativeWindowTargets(reservations);
+  if (!isTableSaveTargetCurrent(target)) return { status: 'noop' };
+  if (reservations.length && !unchanged()) return saveTarget(target, options);
   const operation = beginSavedWrite(
     (request) =>
       runConfirmedJsonWrite(

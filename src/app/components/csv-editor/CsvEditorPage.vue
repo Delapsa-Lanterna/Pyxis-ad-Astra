@@ -83,23 +83,30 @@
         aria-controls="csv-detail-panel"
         @click="detailPaneExpanded = !detailPaneExpanded"
       />
-      <CsvRowDetails
+      <aside
         id="csv-detail-panel"
         v-show="detailPaneExpanded"
-        :model="model"
-        :starsector-root="host.starsectorRoot.value"
-        :query-row-preview="csvTable.querySelectedRowPreview"
-        :source-index="csvTable.sourceIndex.value"
-        @detail-action="actions.handleDetailAction"
-      />
+        class="csv-detail-panel ui-content-column ui-content-contained ui-content-surface-muted"
+      >
+        <EditorProblems :issues="problems.issues.value" />
+        <CsvRowDetails
+          :model="model"
+          :starsector-root="host.starsectorRoot.value"
+          :query-row-preview="csvTable.querySelectedRowPreview"
+          :source-index="csvTable.sourceIndex.value"
+          @detail-action="actions.handleDetailAction"
+        />
+      </aside>
     </section>
   </section>
 </template>
 
 <script setup lang="ts">
-import { computed, h, useTemplateRef } from 'vue';
+import { computed, h, useTemplateRef, watch } from 'vue';
 import { NDropdown } from 'naive-ui/es/dropdown';
 import CsvTableEditor from '@/app/components/csv-editor/CsvTableEditor.vue';
+import EditorProblems from '@/shared/ui/EditorProblems.vue';
+import { useCsvEditorStore } from '@/stores/csv-editor.store';
 import CsvRowDetails from '@/app/components/csv-editor/CsvRowDetails.vue';
 import { useCsvTableViewModel } from '@/app/composables/csv-editor/use-csv-table-view-model';
 import { useCsvEditorActions } from '@/app/composables/csv-editor/use-csv-editor-actions';
@@ -114,8 +121,12 @@ const props = defineProps<{ target: CsvTableTarget; host: CsvEditorHost }>();
 const host = props.host;
 const model = useCsvEditorModel(computed(() => props.target));
 const view = model.view;
+const problems = useCsvEditorStore().getTableProblems(props.target);
 const actions = useCsvEditorActions(model, host, useAppFeedback());
 const detailPaneExpanded = defineModel<boolean>('detailPaneExpanded', { default: true });
+watch(problems.revealRevision, () => {
+  detailPaneExpanded.value = true;
+});
 const tableEditor = useTemplateRef<InstanceType<typeof CsvTableEditor>>('tableEditor');
 async function deleteRows() {
   if (!(await tableEditor.value!.deleteRows())) await actions.deleteSelectedRow();

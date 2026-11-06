@@ -1006,6 +1006,7 @@ mod source_refresh_tests {
             1,
             None,
             CsvSearchField::IdName,
+            &[],
         )
         .unwrap_err();
         assert_eq!(error.code(), "write.recovery_content_missing");

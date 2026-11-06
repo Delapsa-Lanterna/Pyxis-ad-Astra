@@ -153,6 +153,8 @@ export type {
   CsvCellTarget,
   CsvModState,
   CsvTableState,
+  CsvValidationRequest,
+  CsvValidationContext,
   CsvTableTarget,
   CsvSearchField,
   CsvRowPreview,

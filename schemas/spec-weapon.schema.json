@@ -6,24 +6,56 @@
       "id": "basic",
       "label": "基础属性",
       "fields": [
-        { "key": "id", "label": "武器 ID", "type": "string", "default": "", "required": true, "identity": true },
+        {
+          "key": "id",
+          "label": "武器 ID",
+          "type": "string",
+          "default": "",
+          "required": true,
+          "identity": true
+        },
         {
           "key": "specClass",
           "label": "规格类型",
           "type": "enum",
           "default": "",
-          "options": ["projectile", "beam"],
+          "options": [
+            "projectile",
+            "beam"
+          ],
           "required": true,
           "ref": "spec-weapon#/definitions/save/nested/0"
         },
-        { "key": "type", "label": "类型", "type": "enum", "default": "", "required": true, "ref": "spec-weapon#/definitions/enum1" },
-        { "key": "size", "label": "尺寸", "type": "enum", "default": "", "options": ["SMALL", "MEDIUM", "LARGE"], "required": true },
+        {
+          "key": "type",
+          "label": "类型",
+          "type": "enum",
+          "default": "",
+          "required": true,
+          "ref": "spec-weapon#/definitions/enum1"
+        },
+        {
+          "key": "size",
+          "label": "尺寸",
+          "type": "enum",
+          "default": "",
+          "options": [
+            "SMALL",
+            "MEDIUM",
+            "LARGE"
+          ],
+          "required": true
+        },
         {
           "key": "restrictToSpecifiedMountType",
           "label": "限定指定挂载类型",
           "type": "boolean",
           "default": false,
-          "visibleWhen": { "specClass": ["projectile"] }
+          "visibleWhen": {
+            "specClass": [
+              "projectile"
+            ]
+          }
         }
       ]
     },
@@ -35,19 +67,43 @@
           "key": "turretSprite",
           "label": "主体贴图",
           "type": "path-image",
-          "imageDirectories": ["graphics/weapons"],
+          "imageDirectories": [
+            "graphics/weapons"
+          ],
           "default": "",
           "required": true
         },
-        { "key": "turretUnderSprite", "label": "底层贴图", "type": "path-image", "imageDirectories": ["graphics/weapons"], "default": "" },
-        { "key": "turretGlowSprite", "label": "光效贴图", "type": "path-image", "imageDirectories": ["graphics/weapons"], "default": "" },
+        {
+          "key": "turretUnderSprite",
+          "label": "底层贴图",
+          "type": "path-image",
+          "imageDirectories": [
+            "graphics/weapons"
+          ],
+          "default": ""
+        },
+        {
+          "key": "turretGlowSprite",
+          "label": "光效贴图",
+          "type": "path-image",
+          "imageDirectories": [
+            "graphics/weapons"
+          ],
+          "default": ""
+        },
         {
           "key": "turretGunSprite",
           "label": "炮管贴图",
           "type": "path-image",
-          "imageDirectories": ["graphics/weapons"],
+          "imageDirectories": [
+            "graphics/weapons"
+          ],
           "default": "",
-          "visibleWhen": { "specClass": ["projectile"] }
+          "visibleWhen": {
+            "specClass": [
+              "projectile"
+            ]
+          }
         }
       ]
     },
@@ -59,7 +115,9 @@
           "key": "hardpointSprite",
           "label": "主体贴图",
           "type": "path-image",
-          "imageDirectories": ["graphics/weapons"],
+          "imageDirectories": [
+            "graphics/weapons"
+          ],
           "default": "",
           "required": true
         },
@@ -67,44 +125,79 @@
           "key": "hardpointUnderSprite",
           "label": "底层贴图",
           "type": "path-image",
-          "imageDirectories": ["graphics/weapons"],
+          "imageDirectories": [
+            "graphics/weapons"
+          ],
           "default": ""
         },
         {
           "key": "hardpointGlowSprite",
           "label": "光效贴图",
           "type": "path-image",
-          "imageDirectories": ["graphics/weapons"],
+          "imageDirectories": [
+            "graphics/weapons"
+          ],
           "default": ""
         },
         {
           "key": "hardpointGunSprite",
           "label": "炮管贴图",
           "type": "path-image",
-          "imageDirectories": ["graphics/weapons"],
+          "imageDirectories": [
+            "graphics/weapons"
+          ],
           "default": "",
-          "visibleWhen": { "specClass": ["projectile"] }
+          "visibleWhen": {
+            "specClass": [
+              "projectile"
+            ]
+          }
         }
       ]
     },
     {
       "id": "beam",
       "label": "光束参数",
-      "visibleWhen": { "specClass": ["beam"] },
+      "visibleWhen": {
+        "specClass": [
+          "beam"
+        ]
+      },
       "fields": [
-        { "key": "width", "label": "宽度", "type": "float", "default": 10 },
+        {
+          "key": "width",
+          "label": "宽度",
+          "type": "float",
+          "default": 10
+        },
         {
           "key": "textureType",
           "label": "纹理类型",
           "type": "enum",
           "default": "",
-          "options": ["SMOOTH", "MEDIUM", "ROUGH", "CHUNKY", "ROUGH2", "WEAVE", "LASER"],
+          "options": [
+            "SMOOTH",
+            "MEDIUM",
+            "ROUGH",
+            "CHUNKY",
+            "ROUGH2",
+            "WEAVE",
+            "LASER"
+          ],
           "required": true,
           "variants": [
             {
               "type": "enum",
               "default": "",
-              "options": ["SMOOTH", "MEDIUM", "ROUGH", "CHUNKY", "ROUGH2", "WEAVE", "LASER"],
+              "options": [
+                "SMOOTH",
+                "MEDIUM",
+                "ROUGH",
+                "CHUNKY",
+                "ROUGH2",
+                "WEAVE",
+                "LASER"
+              ],
               "required": true
             },
             {
@@ -112,36 +205,128 @@
               "label": "自定义纹理",
               "minEntries": 2,
               "maxEntries": 2,
-              "item": { "key": "texture", "label": "纹理", "type": "path-image", "imageDirectories": ["graphics/fx"], "required": true }
+              "item": {
+                "key": "texture",
+                "label": "纹理",
+                "type": "path-image",
+                "imageDirectories": [
+                  "graphics/fx"
+                ],
+                "required": true
+              }
             }
           ]
         },
-        { "key": "textureScrollSpeed", "label": "纹理滚动速度", "type": "float", "default": 64 },
-        { "key": "fringeScrollSpeedMult", "label": "外围滚动倍率", "type": "float", "default": 1 },
-        { "key": "pixelsPerTexel", "label": "纹素比例", "type": "float", "default": 1 },
-        { "key": "fringeColor", "label": "外围颜色", "type": "color-rgba", "default": [255, 255, 255, 255] },
-        { "key": "coreColor", "label": "核心颜色", "type": "color-rgba", "default": [255, 255, 255, 255] },
-        { "key": "darkCore", "label": "暗色核心", "type": "boolean", "default": false },
-        { "key": "darkCoreIter", "label": "暗芯绘制次数", "type": "float", "default": 1 },
-        { "key": "darkFringeIter", "label": "外围绘制次数", "type": "float", "default": 1 },
-        { "key": "coreWidthMult", "label": "核心宽度倍率", "type": "float", "default": 1 },
-        { "key": "randomizeTextureOffset", "label": "随机纹理偏移", "type": "boolean", "default": false },
-        { "key": "beamFireOnlyOnFullCharge", "label": "完全充能后发射", "type": "boolean", "default": false },
-        { "key": "convergeOnPoint", "label": "汇聚于目标点", "type": "boolean", "default": false },
-        { "key": "skipIdleFrameIfZeroBurstDelay", "label": "零连发间隔跳过空闲帧", "type": "boolean", "default": false }
+        {
+          "key": "textureScrollSpeed",
+          "label": "纹理滚动速度",
+          "type": "float",
+          "default": 64
+        },
+        {
+          "key": "fringeScrollSpeedMult",
+          "label": "外围滚动倍率",
+          "type": "float",
+          "default": 1
+        },
+        {
+          "key": "pixelsPerTexel",
+          "label": "纹素比例",
+          "type": "float",
+          "default": 1
+        },
+        {
+          "key": "fringeColor",
+          "label": "外围颜色",
+          "type": "color-rgba",
+          "default": [
+            255,
+            255,
+            255,
+            255
+          ]
+        },
+        {
+          "key": "coreColor",
+          "label": "核心颜色",
+          "type": "color-rgba",
+          "default": [
+            255,
+            255,
+            255,
+            255
+          ]
+        },
+        {
+          "key": "darkCore",
+          "label": "暗色核心",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "darkCoreIter",
+          "label": "暗芯绘制次数",
+          "type": "float",
+          "default": 1
+        },
+        {
+          "key": "darkFringeIter",
+          "label": "外围绘制次数",
+          "type": "float",
+          "default": 1
+        },
+        {
+          "key": "coreWidthMult",
+          "label": "核心宽度倍率",
+          "type": "float",
+          "default": 1
+        },
+        {
+          "key": "randomizeTextureOffset",
+          "label": "随机纹理偏移",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "beamFireOnlyOnFullCharge",
+          "label": "完全充能后发射",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "convergeOnPoint",
+          "label": "汇聚于目标点",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "skipIdleFrameIfZeroBurstDelay",
+          "label": "零连发间隔跳过空闲帧",
+          "type": "boolean",
+          "default": false
+        }
       ]
     },
     {
       "id": "proj",
       "label": "发射设置",
-      "visibleWhen": { "specClass": ["projectile"] },
+      "visibleWhen": {
+        "specClass": [
+          "projectile"
+        ]
+      },
       "fields": [
         {
           "key": "barrelMode",
           "label": "发射模式",
           "type": "enum",
           "default": "",
-          "options": ["ALTERNATING", "ALTERNATING_BURST", "DUAL", "LINKED"],
+          "options": [
+            "ALTERNATING",
+            "ALTERNATING_BURST",
+            "DUAL",
+            "LINKED"
+          ],
           "required": true
         },
         {
@@ -152,18 +337,48 @@
           "required": true,
           "ref": "spec-projectile#/definitions/projectileReference"
         },
-        { "key": "autocharge", "label": "自动充能", "type": "boolean", "default": false },
-        { "key": "requiresFullCharge", "label": "需要完全充能", "type": "boolean", "default": true },
-        { "key": "interruptibleBurst", "label": "允许中断连发", "type": "boolean", "default": false },
-        { "key": "unaffectedByProjectileSpeedBonuses", "label": "忽略弹体速度加成", "type": "boolean", "default": false }
+        {
+          "key": "autocharge",
+          "label": "自动充能",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "requiresFullCharge",
+          "label": "需要完全充能",
+          "type": "boolean",
+          "default": true
+        },
+        {
+          "key": "interruptibleBurst",
+          "label": "允许中断连发",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "unaffectedByProjectileSpeedBonuses",
+          "label": "忽略弹体速度加成",
+          "type": "boolean",
+          "default": false
+        }
       ]
     },
     {
       "id": "hit",
       "label": "命中效果",
-      "visibleWhen": { "specClass": ["beam"] },
+      "visibleWhen": {
+        "specClass": [
+          "beam"
+        ]
+      },
       "fields": [
-        { "key": "collisionClass", "label": "碰撞类型", "type": "enum", "default": "RAY", "ref": "spec-weapon#/definitions/enum2" },
+        {
+          "key": "collisionClass",
+          "label": "碰撞类型",
+          "type": "enum",
+          "default": "RAY",
+          "ref": "spec-weapon#/definitions/enum2"
+        },
         {
           "key": "collisionClassByFighter",
           "label": "战机发射时碰撞类型",
@@ -171,46 +386,127 @@
           "default": "RAY_FIGHTER",
           "ref": "spec-weapon#/definitions/enum2"
         },
-        { "key": "pierceSet", "label": "穿透类型", "type": "string-array", "default": [], "ref": "spec-weapon#/definitions/enum2" },
-        { "key": "hitGlowRadius", "label": "命中光晕半径", "type": "float", "default": -1 },
-        { "key": "hitGlowBrightenDuration", "label": "命中增亮时间", "type": "float", "default": 1 },
-        { "key": "useGlowColorForHitGlow", "label": "命中使用光效颜色", "type": "boolean", "default": false }
+        {
+          "key": "pierceSet",
+          "label": "穿透类型",
+          "type": "string-array",
+          "default": [],
+          "ref": "spec-weapon#/definitions/enum2"
+        },
+        {
+          "key": "hitGlowRadius",
+          "label": "命中光晕半径",
+          "type": "float",
+          "default": -1
+        },
+        {
+          "key": "hitGlowBrightenDuration",
+          "label": "命中增亮时间",
+          "type": "float",
+          "default": 1
+        },
+        {
+          "key": "useGlowColorForHitGlow",
+          "label": "命中使用光效颜色",
+          "type": "boolean",
+          "default": false
+        }
       ]
     },
     {
       "id": "muzzle",
       "label": "炮口效果",
-      "visibleWhen": { "specClass": ["projectile"] },
+      "visibleWhen": {
+        "specClass": [
+          "projectile"
+        ]
+      },
       "fields": [
         {
           "key": "animationType",
           "label": "炮口动画类型",
           "type": "enum",
           "default": "",
-          "options": ["NONE", "GLOW", "MUZZLE_FLASH", "GLOW_AND_FLASH", "SMOKE"],
+          "options": [
+            "NONE",
+            "GLOW",
+            "MUZZLE_FLASH",
+            "GLOW_AND_FLASH",
+            "SMOKE"
+          ],
           "required": true
         },
-        { "key": "visualRecoil", "label": "视觉后坐", "type": "float", "default": 0 },
-        { "key": "separateRecoilForLinkedBarrels", "label": "齐射时各炮管独立后坐", "type": "boolean", "default": false }
+        {
+          "key": "visualRecoil",
+          "label": "视觉后坐",
+          "type": "float",
+          "default": 0
+        },
+        {
+          "key": "separateRecoilForLinkedBarrels",
+          "label": "齐射时各炮管独立后坐",
+          "type": "boolean",
+          "default": false
+        }
       ]
     },
     {
       "id": "anim",
       "label": "帧动画",
       "fields": [
-        { "key": "numFrames", "label": "帧数", "type": "float", "default": 1 },
-        { "key": "frameRate", "label": "帧率", "type": "float", "default": 1 },
-        { "key": "alwaysAnimate", "label": "持续播放", "type": "boolean", "default": false },
-        { "key": "animateWhileFiring", "label": "开火时播放", "type": "boolean", "default": true }
+        {
+          "key": "numFrames",
+          "label": "帧数",
+          "type": "float",
+          "default": 1
+        },
+        {
+          "key": "frameRate",
+          "label": "帧率",
+          "type": "float",
+          "default": 1
+        },
+        {
+          "key": "alwaysAnimate",
+          "label": "持续播放",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "animateWhileFiring",
+          "label": "开火时播放",
+          "type": "boolean",
+          "default": true
+        }
       ]
     },
     {
       "id": "glow",
       "label": "光效与绘制",
       "fields": [
-        { "key": "glowColor", "label": "光效颜色", "type": "color-rgba", "default": [255, 255, 255, 255] },
-        { "key": "specialWeaponGlowWidth", "label": "特殊光效宽度", "type": "float", "default": -1 },
-        { "key": "specialWeaponGlowHeight", "label": "特殊光效高度", "type": "float", "default": -1 },
+        {
+          "key": "glowColor",
+          "label": "光效颜色",
+          "type": "color-rgba",
+          "default": [
+            255,
+            255,
+            255,
+            255
+          ]
+        },
+        {
+          "key": "specialWeaponGlowWidth",
+          "label": "特殊光效宽度",
+          "type": "float",
+          "default": -1
+        },
+        {
+          "key": "specialWeaponGlowHeight",
+          "label": "特殊光效高度",
+          "type": "float",
+          "default": -1
+        },
         {
           "key": "renderHints",
           "label": "绘制提示",
@@ -225,14 +521,28 @@
             "NEVER_RENDER_IN_CAMPAIGN"
           ]
         },
-        { "key": "renderBelowAllWeapons", "label": "绘制于全部武器下方", "type": "boolean", "default": false },
-        { "key": "showDamageWhenDecorative", "label": "装饰类型显示伤害", "type": "boolean", "default": false },
+        {
+          "key": "renderBelowAllWeapons",
+          "label": "绘制于全部武器下方",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "showDamageWhenDecorative",
+          "label": "装饰类型显示伤害",
+          "type": "boolean",
+          "default": false
+        },
         {
           "key": "renderAboveAllWeapons",
           "label": "绘制于全部武器上方",
           "type": "boolean",
           "default": false,
-          "visibleWhen": { "specClass": ["projectile"] }
+          "visibleWhen": {
+            "specClass": [
+              "projectile"
+            ]
+          }
         }
       ]
     },
@@ -240,43 +550,80 @@
       "id": "sound",
       "label": "音效",
       "fields": [
-        { "key": "fireSoundOne", "label": "开火音效", "type": "enum", "default": "", "source": "config:sounds" },
-        { "key": "fireSoundTwo", "label": "开火音效 2", "type": "enum", "default": "", "source": "config:sounds" },
-        { "key": "stopPreviousFireSound", "label": "停止上次开火音效", "type": "boolean", "default": false },
+        {
+          "key": "fireSoundOne",
+          "label": "开火音效",
+          "type": "enum",
+          "default": "",
+          "source": "config:sounds"
+        },
+        {
+          "key": "fireSoundTwo",
+          "label": "开火音效 2",
+          "type": "enum",
+          "default": "",
+          "source": "config:sounds"
+        },
+        {
+          "key": "stopPreviousFireSound",
+          "label": "停止上次开火音效",
+          "type": "boolean",
+          "default": false
+        },
         {
           "key": "fadePreviousFireSound",
           "label": "上次音效淡出时间",
           "type": "float",
           "default": 0,
-          "visibleWhen": { "specClass": ["projectile"] }
+          "visibleWhen": {
+            "specClass": [
+              "projectile"
+            ]
+          }
         },
         {
           "key": "noImpactSounds",
           "label": "关闭命中音效",
           "type": "boolean",
           "default": false,
-          "visibleWhen": { "specClass": ["projectile"] }
+          "visibleWhen": {
+            "specClass": [
+              "projectile"
+            ]
+          }
         },
         {
           "key": "noShieldImpactSounds",
           "label": "关闭护盾命中音效",
           "type": "boolean",
           "default": false,
-          "visibleWhen": { "specClass": ["projectile"] }
+          "visibleWhen": {
+            "specClass": [
+              "projectile"
+            ]
+          }
         },
         {
           "key": "noNonShieldImpactSounds",
           "label": "关闭非护盾命中音效",
           "type": "boolean",
           "default": false,
-          "visibleWhen": { "specClass": ["projectile"] }
+          "visibleWhen": {
+            "specClass": [
+              "projectile"
+            ]
+          }
         },
         {
           "key": "playFullFireSoundOne",
           "label": "完整播放首音效",
           "type": "boolean",
           "default": false,
-          "visibleWhen": { "specClass": ["beam"] }
+          "visibleWhen": {
+            "specClass": [
+              "beam"
+            ]
+          }
         }
       ]
     },
@@ -284,16 +631,42 @@
       "id": "scripts",
       "label": "脚本",
       "fields": [
-        { "key": "everyFrameEffect", "label": "逐帧效果脚本", "type": "string", "default": "" },
-        { "key": "beamEffect", "label": "光束效果脚本", "type": "string", "default": "", "visibleWhen": { "specClass": ["beam"] } }
+        {
+          "key": "everyFrameEffect",
+          "label": "逐帧效果脚本",
+          "type": "string",
+          "default": ""
+        },
+        {
+          "key": "beamEffect",
+          "label": "光束效果脚本",
+          "type": "string",
+          "default": "",
+          "visibleWhen": {
+            "specClass": [
+              "beam"
+            ]
+          }
+        }
       ]
     },
     {
       "id": "advanced",
       "label": "高级属性",
       "fields": [
-        { "key": "mountTypeOverride", "label": "挂载类型", "type": "enum", "default": "", "ref": "spec-weapon#/definitions/enum1" },
-        { "key": "displayArcRadius", "label": "显示射界半径", "type": "float", "default": 250 }
+        {
+          "key": "mountTypeOverride",
+          "label": "挂载类型",
+          "type": "enum",
+          "default": "",
+          "ref": "spec-weapon#/definitions/enum1"
+        },
+        {
+          "key": "displayArcRadius",
+          "label": "显示射界半径",
+          "type": "float",
+          "default": 250
+        }
       ]
     }
   ],
@@ -303,28 +676,74 @@
       "label": "闪光配置",
       "type": "object",
       "nested": [
-        { "key": "length", "label": "长度", "type": "float", "requiredWhen": { "particleCount": { "min": 1 } } },
-        { "key": "spread", "label": "散布", "type": "float", "requiredWhen": { "particleCount": { "min": 1 } } },
+        {
+          "key": "length",
+          "label": "长度",
+          "type": "float",
+          "requiredWhen": {
+            "particleCount": {
+              "min": 1
+            }
+          }
+        },
+        {
+          "key": "spread",
+          "label": "散布",
+          "type": "float",
+          "requiredWhen": {
+            "particleCount": {
+              "min": 1
+            }
+          }
+        },
         {
           "key": "particleSizeMin",
           "label": "最小粒子尺寸",
           "type": "float",
-          "requiredWhen": { "particleCount": { "min": 1 } }
+          "requiredWhen": {
+            "particleCount": {
+              "min": 1
+            }
+          }
         },
         {
           "key": "particleSizeRange",
           "label": "粒子尺寸变化",
           "type": "float",
-          "requiredWhen": { "particleCount": { "min": 1 } }
+          "requiredWhen": {
+            "particleCount": {
+              "min": 1
+            }
+          }
         },
         {
           "key": "particleDuration",
           "label": "粒子持续时间",
           "type": "float",
-          "requiredWhen": { "particleCount": { "min": 1 } }
+          "requiredWhen": {
+            "particleCount": {
+              "min": 1
+            }
+          }
         },
-        { "key": "particleCount", "label": "粒子数量", "type": "float", "default": 0, "required": true },
-        { "key": "particleColor", "label": "粒子颜色", "type": "color-rgba", "default": [255, 255, 255, 255] }
+        {
+          "key": "particleCount",
+          "label": "粒子数量",
+          "type": "float",
+          "default": 0,
+          "required": true
+        },
+        {
+          "key": "particleColor",
+          "label": "粒子颜色",
+          "type": "color-rgba",
+          "default": [
+            255,
+            255,
+            255,
+            255
+          ]
+        }
       ]
     },
     "smokeSpec": {
@@ -332,16 +751,80 @@
       "label": "烟雾配置",
       "type": "object",
       "nested": [
-        { "key": "particleSizeMin", "label": "最小粒子尺寸", "type": "float", "default": 0, "required": true },
-        { "key": "particleSizeRange", "label": "粒子尺寸变化", "type": "float", "default": 0, "required": true },
-        { "key": "cloudParticleCount", "label": "云团粒子数量", "type": "float", "default": 0, "required": true },
-        { "key": "cloudDuration", "label": "云团持续时间", "type": "float", "default": 0, "required": true },
-        { "key": "cloudRadius", "label": "云团半径", "type": "float", "default": 0, "required": true },
-        { "key": "blowbackParticleCount", "label": "回喷粒子数量", "type": "float", "default": 0, "required": true },
-        { "key": "blowbackDuration", "label": "回喷持续时间", "type": "float", "default": 0, "required": true },
-        { "key": "blowbackLength", "label": "回喷长度", "type": "float", "default": 0, "required": true },
-        { "key": "blowbackSpread", "label": "回喷散布", "type": "float", "default": 0, "required": true },
-        { "key": "particleColor", "label": "粒子颜色", "type": "color-rgba", "default": [255, 255, 255, 255] }
+        {
+          "key": "particleSizeMin",
+          "label": "最小粒子尺寸",
+          "type": "float",
+          "default": 0,
+          "required": true
+        },
+        {
+          "key": "particleSizeRange",
+          "label": "粒子尺寸变化",
+          "type": "float",
+          "default": 0,
+          "required": true
+        },
+        {
+          "key": "cloudParticleCount",
+          "label": "云团粒子数量",
+          "type": "float",
+          "default": 0,
+          "required": true
+        },
+        {
+          "key": "cloudDuration",
+          "label": "云团持续时间",
+          "type": "float",
+          "default": 0,
+          "required": true
+        },
+        {
+          "key": "cloudRadius",
+          "label": "云团半径",
+          "type": "float",
+          "default": 0,
+          "required": true
+        },
+        {
+          "key": "blowbackParticleCount",
+          "label": "回喷粒子数量",
+          "type": "float",
+          "default": 0,
+          "required": true
+        },
+        {
+          "key": "blowbackDuration",
+          "label": "回喷持续时间",
+          "type": "float",
+          "default": 0,
+          "required": true
+        },
+        {
+          "key": "blowbackLength",
+          "label": "回喷长度",
+          "type": "float",
+          "default": 0,
+          "required": true
+        },
+        {
+          "key": "blowbackSpread",
+          "label": "回喷散布",
+          "type": "float",
+          "default": 0,
+          "required": true
+        },
+        {
+          "key": "particleColor",
+          "label": "粒子颜色",
+          "type": "color-rgba",
+          "default": [
+            255,
+            255,
+            255,
+            255
+          ]
+        }
       ]
     },
     "save": {
@@ -354,7 +837,10 @@
           "label": "规格类型",
           "type": "enum",
           "required": true,
-          "options": ["projectile", "beam"],
+          "options": [
+            "projectile",
+            "beam"
+          ],
           "issueCode": "spec.weapon_class_unsupported",
           "issueMessage": "规格类型只允许 projectile 或 beam"
         },
@@ -382,7 +868,18 @@
       "key": "enum1",
       "label": "选项",
       "type": "enum",
-      "options": ["BALLISTIC", "ENERGY", "MISSILE", "HYBRID", "UNIVERSAL", "SYNERGY", "COMPOSITE", "DECORATIVE", "SYSTEM", "BUILT_IN"]
+      "options": [
+        "BALLISTIC",
+        "ENERGY",
+        "MISSILE",
+        "HYBRID",
+        "UNIVERSAL",
+        "SYNERGY",
+        "COMPOSITE",
+        "DECORATIVE",
+        "SYSTEM",
+        "BUILT_IN"
+      ]
     },
     "enum2": {
       "key": "enum2",

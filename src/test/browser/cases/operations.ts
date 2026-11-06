@@ -29,9 +29,11 @@ export async function exercise(host: Host, element: HTMLElement, assertions: Ass
   let input: HTMLInputElement | HTMLTextAreaElement;
   const activate = performance.now();
   if (scene === 'csv') {
-    element.querySelector<HTMLElement>('.csv-grid-row[data-row-key="ships:row:1"] [data-column-key="name"]')!.click();
-    await until(() => Boolean(element.querySelector('.csv-cell-editor input,.csv-cell-text-editor textarea')), 'CSV 活动输入');
-    input = element.querySelector('.csv-cell-editor input,.csv-cell-text-editor textarea')!;
+    element
+      .querySelector<HTMLElement>('.csv-grid-row[data-row-key="ships:row:1"] [data-column-key="name"]')!
+      .dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+    await until(() => Boolean(document.querySelector('.csv-cell-editor input,.csv-cell-text-editor textarea')), 'CSV 活动输入');
+    input = document.querySelector('.csv-cell-editor input,.csv-cell-text-editor textarea')!;
   } else {
     input = [
       ...document.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>(

@@ -1,0 +1,234 @@
+import { describe, expect, it } from 'vitest';
+import { TABLE_KEYS, type CsvTableKey, type RowData, type CsvValidationContext, type CsvDraftRow } from '@/shared/types';
+import { getCsvColumnSchemas } from '@/domain/schema/csv-schema-registry';
+import { csvRowProblems } from './csv-row-validation';
+import { csvValidationRequest } from './csv-rule-context';
+import { csvValueError } from '@/domain/schema/csv-value-validation';
+import { parseJsonInput } from '@/shared/lib/json-input';
+import { createEditorProblems } from '@/shared/runtime/editor-problems';
+import { createFieldInputs } from '@/shared/runtime/field-inputs';
+
+function sample(table: CsvTableKey, values: RowData = {}): CsvDraftRow {
+  const columns = getCsvColumnSchemas(table);
+  const data: RowData = Object.fromEntries(
+    columns.map((c) => [c.key, c.required ? (c.control === 'number' ? '1' : (c.options?.[0] ?? 'sample')) : '']),
+  );
+  return { rowKey: 'entry', isComment: false, data: { ...data, id: 'entry', name: 'Sample', ...values } };
+}
+function check(table: CsvTableKey, values: RowData, context: CsvValidationContext | null = null) {
+  return csvRowProblems(
+    table,
+    [sample(table, values)],
+    getCsvColumnSchemas(table).map((c) => c.key),
+    context,
+  );
+}
+function context(table: CsvTableKey, values: RowData): CsvValidationContext {
+  const row = sample(table, values),
+    request = csvValidationRequest(table, [row]);
+  return {
+    complete: true,
+    entities: Object.fromEntries(request.entities.map(({ kind, id }) => [`${kind}:${id}`, {}])),
+    sources: Object.fromEntries(
+      request.sources.flatMap((source) => [
+        [source, Object.values(row.data).map(String)],
+        [`external:${source}`, []],
+      ]),
+    ),
+    files: Object.fromEntries(request.files.map((path) => [path, true])),
+    classes: Object.fromEntries(request.classes.map((name) => [name, true])),
+    stationData: Object.fromEntries(
+      request.stationData.map((raw) => {
+        const result = parseJsonInput(raw, 'object');
+        return [raw, result.kind === 'error' ? { value: null, error: result.message } : { value: result.value, error: null }];
+      }),
+    ),
+  };
+}
+describe('CSV declared types and complete row rules', () => {
+  it.each(TABLE_KEYS)('accepts the declared required values of %s', (table) => {
+    expect(check(table, {}).filter((issue) => issue.severity === 'error')).toEqual([]);
+  });
+  it.each([
+    ['ships', 'mass', 'broken'],
+    ['ships', 'shield type', 'invalid'],
+    ['ships', 'hints', 'UNKNOWN_HINT'],
+    ['weapons', 'ammo', '1.25'],
+    ['weapons', 'range', 'Infinity'],
+    ['weapons', 'hints', 'UNKNOWN_HINT'],
+    ['wings', 'num', '1.5'],
+    ['wings', 'refit', ''],
+    ['wings', 'formation', 'invalid'],
+    ['hullmods', 'cost_frigate', ''],
+    ['hullmods', 'script', ''],
+    ['skills', 'order', 'NaN'],
+    ['shipSystems', 'noFiring', 'yes'],
+    ['abilities', 'unlockedAtStart', '1'],
+    ['commodities', 'price variability', '4.5'],
+    ['commodities', 'baseRaidDanger', '4'],
+    ['industries', 'disruptDanger', '4'],
+    ['specialItems', 'baseRaidDanger', '4'],
+    ['submarkets', 'order', 'broken'],
+    ['marketConditions', 'planetary', '1'],
+    ['descriptions', 'type', 'invalid'],
+  ] as const)('blocks %s / %s = %s as a type error', (table, key, value) => {
+    expect(check(table, { [key]: value })).toEqual(
+      expect.arrayContaining([expect.objectContaining({ severity: 'error', code: 'csv.value_invalid', path: `entry/${key}` })]),
+    );
+  });
+  it('accepts finite Java-style numbers, boolean case and the full damage enum', () => {
+    expect(csvValueError({ key: 'amount', control: 'number', valueType: 'integer' }, '2e2')).toBeNull();
+    expect(csvValueError({ key: 'amount', control: 'number', valueType: 'float' }, '1.5f')).toBeNull();
+    expect(csvValueError({ key: 'amount', control: 'number', valueType: 'integer' }, '2147483648')).toContain('32 位');
+    expect(csvValueError({ key: 'flag', control: 'boolean' }, 'FALSE')).toBeNull();
+    expect(check('weapons', { type: 'OTHER' }).filter((i) => i.severity === 'error')).toEqual([]);
+    for (const type of ['TOGGLE', 'DURATION', 'custom'])
+      expect(check('abilities', { type }).filter((i) => i.severity === 'error')).toEqual([]);
+  });
+  it('requires actual columns and skips comments and completely empty records', () => {
+    expect(csvRowProblems('ships', [sample('ships')], ['id'], null)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ code: 'csv.column_missing', path: 'mass' }),
+        expect.objectContaining({ code: 'csv.column_missing', path: 'shield type' }),
+      ]),
+    );
+    expect(
+      csvRowProblems(
+        'ships',
+        [
+          { rowKey: 'blank', isComment: false, data: {} },
+          { ...sample('ships', { mass: 'bad' }), isComment: true },
+        ],
+        [],
+        null,
+      ),
+    ).toEqual([]);
+  });
+  it.each([
+    ['PD_ALSO', '兼用点防御'],
+    ['PD_ONLY,PD_ALSO', '专用条件'],
+    ['CONSERVE_2,CONSERVE_4', '优先采用 CONSERVE_2'],
+    ['CONSERVE_3,DO_NOT_CONSERVE', '跳过多项'],
+    ['RANGE_FROM_TARGETING_OVAL,RANGE_FROM_SHIP_RADIUS', '目标轮廓'],
+    ['GROUP_LINKED,GROUP_ALTERNATING', '编组偏好'],
+    ['IMPORTANT,NO_MANUAL_FIRE', '手控排除'],
+  ])('warns about the actual hint combination %s', (hints, message) => {
+    expect(check('weapons', { hints }).some((i) => i.severity === 'warning' && i.message.includes(message!))).toBe(true);
+  });
+  it('allows USE_VS_FRIGATES on its own', () => {
+    expect(check('weapons', { hints: 'USE_VS_FRIGATES' })).toEqual([]);
+  });
+  it('retains each independent hint warning through the shared problem collection', () => {
+    const fields = createFieldInputs();
+    const problems = createEditorProblems(fields, () =>
+      check('weapons', { hints: 'GROUP_LINKED,GROUP_ALTERNATING,IMPORTANT,NO_MANUAL_FIRE' }),
+    );
+    expect(problems.issues.value).toHaveLength(2);
+    fields.release();
+  });
+  it('checks ship relationships, drawing order and phase system replacement', () => {
+    const result = check('ships', {
+      'min crew': '5',
+      'max crew': '2',
+      minPieces: '8',
+      maxPieces: '3',
+      hints: 'WEAPONS_FRONT_TO_BACK,WEAPONS_BACK_TO_FRONT',
+      'shield type': 'PHASE',
+      'system id': 'other',
+    });
+    for (const text of ['min crew 大于 max crew', 'minPieces 大于 maxPieces', '优先采用 WEAPONS_FRONT_TO_BACK', 'phasecloak'])
+      expect(result.some((i) => i.message.includes(text))).toBe(true);
+  });
+  it('checks actual ship slots and hull size from resolved content', () => {
+    const values = { hints: 'PLAY_FIGHTER_OVERLOAD_SOUNDS,MISSILE_HARDPOINTS_ROTATE,CARRIER' },
+      ctx = context('ships', values);
+    ctx.entities['ship:entry'] = { hullSize: 'CRUISER', weaponSlots: [] };
+    expect(check('ships', values, ctx).filter((i) => i.path === 'entry/hints')).toHaveLength(3);
+  });
+  it('checks weapon branch, projectile and ammo-sensitive hints', () => {
+    const values = { hints: 'CONSERVE_2,DIRECT_AIM', 'damage/shot': '5' },
+      ctx = context('weapons', values);
+    ctx.entities['weapon:entry'] = { specClass: 'beam', type: 'ENERGY' };
+    const result = check('weapons', values, ctx);
+    expect(result.some((i) => i.path === 'entry/damage/shot')).toBe(true);
+    expect(result.filter((i) => i.path === 'entry/hints')).toHaveLength(2);
+    ctx.entities['weapon:entry'] = { specClass: 'projectile', projectileSpecId: 'missing' };
+    expect(check('weapons', values, ctx).some((i) => i.code === 'csv.projectile_missing' && i.severity === 'error')).toBe(true);
+    ctx.complete = false;
+    expect(check('weapons', values, ctx).some((i) => i.code === 'csv.projectile_missing' && i.severity === 'warning')).toBe(true);
+  });
+  it.each(['desc', 'sModDesc'])('checks Java string formatting in %s', (key) => {
+    for (const value of ['value %d', 'value %11$s', 'value 20%'])
+      expect(check('hullmods', { [key]: value }).some((i) => i.code === 'csv.format_invalid')).toBe(true);
+    expect(check('hullmods', { [key]: 'value %1$s and %%' }).some((i) => i.code === 'csv.format_invalid')).toBe(false);
+  });
+  it('uses complete sources for references and downgrades absent-source certainty', () => {
+    const values = { variant: 'missing' },
+      ctx = context('wings', values);
+    delete ctx.entities['variant:missing'];
+    ctx.sources['csv:variants.variantId'] = [];
+    expect(check('wings', values, ctx).some((i) => i.code === 'csv.variant_missing' && i.severity === 'error')).toBe(true);
+    ctx.complete = false;
+    expect(check('wings', values, ctx).some((i) => i.code === 'csv.variant_missing' && i.severity === 'warning')).toBe(true);
+  });
+  it('checks image and script presence with their own severities', () => {
+    const values = { icon: 'graphics/sample.png', script: 'sample.Script' },
+      ctx = context('marketConditions', values);
+    ctx.files[values.icon] = false;
+    ctx.classes[values.script] = false;
+    expect(check('marketConditions', values, ctx)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ code: 'csv.image_missing', severity: 'error' }),
+        expect.objectContaining({ code: 'csv.script_missing', severity: 'warning' }),
+      ]),
+    );
+  });
+  it('dispatches simulator IDs by the literal suffix', () => {
+    const values = { 'variant id': 'sample_wing' },
+      ctx = context('simOpponents', values);
+    ctx.sources['csv:wings.id'] = [];
+    expect(check('simOpponents', values, ctx).some((i) => i.severity === 'error')).toBe(true);
+    ctx.sources['csv:wings.id'] = ['sample_wing'];
+    expect(check('simOpponents', values, ctx).filter((i) => i.severity === 'error')).toEqual([]);
+    expect(csvValidationRequest('simOpponents', [sample('simOpponents', values)]).sources).not.toContain('csv:variants.variantId');
+    expect(csvValidationRequest('simOpponents', [sample('simOpponents', values)])).toMatchObject({
+      sources: expect.arrayContaining(['csv:wings.id']),
+    });
+  });
+  it('validates native station plugin data and generic item industry references', () => {
+    const station = { plugin: 'com.fs.starfarer.api.impl.campaign.econ.impl.OrbitalStation', data: 'invalid' };
+    expect(check('industries', station, context('industries', station)).some((i) => i.code === 'csv.plugin_data')).toBe(true);
+    const item = { plugin: 'com.fs.starfarer.api.campaign.impl.items.GenericSpecialItemPlugin', 'plugin params': 'missing' },
+      ctx = context('specialItems', item);
+    ctx.sources['csv:industries.id'] = [];
+    expect(check('specialItems', item, ctx).some((i) => i.path === 'entry/plugin params')).toBe(true);
+  });
+  it('checks aptitude effects and blueprint packages using source metadata', () => {
+    const skill = context('skills', {});
+    skill.entities['skill:entry'] = { governingAptitude: 'sample' };
+    skill.sources['aptitudeEffect:sample'] = ['entry'];
+    expect(
+      check('skills', { tier: '2', reqPoints: '1' }, skill).filter((i) => ['entry/name', 'entry/tier', 'entry/reqPoints'].includes(i.path)),
+    ).toHaveLength(3);
+    const values = { plugin: 'com.fs.starfarer.api.campaign.impl.items.MultiBlueprintItemPlugin', 'plugin params': 'package_tag' },
+      ctx = context('specialItems', values);
+    for (const source of ['csv:ships.tags', 'csv:weapons.tags', 'csv:wings.tags']) ctx.sources[source] = [];
+    expect(check('specialItems', values, ctx).some((i) => i.message.includes('package_tag'))).toBe(true);
+  });
+  it('accepts explicit and previous string argument indices', () => {
+    expect(check('hullmods', { desc: '%2$s %<s %s %%' }).some((i) => i.code === 'csv.format_invalid')).toBe(false);
+    expect(check('hullmods', { desc: '%+s' }).some((i) => i.code === 'csv.format_invalid')).toBe(true);
+  });
+  it('checks same-table references against current rows plus external saved sources', () => {
+    const rows = [sample('industries', { id: 'current', upgrade: 'new' }), sample('industries', { id: 'new' })];
+    const ctx = context('industries', rows[0]!.data);
+    ctx.sources['csv:industries.id'] = ['current', 'old'];
+    ctx.sources['external:csv:industries.id'] = [];
+    const header = getCsvColumnSchemas('industries').map((c) => c.key);
+    expect(csvRowProblems('industries', rows, header, ctx).some((i) => i.code === 'csv.reference_missing')).toBe(false);
+    rows[0]!.data.upgrade = 'old';
+    expect(csvRowProblems('industries', rows, header, ctx).some((i) => i.code === 'csv.reference_missing')).toBe(true);
+    ctx.sources['external:csv:industries.id'] = ['old'];
+    expect(csvRowProblems('industries', rows, header, ctx).some((i) => i.code === 'csv.reference_missing')).toBe(false);
+  });
+});

@@ -8,41 +8,60 @@ use crate::services::project::query::{
 use crate::services::project::resources::entity_references::entity_list_resource_refs;
 
 pub fn query_entity(session_id: &str, kind: EntityKind, id: &str) -> AppResult<Option<EntityData>> {
+    Ok(query_entity_batch(session_id, kind, &[id.to_string()])?
+        .pop()
+        .expect("one requested entity"))
+}
+
+pub(in crate::services::project) fn query_entity_batch(
+    session_id: &str,
+    kind: EntityKind,
+    ids: &[String],
+) -> AppResult<Vec<Option<EntityData>>> {
     let handle = session_handle(session_id)?;
     let mut session = lock_ready_session(&handle)?;
     let definition = entity_definition(kind)?;
     (definition.prepare)(&mut session)?;
-    let info = entity_targets::describe_entity_target(&mut session, kind, id)?;
-    let data = if let Some(source) = &info.target.source
-        && let Some(reference) = source.reference.as_deref()
-    {
-        let view = session
-            .references
-            .iter()
-            .find(|view| &view.identity == reference)
-            .expect("reference record owner");
-        view.read(|snapshot| {
-            (definition.prepare)(snapshot)?;
-            (definition.detail)(snapshot, id)
-        })?
-    } else {
-        (definition.detail)(&mut session, id)?
-    };
-    let Some(data) = data else {
-        return Ok(None);
-    };
-    let (composition, resource_refs) =
-        query_entity_presentation::entity_presentation(&session, &info.target, &data, None)?;
-    entity_targets::remember_edit_target(&mut session, &info.target);
-    Ok(Some(EntityData {
-        composition,
-        target: info.target,
-        base_versions: info.base_versions,
-        resource_refs,
-        kind: definition.kind,
-        id: id.to_string(),
-        data,
-    }))
+    let targets = entity_targets::prepare_entity_targets(&mut session, kind)?;
+    ids.iter()
+        .map(|id| {
+            let info = targets.describe(&session, id);
+            let data = if let Some(source) = &info.target.source
+                && let Some(reference) = source.reference.as_deref()
+            {
+                let view = session
+                    .references
+                    .iter()
+                    .find(|view| &view.identity == reference)
+                    .expect("reference record owner");
+                view.read(|snapshot| {
+                    (definition.prepare)(snapshot)?;
+                    (definition.detail)(snapshot, id)
+                })?
+            } else {
+                (definition.detail)(&mut session, id)?
+            };
+            let Some(data) = data else {
+                return Ok(None);
+            };
+            let (composition, resource_refs) = query_entity_presentation::entity_presentation(
+                &session,
+                &info.target,
+                &data,
+                None,
+            )?;
+            entity_targets::remember_edit_target(&mut session, &info.target);
+            Ok(Some(EntityData {
+                composition,
+                target: info.target,
+                base_versions: info.base_versions,
+                resource_refs,
+                kind: definition.kind,
+                id: id.to_string(),
+                data,
+            }))
+        })
+        .collect()
 }
 
 pub fn query_entity_list(session_id: &str, kind: EntityKind) -> AppResult<Vec<EntityData>> {

@@ -55,5 +55,11 @@
       "label": "备注",
       "control": "text"
     }
-  ]
+  ],
+  "validation": {
+    "requiredColumn": [
+      "id",
+      "type"
+    ]
+  }
 }

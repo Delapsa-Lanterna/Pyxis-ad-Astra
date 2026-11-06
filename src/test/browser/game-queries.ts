@@ -1,12 +1,14 @@
 import type * as T from '@/shared/types';
 import type { WorkspaceProject, GameSource } from './game-project';
 import { coreRoot, gameImages, gameTablePaths } from './game-files';
-import { renderGameCsv } from './game-format';
+import { renderGameCsv, readGameCsv } from './game-format';
 import { CONFIG_FIELD_SOURCES, isConfigFieldSource, parseCsvFieldSource } from '@/domain/schema/schema-source-definitions';
 import { createShipSpec, createSystemSpec, createSkillSpec } from '@/domain/entity-write/spec-construction';
 import { createWeaponSpec } from '@/domain/entity-write/spec-construction';
 import { miscConfigDefinition } from '@/domain/misc-config';
 import { entityTargetFixture } from '../fixtures/entity-target';
+import { composeJson } from '@/domain/json-composition';
+import { parseJsonInput } from '@/shared/lib/json-input';
 const iconFields: Partial<Record<T.CsvTableKey, string>> = {
   hullmods: 'sprite',
   shipSystems: 'icon',
@@ -20,6 +22,7 @@ const iconFields: Partial<Record<T.CsvTableKey, string>> = {
 };
 export const gameCommands = new Set([
   'query_csv_table_index',
+  'query_csv_validation',
   'query_csv_table_rows',
   'save_csv_patch',
   'prepare_csv_associated_specs',
@@ -136,6 +139,59 @@ export function gameQuery(project: WorkspaceProject, command: string, payload: R
     );
   }
   const sources = project.sources();
+  if (command === 'query_csv_validation') {
+    const request = payload as unknown as T.CsvValidationRequest;
+    const context: T.CsvValidationContext = { complete: true, entities: {}, sources: {}, files: {}, classes: {}, stationData: {} };
+    const pending = [...request.entities];
+    for (const raw of request.stationData) {
+      const parsed = parseJsonInput(raw, 'object');
+      context.stationData[raw] = parsed.kind === 'error' ? { value: null, error: parsed.message } : { value: parsed.value, error: null };
+      if (parsed.kind === 'value' && typeof parsed.value.variant === 'string') pending.push({ kind: 'variant', id: parsed.value.variant });
+    }
+    const seen = new Set<string>();
+    while (pending.length) {
+      const { kind, id } = pending.shift()!,
+        key = `${kind}:${id}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      const record = sources.flatMap((source) => [...source.entities.values()]).find((entry) => entry.kind === kind && entry.id === id);
+      if (!record) continue;
+      const data = record.data as T.RowData,
+        local = (data.spec ?? data) as T.RowData;
+      context.entities[key] = composeJson(local, record.composition);
+      if (kind === 'weapon' && local.projectileSpecId) pending.push({ kind: 'projectile', id: String(local.projectileSpecId) });
+      if (kind === 'variant' && local.hullId)
+        pending.push({ kind: 'ship', id: String(local.hullId) }, { kind: 'skin', id: String(local.hullId) });
+      if (kind === 'skin' && local.baseHullId) pending.push({ kind: 'ship', id: String(local.baseHullId) });
+    }
+    for (const source of request.sources)
+      context.sources[source] = (gameQuery(project, 'query_csv_source_options', { source }) as T.SourceOptionGroup[]).flatMap((group) =>
+        group.options.map((option) => option.value),
+      );
+    for (const source of ['csv:industries.id', 'csv:commodities.id'])
+      if (request.sources.includes(source)) {
+        const table = source === 'csv:industries.id' ? 'industries' : 'commodities';
+        context.sources[`external:${source}`] = sources
+          .filter((source) => source !== project)
+          .flatMap((source) =>
+            source.tables
+              .get(table)!
+              .rows.filter((row) => !row.isComment)
+              .map((row) => String(row.data.id ?? '')),
+          );
+      }
+    for (const path of request.files) context.files[path] = sources.some((source) => gameImages.has(source.manifest.modRoot + '/' + path));
+    if (request.entities.some((entity) => entity.kind === 'skill'))
+      for (const source of sources) {
+        const text = source.textFiles.get(source.manifest.modRoot + '/data/characters/skills/aptitude_data.csv');
+        if (text) for (const row of readGameCsv(text).rows) context.sources[`aptitudeEffect:${row.id}`] ??= [row.effect_skill_id!];
+      }
+    for (const name of request.classes)
+      context.classes[name] =
+        name.startsWith('com.fs.starfarer.') ||
+        sources.some((source) => source.textFiles.has(source.manifest.modRoot + '/' + name.replaceAll('.', '/') + '.java'));
+    return context;
+  }
   const groups = sources.map((source) => ({
     source,
     origin: source.manifest.modRoot === coreRoot ? ('core' as const) : source === project ? ('mod' as const) : ('reference' as const),
@@ -167,6 +223,14 @@ export function gameQuery(project: WorkspaceProject, command: string, payload: R
       table: input.table,
       header: table.header,
       totalRows: table.rows.length,
+      validationRows:
+        command === 'query_csv_table_index'
+          ? table.rows.map((row) => ({
+              rowKey: row.rowKey,
+              isComment: row.isComment,
+              data: Object.fromEntries(input.validationColumns.map((key) => [key, row.data[key] ?? ''])),
+            }))
+          : [],
       rowKeys: rows.map((row) => row.rowKey),
       rows: command === 'query_csv_table_rows' ? rows : rows.slice(0, input.initialCount),
       baseVersions: [project.version(path)],

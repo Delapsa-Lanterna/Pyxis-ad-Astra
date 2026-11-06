@@ -456,6 +456,7 @@ export function createBrowserWorkspace(systemTheme: T.AppTheme = 'light') {
       case 'invalidate_core_cache':
         return;
       case 'query_csv_table_index':
+      case 'query_csv_validation':
       case 'query_csv_table_rows':
       case 'prepare_csv_associated_specs':
       case 'save_csv_patch':

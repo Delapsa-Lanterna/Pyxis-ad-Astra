@@ -9,6 +9,7 @@ import type {
   CsvTableRowsRead,
   CsvTableIndexPayload,
   CsvTableRowsPayload,
+  CsvValidationRequest,
   AppendAppLogsPayload,
   EngineRenderAssets,
   ManagedWindowContext,
@@ -165,6 +166,17 @@ export async function dispatch(command: string, args: Record<string, unknown>, m
         model.monitor.traceState = 'ready';
       return model.monitor;
     }
+    case 'query_csv_validation': {
+      const request = args.payload as CsvValidationRequest;
+      return {
+        complete: false,
+        entities: Object.fromEntries(request.entities.map(({ kind, id }) => [`${kind}:${id}`, { hullSize: 'CRUISER', weaponSlots: [] }])),
+        sources: Object.fromEntries(request.sources.map((source) => [source, []])),
+        files: Object.fromEntries(request.files.map((path) => [path, true])),
+        classes: Object.fromEntries(request.classes.map((name) => [name, true])),
+        stationData: {},
+      };
+    }
     case 'query_csv_table_index': {
       model.readRows();
       const payload = args.payload as CsvTableIndexPayload;
@@ -183,6 +195,11 @@ export async function dispatch(command: string, args: Record<string, unknown>, m
         totalRows: model.rows.length,
         rowKeys: rows.map((r) => r.rowKey),
         rows: rows.slice(0, payload.initialCount),
+        validationRows: model.rows.map((row) => ({
+          rowKey: row.rowKey,
+          isComment: row.isComment,
+          data: Object.fromEntries(payload.validationColumns.map((key) => [key, row.data[key] ?? ''])),
+        })),
         baseVersions: [{ path: model.manifest.tableSummaries.ships.path, fingerprint: String(model.saveCount) }],
       } satisfies CsvTableIndex;
     }

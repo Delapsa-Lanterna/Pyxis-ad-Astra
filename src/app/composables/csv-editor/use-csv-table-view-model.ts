@@ -21,6 +21,9 @@ import { cloneQuerySnapshot } from '@/shared/lib/query-snapshot';
 import { hasResourceInvalidation } from '@/services/resource-media.service';
 import type { CsvRowPreviewTarget, ResourceRef, CsvSearchField, CsvDraftRow, SaveAcceptanceTask } from '@/shared/types';
 import { useFieldInputActions } from '@/app/composables/use-field-input-actions';
+import { queryCsvValidation } from '@/services/csv-table.service';
+import { csvValidationRows } from '@/domain/csv-editor/csv-validation';
+import { csvValidationRequest } from '@/domain/csv-editor/csv-rule-context';
 
 export function useCsvTableViewModel(model: CsvEditorModel, host: CsvEditorHost) {
   const tables = useCsvEditorStore();
@@ -28,6 +31,8 @@ export function useCsvTableViewModel(model: CsvEditorModel, host: CsvEditorHost)
   const view = model.view;
   const feedback = useAppFeedback();
   const reads = useQueryReadOwner();
+  let readFailed = false;
+  let validationFailed = false;
   let pendingRows = new Map<string, Promise<void>>();
   const rowQueue: Array<{ run: () => Promise<void>; cancel: () => void }> = [];
   let rowReads = 0;
@@ -53,6 +58,40 @@ export function useCsvTableViewModel(model: CsvEditorModel, host: CsvEditorHost)
   let searchRevision = 0;
   const target = model.target;
   const targetKey = computed(() => (target.value ? JSON.stringify(target.value) : ''));
+  const validationRequest = computed(() => {
+    const current = target.value,
+      document = current && model.state.value?.documents[current.table];
+    return document?.validationRows ? csvValidationRequest(current!.table, csvValidationRows(document)) : null;
+  });
+  watch(
+    () => JSON.stringify([targetKey.value, validationRequest.value]),
+    () => {
+      if (!view.saving) void loadValidation();
+    },
+  );
+  async function loadValidation(required = false) {
+    const captured = target.value,
+      request = validationRequest.value;
+    if (!captured || !request) return;
+    const key = JSON.stringify(request),
+      state = tables.getCsvModState(captured.modRoot)!;
+    await reads.consume('validation', { ...captured, request }, (signal) => queryCsvValidation(captured.sessionId, request, signal), {
+      ready: (context) => {
+        if (state === tables.getCsvModState(captured.modRoot)) {
+          tables.acceptTableValidation(captured, key, context);
+          if (validationFailed) tables.getTableProblems(captured).clearFailure();
+          validationFailed = false;
+        }
+      },
+      error: (error) => {
+        if (state !== tables.getCsvModState(captured.modRoot)) return;
+        validationFailed = true;
+        tables.getTableProblems(captured).recordFailure(error);
+        if (required) throw error;
+        feedback.error(error, '读取 CSV 校验来源失败');
+      },
+    });
+  }
   const columnWidthOverrides = host.columnWidths;
   watch(
     targetKey,
@@ -228,6 +267,7 @@ export function useCsvTableViewModel(model: CsvEditorModel, host: CsvEditorHost)
         hasResourceInvalidation(update.invalidation, loadedSourceResourceRefs())
       )
         tasks.push(() => reloadVisibleSourceOptions(true));
+      tasks.push(() => loadValidation(true));
       return tasks;
     },
     (sessionId) => {
@@ -339,6 +379,8 @@ export function useCsvTableViewModel(model: CsvEditorModel, host: CsvEditorHost)
             filtered,
           );
           if (initialCount) widthSample.value = cloneQuerySnapshot<CsvDraftRow[]>(index.rows);
+          if (readFailed) tables.getTableProblems(captured).clearFailure();
+          readFailed = false;
           windowReady.value = true;
           accepted = true;
           void locateRequestedRow();
@@ -348,8 +390,11 @@ export function useCsvTableViewModel(model: CsvEditorModel, host: CsvEditorHost)
           if (
             state === tables.getCsvModState(captured.modRoot) &&
             generation === tables.tableReadGeneration(captured.modRoot, captured.table)
-          )
+          ) {
+            readFailed = true;
+            tables.getTableProblems(captured).recordFailure(error);
             feedback.error(error, '加载表格索引失败');
+          }
         },
       },
     );

@@ -68,7 +68,7 @@ export const editorsCapabilities = [
   ...capabilities({ role: 'service', domain: 'csv-table' }, [
     {
       capability: 'table-query',
-      names: ['queryTableIndex', 'queryTableRows', 'querySessionCsvRowPreview', 'queryTableRowPreviewDataUrl'],
+      names: ['queryTableIndex', 'queryTableRows', 'querySessionCsvRowPreview', 'queryTableRowPreviewDataUrl', 'queryCsvValidation'],
       owners: readOwners,
     },
     {

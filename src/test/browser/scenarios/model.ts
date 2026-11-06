@@ -62,7 +62,9 @@ export function createBrowserModel(
     'hullSize',
     'fleet pts',
     'base value',
-    ...Array.from({ length: 33 }, (_, i) => 'field_' + i),
+    'mass',
+    'shield type',
+    ...Array.from({ length: 31 }, (_, i) => 'field_' + i),
   ];
   const rows: CsvRowRecord[] =
     scene === 'csv'
@@ -72,15 +74,19 @@ export function createBrowserModel(
           data: Object.fromEntries(
             header.map((key) => [
               key,
-              key === 'id'
-                ? 'ship_' + i
-                : key === 'name'
-                  ? 'Sample ship ' + i
-                  : key === 'tags'
-                    ? 'sample,benchmark'
-                    : key === 'hullSize'
-                      ? 'CRUISER'
-                      : String(i),
+              key === 'shield type'
+                ? 'NONE'
+                : key === 'mass'
+                  ? '100'
+                  : key === 'id'
+                    ? 'ship_' + i
+                    : key === 'name'
+                      ? 'Sample ship ' + i
+                      : key === 'tags'
+                        ? 'sample,benchmark'
+                        : key === 'hullSize'
+                          ? 'CRUISER'
+                          : String(i),
             ]),
           ),
         }))

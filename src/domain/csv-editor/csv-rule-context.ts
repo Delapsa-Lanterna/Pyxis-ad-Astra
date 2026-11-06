@@ -1,0 +1,67 @@
+import type { CsvDraftRow, CsvTableKey, CsvValidationRequest, EntityKind } from '@/shared/types';
+import { getCsvColumnSchemas } from '@/domain/schema/csv-schema-registry';
+import { cell } from '@/shared/lib/starsector';
+
+export const CSV_SPEC_KINDS: Partial<Record<CsvTableKey, EntityKind>> = {
+  ships: 'ship',
+  weapons: 'weapon',
+  shipSystems: 'system',
+  skills: 'skill',
+};
+export const DESCRIPTION_KINDS: Partial<Record<string, EntityKind>> = {
+  SHIP: 'ship',
+  WEAPON: 'weapon',
+  SHIP_SYSTEM: 'system',
+  FACTION: 'faction',
+};
+export function csvValidationRequest(table: CsvTableKey, rows: readonly CsvDraftRow[]): CsvValidationRequest {
+  const columns = getCsvColumnSchemas(table).filter(
+    (column) => column.control === 'reference' || column.control === 'path-image' || column.script,
+  );
+  const entities = new Map<string, CsvValidationRequest['entities'][number]>(),
+    sources = new Set<string>(),
+    files = new Set<string>(),
+    classes = new Set<string>(),
+    stationData = new Set<string>();
+  const entity = (kind: CsvValidationRequest['entities'][number]['kind'], id: string) => {
+    if (id) entities.set(`${kind}:${id}`, { kind, id });
+  };
+  for (const { data, isComment } of rows) {
+    if (isComment || !Object.values(data).some((value) => cell(value) !== '')) continue;
+    const id = cell(data.id);
+    const ownKind = CSV_SPEC_KINDS[table];
+    if (ownKind) entity(ownKind, id);
+    for (const column of columns) {
+      const value = cell(data[column.key]);
+      if (!value) continue;
+      if (column.control === 'reference' && column.source && column.source !== 'csv:variants.variantId') sources.add(column.source);
+      if (column.control === 'path-image') files.add(value);
+      if (column.script) classes.add(value);
+    }
+    if (table === 'wings') entity('variant', cell(data.variant));
+    if (table === 'simOpponents') {
+      const value = cell(data['variant id']);
+      if (value.endsWith('_wing')) sources.add('csv:wings.id');
+      else entity('variant', value);
+    }
+    if (table === 'ships') entity('variant', cell(data['codex variant id']));
+    if (table === 'descriptions') {
+      const kind = DESCRIPTION_KINDS[cell(data.type)];
+      if (kind) entity(kind, id);
+    }
+    if (table === 'industries' && cell(data.plugin) === 'com.fs.starfarer.api.impl.campaign.econ.impl.OrbitalStation') {
+      stationData.add(cell(data.data));
+    }
+    if (table === 'specialItems' && cell(data.plugin) === 'com.fs.starfarer.api.campaign.impl.items.GenericSpecialItemPlugin')
+      sources.add('csv:industries.id');
+    if (table === 'specialItems' && cell(data.plugin) === 'com.fs.starfarer.api.campaign.impl.items.MultiBlueprintItemPlugin')
+      for (const source of ['csv:ships.tags', 'csv:weapons.tags', 'csv:wings.tags']) sources.add(source);
+  }
+  return {
+    entities: [...entities.values()].sort((a, b) => `${a.kind}:${a.id}`.localeCompare(`${b.kind}:${b.id}`)),
+    sources: [...sources].sort(),
+    files: [...files].sort(),
+    classes: [...classes].sort(),
+    stationData: [...stationData].sort(),
+  };
+}

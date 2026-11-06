@@ -1,3 +1,4 @@
+pub(in crate::services) mod csv_validation;
 pub(in crate::services) mod csv_window;
 pub(in crate::services) mod entities;
 pub(in crate::services) mod entity_targets;
