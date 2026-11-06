@@ -133,6 +133,60 @@ fn refresh(manifest: &ProjectManifest, relative: &str) {
 }
 
 #[test]
+fn faction_reference_priority_and_refresh() {
+    if test_support::isolated_test() {
+        return;
+    }
+    let root = project_test_support::project_workspace("faction_reference_priority");
+    for (folder, ids) in [
+        ("local", vec!["local"]),
+        ("reference", vec!["shared", "reference_only"]),
+        ("game/starsector-core", vec!["shared", "core_only"]),
+    ] {
+        let directory = root.join(folder).join("data/world/factions");
+        fs::create_dir_all(&directory).unwrap();
+        for id in ids {
+            write_utf8_no_bom(
+                &directory.join(format!("{id}.faction")),
+                &json!({"id":id,"displayName":folder,"logo":"graphics/logo.png"}).to_string(),
+            )
+            .unwrap();
+        }
+    }
+    let local = open(&root.join("local"), Some(&root.join("game")));
+    let reference = open(&root.join("reference"), None);
+    set_reference_sources(vec![reference.session_id.clone()]).unwrap();
+    let groups = options(&local, "csv:factions.id");
+    assert_eq!(owner(&groups, "local"), ResourceSource::Mod);
+    assert_eq!(owner(&groups, "shared"), ResourceSource::Reference);
+    assert_eq!(owner(&groups, "core_only"), ResourceSource::Core);
+    assert_eq!(
+        resource_source(option_resource(&groups, "shared")),
+        reference.session_id
+    );
+    assert_eq!(
+        groups
+            .iter()
+            .flat_map(|group| &group.options)
+            .filter(|option| option.value == "shared")
+            .count(),
+        1
+    );
+    let path = root.join("reference/data/world/factions/shared.faction");
+    fs::remove_file(&path).unwrap();
+    refresh(&reference, "data/world/factions");
+    set_reference_sources(vec![reference.session_id.clone()]).unwrap();
+    assert_eq!(
+        owner(&options(&local, "csv:factions.id"), "shared"),
+        ResourceSource::Core
+    );
+    set_reference_sources(Vec::new()).unwrap();
+    release_project_session(local.session_id).unwrap();
+    release_project_session(reference.session_id).unwrap();
+    root.close().unwrap();
+}
+
+#[test]
 fn reference_priority_content_and_lifecycle() {
     if test_support::isolated_test() {
         return;

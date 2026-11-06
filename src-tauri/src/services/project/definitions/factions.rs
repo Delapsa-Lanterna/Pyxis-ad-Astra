@@ -1,9 +1,10 @@
+#[cfg(test)]
 use crate::errors::AppResult;
-use crate::io::{FsRootBoundary, forward_slash_path};
-use crate::models::{EntityFileLocation, ResourceSource};
+#[cfg(test)]
+use crate::models::ResourceSource;
 use crate::services::project::sources::documents::LoadedSpecRecord;
+#[cfg(test)]
 use crate::services::project::sources::{SourceReader, documents};
-use crate::{io, models};
 use serde_json::Value;
 use std::collections::{BTreeMap, HashMap};
 #[cfg(test)]
@@ -36,52 +37,7 @@ pub(in crate::services::project) fn faction_blueprint_tags(
 pub(in crate::services::project) fn load_faction_files(
     mod_root: &Path,
 ) -> AppResult<BTreeMap<String, LoadedSpecRecord>> {
-    load_faction_files_from(&mut SourceReader::new(mod_root)?)
-}
-pub(in crate::services::project) fn load_faction_files_from(
-    sources: &mut SourceReader,
-) -> AppResult<BTreeMap<String, LoadedSpecRecord>> {
-    let mod_root = sources.root().to_path_buf();
-    let boundary = FsRootBoundary::new(&mod_root, "faction root")?;
-    let table = sources.csv(&sources.path("data/world/factions/factions.csv")?)?;
-    let mut defs = documents::load_spec_records_from(
-        sources,
-        &["data/world/factions"],
-        "faction",
-        "id",
-        ResourceSource::Mod,
-    )?;
-    for entry in io::faction_index_entries(&boundary, &table)? {
-        if !entry.path.exists() {
-            sources
-                .versions
-                .insert(sources.key(&entry.path), io::file_version(&entry.path)?);
-            continue;
-        }
-        let data = sources.json(&entry.path)?;
-        let id = models::file_content_id(&data, "id", &entry.path);
-        let rel_path = forward_slash_path(
-            entry
-                .path
-                .strip_prefix(boundary.root())
-                .expect("faction belongs to authorized root"),
-        );
-        defs.insert(
-            id.clone(),
-            LoadedSpecRecord {
-                id,
-                location: EntityFileLocation {
-                    reference: None,
-                    source: ResourceSource::Mod,
-                    root: boundary.root().to_string_lossy().to_string(),
-                    rel_path,
-                    path: entry.path.to_string_lossy().to_string(),
-                },
-                data,
-            },
-        );
-    }
-    Ok(defs)
+    documents::load_faction_files_from(&mut SourceReader::new(mod_root)?, ResourceSource::Mod)
 }
 
 fn is_owned_faction_blueprint_tag(tag: &str, faction_id: &str) -> bool {

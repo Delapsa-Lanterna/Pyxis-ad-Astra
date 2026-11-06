@@ -10,7 +10,7 @@
 
 - `src-tauri/src/services/project/sources/`：来源记录、发现、读取、Core 文档运行态、持久化与行为验证。
 - `src-tauri/src/services/project/sources/core.rs`：按根共享 Core 产品、只读 CSV、单飞读取及缓存释放。
-- `src-tauri/src/services/project/sources/documents.rs`：来源规格记录、实际位置及内容构造。
+- `src-tauri/src/services/project/sources/documents.rs`：来源规格记录、势力索引装载、实际位置及内容构造。
 - `src-tauri/src/services/project/sources/engine_styles.rs`：必须经正式来源读取交付引擎样式与匹配版本。
 - `src-tauri/src/services/project/sources/json_documents.rs`：Variant 与 Skin 文件产品、目录装载及重复诊断。
 - `src-tauri/src/services/project/sources/roots.rs`：游戏及 Mod 根识别、游戏 mods 授权、位置推断及正式来源根选择。

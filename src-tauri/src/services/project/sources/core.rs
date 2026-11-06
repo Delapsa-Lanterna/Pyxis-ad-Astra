@@ -1,4 +1,4 @@
-use super::documents::{LoadedSpecRecord, load_spec_records_from};
+use super::documents::{LoadedSpecRecord, load_faction_files_from, load_spec_records_from};
 use super::json_documents::{load_skin_files_from, load_variant_files_from};
 use crate::errors::{AppError, AppResult, ErrorLocation};
 use crate::io::{FsRootBoundary, forward_slash_relative_path, validate_walk_entry};
@@ -34,6 +34,7 @@ struct CoreCache {
     pub fields: Option<Arc<BTreeMap<String, Vec<DiscoveredField>>>>,
     pub graphics: Option<Arc<Vec<String>>>,
     pub ship_files: Option<Arc<BTreeMap<String, LoadedSpecRecord>>>,
+    pub faction_files: Option<Arc<BTreeMap<String, LoadedSpecRecord>>>,
     pub variant_files: Option<Arc<Vec<VariantFile>>>,
     pub skin_files: Option<Arc<Vec<SkinFile>>>,
     pub weapon_specs: Option<Arc<BTreeMap<String, LoadedSpecRecord>>>,
@@ -47,6 +48,7 @@ impl CoreCache {
             fields: None,
             graphics: None,
             ship_files: None,
+            faction_files: None,
             variant_files: None,
             skin_files: None,
             weapon_specs: None,
@@ -304,7 +306,8 @@ where
     let mut load = Some(load);
     // Source products hand off parsed files before the next product forks them.
     let lane = match product {
-        "fields" | "ships" | "weapons" | "projectiles" | "variants" | "skins" | "csv" => "sources",
+        "fields" | "ships" | "factions" | "weapons" | "projectiles" | "variants" | "skins"
+        | "csv" => "sources",
         _ => product,
     };
     let flight_key = format!("{:p}:{lane}", Arc::as_ptr(&cache));
@@ -553,6 +556,18 @@ pub(crate) fn load_core_ship_files(
     )
 }
 
+pub(crate) fn load_core_faction_files(
+    starsector_root: &str,
+) -> AppResult<Arc<BTreeMap<String, LoadedSpecRecord>>> {
+    get_or_load_core(
+        starsector_root,
+        "factions",
+        |cache| cache.faction_files.as_ref(),
+        |cache, files| cache.faction_files = Some(files),
+        |sources| load_faction_files_from(sources, ResourceSource::Core),
+    )
+}
+
 pub(crate) fn load_core_weapon_specs(
     starsector_root: &str,
 ) -> AppResult<Arc<BTreeMap<String, LoadedSpecRecord>>> {
@@ -663,6 +678,15 @@ pub(in crate::services::project) fn invalidate_core_sources(
         {
             data.fields = None;
         }
+        if matches("data/world/factions")
+            || data.faction_files.as_ref().is_some_and(|files| {
+                files
+                    .values()
+                    .any(|record| matches(&record.location.rel_path))
+            })
+        {
+            data.faction_files = None;
+        }
         if matches("graphics") {
             data.graphics = None;
         }
@@ -720,6 +744,7 @@ mod tests {
             "fields" => load_core_fields(root).map(|_| ()),
             "graphics" => load_core_graphics(root).map(|_| ()),
             "ships" => load_core_ship_files(root).map(|_| ()),
+            "factions" => load_core_faction_files(root).map(|_| ()),
             "weapons" => load_core_weapon_specs(root).map(|_| ()),
             "projectiles" => load_core_projectile_specs(root).map(|_| ()),
             "variants" => load_core_variant_files(root).map(|_| ()),
@@ -727,6 +752,42 @@ mod tests {
             "csv" => load_core_csv_table(root, "data/hulls/ship_data.csv").map(|_| ()),
             _ => unreachable!(),
         }
+    }
+
+    #[test]
+    fn faction_catalog_reuses_index_reads_and_refreshes_external_index_targets() {
+        let root = project_workspace("core_faction_catalog");
+        let index = root.join("starsector-core/data/world/factions/factions.csv");
+        let path = root.join("starsector-core/data/custom/demo.faction");
+        fs::create_dir_all(index.parent().unwrap()).unwrap();
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        fs::write(&index, "faction,file\nalias,data/custom/demo.faction\n").unwrap();
+        fs::write(&path, r#"{"id":"demo","displayName":"Before"}"#).unwrap();
+        let text = root.to_string_lossy();
+        let before = load_core_faction_files(&text).unwrap();
+        assert!(Arc::ptr_eq(
+            &before,
+            &load_core_faction_files(&text).unwrap()
+        ));
+        assert_eq!(before["demo"].location.source, ResourceSource::Core);
+        assert_eq!(work_counts::count("read", &path), 1);
+        assert_eq!(work_counts::count("read", &index), 1);
+        fs::write(&path, r#"{"id":"demo","displayName":"After"}"#).unwrap();
+        invalidate_core_sources(
+            &text,
+            &[InvalidatedResourceScope {
+                source: ResourceSource::Core,
+                rel_path: "data/custom".into(),
+            }],
+        )
+        .unwrap();
+        let after = load_core_faction_files(&text).unwrap();
+        assert_eq!(before["demo"].data["displayName"], "Before");
+        assert_eq!(after["demo"].data["displayName"], "After");
+        assert_eq!(work_counts::count("read", &path), 2);
+        assert_eq!(work_counts::count("parse", &path), 2);
+        invalidate_core_cache(&text).unwrap();
+        root.close().unwrap();
     }
 
     #[test]
@@ -782,6 +843,7 @@ mod tests {
             "fields",
             "graphics",
             "ships",
+            "factions",
             "weapons",
             "projectiles",
             "variants",
@@ -791,6 +853,7 @@ mod tests {
             let root = project_workspace(&format!("core_product_work_{product}"));
             for (relative, content) in [
                 ("data/hulls/sample.ship", r#"{"hullId":"sample"}"#),
+                ("data/world/factions/sample.faction", r#"{"id":"sample"}"#),
                 ("data/weapons/sample.wpn", r#"{"id":"sample"}"#),
                 ("data/weapons/proj/sample.proj", r#"{"id":"sample"}"#),
                 (

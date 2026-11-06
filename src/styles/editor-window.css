@@ -29,6 +29,9 @@
   padding-left: 16px;
   line-height: 16px;
 }
+.editor-problem-list [role='button']:hover {
+  text-decoration: underline;
+}
 .editor-window-status .editor-window-status-value {
   font: 650 18px/24px var(--font-sans);
 }

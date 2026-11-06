@@ -1,5 +1,5 @@
 use crate::errors::AppResult;
-use crate::io::forward_slash_path;
+use crate::io::{self, FsRootBoundary, forward_slash_path};
 use crate::models;
 use crate::models::{EntityFileLocation, ResourceSource};
 use crate::services::project::sources::SourceReader;
@@ -65,4 +65,46 @@ pub(in crate::services::project) fn load_spec_records_from(
         }
     }
     Ok(records)
+}
+
+pub(in crate::services::project) fn load_faction_files_from(
+    sources: &mut SourceReader,
+    source: ResourceSource,
+) -> AppResult<BTreeMap<String, LoadedSpecRecord>> {
+    let mod_root = sources.root().to_path_buf();
+    let boundary = FsRootBoundary::new(&mod_root, "faction root")?;
+    let table = sources.csv(&sources.path("data/world/factions/factions.csv")?)?;
+    let mut defs =
+        load_spec_records_from(sources, &["data/world/factions"], "faction", "id", source)?;
+    for entry in io::faction_index_entries(&boundary, &table)? {
+        if !entry.path.exists() {
+            sources
+                .versions
+                .insert(sources.key(&entry.path), io::file_version(&entry.path)?);
+            continue;
+        }
+        let data = sources.json(&entry.path)?;
+        let id = models::file_content_id(&data, "id", &entry.path);
+        let rel_path = forward_slash_path(
+            entry
+                .path
+                .strip_prefix(boundary.root())
+                .expect("faction belongs to authorized root"),
+        );
+        defs.insert(
+            id.clone(),
+            LoadedSpecRecord {
+                id,
+                location: EntityFileLocation {
+                    reference: None,
+                    source,
+                    root: boundary.root().to_string_lossy().to_string(),
+                    rel_path,
+                    path: entry.path.to_string_lossy().to_string(),
+                },
+                data,
+            },
+        );
+    }
+    Ok(defs)
 }

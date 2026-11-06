@@ -207,13 +207,6 @@ export function csvRowProblems(
     if (table === 'shipSystems') {
       if (yes('noDissipation') && yes('noHardDissipation')) problem('noHardDissipation', '禁止全部耗散已经覆盖硬幅能耗散限制。');
       if (text('max uses') && num('max uses') === 0) problem('max uses', '基础可用次数为零，请确认脚本覆盖。');
-      if (yes('toggle') && text('active') && num('active') > 0) problem('active', '当前为切换式系统，请确认持续时间与脚本覆盖后的行为。');
-      if (
-        spec &&
-        ['statsScript', 'script'].some((key) => Boolean(spec[key])) &&
-        ['max uses', 'regen', 'charge up', 'active', 'down'].some((key) => text(key))
-      )
-        problem('id', '系统脚本可以覆盖次数、恢复和阶段时长，请核对最终运行值。');
     }
     if (table === 'hullmods') {
       if (yes('hiddenEverywhere') && (yes('unlocked') || num('base value') > 0))

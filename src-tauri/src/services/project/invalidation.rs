@@ -654,6 +654,23 @@ fn query_scopes_for_invalidation(
         }
     }
     for resource in resources {
+        if resource.source == ResourceSource::Core {
+            for definition in entity_definitions::entity_definitions()
+                .iter()
+                .filter(|definition| {
+                    (definition.path_matches)(definition, &resource.rel_path)
+                        || definition.spec.is_some_and(|spec| {
+                            spec.source_dirs().iter().any(|directory| {
+                                relative_path_contains(&resource.rel_path, directory)
+                            })
+                        })
+                })
+            {
+                for source in entity_definitions::source_option_origin_scopes(definition) {
+                    push_source_option_query_scope(&mut scopes, source);
+                }
+            }
+        }
         push_query_scope(
             &mut scopes,
             InvalidatedQueryScope {
@@ -828,6 +845,35 @@ mod tests {
     use std::fs;
     use std::path::PathBuf;
     use std::slice;
+
+    #[test]
+    fn core_entity_refresh_invalidates_each_registered_catalog_source() {
+        for (path, source) in [
+            ("data/world/factions/demo.faction", "csv:factions.id"),
+            ("data/world/factions", "csv:factions.id"),
+            ("data/custom/demo.faction", "csv:factions.id"),
+            ("data/variants/demo.variant", "csv:variants.variantId"),
+            ("data/weapons/proj/demo.proj", "csv:projectiles.id"),
+            ("", "csv:factions.id"),
+        ] {
+            let scopes = query_scopes_for_invalidation(
+                &[],
+                &[],
+                &[InvalidatedResourceScope {
+                    source: ResourceSource::Core,
+                    rel_path: path.into(),
+                }],
+            )
+            .unwrap();
+            assert!(
+                scopes
+                    .iter()
+                    .any(|scope| scope.kind == InvalidatedQueryKind::CsvSourceOptions
+                        && scope.source.as_deref() == Some(source)),
+                "{path}"
+            );
+        }
+    }
 
     #[test]
     fn mission_index_changes_refresh_cached_lists_and_counts() {
@@ -1125,6 +1171,13 @@ mod tests {
         )
         .unwrap();
 
+        assert!(
+            invalidation
+                .query_scopes
+                .iter()
+                .any(|scope| scope.kind == InvalidatedQueryKind::CsvSourceOptions
+                    && scope.source.as_deref() == Some("csv:factions.id"))
+        );
         assert!(session.faction_blueprint_tags.contains_key("demo_new_bp"));
         assert!(!session.faction_blueprint_tags.contains_key("demo_old_bp"));
         let rows = session

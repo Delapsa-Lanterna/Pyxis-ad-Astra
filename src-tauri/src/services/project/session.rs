@@ -332,7 +332,7 @@ fn load_project_content(
         )]
     });
     let timer = trace.timer();
-    let faction_files = factions::load_faction_files_from(sources)?;
+    let faction_files = documents::load_faction_files_from(sources, ResourceSource::Mod)?;
     let faction_blueprint_tags = factions::faction_blueprint_tags(&faction_files);
     trace.record_stage("factions", timer, || {
         vec![

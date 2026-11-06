@@ -26,7 +26,7 @@ use crate::models::{
 use crate::services::project::definitions::projectiles;
 use crate::services::project::session::source_versions::capture_changed_versions;
 
-use crate::services::project::sources::core::load_core_variant_files;
+use crate::services::project::sources::core::{load_core_faction_files, load_core_variant_files};
 use crate::services::project::sources::documents::LoadedSpecRecord;
 use crate::services::project::sources::json_documents::{
     load_skin_files_from, load_variant_files_from,
@@ -149,13 +149,13 @@ const PROJECT_ENTITY_DEFINITIONS: [ProjectEntityDefinition; 9] = [
         kind: EntityKind::Faction,
         spec: Some(&FACTION_SPEC_DEFINITION),
         csv_table: None,
-        source_options: &["ships.tags", "weapons.tags", "wings.tags"],
+        source_options: &["factions.id", "ships.tags", "weapons.tags", "wings.tags"],
         path_matches: faction_path_matches,
         query_impacts: &[],
         prepare: prepare_none,
         detail: faction_detail,
         list: faction_list,
-        core_list: None,
+        core_list: Some(faction_core_list),
         refresh: refresh_faction,
     },
     ProjectEntityDefinition {
@@ -351,6 +351,16 @@ fn skill_list(session: &mut ProjectSession) -> AppResult<Vec<EntityListEntry>> {
 fn faction_list(session: &mut ProjectSession) -> AppResult<Vec<EntityListEntry>> {
     Ok(session
         .faction_files
+        .iter()
+        .map(|(id, record)| entity_list_entry(EntityKind::Faction, id, record.data.clone()))
+        .collect())
+}
+
+fn faction_core_list(session: &ProjectSession) -> AppResult<Vec<EntityListEntry>> {
+    let Some(root) = session.manifest.starsector_root.as_ref() else {
+        return Ok(Vec::new());
+    };
+    Ok(load_core_faction_files(root)?
         .iter()
         .map(|(id, record)| entity_list_entry(EntityKind::Faction, id, record.data.clone()))
         .collect())
@@ -745,7 +755,7 @@ fn refresh_faction(
     _session: &ProjectSession,
     sources: &mut SourceReader,
 ) -> AppResult<EntityRefresh> {
-    let files = factions::load_faction_files_from(sources)?;
+    let files = documents::load_faction_files_from(sources, ResourceSource::Mod)?;
     let tags = factions::faction_blueprint_tags(&files);
     Ok(EntityRefresh::Faction { files, tags })
 }
@@ -787,6 +797,8 @@ mod tests {
         let definition = entity_definition(EntityKind::Faction).unwrap();
         let scopes = source_option_origin_scopes(definition).collect::<Vec<_>>();
 
+        assert!(scopes.contains(&"factions.id".to_string()));
+        assert!(scopes.contains(&"csv:factions.id".to_string()));
         assert!(scopes.contains(&"wings.tags".to_string()));
         assert!(scopes.contains(&"csv:wings.tags".to_string()));
     }

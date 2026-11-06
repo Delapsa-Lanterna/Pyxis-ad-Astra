@@ -813,12 +813,97 @@ mod tests {
     use super::*;
     use crate::errors::AppError;
     use crate::io::write_utf8_no_bom;
-    use crate::models::ResourceSource;
+    use crate::models::{InvalidatedResourceScope, ResourceSource};
     use crate::services;
     use crate::services::project;
     use crate::services::project::PerformanceTrace;
     use crate::services::project::test_support::project_workspace;
     use std::fs;
+
+    #[test]
+    fn faction_reference_catalog_resolves_mod_core_and_validation_with_empty_market_table() {
+        let root = project_workspace("faction_catalog");
+        let local = root.join("mod");
+        let core = root.join("starsector-core");
+        for dir in [&local, &core] {
+            fs::create_dir_all(dir.join("data/world/factions")).unwrap();
+        }
+        for (dir, id, name) in [
+            (&local, "shared", "Local"),
+            (&core, "shared", "Overridden"),
+            (&core, "core_only", "Core"),
+        ] {
+            write_utf8_no_bom(
+                &dir.join(format!("data/world/factions/{id}.faction")),
+                &serde_json::json!({"id":id,"displayName":name,"logo":"graphics/logo.png"})
+                    .to_string(),
+            )
+            .unwrap();
+        }
+        let mut trace = PerformanceTrace::new("catalog.open");
+        let manifest = open_project_session_traced(&local, Some(&root), &mut trace).unwrap();
+        let groups = query_source_option_catalog(&manifest.session_id, "csv:factions.id").unwrap();
+        assert_eq!(groups.len(), 2);
+        assert_eq!(groups[0].origin, ResourceSource::Mod);
+        assert_eq!(groups[0].options.len(), 1);
+        assert_eq!(groups[0].options[0].label, "Local (shared)");
+        assert_eq!(groups[1].origin, ResourceSource::Core);
+        assert_eq!(groups[1].options.len(), 1);
+        assert_eq!(groups[1].options[0].value, "core_only");
+        assert_eq!(
+            groups[1].options[0].resource_ref.as_ref().unwrap().source,
+            ResourceSource::Core
+        );
+        let validation = services::query_csv_validation(
+            &manifest.session_id,
+            vec![],
+            vec!["csv:factions.id".into()],
+            vec![],
+            vec![],
+            vec![],
+        )
+        .unwrap();
+        assert_eq!(
+            validation.sources["csv:factions.id"],
+            vec!["shared", "core_only"]
+        );
+        let path = core.join("data/world/factions/core_only.faction");
+        write_utf8_no_bom(&path, r#"{"id":"new_core","displayName":"Updated"}"#).unwrap();
+        let update = project::refresh_project_sources(
+            &manifest.session_id,
+            vec![InvalidatedResourceScope {
+                source: ResourceSource::Core,
+                rel_path: "data/world/factions".into(),
+            }],
+        )
+        .unwrap();
+        assert!(
+            update
+                .invalidation
+                .query_scopes
+                .iter()
+                .any(|scope| scope.source.as_deref() == Some("csv:factions.id"))
+        );
+        let refreshed =
+            query_source_option_catalog(&manifest.session_id, "csv:factions.id").unwrap();
+        assert_eq!(refreshed[1].options[0].value, "new_core");
+        release_project_session(manifest.session_id).unwrap();
+        root.close().unwrap();
+    }
+
+    #[test]
+    fn faction_reference_catalog_returns_empty_without_a_game_or_factions() {
+        let root = project_workspace("empty_faction_catalog");
+        let mut trace = PerformanceTrace::new("catalog.open");
+        let manifest = open_project_session_traced(&root, None, &mut trace).unwrap();
+        assert!(
+            query_source_option_catalog(&manifest.session_id, "csv:factions.id")
+                .unwrap()
+                .is_empty()
+        );
+        release_project_session(manifest.session_id).unwrap();
+        root.close().unwrap();
+    }
 
     #[test]
     fn projectile_reference_catalog() {

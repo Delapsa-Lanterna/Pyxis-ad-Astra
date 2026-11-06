@@ -15,6 +15,7 @@
           :key="`${issue.code}:${issue.path}`"
           role="button"
           tabindex="0"
+          title="点击定位到对应位置"
           class="ui-control-pointer"
           @click="$emit('locate', issue)"
           @keydown.enter="$emit('locate', issue)"

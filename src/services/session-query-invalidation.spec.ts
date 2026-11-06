@@ -19,7 +19,7 @@ import {
   prepareJointEdit,
 } from './joint-edit.service';
 import { invalidateQueryCacheByProject, invalidateQueryCacheForSession } from './query-cache.service';
-import { CONFIG_FIELD_SOURCES } from '@/domain/schema/schema-source-definitions';
+import { CONFIG_FIELD_SOURCES, ENTITY_FIELD_SOURCES } from '@/domain/schema/schema-source-definitions';
 import { entityTargetFixture } from '@/test/fixtures/entity-target';
 import type { JointEditSnapshot, ProjectInvalidation, InvalidatedQueryScope } from '@/shared/types';
 
@@ -55,6 +55,13 @@ const cases: Array<{
   unrelated: ProjectInvalidation;
   value: unknown;
 }> = [
+  ...ENTITY_FIELD_SOURCES.map((source) => ({
+    name: source,
+    read: () => querySourceOptionCatalog(session, source),
+    matching: scope('csv-source-options', { source }),
+    unrelated: scope('csv-source-options', { source: 'csv:ships.id' }),
+    value: [],
+  })),
   ...Object.entries(CONFIG_FIELD_SOURCES).map(([source, relPath]) => ({
     name: source,
     read: () => querySourceOptionCatalog(session, source),

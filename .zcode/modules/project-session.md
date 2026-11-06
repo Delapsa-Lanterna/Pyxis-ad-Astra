@@ -12,7 +12,7 @@
 - `src-tauri/src/domain/entity_definitions.rs`：八种实体的目录、后缀、ID 字段及规格、表格关联登记。
 - `src-tauri/src/domain/entity_identity.rs`：跨编辑器实体 ID、路径与来源范围纯规则。
 - `src-tauri/src/services/project/definitions/entity_definitions.rs`：实体来源、读取准备、刷新与摘要的登记规则。
-- `src-tauri/src/services/project/definitions/factions.rs`：势力来源装载、诊断与蓝图标签。
+- `src-tauri/src/services/project/definitions/factions.rs`：势力蓝图标签推导。
 - `src-tauri/src/services/project/definitions/mod.rs`：实体来源与资源定义的模块登记。
 - `src-tauri/src/services/project/definitions/projectiles.rs`：Mod 弹体及 Core 回退的正式读取。
 - `src-tauri/src/services/project/invalidation.rs`：提交路径到会话正式内容、实体与资源失效的更新。

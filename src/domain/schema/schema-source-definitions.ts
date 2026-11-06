@@ -7,7 +7,7 @@ export const CONFIG_FIELD_SOURCES = {
   'config:engineStyles': 'data/config/engine_styles.json',
 } as const;
 
-export const ENTITY_FIELD_SOURCES = ['csv:projectiles.id', 'csv:variants.variantId'] as const;
+export const ENTITY_FIELD_SOURCES = ['csv:projectiles.id', 'csv:variants.variantId', 'csv:factions.id'] as const;
 export function isEntityFieldSource(source: string | undefined | null): boolean {
   return ENTITY_FIELD_SOURCES.some((registered) => registered === source);
 }
