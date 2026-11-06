@@ -5,6 +5,7 @@ on:
     branches: [main]
   workflow_dispatch:
 permissions:
+  actions: write
   contents: read
   deployments: write
   pages: write
@@ -33,8 +34,26 @@ jobs:
         run: node scripts/browser/serve.mjs browser --production --existing --directory dist/browser-demo --base /Pyxis-ad-Astra/ --port 1463 &
       - name: Verify demo artifact
         run: node scripts/browser/demo.mjs http://127.0.0.1:1463/Pyxis-ad-Astra/
-      - uses: actions/upload-artifact@v4
+      - name: Remove previous artifacts
+        id: artifact_cleanup
         if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const artifacts = await github.paginate(github.rest.actions.listWorkflowRunArtifacts, {
+              ...context.repo,
+              run_id: context.runId,
+            });
+            for (const artifact of artifacts) {
+              if (["github-pages", "demo-verification"].includes(artifact.name)) {
+                await github.rest.actions.deleteArtifact({
+                  ...context.repo,
+                  artifact_id: artifact.id,
+                });
+              }
+            }
+      - uses: actions/upload-artifact@v4
+        if: always() && steps.artifact_cleanup.outcome == 'success'
         with:
           name: demo-verification
           path: node_modules/.cache/browser/demo
