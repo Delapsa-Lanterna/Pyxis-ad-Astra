@@ -130,7 +130,7 @@ export function useSettingsViewModel(changeSource: SettingsSourceChange, onReset
     feedback.confirmDanger({
       title: '恢复默认配置？',
       content:
-        '游戏目录、外观、字体、编辑偏好、缓存、日志及性能调试设置将恢复默认值。\n\n工作区记录、Mod 内容和已有日志继续保留。\n\n性能监视开关在重启后生效。',
+        '工作区资源、外观、字体、编辑偏好、缓存、日志及性能调试设置将恢复默认值。\n\n工作区记录、Mod 内容和已有日志继续保留。\n\n性能监视开关在重启后生效。',
       actionText: '恢复默认配置',
       onConfirm: async () => {
         try {

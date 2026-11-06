@@ -14,6 +14,8 @@ import { connectDesktopCdp } from './cdp-client.mjs';
 /** @param {{app:Awaited<ReturnType<typeof import('./runtime.mjs').startDesktop>>,fixture:Awaited<ReturnType<typeof import('./sample.mjs').prepareSample>>,check:(name:string,operation:()=>Promise<void>)=>Promise<void>,options:{rounds:number,soak:number},artifacts:string}} context */
 export async function sourcePerformance({ app, fixture, check, options, artifacts }) {
   const { main: page } = app;
+  await page.evaluate(stores + '.get("settings").setWatchFileChanges(true)');
+  await until(() => page.evaluate('(async()=> (await ' + invoke + '("read_settings")).value.watchFileChanges)()'), 'file watching enabled');
   let evaluate = page.evaluate.bind(page);
   let send = app.session.send.bind(app.session);
   /** @type {Awaited<ReturnType<typeof connectDesktopCdp>>|undefined} */

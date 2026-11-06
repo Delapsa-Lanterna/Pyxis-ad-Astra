@@ -9,6 +9,8 @@ import { commodityText, sampleInfo } from './sample.mjs';
 export async function sourceSync(app, fixture, check, artifacts) {
   const { main: active, context } = app;
   const { game, mod, core, table, descriptor, notes } = fixture;
+  await active.evaluate(stores + '.get("settings").setWatchFileChanges(true)');
+  await waitFor(active, '(async()=> (await ' + api + '("read_settings")).value.watchFileChanges)()');
   await mkdir(join(mod, 'graphics'), { recursive: true });
   await writeFile(join(mod, 'graphics/memory.png'), await readFile(join(core, 'graphics/first.png')));
   await writeFile(
@@ -201,7 +203,13 @@ export async function sourceSync(app, fixture, check, artifacts) {
     assert.equal(await active.evaluate(api + '("focus_managed_window",{identity:' + JSON.stringify(identity) + '})'), true);
     await canvas.hover();
     await canvasPage.mouse.wheel(0, 100);
-    assert.equal(await canvas.evaluate((node) => node instanceof HTMLCanvasElement && node.width > 0 && node.height > 0), true);
+    assert.equal(
+      await canvas.evaluate((node) => {
+        const surface = /** @type {HTMLCanvasElement} */ (node);
+        return surface.width > 0 && surface.height > 0;
+      }),
+      true,
+    );
     await canvas.screenshot({ path: join(artifacts, 'source-canvas.png') });
     await canvasPage.locator('.titlebar-button.close').click();
     await until(() => canvasPage.isClosed(), 'canvas window normal close');

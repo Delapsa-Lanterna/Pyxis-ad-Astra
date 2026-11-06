@@ -3,11 +3,11 @@
     <header class="page-header">
       <div class="page-identity">
         <h1 class="page-title">设置</h1>
-        <p class="page-description">配置游戏目录、界面外观与编辑偏好。</p>
+        <p class="page-description">配置工作区资源、界面外观与编辑偏好。</p>
       </div>
     </header>
     <section class="panel-card ui-layout-shrink ui-control-border ui-content-surface ui-layout-grid ui-layout-stretch">
-      <h3 class="panel-section-title">游戏目录</h3>
+      <h3 class="panel-section-title">工作区资源</h3>
       <FieldRow label="Starsector 安装路径"
         ><div class="ui-field-actions ui-layout-stretch action-group">
           <n-input :value="settings.starsectorRoot ?? ''" size="small" placeholder="自动推断或手动指定" readonly />
@@ -23,6 +23,10 @@
             "
           /> </template
       ></FieldRow>
+      <FieldRow label="监听文件变化">
+        <n-switch class="tool-switch" :value="settings.watchFileChanges" @update:value="settings.setWatchFileChanges" />
+        <template #hint><FieldHints description="监听工作区文件的外部变化，并自动更新已打开的内容。" /></template>
+      </FieldRow>
     </section>
     <section class="panel-card ui-layout-shrink ui-control-border ui-content-surface ui-layout-grid ui-layout-stretch">
       <h3 class="panel-section-title">外观</h3>

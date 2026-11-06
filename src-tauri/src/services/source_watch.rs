@@ -16,7 +16,12 @@ use std::time::{Duration, Instant};
 
 const QUIET: Duration = Duration::from_millis(40);
 const MAX_WAIT: Duration = Duration::from_millis(500);
-static ROOTS: LazyLock<Mutex<BTreeMap<String, Weak<SourceRoot>>>> = LazyLock::new(Default::default);
+#[derive(Default)]
+struct SourceRoots {
+    enabled: bool,
+    roots: BTreeMap<String, Weak<SourceRoot>>,
+}
+static ROOTS: LazyLock<Mutex<SourceRoots>> = LazyLock::new(Default::default);
 
 #[derive(Default)]
 pub struct SourceChangeBatch {
@@ -34,6 +39,9 @@ struct SourceRootState {
     leases: usize,
     openings: usize,
     stopped: bool,
+    enabled: bool,
+    generation: u64,
+    delivering: bool,
     watcher: Option<RecommendedWatcher>,
 }
 struct SourceRoot {
@@ -48,7 +56,7 @@ pub struct SourceSubscription {
     active: bool,
 }
 
-fn roots() -> AppResult<MutexGuard<'static, BTreeMap<String, Weak<SourceRoot>>>> {
+fn roots() -> AppResult<MutexGuard<'static, SourceRoots>> {
     ROOTS
         .lock()
         .map_err(|_| AppError::message("source.watch_lock", "来源监听状态不可用"))
@@ -60,9 +68,15 @@ impl SourceRoot {
             .map_err(|_| AppError::message("source.watch_lock", "来源监听状态不可用"))
     }
     fn record(&self, event: NotifyResult<Event>) {
+        self.record_from(event, None);
+    }
+    fn record_from(&self, event: NotifyResult<Event>, generation: Option<u64>) {
         let result = (|| -> AppResult<()> {
             let mut pending = self.pending()?;
-            if pending.stopped {
+            if pending.stopped
+                || !pending.enabled
+                || generation.is_some_and(|generation| generation != pending.generation)
+            {
                 return Ok(());
             }
             match event {
@@ -106,10 +120,15 @@ impl SourceRoot {
         }
     }
     fn attach(self: &Arc<Self>) -> AppResult<()> {
+        let generation = {
+            let mut pending = self.pending()?;
+            pending.generation += 1;
+            pending.generation
+        };
         let root = Arc::downgrade(self);
         let mut watcher = notify::recommended_watcher(move |event| {
             if let Some(root) = root.upgrade() {
-                root.record(event);
+                root.record_from(event, Some(generation));
             }
         })
         .map_err(|error| {
@@ -124,6 +143,18 @@ impl SourceRoot {
             })?;
         let previous = self.pending()?.watcher.replace(watcher);
         drop(previous);
+        Ok(())
+    }
+    fn start(self: &Arc<Self>, rescan: bool) -> AppResult<()> {
+        if let Err(error) = self.attach() {
+            let mut pending = self.pending()?;
+            pending.batch.diagnostic = Some(error.diagnostic());
+            pending.first = Some(Instant::now());
+            pending.latest = pending.first;
+            self.changed.notify_all();
+        } else if rescan {
+            self.record(Ok(Event::new(EventKind::Other).set_flag(Flag::Rescan)));
+        }
         Ok(())
     }
     fn run(&self) -> AppResult<()> {
@@ -159,12 +190,54 @@ impl SourceRoot {
             );
             pending.first = None;
             pending.latest = None;
+            pending.delivering = true;
             drop(pending);
             // Native callbacks keep merging one pending batch while this root is being consumed.
             (self.deliver)(batch);
             pending = self.pending()?;
+            pending.delivering = false;
+            self.changed.notify_all();
         }
     }
+}
+
+/// Enables native watches or drains their callbacks while retaining logical subscriptions.
+pub fn configure(enabled: bool) -> AppResult<Vec<String>> {
+    let mut registered = roots()?;
+    if registered.enabled == enabled {
+        return Ok(Vec::new());
+    }
+    registered.enabled = enabled;
+    let mut affected = Vec::new();
+    for root in registered.roots.values().filter_map(Weak::upgrade) {
+        let mut pending = root.pending()?;
+        if pending.stopped {
+            continue;
+        }
+        pending.enabled = enabled;
+        pending.generation += 1;
+        let watcher = pending.watcher.take();
+        pending.batch = SourceChangeBatch {
+            root: root.path.clone(),
+            ..Default::default()
+        };
+        pending.first = None;
+        pending.latest = None;
+        // An already detached batch finishes enqueueing before disable returns.
+        while pending.delivering {
+            pending = root
+                .changed
+                .wait(pending)
+                .map_err(|_| AppError::message("source.watch_lock", "来源监听等待失败"))?;
+        }
+        drop(pending);
+        drop(watcher);
+        if enabled {
+            root.start(true)?;
+        }
+        affected.push(root.path.clone());
+    }
+    Ok(affected)
 }
 
 /// Subscribes before baseline reads; activate once after the corresponding consumer is registered.
@@ -175,7 +248,7 @@ pub fn subscribe(root: &Path, deliver: fn(SourceChangeBatch)) -> AppResult<Sourc
         .into_owned();
     let key = windows_path_key(&path);
     let mut registered = roots()?;
-    if let Some(root) = registered.get(&key).and_then(Weak::upgrade) {
+    if let Some(root) = registered.roots.get(&key).and_then(Weak::upgrade) {
         let mut pending = root.pending()?;
         if !pending.stopped {
             pending.leases += 1;
@@ -199,17 +272,17 @@ pub fn subscribe(root: &Path, deliver: fn(SourceChangeBatch)) -> AppResult<Sourc
             leases: 1,
             openings: 1,
             stopped: false,
+            enabled: registered.enabled,
+            generation: 0,
+            delivering: false,
             watcher: None,
         }),
         changed: Condvar::new(),
         worker: Mutex::new(None),
         deliver,
     });
-    if let Err(error) = root.attach() {
-        let mut pending = root.pending()?;
-        pending.batch.diagnostic = Some(error.diagnostic());
-        pending.first = Some(Instant::now());
-        pending.latest = pending.first;
+    if registered.enabled {
+        root.start(false)?;
     }
     let running = root.clone();
     let worker = Builder::new().name("source-watch".into()).spawn(move || {
@@ -225,7 +298,7 @@ pub fn subscribe(root: &Path, deliver: fn(SourceChangeBatch)) -> AppResult<Sourc
         .worker
         .lock()
         .map_err(|_| AppError::message("source.watch_lock", "来源监听状态不可用"))? = Some(worker);
-    registered.insert(key, Arc::downgrade(&root));
+    registered.roots.insert(key, Arc::downgrade(&root));
     Ok(SourceSubscription {
         root,
         active: false,
@@ -242,6 +315,13 @@ impl SourceSubscription {
         Ok(())
     }
     pub fn retry(&self) -> AppResult<()> {
+        let registered = roots()?;
+        if !registered.enabled {
+            return Err(AppError::message(
+                "source.watch_disabled",
+                "文件变化监听已关闭",
+            ));
+        }
         self.root.attach()?;
         self.root
             .record(Ok(Event::new(EventKind::Other).set_flag(Flag::Rescan)));
@@ -276,11 +356,12 @@ impl SourceSubscription {
         let mut registered = roots()?;
         let key = windows_path_key(&self.root.path);
         if registered
+            .roots
             .get(&key)
             .and_then(Weak::upgrade)
             .is_some_and(|root| Arc::ptr_eq(&root, &self.root))
         {
-            registered.remove(&key);
+            registered.roots.remove(&key);
         }
         Ok(())
     }
@@ -301,7 +382,7 @@ impl Drop for SourceSubscription {
 mod tests {
     use super::*;
     use crate::io;
-    use crate::test_support::TestWorkspace;
+    use crate::test_support::{self, TestWorkspace};
     use notify::Error as NotifyError;
     use std::fs;
     use std::sync::mpsc::{self, Receiver, Sender};
@@ -345,7 +426,62 @@ mod tests {
         })
     }
     #[test]
+    fn source_watch_setting_detaches_native_watches_and_rescans_shared_roots() {
+        if test_support::isolated_test() {
+            return;
+        }
+        let (root, events) = workspace("source_watch_preference");
+        let mut first = subscribe(&root, receive).unwrap();
+        let mut second = subscribe(&root, receive).unwrap();
+        first.activate().unwrap();
+        second.activate().unwrap();
+        assert!(Arc::ptr_eq(&first.root, &second.root));
+        assert!(first.root.pending().unwrap().watcher.is_none());
+        assert_eq!(first.retry().unwrap_err().code(), "source.watch_disabled");
+        let path = root.join("content.txt");
+        fs::write(&path, "disabled").unwrap();
+        assert!(events.try_recv().is_err());
+        for _ in 0..2 {
+            assert_eq!(configure(true).unwrap().len(), 1);
+            assert!(first.root.pending().unwrap().watcher.is_some());
+            assert!(events.recv_timeout(Duration::from_secs(5)).unwrap().rescan);
+            assert!(configure(true).unwrap().is_empty());
+            let generation = first.root.pending().unwrap().generation;
+            assert_eq!(configure(false).unwrap().len(), 1);
+            assert!(first.root.pending().unwrap().watcher.is_none());
+            events.try_iter().for_each(drop);
+            fs::write(&path, "changed while disabled").unwrap();
+            first.root.record_from(
+                Ok(Event::new(EventKind::Other).add_path(path.clone())),
+                Some(generation),
+            );
+            assert!(first.root.pending().unwrap().first.is_none());
+            assert!(events.try_recv().is_err());
+        }
+        configure(true).unwrap();
+        assert!(events.recv_timeout(Duration::from_secs(5)).unwrap().rescan);
+        fs::rename(&path, root.join("renamed.txt")).unwrap();
+        assert!(events.recv_timeout(Duration::from_secs(5)).is_ok());
+        configure(false).unwrap();
+        events.try_iter().for_each(drop);
+        fs::rename(root.as_path(), root.outer().join("moved")).unwrap();
+        configure(true).unwrap();
+        let failure = events.recv_timeout(Duration::from_secs(5)).unwrap();
+        assert!(failure.diagnostic.is_some());
+        assert_eq!(failure.root, first.root());
+        configure(false).unwrap();
+        drop(first);
+        drop(second);
+        fs::create_dir(root.as_path()).unwrap();
+        root.close().unwrap();
+    }
+
+    #[test]
     fn source_watch_recreates_the_original_root_after_a_move_and_explicit_retry() {
+        if test_support::isolated_test() {
+            return;
+        }
+        configure(true).unwrap();
         let (root, events) = workspace("source_watch_root_recovery");
         let mut subscription = subscribe(&root, receive).unwrap();
         subscription.activate().unwrap();
@@ -371,6 +507,10 @@ mod tests {
     }
     #[test]
     fn source_watch_reopening_rejects_events_from_the_released_instance() {
+        if test_support::isolated_test() {
+            return;
+        }
+        configure(true).unwrap();
         let (root, events) = workspace("source_watch_reopen");
         let mut previous = subscribe(&root, receive).unwrap();
         previous.activate().unwrap();
@@ -391,6 +531,10 @@ mod tests {
     }
     #[test]
     fn source_watch_shares_roots_buffers_openings_and_releases_last_owner() {
+        if test_support::isolated_test() {
+            return;
+        }
+        configure(true).unwrap();
         let (root, events) = workspace("source_watch_shared");
         let mut first = subscribe(&root, receive).unwrap();
         let mut second = subscribe(&root, receive).unwrap();
@@ -411,12 +555,16 @@ mod tests {
         assert!(contains_path(&batch, &path));
         let key = windows_path_key(second.root());
         drop(second);
-        assert!(!roots().unwrap().contains_key(&key));
+        assert!(!roots().unwrap().roots.contains_key(&key));
         fs::write(&path, "released").unwrap();
         root.close().unwrap();
     }
     #[test]
     fn source_watch_keeps_rename_pairs_and_delivers_listener_errors_and_retry() {
+        if test_support::isolated_test() {
+            return;
+        }
+        configure(true).unwrap();
         let (root, events) = workspace("source_watch_rename");
         let before = root.join("before.txt");
         let after = root.join("after.txt");
@@ -445,6 +593,10 @@ mod tests {
     }
     #[test]
     fn source_watch_delivers_before_a_continuous_stream_becomes_quiet() {
+        if test_support::isolated_test() {
+            return;
+        }
+        configure(true).unwrap();
         let (root, events) = workspace("source_watch_continuous");
         let path = root.join("stream.txt");
         fs::write(&path, "initial").unwrap();

@@ -17,6 +17,7 @@ export type ToastDurations = Record<FeedbackLevel, number>;
 
 export interface AppSettings {
   performanceMonitorEnabled: boolean;
+  watchFileChanges: boolean;
   toastDurations: ToastDurations;
   cacheLimits: CacheLimits;
   theme: AppTheme | null;

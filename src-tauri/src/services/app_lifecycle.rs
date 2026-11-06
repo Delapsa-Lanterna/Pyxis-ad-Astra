@@ -65,6 +65,7 @@ pub fn apply_settings_runtime(value: &AppSettings) -> Result<bool, AppError> {
     app_log::configure_runtime(value)?;
     configure_media_cache(&value.cache_limits.backend_media)?;
     file_history::set_history_limit(value.file_history_limit as usize)?;
+    project_sync::configure_source_watch(value.watch_file_changes)?;
     performance_monitor::initialize(value.performance_monitor_enabled);
     Ok(performance_monitor::enabled())
 }

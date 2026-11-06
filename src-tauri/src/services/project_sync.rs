@@ -17,7 +17,9 @@ use serde_json::json;
 use source_changes::{SOURCE_WATCHES, consume_core_batch, consume_source_batch};
 #[cfg(test)]
 use source_changes::{begin_source_watch, retain_source_watch};
-pub use source_changes::{open_project_session, retry_source_watch, set_window_core_subscription};
+pub use source_changes::{
+    configure_source_watch, open_project_session, retry_source_watch, set_window_core_subscription,
+};
 use source_changes::{publish_source_status, release_source_watch};
 use std::collections::{BTreeMap, VecDeque};
 use std::path::Path;
@@ -646,6 +648,7 @@ mod tests {
     use crate::services::project::test_support::{project_workspace, release_workspace};
     #[cfg(test)]
     use crate::services::{file_editor, file_history, project, project_save, write_transactions};
+    use crate::test_support;
     #[cfg(test)]
     use crate::{io, services};
     use serde_json::Value;
@@ -762,6 +765,10 @@ mod tests {
 
     #[test]
     fn source_watch_review_core_subscription_replays_its_existing_failure_to_a_scoped_window() {
+        if test_support::isolated_test() {
+            return;
+        }
+        configure_source_watch(true).unwrap();
         let serial = TEST_QUEUE.lock().unwrap();
         let root = project_workspace("review_core_status_replay");
         let core = root.join("starsector-core");
@@ -972,6 +979,10 @@ mod tests {
 
     #[test]
     fn source_watch_core_mods_progress_independently_and_keep_mod_priority() {
+        if test_support::isolated_test() {
+            return;
+        }
+        configure_source_watch(true).unwrap();
         let _serial = TEST_QUEUE.lock().unwrap();
         let work = project_workspace("core_mod_fanout").with_cleanup(release_watched_workspace);
         let game = work.join("game");
@@ -1067,6 +1078,10 @@ mod tests {
     }
     #[test]
     fn source_watch_core_notifies_windows_without_mods_and_releases_each_subscription() {
+        if test_support::isolated_test() {
+            return;
+        }
+        configure_source_watch(true).unwrap();
         let _serial = TEST_QUEUE.lock().unwrap();
         let root = project_workspace("core_windows").with_cleanup(release_watched_workspace);
         let graphics = root.join("starsector-core/graphics");
@@ -1132,7 +1147,107 @@ mod tests {
         root.close().unwrap();
     }
     #[test]
+    fn source_watch_reopens_existing_mods_and_catches_up_after_settings_enable() {
+        if test_support::isolated_test() {
+            return;
+        }
+        configure_source_watch(true).unwrap();
+        let _serial = TEST_QUEUE.lock().unwrap();
+        let root = project_workspace("source_watch_settings_catchup")
+            .with_cleanup(release_watched_workspace);
+        let path = root.join("data/hulls/ship_data.csv");
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        fs::write(&path, "id,name\nsample,Before\n").unwrap();
+        let subscription = begin_source_watch(&root).unwrap();
+        let manifest = project::open_project_session_traced(
+            &root,
+            None,
+            &mut PerformanceTrace::new("source.settings"),
+        )
+        .unwrap();
+        retain_source_watch(
+            manifest.session_id.clone(),
+            subscription,
+            ResourceSource::Mod,
+        )
+        .unwrap();
+        let owner = format!("watch:{}", windows_path_key(&root.to_string_lossy()));
+        let receiver = window(&owner);
+        services::query_csv_table_index(
+            &manifest.session_id,
+            CsvTableKey::Ships,
+            1,
+            None,
+            CsvSearchField::IdName,
+            &[],
+        )
+        .unwrap();
+        source_changes::wait_source_batches(&manifest.mod_root).unwrap();
+        receiver.try_iter().for_each(drop);
+
+        configure_source_watch(false).unwrap();
+        assert!(
+            SOURCE_WATCHES
+                .lock()
+                .unwrap()
+                .contains_key(&manifest.session_id)
+        );
+        assert_eq!(
+            retry_source_watch(&owner, &manifest.mod_root)
+                .unwrap_err()
+                .code(),
+            "source.watch_disabled"
+        );
+        fs::write(&path, "id,name\nsample,After\n").unwrap();
+        thread::sleep(Duration::from_millis(100));
+        let disabled = receiver.try_iter().collect::<Vec<_>>();
+        assert!(disabled.iter().all(|delivery| delivery["kind"] != "saved"));
+        assert_eq!(
+            disabled
+                .iter()
+                .filter(|delivery| delivery["state"] == "released")
+                .count(),
+            2
+        );
+
+        configure_source_watch(true).unwrap();
+        let event = loop {
+            let delivery = receiver.recv_timeout(Duration::from_secs(15)).unwrap();
+            if delivery["kind"] == "saved" && delivery["event"]["reason"] == "refresh" {
+                break delivery["event"].clone();
+            }
+        };
+        assert_eq!(
+            event["result"]["sessionUpdates"].as_array().unwrap().len(),
+            1
+        );
+        assert_eq!(
+            services::query_csv_table_index(
+                &manifest.session_id,
+                CsvTableKey::Ships,
+                1,
+                None,
+                CsvSearchField::IdName,
+                &[],
+            )
+            .unwrap()
+            .rows[0]
+                .data["name"],
+            "After"
+        );
+
+        release_project_session(manifest.session_id).unwrap();
+        release_window(&owner).unwrap();
+        configure_source_watch(false).unwrap();
+        root.close().unwrap();
+    }
+
+    #[test]
     fn source_watch_reports_failure_and_explicit_retry_progress() {
+        if test_support::isolated_test() {
+            return;
+        }
+        configure_source_watch(true).unwrap();
         let _serial = TEST_QUEUE.lock().unwrap();
         let root = project_workspace("source_retry_status").with_cleanup(release_watched_workspace);
         let path = root.join("mod_info.json");
@@ -1189,6 +1304,10 @@ mod tests {
 
     #[test]
     fn source_watch_updates_same_root_sessions_once_and_deduplicates_accepted_bytes() {
+        if test_support::isolated_test() {
+            return;
+        }
+        configure_source_watch(true).unwrap();
         let _serial = TEST_QUEUE.lock().unwrap();
         let root = project_workspace("watched_sessions").with_cleanup(release_watched_workspace);
         fs::create_dir_all(root.join("data/hulls")).unwrap();

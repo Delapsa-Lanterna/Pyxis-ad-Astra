@@ -34,6 +34,7 @@ export function normalizeHex(value: string): string | null {
 
 export function assertValidSettings(settings: AppSettings): void {
   if (typeof settings.performanceMonitorEnabled !== 'boolean') throw new Error('Invalid performance monitor setting');
+  if (typeof settings.watchFileChanges !== 'boolean') throw new Error('Invalid file watching setting');
   readTheme(settings.theme);
   readCacheLimits(settings.cacheLimits);
   readToastDurations(settings.toastDurations);

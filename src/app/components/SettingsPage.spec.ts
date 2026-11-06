@@ -66,6 +66,22 @@ beforeEach(() => {
 });
 
 describe('settings limit controls', () => {
+  it('groups workspace resources and toggles external file watching below the installation path', async () => {
+    const wrapper = mount(SettingsPage, {
+      props: { changeSource: logUi.changeSource },
+      global: { stubs: { ...editorUiStubs, ColorPicker: true } },
+    });
+    const section = wrapper.findAll('section')[0]!;
+    expect(section.get('h3').text()).toBe('工作区资源');
+    expect(section.findAll('.field-label').map((label) => label.text())).toEqual(['Starsector 安装路径', '监听文件变化']);
+    expect(section.text()).toContain('监听工作区文件的外部变化，并自动更新已打开的内容。');
+    expect(useSettingsStore().watchFileChanges).toBe(false);
+    await section.get('.n-switch-stub').trigger('click');
+    expect(useSettingsStore().settingsSnapshot().watchFileChanges).toBe(true);
+    await section.get('.n-switch-stub').trigger('click');
+    expect(useSettingsStore().watchFileChanges).toBe(false);
+    wrapper.unmount();
+  });
   it('places toast durations below cache limits and edits all four levels in seconds', async () => {
     const wrapper = mount(SettingsPage, {
       props: { changeSource: logUi.changeSource },

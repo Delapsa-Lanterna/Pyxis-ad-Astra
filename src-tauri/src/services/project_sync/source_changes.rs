@@ -119,6 +119,17 @@ pub(super) fn source_batch_running(root: &str) -> bool {
         .is_some_and(Option::is_none)
 }
 
+/// Applies the saved preference and finishes queued updates before releasing source notices.
+pub fn configure_source_watch(enabled: bool) -> AppResult<()> {
+    for root in source_watch::configure(enabled)? {
+        if !enabled {
+            wait_source_batches(&root)?;
+            publish_source_status(&root, SourceSyncState::Released, None)?;
+        }
+    }
+    Ok(())
+}
+
 pub fn begin_source_watch(root: &Path) -> AppResult<SourceSubscription> {
     source_watch::subscribe(root, enqueue_source_batch)
 }
@@ -247,7 +258,11 @@ pub fn retry_source_watch(label: &str, root: &str) -> AppResult<()> {
             .retry()
     })();
     if let Err(error) = &result {
-        publish_source_status(root, SourceSyncState::Failed, Some(error.diagnostic()))?;
+        if error.code() == "source.watch_disabled" {
+            publish_source_status(root, SourceSyncState::Released, None)?;
+        } else {
+            publish_source_status(root, SourceSyncState::Failed, Some(error.diagnostic()))?;
+        }
     }
     result
 }

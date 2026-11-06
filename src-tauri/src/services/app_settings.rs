@@ -433,6 +433,20 @@ mod tests {
         dir.close().unwrap();
     }
     #[test]
+    fn file_watching_roundtrips_through_saved_settings() {
+        let root = TestWorkspace::new("file_watch_setting");
+        assert!(!AppSettings::default().watch_file_changes);
+        for enabled in [true, false] {
+            let settings = AppSettings {
+                watch_file_changes: enabled,
+                ..Default::default()
+            };
+            save_settings(&root, &settings).unwrap();
+            assert_eq!(load_settings(&root).unwrap().watch_file_changes, enabled);
+        }
+        root.close().unwrap();
+    }
+    #[test]
     fn all_log_levels_roundtrip_through_saved_settings() {
         let dir = TestWorkspace::new("log_level_settings");
         for level in [
@@ -588,7 +602,7 @@ mod tests {
         valid["editHistoryLimit"] = serde_json::json!(321);
         valid["cacheLimits"]["mediaData"]["entries"] = serde_json::json!(17);
         let paths = setting_paths(&defaults, "");
-        assert_eq!(paths.len(), 48);
+        assert_eq!(paths.len(), 49);
         for pointer in paths.into_iter().skip(1) {
             for missing in [false, true] {
                 let mut source = valid.clone();

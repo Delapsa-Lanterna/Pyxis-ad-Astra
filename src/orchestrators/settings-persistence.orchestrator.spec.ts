@@ -99,6 +99,23 @@ describe('formal settings commits', () => {
     expect(api.save).toHaveBeenCalledTimes(0);
     expect(api.defaults).toHaveBeenCalledTimes(0);
   });
+  it('persists file watching, reloads the saved choice and restores its default', async () => {
+    const { runtime, settings, stopPersistence } = await setup();
+    expect(settings.watchFileChanges).toBe(false);
+    settings.setWatchFileChanges(true);
+    await runtime.flushSettings();
+    expect(api.save.mock.lastCall![0].watchFileChanges).toBe(true);
+    stopPersistence();
+    settings.replaceSettings(createSettingsFixture());
+    const stop = runtime.startSettingsMirror();
+    onTestFinished(stop);
+    expect(settings.watchFileChanges).toBe(true);
+    stop();
+    onTestFinished(runtime.startSettingsPersistence(api.history));
+    await runtime.resetSettings(vi.fn());
+    expect(settings.watchFileChanges).toBe(false);
+    expect(api.save.mock.lastCall![0].watchFileChanges).toBe(false);
+  });
   it('saves toast durations and restores their defaults through reset', async () => {
     const { runtime, settings } = await setup();
     settings.setToastDuration('success', 0);
@@ -408,12 +425,18 @@ describe('formal settings commits', () => {
     await runtime.initializeSettings();
     onTestFinished(runtime.startSettingsMirror());
     const receive = api.listen.mock.calls[0]![0];
-    const next = createSettingsFixture({ generalFont: 'Latest Font', expandFieldDescriptions: true, immersiveFontDirectory: 'F:/fonts' });
+    const next = createSettingsFixture({
+      generalFont: 'Latest Font',
+      expandFieldDescriptions: true,
+      immersiveFontDirectory: 'F:/fonts',
+      watchFileChanges: true,
+    });
     next.cacheLimits.decodedImages.entries = 7;
     next.toastDurations = { success: 0, info: 3600, warning: 8, error: 9 };
     await receive(settingsSnapshot(next, 4));
     await receive(settingsSnapshot(createSettingsFixture({ generalFont: 'Earlier Font' }), 3));
     expect(useSettingsStore().generalFont).toBe('Latest Font');
+    expect(useSettingsStore().watchFileChanges).toBe(true);
     expect(useSettingsStore().toastDurations).toEqual(next.toastDurations);
     expect(useSettingsStore().expandFieldDescriptions).toBe(true);
     expect(useSettingsStore().immersiveFontDirectory).toBe('F:/fonts');

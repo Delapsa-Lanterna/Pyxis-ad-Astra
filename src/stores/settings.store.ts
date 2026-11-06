@@ -64,6 +64,7 @@ export const useSettingsStore = defineStore('settings', () => {
   const allowCoreEditing = ref(readAllowCoreEditing(initialSettings.allowCoreEditing));
   const savedCoreEditing = ref(allowCoreEditing.value);
   const canEditCore = computed(() => allowCoreEditing.value && savedCoreEditing.value);
+  const watchFileChanges = ref(initialSettings.watchFileChanges);
   const starsectorRoot = ref(initialSettings.starsectorRoot);
   const savedStarsectorRoot = ref(initialSettings.starsectorRoot);
   const logDirectory = ref(readOptionalDirectory(initialSettings.logDirectory));
@@ -157,6 +158,10 @@ export const useSettingsStore = defineStore('settings', () => {
     allowCoreEditing.value = readAllowCoreEditing(enabled);
   }
 
+  function setWatchFileChanges(enabled: boolean) {
+    watchFileChanges.value = enabled;
+  }
+
   function setStarsectorRoot(path: string | null) {
     starsectorRoot.value = path;
   }
@@ -188,6 +193,7 @@ export const useSettingsStore = defineStore('settings', () => {
       immersiveFontDirectory: immersiveFontDirectory.value,
       preserveOriginalJson: preserveOriginalJson.value,
       allowCoreEditing: allowCoreEditing.value,
+      watchFileChanges: watchFileChanges.value,
       starsectorRoot: starsectorRoot.value,
       logDirectory: logDirectory.value,
       logLevel: logLevel.value,
@@ -223,6 +229,7 @@ export const useSettingsStore = defineStore('settings', () => {
     preserveOriginalJson.value = readPreserveOriginalJson(settings.preserveOriginalJson);
     allowCoreEditing.value = readAllowCoreEditing(settings.allowCoreEditing);
     savedCoreEditing.value = allowCoreEditing.value;
+    watchFileChanges.value = settings.watchFileChanges;
     starsectorRoot.value = settings.starsectorRoot;
     logDirectory.value = readOptionalDirectory(settings.logDirectory);
     logLevel.value = readLogLevel(settings.logLevel);
@@ -264,6 +271,8 @@ export const useSettingsStore = defineStore('settings', () => {
     naiveTheme,
     starsectorRoot,
     savedStarsectorRoot,
+    watchFileChanges,
+    setWatchFileChanges,
     theme,
     themeColors,
     setAccent,

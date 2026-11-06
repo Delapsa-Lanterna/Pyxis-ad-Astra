@@ -56,6 +56,8 @@ pub struct AppSettings {
     #[serde(default)]
     pub performance_monitor_enabled: bool,
     #[serde(default)]
+    pub watch_file_changes: bool,
+    #[serde(default)]
     pub cache_limits: CacheLimits,
     #[serde(default)]
     pub toast_durations: ToastDurations,
@@ -102,6 +104,7 @@ impl Default for AppSettings {
     fn default() -> Self {
         Self {
             performance_monitor_enabled: false,
+            watch_file_changes: false,
             cache_limits: CacheLimits::default(),
             toast_durations: ToastDurations::default(),
             theme: None,
