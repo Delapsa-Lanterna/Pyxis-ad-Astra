@@ -62,16 +62,34 @@ export function applyCsvTableIndexDraft(
       return { changed: false, externalUpdateMarked: true };
     }
     if (changed) {
-      state.rows = {};
-      state.baselineRows = {};
-      state.baselineRowOrder = [...record.rowKeys];
-      state.rowOrder = [...record.rowKeys];
+      const incoming = new Map(record.rows.map((row) => [row.rowKey, row]));
+      for (const [key, before] of Object.entries(state.baselineRows)) {
+        const after = incoming.get(key);
+        if (!after || before.isComment !== after.isComment || !stableDeepEqual(before.data, after.data)) {
+          delete state.rows[key];
+          delete state.baselineRows[key];
+        }
+      }
+      if (!stableDeepEqual(state.baselineRowOrder, record.rowKeys)) state.baselineRowOrder = [...record.rowKeys];
+      if (!stableDeepEqual(state.rowOrder, record.rowKeys)) state.rowOrder = [...record.rowKeys];
     }
     delete state.queryRowKeys;
   } else state.queryRowKeys = [...record.rowKeys];
   if (!stableDeepEqual(state.header, record.header)) state.header = [...record.header];
   state.baseVersions = cloneQuerySnapshot<CsvTableIndex['baseVersions']>(record.baseVersions);
-  state.validationRows = cloneQuerySnapshot<CsvDraftRow[]>(record.validationRows);
+  const previous = new Map(state.validationRows?.map((row) => [row.rowKey, row]));
+  const validationRows = record.validationRows.map((row) => {
+    const before = previous.get(row.rowKey);
+    return before && before.isComment === row.isComment && stableDeepEqual(before.data, row.data)
+      ? before
+      : cloneQuerySnapshot<CsvDraftRow>(row);
+  });
+  if (
+    !state.validationRows ||
+    state.validationRows.length !== validationRows.length ||
+    validationRows.some((row, index) => state.validationRows?.[index] !== row)
+  )
+    state.validationRows = validationRows;
   acceptRows(state, record);
   updateCounts(state);
   return { changed: true };

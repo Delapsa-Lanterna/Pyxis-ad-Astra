@@ -45,6 +45,29 @@ function fixture(count = 6, loaded = Array.from({ length: count }, (_, index) =>
   return { state, index };
 }
 describe('CSV keyed baseline, order and draft acceptance', () => {
+  it('retains unchanged visible rows and order while replacing changed rows and evicting unverified old content', () => {
+    const { state, index } = fixture(6, [0, 2, 4]);
+    const document = state.documents.ships;
+    const unchanged = document.rows[key(2)],
+      baseline = document.baselineRows[key(2)],
+      order = document.rowOrder;
+    const changed = csvDraftRow({ id: 'row-0', name: 'Updated' }, key(0));
+    const fresh = csvTableIndex([changed, csvDraftRow({ id: 'row-2', name: 'Name 2' }, key(2))], {
+      rowKeys: index.rowKeys,
+      totalRows: index.totalRows,
+      header: index.header,
+      baseVersions: [{ path: 'ships.csv', fingerprint: 'updated' }],
+      validationRows: index.validationRows.map((row) => (row.rowKey === key(0) ? changed : row)),
+    });
+    applyCsvTableIndexDraft(document, fresh);
+    expect(document.rows[key(2)]).toBe(unchanged);
+    expect(document.baselineRows[key(2)]).toBe(baseline);
+    expect(document.rowOrder).toBe(order);
+    expect(document.rows[key(0)]?.data.name).toBe('Updated');
+    expect(document.rows[key(4)]).toBeUndefined();
+    document.rows[key(0)]!.data.name = 'Local';
+    expect(document.baselineRows[key(0)]?.data.name).toBe('Updated');
+  });
   it('records each deleted identity and its undo and redo under one history identity', async () => {
     fixture(6);
     const records: AppLogEntry[] = [];

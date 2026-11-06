@@ -22,6 +22,7 @@ pub(crate) use session::references::{
     set_reference_sources,
 };
 pub(crate) use session::registered_manifests;
+pub(crate) use session::registry::registered_mod_session;
 pub(crate) use session::registry::unregister_project_session;
 pub(crate) use session::source_refresh::refresh_core_session;
 #[cfg(test)]

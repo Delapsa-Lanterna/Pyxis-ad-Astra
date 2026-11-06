@@ -79,29 +79,9 @@ pub(in crate::services::project) fn capture_project_versions(
     for table in model::csv_table_specs() {
         paths.push(sources.path(table.rel_path)?);
     }
-    for directory in [
-        "data/world",
-        "data/hulls",
-        "data/weapons",
-        "data/variants",
-        "data/shipsystems",
-        "data/characters/skills",
-        "data/missions",
-    ] {
+    for directory in ["data", "graphics"] {
         for path in sources.files(directory)? {
-            let extension = path
-                .extension()
-                .and_then(|part| part.to_str())
-                .unwrap_or("");
-            if directory == "data/missions"
-                || [
-                    "faction", "ship", "skin", "wpn", "proj", "variant", "system", "skill",
-                ]
-                .iter()
-                .any(|part| extension.eq_ignore_ascii_case(part))
-            {
-                paths.push(path);
-            }
+            paths.push(path);
         }
     }
     for path in paths {

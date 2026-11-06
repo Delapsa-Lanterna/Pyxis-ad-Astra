@@ -31,6 +31,12 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_clipboard_manager::init())
         .on_window_event(|window, event| {
+            #[cfg(windows)]
+            if let WindowEvent::Focused(active) = event
+                && let Some(webview) = window.app_handle().get_webview_window(window.label())
+            {
+                windows::set_window_memory_target(webview, *active);
+            }
             if matches!(event, WindowEvent::Destroyed) {
                 diagnostics::debug("window.destroyed", || format!("window={}", window.label()));
             }
@@ -102,6 +108,10 @@ pub fn run() {
             diagnostics::install(Arc::new(move |entry| {
                 let _ = app_log::append_app_log(entry);
             }));
+            #[cfg(windows)]
+            for window in app.webview_windows().into_values() {
+                windows::set_window_memory_target(window, false);
+            }
             Ok(())
         })
         .invoke_handler({

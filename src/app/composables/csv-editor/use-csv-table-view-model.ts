@@ -15,7 +15,7 @@ import type { CsvEditorModel } from './use-csv-editor-model';
 import { createCsvGridColumns } from '@/domain/csv-editor/csv-grid-model';
 import { csvColumnSchemaFor } from '@/domain/csv-editor/csv-column-schema';
 import { mapSourceGroupsToSelectOptions, type SelectOption } from '@/domain/field-editor/field-options';
-import { stableStringify } from '@/shared/lib/stable-compare';
+import { stableStringify, stableDeepEqual } from '@/shared/lib/stable-compare';
 import { cloneQuerySnapshot } from '@/shared/lib/query-snapshot';
 
 import { hasResourceInvalidation } from '@/services/resource-media.service';
@@ -23,7 +23,7 @@ import type { FieldProblem, CsvRowPreviewTarget, ResourceRef, CsvSearchField, Cs
 import { useFieldInputActions } from '@/app/composables/use-field-input-actions';
 import { queryCsvValidation } from '@/services/csv-table.service';
 import { csvValidationRows } from '@/domain/csv-editor/csv-validation';
-import { csvValidationRequest } from '@/domain/csv-editor/csv-rule-context';
+import { csvValidationRequest, hasCsvValidationInvalidation } from '@/domain/csv-editor/csv-rule-context';
 import { currentWindowLabel } from '@/windows/current.window';
 
 export function useCsvTableViewModel(model: CsvEditorModel, host: CsvEditorHost) {
@@ -34,6 +34,7 @@ export function useCsvTableViewModel(model: CsvEditorModel, host: CsvEditorHost)
   const reads = useQueryReadOwner();
   let readFailed = false;
   let validationFailed = false;
+  let validationPending: { key: string; work: Promise<boolean> } | null = null;
   let pendingRows = new Map<string, Promise<void>>();
   const rowQueue: Array<{ run: () => Promise<void>; cancel: () => void }> = [];
   let rowReads = 0;
@@ -76,22 +77,39 @@ export function useCsvTableViewModel(model: CsvEditorModel, host: CsvEditorHost)
     if (!captured || !request) return;
     const key = JSON.stringify(request),
       state = tables.getCsvModState(captured.modRoot)!;
-    await reads.consume('validation', { ...captured, request }, (signal) => queryCsvValidation(captured.sessionId, request, signal), {
-      ready: (context) => {
-        if (state === tables.getCsvModState(captured.modRoot)) {
-          tables.acceptTableValidation(captured, key, context);
-          if (validationFailed) tables.getTableProblems(captured).clearFailure();
-          validationFailed = false;
-        }
+    const document = state.documents[captured.table];
+    if (!required && document.validationKey === key && document.validationContext) return;
+    if (validationPending?.key === key) {
+      await validationPending.work;
+      return;
+    }
+    const work = reads.consume(
+      'validation',
+      { ...captured, request },
+      (signal) => queryCsvValidation(captured.sessionId, request, signal),
+      {
+        ready: (context) => {
+          if (state === tables.getCsvModState(captured.modRoot)) {
+            tables.acceptTableValidation(captured, key, context);
+            if (validationFailed) tables.getTableProblems(captured).clearFailure();
+            validationFailed = false;
+          }
+        },
+        error: (error) => {
+          if (state !== tables.getCsvModState(captured.modRoot)) return;
+          validationFailed = true;
+          tables.getTableProblems(captured).recordFailure(error);
+          if (required) throw error;
+          feedback.error(error, '读取 CSV 校验来源失败');
+        },
       },
-      error: (error) => {
-        if (state !== tables.getCsvModState(captured.modRoot)) return;
-        validationFailed = true;
-        tables.getTableProblems(captured).recordFailure(error);
-        if (required) throw error;
-        feedback.error(error, '读取 CSV 校验来源失败');
-      },
-    });
+    );
+    validationPending = { key, work };
+    try {
+      await work;
+    } finally {
+      if (validationPending?.work === work) validationPending = null;
+    }
   }
   const columnWidthOverrides = host.columnWidths;
   watch(
@@ -248,6 +266,21 @@ export function useCsvTableViewModel(model: CsvEditorModel, host: CsvEditorHost)
       const state = tables.getCsvModState(captured.modRoot);
       const fromSave = event.reason !== 'refresh' && event.originWindowLabel === currentWindowLabel();
       const tasks: SaveAcceptanceTask[] = [];
+      const csvPath = project.tableWriteTargets.find(
+        (target) => target.sessionId === captured.sessionId && target.table === captured.table,
+      )!.path;
+      const ownCsvOnly =
+        update.invalidation.resources.length > 0 &&
+        update.invalidation.resources.every(
+          ({ source, relPath }) => source === 'mod' && relPath === relativePathFromRoot(captured.modRoot, csvPath),
+        );
+      const sourceValues = (source: string) => {
+        const parsed = parseCsvFieldSource(source);
+        if (!ownCsvOnly || captured.table === 'specialItems' || !parsed || parsed.table !== captured.table || parsed.column === 'id')
+          return null;
+        return JSON.stringify(state?.documents[captured.table].validationRows?.map((row) => [row.isComment, row.data[parsed.column]]));
+      };
+      const beforeSources = new Map([...visibleSourceIds()].map((source) => [source, sourceValues(source)]));
       if (hasTableInvalidation(update.invalidation, 'csv-table-window', view.currentTab)) {
         tasks.push(async () => {
           if (disposed || identity !== targetKey.value || state !== tables.getCsvModState(captured.modRoot)) return;
@@ -261,7 +294,7 @@ export function useCsvTableViewModel(model: CsvEditorModel, host: CsvEditorHost)
               queryTableIndex(
                 captured.sessionId,
                 captured.table,
-                Math.max(lastRange.count, 240),
+                lastRange.start === 0 ? lastRange.count : 0,
                 view.searchText || null,
                 view.searchField,
                 signal,
@@ -272,7 +305,6 @@ export function useCsvTableViewModel(model: CsvEditorModel, host: CsvEditorHost)
                 if (fromSave) tables.acceptSavedTableIndex(captured, index, filtered);
                 else tables.applyTableIndex(captured, index, filtered);
                 refreshAfterSave = false;
-                widthSample.value = cloneQuerySnapshot<CsvDraftRow[]>(index.rows);
                 windowReady.value = true;
                 lockColumnWidthsForLoadedModel();
               },
@@ -281,14 +313,33 @@ export function useCsvTableViewModel(model: CsvEditorModel, host: CsvEditorHost)
               },
             },
           );
+          if (lastRange.start > 0) await loadTableWindow(lastRange.start, lastRange.count);
         });
       }
       if (
         [...visibleSourceIds()].some((source) => hasSourceInvalidation(update.invalidation, source)) ||
         hasResourceInvalidation(update.invalidation, loadedSourceResourceRefs())
       )
-        tasks.push(() => reloadVisibleSourceOptions(true));
-      tasks.push(() => loadValidation(true));
+        tasks.push(() =>
+          reloadVisibleSourceOptions(
+            true,
+            [...visibleSourceIds()].filter((source) => {
+              const before = beforeSources.get(source);
+              return !before || state?.documents[captured.table].externalUpdatePending || before !== sourceValues(source);
+            }),
+          ),
+        );
+      const request = validationRequest.value;
+      if (
+        request &&
+        (!state?.documents[captured.table].validationContext ||
+          hasCsvValidationInvalidation(update.invalidation, request, (source) => hasSourceInvalidation(update.invalidation, source)))
+      )
+        tasks.push(() => {
+          reads.revoke('project', 'validation');
+          validationPending = null;
+          return loadValidation(true);
+        });
       return tasks;
     },
     (sessionId) => {
@@ -399,7 +450,7 @@ export function useCsvTableViewModel(model: CsvEditorModel, host: CsvEditorHost)
             filtered ? { ...index, rowKeys: csvDraftSearchKeys(captured.table, order, drafts, index.rowKeys, search!, field) } : index,
             filtered,
           );
-          if (initialCount) widthSample.value = cloneQuerySnapshot<CsvDraftRow[]>(index.rows);
+          if (initialCount) widthSample.value = cloneQuerySnapshot<CsvDraftRow[]>(index.rows.slice(0, 50));
           if (readFailed) tables.getTableProblems(captured).clearFailure();
           readFailed = false;
           windowReady.value = true;
@@ -577,11 +628,12 @@ export function useCsvTableViewModel(model: CsvEditorModel, host: CsvEditorHost)
     pendingRows = new Map();
   }
 
-  async function reloadVisibleSourceOptions(required = false) {
+  async function reloadVisibleSourceOptions(required = false, requested = [...visibleSourceIds()]) {
     const sessionId = target.value?.sessionId;
     if (!sessionId) return;
     const table = view.currentTab;
-    const sources = [...visibleSourceIds()];
+    const sources = requested;
+    if (!sources.length) return;
     await reads.consume(
       'sources',
       { sessionId, table, sources },
@@ -595,7 +647,8 @@ export function useCsvTableViewModel(model: CsvEditorModel, host: CsvEditorHost)
         ),
       {
         ready: (entries) => {
-          loadedSourceOptions.value = new Map(entries);
+          if (entries.some(([source, options]) => !stableDeepEqual(loadedSourceOptions.value.get(source), options)))
+            loadedSourceOptions.value = new Map([...loadedSourceOptions.value, ...entries]);
           lockColumnWidthsForLoadedModel();
         },
         error: (error) => {

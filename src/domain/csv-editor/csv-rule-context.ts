@@ -1,4 +1,5 @@
-import type { CsvDraftRow, CsvTableKey, CsvValidationRequest, EntityKind } from '@/shared/types';
+import type { CsvDraftRow, CsvTableKey, CsvValidationRequest, EntityKind, ProjectInvalidation } from '@/shared/types';
+import { pathBelongsToRoot } from '@/shared/lib/paths';
 import { getCsvColumnSchemas } from '@/domain/schema/csv-schema-registry';
 import { cell } from '@/shared/lib/starsector';
 
@@ -16,6 +17,35 @@ export const DESCRIPTION_KINDS: Partial<Record<string, EntityKind>> = {
 };
 export function isCsvBusinessRow(row: CsvDraftRow, identityColumn = 'id'): boolean {
   return !row.isComment && cell(row.data[identityColumn]) !== '';
+}
+export function hasCsvValidationInvalidation(
+  invalidation: ProjectInvalidation,
+  request: CsvValidationRequest,
+  sourceAffected: (source: string) => boolean,
+): boolean {
+  if (invalidation.session || request.sources.some(sourceAffected)) return true;
+  const kinds = new Set(request.entities.map((entity) => entity.kind));
+  if (request.stationData.length) kinds.add('variant');
+  if (kinds.has('variant')) {
+    kinds.add('ship');
+    kinds.add('skin');
+  }
+  if (kinds.has('skin')) kinds.add('ship');
+  if (kinds.has('weapon')) kinds.add('projectile');
+  const affects = (path: string) =>
+    invalidation.resources.some(({ relPath }) => pathBelongsToRoot(path, relPath) || pathBelongsToRoot(relPath, path));
+  if (request.files.some(affects)) return true;
+  if (
+    request.classes.length &&
+    (affects('mod_info.json') ||
+      invalidation.resources.some(({ relPath }) => relPath.endsWith('.jar') || pathBelongsToRoot('jars', relPath)))
+  )
+    return true;
+  if (kinds.has('skill') && affects('data/characters/skills')) return true;
+  return (
+    invalidation.entities.some((entity) => kinds.has(entity.kind)) &&
+    invalidation.resources.some(({ relPath }) => !relPath.endsWith('.csv') || relPath === 'data/world/factions/factions.csv')
+  );
 }
 export function csvValidationRequest(table: CsvTableKey, rows: readonly CsvDraftRow[]): CsvValidationRequest {
   const columns = getCsvColumnSchemas(table).filter(

@@ -9,12 +9,56 @@ use crate::models::{
 };
 use crate::services::project;
 use serde_json::Value;
+#[cfg(windows)]
+use serde_json::json;
 use std::collections::BTreeMap;
 use std::path::Path;
 use std::slice;
 use std::sync::{Condvar, LazyLock, Mutex, MutexGuard};
+#[cfg(windows)]
+use tauri::WebviewWindow;
 use tauri::ipc::Channel;
 use tauri::{AppHandle, Emitter, Manager, Theme, WebviewUrl, WebviewWindowBuilder};
+#[cfg(windows)]
+use webview2_com::Microsoft::Web::WebView2::Win32::{
+    COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL_LOW, COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL_NORMAL,
+    ICoreWebView2_19,
+};
+#[cfg(windows)]
+use windows_core::Interface;
+
+#[cfg(windows)]
+pub fn set_window_memory_target(window: WebviewWindow, active: bool) {
+    let label = window.label().to_string();
+    let code = "window.memory_target_failed";
+    if let Err(error) = window.with_webview(move |platform| {
+        let level = if active {
+            COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL_NORMAL
+        } else {
+            COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL_LOW
+        };
+        let result = unsafe { platform.controller().CoreWebView2() }
+            .and_then(|core| core.cast::<ICoreWebView2_19>())
+            .and_then(|core| unsafe {
+                core.SetMemoryUsageTargetLevel(level)?;
+                let mut actual = level;
+                core.MemoryUsageTargetLevel(&mut actual)?;
+                diagnostics::debug("window.memory_target", || {
+                    format!("window={label} active={active} level={}", actual.0)
+                });
+                Ok(())
+            });
+        if let Err(error) = result {
+            diagnostics::failure(
+                code,
+                AppError::message(code, error.to_string()),
+                json!({"window":label}),
+            );
+        }
+    }) {
+        diagnostics::failure(code, error, json!({"window":window.label()}));
+    }
+}
 
 #[cfg(windows)]
 pub mod auxiliary {
@@ -688,6 +732,8 @@ pub(crate) fn register_window_request(
     let mut state = registry()?;
     match built {
         Ok(_window) => {
+            #[cfg(windows)]
+            set_window_memory_target(_window, false);
             if let Some(instance) = state.instances.get_mut(&opened.label) {
                 instance.creating = false;
             } else {

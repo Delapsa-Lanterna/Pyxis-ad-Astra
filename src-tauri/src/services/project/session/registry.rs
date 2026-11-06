@@ -1,6 +1,7 @@
 use super::super::model::ProjectSession;
 use crate::errors::{AppError, AppResult};
 use crate::models::ProjectSessionId;
+use crate::models::windows_path_key;
 use crate::services::project::model::ReferenceSnapshot;
 use std::collections::BTreeMap;
 use std::sync::{Arc, LazyLock, Mutex, MutexGuard};
@@ -41,6 +42,13 @@ pub(crate) fn session_handle(session_id: &str) -> AppResult<RegisteredSession> {
             format!("unknown project session: {session_id}"),
         )
     })
+}
+pub(crate) fn registered_mod_session(root: &str) -> AppResult<Option<String>> {
+    let root = windows_path_key(root);
+    Ok(lock_registry()?
+        .values()
+        .find(|entry| windows_path_key(&entry.root) == root)
+        .map(|entry| entry.session_id.clone()))
 }
 
 /// Lock a session handle, mapping poisoning to the shared AppError form.

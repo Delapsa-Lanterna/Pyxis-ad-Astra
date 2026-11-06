@@ -55,11 +55,12 @@ fn invalidate_files(
     sources: &mut SourceReader,
 ) -> AppResult<ProjectInvalidation> {
     if preserve_rows {
-        for table in session
-            .csv_tables
-            .values()
-            .filter(|table| table.rows.is_some())
-        {
+        for table in session.csv_tables.values().filter(|table| {
+            table.rows.is_some()
+                && files
+                    .iter()
+                    .any(|file| relative_path_contains(&file.path, &table.path))
+        }) {
             let path = sources.path(&table.path)?;
             if !path
                 .try_exists()
@@ -105,7 +106,20 @@ fn invalidate_files(
             invalidated_entities_for_file(&impact.target, &impact.file)?,
         );
     }
-    if !affected_kinds.is_empty() {
+    let rebuild_kinds = affected_kinds
+        .iter()
+        .copied()
+        .filter(|kind| {
+            let definition =
+                entity_definitions::entity_definition(*kind).expect("registered impact kind");
+            !definition.csv_table.is_some_and(|table| {
+                files
+                    .iter()
+                    .all(|file| file.path == model::csv_table_spec(table).rel_path)
+            })
+        })
+        .collect::<Vec<_>>();
+    if !rebuild_kinds.is_empty() {
         retain_session_sources(
             sources,
             session,
@@ -125,7 +139,7 @@ fn invalidate_files(
         })
         .chain(content_tables.iter().copied())
         .collect::<BTreeSet<_>>();
-    let updates = affected_kinds
+    let updates = rebuild_kinds
         .into_iter()
         .map(|kind| (entity_definitions::entity_definition(kind)?.refresh)(session, sources))
         .collect::<AppResult<Vec<_>>>()?;
@@ -804,26 +818,25 @@ pub(super) fn refresh_sources_from(
     sources: &[InvalidatedResourceScope],
     reader: &mut SourceReader,
 ) -> AppResult<ProjectInvalidation> {
-    let mod_root = FsRootBoundary::new(Path::new(&session.manifest.mod_root), "mod root")?;
     let mut files = Vec::new();
     let mut paths = Vec::new();
     for source in sources {
-        let boundary = match source.source {
+        let path = match source.source {
             ResourceSource::Reference => {
                 return Err(AppError::message(
                     "reference.refresh_owner",
                     "请在来源 Mod 中刷新引用内容",
                 ));
             }
-            ResourceSource::Mod => mod_root.clone(),
+            ResourceSource::Mod => reader.path(&source.rel_path)?,
             ResourceSource::Core => FsRootBoundary::new(
                 &core::core_dir(session.manifest.starsector_root.as_deref().ok_or_else(|| {
                     AppError::message("resource.core_root_required", "Core root required")
                 })?)?,
                 "core root",
-            )?,
+            )?
+            .resolve_relative(&source.rel_path, "refresh source")?,
         };
-        let path = boundary.resolve_relative(&source.rel_path, "refresh source")?;
         paths.push(path.to_string_lossy().to_string());
         if source.source == ResourceSource::Mod {
             files.push(ChangedProjectFile {
@@ -868,6 +881,28 @@ pub(super) fn refresh_sources_from(
     }
     result.paths = paths;
     result.resources = sources.to_vec();
+    for definition in entity_definitions::entity_definitions() {
+        if sources
+            .iter()
+            .filter(|source| source.source == ResourceSource::Core)
+            .any(|source| {
+                (definition.path_matches)(definition, &source.rel_path)
+                    || definition.spec.is_some_and(|spec| {
+                        spec.source_dirs()
+                            .iter()
+                            .any(|directory| relative_path_contains(&source.rel_path, directory))
+                    })
+            })
+        {
+            push_unique_all(
+                &mut result.entities,
+                vec![InvalidatedEntityRef {
+                    kind: definition.kind,
+                    id: None,
+                }],
+            );
+        }
+    }
     result.query_scopes =
         query_scopes_for_invalidation(&result.tables, &result.entities, &result.resources)?;
     session.manifest.base_versions = vec![versions::version_for_path(session, "mod_info.json")];

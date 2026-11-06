@@ -42,7 +42,10 @@ export function useCsvRowPreview(options: {
       if (!update) return undefined;
       if (update.manifest.sessionId !== options.target()?.sessionId) return undefined;
 
-      if (hasTableInvalidation(update.invalidation, 'csv-row-preview', options.target()!.table) || update.invalidation.resources.length > 0)
+      if (
+        hasTableInvalidation(update.invalidation, 'csv-row-preview', options.target()!.table) ||
+        update.invalidation.resources.some(({ relPath }) => relPath !== 'mod_info.json')
+      )
         return load(true);
       return undefined;
     },

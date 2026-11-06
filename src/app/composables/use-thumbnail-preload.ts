@@ -83,7 +83,17 @@ export function useThumbnailPreload(surface: string, onFailures?: (resources: re
   const stop = subscribeResourceInvalidations((event) => {
     if (event.sessionId !== range?.session) return;
     if (event.scope === 'session') prepare(event.sessionId, [], []);
-    else recapture();
+    else {
+      const affected = new Set(
+        [...event.resources, ...(event.invalidation?.resources ?? [])].map((resource) => runtime.key(event.sessionId, resource)),
+      );
+      if (
+        [...range.visible, ...range.near].some((request) =>
+          request.resources.some((resource) => affected.has(runtime.key(request.sessionId, resource))),
+        )
+      )
+        recapture();
+    }
   });
   window.addEventListener('resize', recapture);
   onScopeDispose(() => {

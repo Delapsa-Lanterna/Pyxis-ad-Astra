@@ -30,7 +30,7 @@
 ## 边界
 
 - `FileChangeRecord` 表达路径、存在状态与内容快照，目录事件展开实际文件影响。
-- FsRootBoundary 提供 canonical 根、实际目标与已有父链授权，全部磁盘入口共用该边界。
+- FsRootBoundary 提供 canonical 根、实际目标与已有父链授权，目录条目的链接及 reparse 判定消费所属遍历元数据。
 - IO 拥有磁盘路径、遍历、读取、写入、删除和 changeset 应用。
 - parser 和 renderer 拥有格式语义，IO 按调用方文本写入 UTF-8 字节。
 - 回放消费既有快照并核对当前磁盘授权，错误保留目标与上下文。

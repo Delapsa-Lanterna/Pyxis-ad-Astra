@@ -1,4 +1,4 @@
-param([string]$Executable,[string]$Log,[string]$Arguments='',[string]$VerifyDesktop)
+param([string]$Executable,[string]$Log,[string]$Arguments='',[string]$VerifyDesktop,[switch]$IsolatedDesktop)
 $ErrorActionPreference = 'Stop'
 Add-Type -TypeDefinition @'
 using System;
@@ -42,6 +42,7 @@ public static class DesktopHost {
     static extern IntPtr CreateFileW(string name, uint access, uint share, IntPtr security, uint mode, uint flags, IntPtr template);
     [DllImport("kernel32.dll")] static extern bool SetHandleInformation(IntPtr handle, uint mask, uint flags);
     [DllImport("user32.dll")] static extern bool EnumDesktopWindows(IntPtr desktop, WindowCallback callback, IntPtr data);
+    [DllImport("user32.dll")] static extern bool EnumWindows(WindowCallback callback, IntPtr data);
     [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr window, out uint pid);
     [DllImport("user32.dll")] static extern bool PostMessageW(IntPtr window, uint message, IntPtr w, IntPtr l);
 
@@ -60,27 +61,29 @@ public static class DesktopHost {
         Console.WriteLine("DESKTOP_RELEASED " + name);
     }
 
-    public static int Run(string executable, string log, string arguments) {
-        string name = "PyxisTesting-" + Guid.NewGuid().ToString("N");
-        IntPtr descriptor;
-        uint descriptorSize;
-        string sid = System.Security.Principal.WindowsIdentity.GetCurrent().User.Value;
-        if (!ConvertStringSecurityDescriptorToSecurityDescriptorW("D:(A;;GA;;;" + sid + ")(A;;GA;;;RC)(A;;GA;;;AC)S:(ML;;NW;;;LW)", 1, out descriptor, out descriptorSize)) throw new Win32Exception();
-        var security = new SecurityAttributes { size = Marshal.SizeOf<SecurityAttributes>(), descriptor = descriptor, inherit = 1 };
-        IntPtr desktop;
-        try { desktop = CreateDesktopW(name, IntPtr.Zero, IntPtr.Zero, 0, 0x01ff, ref security); }
-        finally { LocalFree(descriptor); }
-        if (desktop == IntPtr.Zero) throw new Win32Exception();
+    public static int Run(string executable, string log, string arguments, bool isolatedDesktop) {
+        string name = isolatedDesktop ? "PyxisTesting-" + Guid.NewGuid().ToString("N") : "";
+        IntPtr desktop = IntPtr.Zero;
+        if (isolatedDesktop) {
+            IntPtr descriptor;
+            uint descriptorSize;
+            string sid = System.Security.Principal.WindowsIdentity.GetCurrent().User.Value;
+            if (!ConvertStringSecurityDescriptorToSecurityDescriptorW("D:(A;;GA;;;" + sid + ")(A;;GA;;;RC)(A;;GA;;;AC)S:(ML;;NW;;;LW)", 1, out descriptor, out descriptorSize)) throw new Win32Exception();
+            var security = new SecurityAttributes { size = Marshal.SizeOf<SecurityAttributes>(), descriptor = descriptor, inherit = 1 };
+            try { desktop = CreateDesktopW(name, IntPtr.Zero, IntPtr.Zero, 0, 0x01ff, ref security); }
+            finally { LocalFree(descriptor); }
+            if (desktop == IntPtr.Zero) throw new Win32Exception();
+        }
         IntPtr input = CreateFileW("NUL", 0x80000000, 3, IntPtr.Zero, 3, 0, IntPtr.Zero);
-        if (input == new IntPtr(-1)) { CloseDesktop(desktop); throw new Win32Exception(); }
+        if (input == new IntPtr(-1)) { if (isolatedDesktop) CloseDesktop(desktop); throw new Win32Exception(); }
         IntPtr output = CreateFileW(log, 0x40000000, 3, IntPtr.Zero, 1, 0, IntPtr.Zero);
-        if (output == new IntPtr(-1)) { CloseHandle(input); CloseDesktop(desktop); throw new Win32Exception(); }
+        if (output == new IntPtr(-1)) { CloseHandle(input); if (isolatedDesktop) CloseDesktop(desktop); throw new Win32Exception(); }
         try {
             if (!SetHandleInformation(input, 1, 1)) throw new Win32Exception();
             if (!SetHandleInformation(output, 1, 1)) throw new Win32Exception();
-            if (!SetHandleInformation(desktop, 1, 1)) throw new Win32Exception();
+            if (isolatedDesktop && !SetHandleInformation(desktop, 1, 1)) throw new Win32Exception();
             var startup = new StartupInfo {
-                size = Marshal.SizeOf<StartupInfo>(), desktop = "winsta0\\" + name,
+                size = Marshal.SizeOf<StartupInfo>(), desktop = isolatedDesktop ? "winsta0\\" + name : null,
                 flags = 0x100, input = input, output = output, error = output
             };
             ProcessInfo info;
@@ -98,12 +101,14 @@ public static class DesktopHost {
                     Task finished = application.WaitForExitAsync();
                     Task.WhenAny(finished, Task.Run(() => Console.In.ReadLine())).GetAwaiter().GetResult();
                     if (!application.HasExited) {
-                        EnumDesktopWindows(desktop, (window, data) => {
+                        WindowCallback close = (window, data) => {
                             uint owner;
                             GetWindowThreadProcessId(window, out owner);
                             if (owner == info.pid) PostMessageW(window, 0x0010, IntPtr.Zero, IntPtr.Zero);
                             return true;
-                        }, IntPtr.Zero);
+                        };
+                        if (isolatedDesktop) EnumDesktopWindows(desktop, close, IntPtr.Zero);
+                        else EnumWindows(close, IntPtr.Zero);
                     }
                     finished.GetAwaiter().GetResult();
                     return application.ExitCode;
@@ -112,10 +117,10 @@ public static class DesktopHost {
         } finally {
             CloseHandle(input);
             CloseHandle(output);
-            if (!CloseDesktop(desktop)) throw new Win32Exception();
+            if (isolatedDesktop && !CloseDesktop(desktop)) throw new Win32Exception();
         }
     }
 }
 '@
 if($VerifyDesktop){[DesktopHost]::VerifyReleased($VerifyDesktop);exit 0}
-exit [DesktopHost]::Run($Executable,$Log,$Arguments)
+exit [DesktopHost]::Run($Executable,$Log,$Arguments,$IsolatedDesktop.IsPresent)

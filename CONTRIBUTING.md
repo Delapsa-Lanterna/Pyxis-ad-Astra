@@ -173,7 +173,7 @@ npm.cmd run test:browser -- --suite lists --scene csv --count 50 --monitor-compa
 npm.cmd run build:desktop
 ```
 
-独立可执行文件位于 `src-tauri/target/desktop-testing/release/pyxis-ad-astra.exe`，调试端口为 `9233`。Tauri 构建前运行正式 `build` 流程一次；测试运行器以普通用户权限在独立 Windows 桌面内启动应用，窗口操作在所属桌面内进行，用户输入桌面保持原状。
+独立可执行文件位于 `src-tauri/target/desktop-testing/release/pyxis-ad-astra.exe`，调试端口为 `9233`。Tauri 构建前运行正式 `build` 流程一次；测试运行器以普通用户权限在当前用户桌面启动应用，`--isolated-desktop` 使用独立 Windows 桌面。
 
 ### 自动执行
 
@@ -181,7 +181,9 @@ npm.cmd run build:desktop
 
 ```powershell
 npm.cmd run test:desktop -- --suite sources
+npm.cmd run test:desktop -- --suite sources --isolated-desktop
 npm.cmd run test:desktop -- --suite csv --rounds 30
+npm.cmd run test:desktop -- --suite source-performance --mod D:/game/mods/sample --game D:/game --rounds 30 --soak 600
 ```
 
 资源寿命检查：`npm.cmd run test:resources`。
@@ -189,7 +191,10 @@ npm.cmd run test:desktop -- --suite csv --rounds 30
 ### 执行参数
 
 - `--exe <可执行文件>`：指定使用相同桌面测试配置构建的应用。
+- `--isolated-desktop`：在独立 Windows 桌面内运行应用及子窗口，用户输入桌面保持原状；默认窗口显示在当前用户桌面。
 - `--mod <目录>`：复制指定 Mod 作为本次测量样本。
+- `--game <目录>`：来源性能测量使用的原版游戏根。
+- `--soak 600`：来源性能测量在固定轮次之后执行 600 秒混合负载；`0` 表示仅测固定轮次。
 - `--phase cold|warm|all`：选择首次进入、返回与滚动或完整测量。
 - `--count 50 --rounds 30`：指定生成样本行数与测量次数。
 - `--screenshots`：保存 CSV 测量窗口的明暗与宽窄截图。
@@ -199,5 +204,11 @@ npm.cmd run test:desktop -- --suite csv --rounds 30
 ### 报告与资源管理
 
 JSON 与 Markdown 报告包含场景参数、可执行文件及脚本哈希、窗口环境、逐项断言耗时、原始测量、统计、诊断和资源释放结果。报告、日志与截图位于 `node_modules/.cache/desktop-testing/reports/`，样本在所属工作区中生成或复制。
+
+来源性能覆盖 Mod 信息、CSV、同内容写回、连续写入、无变化及有变化重扫，并分别测量一个与两个同根会话。报告附带原生应用及 WebView 的 CPU、私有内存、查询次数、堆指标和最终堆快照。
+
+来源性能在页面就绪后交接到直接 CDP 驱动，释放 Playwright 的网络观测连接；该驱动采集页面异常、计时和堆信息，测量阶段保持原生渲染与窗口行为。
+
+来源性能的直接连接持有 1360×860、DPR 1.5 的视口设置，在驱动交接后和负载结束时核对页面尺寸及实际布局。
 
 桌面测试必须使用独立应用构建及所属工具目录；文件操作必须作用于本次样本，结束必须经正常关闭流程交还进程和目录。

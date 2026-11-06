@@ -666,23 +666,51 @@ mod tests {
     static TEST_QUEUE: Mutex<()> = Mutex::new(());
 
     #[test]
-    fn source_watch_review_following_batch_enters_the_root_queue_before_the_maximum_wait() {
+    fn source_watch_status_publishes_changes_and_replays_the_current_snapshot() {
+        let serial = TEST_QUEUE.lock().unwrap();
+        let root = project_workspace("source_status_changes");
+        let manifest = project::open_project_session_traced(
+            &root,
+            None,
+            &mut PerformanceTrace::new("source.status"),
+        )
+        .unwrap();
+        let first = window("source-status-first");
+        publish_source_status(&manifest.mod_root, SourceSyncState::Watching, None).unwrap();
+        publish_source_status(&manifest.mod_root, SourceSyncState::Watching, None).unwrap();
+        let owned = |delivery: &Value| {
+            delivery["kind"] == "sourceStatus" && delivery["root"] == manifest.mod_root
+        };
+        assert_eq!(first.try_iter().filter(owned).count(), 1);
+        let second = window("source-status-second");
+        assert_eq!(second.try_iter().filter(owned).count(), 1);
+        publish_source_status(
+            &manifest.mod_root,
+            SourceSyncState::Failed,
+            Some(AppError::message("source.failure", "actual failure").diagnostic()),
+        )
+        .unwrap();
+        publish_source_status(&manifest.mod_root, SourceSyncState::Watching, None).unwrap();
+        assert_eq!(first.try_iter().filter(owned).count(), 2);
+        publish_source_status(&manifest.mod_root, SourceSyncState::Released, None).unwrap();
+        release_window("source-status-first").unwrap();
+        release_window("source-status-second").unwrap();
+        release_project_session(manifest.session_id.clone()).unwrap();
+        root.close().unwrap();
+        drop(serial);
+    }
+
+    #[test]
+    fn source_watch_following_batch_enters_the_root_queue_while_current_batch_waits() {
         let serial = TEST_QUEUE.lock().unwrap();
         let root = project_workspace("review_following_batch");
         fs::create_dir_all(root.join("data/hulls")).unwrap();
         let path = root.join("data/hulls/ship_data.csv");
         fs::write(&path, "id,name\nreview,Initial\n").unwrap();
-        let subscription = begin_source_watch(&root).unwrap();
         let manifest = project::open_project_session_traced(
             &root,
             None,
             &mut PerformanceTrace::new("review.queue"),
-        )
-        .unwrap();
-        retain_source_watch(
-            manifest.session_id.clone(),
-            subscription,
-            ResourceSource::Mod,
         )
         .unwrap();
         let blocker = enqueue(
@@ -693,15 +721,26 @@ mod tests {
         )
         .unwrap();
         fs::write(&path, "id,name\nreview,First\n").unwrap();
+        source_changes::enqueue_source_batch(SourceChangeBatch {
+            root: manifest.mod_root.clone(),
+            paths: [path.clone()].into(),
+            ..Default::default()
+        });
         let started = Instant::now();
         while started.elapsed() < Duration::from_secs(5) {
-            if saves().unwrap().roots[&blocker.root].len() >= 2 {
+            if saves().unwrap().roots[&blocker.root].len() >= 2
+                && source_changes::source_batch_running(&manifest.mod_root)
+            {
                 break;
             }
             thread::sleep(Duration::from_millis(10));
         }
         fs::write(&path, "id,name\nreview,Following\n").unwrap();
-        thread::sleep(Duration::from_millis(1250));
+        source_changes::enqueue_source_batch(SourceChangeBatch {
+            root: manifest.mod_root.clone(),
+            paths: [path].into(),
+            ..Default::default()
+        });
         let queued = saves().unwrap().roots[&blocker.root].len();
         execute_queued(
             blocker,
@@ -711,6 +750,7 @@ mod tests {
             |_, _| Ok(WriteResult::<()>::from_changes(Vec::new())),
         )
         .unwrap();
+        source_changes::wait_source_batches(&manifest.mod_root).unwrap();
         release_project_session(manifest.session_id).unwrap();
         root.close().unwrap();
         drop(serial);
@@ -888,7 +928,11 @@ mod tests {
         });
         let deliveries = receiver
             .try_iter()
-            .filter(|delivery| delivery["kind"] == "sourceStatus")
+            .filter(|delivery| {
+                delivery["kind"] == "sourceStatus"
+                    && windows_path_key(delivery["root"].as_str().unwrap())
+                        == windows_path_key(&root.join("starsector-core").to_string_lossy())
+            })
             .collect::<Vec<_>>();
         let final_state = deliveries.last().unwrap()["state"].clone();
         release_window("review-core-status").unwrap();
@@ -1057,7 +1101,11 @@ mod tests {
         .unwrap();
         loop {
             let delivery = second.recv_timeout(Duration::from_secs(15)).unwrap();
-            if delivery["kind"] == "coreChanged" {
+            assert_ne!(
+                delivery["kind"], "coreChanged",
+                "unchanged rescan retains completed Core products"
+            );
+            if delivery["kind"] == "sourceStatus" && delivery["state"] == "watching" {
                 break;
             }
         }
@@ -1164,6 +1212,9 @@ mod tests {
         retain_source_watch(second.session_id.clone(), second_watch, ResourceSource::Mod).unwrap();
         let owner = format!("watch:{}", windows_path_key(&root.to_string_lossy()));
         let receive = window(&owner);
+        thread::sleep(Duration::from_millis(100));
+        source_changes::wait_source_batches(&first.mod_root).unwrap();
+        receive.try_iter().for_each(drop);
         fs::write(&path, "id,name\nsample,Updated\n").unwrap();
         let event = loop {
             let delivery = receive.recv_timeout(Duration::from_secs(15)).unwrap();

@@ -14,8 +14,8 @@ use std::sync::{Arc, Condvar, LazyLock, Mutex, MutexGuard, Weak};
 use std::thread::{Builder, JoinHandle};
 use std::time::{Duration, Instant};
 
-const QUIET: Duration = Duration::from_millis(150);
-const MAX_WAIT: Duration = Duration::from_millis(1000);
+const QUIET: Duration = Duration::from_millis(40);
+const MAX_WAIT: Duration = Duration::from_millis(500);
 static ROOTS: LazyLock<Mutex<BTreeMap<String, Weak<SourceRoot>>>> = LazyLock::new(Default::default);
 
 #[derive(Default)]
@@ -459,8 +459,8 @@ mod tests {
                 }
             });
             let started = Instant::now();
-            let batch = events.recv_timeout(Duration::from_millis(1500)).unwrap();
-            assert!(started.elapsed() < Duration::from_millis(1500));
+            let batch = events.recv_timeout(Duration::from_millis(800)).unwrap();
+            assert!(started.elapsed() < Duration::from_millis(800));
             assert!(contains_path(&batch, &path));
         });
         drop(subscription);

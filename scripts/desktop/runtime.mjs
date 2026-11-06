@@ -24,9 +24,9 @@ export async function waitFor(page, expression) {
   await until(() => page.evaluate(expression), expression);
 }
 
-/** @param {{exe:string,artifacts:string,errors:string[],resources:{released:boolean,desktops:{name:string,pid:number,released:boolean}[]}}} options */
+/** @param {{exe:string,isolatedDesktop?:boolean,artifacts:string,errors:string[],resources:{released:boolean,desktops:{name:string,pid:number,released:boolean}[]}}} options */
 export async function startDesktop(options) {
-  const config = await desktopConfiguration();
+  const config = await desktopConfiguration(options.isolatedDesktop);
   const roaming = resolve(process.env.APPDATA ?? '', config.identifier);
   /** @type {[string, string]} */
   const directories = [roaming, resolve(process.env.LOCALAPPDATA ?? '', config.identifier)];
@@ -74,8 +74,8 @@ export async function startDesktop(options) {
           ['-NoProfile', '-File', resolve(root, 'scripts/desktop/desktop-host.ps1'), '-VerifyDesktop', nativeDesktop.name],
           { windowsHide: true },
         );
-        nativeDesktop.released = true;
       }
+      nativeDesktop.released = true;
       assert.equal(child?.exitCode ?? 0, 0, 'Desktop application exit code');
     } finally {
       try {
@@ -129,6 +129,7 @@ export async function startDesktop(options) {
         '-NoProfile',
         '-File',
         resolve(root, 'scripts/desktop/desktop-host.ps1'),
+        ...(options.isolatedDesktop ? ['-IsolatedDesktop'] : []),
         '-Executable',
         options.exe,
         '-Log',
@@ -188,11 +189,24 @@ export async function startDesktop(options) {
     await waitFor(page, 'document.querySelector("#app")?.__vue_app__?.config?.globalProperties?.$pinia?._s?.has("workspace")');
     const session = await context.newCDPSession(page);
     const environment = {
+      isolation: config.isolation,
       browser: connected.version(),
       nativeDesktop,
       ...(await page.evaluate('({width:innerWidth,height:innerHeight,dpr:devicePixelRatio})')),
     };
-    return { main: page, context, session, environment, config, close };
+    return {
+      main: page,
+      context,
+      session,
+      environment,
+      config,
+      close,
+      async disconnectDriver() {
+        await browser?.close();
+        browser = undefined;
+        main = undefined;
+      },
+    };
   } catch (error) {
     try {
       await close();

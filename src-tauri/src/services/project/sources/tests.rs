@@ -28,6 +28,30 @@ use crate::test_support::work_counts;
 use std::fs;
 
 #[test]
+fn directory_staging_retains_only_changed_bytes_and_hands_off_the_same_snapshot() {
+    let root = project_workspace("source_staged_memory");
+    fs::create_dir_all(root.join("data")).unwrap();
+    let first = root.join("data/first.ship");
+    let second = root.join("data/second.ship");
+    fs::write(&first, r#"{"hullId":"first"}"#).unwrap();
+    fs::write(&second, r#"{"hullId":"second"}"#).unwrap();
+    let mut reader = SourceReader::new(&root).unwrap();
+    let checked = reader
+        .stage_directory("data", |key, _| key == "data/first.ship")
+        .unwrap();
+    assert_eq!(checked.len(), 2);
+    assert_eq!(reader.bytes.len(), 1);
+    let first_version = checked[&first.canonicalize().unwrap()].clone();
+    fs::write(&first, r#"{"hullId":"later"}"#).unwrap();
+    assert_eq!(reader.json(&first).unwrap()["hullId"], "first");
+    assert_eq!(reader.versions["data/first.ship"], first_version);
+    assert!(reader.bytes.is_empty());
+    assert_eq!(work_counts::count("read", &first), 1);
+    assert_eq!(work_counts::count("read", &second), 1);
+    root.close().unwrap();
+}
+
+#[test]
 fn source_reads_parses_and_directory_walks_are_reused_per_reader() {
     let root = project_workspace("source_work_counts");
     fs::create_dir_all(root.join("data/hulls/nested")).unwrap();

@@ -98,9 +98,21 @@ export function createWindowImageRuntime() {
   }
   function revision(sessionId: string, resource: ResourceRef) {
     void epoch.value;
-    return Math.max(sessionRevisions.get(sessionId) ?? 0, revisions.get(key(sessionId, resource)) ?? 0);
+    const physicalKey = key(sessionId, resource);
+    if (!revisions.has(physicalKey)) revisions.set(physicalKey, 0);
+    return Math.max(sessionRevisions.get(sessionId) ?? 0, revisions.get(physicalKey) ?? 0);
   }
   function removeImage(physicalKey: string) {
+    if (
+      !revisions.has(physicalKey) &&
+      !decoded.get(physicalKey) &&
+      !pending.has(physicalKey) &&
+      ![...thumbnails.keys()].some((id) => thumbnails.get(id)!.dependencies.has(physicalKey)) &&
+      ![...products.values()].some((product) =>
+        product.source.resources.some((resource) => key(product.source.sessionId, resource) === physicalKey),
+      )
+    )
+      return;
     decoded.remove(physicalKey);
     pending.get(physicalKey)?.request.invalidate('project');
     pending.delete(physicalKey);

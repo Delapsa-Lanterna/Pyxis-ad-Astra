@@ -32,7 +32,7 @@ struct QueuedSource {
 type SourceBatches = (Mutex<BTreeMap<String, Option<QueuedSource>>>, Condvar);
 static SOURCE_BATCHES: LazyLock<SourceBatches> = LazyLock::new(Default::default);
 
-fn enqueue_source_batch(batch: SourceChangeBatch) {
+pub(super) fn enqueue_source_batch(batch: SourceChangeBatch) {
     let root = batch.root.clone();
     let result = (|| -> AppResult<()> {
         let key = windows_path_key(&root);
@@ -49,14 +49,13 @@ fn enqueue_source_batch(batch: SourceChangeBatch) {
             }
             return Ok(());
         }
-        let task = project::registered_manifests(&root, ResourceSource::Mod)?
-            .first()
-            .map(|manifest| {
+        let task = project::registered_mod_session(&root)?
+            .map(|session_id| {
                 enqueue(
                     "source-watch",
                     format!("source:{}", SOURCE_REQUEST.fetch_add(1, Ordering::Relaxed)),
                     &root,
-                    Some(&manifest.session_id),
+                    Some(&session_id),
                 )
             })
             .transpose()?;
@@ -97,7 +96,7 @@ fn enqueue_source_batch(batch: SourceChangeBatch) {
     }
 }
 
-fn wait_source_batches(root: &str) -> AppResult<()> {
+pub(super) fn wait_source_batches(root: &str) -> AppResult<()> {
     let mut lanes = SOURCE_BATCHES
         .0
         .lock()
@@ -109,6 +108,15 @@ fn wait_source_batches(root: &str) -> AppResult<()> {
             .map_err(|_| AppError::message("source.watch_lock", "来源监听等待失败"))?;
     }
     Ok(())
+}
+#[cfg(test)]
+pub(super) fn source_batch_running(root: &str) -> bool {
+    SOURCE_BATCHES
+        .0
+        .lock()
+        .unwrap()
+        .get(&windows_path_key(root))
+        .is_some_and(Option::is_none)
 }
 
 pub fn begin_source_watch(root: &Path) -> AppResult<SourceSubscription> {
@@ -281,13 +289,18 @@ pub(super) fn publish_source_status(
         .values()
         .find(|subscription| windows_path_key(subscription.watch.root()) == windows_path_key(root))
         .map(|subscription| subscription.source);
-    let mod_source = !project::registered_manifests(root, ResourceSource::Mod)?.is_empty();
+    let source = match registered_source {
+        Some(source) => source,
+        None if project::registered_mod_session(root)?.is_some() => ResourceSource::Mod,
+        None => ResourceSource::Core,
+    };
     let mut saves = saves()?;
-    let source = registered_source.unwrap_or(if mod_source {
-        ResourceSource::Mod
-    } else {
-        ResourceSource::Core
-    });
+    if matches!(state, SourceSyncState::Watching)
+        && diagnostic.is_none()
+        && matches!(saves.source_states.get(&windows_path_key(root)),Some(ProjectSyncDelivery::SourceStatus{source:prior,state:SourceSyncState::Watching,diagnostic:None,..}) if *prior==source)
+    {
+        return Ok(());
+    }
     let delivery = ProjectSyncDelivery::SourceStatus {
         root: root.into(),
         source,
@@ -509,7 +522,15 @@ pub(super) fn consume_core_batch(batch: &SourceChangeBatch) -> AppResult<()> {
         project::prepare_core_source_refresh(&game, &paths, batch.rescan)?
     };
     if sources.is_empty() {
-        return Ok(());
+        return publish_source_status(
+            &batch.root,
+            if batch.diagnostic.is_some() {
+                SourceSyncState::Failed
+            } else {
+                SourceSyncState::Watching
+            },
+            batch.diagnostic.clone(),
+        );
     }
     for window in saves()?.windows.values().filter(|window| {
         window

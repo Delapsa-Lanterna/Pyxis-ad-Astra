@@ -48,13 +48,13 @@ const readTableRows = {
     invalidation.queryScopes.some((scope) => scope.kind === 'csv-table-window' && (!scope.table || scope.table === parameters.table)),
 } satisfies SessionQueryDefinition<Omit<CsvTableRowsPayload, 'sessionId'>, CsvTableRowsRead>;
 
-const readValidation = new CachedSessionQuery<CsvValidationRequest, CsvValidationContext>({
+const readValidation = {
   queryKind: 'csv-table-window',
   load: ({ sessionId, parameters }) => invokeCommand('query_csv_validation', { payload: { sessionId, ...parameters } }),
   invalidates: () => true,
-});
+} satisfies SessionQueryDefinition<CsvValidationRequest, CsvValidationContext>;
 export function queryCsvValidation(sessionId: string, request: CsvValidationRequest, signal?: AbortSignal) {
-  return readValidation.read(sessionId, request, signal);
+  return readLiveSessionQuery(readValidation, sessionId, request, signal);
 }
 
 const readRowPreview = new CachedSessionQuery<Omit<CsvRowPreviewPayload, 'sessionId'>, CsvRowPreview>({

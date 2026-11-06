@@ -5,12 +5,13 @@ use super::{
 use crate::errors::{AppError, AppResult};
 use crate::io::FsRootBoundary;
 use crate::models::{
-    CommittedSessionUpdate, EntityEditTarget, InvalidatedResourceScope, ResourceSource,
-    SessionContentUpdate, WriteResult,
+    CommittedSessionUpdate, EntityEditTarget, FileVersion, InvalidatedResourceScope,
+    ResourceSource, SessionContentUpdate, WriteResult,
 };
 use crate::services::project::invalidation;
 use crate::services::project::sources::core;
 use crate::{io, models};
+use std::collections::BTreeMap;
 use std::path::Path;
 use std::sync::Arc;
 
@@ -141,7 +142,13 @@ fn refresh_candidates(
         requested.extend(
             versions
                 .iter()
-                .flat_map(|versions| versions.values().map(|version| version.path.clone())),
+                .flat_map(|versions| versions.iter())
+                .filter(|(key, _)| {
+                    !["mod_info.json", "data", "graphics"]
+                        .iter()
+                        .any(|scope| io::relative_path_contains(scope, key))
+                })
+                .map(|(_, version)| version.path.clone()),
         );
     }
     let mut relative = requested
@@ -161,14 +168,23 @@ fn refresh_candidates(
     let mut scopes: Vec<InvalidatedResourceScope> = Vec::new();
     for relative in relative {
         let scope_count = scopes.len();
-        let path = boundary.resolve_relative(&relative, "source change")?;
+        let path = boundary.root().join(&relative);
         let directory = path.is_dir();
         // Compare retained missing paths together with the files currently on disk.
-        let mut files = if directory {
-            reader.files(&relative)?
-        } else {
-            Vec::new()
+        let changed = |key: &str, version: &FileVersion| {
+            versions.iter().any(|versions| {
+                versions
+                    .get(key)
+                    .and_then(|known| known.fingerprint.as_ref())
+                    != version.fingerprint.as_ref()
+            })
         };
+        let checked = if directory {
+            reader.stage_directory(&relative, changed)?
+        } else {
+            BTreeMap::new()
+        };
+        let mut files = checked.keys().cloned().collect::<Vec<_>>();
         if !path.is_file() {
             files.extend(
                 versions
@@ -183,34 +199,32 @@ fn refresh_candidates(
         files.push(path.clone());
         files.sort();
         files.dedup();
-        for file in files.iter().filter(|file| !file.is_dir()) {
-            let version = reader.stage_version(file)?;
+        for file in &files {
+            let version = match checked.get(file) {
+                Some(version) => version.clone(),
+                None if file.is_dir() => continue,
+                None => reader.stage_version(file)?,
+            };
             let key = reader.key(file);
-            if rescan
-                || versions.iter().any(|versions| {
-                    versions
-                        .get(&key)
-                        .and_then(|known| known.fingerprint.as_ref())
-                        != version.fingerprint.as_ref()
-                })
-            {
+            if changed(&key, &version) {
                 scopes.push(InvalidatedResourceScope {
                     source: ResourceSource::Mod,
                     rel_path: key,
                 });
+            } else {
+                reader.discard_staged_bytes(&key);
             }
         }
         if directory {
             let version = reader.directory_version(&path)?;
-            let changed = rescan
-                || versions.iter().any(|versions| {
-                    versions
-                        .get(&relative)
-                        .and_then(|known| known.fingerprint.as_ref())
-                        != version.fingerprint.as_ref()
-                });
+            let changed = versions.iter().any(|versions| {
+                versions
+                    .get(&relative)
+                    .and_then(|known| known.fingerprint.as_ref())
+                    != version.fingerprint.as_ref()
+            });
             reader.versions.insert(relative.clone(), version);
-            if scopes.len() == scope_count && changed {
+            if !rescan && files.len() == 1 && scopes.len() == scope_count && changed {
                 scopes.push(InvalidatedResourceScope {
                     source: ResourceSource::Mod,
                     rel_path: relative,
@@ -236,8 +250,7 @@ fn refresh_candidates(
         .map(|handle| Ok(lock_ready_session(handle)?.clone()))
         .collect::<AppResult<Vec<_>>>()?;
     for candidate in &mut candidates {
-        let mut update = invalidation::refresh_sources_from(candidate, &scopes, &mut reader)?;
-        update.session |= !core_sources.is_empty();
+        let update = invalidation::refresh_sources_from(candidate, &scopes, &mut reader)?;
         result.invalidation.merge(update.clone());
         result.session_updates.push(CommittedSessionUpdate {
             session_id: candidate.manifest.session_id.clone(),

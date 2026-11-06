@@ -2,13 +2,35 @@ import assert from 'node:assert/strict';
 import { mkdir, readFile, writeFile, rename, unlink } from 'node:fs/promises';
 import { join } from 'node:path';
 import { stores, invoke as api } from './config.mjs';
-import { openMod, waitFor } from './runtime.mjs';
+import { openMod, waitFor, until } from './runtime.mjs';
 import { commodityText, sampleInfo } from './sample.mjs';
 
 /** @param {Awaited<ReturnType<typeof import('./runtime.mjs').startDesktop>>} app @param {Awaited<ReturnType<typeof import('./sample.mjs').prepareSample>>} fixture @param {(name:string,operation:()=>Promise<void>)=>Promise<void>} check @param {string} artifacts */
 export async function sourceSync(app, fixture, check, artifacts) {
   const { main: active, context } = app;
   const { game, mod, core, table, descriptor, notes } = fixture;
+  await mkdir(join(mod, 'graphics'), { recursive: true });
+  await writeFile(join(mod, 'graphics/memory.png'), await readFile(join(core, 'graphics/first.png')));
+  await writeFile(
+    join(mod, 'data/hulls/ship_0.ship'),
+    JSON.stringify({
+      hullId: 'ship_0',
+      hullName: 'Memory sample',
+      hullSize: 'FRIGATE',
+      style: 'LOW_TECH',
+      spriteName: 'graphics/memory.png',
+      width: 1,
+      height: 1,
+      center: [0, 0],
+      bounds: [],
+      collisionRadius: 1,
+      shieldCenter: [0, 0],
+      shieldRadius: 1,
+      weaponSlots: [],
+      engineSlots: [],
+    }),
+    'utf8',
+  );
   const state = stores + '.get("csv-editor").getCsvModState(window.__desktopTarget.modRoot).documents.commodities';
   await check('Core window with zero Mod sessions', async () => {
     await active.evaluate(
@@ -108,6 +130,20 @@ export async function sourceSync(app, fixture, check, artifacts) {
   }
   assert.ok(textPage, 'Text editor window is available');
   await textPage.locator('textarea').waitFor();
+  await check('Native foreground and background transitions retain the live text editor', async () => {
+    await active.evaluate(api + '("plugin:window|set_focus",{label:"main"})');
+    await textPage.locator('textarea').fill('Memory policy input');
+    const identity = { type: 'file', sessionId: manifest.sessionId, modRoot: manifest.modRoot, path: notes };
+    await active.evaluate(api + '("focus_managed_window",{identity:' + JSON.stringify(identity) + '})');
+    await textPage.locator('textarea').press('End');
+    await textPage.locator('textarea').press('!');
+    assert.equal(await textPage.locator('textarea').inputValue(), 'Memory policy input!');
+    await textPage.getByRole('button', { name: '保存', exact: true }).click();
+    await until(async () => (await readFile(notes, 'utf8')) === 'Memory policy input!', 'text save after native focus transition');
+    await textPage.locator('textarea').fill('Initial text');
+    await textPage.getByRole('button', { name: '保存', exact: true }).click();
+    await until(async () => (await readFile(notes, 'utf8')) === 'Initial text', 'text baseline restoration');
+  });
   await check('Managed window focus reuses the isolated text window', async () => {
     const identity = { type: 'file', sessionId: manifest.sessionId, modRoot: manifest.modRoot, path: notes };
     assert.equal(await active.evaluate(api + '("focus_managed_window",{identity:' + JSON.stringify(identity) + '})'), true);
@@ -140,6 +176,35 @@ export async function sourceSync(app, fixture, check, artifacts) {
     assert.equal(await active.evaluate(state + '.rowOrder.length'), 2);
     await writeFile(table, commodityText(['Rebuilt', 'Second']), 'utf8');
     await waitFor(active, stores + '.get("project").getManifest(window.__desktopTarget.modRoot).tableSummaries.commodities.available');
+  });
+  await check('Native memory policy preserves a real canvas across focus and normal close', async () => {
+    const identity = { type: 'spec', kind: 'ship', sessionId: manifest.sessionId, modRoot: manifest.modRoot, id: 'ship_0' };
+    await active.evaluate(
+      api +
+        '("request_window",{payload:' +
+        JSON.stringify({
+          identity,
+          title: 'Memory canvas',
+          input: { kind: 'editor', starsectorRoot: game },
+          width: 1100,
+          height: 800,
+          minWidth: 780,
+          minHeight: 520,
+        }) +
+        '})',
+    );
+    const canvasPage = context.pages().find((page) => page !== active && page !== textPage);
+    assert.ok(canvasPage);
+    const canvas = canvasPage.locator('canvas.editor-canvas');
+    await canvas.waitFor();
+    await active.evaluate(api + '("plugin:window|set_focus",{label:"main"})');
+    assert.equal(await active.evaluate(api + '("focus_managed_window",{identity:' + JSON.stringify(identity) + '})'), true);
+    await canvas.hover();
+    await canvasPage.mouse.wheel(0, 100);
+    assert.equal(await canvas.evaluate((node) => node instanceof HTMLCanvasElement && node.width > 0 && node.height > 0), true);
+    await canvas.screenshot({ path: join(artifacts, 'source-canvas.png') });
+    await canvasPage.locator('.titlebar-button.close').click();
+    await until(() => canvasPage.isClosed(), 'canvas window normal close');
   });
   return { environment: app.environment, sample: { source: fixture.source, rows: 2 } };
 }

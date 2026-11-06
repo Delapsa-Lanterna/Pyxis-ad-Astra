@@ -103,6 +103,7 @@ impl SourceReader {
             .insert(relative_path.to_string(), version.clone());
     }
     pub fn retain_json(&mut self, relative_path: &str, version: &FileVersion, value: &Value) {
+        self.loaded.insert(relative_path.to_string());
         self.records.insert(
             relative_path.to_string(),
             SourceRecord {
@@ -141,6 +142,9 @@ impl SourceReader {
         fork
     }
     pub fn path(&self, relative: &str) -> AppResult<PathBuf> {
+        if let Some((version, _)) = self.bytes.get(relative) {
+            return Ok(PathBuf::from(&version.path));
+        }
         self.boundary.resolve_relative(relative, "source file")
     }
     pub fn key(&self, path: &Path) -> String {
@@ -149,17 +153,44 @@ impl SourceReader {
     pub fn stage_version(&mut self, path: &Path) -> AppResult<FileVersion> {
         let path = self.boundary.resolve_absolute(path, "changed source")?;
         let version = if path.is_file() {
-            let (version, bytes) = io::read_authorized_bytes(&path)?;
-            self.bytes.insert(self.key(&path), (version.clone(), bytes));
-            version
+            return self.stage_file(&path);
         } else {
             io::file_version(&path)?
         };
         self.versions.insert(self.key(&path), version.clone());
         Ok(version)
     }
+    fn stage_file(&mut self, path: &Path) -> AppResult<FileVersion> {
+        let (version, bytes) = io::read_authorized_bytes(path)?;
+        let key = self.key(path);
+        self.bytes.insert(key.clone(), (version.clone(), bytes));
+        self.versions.insert(key, version.clone());
+        Ok(version)
+    }
+    pub fn stage_directory(
+        &mut self,
+        relative: &str,
+        keep_bytes: impl Fn(&str, &FileVersion) -> bool,
+    ) -> AppResult<BTreeMap<PathBuf, FileVersion>> {
+        let files = self.files(relative)?;
+        let mut checked = BTreeMap::new();
+        // The directory walk validates each traversed entry before its bytes enter this batch.
+        for file in &files {
+            let version = self.stage_file(file)?;
+            let key = self.key(file);
+            if !keep_bytes(&key, &version) {
+                self.bytes.remove(&key);
+            }
+            checked.insert(file.clone(), version);
+        }
+        Ok(checked)
+    }
     pub fn begin_batch(&mut self) {
         self.bytes.clear();
+        self.paths.clear();
+    }
+    pub fn discard_staged_bytes(&mut self, key: &str) {
+        self.bytes.remove(key);
     }
     pub fn invalidate_paths(&mut self, paths: &[&str]) {
         let affected = |path: &str| {
@@ -190,8 +221,15 @@ impl SourceReader {
             .unwrap_or_else(|| io::read_authorized_bytes(path))
     }
     pub fn json(&mut self, path: &Path) -> AppResult<Value> {
-        let authorized = self.boundary.resolve_absolute(path, "JSON source")?;
+        let authorized = self.resolve_source(path, "JSON source")?;
         self.json_at(&authorized)
+    }
+    fn resolve_source(&self, path: &Path, label: &str) -> AppResult<PathBuf> {
+        // A staged byte snapshot already owns its authorized path and matching version.
+        if let Some((version, _)) = self.bytes.get(&self.key(path)) {
+            return Ok(PathBuf::from(&version.path));
+        }
+        self.boundary.resolve_absolute(path, label)
     }
     fn json_at(&mut self, path: &Path) -> AppResult<Value> {
         let key = self.key(path);
@@ -237,7 +275,7 @@ impl SourceReader {
         Ok(parsed)
     }
     pub fn csv(&mut self, path: &Path) -> AppResult<CsvTable> {
-        let authorized = self.boundary.resolve_absolute(path, "CSV source")?;
+        let authorized = self.resolve_source(path, "CSV source")?;
         let path = authorized.as_path();
         let key = self.key(path);
         if let Some(table) = self.tables.get(&key) {
@@ -367,7 +405,13 @@ impl SourceReader {
                 let entry = entry.map_err(|error| {
                     AppError::message("io.walk_failed", error.to_string()).at_path(&dir)
                 })?;
-                io::validate_walk_entry(entry.path(), "source directory")?;
+                io::validate_walk_metadata(
+                    entry.path(),
+                    &entry.metadata().map_err(|error| {
+                        AppError::message("io.walk_failed", error.to_string()).at_path(entry.path())
+                    })?,
+                    "source directory",
+                )?;
                 if entry.file_type().is_file() {
                     paths.push(entry.into_path());
                 }

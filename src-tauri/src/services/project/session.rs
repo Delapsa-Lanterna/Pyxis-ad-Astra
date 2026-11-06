@@ -986,6 +986,7 @@ mod tests {
 mod source_refresh_tests {
     use crate::services::project_sync::release_project_session;
 
+    use super::source_refresh::refresh_core_session;
     use super::*;
     #[cfg(test)]
     use crate::models::{CsvSearchField, EntityKind};
@@ -995,6 +996,197 @@ mod source_refresh_tests {
     use crate::{io, services};
     #[cfg(test)]
     use std::{fs, slice};
+
+    #[test]
+    fn core_refresh_scopes_image_and_spec_updates_without_whole_session_invalidation() {
+        let root = project_workspace("core_precise_refresh");
+        let local = root.join("mod");
+        fs::create_dir_all(&local).unwrap();
+        fs::create_dir_all(root.join("starsector-core/graphics")).unwrap();
+        let manifest = open_project_session_traced(
+            &local,
+            Some(&root),
+            &mut PerformanceTrace::new("core.precise"),
+        )
+        .unwrap();
+        let update = refresh_core_session(
+            &manifest.session_id,
+            &[InvalidatedResourceScope {
+                source: ResourceSource::Core,
+                rel_path: "graphics/image.png".into(),
+            }],
+        )
+        .unwrap();
+        assert!(!update.invalidation.session);
+        assert!(update.invalidation.tables.is_empty());
+        assert!(update.invalidation.entities.is_empty());
+        let update = refresh_core_session(
+            &manifest.session_id,
+            &[InvalidatedResourceScope {
+                source: ResourceSource::Core,
+                rel_path: "data/hulls/item.ship".into(),
+            }],
+        )
+        .unwrap();
+        assert!(!update.invalidation.session);
+        assert!(
+            update
+                .invalidation
+                .entities
+                .iter()
+                .any(|entity| entity.kind == EntityKind::Ship)
+        );
+        release_project_session(manifest.session_id).unwrap();
+        root.close().unwrap();
+    }
+
+    #[test]
+    fn source_rescan_reuses_unchanged_content_and_reads_each_source_once() {
+        let root = project_workspace("rescan_unchanged");
+        fs::create_dir_all(root.join("data/hulls")).unwrap();
+        fs::create_dir_all(root.join("graphics")).unwrap();
+        let csv = root.join("data/hulls/ship_data.csv");
+        fs::write(&csv, "id,name\nship,Initial\n").unwrap();
+        fs::write(root.join("graphics/image.png"), b"resource").unwrap();
+        let manifest = open_project_session_traced(
+            &root,
+            None,
+            &mut PerformanceTrace::new("rescan.unchanged"),
+        )
+        .unwrap();
+        services::query_csv_table_index(
+            &manifest.session_id,
+            CsvTableKey::Ships,
+            1,
+            None,
+            CsvSearchField::IdName,
+            &[],
+        )
+        .unwrap();
+        let handle = session_handle(&manifest.session_id).unwrap();
+        let rows = lock_ready_session(&handle).unwrap().csv_tables["ships"]
+            .rows
+            .clone()
+            .unwrap();
+        let reads = work_counts::count("read", &csv);
+        let parses = work_counts::count("parse", &csv);
+        for _ in 0..3 {
+            let result = refresh_mod_root_sources(
+                &manifest.mod_root,
+                slice::from_ref(&manifest.session_id),
+                &[],
+                true,
+            )
+            .unwrap();
+            assert!(result.session_updates.is_empty());
+            assert!(Arc::ptr_eq(
+                &rows,
+                lock_ready_session(&handle).unwrap().csv_tables["ships"]
+                    .rows
+                    .as_ref()
+                    .unwrap()
+            ));
+        }
+        assert_eq!(work_counts::count("read", &csv) - reads, 3);
+        assert_eq!(work_counts::count("parse", &csv) - parses, 0);
+        release_project_session(manifest.session_id).unwrap();
+        root.close().unwrap();
+    }
+
+    #[test]
+    fn csv_source_refresh_reuses_formal_specs_without_reading_their_bytes() {
+        let root = project_workspace("csv_retained_specs");
+        fs::create_dir_all(root.join("data/hulls")).unwrap();
+        let csv = root.join("data/hulls/ship_data.csv");
+        let spec = root.join("data/hulls/ship.ship");
+        fs::write(&csv, "id,name\nship,Initial\n").unwrap();
+        fs::write(&spec, r#"{"hullId":"ship","hullName":"Formal"}"#).unwrap();
+        let manifest =
+            open_project_session_traced(&root, None, &mut PerformanceTrace::new("csv.retained"))
+                .unwrap();
+        let reads = work_counts::count("read", &spec);
+        let parses = work_counts::count("parse", &spec);
+        let handle = session_handle(&manifest.session_id).unwrap();
+        let specs = lock_ready_session(&handle).unwrap().ship_files.clone();
+        fs::write(&csv, "id,name\nship,Updated\n").unwrap();
+        let result = refresh_mod_root_sources(
+            &manifest.mod_root,
+            slice::from_ref(&manifest.session_id),
+            &[csv.to_string_lossy().into_owned()],
+            false,
+        )
+        .unwrap();
+        assert_eq!(result.session_updates.len(), 1);
+        assert_eq!(work_counts::count("read", &spec), reads);
+        assert_eq!(work_counts::count("parse", &spec), parses);
+        assert!(Arc::ptr_eq(
+            &specs,
+            &lock_ready_session(&handle).unwrap().ship_files
+        ));
+        assert_eq!(
+            services::query_entity(&manifest.session_id, EntityKind::Ship, "ship")
+                .unwrap()
+                .unwrap()
+                .data["hullName"],
+            "Formal"
+        );
+        release_project_session(manifest.session_id).unwrap();
+        root.close().unwrap();
+    }
+
+    #[test]
+    fn source_rescan_accepts_changed_files_and_preserves_missing_resource_versions() {
+        let root = project_workspace("rescan_differences");
+        fs::create_dir_all(root.join("data/hulls")).unwrap();
+        fs::create_dir_all(root.join("graphics")).unwrap();
+        let csv = root.join("data/hulls/ship_data.csv");
+        let image = root.join("graphics/image.png");
+        fs::write(&csv, "id,name\nship,Initial\n").unwrap();
+        fs::write(&image, b"resource").unwrap();
+        let manifest = open_project_session_traced(
+            &root,
+            None,
+            &mut PerformanceTrace::new("rescan.differences"),
+        )
+        .unwrap();
+        fs::write(&csv, "id,name\nship,Updated\n").unwrap();
+        fs::remove_file(&image).unwrap();
+        let result = refresh_mod_root_sources(
+            &manifest.mod_root,
+            slice::from_ref(&manifest.session_id),
+            &[],
+            true,
+        )
+        .unwrap();
+        assert_eq!(result.session_updates.len(), 1);
+        assert!(
+            result
+                .invalidation
+                .resources
+                .iter()
+                .any(|scope| scope.rel_path == "graphics/image.png")
+        );
+        assert!(
+            !lock_ready_session(&session_handle(&manifest.session_id).unwrap())
+                .unwrap()
+                .source_versions["graphics/image.png"]
+                .fingerprint
+                .is_some()
+        );
+        assert!(
+            refresh_mod_root_sources(
+                &manifest.mod_root,
+                slice::from_ref(&manifest.session_id),
+                &[],
+                true
+            )
+            .unwrap()
+            .session_updates
+            .is_empty()
+        );
+        release_project_session(manifest.session_id).unwrap();
+        root.close().unwrap();
+    }
 
     #[test]
     fn source_watch_review_deleted_parent_directory_updates_loaded_csv_availability() {

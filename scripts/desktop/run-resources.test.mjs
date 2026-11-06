@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { execFile } from 'node:child_process';
+import { execFile, spawn } from 'node:child_process';
 import { readFile, access, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
@@ -9,59 +9,143 @@ import { test } from 'node:test';
 import { TestWorkspace } from '../shared/test-workspace.mjs';
 import { desktopConfiguration } from './config.mjs';
 import { reserveReport } from './report.mjs';
+import { startProcessSampler } from './process-sampler.mjs';
+import { delay, until } from './runtime.mjs';
+import { connectDesktopCdp } from './cdp-client.mjs';
+import { createServer as createHttpServer } from 'node:http';
 
 const execute = promisify(execFile);
 const runner = resolve('scripts/desktop/run.mjs');
+
+for (const isolatedDesktop of [false, true])
+  test(`native windows retain focus and close on the ${isolatedDesktop ? 'isolated' : 'user'} desktop`, async () => {
+    const work = await TestWorkspace.create(tmpdir(), 'desktop-close');
+    try {
+      const executable = (await execute('pwsh', ['-NoProfile', '-Command', '[Environment]::ProcessPath'])).stdout.trim();
+      const log = work.path('native.log');
+      const child = spawn(
+        'pwsh',
+        [
+          '-NoProfile',
+          '-File',
+          'scripts/desktop/desktop-host.ps1',
+          ...(isolatedDesktop ? ['-IsolatedDesktop'] : []),
+          '-Executable',
+          executable,
+          '-Log',
+          log,
+          '-Arguments:-NoProfile -File "' +
+            resolve('scripts/desktop/desktop-probe.ps1') +
+            '" -Output "' +
+            work.path('probe.json') +
+            '" -WaitForClose',
+        ],
+        { windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] },
+      );
+      let output = '';
+      child.stdout.on('data', (part) => {
+        output += String(part);
+      });
+      child.stderr.on('data', (part) => {
+        output += String(part);
+      });
+      const finished = new Promise((done, reject) => {
+        child.once('error', reject);
+        child.once('close', done);
+      });
+      try {
+        await until(() => {
+          if (child.exitCode !== null) throw Error(output);
+          return output.includes('DESKTOP_START ');
+        }, 'native process ready');
+        await until(async () => (await readFile(log, 'utf8')).includes('PROBE_READY'), 'native window ready');
+        child.stdin.end('close\n');
+        assert.equal(await finished, 0, output);
+        const probe = JSON.parse(await readFile(work.path('probe.json'), 'utf8'));
+        assert.equal(probe.desktop === probe.inputDesktop, !isolatedDesktop);
+        assert.equal(probe.threadFocus, true);
+        const desktop = JSON.parse(output.slice('DESKTOP_START '.length).trim());
+        if (isolatedDesktop) {
+          assert.match(probe.desktop, /^PyxisTesting-/);
+          assert.equal(probe.foregroundAccepted, false);
+          const released = await execute('pwsh', [
+            '-NoProfile',
+            '-File',
+            'scripts/desktop/desktop-host.ps1',
+            '-VerifyDesktop',
+            desktop.name,
+          ]);
+          assert.match(released.stdout, /DESKTOP_RELEASED/);
+        } else assert.equal(desktop.name, '');
+      } finally {
+        if (!child.stdin.writableEnded) child.stdin.end('close\n');
+        await finished;
+      }
+    } finally {
+      await work.close();
+    }
+  });
+
+test('CDP target discovery reports an unavailable WebView and releases its connection', async () => {
+  const server = createHttpServer((_request, response) => {
+    response.setHeader('Content-Type', 'application/json');
+    response.end('[]');
+  });
+  try {
+    await new Promise((done) => server.listen(0, '127.0.0.1', () => done(undefined)));
+    const address = server.address();
+    assert.ok(address && typeof address !== 'string');
+    await assert.rejects(connectDesktopCdp('http://127.0.0.1:' + address.port), /Desktop WebView target is unavailable/);
+  } finally {
+    await new Promise((done) => server.close(done));
+  }
+});
+
+test('process sampling records owned CPU and private bytes and closes normally', async () => {
+  const sampler = await startProcessSampler(process.pid);
+  try {
+    await sampler.phase('sample');
+    await delay(500);
+    const result = sampler.statistics('sample');
+    assert.ok(result.samples >= 2);
+    assert.ok(result.privateMiB.min !== undefined && result.privateMiB.min > 0);
+    assert.ok(result.nativePrivateMiB.min !== undefined && result.nativePrivateMiB.min > 0);
+    assert.ok(result.cpuMs >= result.nativeCpuMs);
+    assert.ok(sampler.environment.pids.includes(process.pid));
+  } finally {
+    await sampler.close();
+  }
+});
 /** @param {string} path */
 async function absent(path) {
   await assert.rejects(access(path), { code: 'ENOENT' });
 }
 
-test('native windows retain thread focus on a desktop separate from user input', async () => {
-  const work = await TestWorkspace.create(tmpdir(), 'desktop-isolation');
-  try {
-    const executable = (await execute('pwsh', ['-NoProfile', '-Command', '[Environment]::ProcessPath'])).stdout.trim();
-    const output = work.path('probe.json');
-    const run = await execute('pwsh', [
-      '-NoProfile',
-      '-File',
-      'scripts/desktop/desktop-host.ps1',
-      '-Executable',
-      executable,
-      '-Log',
-      work.path('native.log'),
-      '-Arguments:-NoProfile -File "' + resolve('scripts/desktop/desktop-probe.ps1') + '" -Output "' + output + '"',
-    ]);
-    const probe = JSON.parse(await readFile(output, 'utf8'));
-    assert.match(probe.desktop, /^PyxisTesting-/);
-    assert.notEqual(probe.desktop, probe.inputDesktop);
-    assert.equal(probe.threadFocus, true);
-    assert.equal(probe.foregroundAccepted, false);
-    const desktop = JSON.parse(run.stdout.slice('DESKTOP_START '.length).trim());
-    const released = await execute('pwsh', ['-NoProfile', '-File', 'scripts/desktop/desktop-host.ps1', '-VerifyDesktop', desktop.name]);
-    assert.match(released.stdout, /DESKTOP_RELEASED/);
-  } finally {
-    await work.close();
-  }
-});
-
-test('desktop dry runs expose the isolated configuration and leave explicit outputs unused', async () => {
-  const work = await TestWorkspace.create(tmpdir(), 'desktop-dry');
-  try {
-    const output = work.path('report.json');
-    const result = await execute(process.execPath, [runner, '--dry-run', '--output', output]);
-    const config = JSON.parse(result.stdout);
-    assert.equal(config.identifier, 'com.delapsa-lanterna.pyxis-ad-astra.desktop-testing');
-    assert.equal(config.port, 9233);
-    assert.equal(config.isolation, 'win32-desktop');
-    assert.ok(config.exe.includes('desktop-testing'));
-    await absent(output);
-    const build = await execute(process.execPath, ['scripts/desktop/build.mjs', '--dry-run']);
-    assert.ok(JSON.parse(build.stdout).args.includes('build'));
-  } finally {
-    await work.close();
-  }
-});
+for (const isolatedDesktop of [false, true])
+  test(`desktop dry runs expose the ${isolatedDesktop ? 'isolated' : 'user'} desktop and preserve explicit outputs`, async () => {
+    const work = await TestWorkspace.create(tmpdir(), 'desktop-dry');
+    try {
+      const output = work.path('report.json');
+      const result = await execute(process.execPath, [
+        runner,
+        '--dry-run',
+        '--output',
+        output,
+        ...(isolatedDesktop ? ['--isolated-desktop'] : []),
+      ]);
+      const config = JSON.parse(result.stdout);
+      assert.equal(config.identifier, 'com.delapsa-lanterna.pyxis-ad-astra.desktop-testing');
+      assert.equal(config.port, 9233);
+      assert.equal(config.isolatedDesktop, isolatedDesktop);
+      assert.equal(config.isolation, isolatedDesktop ? 'win32-desktop' : 'user-desktop');
+      assert.ok(config.exe.includes('desktop-testing'));
+      await absent(output);
+      const build = await execute(process.execPath, ['scripts/desktop/build.mjs', '--dry-run']);
+      assert.ok(JSON.parse(build.stdout).args.includes('build'));
+    } finally {
+      await work.close();
+    }
+  });
 
 test('desktop output conflicts preserve the existing report and its ownership', async () => {
   const work = await TestWorkspace.create(tmpdir(), 'desktop-report');
@@ -91,25 +175,37 @@ test('desktop preparation failures retain matching JSON and Markdown diagnostics
   }
 });
 
-test('desktop startup failure releases its sample and exclusive application directories', async () => {
-  const work = await TestWorkspace.create(tmpdir(), 'desktop-startup');
-  const { identifier } = await desktopConfiguration();
-  try {
-    const output = work.path('report.json');
-    await assert.rejects(execute(process.execPath, [runner, '--exe', process.execPath, '--output', output]), { code: 1 });
-    const report = JSON.parse(await readFile(output, 'utf8'));
-    assert.equal(report.pass, false);
-    assert.equal(report.resourcesReleased, true);
-    assert.ok(report.errors.some((/** @type {string} */ error) => error.includes('exited before the WebView')));
-    assert.equal(report.nativeDesktops.length, 1);
-    assert.match(report.nativeDesktops[0].name, /^PyxisTesting-/);
-    assert.equal(report.nativeDesktops[0].released, true);
-    await absent(resolve(process.env.APPDATA ?? '', identifier));
-    await absent(resolve(process.env.LOCALAPPDATA ?? '', identifier));
-  } finally {
-    await work.close();
-  }
-});
+for (const isolatedDesktop of [false, true])
+  test(`desktop startup failure releases the ${isolatedDesktop ? 'isolated' : 'user'} desktop run and private directories`, async () => {
+    const work = await TestWorkspace.create(tmpdir(), 'desktop-startup');
+    const { identifier } = await desktopConfiguration();
+    try {
+      const output = work.path('report.json');
+      await assert.rejects(
+        execute(process.execPath, [
+          runner,
+          '--exe',
+          process.execPath,
+          '--output',
+          output,
+          ...(isolatedDesktop ? ['--isolated-desktop'] : []),
+        ]),
+        { code: 1 },
+      );
+      const report = JSON.parse(await readFile(output, 'utf8'));
+      assert.equal(report.pass, false);
+      assert.equal(report.resourcesReleased, true);
+      assert.ok(report.errors.some((/** @type {string} */ error) => error.includes('exited before the WebView')));
+      assert.equal(report.nativeDesktops.length, 1);
+      if (isolatedDesktop) assert.match(report.nativeDesktops[0].name, /^PyxisTesting-/);
+      else assert.equal(report.nativeDesktops[0].name, '');
+      assert.equal(report.nativeDesktops[0].released, true);
+      await absent(resolve(process.env.APPDATA ?? '', identifier));
+      await absent(resolve(process.env.LOCALAPPDATA ?? '', identifier));
+    } finally {
+      await work.close();
+    }
+  });
 
 test('desktop occupied ports remain owned by the existing listener', async () => {
   const work = await TestWorkspace.create(tmpdir(), 'desktop-port');

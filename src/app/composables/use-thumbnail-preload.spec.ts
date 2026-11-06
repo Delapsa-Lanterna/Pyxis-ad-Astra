@@ -3,6 +3,7 @@ import { flushPromises } from '@vue/test-utils';
 import { beforeEach, expect, it, vi } from 'vitest';
 import type { ThumbnailRequest } from './use-window-image-runtime';
 import type { ResourceMediaInvalidationEvent } from '@/services/resource-media.service';
+import type { ResourceRef } from '@/shared/types';
 import { useThumbnailPreload } from './use-thumbnail-preload';
 const mock = vi.hoisted(() => ({
   acquire: vi.fn(),
@@ -21,12 +22,40 @@ vi.mock('@/services/resource-media.service', () => ({
   },
 }));
 vi.mock('./use-window-image-runtime', () => ({
-  windowImageRuntime: () => ({ acquireThumbnail: mock.acquire, thumbnailFailures: () => [], key: () => '', revision: () => 0 }),
+  windowImageRuntime: () => ({
+    acquireThumbnail: mock.acquire,
+    thumbnailFailures: () => [],
+    key: (session: string, resource: ResourceRef) => session + ':' + resource.relPath,
+    revision: () => 0,
+  }),
 }));
 const request: ThumbnailRequest = { key: 'one', sessionId: 's', resources: [], render: () => document.createElement('canvas') };
 beforeEach(() => {
   vi.resetAllMocks();
   mock.acquire.mockImplementation(() => ({ promise: Promise.resolve(document.createElement('canvas')), release: mock.release }));
+});
+it('recaptures only when a held resource changes', async () => {
+  const resource: ResourceRef = { source: 'mod', relPath: 'graphics/sample.png', ownerKind: 'ship', ownerId: 'sample', key: 'sprite' };
+  let revision = 0;
+  const source = {
+    ...request,
+    resources: [resource],
+    capture: () => ({ ...request, resources: [resource], key: 'revision/' + ++revision }),
+  };
+  const scope = effectScope(),
+    owner = scope.run(() => useThumbnailPreload('test'))!;
+  try {
+    owner.prepare('s', [source], []);
+    await flushPromises();
+    mock.listener!({ sessionId: 's', scope: 'resources', resources: [], invalidation: null });
+    await flushPromises();
+    expect(mock.acquire).toHaveBeenCalledTimes(1);
+    mock.listener!({ sessionId: 's', scope: 'resources', resources: [resource], invalidation: null });
+    await flushPromises();
+    expect(mock.acquire).toHaveBeenCalledTimes(2);
+  } finally {
+    scope.stop();
+  }
 });
 it('recaptures current source versions and pixel ratio while releasing the previous product', async () => {
   let version = 0;

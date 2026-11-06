@@ -5,6 +5,7 @@ import { initializeCacheLimits } from '@/shared/runtime/cache-limits';
 import { createSettingsFixture } from '@/test/fixtures/settings';
 import type { ResourceRef, ProjectInvalidation } from '@/shared/types';
 import type { ResourceMediaInvalidationEvent } from '@/services/resource-media.service';
+import { watchEffect } from 'vue';
 
 const mocks = vi.hoisted(() => ({
   listener: null as ((event: ResourceMediaInvalidationEvent) => void) | null,
@@ -39,6 +40,35 @@ function fixture() {
   return { images, cache: createWindowImageRuntime() };
 }
 describe('window image residence', () => {
+  it('keeps image observers asleep for unrelated source updates and refreshes their actual resource', async () => {
+    const { cache } = fixture(),
+      observe = vi.fn();
+    const stop = watchEffect(() => observe(cache.revision('s', resource)));
+    try {
+      mocks.listener!({
+        scope: 'resources',
+        sessionId: 's',
+        resources: [],
+        invalidation: {
+          session: false,
+          paths: [],
+          tables: [],
+          entities: [],
+          queryScopes: [],
+          resources: [{ source: 'mod', relPath: 'mod_info.json' }],
+        },
+      });
+      await flushPromises();
+      expect(observe).toHaveBeenCalledTimes(1);
+      mocks.listener!({ scope: 'resources', sessionId: 's', resources: [resource], invalidation: null });
+      await flushPromises();
+      expect(observe).toHaveBeenCalledTimes(2);
+      expect(observe).toHaveBeenLastCalledWith(1);
+    } finally {
+      stop();
+      cache.dispose();
+    }
+  });
   it('keeps session refresh revisions newer than every physical revision', () => {
     const { cache } = fixture();
     const event = { scope: 'resources' as const, sessionId: 's', resources: [resource], invalidation: null };

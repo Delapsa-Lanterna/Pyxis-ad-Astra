@@ -26,26 +26,25 @@ const mocks = vi.hoisted(() => ({
   error: vi.fn(),
   choose: vi.fn<AppFeedback['choose']>(),
   sources: vi.fn<typeof SourceCatalogServiceModule.querySourceOptionCatalog>(),
+  sourceAffected: vi.fn(() => false),
   preview: vi.fn(async () => 'preview'),
   affected: vi.fn(() => false),
+  validation: vi.fn<typeof CsvTableServiceModule.queryCsvValidation>(),
 }));
-vi.mock('@/services/csv-table.service', () => ({
+vi.mock('@/services/csv-table.service', async (importOriginal) => ({
+  ...(await importOriginal<typeof CsvTableServiceModule>()),
   queryTableIndex: mocks.index,
-  queryCsvValidation: async (_session: string, request: CsvValidationRequest) => ({
-    complete: false,
-    entities: Object.fromEntries(request.entities.map(({ kind, id }) => [kind + ':' + id, {}])),
-    sources: Object.fromEntries(request.sources.map((source) => [source, []])),
-    files: {},
-    classes: {},
-    stationData: {},
-  }),
+  queryCsvValidation: mocks.validation,
   queryTableRows: mocks.rows,
   queryTableRowPreviewDataUrl: mocks.preview,
   hasTableInvalidation: mocks.affected,
 }));
 vi.mock('@/orchestrators/project-sync.orchestrator', () => import('@/test/unit/project-changes'));
 vi.mock('@/windows/current.window', () => ({ currentWindowLabel: () => 'peer' }));
-vi.mock('@/services/source-catalog.service', () => ({ querySourceOptionCatalog: mocks.sources, hasSourceInvalidation: () => false }));
+vi.mock('@/services/source-catalog.service', () => ({
+  querySourceOptionCatalog: mocks.sources,
+  hasSourceInvalidation: mocks.sourceAffected,
+}));
 vi.mock('@/app/composables/use-app-feedback', () => ({ useAppFeedback: () => ({ error: mocks.error, choose: mocks.choose }) }));
 const target = { sessionId: 'session', modRoot: 'M:/mod', table: 'ships' as const };
 let wrapper: VueWrapper, rows: CsvDraftRow[];
@@ -67,6 +66,15 @@ function harness() {
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.sources.mockResolvedValue([]);
+  mocks.sourceAffected.mockReturnValue(false);
+  mocks.validation.mockImplementation(async (_session: string, request: CsvValidationRequest) => ({
+    complete: false,
+    entities: Object.fromEntries(request.entities.map(({ kind, id }) => [kind + ':' + id, {}])),
+    sources: Object.fromEntries(request.sources.map((source) => [source, []])),
+    files: {},
+    classes: {},
+    stationData: {},
+  }));
   setActivePinia(createPinia());
   initializeSettingsStore(createSettingsFixture({ editMode: 'plain' }));
   const manifest = sessionUpdateFixture(target.sessionId, target.modRoot).content.manifest;
@@ -91,6 +99,77 @@ beforeEach(() => {
 });
 afterEach(() => wrapper?.unmount());
 describe('CSV index and keyed content owner', () => {
+  it('reloads an own-table token catalog only when its column values change', async () => {
+    mocks.index.mockResolvedValue(
+      csvTableIndex([csvDraftRow({ id: 'one', name: 'First', tags: 'token' }, 'key-0')], { header: ['id', 'name', 'tags'] }),
+    );
+    mocks.sources.mockResolvedValue([
+      { origin: 'mod', options: [{ label: 'Token', value: 'token', description: null, resourceRef: null, origin: 'mod' }] },
+    ]);
+    harness();
+    await flushPromises();
+    const calls = mocks.sources.mock.calls.length;
+    const event = committedChangeFixture(savedWriteFixture(), target.sessionId, target.modRoot);
+    event.result.sessionUpdates[0]!.content.invalidation.resources = [{ source: 'mod', relPath: 'ships.csv' }];
+    mocks.affected.mockReturnValue(true);
+    mocks.sourceAffected.mockReturnValue(true);
+    mocks.index.mockResolvedValue(
+      csvTableIndex([csvDraftRow({ id: 'one', name: 'Changed', tags: 'token' }, 'key-0')], {
+        header: ['id', 'name', 'tags'],
+        baseVersions: [{ path: 'ships.csv', fingerprint: 'second' }],
+      }),
+    );
+    await dispatchProjectChangeFixture({ ...event, reason: 'refresh' });
+    expect(mocks.sources).toHaveBeenCalledTimes(calls);
+    mocks.index.mockResolvedValue(
+      csvTableIndex([csvDraftRow({ id: 'one', name: 'Changed', tags: 'new-token' }, 'key-0')], {
+        header: ['id', 'name', 'tags'],
+        baseVersions: [{ path: 'ships.csv', fingerprint: 'third' }],
+      }),
+    );
+    await dispatchProjectChangeFixture({ ...event, reason: 'refresh' });
+    expect(mocks.sources.mock.calls.length).toBeGreaterThan(calls);
+  });
+  it('retains the column and source index when a refreshed catalog has equal options', async () => {
+    mocks.index.mockResolvedValue(csvTableIndex([csvDraftRow({ 'system id': 'sample' }, 'key-0')], { header: ['system id'] }));
+    mocks.sources.mockResolvedValue([
+      { origin: 'mod', options: [{ label: 'Sample', value: 'sample', description: null, resourceRef: null, origin: 'mod' }] },
+    ]);
+    const vm = harness();
+    await flushPromises();
+    const columns = vm.effectiveColumns.value,
+      source = vm.sourceIndex.value;
+    mocks.sourceAffected.mockReturnValue(true);
+    await dispatchProjectChangeFixture({
+      ...committedChangeFixture(savedWriteFixture(), target.sessionId, target.modRoot),
+      reason: 'refresh',
+    });
+    expect(mocks.sources).toHaveBeenCalledTimes(2);
+    expect(vm.effectiveColumns.value).toBe(columns);
+    expect(vm.sourceIndex.value).toBe(source);
+  });
+  it('reuses validation for metadata and CSV value updates and reloads it once for a spec dependency', async () => {
+    rows = rows.slice(0, 2);
+    harness();
+    await flushPromises();
+    expect(mocks.validation).toHaveBeenCalledTimes(1);
+    const event = committedChangeFixture(savedWriteFixture(), target.sessionId, target.modRoot);
+    await dispatchProjectChangeFixture({ ...event, reason: 'refresh' });
+    expect(mocks.validation).toHaveBeenCalledTimes(1);
+    rows[0]!.data.name = 'External';
+    mocks.index.mockResolvedValueOnce(
+      csvTableIndex(rows, { header: ['id', 'name'], baseVersions: [{ path: 'ships.csv', fingerprint: 'updated' }] }),
+    );
+    mocks.affected.mockReturnValueOnce(true);
+    await dispatchProjectChangeFixture({ ...event, reason: 'refresh' });
+    await flushPromises();
+    expect(useCsvEditorStore().getCsvModState(target.modRoot)?.documents.ships.rows['key-0']?.data.name).toBe('External');
+    expect(mocks.validation).toHaveBeenCalledTimes(1);
+    event.result.sessionUpdates[0]!.content.invalidation.entities = [{ kind: 'ship', id: 'id-0' }];
+    event.result.sessionUpdates[0]!.content.invalidation.resources = [{ source: 'mod', relPath: 'data/hulls/sample.ship' }];
+    await dispatchProjectChangeFixture({ ...event, reason: 'refresh' });
+    expect(mocks.validation).toHaveBeenCalledTimes(2);
+  });
   it('accepts a clean external baseline and releases the prior redo history', async () => {
     harness();
     await flushPromises();

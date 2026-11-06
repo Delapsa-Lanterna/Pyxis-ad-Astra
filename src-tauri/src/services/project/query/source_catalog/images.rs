@@ -210,13 +210,16 @@ mod image_tests {
 
     #[test]
     fn image_directories_reject_linked_children() {
-        let (root, outside, _link) =
+        let (root, outside, link) =
             TestWorkspace::directory_link("image_catalog_link", "graphics/icons").unwrap();
         let root = root.with_cleanup(test_support::release_workspace);
+        let parked = root.outer().join("parked-link");
+        fs::rename(&link, &parked).unwrap();
         fs::write(outside.join("outside.png"), [1]).unwrap();
         let manifest =
             open_project_session_traced(&root, None, &mut PerformanceTrace::new("images.test"))
                 .unwrap();
+        fs::rename(&parked, &link).unwrap();
         assert!(
             query_image_source_options(&manifest.session_id, &["graphics/icons".into()], None)
                 .is_err()

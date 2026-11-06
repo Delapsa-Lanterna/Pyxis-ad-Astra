@@ -207,8 +207,16 @@ fn reject_link_path(path: &Path, label: &str) -> AppResult<()> {
         )
         .at_path(path)
     })?;
+    validate_walk_metadata(path, &metadata, label)
+}
+
+pub(crate) fn validate_walk_metadata(
+    path: &Path,
+    metadata: &Metadata,
+    label: &str,
+) -> AppResult<()> {
     let file_type = metadata.file_type();
-    if file_type.is_symlink() || is_reparse_point(&metadata) {
+    if file_type.is_symlink() || is_reparse_point(metadata) {
         return Err(AppError::message(
             "path.link_rejected",
             format!(

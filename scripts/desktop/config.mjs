@@ -10,8 +10,14 @@ export const cacheDirectory = resolve(root, 'node_modules/.cache/desktop-testing
 export const stores = 'document.querySelector("#app").__vue_app__.config.globalProperties.$pinia._s';
 export const invoke = 'window.__TAURI_INTERNALS__.invoke';
 
-export async function desktopConfiguration() {
+/** @param {boolean} [isolatedDesktop] */
+export async function desktopConfiguration(isolatedDesktop = false) {
   const config = JSON.parse(await readFile(configPath, 'utf8'));
   const port = Number(String(config.app.windows[0].additionalBrowserArgs).split('--remote-debugging-port=')[1]?.split(' ')[0]);
-  return { identifier: String(config.identifier), port, endpoint: 'http://127.0.0.1:' + port, isolation: 'win32-desktop' };
+  return {
+    identifier: String(config.identifier),
+    port,
+    endpoint: 'http://127.0.0.1:' + port,
+    isolation: isolatedDesktop ? 'win32-desktop' : 'user-desktop',
+  };
 }

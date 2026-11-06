@@ -5,8 +5,8 @@ use crate::io::{FsRootBoundary, forward_slash_relative_path, validate_walk_entry
 #[cfg(test)]
 use crate::models;
 use crate::models::{
-    CsvTable, DiscoveredField, DiscoveredFieldType, EntityFileLocation, InvalidatedResourceScope,
-    JsonSourceLayer, ResourceSource, SkinFile, VariantFile,
+    CsvTable, DiscoveredField, DiscoveredFieldType, EntityFileLocation, FileVersion,
+    InvalidatedResourceScope, JsonSourceLayer, ResourceSource, SkinFile, VariantFile,
 };
 use crate::services::project::sources::SourceReader;
 #[cfg(test)]
@@ -14,7 +14,7 @@ use crate::test_support::work_counts;
 use crate::{diagnostics, io};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Condvar, LazyLock, Mutex, MutexGuard};
 use walkdir::WalkDir;
@@ -68,6 +68,7 @@ struct CoreCacheEntry {
     data: CoreCache,
     dirty: bool,
     sources: SourceReader,
+    failed_products: BTreeSet<&'static str>,
 }
 
 static CORE_CACHES: LazyLock<Mutex<BTreeMap<String, Arc<Mutex<CoreCacheEntry>>>>> =
@@ -193,6 +194,7 @@ fn core_cache_handle(starsector_root: &str) -> AppResult<Arc<Mutex<CoreCacheEntr
                 data: CoreCache::empty(),
                 dirty: false,
                 sources: SourceReader::new(&core_dir(starsector_root)?)?,
+                failed_products: BTreeSet::new(),
             }));
             lock_core_caches()?.insert(cache_key.clone(), cache.clone());
             Ok(cache)
@@ -338,12 +340,18 @@ where
             Ok(value)
         })();
         match &result {
-            Ok(_) => finish_core_flight(&flight_key, &flight, Ok(())),
-            Err(error) => finish_core_flight(
-                &flight_key,
-                &flight,
-                Err(SharedCoreError::from_error(error)),
-            ),
+            Ok(_) => {
+                lock_core_cache(&cache)?.failed_products.remove(product);
+                finish_core_flight(&flight_key, &flight, Ok(()));
+            }
+            Err(error) => {
+                lock_core_cache(&cache)?.failed_products.insert(product);
+                finish_core_flight(
+                    &flight_key,
+                    &flight,
+                    Err(SharedCoreError::from_error(error)),
+                );
+            }
         }
         return result;
     }
@@ -662,6 +670,7 @@ pub(in crate::services::project) fn invalidate_core_sources(
     let entry = lock_core_cache(&handle)?;
     let mut data = entry.data.clone();
     let mut reader = entry.sources.fork_loaded();
+    let failed_products = entry.failed_products.clone();
     drop(entry);
     reader.invalidate_paths(
         &sources
@@ -725,6 +734,7 @@ pub(in crate::services::project) fn invalidate_core_sources(
             data,
             dirty: true,
             sources: reader,
+            failed_products,
         })),
     );
     Ok(())
@@ -738,19 +748,52 @@ pub(crate) fn prepare_core_source_refresh(
     let handle = core_cache_handle(game)?;
     let mut entry = lock_core_cache(&handle)?;
     entry.sources.begin_batch();
+    let versions = entry.sources.versions.clone();
+    let retry_failed = rescan && !entry.failed_products.is_empty();
     let mut sources = Vec::new();
-    for path in paths {
-        let path = entry.sources.path(path)?;
+    let mut files = BTreeSet::new();
+    let mut checked = BTreeMap::new();
+    let changed = |key: &str, version: &FileVersion| {
+        retry_failed
+            || versions
+                .get(key)
+                .and_then(|known| known.fingerprint.as_ref())
+                != version.fingerprint.as_ref()
+    };
+    for relative in paths {
+        let path = entry.sources.path(relative)?;
+        if path.is_dir() {
+            let staged = entry.sources.stage_directory(relative, changed)?;
+            files.extend(staged.keys().cloned());
+            checked.extend(staged);
+        }
+        files.extend(
+            versions
+                .iter()
+                .filter(|(key, _)| io::relative_path_contains(relative, key))
+                .map(|(_, version)| PathBuf::from(&version.path)),
+        );
+        if !path.is_dir() {
+            files.insert(path);
+        }
+    }
+    for path in files {
         let key = entry.sources.key(&path);
-        let before = entry.sources.versions.get(&key).cloned();
-        let changed = rescan
-            || path.is_dir()
-            || before.as_ref() != Some(&entry.sources.stage_version(&path)?);
-        if changed {
+        let version = match checked.get(&path) {
+            Some(version) => version.clone(),
+            None if path.is_dir() => continue,
+            None => entry.sources.stage_version(&path)?,
+        };
+        if changed(&key, &version) {
+            if io::relative_path_contains("graphics", &key) {
+                entry.sources.discard_staged_bytes(&key);
+            }
             sources.push(InvalidatedResourceScope {
                 source: ResourceSource::Core,
                 rel_path: key,
             });
+        } else {
+            entry.sources.discard_staged_bytes(&key);
         }
     }
     drop(entry);
@@ -819,6 +862,49 @@ mod tests {
         invalidate_core_cache(&game).unwrap();
         root.close().unwrap();
         assert_eq!((actual, read_count), (json!(3), 1));
+    }
+
+    #[test]
+    fn core_rescan_retains_completed_products_and_retries_unfinished_parsing() {
+        let root = project_workspace("core_rescan_products");
+        let path = root.join("starsector-core/data/weapons/proj/item.proj");
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        fs::write(&path, r#"{"id":"item","damage":1}"#).unwrap();
+        let game = root.to_string_lossy();
+        let before = load_core_projectile_specs(&game).unwrap();
+        let parses = work_counts::count("parse", &path);
+        assert!(
+            prepare_core_source_refresh(&game, &["data".into()], true)
+                .unwrap()
+                .is_empty()
+        );
+        assert!(Arc::ptr_eq(
+            &before,
+            &load_core_projectile_specs(&game).unwrap()
+        ));
+        assert_eq!(work_counts::count("parse", &path), parses);
+        fs::write(&path, "{").unwrap();
+        prepare_core_source_refresh(&game, &["data".into()], true).unwrap();
+        assert!(load_core_projectile_specs(&game).is_err());
+        assert!(
+            !prepare_core_source_refresh(&game, &["data".into()], true)
+                .unwrap()
+                .is_empty()
+        );
+        assert!(load_core_projectile_specs(&game).is_err());
+        fs::write(&path, r#"{"id":"item","damage":2}"#).unwrap();
+        prepare_core_source_refresh(&game, &["data".into()], true).unwrap();
+        assert_eq!(
+            load_core_projectile_specs(&game).unwrap()["item"].data["damage"],
+            2
+        );
+        assert!(
+            prepare_core_source_refresh(&game, &["data".into()], true)
+                .unwrap()
+                .is_empty()
+        );
+        invalidate_core_cache(&game).unwrap();
+        root.close().unwrap();
     }
 
     #[test]
