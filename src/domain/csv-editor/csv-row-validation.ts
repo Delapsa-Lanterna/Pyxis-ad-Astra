@@ -36,7 +36,7 @@ export function csvRowProblems(
       num = (key: string) => Number(text(key).replace(/[fFdD]$/, '')),
       yes = (key: string) => text(key).toLowerCase() === 'true';
     const problem = (key: string, message: string, severity: FieldProblem['severity'] = 'warning', code = 'relation') =>
-      add(severity, code, `${row.rowKey}/${key}`, `记录 ${index + 1} / ${key} = ${JSON.stringify(text(key))}：${message}`);
+      add(severity, code, `${row.rowKey}/${key}`, `第 ${index + 1} 行 / ${key} = ${JSON.stringify(text(key))}：${message}`);
     const hintProblem = (rule: string, message: string) => problem('hints', message, 'warning', `hint.${rule}`);
     const pair = (first: string, second: string, message: string) => {
       if (hints.has(first) && hints.has(second)) hintProblem(`${first}.${second}`, message);
@@ -96,8 +96,9 @@ export function csvRowProblems(
         );
     }
     if (id && id !== id.trim()) problem('id', 'ID 包含首尾空白，游戏按原值区分身份。');
-    if (header.includes('name') && !text('name')) problem('name', '名称为空，请确认显示效果。');
-    if (!id && table !== 'simOpponents') problem('id', '记录已有内容而 ID 为空，请确认该记录的加载用途。');
+    if (header.includes('name') && !text('name') && (table !== 'ships' || !text('designation')))
+      problem('name', table === 'ships' ? '名称与定位均为空，请确认显示效果。' : '名称为空，请确认显示效果。');
+    if (!id && table !== 'simOpponents') problem('id', '本行已有内容，但 ID 为空，请确认该行的用途。');
     const ownKind = CSV_SPEC_KINDS[table];
     const spec = context && ownKind ? context.entities[`${ownKind}:${id}`] : null;
     if (id && context && ownKind && !spec)

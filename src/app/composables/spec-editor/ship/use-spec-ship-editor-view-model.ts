@@ -4,8 +4,9 @@ import type { CanvasInput, ShipEditorMode, ShipHoverPreview } from '@/domain/edi
 import { num, str } from '@/shared/lib/starsector/index';
 import { createSpecObject } from '@/domain/entity-write/spec-construction';
 import { specFieldParent, updateSpecField } from '@/domain/spec-editor/spec-fields';
-import { shipBuiltInWeaponsSchema, shipSpecIssues } from '@/domain/spec-editor/ship/spec-ship-fields';
+import { SHIP_SECTIONS, shipBuiltInWeaponsSchema, shipSpecIssues } from '@/domain/spec-editor/ship/spec-ship-fields';
 import { useSpecProblems } from '../use-spec-problems';
+import { useSpecProblemNavigation } from '../use-spec-problem-navigation';
 import {
   normalizeShipSpec,
   bayPorts,
@@ -206,6 +207,33 @@ export function useSpecShipEditorViewModel(
       .filter((message): message is string => Boolean(message))
       .map((message) => ({ severity: 'warning' as const, code: 'spec.preview', path: message, message })),
   ]);
+  useSpecProblemNavigation({
+    root: editorWindowRef,
+    document,
+    expanded: expandedSections,
+    sections: () => SHIP_SECTIONS,
+    prepare: (path) => {
+      canvas.cancelInspectorReveal();
+      if (path === props.spriteError) return 'sprite';
+      if (builtins.diagnostics.value.includes(path)) return 'builtins';
+      if (engines.notices?.value.includes(path)) return 'engines';
+      const slot = /^(weaponSlots|engineSlots)\[(\d+)\]/.exec(path);
+      if (slot) {
+        const i = Number(slot[2]),
+          engine = slot[1] === 'engineSlots';
+        mode.value = engine ? 'engine' : (localShip.value.weaponSlots as RowData[])[i]!.type === 'LAUNCH_BAY' ? 'launchBay' : 'weapon';
+        state.select({ kind: engine ? 'engine' : 'weapon', i }, true);
+        draw();
+        return modeToSection[mode.value]!;
+      }
+      return [
+        ['builtIn', 'builtins'],
+        ['engineSlots', 'engines'],
+        ['weaponSlots', 'weapons'],
+        ['bounds', 'bounds'],
+      ].find(([key]) => path.startsWith(key!))?.[1];
+    },
+  });
   const relativeToCanvas = (relative: number[]) => toCanvas(shipRelativeToAbsolute(relative, geometry.value.center));
   const absolutePoint = (input: CanvasInput) => shipPointFromCanvas(input.point, viewport.center(), viewport.scale.value);
   function setMode(next: ShipEditorMode) {

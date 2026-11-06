@@ -10,6 +10,7 @@ import { createSpecObject } from '@/domain/entity-write/spec-construction';
 import { updateSpecField } from '@/domain/spec-editor/spec-fields';
 import { weaponSections, weaponSpecIssues } from '@/domain/spec-editor/weapon/spec-weapon-fields';
 import { useSpecProblems } from '../use-spec-problems';
+import { useSpecProblemNavigation } from '../use-spec-problem-navigation';
 
 import {
   projectWeaponBarrels,
@@ -236,6 +237,28 @@ export function useSpecWeaponEditorViewModel(
 
   const sections = computed(() => weaponSections(localWeapon.value));
   useSpecProblems(() => weaponSpecIssues(localWeapon.value));
+  useSpecProblemNavigation({
+    root: editorWindowRef,
+    document,
+    expanded: expandedSections,
+    sections: () => sections.value,
+    prepare: (path) => {
+      canvas.cancelInspectorReveal();
+      const barrel = /^(turret|hardpoint)(Offsets|AngleOffsets)\[(\d+)\]/.exec(path);
+      if (barrel) {
+        viewMode.value = barrel[1] as WeaponViewMode;
+        state.select({ kind: 'barrel', i: Math.floor(Number(barrel[3]) / (barrel[2] === 'Offsets' ? 2 : 1)) }, true);
+        refreshRendering();
+      }
+      return /^(turret|hardpoint)(Offsets|AngleOffsets)/.test(path)
+        ? path.startsWith('turret')
+          ? 'turretBarrels'
+          : 'hardpointBarrels'
+        : /^(muzzleFlashSpec|smokeSpec)/.test(path)
+          ? 'muzzle'
+          : undefined;
+    },
+  });
   function setProperty(path: string, value: RowData[string]) {
     if (path === 'specClass')
       return document.command(() => {

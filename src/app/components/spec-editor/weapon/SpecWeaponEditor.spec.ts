@@ -123,6 +123,27 @@ function installGlowRuntime() {
 }
 
 describe('SpecWeaponEditor', () => {
+  it('locates a problem at its field element', async () => {
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
+      queueMicrotask(() => callback(0));
+      return 1;
+    });
+    const editor = mountEditor({ id: 'railgun', specClass: 'projectile', turretOffsets: [0, 0, 5, 0], turretAngleOffsets: [0, 0] });
+    await editor.get('[data-name="turretBarrels"] .item-list-button:nth-child(2)').trigger('click');
+    await editor.get('[data-field-path="turretOffsets[2]"] input').setValue('bad');
+    const scroll = editor.get('.editor-scroll').element,
+      scrollTo = vi.fn();
+    Object.assign(scroll, { scrollTo });
+    await editor
+      .findAll('.editor-problem-list li')
+      .find((item) => item.text().includes('turretOffsets[2]'))!
+      .trigger('click');
+    await flushPromises();
+    expect(editor.find('[data-field-path="turretOffsets[2]"]').exists()).toBe(true);
+    expect(editor.find('[data-inspector-target="turret-barrel-1"]').exists()).toBe(true);
+    expect(scrollTo).toHaveBeenCalledWith(expect.objectContaining({ behavior: 'smooth' }));
+    expect(editor.emitted('draft-changed')).toBeUndefined();
+  });
   it('removes a cleared optional numeric field through the same input action', async () => {
     const editor = mountEditor({ id: 'fixture', specClass: 'projectile', displayArcRadius: 25 }, {}, true);
     const input = editor.get('[data-field-path="displayArcRadius"] input');

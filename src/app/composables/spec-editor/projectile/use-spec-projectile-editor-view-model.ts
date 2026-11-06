@@ -4,6 +4,7 @@ import { createSpecObject } from '@/domain/entity-write/spec-construction';
 import { updateSpecField } from '@/domain/spec-editor/spec-fields';
 import { projectileSections, projectileSpecIssues } from '@/domain/spec-editor/projectile/spec-projectile-fields';
 import { useSpecProblems } from '../use-spec-problems';
+import { useSpecProblemNavigation } from '../use-spec-problem-navigation';
 import { useSettingsStore } from '@/stores/settings.store';
 import { useWindowShortcuts } from '@/app/composables/use-window-shortcuts';
 
@@ -112,6 +113,18 @@ export function useSpecProjectileEditorViewModel(
       .filter((message): message is string => Boolean(message))
       .map((message) => ({ severity: 'warning' as const, code: 'spec.preview', path: message, message })),
   ]);
+  useSpecProblemNavigation({
+    root: editorWindowRef,
+    document,
+    expanded: expandedSections,
+    sections: () => sections.value,
+    prepare: (path) => {
+      if (path === props.spriteError || path === decodeError.value)
+        return geometry.value.spriteField === 'sprite' ? 'missileVisual' : 'visual';
+      if (engines.notices?.value.includes(path)) return 'slots';
+      return path.startsWith('engineSlots') ? 'slots' : path.startsWith('explosionSpec') ? 'explosion' : undefined;
+    },
+  });
   function draw() {
     const ctx = canvasRef.value?.getContext('2d');
     if (!ctx) return;

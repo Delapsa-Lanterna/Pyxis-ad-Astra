@@ -24,6 +24,13 @@ let wrapper: VueWrapper | null = null;
 let resize: () => void;
 const disconnect = vi.fn();
 beforeEach(() => {
+  Object.defineProperty(HTMLElement.prototype, 'scrollTo', {
+    configurable: true,
+    value: vi.fn(function (this: HTMLElement, options: ScrollToOptions) {
+      this.scrollTop = options.top ?? this.scrollTop;
+      this.scrollLeft = options.left ?? this.scrollLeft;
+    }),
+  });
   vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({
     measureText: (text: string) => ({ width: text.length * 7 }),
   } as CanvasRenderingContext2D);
@@ -44,6 +51,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  Reflect.deleteProperty(HTMLElement.prototype, 'scrollTo');
   wrapper?.unmount();
   wrapper = null;
   vi.unstubAllGlobals();
@@ -112,6 +120,20 @@ function mountGrid(model = modelFixture(), smart = false, anchored = false) {
 }
 
 describe('CsvGrid', () => {
+  it('locates cells and repeats row-only location without changing content', async () => {
+    const model = modelFixture();
+    model.rowKeys = Array.from({ length: 20 }, (_, i) => 'key-' + i);
+    model.rowsByKey = Object.fromEntries(model.rowKeys.map((key) => [key, csvDraftRow({ id: key }, key)]));
+    const grid = mountGrid(model);
+    wrapper!.getComponent(CsvGrid).vm.locate('key-19', 'name');
+    await flushPromises();
+    expect(fixture.props.value.selectedRowKey).toBe('key-19');
+    expect(grid.find('.csv-cell-selection-input').exists()).toBe(true);
+    expect(HTMLElement.prototype.scrollTo).toHaveBeenLastCalledWith({ left: 0, top: 264, behavior: 'smooth' });
+    wrapper!.getComponent(CsvGrid).vm.locate('key-19');
+    await flushPromises();
+    expect(grid.find('.csv-cell-selection-input').exists()).toBe(false);
+  });
   it.each([
     ['z', false, 'undo'],
     ['y', false, 'redo'],

@@ -38,12 +38,12 @@ describe('CSV table-specific validation', () => {
       row('', 5),
     ]);
     expect(issues).toHaveLength(1);
-    expect(issues[0]).toMatchObject({ severity: 'error', code: 'csv.identity_duplicate' });
-    expect(issues[0]!.message).toContain('2 条记录，序号：1、5');
+    expect(issues[0]).toMatchObject({ severity: 'error', code: 'csv.identity_duplicate', path: 'row-0/id' });
+    expect(issues[0]!.message).toContain('2 行，行号：1、5');
   });
   it('uses both description keys and preserves simulator repetitions', () => {
     const rows = [row('sample', 0, false, 'SHIP'), row('sample', 1, false, 'WEAPON'), row('sample', 2, false, 'SHIP')];
-    expect(csvValidationDefinitions.descriptions.validate(rows)).toMatchObject([{ path: '["sample","SHIP"]' }]);
+    expect(csvValidationDefinitions.descriptions.validate(rows)).toMatchObject([{ path: 'row-0/id' }]);
     expect(csvValidationDefinitions.simOpponents.validate(rows)).toEqual([]);
   });
   it('checks the literal wing suffix for each nonempty business ID', () => {
@@ -62,7 +62,7 @@ describe('CSV table-specific validation', () => {
     );
     applyCsvTableIndexDraft(state, csvTableIndex([], { rowKeys: ['row-3'], validationRows: rows }), true);
     expect(Object.keys(state.rows)).toHaveLength(240);
-    expect(csvTableIssues(state)[0]!.message).toContain('序号：1、300');
+    expect(csvTableIssues(state)[0]!.message).toContain('行号：1、300');
     setCsvCellValueDraft(state, 'row-0', 'id', 'changed');
     expect(csvTableIssues(state)).toEqual([]);
   });
@@ -70,9 +70,9 @@ describe('CSV table-specific validation', () => {
     const state = document();
     replaceCsvTableDraft(state, [row('one', 0), row('two', 1)]);
     const { result, keys } = insertCsvRowsDraft(state, [row('one', 0)], 2);
-    expect(csvTableIssues(state)[0]!.message).toContain('序号：1、3');
+    expect(csvTableIssues(state)[0]!.message).toContain('行号：1、3');
     moveCsvRowDraft(state, keys[0]!, 1);
-    expect(csvTableIssues(state)[0]!.message).toContain('序号：1、2');
+    expect(csvTableIssues(state)[0]!.message).toContain('行号：1、2');
     setCsvCellValueDraft(state, keys[0]!, 'id', 'three');
     expect(csvTableIssues(state)).toEqual([]);
     const deleted = deleteCsvRowDraft(state, keys[0]!);
@@ -94,7 +94,7 @@ describe('CSV table-specific validation', () => {
       true,
     );
     expect(state.rowOrder).toEqual(['row-0', 'row-2']);
-    expect(csvTableIssues(state)[0]!.message).toContain('序号：1、2');
+    expect(csvTableIssues(state)[0]!.message).toContain('行号：1、2');
     expect(Object.keys(state.rows)).toEqual(['row-0']);
   });
   it('accepts external projections and saved row keys while retaining later edits', () => {
@@ -112,6 +112,6 @@ describe('CSV table-specific validation', () => {
     );
     expect(state.rows.saved!.data.id).toBe('one');
     expect(state.validationRows!.find((r) => r.rowKey === 'saved')!.data.id).toBe('three');
-    expect(csvTableIssues(state)[0]!.message).toContain('3 条记录');
+    expect(csvTableIssues(state)[0]!.message).toContain('3 行');
   });
 });

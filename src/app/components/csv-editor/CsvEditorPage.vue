@@ -88,7 +88,7 @@
         v-show="detailPaneExpanded"
         class="csv-detail-panel ui-content-column ui-content-contained ui-content-surface-muted"
       >
-        <EditorProblems :issues="problems.issues.value" />
+        <EditorProblems :issues="problems.issues.value" @locate="locateProblem" />
         <CsvRowDetails
           :model="model"
           :starsector-root="host.starsectorRoot.value"
@@ -113,7 +113,7 @@ import { useCsvEditorActions } from '@/app/composables/csv-editor/use-csv-editor
 import { useCsvEditorModel } from '@/app/composables/csv-editor/use-csv-editor-model';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
 import type { CsvEditorHost } from '@/app/composables/csv-editor/csv-editor-context';
-import type { CsvTableTarget } from '@/shared/types';
+import type { FieldProblem, CsvTableTarget } from '@/shared/types';
 import { MODULE_LABELS } from '@/shared/lib/starsector';
 import { csvSearchOptions, csvSearchPlaceholder } from '@/domain/csv-editor/csv-search';
 
@@ -133,6 +133,10 @@ async function deleteRows() {
 }
 const csvTable = useCsvTableViewModel(model, host);
 
+async function locateProblem(issue: FieldProblem) {
+  const target = await csvTable.locateProblem(issue);
+  if (target) tableEditor.value!.locate(target.rowKey, target.column);
+}
 const searchDisabled = computed(() => view.currentTableLocked || csvTable.searchPending.value);
 const searchOptions = computed(() =>
   csvSearchOptions(view.currentTab, view.currentHeader).map((option) => ({

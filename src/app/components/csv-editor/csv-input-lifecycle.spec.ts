@@ -25,11 +25,19 @@ vi.mock('@/app/composables/use-app-feedback', () => ({ useAppFeedback: () => ({ 
 vi.mock('@/services/source-catalog.service', () => ({ queryImageSourceOptions: bulkMocks.images }));
 
 afterEach(() => {
+  Reflect.deleteProperty(HTMLElement.prototype, 'scrollTo');
   Reflect.deleteProperty(HTMLElement.prototype, 'scrollIntoView');
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
 });
 beforeEach(() => {
+  Object.defineProperty(HTMLElement.prototype, 'scrollTo', {
+    configurable: true,
+    value: vi.fn(function (this: HTMLElement, options: ScrollToOptions) {
+      this.scrollTop = options.top ?? this.scrollTop;
+      this.scrollLeft = options.left ?? this.scrollLeft;
+    }),
+  });
   Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', { value: vi.fn(), configurable: true });
   vi.clearAllMocks();
   bulkMocks.images.mockResolvedValue([]);

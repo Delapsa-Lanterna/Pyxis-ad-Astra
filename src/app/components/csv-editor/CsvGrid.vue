@@ -83,6 +83,7 @@
 </template>
 
 <script setup lang="ts">
+import { scrollToNearest } from '@/app/components/editors/common/editor-collapse';
 import { useLayoutFrame } from '@/shared/runtime/use-layout-frame';
 import { computed, nextTick, onMounted, onScopeDispose, ref, shallowRef, useTemplateRef, watch } from 'vue';
 import type { CsvCellTarget, CsvRowRecord, CsvModState } from '@/shared/types';
@@ -177,23 +178,25 @@ const renderColumns = computed<CsvRenderColumn[]>((previous) =>
   ),
 );
 provideCsvFloatingViewport(panelRef, overlayRef);
+const locationRevision = ref(0);
 watch(
-  () => [props.selectedRowKey, selectedColumn.value, props.model.rowKeys] as const,
+  () => [props.selectedRowKey, selectedColumn.value, props.model.rowKeys, locationRevision.value] as const,
   async () => {
     await nextTick();
     const index = props.model.rowKeys.indexOf(props.selectedRowKey!);
     const panel = panelRef.value;
     if (index < 0 || !panel) return;
     const top = (index + 1) * 24;
-    if (top < panel.scrollTop || top + 24 > panel.scrollTop + panel.clientHeight) panel.scrollTop = top;
+    let left = panel.scrollLeft;
     if (selectedColumn.value) {
       const columns = props.model.columns;
       const column = columns.findIndex((entry) => entry.key === selectedColumn.value);
-      const left = 16 + columns.slice(0, column).reduce((sum, entry) => sum + entry.widthPx, 0);
-      const right = left + columns[column]!.widthPx;
-      if (left < panel.scrollLeft + 16) panel.scrollLeft = left - 16;
-      else if (right > panel.scrollLeft + panel.clientWidth) panel.scrollLeft = right - panel.clientWidth;
+      const start = 16 + columns.slice(0, column).reduce((sum, entry) => sum + entry.widthPx, 0);
+      const right = start + columns[column]!.widthPx;
+      if (start < panel.scrollLeft + 16) left = start - 16;
+      else if (right > panel.scrollLeft + panel.clientWidth) left = right - panel.clientWidth;
     }
+    scrollToNearest(panel, top - 24, top + 24 - panel.clientHeight, left);
     syncViewportMetrics();
   },
   { immediate: true, flush: 'post' },
@@ -313,7 +316,14 @@ async function deleteRows() {
   await bulk.run({ kind: 'delete-rows' });
   return true;
 }
-defineExpose({ deleteRows });
+function locate(rowKey: string, column?: string) {
+  range.clear();
+  clearActiveCell();
+  selectedColumn.value = props.model.columns.some((entry) => entry.key === column) ? column! : null;
+  emit('select-row', rowKey);
+  locationRevision.value++;
+}
+defineExpose({ deleteRows, locate });
 
 watch(
   () => [props.model.rowKeys, props.model.columns],

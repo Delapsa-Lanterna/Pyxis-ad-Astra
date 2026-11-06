@@ -24,8 +24,8 @@ function uniqueIdentities(rows: readonly CsvDraftRow[], columns = ['id']): Field
     .map(([key, positions]) => ({
       severity: 'error',
       code: 'csv.identity_duplicate',
-      path: key,
-      message: `${columns.join(' + ')} ${key} 重复，共 ${positions.length} 条记录，序号：${positions.join('、')}。`,
+      path: `${rows[positions[0]! - 1]!.rowKey}/${columns[0]}`,
+      message: `${columns.join(' + ')} ${key} 重复，共 ${positions.length} 行，行号：${positions.join('、')}。`,
     }));
 }
 const uniqueId: CsvValidationDefinition = { columns: ['id'], validate: uniqueIdentities };
@@ -55,7 +55,7 @@ export const csvValidationDefinitions: Record<CsvTableKey, CsvValidationDefiniti
                 severity: 'warning',
                 code: 'csv.wing_suffix',
                 path: row.rowKey,
-                message: `记录 ${index + 1} 的 ID ${JSON.stringify(id)} 应以 _wing 结尾。`,
+                message: `第 ${index + 1} 行的 ID ${JSON.stringify(id)} 应以 _wing 结尾。`,
               },
             ]
           : [];

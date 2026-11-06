@@ -43,7 +43,7 @@ const view = props.csvTable.model.view;
 defineEmits<{ undo: []; redo: [] }>();
 const target = props.csvTable.target.value!;
 const grid = useTemplateRef<InstanceType<typeof CsvGrid>>('grid');
-defineExpose({ deleteRows: () => grid.value!.deleteRows() });
+defineExpose({ deleteRows: () => grid.value!.deleteRows(), locate: (row: string, column?: string) => grid.value!.locate(row, column) });
 const inputs = tables.getTableInputs(target.modRoot, target.table);
 provideCsvTableInputs({
   target,

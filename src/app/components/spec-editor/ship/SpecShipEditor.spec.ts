@@ -11,6 +11,7 @@ import { createFieldInputs, provideFieldInputs, type FieldInputs } from '@/share
 import type { SpecShipEditorProps } from '@/app/composables/spec-editor/ship/use-spec-ship-editor-view-model';
 import type { RowData } from '@/shared/types/index';
 import SpecShipEditor from './SpecShipEditor.vue';
+import EditorCollapse from '@/app/components/editors/common/EditorCollapse.vue';
 import * as canvasScene from '@/app/renderers/editors/canvas-scene';
 vi.mock('@/services/engine-assets.service', () => ({
   queryEngineRenderAssets: async () => ({ styles: { fixture_engine: {} }, versions: [], resources: {} }),
@@ -93,6 +94,34 @@ function observeReveal(editor: Pick<ReturnType<typeof mount>, 'get'>) {
   return vi.spyOn(scroll, 'querySelector');
 }
 describe('ship pointer and inspector actions', () => {
+  it('locates a resource warning containing brackets', async () => {
+    const message = 'Image graphics/missing[asset.png';
+    const editor = openShip({ spriteError: message });
+    const query = observeReveal(editor);
+    await editor.findAll('.editor-problem-list li').at(-1)!.trigger('click');
+    await flushPromises();
+    expect(editor.getComponent(EditorCollapse).props('expandedNames')).toEqual(['sprite']);
+    expect(query).toHaveBeenCalledWith(expect.stringContaining(CSS.escape(message)));
+  });
+  it.each(['weaponSlots[1].id', 'engineSlots[0].width', 'width'])('locates the problem element %s', async (path) => {
+    const editor = openShip({
+      ship: {
+        hullId: 'ship',
+        width: 'bad',
+        weaponSlots: [{ id: 'same' }, { id: 'same' }],
+        engineSlots: [{ width: 'bad', length: 10, angle: 0, location: [0, 0] }],
+      },
+    });
+    const query = observeReveal(editor);
+    await editor
+      .findAll('.editor-problem-list li')
+      .find((item) => item.text().includes(path === 'weaponSlots[1].id' ? '已被使用' : path))!
+      .trigger('click');
+    await flushPromises();
+    expect(editor.find('[data-field-path="' + path + '"]').exists()).toBe(true);
+    expect(query).toHaveBeenCalledWith('[data-field-path="' + CSS.escape(path) + '"]');
+    expect(editor.emitted('draft-changed')).toBeUndefined();
+  });
   it.each([
     ['shiftKey', [5, -11.5, 0, 10, 20, 10, 20, -10, 0, -10, 5, 11.5]],
     ['ctrlKey', [0, 10, 5, 11.5, 20, 10, 20, -10, 5, -11.5, 0, -10]],

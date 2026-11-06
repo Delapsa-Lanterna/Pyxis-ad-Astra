@@ -1,5 +1,5 @@
 <template>
-  <div class="projectile-window ui-content-grid ui-content-surface">
+  <div ref="editorWindowRef" class="projectile-window ui-content-grid ui-content-surface">
     <EditorHeader
       :title="systemId"
       :path="path"
@@ -38,7 +38,7 @@
   </div>
 </template>
 <script setup lang="ts">
-import { inject } from 'vue';
+import { inject, useTemplateRef } from 'vue';
 import type { JsonValue } from '@/shared/types';
 import NCollapse from '@/app/components/editors/common/EditorCollapse.vue';
 import NCollapseItem from '@/app/components/editors/common/EditorCollapseItem.vue';
@@ -56,5 +56,6 @@ import {
 const props = defineProps<SpecSystemEditorProps>();
 const emit = defineEmits<SpecSystemEditorEvents>();
 const schemaRuntime = inject(specSchemaContext, null);
-const { document, view, actions } = useSpecSystemEditorViewModel(props, emit);
+const editorWindowRef = useTemplateRef<HTMLElement>('editorWindowRef');
+const { document, view, actions } = useSpecSystemEditorViewModel(props, emit, editorWindowRef);
 </script>

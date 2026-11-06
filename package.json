@@ -32,8 +32,8 @@
     "test:checks": "node --test \"scripts/**/*.check.mjs\"",
     "test:resources": "node --test scripts/browser/run-resources.test.mjs",
     "test:browser": "node scripts/browser/run.mjs",
-    "build": "npm run version && npm run typecheck && vite build",
-    "build:demo": "npm run version && npm run typecheck && node scripts/browser/build.mjs",
+    "build": "npm run version && npm run typecheck:app && vite build",
+    "build:demo": "npm run version && npm run typecheck:app && node scripts/browser/build.mjs",
     "version": "node scripts/sync-version.mjs",
     "tauri": "tauri",
     "ci:full": "npm run format:check && npm run lint:full && npm run lint:checks && npm run typecheck && npm run test:checks && npm run test:resources && npm run test && npm run lint:rust && npm run test:rust && npm run build && npm run tauri -- build --no-bundle && git diff --check"

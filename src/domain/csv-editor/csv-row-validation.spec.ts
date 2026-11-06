@@ -76,6 +76,18 @@ describe('CSV declared types and complete row rules', () => {
       expect.arrayContaining([expect.objectContaining({ severity: 'error', code: 'csv.value_invalid', path: `entry/${key}` })]),
     );
   });
+  it.each([
+    ['ships', '', '', 1],
+    ['ships', '', 'Cruiser', 0],
+    ['ships', 'Sample', '', 0],
+    ['ships', 'Sample', 'Cruiser', 0],
+    ['weapons', '', 'Cruiser', 1],
+    ['weapons', 'Sample', '', 0],
+  ] as const)('checks %s display name %j and designation %j', (table, name, designation, count) => {
+    const warnings = check(table, { name, designation }).filter((issue) => issue.path === 'entry/name' && issue.severity === 'warning');
+    expect(warnings).toHaveLength(count);
+    if (table === 'ships' && count) expect(warnings[0]!.message).toContain('名称与定位均为空');
+  });
   it('accepts finite Java-style numbers, boolean case and the full damage enum', () => {
     expect(csvValueError({ key: 'amount', control: 'number', valueType: 'integer' }, '2e2')).toBeNull();
     expect(csvValueError({ key: 'amount', control: 'number', valueType: 'float' }, '1.5f')).toBeNull();

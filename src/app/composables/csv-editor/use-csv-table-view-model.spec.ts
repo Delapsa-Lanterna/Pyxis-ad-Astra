@@ -89,6 +89,21 @@ beforeEach(() => {
 });
 afterEach(() => wrapper?.unmount());
 describe('CSV index and keyed content owner', () => {
+  it.each(['key-900/name', 'key-900'])('locates the hidden unloaded target %s and preserves drafts', async (path) => {
+    const vm = harness();
+    await flushPromises();
+    useCsvEditorStore().updateCellValue({ ...target, rowKey: 'key-0', column: 'name' }, 'Local');
+    await vm.setSearchText('id-0');
+    await flushPromises();
+    expect(await vm.locateProblem({ code: 'csv.relation', severity: 'warning', path, message: 'Sample' })).toEqual({
+      rowKey: 'key-900',
+      column: path.endsWith('/name') ? 'name' : undefined,
+    });
+    await flushPromises();
+    expect(vm.model.view.searchText).toBe('');
+    expect(vm.model.view.rowsByKey['key-900']!.data.id).toBe('id-900');
+    expect(vm.model.view.rowsByKey['key-0']!.data.name).toBe('Local');
+  });
   it('searches sparse drafts including added, removed and moved rows without saving', async () => {
     const vm = harness();
     await flushPromises();

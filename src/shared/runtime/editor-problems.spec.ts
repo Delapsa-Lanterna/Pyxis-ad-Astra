@@ -33,7 +33,7 @@ describe('shared editor problems', () => {
     expect(problems.issues.value).toEqual([issue]);
     fields.release();
   });
-  it('presents complete error and warning counts in severity order', () => {
+  it('presents complete error and warning counts in severity order', async () => {
     const issues = [
       { severity: 'warning' as const, code: 'w', path: 'one', message: 'Warning' },
       { severity: 'error' as const, code: 'e', path: 'two', message: 'Error' },
@@ -42,6 +42,9 @@ describe('shared editor problems', () => {
     expect(wrapper.findAll('section').map((s) => s.attributes('role'))).toEqual(['alert', 'status']);
     expect(wrapper.findAll('strong').map((s) => s.text())).toEqual(['无法保存 (1)', '保存前请确认 (1)']);
     expect(wrapper.findAll('li').map((s) => s.text())).toEqual(['Error', 'Warning']);
+    await wrapper.get('[role="button"]').trigger('click');
+    await wrapper.findAll('[role="button"]')[1]!.trigger('keydown', { key: 'Enter' });
+    expect(wrapper.emitted('locate')).toEqual([[issues[1]], [issues[0]]]);
     wrapper.unmount();
   });
 });

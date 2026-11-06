@@ -1,10 +1,11 @@
-import { computed, reactive, ref, type EmitFn } from 'vue';
+import { computed, reactive, ref, type EmitFn, type Ref } from 'vue';
 import { useEditorDocument } from '../../editors/use-editor-document';
 import { useEditorFields } from '../../editors/use-editor-fields';
 import type { RowData, EditContext } from '@/shared/types/index';
 import { normalizeSystemSpec, systemSections, systemSpecIssues } from '@/domain/spec-editor/system/spec-system-fields';
 
 import { useSpecProblems } from '../use-spec-problems';
+import { useSpecProblemNavigation } from '../use-spec-problem-navigation';
 import { createSystemSpec } from '@/domain/entity-write/spec-construction';
 
 export interface SpecSystemEditorProps {
@@ -25,7 +26,11 @@ export type SpecSystemEditorEvents = {
   'load-external': [];
 };
 
-export function useSpecSystemEditorViewModel(props: Readonly<SpecSystemEditorProps>, emit: EmitFn<SpecSystemEditorEvents>) {
+export function useSpecSystemEditorViewModel(
+  props: Readonly<SpecSystemEditorProps>,
+  emit: EmitFn<SpecSystemEditorEvents>,
+  root: Readonly<Ref<HTMLElement | null>>,
+) {
   const document = useEditorDocument({
     source: () => props.system || createSystemSpec(props.systemId),
     normalize: normalizeSystemSpec,
@@ -38,6 +43,7 @@ export function useSpecSystemEditorViewModel(props: Readonly<SpecSystemEditorPro
   const expandedSections = ref<(string | number)[]>(['basic']);
 
   useSpecProblems(() => systemSpecIssues(localSystem.value));
+  useSpecProblemNavigation({ root, document, expanded: expandedSections, sections: () => systemSections(localSystem.value) });
   return {
     document: localSystem,
     view: reactive({ expandedSections, sections: computed(() => systemSections(localSystem.value)) }),

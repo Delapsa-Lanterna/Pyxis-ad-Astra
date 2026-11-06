@@ -19,7 +19,7 @@ import { stableStringify } from '@/shared/lib/stable-compare';
 import { cloneQuerySnapshot } from '@/shared/lib/query-snapshot';
 
 import { hasResourceInvalidation } from '@/services/resource-media.service';
-import type { CsvRowPreviewTarget, ResourceRef, CsvSearchField, CsvDraftRow, SaveAcceptanceTask } from '@/shared/types';
+import type { FieldProblem, CsvRowPreviewTarget, ResourceRef, CsvSearchField, CsvDraftRow, SaveAcceptanceTask } from '@/shared/types';
 import { useFieldInputActions } from '@/app/composables/use-field-input-actions';
 import { queryCsvValidation } from '@/services/csv-table.service';
 import { csvValidationRows } from '@/domain/csv-editor/csv-validation';
@@ -529,6 +529,27 @@ export function useCsvTableViewModel(model: CsvEditorModel, host: CsvEditorHost)
     );
   }
 
+  let problemRevision = 0;
+  async function locateProblem(issue: FieldProblem) {
+    const captured = target.value!,
+      key = targetKey.value,
+      revision = ++problemRevision;
+    const document = model.state.value!.documents[captured.table],
+      path = issue.path;
+    const rowKey =
+      document.rowOrder.find((row) => path === row || path.startsWith(row + '/')) ?? view.selectedRowKey ?? document.rowOrder[0];
+    const current = () => !disposed && key === targetKey.value && revision === problemRevision && !view.currentTableLocked;
+    try {
+      if (!rowKey || !(await commitTableInput()) || !current()) return;
+      if (!view.rowKeys.includes(rowKey)) await setSearchText('');
+      if (!(await ensureTableRows([rowKey])) || !current()) return;
+      return { rowKey, column: path.startsWith(rowKey + '/') ? path.slice(rowKey.length + 1) : undefined };
+    } catch (error) {
+      if (current()) feedback.error(error, '定位 CSV 提示失败');
+    }
+    return undefined;
+  }
+
   function clearRowQueue() {
     for (const job of rowQueue) job.cancel();
     rowQueue.length = 0;
@@ -597,6 +618,7 @@ export function useCsvTableViewModel(model: CsvEditorModel, host: CsvEditorHost)
     loadExternalTableUpdate,
     loadTableWindow,
     ensureTableRows,
+    locateProblem,
     querySelectedRowPreview,
     setColumnWidth,
   };

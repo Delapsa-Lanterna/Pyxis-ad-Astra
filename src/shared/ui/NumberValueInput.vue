@@ -1,6 +1,7 @@
 <template>
   <n-input-number
     ref="input"
+    :data-field-path="inputKey"
     :key="controlGeneration"
     :value="numericValue"
     :format="format"

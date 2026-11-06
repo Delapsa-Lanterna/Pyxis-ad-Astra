@@ -162,7 +162,7 @@ describe('explicit inspector locking', () => {
     expect(state.inspectorLock.value).toEqual({ kind: 'slot', i: 0 });
     expect(expandedSections.value).toEqual(['slot-0']);
     expect(query).toHaveBeenCalledWith('[data-edit="slot-0"]');
-    expect(scrollTo).toHaveBeenLastCalledWith({ top: expected, behavior: 'smooth' });
+    expect(scrollTo).toHaveBeenLastCalledWith({ left: 0, top: expected, behavior: 'smooth' });
     expect(window.document.activeElement).toBe(focused);
     await wrapper.get('section').trigger('keydown', { key: 't' });
     await flushPromises();

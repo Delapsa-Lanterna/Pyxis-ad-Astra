@@ -99,6 +99,7 @@
                 >
                   <NumberValueInput
                     :value="view.offsets[view.selected * 2 + index]"
+                    :input-key="view.viewMode + 'Offsets[' + (view.selected * 2 + index) + ']'"
                     clear-action="required"
                     @update:value="actions.setOffset(index as 0 | 1, $event)"
                   />
@@ -108,7 +109,12 @@
                   :field-key="view.viewMode + 'AngleOffsets'"
                   :path="view.viewMode + 'AngleOffsets[' + view.selected + ']'"
                 >
-                  <NumberValueInput :value="view.angles[view.selected] ?? 0" clear-action="required" @update:value="actions.setAngle" />
+                  <NumberValueInput
+                    :value="view.angles[view.selected] ?? 0"
+                    :input-key="view.viewMode + 'AngleOffsets[' + view.selected + ']'"
+                    clear-action="required"
+                    @update:value="actions.setAngle"
+                  />
                 </FieldRow>
               </div>
               <div class="action-group">

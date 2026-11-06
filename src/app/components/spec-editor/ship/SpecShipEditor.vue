@@ -131,6 +131,7 @@
                     <small class="ui-text-meta ui-text-muted">{{ index + 1 }}</small>
                     <NumberValueInput
                       :value="port[0]"
+                      :input-key="'weaponSlots[' + view.selected + '].locations[' + index * 2 + ']'"
                       :label="'起降口 ' + (index + 1) + ' X'"
                       clear-action="required"
                       :show-button="false"
@@ -140,6 +141,7 @@
                     />
                     <NumberValueInput
                       :value="port[1]"
+                      :input-key="'weaponSlots[' + view.selected + '].locations[' + (index * 2 + 1) + ']'"
                       :label="'起降口 ' + (index + 1) + ' Y'"
                       clear-action="required"
                       :show-button="false"
@@ -227,6 +229,7 @@
                   <small class="ui-text-meta ui-text-muted">{{ index }}</small>
                   <NumberValueInput
                     :value="view.bounds[index * 2]"
+                    :input-key="'bounds[' + index * 2 + ']'"
                     :label="'边界顶点 ' + index + ' X'"
                     clear-action="required"
                     :show-button="false"
@@ -235,6 +238,7 @@
                   />
                   <NumberValueInput
                     :value="view.bounds[index * 2 + 1]"
+                    :input-key="'bounds[' + (index * 2 + 1) + ']'"
                     :label="'边界顶点 ' + index + ' Y'"
                     clear-action="required"
                     :show-button="false"

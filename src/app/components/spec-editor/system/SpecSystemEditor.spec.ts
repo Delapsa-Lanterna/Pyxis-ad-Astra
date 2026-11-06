@@ -1,4 +1,4 @@
-import { mount, type VueWrapper } from '@vue/test-utils';
+import { flushPromises, mount, type VueWrapper } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { nextTick } from 'vue';
@@ -37,6 +37,8 @@ let wrapper: VueWrapper | null = null;
 afterEach(() => {
   wrapper?.unmount();
   wrapper = null;
+  vi.restoreAllMocks();
+  vi.unstubAllGlobals();
 });
 
 function mountEditor(system: RowData) {
@@ -57,6 +59,25 @@ function mountEditor(system: RowData) {
 }
 
 describe('SpecSystemEditor type switching', () => {
+  it('locates a problem at its field element', async () => {
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
+      queueMicrotask(() => callback(0));
+      return 1;
+    });
+    const editor = mountEditor({ id: 'sys1', type: 'STAT_MOD', damage: 'bad' });
+    const scroll = editor.get('.editor-scroll').element,
+      scrollTo = vi.fn();
+    Object.assign(scroll, { scrollTo });
+    await editor
+      .findAll('.editor-problem-list li')
+      .find((item) => item.text().includes('damage'))!
+      .trigger('click');
+    await flushPromises();
+    expect(editor.find('[data-field-path="damage"]').exists()).toBe(true);
+
+    expect(scrollTo).toHaveBeenCalledWith(expect.objectContaining({ behavior: 'smooth' }));
+    expect(editor.emitted('draft-changed')).toBeUndefined();
+  });
   beforeEach(() => {
     setActivePinia(createPinia());
     initializeSettingsStore(createSettingsFixture());

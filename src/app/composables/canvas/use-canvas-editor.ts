@@ -9,7 +9,7 @@ import { useWindowShortcuts } from '@/app/composables/use-window-shortcuts';
 import { watchCanvasPixelRatio } from './use-canvas-surface';
 import { useCanvasSelection } from './use-canvas-selection';
 import { useCanvasNavigation } from './use-canvas-navigation';
-import { waitForEditorCollapse } from '@/app/components/editors/common/editor-collapse';
+import { scrollEditorTarget } from '@/app/components/editors/common/editor-collapse';
 
 export interface CanvasPick {
   byIdentity(identity: EditorTarget | null): CanvasTarget | null;
@@ -170,30 +170,10 @@ export function useCanvasEditor<TPreview>(options: {
       if (!reveal) return;
       if (reveal.lock) state.select(reveal.lock, true);
       expandedSections.value = [reveal.section];
-      void scrollInspector(reveal, () => revision === revealRevision && accepts()).catch((error: unknown) => feedback.error(error));
+      void scrollEditorTarget(windowRef.value!, [reveal.selector], () => revision === revealRevision && accepts()).catch((error: unknown) =>
+        feedback.error(error),
+      );
     });
-  }
-  async function scrollInspector(reveal: CanvasInspectorReveal, accepts: () => boolean) {
-    await nextTick();
-    if (!accepts()) return;
-    const scroll = windowRef.value?.querySelector<HTMLElement>('.editor-scroll');
-    if (!scroll) return;
-    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
-    if (!accepts()) return;
-    await waitForEditorCollapse(scroll);
-    await nextTick();
-    if (!accepts()) return;
-    const target = scroll.querySelector<HTMLElement>(reveal.selector);
-    if (target) {
-      const bounds = target.getBoundingClientRect();
-      const viewportTop = scroll.getBoundingClientRect().top + scroll.clientTop;
-      const alignTop = scroll.scrollTop + bounds.top - viewportTop - 12;
-      const alignBottom = scroll.scrollTop + bounds.bottom - viewportTop - scroll.clientHeight + 12;
-      scroll.scrollTo({
-        top: Math.max(Math.min(alignTop, alignBottom), Math.min(scroll.scrollTop, Math.max(alignTop, alignBottom))),
-        behavior: 'smooth',
-      });
-    }
   }
   function reset() {
     cancelInspectorReveal();

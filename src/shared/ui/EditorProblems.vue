@@ -10,7 +10,18 @@
     >
       <strong>{{ level === 'error' ? '无法保存' : '保存前请确认' }} ({{ items(level).length }})</strong>
       <ul class="editor-problem-list ui-content-scroll ui-text-reset">
-        <li v-for="issue in items(level)" :key="`${issue.code}:${issue.path}`">{{ issue.message }}</li>
+        <li
+          v-for="issue in items(level)"
+          :key="`${issue.code}:${issue.path}`"
+          role="button"
+          tabindex="0"
+          class="ui-control-pointer"
+          @click="$emit('locate', issue)"
+          @keydown.enter="$emit('locate', issue)"
+          @keydown.space.prevent="$emit('locate', issue)"
+        >
+          {{ issue.message }}
+        </li>
       </ul>
     </section>
   </div>
@@ -18,6 +29,7 @@
 <script setup lang="ts">
 import type { FieldProblem } from '@/shared/types';
 const props = defineProps<{ issues: readonly FieldProblem[] }>();
+defineEmits<{ locate: [issue: FieldProblem] }>();
 const levels = ['error', 'warning'] as const;
 const items = (level: (typeof levels)[number]) => props.issues.filter((item) => item.severity === level);
 </script>
