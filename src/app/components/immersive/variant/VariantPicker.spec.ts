@@ -237,7 +237,7 @@ describe('variant candidate picker', () => {
     await flushPromises();
     expect(own.wrapper.find('.variant-placement-hints').text()).toContain('实弹炮');
 
-    await own.wrapper.getComponent(NSelect).vm.$emit('update:value', 'module');
+    own.wrapper.getComponent(NSelect).vm.$emit('update:value', 'module');
     await flushPromises();
     await own.wrapper.get('.test-slot').trigger('mousedown', { button: 0, shiftKey: true });
     await own.wrapper.get('.test-slot').trigger('click');
