@@ -74,6 +74,14 @@ describe('ColorPicker', () => {
     expect(picker.emitted('update:modelValue')?.at(-1)).toEqual([[9, 8, 7, 250]]);
   });
 
+  it('accepts the unbracketed comma list shown by the input', async () => {
+    const picker = mountPicker([10, 20, 30, 255]);
+    const input = picker.get('.color-picker-text-input');
+    await input.setValue('0,255,255,255');
+    await input.trigger('keyup.enter');
+    expect(picker.emitted('update:modelValue')?.at(-1)).toEqual([[0, 255, 255, 255]]);
+  });
+
   it.each(['[]', '[1,2]', '[1,2,"bad"]', '[1,2,3,4,5]'])('preserves an invalid color array %s', async (raw) => {
     const picker = mountPicker([1, 2, 3, 255]);
     await picker.get('.color-picker-text-input').setValue(raw);

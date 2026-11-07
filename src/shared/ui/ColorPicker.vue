@@ -367,9 +367,10 @@ function parseColorString(value: string): RgbaColor | null {
 }
 
 function parseArrayString(value: string): RgbaColor | null {
-  if (!value.startsWith('[') || !value.endsWith(']')) return null;
+  const source = value.startsWith('[') && value.endsWith(']') ? value : value.includes(',') ? `[${value}]` : '';
+  if (!source) return null;
   try {
-    const parsed = JSON.parse(value) as unknown;
+    const parsed = JSON.parse(source) as unknown;
     if (!Array.isArray(parsed) || (parsed.length !== 3 && parsed.length !== 4)) return null;
     if (!parsed.every((channel) => typeof channel === 'number' && Number.isFinite(channel))) return null;
     return arrayToRgba(parsed, props.defaultValue);
