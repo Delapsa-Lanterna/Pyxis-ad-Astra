@@ -16,7 +16,7 @@ import type { FieldEditorContext } from '@/domain/field-editor/field-editor-cont
 import SchemaFormRenderer from './SchemaFormRenderer.vue';
 import SchemaFieldRenderer from './SchemaFieldRenderer.vue';
 import { editorUiStubs } from '@/test/unit/ui-stubs';
-import { nSelect, nSwitch } from '@/test/unit/ui-stubs';
+import { nButton, nSelect, nSwitch } from '@/test/unit/ui-stubs';
 import { h, nextTick, ref } from 'vue';
 import { useEditTargetDraftSession } from '@/app/composables/use-edit-target-draft-session';
 import { applySchemaFieldUpdate } from '@/domain/schema/schema-values';
@@ -99,6 +99,28 @@ function mountBoundField(field: FieldSchema, initial: unknown, runtimeContext?: 
 }
 
 describe('SchemaFieldRenderer smart mode', () => {
+  it.each(['float', 'object', 'array'] as const)('restores the reference through the accessible %s icon action', async (type) => {
+    const value = type === 'float' ? 4 : type === 'object' ? {} : [];
+    const apply = vi.fn();
+    const field = mountField(fieldFixture(type), value, {
+      runtimeContext: {
+        sessionId: 'reference-actions',
+        modRoot: 'M:/sample',
+        composition: { local: () => ({ field: value }), sources: () => ({ layers: [], excluded: [], replace: false }), apply },
+      },
+    });
+    const action = field.get('button[aria-label="使用引用值"]');
+    expect(
+      field
+        .findAllComponents(nButton)
+        .find((button) => button.attributes('aria-label') === '使用引用值')!
+        .props('title'),
+    ).toBe('使用引用值');
+    expect(action.text()).toBe('');
+    expect(action.get('svg').attributes('aria-hidden')).toBe('true');
+    await action.trigger('click');
+    expect(apply).toHaveBeenCalledExactlyOnceWith(['field'], undefined);
+  });
   it('keeps task-image candidates empty until the current task identity is available', async () => {
     const field = mountField(fieldFixture('path-image', { pathBase: 'mission', imageDirectories: ['.'] }), '', {
       runtimeContext: { sessionId: 'images', modRoot: 'M:/images' },

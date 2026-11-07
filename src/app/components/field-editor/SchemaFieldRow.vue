@@ -11,11 +11,10 @@
             :description="settings.expandFieldDescriptions ? undefined : field.description"
           />
         </slot>
-        <slot v-if="schemaCollection(field)" name="actions" />
       </div>
     </template>
     <slot />
-    <template #actions><slot v-if="!schemaCollection(field)" name="actions" /></template>
+    <template #actions><slot name="actions" /></template>
     <template #hint>
       <FieldHints
         :description="settings.expandFieldDescriptions ? field.description : undefined"

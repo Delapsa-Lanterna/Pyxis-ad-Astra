@@ -12,7 +12,18 @@
     />
     <template v-if="runtimeContext?.composition" #actions>
       <n-button v-if="typeof value === 'string'" size="tiny" @click="runtimeContext.composition.apply(path, '')">设为空值</n-button>
-      <n-button size="tiny" @click="runtimeContext.composition.apply(path, undefined)">使用引用值</n-button>
+      <n-button
+        class="compact-icon-button ui-control-reset"
+        size="tiny"
+        quaternary
+        title="使用引用值"
+        aria-label="使用引用值"
+        @click="runtimeContext.composition.apply(path, undefined)"
+      >
+        <svg class="compact-icon-button-icon ui-control-icon" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M3 10a9 9 0 1 1 2.3 8M3 4v6h6" />
+        </svg>
+      </n-button>
     </template>
   </SchemaFieldRow>
 </template>
