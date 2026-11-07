@@ -27,7 +27,7 @@
 - `src-tauri/src/services/project/session/references.rs`：有序引用来源、代次、共享快照与按需表格视图。
 - `src-tauri/src/services/project/session/registry.rs`：会话存活登记、句柄与内容就绪门控。
 - `src-tauri/src/services/project/session/source_refresh.rs`：同根正式候选构造、手动及自动来源接纳、缺失路径与 Core 会话更新。
-- `src-tauri/src/services/project/session/source_versions.rs`：会话来源复用、完整项目及变化来源版本范围交接。
+- `src-tauri/src/services/project/session/source_versions.rs`：会话来源复用、业务文件及变化来源版本范围交接。
 - `src-tauri/src/services/project/test_support.rs`：项目测试工作区的会话、历史及 Core 缓存释放与异常退出验证。
 - `src-tauri/src/services/project/versions.rs`：会话已接纳来源的路径凭据投影。
 - `src-tauri/src/services/project/write/mod.rs`：写入业务实现登记及内部暂存入口。
@@ -92,7 +92,7 @@
 
 1. 工作区打开编排请求打开目标 Mod。
 2. 后端计算 canonical root 并校验 Mod 结构。
-3. 读取来源记录及匹配版本，构造完整索引、统计与诊断并持久化来源成果。
+3. 读取来源记录及匹配版本，构造完整索引、统计与诊断，采集业务文件及任务目录凭据并持久化来源成果。
 4. 建立 session 与 manifest 并返回前端。
 5. 前端 project store 注册 manifest 并水合活动运行态。
 
@@ -145,6 +145,7 @@
 - 写后失效对无法解析的实体只发出该实体种类的 `id: null` scope，严禁阻断其它实体或扩大失效范围。
 - 初始化、缓存恢复和失效重建必须消费同一所属来源构造；每次内容更新中的受影响族去重且各构造一次。
 - 多文件版本必须覆盖实际规格与所属 CSV、势力索引与授权规格、任务索引与任务目录；新建携带目标不存在凭据。
+- 会话启动必须完成 `mod_info.json`、登记表格、`data` 文件及任务目录的版本采集；`graphics` 的完整版本采集必须由来源变化或重扫触发。
 - 任务来源凭据必须共同覆盖目录、索引、描述文件和正文，明确确认的缺失文件参与目录内容核对。
 - 已读取编辑目标必须归当前会话登记，外部来源缺失保留正式路径，已执行删除及改名释放原目标登记。
 - 已写盘提交的正式内容恢复必须经所属 FIFO 根租约；正常 ready 结果只允许直接接纳，窗口交接重试继续尚未完成的处理。

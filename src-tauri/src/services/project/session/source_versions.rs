@@ -79,11 +79,8 @@ pub(in crate::services::project) fn capture_project_versions(
     for table in model::csv_table_specs() {
         paths.push(sources.path(table.rel_path)?);
     }
-    for directory in ["data", "graphics"] {
-        for path in sources.files(directory)? {
-            paths.push(path);
-        }
-    }
+    // Business credentials stay complete; graphics enter the refresh baseline on demand.
+    paths.extend(sources.files("data")?);
     for path in paths {
         let key = sources.key(&path);
         if let Entry::Vacant(entry) = sources.versions.entry(key) {

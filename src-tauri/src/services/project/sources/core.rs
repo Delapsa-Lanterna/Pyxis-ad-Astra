@@ -672,6 +672,7 @@ pub(in crate::services::project) fn invalidate_core_sources(
     let mut reader = entry.sources.fork_loaded();
     let failed_products = entry.failed_products.clone();
     drop(entry);
+    let versions = reader.versions.clone();
     reader.invalidate_paths(
         &sources
             .iter()
@@ -679,6 +680,7 @@ pub(in crate::services::project) fn invalidate_core_sources(
             .map(|source| source.rel_path.as_str())
             .collect::<Vec<_>>(),
     );
+    reader.versions.extend(versions);
     for source in sources
         .iter()
         .filter(|source| source.source == ResourceSource::Core)
@@ -754,18 +756,27 @@ pub(crate) fn prepare_core_source_refresh(
     let mut files = BTreeSet::new();
     let mut checked = BTreeMap::new();
     let changed = |key: &str, version: &FileVersion| {
+        let known = versions.get(key);
         retry_failed
-            || versions
-                .get(key)
-                .and_then(|known| known.fingerprint.as_ref())
-                != version.fingerprint.as_ref()
+            || (!rescan && known.is_none())
+            || known.and_then(|known| known.fingerprint.as_ref()) != version.fingerprint.as_ref()
     };
     for relative in paths {
         let path = entry.sources.path(relative)?;
+        if rescan && relative == "graphics" && !versions.contains_key(relative) {
+            sources.push(InvalidatedResourceScope {
+                source: ResourceSource::Core,
+                rel_path: relative.clone(),
+            });
+        }
         if path.is_dir() {
             let staged = entry.sources.stage_directory(relative, changed)?;
             files.extend(staged.keys().cloned());
             checked.extend(staged);
+            if rescan && relative == "graphics" {
+                let version = entry.sources.directory_version(&path)?;
+                entry.sources.versions.insert(relative.clone(), version);
+            }
         }
         files.extend(
             versions
@@ -832,6 +843,55 @@ mod tests {
             "skins" => load_core_skin_files(root).map(|_| ()),
             "csv" => load_core_csv_table(root, "data/hulls/ship_data.csv").map(|_| ()),
             _ => unreachable!(),
+        }
+    }
+
+    #[test]
+    fn graphics_refresh_accepts_untracked_deletion_and_retains_the_rescan_baseline() {
+        for rescan in [false, true] {
+            let root = project_workspace("core_graphics_removal");
+            let core = root.join("starsector-core");
+            fs::create_dir_all(core.join("graphics")).unwrap();
+            let image = core.join("graphics/image.png");
+            fs::write(&image, b"resource").unwrap();
+            let game = root.to_string_lossy();
+            assert_eq!(
+                load_core_graphics(&game).unwrap(),
+                vec!["graphics/image.png"]
+            );
+            assert_eq!(work_counts::count("read", &image), 0);
+            fs::remove_file(&image).unwrap();
+            let paths = [if rescan {
+                "graphics"
+            } else {
+                "graphics/image.png"
+            }
+            .into()];
+            let changed = prepare_core_source_refresh(&game, &paths, rescan).unwrap();
+            assert_eq!(changed.len(), 1);
+            assert!(load_core_graphics(&game).unwrap().is_empty());
+            assert!(
+                prepare_core_source_refresh(&game, &paths, rescan)
+                    .unwrap()
+                    .is_empty()
+            );
+            fs::write(&image, b"recreated").unwrap();
+            assert!(
+                !prepare_core_source_refresh(&game, &paths, rescan)
+                    .unwrap()
+                    .is_empty()
+            );
+            assert_eq!(
+                load_core_graphics(&game).unwrap(),
+                vec!["graphics/image.png"]
+            );
+            assert!(
+                prepare_core_source_refresh(&game, &paths, rescan)
+                    .unwrap()
+                    .is_empty()
+            );
+            invalidate_core_cache(&game).unwrap();
+            root.close().unwrap();
         }
     }
 

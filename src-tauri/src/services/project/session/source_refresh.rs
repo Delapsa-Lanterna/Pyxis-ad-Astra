@@ -170,13 +170,25 @@ fn refresh_candidates(
         let scope_count = scopes.len();
         let path = boundary.root().join(&relative);
         let directory = path.is_dir();
+        // The first graphics rescan also covers removals before any image baseline existed.
+        if rescan
+            && relative == "graphics"
+            && versions
+                .iter()
+                .any(|versions| !versions.contains_key(&relative))
+        {
+            scopes.push(InvalidatedResourceScope {
+                source: ResourceSource::Mod,
+                rel_path: relative.clone(),
+            });
+        }
         // Compare retained missing paths together with the files currently on disk.
         let changed = |key: &str, version: &FileVersion| {
             versions.iter().any(|versions| {
-                versions
-                    .get(key)
-                    .and_then(|known| known.fingerprint.as_ref())
-                    != version.fingerprint.as_ref()
+                let known = versions.get(key);
+                (!rescan && known.is_none())
+                    || known.and_then(|known| known.fingerprint.as_ref())
+                        != version.fingerprint.as_ref()
             })
         };
         let checked = if directory {

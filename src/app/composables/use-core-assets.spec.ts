@@ -21,14 +21,15 @@ import { effectScope, ref, type Ref } from 'vue';
 import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 import { startCoreAssetsLoading, loadCoreFields, loadCoreGraphics, refreshCoreAssets } from '@/orchestrators/core-assets.orchestrator';
 import { useCoreAssetsStore } from '@/stores/core-assets.store';
-import { useCoreGraphics } from './use-core-assets';
+import { useCoreAssetsLifecycle, useCoreGraphics } from './use-core-assets';
 import { useCoreSchema } from './use-core-schema';
-import type { DiscoveredField } from '@/shared/types';
+import type { CoreRootPayload, DiscoveredField } from '@/shared/types';
 import { dispatchProjectChangeFixture, projectChangeListeners } from '@/test/unit/project-changes';
 import { sessionUpdateFixture } from '@/test/fixtures/write-result';
 import { flushPromises } from '@vue/test-utils';
 
 const mocks = vi.hoisted(() => ({
+  root: vi.fn(async (payload: CoreRootPayload) => payload.starsectorRoot),
   fields: vi.fn(),
   graphics: vi.fn(),
   log: vi.fn(),
@@ -37,6 +38,7 @@ const mocks = vi.hoisted(() => ({
   coreChanged: new Set<(root: string, sources: readonly { source: 'core'; relPath: string }[]) => Promise<void>>(),
 }));
 vi.mock('@/services/core-assets.service', () => ({
+  queryCoreRoot: mocks.root,
   queryCoreFields: mocks.fields,
   queryCoreGraphics: mocks.graphics,
   invalidateCoreCacheForRoot: mocks.clear,
@@ -63,6 +65,50 @@ afterEach(() => {
 });
 
 describe('Core asset ownership and acceptance', () => {
+  it.each([false, true])('retains same-root products with a pending graphics load=%s', async (pending) => {
+    stop();
+    await flushPromises();
+    const context = ref<CoreRootPayload>({ sessionId: null, starsectorRoot: 'D:/A' });
+    let finish: (paths: string[]) => void = () => {};
+    if (pending)
+      mocks.graphics.mockImplementationOnce(
+        () =>
+          new Promise<string[]>((resolve) => {
+            finish = resolve;
+          }),
+      );
+    scope.run(() => useCoreAssetsLifecycle(context, () => null));
+    onTestFinished(() => finish(['graphics/a.png']));
+    await flushPromises();
+    const store = useCoreAssetsStore();
+    const originalFields = store.fields;
+    const originalGraphics = store.graphics;
+    mocks.root.mockResolvedValueOnce('d:/a/');
+    context.value = { ...context.value, sessionId: 'sample-session' };
+    await flushPromises();
+    expect(store.root).toBe('D:/A');
+    expect(store.fields).toBe(originalFields);
+    expect(store.graphics).toBe(originalGraphics);
+    expect(mocks.fields).toHaveBeenCalledExactlyOnceWith('D:/A');
+    expect(mocks.graphics).toHaveBeenCalledExactlyOnceWith('D:/A');
+    finish(['graphics/a.png']);
+    await flushPromises();
+    expect(store.graphics.status).toBe('ready');
+    context.value = { sessionId: null, starsectorRoot: 'D:/B' };
+    await flushPromises();
+    expect(store.root).toBe('D:/B');
+    expect(mocks.fields).toHaveBeenCalledTimes(2);
+    expect(mocks.graphics).toHaveBeenCalledTimes(2);
+    mocks.root.mockImplementationOnce(async () => {
+      if (pending) return null;
+      throw new Error('sample root failure');
+    });
+    context.value = { sessionId: null, starsectorRoot: null };
+    await flushPromises();
+    expect(store.root).toBeNull();
+    expect(store.graphics.status).toBe('idle');
+    expect(mocks.log).toHaveBeenCalledTimes(Number(!pending));
+  });
   it('source watch review establishes the initial root subscription before reading a product', async () => {
     stop();
     await flushPromises();

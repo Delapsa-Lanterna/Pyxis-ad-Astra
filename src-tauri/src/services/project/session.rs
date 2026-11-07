@@ -998,6 +998,82 @@ mod source_refresh_tests {
     use std::{fs, slice};
 
     #[test]
+    fn session_open_keeps_business_credentials_and_defers_graphics_reads() {
+        let root = project_workspace("startup_credentials");
+        fs::create_dir_all(root.join("data/hulls")).unwrap();
+        fs::create_dir_all(root.join("graphics")).unwrap();
+        let ship = root.join("data/hulls/item.ship");
+        let image = root.join("graphics/image.png");
+        fs::write(&ship, r#"{"hullId":"item"}"#).unwrap();
+        fs::write(
+            root.join("data/hulls/ship_data.csv"),
+            "id,name\nitem,Item\n",
+        )
+        .unwrap();
+        fs::write(&image, b"resource").unwrap();
+        for value in [1, 2] {
+            let manifest = open_project_session_traced(
+                &root,
+                None,
+                &mut PerformanceTrace::new("startup.credentials"),
+            )
+            .unwrap();
+            let target =
+                services::query_entity_edit_target(&manifest.session_id, EntityKind::Ship, "item")
+                    .unwrap();
+            assert!(
+                target
+                    .base_versions
+                    .iter()
+                    .all(|version| version.fingerprint.is_some())
+            );
+            io::verify_versions(&manifest.mod_root, &target.base_versions).unwrap();
+            fs::write(&ship, json!({"hullId":"item", "value":value}).to_string()).unwrap();
+            assert!(io::verify_versions(&manifest.mod_root, &target.base_versions).is_err());
+            assert_eq!(work_counts::count("read", &image), 0);
+            assert_eq!(work_counts::count("walk", &root.join("graphics")), 0);
+            release_project_session(manifest.session_id).unwrap();
+        }
+        root.close().unwrap();
+    }
+
+    #[test]
+    fn resource_events_accept_untracked_image_and_directory_removals() {
+        for relative in ["graphics/image.png", "graphics"] {
+            let root = project_workspace("resource_removal");
+            fs::create_dir_all(root.join("graphics")).unwrap();
+            fs::write(root.join("graphics/image.png"), b"resource").unwrap();
+            let manifest = open_project_session_traced(
+                &root,
+                None,
+                &mut PerformanceTrace::new("resource.removal"),
+            )
+            .unwrap();
+            let path = root.join(relative);
+            if path.is_dir() {
+                fs::remove_dir_all(&path).unwrap();
+            } else {
+                fs::remove_file(&path).unwrap();
+            }
+            for expected in [1, 0] {
+                let result = refresh_mod_root_sources(
+                    &manifest.mod_root,
+                    slice::from_ref(&manifest.session_id),
+                    &[path.to_string_lossy().into_owned()],
+                    false,
+                )
+                .unwrap();
+                assert_eq!(result.session_updates.len(), expected);
+                assert_eq!(result.invalidation.resources.len(), expected);
+                assert!(result.invalidation.tables.is_empty());
+                assert!(result.invalidation.entities.is_empty());
+            }
+            release_project_session(manifest.session_id).unwrap();
+            root.close().unwrap();
+        }
+    }
+
+    #[test]
     fn core_refresh_scopes_image_and_spec_updates_without_whole_session_invalidation() {
         let root = project_workspace("core_precise_refresh");
         let local = root.join("mod");
@@ -1068,6 +1144,21 @@ mod source_refresh_tests {
             .rows
             .clone()
             .unwrap();
+        let baseline = refresh_mod_root_sources(
+            &manifest.mod_root,
+            slice::from_ref(&manifest.session_id),
+            &[],
+            true,
+        )
+        .unwrap();
+        assert!(baseline.invalidation.tables.is_empty());
+        assert!(
+            baseline
+                .invalidation
+                .resources
+                .iter()
+                .any(|scope| scope.rel_path == "graphics")
+        );
         let reads = work_counts::count("read", &csv);
         let parses = work_counts::count("parse", &csv);
         for _ in 0..3 {
@@ -1147,6 +1238,13 @@ mod source_refresh_tests {
             &root,
             None,
             &mut PerformanceTrace::new("rescan.differences"),
+        )
+        .unwrap();
+        refresh_mod_root_sources(
+            &manifest.mod_root,
+            slice::from_ref(&manifest.session_id),
+            &[image.to_string_lossy().into_owned()],
+            false,
         )
         .unwrap();
         fs::write(&csv, "id,name\nship,Updated\n").unwrap();

@@ -5,6 +5,7 @@ import { queryCoreRoot } from '@/services/core-assets.service';
 import type { CoreRootPayload } from '@/shared/types';
 import { useQueryReadOwner } from './use-query-read-owner';
 import { recordWindowEventHandlerError } from '@/orchestrators/window-event-errors.orchestrator';
+import { normalizeFsPath } from '@/shared/lib/paths';
 
 export function useCoreAssetsLifecycle(context: Readonly<Ref<CoreRootPayload>>, settingsRoot: () => string | null) {
   const root = ref<string | null>(null);
@@ -13,13 +14,17 @@ export function useCoreAssetsLifecycle(context: Readonly<Ref<CoreRootPayload>>, 
     [context, settingsRoot],
     ([payload]) => {
       reads.revoke('consumer', 'core-root');
-      root.value = null;
       reads.schedule('core-root', () => {
         void reads.consume('core-root', payload, () => queryCoreRoot(payload), {
           ready: (value) => {
+            // Context changes may resolve to the same physical root and keep its active products.
+            if (root.value && value && normalizeFsPath(root.value) === normalizeFsPath(value)) return;
             root.value = value;
           },
-          error: (error) => recordWindowEventHandlerError(error, 'core-root'),
+          error: (error) => {
+            root.value = null;
+            recordWindowEventHandlerError(error, 'core-root');
+          },
         });
       });
     },
