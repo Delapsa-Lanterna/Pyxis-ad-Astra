@@ -5,6 +5,7 @@ use crate::services::project_sync::release_project_session;
 
 #[cfg(test)]
 use crate::domain::entity_definitions;
+use crate::domain::entity_definitions::PROJECTILE_SPEC_DEFINITION;
 #[cfg(test)]
 use crate::io;
 use crate::models::{CsvSearchField, CsvTableKey, EntityKind, FileChangeReplayDirection};
@@ -296,11 +297,18 @@ fn text_save_writes_submitted_text_without_identity_changes() {
 
 #[test]
 fn core_projectile_saves_to_mod_override_and_keeps_core_source() {
+    for directory in PROJECTILE_SPEC_DEFINITION.source_dirs() {
+        assert_core_projectile_override(directory);
+    }
+}
+
+fn assert_core_projectile_override(directory: &str) {
     let game = project_workspace("identity_core_projectile");
     let root = game.join("mods/demo");
     fs::create_dir_all(&root).unwrap();
-    fs::create_dir_all(game.join("starsector-core/data/weapons/proj/nested")).unwrap();
-    let core = game.join("starsector-core/data/weapons/proj/nested/filename.proj");
+    let relative = format!("{directory}/nested/filename.proj");
+    let core = game.join("starsector-core").join(&relative);
+    fs::create_dir_all(core.parent().unwrap()).unwrap();
     fs::write(&core, r#"{"id":"core","width":4}"#).unwrap();
     let mut trace = PerformanceTrace::new("project.openSession");
     let manifest = project::open_project_session_traced(&root, Some(&game), &mut trace).unwrap();
@@ -314,10 +322,7 @@ fn core_projectile_saves_to_mod_override_and_keeps_core_source() {
         info.target.source.as_ref().unwrap().source,
         ResourceSource::Core
     );
-    assert_eq!(
-        info.target.source.as_ref().unwrap().rel_path,
-        "data/weapons/proj/nested/filename.proj"
-    );
+    assert_eq!(info.target.source.as_ref().unwrap().rel_path, relative);
     assert_eq!(info.target.write.rel_path, "data/weapons/proj/core.proj");
     assert_eq!(info.base_versions[0].fingerprint, None);
     let saved = project_save::execute_save_action(SaveAction::SaveEditorSpec(SpecSave {
@@ -374,6 +379,72 @@ fn core_projectile_saves_to_mod_override_and_keeps_core_source() {
     );
     release_project_session(manifest.session_id).unwrap();
     game.close().unwrap();
+}
+
+#[test]
+fn projectile_save_and_rename_preserve_the_loaded_directory() {
+    for directory in PROJECTILE_SPEC_DEFINITION.source_dirs() {
+        let root = project_workspace("projectile_saved_directory");
+        let relative = format!("{directory}/nested/filename.proj");
+        let path = root.join(&relative);
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        fs::write(&path, r#"{"id":"probe","width":1}"#).unwrap();
+        let manifest = project::open_project_session_traced(
+            &root,
+            None,
+            &mut PerformanceTrace::new("projectile.save"),
+        )
+        .unwrap();
+        for (id, before_width) in [("probe", 1), ("renamed", 2)] {
+            let entity =
+                entities::query_entity(&manifest.session_id, EntityKind::Projectile, "probe")
+                    .unwrap()
+                    .unwrap();
+            let saved = project_save::execute_save_action(SaveAction::SaveEditorSpec(SpecSave {
+                session_id: manifest.session_id.clone(),
+                mod_root: manifest.mod_root.clone(),
+                target: entity.target,
+                base_versions: entity.base_versions,
+                data: json!({"id":id,"width":2}),
+                json_write: Default::default(),
+                ordered_json: None,
+            }))
+            .unwrap();
+            let expected = if id == "probe" {
+                relative.clone()
+            } else {
+                format!("{directory}/nested/{id}.proj")
+            };
+            let current = entities::query_entity(&manifest.session_id, EntityKind::Projectile, id)
+                .unwrap()
+                .unwrap();
+            assert_eq!(current.target.write.rel_path, expected);
+            assert_eq!(
+                io::read_json_file(&root.join(&expected)).unwrap()["width"],
+                2
+            );
+            let undo = write_transactions::replay(
+                &manifest.session_id,
+                &manifest.mod_root,
+                FileChangeReplayDirection::Undo,
+                saved.history.undo_stack.last().unwrap().id,
+                saved.history.revision,
+            )
+            .unwrap();
+            assert_eq!(io::read_json_file(&path).unwrap()["width"], before_width);
+            write_transactions::replay(
+                &manifest.session_id,
+                &manifest.mod_root,
+                FileChangeReplayDirection::Redo,
+                undo.history.redo_stack.last().unwrap().id,
+                undo.history.revision,
+            )
+            .unwrap();
+            assert_eq!(io::read_json_file(&root.join(&expected)).unwrap()["id"], id);
+        }
+        release_project_session(manifest.session_id).unwrap();
+        root.close().unwrap();
+    }
 }
 
 #[test]

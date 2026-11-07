@@ -1,6 +1,7 @@
 import { immersiveNumber } from '../fields';
 import type { RowData } from '@/shared/types';
 import { schemaStringValue } from '@/domain/schema/schema-values';
+import { isRowData } from '@/shared/lib/row-data';
 
 export function weaponStatistics(csv: Readonly<RowData>, spec: Readonly<RowData>, projectile: Readonly<RowData>) {
   const n = (key: string, fallback = 0) => immersiveNumber(csv, key, fallback);
@@ -19,15 +20,22 @@ export function weaponStatistics(csv: Readonly<RowData>, spec: Readonly<RowData>
         : 1;
   let damage = n('damage/shot');
   const mirv = projectile.missileType === 'MIRV';
-  if (mirv) {
-    const behavior = projectile.behaviorSpec;
-    const params = behavior && typeof behavior === 'object' && !Array.isArray(behavior) ? behavior.params : null;
-    if (params && typeof params === 'object' && !Array.isArray(params)) {
-      const part = params.damage,
-        shots = params.numShots;
-      damage = Number(part) * Number(shots);
-    } else damage = NaN;
-  }
+  const behavior = isRowData(projectile.behaviorSpec) ? projectile.behaviorSpec : {};
+  const submunitions = mirv
+    ? {
+        damage: immersiveNumber(behavior, 'damage', NaN),
+        numShots: Math.trunc(immersiveNumber(behavior, 'numShots', NaN)),
+        emp: immersiveNumber(behavior, 'emp', NaN),
+      }
+    : null;
+  const missing = submunitions
+    ? Object.entries(submunitions)
+        .filter(([, value]) => !Number.isFinite(value))
+        .map(([key]) => key)
+    : [];
+  // The game keeps the carrier's CSV damage when MIRV damage or count is unavailable.
+  if (submunitions && Number.isFinite(submunitions.damage) && Number.isFinite(submunitions.numShots))
+    damage = submunitions.damage * submunitions.numShots;
   const ammo = n('ammo', 2147483647),
     regen = n(Object.hasOwn(csv, 'ammo/sec') ? 'ammo/sec' : 'reload/sec');
   const empSource = n(Object.hasOwn(csv, 'emp') ? 'emp' : 'flux');
@@ -66,6 +74,7 @@ export function weaponStatistics(csv: Readonly<RowData>, spec: Readonly<RowData>
     burst,
     barrels,
     damage,
+    submunitions: missing.length ? null : submunitions,
     dps,
     sustained,
     fluxRatio,
@@ -78,8 +87,8 @@ export function weaponStatistics(csv: Readonly<RowData>, spec: Readonly<RowData>
     regen,
     reload,
     empSource,
-    refire: !beam && spec.interruptibleBurst ? down : charge + down + (burst > 1 && burst <= 100 ? delay * (burst - 1) : 0),
-    diagnostics: mirv && !Number.isFinite(damage) ? 'MIRV 静态 damage／numShots 来源未提供，脚本效果无法从数据确定。' : '',
+    refire: beam ? cycle : spec.interruptibleBurst ? down : charge + down + (burst > 1 && burst <= 100 ? delay * (burst - 1) : 0),
+    diagnostics: missing.length ? 'MIRV 弹体参数缺失或无效：' + missing.join('、') + '；缺失伤害或数量时采用武器表基础伤害。' : '',
   };
 }
 

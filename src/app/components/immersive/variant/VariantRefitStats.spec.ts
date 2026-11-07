@@ -24,6 +24,43 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
+function stepperHarness(onStep = vi.fn<NonNullable<InstanceType<typeof VariantRefitStats>['$props']['onStep']>>(async () => true)) {
+  vi.stubGlobal(
+    'ResizeObserver',
+    class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    },
+  );
+  const snapshot = variantJointFixture(),
+    values = Object.fromEntries(snapshot.records.map((record) => [record.key, record.value])),
+    variant = projectVariantPanel(snapshot, values).variants[0]!,
+    wrapper = mount(VariantRefitStats, {
+      props: {
+        variant,
+        vm: {
+          joint: { currentTarget: shallowRef(snapshot.root) },
+          displaySnapshot: shallowRef(snapshot),
+          displayValues: shallowRef(values),
+        } as ReturnType<typeof useImmersiveVariantEditor>,
+        pickerOpen: false,
+        onStep,
+        render: { mode: 'readonly', root: snapshot.root, records: snapshot.records, mediaUrl: () => '' },
+      },
+      global: {
+        stubs: {
+          ...editorUiStubs,
+          VariantShipInfo: true,
+          ImmersivePanelRow: true,
+          ImmersiveHullmodIcon: true,
+          ImmersiveText: true,
+        },
+      },
+    });
+  return { wrapper, onStep };
+}
+
 describe('installed hullmod details', () => {
   it.each(['normal', 'builtin', 'permanent', 's'] as const)(
     'shows shared details for %s with pointer, focus and click dismissal',
@@ -58,6 +95,7 @@ describe('installed hullmod details', () => {
           variant,
           vm,
           pickerOpen: false,
+          onStep: vi.fn(async () => true),
           render: { mode: 'readonly', root: snapshot.root, records: snapshot.records, mediaUrl: () => '' },
         },
         global: {
@@ -113,4 +151,73 @@ describe('installed hullmod details', () => {
       }
     },
   );
+  it.each(['ordinary', 'shift', 'ctrl', 'alt'])('repeats a held step with %s', async (modifier) => {
+    const own = stepperHarness();
+    const accelerated = modifier === 'shift';
+    vi.useFakeTimers();
+    try {
+      const button = own.wrapper.find('[aria-label="增加幅能寄存器"]');
+      button.element.dispatchEvent(
+        Object.assign(
+          new MouseEvent('pointerdown', { button: 0, shiftKey: accelerated, ctrlKey: modifier === 'ctrl', altKey: modifier === 'alt' }),
+          { pointerId: 7 },
+        ),
+      );
+      await flushPromises();
+      expect(own.onStep).toHaveBeenCalledTimes(1);
+      button.element.dispatchEvent(new MouseEvent('click', { detail: 1 }));
+      await vi.advanceTimersByTimeAsync(499);
+      expect(own.onStep).toHaveBeenCalledTimes(1);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(own.onStep).toHaveBeenCalledTimes(2);
+      const interval = accelerated ? 25 : 250;
+      await vi.advanceTimersByTimeAsync(interval - 1);
+      expect(own.onStep).toHaveBeenCalledTimes(2);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(own.onStep).toHaveBeenCalledTimes(3);
+      await vi.advanceTimersByTimeAsync(accelerated ? 12.5 : 125);
+      expect(own.onStep).toHaveBeenCalledTimes(4);
+      window.dispatchEvent(Object.assign(new Event('pointerup'), { pointerId: 7 }));
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(own.onStep).toHaveBeenCalledTimes(4);
+    } finally {
+      own.wrapper.unmount();
+      vi.useRealTimers();
+    }
+  });
+  it('stops a held stepper when the limit confirmation is declined', async () => {
+    const onStep = vi.fn().mockResolvedValueOnce(false),
+      own = stepperHarness(onStep);
+    vi.useFakeTimers();
+    try {
+      own.wrapper
+        .get('[aria-label="增加幅能寄存器"]')
+        .element.dispatchEvent(Object.assign(new MouseEvent('pointerdown', { button: 0 }), { pointerId: 3 }));
+      await flushPromises();
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(onStep).toHaveBeenCalledOnce();
+    } finally {
+      own.wrapper.unmount();
+      vi.useRealTimers();
+    }
+  });
+  it.each(['blur', 'pointercancel', 'module', 'unmount'])('stops a held adjustment on %s', async (ending) => {
+    const own = stepperHarness();
+    vi.useFakeTimers();
+    try {
+      own.wrapper
+        .get('[aria-label="减少幅能寄存器"]')
+        .element.dispatchEvent(Object.assign(new MouseEvent('pointerdown', { button: 0 }), { pointerId: 2 }));
+      await flushPromises();
+      expect(own.onStep).toHaveBeenLastCalledWith('fluxCapacitors', -1);
+      if (ending === 'unmount') own.wrapper.unmount();
+      else if (ending === 'module') await own.wrapper.setProps({ variant: { ...own.wrapper.props('variant'), key: 'module' } });
+      else window.dispatchEvent(Object.assign(new Event(ending), { pointerId: 2 }));
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(own.onStep).toHaveBeenCalledOnce();
+    } finally {
+      if (ending !== 'unmount') own.wrapper.unmount();
+      vi.useRealTimers();
+    }
+  });
 });

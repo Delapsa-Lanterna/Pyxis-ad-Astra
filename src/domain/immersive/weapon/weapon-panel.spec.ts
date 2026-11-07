@@ -7,6 +7,71 @@ import { updateImmersiveField } from '../fields';
 import { highlightedTextParts } from '../highlighted-text';
 
 describe('weapon immersive field and display projection', () => {
+  it.each([
+    [1, 1, false, 'ALTERNATING', 12, '36', '12'],
+    [3, 1, false, 'ALTERNATING', 12, '36 × 3', '12 × 3'],
+    [1, 2, false, 'ALTERNATING', 12, '36 × 2', '12 × 2'],
+    [3, 2, false, 'ALTERNATING', 12, '36 × 2 × 3', '12 × 2 × 3'],
+    [3, 2, true, 'ALTERNATING', 12, '36 × 3', '12 × 3'],
+    [3, 2, false, 'DUAL', 12, '36 × 4 × 3', '12 × 4 × 3'],
+    [3, 2, false, 'LINKED', 0, '36 × 6 × 3', undefined],
+  ] as const)(
+    'projects MIRV count=%s burst=%s interruptible=%s mode=%s',
+    (numShots, burst, interruptibleBurst, barrelMode, emp, damage, empText) => {
+      const snapshot = weaponJointFixture(),
+        values = jointFixtureValues(snapshot);
+      values.spec = {
+        state: 'present',
+        value: { ...jointObject(values.spec), type: 'MISSILE', barrelMode, turretOffsets: [0, 0, 1, 0, 2, 0], interruptibleBurst },
+      };
+      values.csv = {
+        state: 'present',
+        value: { ...jointObject(values.csv), 'damage/shot': '11', 'burst size': String(burst), ammo: '1', emp: '0' },
+      };
+      snapshot.records[3]!.value = {
+        state: 'present',
+        value: { specClass: 'missile', missileType: 'MIRV', behaviorSpec: { damage: 36, numShots, emp } },
+      };
+      const panel = projectWeaponPanel(snapshot, values),
+        shot = panel.primary.find((stat) => stat.id === 'damage')!;
+      expect(shot.display).toBe(damage);
+      expect(shot.fields).toEqual([]);
+      expect(shot.formula).toContain('behaviorSpec.damage');
+      expect(panel.primary.find((stat) => stat.id === 'emp')?.display).toBe(empText);
+      expect(panel.primary.find((stat) => stat.id === 'emp')?.fields ?? []).toEqual([]);
+      expect(panel.projectile!.fields[0]!.schema.key).toBe('projectileSpecId');
+    },
+  );
+  it('keeps the special damage label with MIRV parameters', () => {
+    const snapshot = weaponJointFixture(),
+      values = jointFixtureValues(snapshot);
+    values.csv = { state: 'present', value: { ...jointObject(values.csv), tags: 'damage_special' } };
+    snapshot.records[3]!.value = { state: 'present', value: { missileType: 'MIRV', behaviorSpec: { damage: 36, numShots: 3, emp: 0 } } };
+    expect(projectWeaponPanel(snapshot, values).primary.find((stat) => stat.id === 'damage')!.display).toBe('特殊');
+  });
+  it.each([
+    [0.2, 0.3, 1, 5, '6.5 秒'],
+    [0.1, 0.1, 0.2, 0.2, '0.6 秒'],
+  ])('shows the burst beam cycle %s + %s + %s + %s', (chargeup, chargedown, burst, delay, expected) => {
+    const snapshot = weaponJointFixture(),
+      values = jointFixtureValues(snapshot);
+    values.spec = { state: 'present', value: { ...jointObject(values.spec), specClass: 'beam' } };
+    values.csv = {
+      state: 'present',
+      value: {
+        ...jointObject(values.csv),
+        'damage/second': '180',
+        'energy/second': '60',
+        chargeup: String(chargeup),
+        chargedown: String(chargedown),
+        'burst size': String(burst),
+        'burst delay': String(delay),
+      },
+    };
+    const cycle = projectWeaponPanel(snapshot, values).ancillary.find((stat) => stat.id === 'refire')!;
+    expect(cycle.display).toBe(expected);
+    expect(cycle.fields.map((field) => field.schema.key)).toEqual(['chargeup', 'chargedown', 'burst size', 'burst delay']);
+  });
   it('tracks projectile, branch, sprite and damage references independently of range', () => {
     const snapshot = weaponJointFixture(),
       values = jointFixtureValues(snapshot);

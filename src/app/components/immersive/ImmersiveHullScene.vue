@@ -22,9 +22,9 @@
     <div
       v-if="!iconSize && hoverWeapon"
       class="variant-slot-label ui-text-normal"
-      :style="{ left: point(hoverWeapon.slot).x + 'px', top: point(hoverWeapon.slot).y + 20 + 'px' }"
+      :style="{ left: point(hoverWeapon.slot).x + 'px', top: point(hoverWeapon.slot).y + 34 * viewport.scale.value + 'px' }"
     >
-      <ImmersiveText :text="hoverLabel" font="slot-name" />
+      <ImmersiveText :runs="hoverLabel" font="slot-name" outlined />
     </div>
   </div>
 </template>
@@ -53,6 +53,7 @@ import ImmersiveText from './ImmersiveText.vue';
 import { useEngineRendering } from '@/app/composables/editors/use-engine-rendering';
 import { drawEngineVisual, type EngineImages } from '@/app/renderers/editors/engine-renderer';
 import type { ResourceRef, DeepReadonly, RowData } from '@/shared/types';
+import type { TextRun } from '@/domain/fonts/font.types';
 
 const props = defineProps<{
   variant: ImmersiveHullScene;
@@ -73,14 +74,53 @@ const viewport = useCanvasViewport(canvas, 1, 4),
   feedback = useAppFeedback();
 const state = createCanvasRuntime<null>();
 const hoverWeapon = computed(() => (state.hovered.value ? props.variant.weapons[state.hovered.value.i] : null));
-const hoverLabel = computed(() => {
+const SLOT_LABELS: Record<string, string> = {
+  SMALL: '小型',
+  MEDIUM: '中型',
+  LARGE: '大型',
+  BALLISTIC: '实弹',
+  ENERGY: '能量',
+  MISSILE: '导弹',
+  HYBRID: '混合',
+  SYNERGY: '协同',
+  COMPOSITE: '复合',
+  UNIVERSAL: '通用',
+  STATION_MODULE: '模块',
+  BUILT_IN: '内置',
+  DECORATIVE: '装饰',
+  SYSTEM: '系统',
+  LAUNCH_BAY: '机库',
+  HARDPOINT: '固定',
+  TURRET: '炮塔',
+  HIDDEN: '隐藏',
+};
+const hoverLabel = computed<TextRun[]>(() => {
   const weapon = hoverWeapon.value;
-  if (!weapon) return '';
+  if (!weapon) return [];
   if (weapon.slot.type === 'STATION_MODULE') {
     const module = props.variant.modules.find((module) => module.slot.id === weapon.slot.id)?.variant;
-    return module ? module.name || schemaStringValue(module.spec.hullName || module.spec.hullId) : '空槽';
+    if (module)
+      return [{ text: module.name || schemaStringValue(module.spec.hullName || module.spec.hullId), color: IMMERSIVE_COLORS.text }];
   }
-  return (weapon.name || '空槽') + (weapon.builtin ? '（内置）' : '');
+  let name = weapon.name || weapon.id,
+    highlight: string,
+    suffix = ')';
+  if (!weapon.id || weapon.slot.type === 'STATION_MODULE') {
+    name = [weapon.slot.size, weapon.slot.type, weapon.slot.mount]
+      .map((value) => SLOT_LABELS[schemaStringValue(value)] ?? schemaStringValue(value))
+      .join(' ');
+    highlight = '空槽';
+  } else if (weapon.builtin) highlight = '内置';
+  else {
+    const cost = weapon.cost ?? NaN;
+    highlight = Number.isFinite(cost) ? String(Math.round(cost)) : '来源未确定';
+    suffix = ' OP)';
+  }
+  return [
+    { text: name + ' (', color: IMMERSIVE_COLORS.text },
+    { text: highlight, color: IMMERSIVE_COLORS.warning },
+    { text: suffix, color: IMMERSIVE_COLORS.text },
+  ];
 });
 const navigation = useCanvasNavigation(
   {
@@ -278,7 +318,10 @@ function drawSlots(ctx: CanvasRenderingContext2D) {
       ...(slot.type === 'STATION_MODULE'
         ? {}
         : { refit: { scale: viewport.scale.value, highlighted: state.selected.value === index, builtin: weapon.builtin } }),
-      style: weaponSlotStyle(schemaStringValue(slot.type), state.selected.value === index ? 1 : 0.6),
+      style: {
+        ...weaponSlotStyle(schemaStringValue(slot.type), state.selected.value === index ? 1 : 0.6),
+        centerRadius: 0,
+      },
     });
   }
 }

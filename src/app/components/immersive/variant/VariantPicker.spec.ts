@@ -12,11 +12,15 @@ import { projectVariantPanel } from '@/domain/immersive/variant/variant-panel';
 import type { useImmersiveVariantEditor } from '@/app/composables/immersive-editor/variant/use-immersive-variant-editor';
 import { jointObject } from '@/domain/joint-edit';
 const deckMedia = vi.hoisted(() => ({ replaceCollection: vi.fn(), releaseCollection: vi.fn(), dataUrl: vi.fn(() => '') }));
+const appFeedback = vi.hoisted(() => ({ error: vi.fn(), info: vi.fn(), choose: vi.fn() }));
 vi.mock('@/app/composables/use-resource-media-registry', () => ({ useResourceMediaRegistry: () => deckMedia }));
 const mocks = vi.hoisted(() => ({ entries: [] as JointVariantEntry[], enabled: [] as Array<() => boolean> }));
 vi.mock('@/app/composables/use-thumbnail-preload', () => ({ useThumbnailPreload: () => ({ prepare: vi.fn(), url: () => '' }) }));
 beforeEach(() => {
   mocks.enabled = [];
+  appFeedback.error.mockClear();
+  appFeedback.info.mockClear();
+  appFeedback.choose.mockReset();
   vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(234);
   vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
     queueMicrotask(() => callback(performance.now()));
@@ -43,7 +47,7 @@ vi.mock('@/app/composables/immersive-editor/variant/use-variant-catalog', () => 
 vi.mock('@/app/composables/use-visible-resource-media', () => ({
   useVisibleResourceMedia: () => ({ setMediaRoot: () => {}, mediaRef: () => () => {}, mediaSrc: () => '' }),
 }));
-vi.mock('@/app/composables/use-app-feedback', () => ({ useAppFeedback: () => ({ error: vi.fn() }) }));
+vi.mock('@/app/composables/use-app-feedback', () => ({ useAppFeedback: () => appFeedback }));
 function harness(
   kind: 'weapons' | 'wings' | 'variants' = 'weapons',
   count = 2,
@@ -52,13 +56,23 @@ function harness(
   currentId = 'compatible',
   inPanel = false,
   emptyDeck = false,
+  secondWing = false,
+  withModule = false,
 ) {
   const source = { source: 'mod' as const, root: 'M:/mod', path: 'M:/mod/table.csv', relPath: 'table.csv' };
   mocks.entries = [
     {
       id: 'compatible',
       label: '能量炮',
-      data: { id: 'compatible', name: '能量炮', OPs: '10', cost_cruiser: '15', 'tech/manufacturer': 'High Tech', uiTags: 'Weapons' },
+      data: {
+        id: 'compatible',
+        name: '能量炮',
+        OPs: '10',
+        'op cost': '10',
+        cost_cruiser: '15',
+        'tech/manufacturer': 'High Tech',
+        uiTags: 'Weapons',
+      },
       spec: { size: 'SMALL', type: 'ENERGY' },
       specSource: null,
       specVersion: null,
@@ -72,7 +86,7 @@ function harness(
     {
       id: 'incompatible',
       label: '实弹炮',
-      data: { id: 'incompatible', name: '实弹炮', OPs: '5' },
+      data: { id: 'incompatible', name: '实弹炮', OPs: '5', 'op cost': '5' },
       spec: { size: 'SMALL', type: 'BALLISTIC' },
       specSource: null,
       specVersion: null,
@@ -117,15 +131,21 @@ function harness(
   const snapshot = variantJointFixture();
   const values = Object.fromEntries(snapshot.records.map((record) => [record.key, record.value]));
   if (emptyDeck) values.variant = { state: 'present', value: { ...jointObject(values.variant), wings: [''] } };
+  const panel = projectVariantPanel(snapshot, values);
+  if (secondWing) panel.variants[0]!.wings.push({ ...panel.variants[0]!.wings[0]!, index: 1, id: '', name: '空置战机甲板', cost: 0 });
+  if (withModule) panel.variants.push({ ...panel.variants[0]!, key: 'module', role: 'variant/module', name: 'Module' });
   const displaySnapshot = shallowRef(snapshot);
+  const displayValues = shallowRef(values);
   const cancelVariantAction = vi.fn();
   const pan = vi.fn();
   const vm = {
     displaySnapshot,
-    displayValues: shallowRef(values),
+    displayValues,
     joint: { currentTarget: ref(snapshot.root), saving: ref(false) },
     referenceChanging: ref(false),
     variantActionPending: ref(false),
+    dismissStat: vi.fn(),
+    isActive: () => true,
     commitVariantInputs: vi.fn(async () => true),
     cancelVariantAction,
     installVariantWeapon: vi.fn(async () => true),
@@ -148,7 +168,7 @@ function harness(
         return () =>
           inPanel
             ? h(VariantImmersivePanel, {
-                panel: projectVariantPanel(snapshot, values),
+                panel,
                 vm,
                 render: { mode: 'readonly', root: snapshot.root, records: snapshot.records, mediaUrl: () => '' },
               })
@@ -171,12 +191,17 @@ function harness(
           ImmersiveText: { props: ['text'], template: '<span>{{text}}</span>' },
           ImmersivePanelRow: true,
           VariantWingIcon: true,
-          VariantRefitStats: true,
+          VariantRefitStats: {
+            name: 'VariantRefitStats',
+            props: ['onStep'],
+            template:
+              '<div class="test-refit-stats"><button class="test-capacitor-step" @click="onStep(\'fluxCapacitors\', 1)">+</button><button class="test-vent-step" @click="onStep(\'fluxVents\', 1)">+</button></div>',
+          },
           ImmersiveHullScene: {
             methods: { pan },
             emits: ['slot', 'module', 'blank', 'remove'],
             template:
-              '<div><button class="test-module" @click="$emit(\'module\', 1, {x: 400, y: 300})">模块槽</button><button class="test-slot" @click="$emit(\'slot\', 1, {x: 400, y: 300})" @contextmenu.prevent="$emit(\'remove\', 1)">槽位</button><button class="test-blank" @click="$emit(\'blank\')">空白网格</button></div>',
+              '<div><button class="test-module" @click="$emit(\'module\', 1, {x: 400, y: 300})">模块槽</button><button class="test-slot" @click="$emit(\'slot\', 1, {x: 400, y: 300})" @keydown.enter="$emit(\'slot\', 1, {x: 400, y: 300})" @contextmenu.prevent="$emit(\'remove\', 1)">槽位</button><button class="test-blank" @click="$emit(\'blank\')">空白网格</button></div>',
           },
           VariantCandidateDetails: { props: ['id'], template: '<aside>{{id}}</aside>' },
           VariantCandidateCard: {
@@ -197,12 +222,157 @@ function harness(
     commitManual,
     cancelVariantAction,
     displaySnapshot,
+    displayValues,
     vm,
     pan,
     picker: wrapper.findComponent(VariantPicker),
   };
 }
 describe('variant candidate picker', () => {
+  it('repeats the chosen weapon across modules while Enter still opens its picker', async () => {
+    const own = harness('weapons', 2, false, [], '', true, false, false, true);
+    await own.wrapper.get('.test-slot').trigger('click');
+    await flushPromises();
+    await own.wrapper.get('[data-entry-id="incompatible"]').trigger('click');
+    await flushPromises();
+    expect(own.wrapper.find('.variant-placement-hints').text()).toContain('实弹炮');
+
+    await own.wrapper.getComponent(NSelect).vm.$emit('update:value', 'module');
+    await flushPromises();
+    await own.wrapper.get('.test-slot').trigger('mousedown', { button: 0, shiftKey: true });
+    await own.wrapper.get('.test-slot').trigger('click');
+    await flushPromises();
+    expect(own.vm.installVariantWeapon).toHaveBeenLastCalledWith('module', 'WS2', 'incompatible');
+    expect(own.wrapper.find('.variant-picker').exists()).toBe(false);
+
+    await own.wrapper.get('.test-slot').trigger('keydown.enter');
+    await flushPromises();
+    expect(own.wrapper.find('.variant-picker').exists()).toBe(true);
+    own.wrapper.unmount();
+  });
+  it('repeats the chosen fighter on Shift-click and shows both placement hints', async () => {
+    const own = harness('wings', 2, false, [], '', true, false, true);
+    await own.wrapper.get('.variant-wing-tile').trigger('click');
+    await flushPromises();
+    await own.wrapper.get('[data-entry-id="compatible"]').trigger('click');
+    await flushPromises();
+    expect(own.wrapper.find('.variant-placement-hints').text()).toContain('能量炮');
+
+    await own.wrapper.get('.test-slot').trigger('click');
+    await flushPromises();
+    await own.wrapper.get('[data-entry-id="incompatible"]').trigger('click');
+    await flushPromises();
+    expect(own.wrapper.find('.variant-placement-hints').text()).toContain('实弹炮');
+
+    await own.wrapper.findAll('.variant-wing-tile')[1]!.trigger('click', { shiftKey: true });
+    await flushPromises();
+    expect(own.vm.updateVariant).toHaveBeenCalledTimes(2);
+    expect(own.wrapper.find('.variant-placement-hints').text()).toContain('Shift + 左键：继续安装战机');
+    expect(own.wrapper.find('.variant-placement-hints').text()).toContain('Shift + 左键：继续安装武器');
+    expect(own.wrapper.find('.variant-picker').exists()).toBe(false);
+    const variant = own.wrapper.findComponent(VariantImmersivePanel).props('panel').variants[0]!;
+    variant.opUsed = 38;
+    variant.opTotal = 40;
+    await own.wrapper.findAll('.variant-wing-tile')[1]!.trigger('click', { shiftKey: true });
+    await flushPromises();
+    expect(own.vm.updateVariant).toHaveBeenCalledTimes(2);
+    expect(appFeedback.info).toHaveBeenCalledWith(expect.stringContaining('装配点数不足'));
+    own.wrapper.unmount();
+  });
+  it('keeps a remembered weapon and leaves the picker closed when a repeat fails', async () => {
+    const own = harness('weapons', 2, false, [], '', true);
+    await own.wrapper.get('.test-slot').trigger('click');
+    await flushPromises();
+    await own.wrapper.get('[data-entry-id="incompatible"]').trigger('click');
+    await flushPromises();
+    const variant = own.wrapper.findComponent(VariantImmersivePanel).props('panel').variants[0]!;
+    variant.weapons[1]!.slot.type = 'ENERGY';
+    await own.wrapper.get('.test-slot').trigger('mousedown', { button: 0, shiftKey: true });
+    await own.wrapper.get('.test-slot').trigger('click');
+    await flushPromises();
+    expect(own.vm.installVariantWeapon).toHaveBeenCalledTimes(1);
+    expect(appFeedback.info).toHaveBeenCalledWith(expect.stringContaining('普通点击槽位可打开选择器'));
+    expect(own.wrapper.find('.variant-placement-hints').text()).toContain('实弹炮');
+    expect(own.wrapper.find('.variant-picker').exists()).toBe(false);
+    own.wrapper.unmount();
+  });
+  it('opens the picker for a Shift-click when no candidate has been remembered', async () => {
+    const own = harness('weapons', 2, false, [], '', true);
+    await own.wrapper.get('.test-slot').trigger('mousedown', { button: 0, shiftKey: true });
+    await own.wrapper.get('.test-slot').trigger('click');
+    await flushPromises();
+    expect(own.wrapper.find('.variant-picker').exists()).toBe(true);
+    own.wrapper.unmount();
+  });
+  it('rejects a remembered weapon when the replacement would exceed the budget', async () => {
+    const own = harness('weapons', 2, false, [], '', true);
+    await own.wrapper.get('.test-slot').trigger('click');
+    await flushPromises();
+    await own.wrapper.get('[data-entry-id="incompatible"]').trigger('click');
+    await flushPromises();
+    const variant = own.wrapper.findComponent(VariantImmersivePanel).props('panel').variants[0]!;
+    variant.opUsed = 38;
+    variant.opTotal = 40;
+    variant.weapons[1]!.cost = 0;
+    await own.wrapper.get('.test-slot').trigger('mousedown', { button: 0, shiftKey: true });
+    await own.wrapper.get('.test-slot').trigger('click');
+    await flushPromises();
+    expect(own.vm.installVariantWeapon).toHaveBeenCalledTimes(1);
+    expect(appFeedback.info).toHaveBeenCalledWith(expect.stringContaining('装配点数不足'));
+    expect(own.wrapper.find('.variant-picker').exists()).toBe(false);
+    own.wrapper.unmount();
+  });
+  it('confirms the first allocation above the hull limit once per editor window', async () => {
+    const own = harness('weapons', 2, false, [], '', true);
+    const variant = own.wrapper.findComponent(VariantImmersivePanel).props('panel').variants[0]!;
+    variant.capacitors = 29;
+    variant.vents = 30;
+    const value = jointObject(own.vm.displayValues.value.variant);
+    own.displayValues.value = {
+      ...own.vm.displayValues.value,
+      variant: { state: 'present', value: { ...value, fluxCapacitors: 29, fluxVents: 30 } },
+    };
+    appFeedback.choose.mockResolvedValueOnce('allow');
+
+    await own.wrapper.get('.test-capacitor-step').trigger('click');
+    await flushPromises();
+    expect(appFeedback.choose).not.toHaveBeenCalled();
+    expect(own.vm.updateVariant).toHaveBeenCalledTimes(1);
+    variant.capacitors = 30;
+    const overLimitValue = jointObject(own.vm.displayValues.value.variant);
+    own.displayValues.value = {
+      ...own.vm.displayValues.value,
+      variant: { state: 'present', value: { ...overLimitValue, fluxCapacitors: 30 } },
+    };
+    await own.wrapper.get('.test-capacitor-step').trigger('click');
+    await flushPromises();
+    expect(appFeedback.choose).toHaveBeenCalledOnce();
+    expect(own.vm.updateVariant).toHaveBeenCalledTimes(2);
+    await own.wrapper.get('.test-vent-step').trigger('click');
+    await flushPromises();
+    expect(appFeedback.choose).toHaveBeenCalledOnce();
+    expect(own.vm.updateVariant).toHaveBeenCalledTimes(3);
+    own.wrapper.unmount();
+
+    const next = harness('weapons', 2, false, [], '', true);
+    const nextVariant = next.wrapper.findComponent(VariantImmersivePanel).props('panel').variants[0]!;
+    nextVariant.capacitors = 30;
+    const nextValue = jointObject(next.vm.displayValues.value.variant);
+    next.displayValues.value = {
+      ...next.vm.displayValues.value,
+      variant: { state: 'present', value: { ...nextValue, fluxCapacitors: 30 } },
+    };
+    appFeedback.choose.mockResolvedValueOnce(null).mockResolvedValueOnce('allow');
+    await next.wrapper.get('.test-capacitor-step').trigger('click');
+    await flushPromises();
+    expect(appFeedback.choose).toHaveBeenCalledTimes(2);
+    expect(next.vm.updateVariant).not.toHaveBeenCalled();
+    await next.wrapper.get('.test-capacitor-step').trigger('click');
+    await flushPromises();
+    expect(appFeedback.choose).toHaveBeenCalledTimes(3);
+    expect(next.vm.updateVariant).toHaveBeenCalledOnce();
+    next.wrapper.unmount();
+  });
   it('pans from information controls and across overlays until right-button release', async () => {
     const own = harness('weapons', 2, false, [], '', true);
     const information = own.wrapper.findComponent({ name: 'VariantRefitStats' });

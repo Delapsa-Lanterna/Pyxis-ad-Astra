@@ -93,6 +93,7 @@ describe('Schema numeric controls with real Naive UI', () => {
     } else {
       const input = wrapper.get<HTMLInputElement>('input');
       expect(input.element.placeholder).toBe(String(base));
+      expect(wrapper.text()).toContain('(来自 base)');
       expect(input.element.value).toBe('');
       if (type === 'float') {
         await wrapper.findAll('button')[1]!.trigger('click');
@@ -106,8 +107,8 @@ describe('Schema numeric controls with real Naive UI', () => {
       await input.setValue('');
       await inputs.commit();
       await flushPromises();
-      expect(local.value).toEqual({});
-      expect(wrapper.get<HTMLInputElement>('input').element.placeholder).toBe(String(base));
+      expect(local.value).toEqual(type === 'string' ? { count: '' } : {});
+      expect(wrapper.get<HTMLInputElement>('input').element.placeholder).toBe(type === 'string' ? 'Please Input' : String(base));
     }
   });
   it.each(['integer', 'float'] as const)('increments and decrements %s by one', async (type) => {

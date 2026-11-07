@@ -3,6 +3,8 @@
     v-if="current"
     class="variant-immersive-panel ui-layout-clip ui-layout-stretch"
     @mousedown.capture="startRightDrag"
+    @mouseup.capture="finishPointerGesture"
+    @keydown.capture="finishPointerGesture"
     @contextmenu.capture="finishRightClick"
   >
     <ImmersiveHullScene
@@ -45,6 +47,16 @@
         <ImmersiveText text="清空装配" font="picker-title" ink-aligned />
       </button>
     </div>
+    <aside v-if="lastWeapon || lastWing" class="variant-placement-hints" aria-live="polite">
+      <div v-if="lastWeapon" class="variant-placement-hint">
+        <ImmersiveText text="Shift + 左键：继续安装武器" font="heading" />
+        <ImmersiveText :text="lastWeapon.label" font="heading" />
+      </div>
+      <div v-if="lastWing" class="variant-placement-hint">
+        <ImmersiveText text="Shift + 左键：继续安装战机" font="heading" />
+        <ImmersiveText :text="lastWing.label" font="heading" />
+      </div>
+    </aside>
     <aside v-if="current.wings.length" class="variant-wing-list">
       <ImmersiveText text="战机甲板" font="ship-title" />
       <div class="variant-wing-bays ui-layout-grid">
@@ -73,7 +85,7 @@
       :vm="vm"
       :render="render"
       :picker-open="false"
-      @step="step"
+      :on-step="step"
       @mod="changeMod"
       @picker="picker ? closePicker() : openPicker('hullmods', 0)"
     />
@@ -114,7 +126,7 @@
             :vm="vm"
             :render="render"
             :picker-open="true"
-            @step="step"
+            :on-step="step"
             @mod="changeMod"
             @picker="close"
         /></template>
@@ -142,8 +154,16 @@ import { computed, inject, ref, watch, nextTick, onScopeDispose } from 'vue';
 import { immersiveBlockedKey } from '../immersive-render-context';
 import type { VariantPanel } from '@/domain/immersive/variant/variant-panel';
 import { formatVariantNumber } from '@/domain/immersive/variant/variant-panel';
-import { equipVariantWing, setVariantHullmod, type HullmodCategory } from '@/domain/immersive/variant/variant-actions';
+import { immersiveNumber } from '@/domain/immersive/fields';
+import {
+  equipVariantWing,
+  isSystemWeapon,
+  setVariantHullmod,
+  weaponSlotCompatibility,
+  type HullmodCategory,
+} from '@/domain/immersive/variant/variant-actions';
 import type { JointVariantCatalogKind, ReadonlyVariantEntry } from '@/shared/types';
+import { isRowData } from '@/shared/lib/row-data';
 import { jointObject } from '@/domain/joint-edit';
 import { variantModuleEntries } from '@/shared/lib/starsector/variant-modules';
 import type { useImmersiveVariantEditor } from '@/app/composables/immersive-editor/variant/use-immersive-variant-editor';
@@ -163,13 +183,16 @@ import { useResourceMediaRegistry } from '@/app/composables/use-resource-media-r
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
 const props = defineProps<{ panel: VariantPanel; render: ImmersiveRenderContext; vm: ReturnType<typeof useImmersiveVariantEditor> }>();
 const blocked = inject(immersiveBlockedKey, ref(false));
-for (const kind of ['weapons', 'wings', 'hullmods'] as const) {
-  useVariantCatalog(
-    () => props.vm.joint.currentTarget.value!,
-    () => kind,
-    () => Boolean(props.vm.joint.currentTarget.value),
-  );
-}
+const catalogRoot = () => props.vm.joint.currentTarget.value!,
+  catalogEnabled = () => Boolean(props.vm.joint.currentTarget.value);
+const catalogs = {
+  weapons: useVariantCatalog(catalogRoot, () => 'weapons', catalogEnabled),
+  wings: useVariantCatalog(catalogRoot, () => 'wings', catalogEnabled),
+};
+useVariantCatalog(catalogRoot, () => 'hullmods', catalogEnabled);
+const lastWeapon = ref<{ id: string; label: string } | null>(null),
+  lastWing = ref<{ id: string; label: string } | null>(null);
+let pointerGesture: { button: number; shiftKey: boolean } | null = null;
 const selectedKey = ref(''),
   groupsButton = ref<HTMLButtonElement | null>(null),
   refitStats = ref<{ focusPicker: () => void } | null>(null),
@@ -180,7 +203,10 @@ const selectedKey = ref(''),
 const current = computed(
   () => props.panel.variants.find((variant) => variant.key === selectedKey.value) ?? props.panel.variants[0] ?? null,
 );
-const deckMedia = useResourceMediaRegistry({ onError: useAppFeedback().error, onFailures: () => undefined });
+const feedback = useAppFeedback();
+let fluxLimitAuthorized = false,
+  fluxLimitPromptPending = false;
+const deckMedia = useResourceMediaRegistry({ onError: feedback.error, onFailures: () => undefined });
 const deckRef = computed(() => props.vm.displaySnapshot.value?.referenceSettings.resources.fighterButtonBlank);
 const deckIcon = computed(() =>
   deckRef.value ? (deckMedia.dataUrl(props.vm.joint.currentTarget.value!.sessionId, deckRef.value) ?? '') : '',
@@ -276,6 +302,7 @@ async function prepareEquipment(kind: JointVariantCatalogKind, index: number) {
 let rightOrigin = { clientX: 0, clientY: 0 },
   rightDragged = false;
 function startRightDrag(event: MouseEvent) {
+  pointerGesture = { button: event.button, shiftKey: event.shiftKey };
   if (event.button !== 2) return;
   event.preventDefault();
   event.stopPropagation();
@@ -284,6 +311,9 @@ function startRightDrag(event: MouseEvent) {
   window.addEventListener('mousemove', trackRightDrag, true);
   window.addEventListener('mouseup', endRightDrag, true);
   window.addEventListener('blur', endRightDrag);
+}
+function finishPointerGesture() {
+  pointerGesture = null;
 }
 function trackRightDrag(event: MouseEvent) {
   event.stopPropagation();
@@ -309,10 +339,18 @@ async function removeEquipment(kind: JointVariantCatalogKind, index: number) {
   if (await prepareEquipment(kind, index)) await selectEquipment({ kind, index, key: current.value!.key }, '', 'normal');
 }
 function openWeaponPicker(index: number, anchor: { x: number; y: number }) {
+  if (pointerGesture?.button === 0 && pointerGesture.shiftKey && lastWeapon.value) {
+    void repeatWeapon(index);
+    return;
+  }
   void openPicker('weapons', index, anchor);
 }
 function openWingPicker(index: number, event: MouseEvent) {
   const bounds = (event.currentTarget as HTMLElement).getBoundingClientRect();
+  if (event.shiftKey && lastWing.value) {
+    void repeatWing(index);
+    return;
+  }
   void openPicker('wings', index, { x: bounds.right, y: bounds.top + bounds.height / 2 });
 }
 function closePicker() {
@@ -329,9 +367,59 @@ async function closeHullmods() {
 }
 async function applySelection(id: string, category: HullmodCategory, inputCommitted = false) {
   const request = picker.value!;
+  if (id && request.kind === 'weapons') {
+    const entry = catalogs.weapons.entries.value.find((candidate) => candidate.id === id);
+    lastWeapon.value = { id, label: entry?.label ?? id };
+  }
+  if (id && request.kind === 'wings') {
+    const entry = catalogs.wings.entries.value.find((candidate) => candidate.id === id);
+    lastWing.value = { id, label: entry?.label ?? id };
+  }
   const accepted = await selectEquipment(request, id, category, inputCommitted);
   if (accepted && request.kind !== 'hullmods' && picker.value === request) closePicker();
   return accepted;
+}
+async function repeatWeapon(index: number) {
+  const key = current.value!.key,
+    weapon = lastWeapon.value!;
+  if (!(await prepareEquipment('weapons', index)) || current.value?.key !== key) return;
+  const variant = current.value!,
+    target = variant.weapons[index]!;
+  const entry = catalogs.weapons.entries.value.find((candidate) => candidate.id === weapon.id);
+  if (!entry) {
+    feedback.info('武器来源不可用。普通点击槽位可打开选择器重新选择。');
+    return;
+  }
+  const spec = isRowData(entry.spec) ? entry.spec : {};
+  const incompatibility = isSystemWeapon(isRowData(entry.data) ? entry.data : {}, spec)
+    ? '这件武器带有 SYSTEM 标记。'
+    : weaponSlotCompatibility(target.slot, spec);
+  const existingCost = target.builtin || !target.id ? 0 : target.cost;
+  const candidateCost = immersiveNumber(isRowData(entry.data) ? entry.data : {}, 'OPs', NaN);
+  if (incompatibility || !Number.isFinite(candidateCost) || variant.opUsed - existingCost + candidateCost > variant.opTotal) {
+    feedback.info('无法重复安装：' + (incompatibility || '装配点数不足') + '。普通点击槽位可打开选择器并确认强制安装。');
+    return;
+  }
+  await props.vm.installVariantWeapon(key, schemaStringValue(target.slot.id), weapon.id);
+}
+async function repeatWing(index: number) {
+  const key = current.value!.key,
+    wing = lastWing.value!;
+  if (!(await prepareEquipment('wings', index)) || current.value?.key !== key) return;
+  const variant = current.value!,
+    target = variant.wings[index]!;
+  const entry = catalogs.wings.entries.value.find((candidate) => candidate.id === wing.id);
+  if (!entry) {
+    feedback.info('战机联队来源不可用。普通点击战机甲板可打开选择器重新选择。');
+    return;
+  }
+  const existingCost = target.builtin || !target.id ? 0 : target.cost;
+  const candidateCost = immersiveNumber(isRowData(entry.data) ? entry.data : {}, 'op cost', NaN);
+  if (!Number.isFinite(candidateCost) || variant.opUsed - existingCost + candidateCost > variant.opTotal) {
+    feedback.info('无法重复安装：装配点数不足。普通点击战机甲板可打开选择器继续安装。');
+    return;
+  }
+  await props.vm.updateVariant(key, (data) => equipVariantWing(data, index, wing.id));
 }
 async function selectEquipment(
   request: Pick<NonNullable<typeof picker.value>, 'kind' | 'index' | 'key'>,
@@ -359,9 +447,50 @@ function changeMod(id: string, category: HullmodCategory | null) {
   const key = current.value!.key;
   void props.vm.updateVariant(key, (data) => setVariantHullmod(data, id, category));
 }
-function step(field: string, delta: number) {
-  const key = current.value!.key;
-  void props.vm.updateVariant(key, (data) => ({ ...data, [field]: Number(data[field] ?? 0) + delta }));
+async function step(field: string, delta: number): Promise<boolean> {
+  const variant = current.value,
+    target = props.vm.joint.currentTarget.value;
+  if (!variant || blocked.value || !variant.editable) return false;
+  if (
+    !(await props.vm.commitVariantInputs()) ||
+    blocked.value ||
+    current.value?.key !== variant.key ||
+    props.vm.joint.currentTarget.value !== target
+  )
+    return false;
+  const key = variant.key,
+    currentValue = Number(jointObject(props.vm.displayValues.value[key])[field] ?? 0);
+  if (delta < 0 && currentValue <= 0) return false;
+  if (delta > 0 && currentValue + delta > variant.fluxLimit && !fluxLimitAuthorized) {
+    if (fluxLimitPromptPending) return false;
+    fluxLimitPromptPending = true;
+    let choice: string | null;
+    try {
+      choice = await feedback.choose({
+        type: 'warning',
+        title: '超过舰船等级上限？',
+        content: `当前船体等级的幅能寄存器和耗散通道上限为 ${variant.fluxLimit}。确认后，本编辑窗口的两项数值都可以继续超过上限。`,
+        choices: [{ label: '继续无限增加', value: 'allow', type: 'warning' }],
+        cancelText: '保持当前上限',
+      });
+    } catch (error) {
+      feedback.error(error, '确认幅能分配失败');
+      return false;
+    } finally {
+      fluxLimitPromptPending = false;
+    }
+    if (
+      choice !== 'allow' ||
+      !props.vm.isActive() ||
+      blocked.value ||
+      current.value?.key !== key ||
+      props.vm.joint.currentTarget.value !== target ||
+      Number(jointObject(props.vm.displayValues.value[key])[field] ?? 0) !== currentValue
+    )
+      return false;
+    fluxLimitAuthorized = true;
+  }
+  return props.vm.updateVariant(key, (data) => ({ ...data, [field]: Number(data[field] ?? 0) + delta }));
 }
 async function selectModule(key: string) {
   if (!(await props.vm.commitVariantInputs())) return;

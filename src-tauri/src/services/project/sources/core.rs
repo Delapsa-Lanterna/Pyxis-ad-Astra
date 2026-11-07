@@ -19,6 +19,7 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Condvar, LazyLock, Mutex, MutexGuard};
 
 const WEAPON_SOURCE_DIRS: &[&str] = &["data/weapons", "data/shipsystems/wpn"];
+const PROJECTILE_SOURCE_DIRS: &[&str] = &["data/weapons/proj", "data/shipsystems/proj"];
 
 #[derive(Clone, Copy)]
 pub(in crate::services::project) struct CoreSourceRequirements {
@@ -584,7 +585,7 @@ pub(crate) fn load_core_projectile_specs(
         |sources| {
             load_spec_records_from(
                 sources,
-                &["data/weapons/proj"],
+                PROJECTILE_SOURCE_DIRS,
                 "proj",
                 "id",
                 ResourceSource::Core,
@@ -703,7 +704,10 @@ pub(in crate::services::project) fn invalidate_core_sources(
         {
             data.weapon_specs = None;
         }
-        if matches("data/weapons/proj") {
+        if PROJECTILE_SOURCE_DIRS
+            .iter()
+            .any(|directory| matches(directory))
+        {
             data.projectile_specs = None;
         }
     }
@@ -1062,6 +1066,50 @@ mod tests {
         assert_eq!(work_counts::count("parse", &path), 2);
         invalidate_core_cache(&text).unwrap();
         root.close().unwrap();
+    }
+
+    #[test]
+    fn projectile_sources_share_reads_and_refresh_files_and_directories() {
+        for directory in PROJECTILE_SOURCE_DIRS {
+            let root = project_workspace("core_projectile_sources");
+            let relative = format!("{directory}/nested/fixture.proj");
+            let path = root.join("starsector-core").join(&relative);
+            fs::create_dir_all(path.parent().unwrap()).unwrap();
+            fs::write(&path, r#"{"id":"probe","width":1}"#).unwrap();
+            let game = root.to_string_lossy();
+            thread::scope(|scope| {
+                let tasks = (0..4)
+                    .map(|_| scope.spawn(|| load_core_projectile_specs(&game).unwrap()))
+                    .collect::<Vec<_>>();
+                for task in tasks {
+                    assert_eq!(task.join().unwrap()["probe"].location.rel_path, relative);
+                }
+            });
+            load_core_projectile_specs(&game).unwrap();
+            for (index, changed) in [relative.as_str(), *directory].into_iter().enumerate() {
+                assert_eq!(work_counts::count("read", &path), index + 1);
+                assert_eq!(work_counts::count("parse", &path), index + 1);
+                fs::write(&path, json!({"id":"probe","width":index + 2}).to_string()).unwrap();
+                invalidate_core_sources(
+                    &game,
+                    &[InvalidatedResourceScope {
+                        source: ResourceSource::Core,
+                        rel_path: changed.into(),
+                    }],
+                )
+                .unwrap();
+                let loaded = load_core_projectile_specs(&game).unwrap();
+                assert_eq!(loaded["probe"].data["width"], index + 2);
+                assert!(Arc::ptr_eq(
+                    &loaded,
+                    &load_core_projectile_specs(&game).unwrap()
+                ));
+                assert_eq!(work_counts::count("read", &path), index + 2);
+                assert_eq!(work_counts::count("parse", &path), index + 2);
+            }
+            invalidate_core_cache(&game).unwrap();
+            root.close().unwrap();
+        }
     }
 
     #[test]

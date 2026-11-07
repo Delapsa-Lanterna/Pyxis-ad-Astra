@@ -184,6 +184,19 @@ export function projectWeaponPanel(
   const damageFields = stats.beam ? beamFields : shotFields;
   const count = stats.barrels * (spec.interruptibleBurst ? 1 : stats.burst);
   const showCount = count > 1 && stats.ammo > count && count < 1000;
+  const submunitions = stats.submunitions;
+  const multiplier = submunitions
+    ? [count, submunitions.numShots]
+        .filter((value) => value > 1)
+        .map((value) => ' × ' + format(value))
+        .join('')
+    : showCount
+      ? ' × ' + format(count)
+      : '';
+  const submunitionSource = submunitions
+    ? '弹体 ' + schemaStringValue(spec.projectileSpecId) + '：behaviorSpec.damage、emp、numShots；通过弹体编辑入口修改。'
+    : undefined;
+  const empSource = submunitions?.emp ?? stats.empSource;
   const primary = [role, mount, num('OPs', '装配点数'), num('range', '武器射程', 250)];
   if (!stats.beam || (stats.burstDamage >= 0 && !spec.skipIdleFrameIfZeroBurstDelay) || tags.includes('damage_special'))
     primary.push(
@@ -192,8 +205,9 @@ export function projectWeaponPanel(
         '伤害',
         tags.includes('damage_special')
           ? '特殊'
-          : format(stats.beam ? stats.burstDamage : stats.damage) + (!stats.beam && showCount ? ` × ${format(count)}` : ''),
-        damageFields,
+          : format(stats.beam ? stats.burstDamage : (submunitions?.damage ?? n('damage/shot'))) + (stats.beam ? '' : multiplier),
+        submunitions ? [] : damageFields,
+        submunitionSource,
       ),
     );
   const noDps = csv.noDPSInTooltip === true || schemaStringValue(csv.noDPSInTooltip).toLowerCase() === 'true';
@@ -209,15 +223,15 @@ export function projectWeaponPanel(
           : 'DPS = damage/shot × 发射数量 ÷（chargeup + chargedown + burst delay × (burst size − 1)）。',
       ),
     );
-  if (stats.empSource > 0) {
+  if (empSource > 0) {
     const burstBeam = stats.beam && stats.burst > 0 && !spec.skipIdleFrameIfZeroBurstDelay;
     primary.push(
       stat(
         'emp',
         stats.beam && !burstBeam ? 'EMP 每秒' : 'EMP 损害',
-        format(burstBeam ? (stats.burstDamage * stats.empSource) / n('damage/second') : stats.empSource) +
-          (!stats.beam && showCount ? ` × ${format(count)}` : ''),
-        [cf('emp'), ...cycleFields],
+        format(burstBeam ? (stats.burstDamage * empSource) / n('damage/second') : empSource) + (stats.beam ? '' : multiplier),
+        submunitions ? [] : [cf('emp'), ...cycleFields],
+        submunitionSource,
       ),
     );
   }
@@ -295,14 +309,16 @@ export function projectWeaponPanel(
       ancillary.push(num('reload size', schemaStringValue(spec.type) === 'ENERGY' ? '单次回充量' : '单次装填量', 1));
     }
   }
-  if (!stats.beam)
+  if (!stats.beam || stats.burst > 0)
     ancillary.push(
       stat(
         'refire',
         '开火间隔',
         format(stats.refire) + ' 秒',
         cycleFields,
-        '弹体使用原版充能、连射与再次射击周期；interruptibleBurst 使用 chargedown。',
+        stats.beam
+          ? '光束周期 = chargeup + chargedown + burst size + burst delay。'
+          : '弹体使用原版充能、连射与再次射击周期；interruptibleBurst 使用 chargedown。',
       ),
     );
   const branch = stat('branch', '规格分支', schemaStringValue(spec.specClass) || '请选择规格分支', [

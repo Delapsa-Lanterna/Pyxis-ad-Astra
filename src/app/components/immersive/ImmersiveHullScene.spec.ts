@@ -5,6 +5,7 @@ import { installCanvas2DStub } from '@/test/unit/canvas-stub';
 import { variantJointFixture } from '@/test/fixtures/joint-edit/variant-joint-edit';
 import { projectVariantPanel } from '@/domain/immersive/variant/variant-panel';
 import ImmersiveHullScene from './ImmersiveHullScene.vue';
+import ImmersiveText from './ImmersiveText.vue';
 import { loadEngineFallbacks } from '@/app/renderers/editors/engine-fallback';
 import { windowImageRuntime } from '@/app/composables/use-window-image-runtime';
 import { initializeCacheLimits } from '@/shared/runtime/cache-limits';
@@ -116,7 +117,20 @@ describe('variant scene pointer dismissal', () => {
     const drawSlot = vi.spyOn(await import('@/app/renderers/editors/weapon-slot-renderer'), 'drawWeaponSlotVisual');
     const own = mount(ImmersiveHullScene, {
       props: { variant: { ...scene, modules: [module] }, sessionId: 's' },
-      global: { stubs: { ImmersiveText: { props: ['text'], template: '<span>{{ text }}</span>' } } },
+      global: {
+        stubs: {
+          ImmersiveText: {
+            name: 'ImmersiveText',
+            props: {
+              text: { type: String, default: '' },
+              runs: { type: Array, default: undefined },
+              font: { type: String, default: 'body' },
+              outlined: Boolean,
+            },
+            template: '<span>{{ runs ? runs.map((run) => run.text).join("") : text }}</span>',
+          },
+        },
+      },
     });
     expect(drawSlot).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ type: 'STATION_MODULE', mount: 'HIDDEN' }));
     expect(drawSlot.mock.calls.every(([, slot]) => slot.type === 'STATION_MODULE')).toBe(true);
@@ -143,13 +157,13 @@ describe('variant scene pointer dismissal', () => {
     drawSlot.mockClear();
     await own.setProps({ variant: { ...scene, modules: [] } });
     expect(drawSlot).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ type: 'STATION_MODULE', mount: 'HIDDEN' }));
-    expect(own.get('.variant-slot-label').text()).toBe('空槽');
+    expect(own.get('.variant-slot-label').text()).toBe('中型 模块 隐藏 (空槽)');
     await own.get('canvas').trigger('mousedown', { button: 0, clientX: 390, clientY: 350 });
     expect(own.emitted('module')).toHaveLength(2);
     await own.setProps({
       variant: { ...variant, weapons: [{ ...weapon, slot: { ...weapon.slot, mount: 'HIDDEN' }, name: 'Sample weapon', builtin: true }] },
     });
-    expect(own.get('.variant-slot-label').text()).toBe('Sample weapon（内置）');
+    expect(own.get('.variant-slot-label').text()).toBe('Sample weapon (内置)');
     for (const [id, builtin] of [
       ['', false],
       ['sample_weapon', false],
@@ -183,6 +197,30 @@ describe('variant scene pointer dismissal', () => {
     expect(drawSlot.mock.lastCall![1].point).not.toEqual(initialPoint);
     expect(drawSlot.mock.lastCall![1].refit).toEqual({ scale: 1.25, highlighted: true, builtin: true });
     expect(drawSlot.mock.lastCall![1].style).toMatchObject({ outlineWidth: 2.2, arcWidth: 2, facingWidth: 2 });
+    for (const [id, name, cost, builtin, expected, highlight] of [
+      ['sample', 'Sample 17 Beam', 17, false, 'Sample 17 Beam (17 OP)', '17'],
+      ['sample', 'Sample beam', 17.6, false, 'Sample beam (18 OP)', '18'],
+      ['sample', 'Sample beam', 0, false, 'Sample beam (0 OP)', '0'],
+      ['sample', 'Sample beam', undefined, false, 'Sample beam (来源未确定 OP)', '来源未确定'],
+      ['sample', 'Sample beam', NaN, false, 'Sample beam (来源未确定 OP)', '来源未确定'],
+      ['sample', 'Sample beam', 0, true, 'Sample beam (内置)', '内置'],
+      ['', '', 0, false, '中型 实弹 炮塔 (空槽)', '空槽'],
+    ] as const) {
+      await own.setProps({ variant: { ...variant, weapons: [{ ...weapon, id, name, cost, builtin }] } });
+      const point = drawSlot.mock.lastCall![1].point;
+      await own.get('canvas').trigger('mousemove', { clientX: point.x, clientY: point.y });
+      const label = own.get('.variant-slot-label'),
+        text = label.getComponent(ImmersiveText);
+      expect(label.text()).toBe(expected);
+      expect(text.props()).toMatchObject({ font: 'slot-name', outlined: true });
+      expect(text.props('runs')).toEqual([
+        { text: (id ? name : '中型 实弹 炮塔') + ' (', color: '#dcdcdc' },
+        { text: highlight, color: '#ffd200' },
+        { text: id && !builtin ? ' OP)' : ')', color: '#dcdcdc' },
+      ]);
+      await own.get('canvas').trigger('mouseleave');
+      expect(own.find('.variant-slot-label').exists()).toBe(false);
+    }
     own.unmount();
   });
   it('shares three bundled SVG decodes and returns their ready images synchronously', async () => {

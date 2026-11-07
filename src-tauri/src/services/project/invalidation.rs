@@ -1,5 +1,6 @@
 use super::definitions::entity_definitions;
 use super::model::ProjectSession;
+use crate::domain::entity_definitions::PROJECTILE_SPEC_DEFINITION;
 use crate::errors::{AppError, AppResult};
 use crate::io::{FsRootBoundary, parse_csv_text, relative_path_contains};
 use crate::models::{
@@ -850,8 +851,7 @@ pub(super) fn refresh_sources_from(
     }
     let core_projectiles = if sources.iter().any(|source| {
         source.source == ResourceSource::Core
-            && (relative_path_contains(&source.rel_path, "data/weapons/proj")
-                || relative_path_contains("data/weapons/proj", &source.rel_path))
+            && PROJECTILE_SPEC_DEFINITION.path_matches(&source.rel_path)
     }) {
         let core = core::load_core_projectile_specs(
             session

@@ -80,6 +80,12 @@ describe('schema scalar commit contract', () => {
     expect(applySchemaFieldUpdate(source, 'nested.count', { kind: 'remove' })).toEqual({ nested: { name: 'keep' }, other: 2 });
     expect(source.nested.count).toBe(1);
   });
+  it('commits optional string emptiness and removes an omitted identity', () => {
+    const field = { key: 'name', label: 'Name', type: 'string' as const };
+    expect(convertSchemaScalarInput('', field)).toEqual({ kind: 'set', value: '' });
+    expect(convertSchemaScalarInput('', { ...field, required: true })).toMatchObject({ kind: 'error' });
+    expect(convertSchemaScalarInput('', { ...field, required: true, identity: true })).toEqual({ kind: 'remove' });
+  });
 });
 
 describe('declared JSON input shape', () => {

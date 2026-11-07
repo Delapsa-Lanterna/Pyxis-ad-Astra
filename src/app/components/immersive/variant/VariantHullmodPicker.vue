@@ -48,7 +48,6 @@
               class="variant-hullmod-row ui-button ui-control-button ui-layout-grid ui-layout-center ui-layout-stretch ui-control-reset"
               :class="{
                 installed: Boolean(installed(view.item.id)),
-                'variant-list-active': view.active,
                 unavailable: installed(view.item.id)?.category === 'builtin' || Boolean(state(view.item).diagnostic),
               }"
               :aria-disabled="installed(view.item.id)?.category === 'builtin'"

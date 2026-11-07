@@ -1,6 +1,7 @@
 import { mount, type VueWrapper } from '@vue/test-utils';
 import { afterEach, describe, expect, it } from 'vitest';
 import { h, ref } from 'vue';
+import { NInput } from 'naive-ui/es/input';
 import { createFieldInputs, provideFieldInputs } from '@/shared/runtime/field-inputs';
 import ColorPicker from './ColorPicker.vue';
 import FieldRow from './FieldRow.vue';
@@ -23,6 +24,19 @@ function mountPicker(modelValue: number[], props: Record<string, unknown> = {}) 
 }
 
 describe('ColorPicker', () => {
+  it('keeps missing values blank instead of displaying the picker fallback as stored data', () => {
+    const picker = mount(ColorPicker, { props: { modelValue: [] }, global: { stubs: editorUiStubs } });
+    expect((picker.get('.color-picker-text-input').element as HTMLInputElement).value).toBe('');
+    expect(picker.get('button.color-picker-preview').attributes('style')).toContain('--preview-color: transparent');
+  });
+  it('shows the inherited source inside the muted color value input', () => {
+    const picker = mount(ColorPicker, {
+      props: { modelValue: [150, 150, 150, 255], sourceOrigin: '原版' },
+      global: { stubs: { ...editorUiStubs, 'n-input': NInput } },
+    });
+    expect(picker.getComponent(NInput).props('themeOverrides')).toEqual({ textColor: 'var(--color-muted)' });
+    expect(picker.get('.n-input__suffix').text()).toBe('(来自 原版)');
+  });
   it('projects JSON object channels without mutating the original field', () => {
     const value = deepClone([{ custom: 1 }, 20, 30, 255]);
     wrapper = mount(ColorPicker, { props: { modelValue: value }, global: { stubs: editorUiStubs } });

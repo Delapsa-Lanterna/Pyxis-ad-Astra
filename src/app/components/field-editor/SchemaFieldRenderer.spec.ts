@@ -99,14 +99,30 @@ function mountBoundField(field: FieldSchema, initial: unknown, runtimeContext?: 
 }
 
 describe('SchemaFieldRenderer smart mode', () => {
-  it.each(['float', 'object', 'array'] as const)('restores the reference through the accessible %s icon action', async (type) => {
+  it.each(['float', 'object', 'array'] as const)('restores an available reference through the accessible %s icon action', async (type) => {
     const value = type === 'float' ? 4 : type === 'object' ? {} : [];
+    const inheritedValue = type === 'float' ? 2 : type === 'object' ? { inherited: true } : ['inherited'];
     const apply = vi.fn();
     const field = mountField(fieldFixture(type), value, {
       runtimeContext: {
         sessionId: 'reference-actions',
         modRoot: 'M:/sample',
-        composition: { local: () => ({ field: value }), sources: () => ({ layers: [], excluded: [], replace: false }), apply },
+        composition: {
+          local: () => ({ field: value }),
+          sources: () => ({
+            layers: [
+              {
+                source: { source: 'reference', root: 'M:/base', path: 'M:/base/file.json', relPath: 'file.json' },
+                version: { path: 'M:/base/file.json', fingerprint: 'base' },
+                data: { field: inheritedValue },
+                replace: false,
+              },
+            ],
+            excluded: [],
+            replace: false,
+          }),
+          apply,
+        },
       },
     });
     const action = field.get('button[aria-label="使用引用值"]');
@@ -120,6 +136,88 @@ describe('SchemaFieldRenderer smart mode', () => {
     expect(action.get('svg').attributes('aria-hidden')).toBe('true');
     await action.trigger('click');
     expect(apply).toHaveBeenCalledExactlyOnceWith(['field'], undefined);
+  });
+  it('hides reference restore when no source layer supplies the field', () => {
+    const field = mountField(fieldFixture('string'), 'local', {
+      runtimeContext: {
+        sessionId: 'reference-actions',
+        modRoot: 'M:/sample',
+        composition: { local: () => ({ field: 'local' }), sources: () => ({ layers: [], excluded: [], replace: false }), apply: vi.fn() },
+      },
+    });
+    expect(field.find('button[aria-label="使用引用值"]').exists()).toBe(false);
+  });
+  it('shows the source beside the value and restores only an existing local override', async () => {
+    const value = 'inherited';
+    const field = mountField(fieldFixture('string'), value, {
+      runtimeContext: {
+        sessionId: 'reference-actions',
+        modRoot: 'M:/sample',
+        composition: {
+          local: () => ({}),
+          sources: () => ({
+            layers: [
+              {
+                source: { source: 'core', root: 'M:/core', path: 'M:/core/file.json', relPath: 'file.json' },
+                version: { path: 'M:/core/file.json', fingerprint: 'core' },
+                data: { field: 'inherited' },
+                replace: false,
+              },
+            ],
+            excluded: [],
+            replace: false,
+          }),
+          apply: vi.fn(),
+        },
+      },
+    });
+    expect(field.getComponent(SchemaScalarInput).props('origin')).toBe('原版');
+    expect(field.find('button[aria-label="使用引用值"]').exists()).toBe(false);
+  });
+  it('does not render the empty-string action', () => {
+    const field = mountField(fieldFixture('string'), 'value', {
+      runtimeContext: {
+        sessionId: 'reference-actions',
+        modRoot: 'M:/sample',
+        composition: { local: () => ({ field: 'value' }), sources: () => ({ layers: [], excluded: [], replace: false }), apply: vi.fn() },
+      },
+    });
+    expect(field.text()).not.toContain('设为空值');
+  });
+  it('puts the inherited image filename and source in the selected value', () => {
+    const selectStub = defineComponent({ extends: nSelect, props: { renderLabel: { type: Function, default: undefined } } });
+    const field = mount(SchemaFieldRenderer, {
+      props: {
+        field: fieldFixture('path-image', { imageDirectories: ['graphics/factions'] }),
+        value: 'graphics/factions/tactistar.png',
+        runtimeContext: {
+          sessionId: 'reference-actions',
+          modRoot: 'M:/sample',
+          composition: {
+            local: () => ({}),
+            sources: () => ({
+              layers: [
+                {
+                  source: { source: 'core', root: 'M:/core', path: 'M:/core/file.json', relPath: 'file.json' },
+                  version: { path: 'M:/core/file.json', fingerprint: 'core' },
+                  data: { field: 'graphics/factions/tactistar.png' },
+                  replace: false,
+                },
+              ],
+              excluded: [],
+              replace: false,
+            }),
+            apply: vi.fn(),
+          },
+        },
+      },
+      global: { stubs: { ...editorUiStubs, 'n-select': selectStub } },
+    });
+    const renderLabel = field.getComponent(selectStub).props('renderLabel')!;
+    const label = renderLabel({ value: 'graphics/factions/tactistar.png', label: 'tactistar.png' });
+    expect(label.children[0]?.children).toBe('tactistar.png');
+    expect(label.children[1]?.children).toBe('(来自 原版)');
+    expect(label.props?.class).toContain('ui-control-between');
   });
   it('keeps task-image candidates empty until the current task identity is available', async () => {
     const field = mountField(fieldFixture('path-image', { pathBase: 'mission', imageDirectories: ['.'] }), '', {

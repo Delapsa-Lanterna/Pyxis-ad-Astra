@@ -20,6 +20,7 @@ impl EntitySpecDefinition {
     pub fn source_dirs(&self) -> &[&str] {
         match self.entity_kind {
             EntityKind::Weapon => &["data/weapons", "data/shipsystems/wpn"],
+            EntityKind::Projectile => &["data/weapons/proj", "data/shipsystems/proj"],
             _ => slice::from_ref(&self.dir),
         }
     }
@@ -206,6 +207,10 @@ mod tests {
             "data/weapons/weapon.wpn"
         );
         assert_eq!(
+            PROJECTILE_SPEC_DEFINITION.default_rel_path("sample"),
+            "data/weapons/proj/sample.proj"
+        );
+        assert_eq!(
             SHIP_SPEC_DEFINITION.default_rel_path("XY"),
             "data/hulls/XY.ship"
         );
@@ -234,25 +239,24 @@ mod tests {
     }
 
     #[test]
-    fn weapon_sources_share_path_validation_and_invalidation() {
-        for directory in WEAPON_SPEC_DEFINITION.source_dirs() {
-            let path = format!("{directory}/nested/weapon.wpn");
-            WEAPON_SPEC_DEFINITION
-                .validate_rel_path(&path, "invalid")
-                .unwrap();
-            assert!(WEAPON_SPEC_DEFINITION.path_matches(&path));
-            assert!(WEAPON_SPEC_DEFINITION.path_matches(directory));
-        }
-        for path in [
-            "data/shipsystems/weapon.wpn",
-            "data/shipsystems/wpn/../weapon.wpn",
-            "data/shipsystems/wpn/weapon.system",
+    fn weapon_and_projectile_sources_share_path_validation_and_invalidation() {
+        for (definition, directory, extension) in [
+            (WEAPON_SPEC_DEFINITION, "data/shipsystems/wpn", "wpn"),
+            (PROJECTILE_SPEC_DEFINITION, "data/shipsystems/proj", "proj"),
         ] {
-            assert!(
-                WEAPON_SPEC_DEFINITION
-                    .validate_rel_path(path, "invalid")
-                    .is_err()
-            );
+            for directory in definition.source_dirs() {
+                let path = format!("{directory}/nested/sample.{extension}");
+                definition.validate_rel_path(&path, "invalid").unwrap();
+                assert!(definition.path_matches(&path));
+                assert!(definition.path_matches(directory));
+            }
+            for path in [
+                format!("data/shipsystems/sample.{extension}"),
+                format!("{directory}/../sample.{extension}"),
+                format!("{directory}/sample.system"),
+            ] {
+                assert!(definition.validate_rel_path(&path, "invalid").is_err());
+            }
         }
     }
 

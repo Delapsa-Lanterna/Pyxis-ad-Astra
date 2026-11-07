@@ -45,6 +45,7 @@ export function useJsonDocumentView(
   );
   const schemaRuntimeContext = computed<FieldEditorContext>(() => {
     const target = document.target.value!;
+    if (definition.kind === 'misc-config') return { modRoot: target.modRoot, sessionId: target.sessionId, partial: true };
     const context = {
       modRoot: target.modRoot,
       sessionId: target.sessionId,

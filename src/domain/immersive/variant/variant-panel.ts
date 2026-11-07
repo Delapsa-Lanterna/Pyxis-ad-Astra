@@ -302,13 +302,13 @@ export function projectVariantPanel(
           stat('upkeep', '护盾维持 幅能/秒', shieldFlux, 'shield upkeep × 船体基础 flux dissipation'),
           stat('efficiency', '护盾 幅能/伤害', number('shield efficiency', 1), '有效船体 shield efficiency'),
         );
+      const firingWeapons = weapons.filter((weapon) => weapon.id && weapon.type !== 'DECORATIVE');
       stats.push(
         stat(
           'weapon-flux',
           '武器 幅能/秒',
-          weapons.reduce((sum, weapon) => sum + weapon.flux, 0),
-          weapons
-            .filter((weapon) => weapon.id)
+          Math.trunc(firingWeapons.reduce((sum, weapon) => sum + weapon.flux, 0)),
+          firingWeapons
             .map((weapon) => `${weapon.name}：持续 ${formatVariantNumber(weapon.flux)}，峰值 ${formatVariantNumber(weapon.peakFlux)}`)
             .join('\n'),
         ),

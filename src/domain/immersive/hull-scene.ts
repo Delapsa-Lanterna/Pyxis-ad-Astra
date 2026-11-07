@@ -18,7 +18,7 @@ export interface ImmersiveHullScene {
   name: string;
   spec: DeepReadonly<RowData>;
   hull: DeepReadonly<Pick<JointHull, 'sprite' | 'modules' | 'hints'>>;
-  weapons: Array<MountedWeaponImages & { id: string; name: string; builtin: boolean }>;
+  weapons: Array<MountedWeaponImages & { id: string; name: string; builtin: boolean; cost?: number }>;
   modules: Array<{ slot: DeepReadonly<RowData>; variant: ImmersiveHullScene }>;
 }
 

@@ -35,8 +35,8 @@
       >
     </EditorHeader>
     <div class="editor-fields ui-content-scroll">
-      <p v-if="document.composition.value" class="ui-text-muted ui-text-small ui-text-reset">
-        {{ schemaRuntimeContext.partial ? '待组合文件' : '自持文件' }}
+      <p v-if="schemaRuntimeContext.composition" class="ui-text-muted ui-text-small ui-text-reset">
+        {{ schemaRuntimeContext.partial ? '待组合文件' : '完整定义文件' }}
       </p>
       <div v-show="Object.values(previews).some(Boolean)" class="panel-card ui-layout-row ui-control-border ui-content-surface">
         <div

@@ -4,6 +4,7 @@
     ref="input"
     :value="raw"
     :placeholder="inherited ? cell(value) : undefined"
+    :theme-overrides="inherited ? { placeholderColor: 'var(--color-muted)' } : undefined"
     :class="{ 'ui-field-number': field.type === 'integer' || field.type === 'float', 'field-json-input': field.type === 'json' }"
     :disabled="field.editable === false"
     :type="multiline ? 'textarea' : 'text'"
@@ -14,7 +15,10 @@
     @change="commit"
     @blur="commit"
     @keydown="onKeydown"
-  />
+    ><template v-if="sourceOrigin" #suffix
+      ><span class="ui-text-muted ui-text-small">(来自 {{ sourceOrigin }})</span></template
+    ></n-input
+  >
 </template>
 
 <script setup lang="ts">
@@ -34,8 +38,7 @@ import { useFieldInputs } from '@/shared/runtime/field-inputs';
 import { AppError } from '@/shared/lib/errors';
 import { focusFieldInput } from '@/shared/runtime/focus-field-input';
 import { cell } from '@/shared/lib/starsector';
-import type { FieldEditorContext } from '@/domain/field-editor/field-editor-context';
-import { compositionPath, compositionOrigin } from '@/domain/json-composition';
+import { fieldCompositionOrigin, type FieldEditorContext } from '@/domain/field-editor/field-editor-context';
 import { computed } from 'vue';
 import { formatJsonInput, parseJsonInput } from '@/shared/lib/json-input';
 import type { JsonInputShape } from '@/shared/types';
@@ -49,13 +52,13 @@ const props = defineProps<{
   initialText?: string;
   shape?: JsonInputShape;
   validate?: (value: unknown) => string | null;
+  origin?: string | null;
 }>();
 const emit = defineEmits<{ update: [update: SchemaFieldUpdate]; cancel: [] }>();
-const inherited = computed(() => {
-  const context = props.runtimeContext?.composition,
-    sources = context?.sources();
-  return context && sources && compositionOrigin(context.local(), sources, compositionPath(props.fieldPath ?? props.field.key)) !== null;
-});
+const sourceOrigin = computed(() =>
+  props.origin === undefined ? fieldCompositionOrigin(props.runtimeContext, props.fieldPath ?? props.field.key) : props.origin,
+);
+const inherited = computed(() => sourceOrigin.value !== null);
 const multiline = props.field.type === 'text' || props.field.type === 'json';
 const input = ref<{ inputElRef: HTMLInputElement | null; textareaElRef: HTMLTextAreaElement | null; focus: () => void } | null>(null);
 const { raw, invalid, update, commit, cancel } = useRawFieldInput<unknown>({
@@ -75,7 +78,6 @@ const { raw, invalid, update, commit, cancel } = useRawFieldInput<unknown>({
               ? schemaPlainBooleanText(props.value)
               : cell(props.value),
   convert: (text) => {
-    if ((props.runtimeContext?.composition || props.field.identity) && text === '') return { kind: 'remove' };
     if (props.field.type === 'json') return parseJsonInput(text, props.shape ?? 'json');
     if (props.field.type === 'string-array' || props.field.type === 'tag-select')
       return {

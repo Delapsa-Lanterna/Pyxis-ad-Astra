@@ -18,6 +18,8 @@ import { NInput } from 'naive-ui/es/input';
 import { NDropdown } from 'naive-ui/es/dropdown';
 import type { CommittedWriteEvent, WriteResult } from '@/shared/types';
 import SchemaFormRenderer from '@/app/components/field-editor/SchemaFormRenderer.vue';
+import SchemaValueInput from '@/app/components/field-editor/SchemaValueInput.vue';
+import { miscConfigFixture } from '@/test/fixtures/misc-config';
 import { useJsonEditorStore } from '@/stores/json-editor.store';
 import { useCsvEditorStore } from '@/stores/csv-editor.store';
 import { useProjectStore } from '@/stores/project.store';
@@ -33,6 +35,7 @@ import { getSchema } from '@/domain/schema/config-schema-registry';
 
 import { JSON_DOCUMENT_DEFINITIONS } from '@/domain/json-editor/json-document-definitions';
 import * as miscConfig from '@/domain/misc-config';
+import * as sourceCatalog from '@/services/source-catalog.service';
 import type { AppFeedback, EntityData, JsonEditorPageId, RowData, JsonRecoveryRequest, IndexedConfigSave } from '@/shared/types';
 import type * as EntityQueryServiceModule from '@/services/entity-query.service';
 import type * as ProjectSyncOrchestratorModule from '@/orchestrators/project-sync.orchestrator';
@@ -1217,6 +1220,69 @@ describe('JSON common workspace and form', () => {
 });
 
 describe('composed JSON detail adoption', () => {
+  it.each(miscConfig.MISC_CONFIG_DEFINITIONS)('$kind displays and saves its local file through navigation', async (definition) => {
+    vi.spyOn(sourceCatalog, 'querySourceOptionCatalog').mockResolvedValue([]);
+    const data = miscConfigFixture(definition.kind);
+    const path = 'M:/one/' + definition.path;
+    const baseVersions = [{ path, fingerprint: 'local' }];
+    const file = { kind: definition.kind, path, relPath: definition.path, data, baseVersions };
+    const composition = {
+      replace: false,
+      excluded: [],
+      layers: (['core', 'reference'] as const).map((source) => ({
+        source: { source, root: source, path: source + '/' + definition.path, relPath: definition.path },
+        version: { path: source + '/' + definition.path, fingerprint: source },
+        data: { inherited_group: { line: source } },
+        replace: false,
+      })),
+    };
+    mocks.miscList.mockResolvedValue([{ ...file, state: 'present', error: null }]);
+    mocks.miscRead.mockImplementation(async () => ({ ...file, composition }));
+    mocks.prepare.mockImplementation(async (request) => ({
+      request,
+      baseVersions,
+      currentSources: { file: file.data },
+      missingPaths: [],
+      resourceRefs: {},
+    }));
+    mocks.miscSave.mockImplementation(async (input) => {
+      file.data = input.data as RowData;
+      return { ...savedWriteFixture(file.data, { kind: 'json', origin: { kind: 'miscConfig', file: definition.kind } }), baseVersions };
+    });
+    await mountPage('misc-config');
+    wrapper!.getComponent(JsonDocumentList).vm.$emit('select', definition.kind);
+    await flushPromises();
+    const doc = useJsonEditorStore().active!;
+    const root = () => wrapper!.getComponent(SchemaValueInput);
+    const assertLocal = (expected: RowData) => {
+      expect(root().props('value')).toEqual(expected);
+      expect(wrapper!.getComponent(SchemaFormRenderer).props('runtimeContext')!.composition).toBeUndefined();
+      expect(wrapper!.find('.editor-fields > .ui-text-muted').exists()).toBe(false);
+    };
+    assertLocal(data);
+    const updated = structuredClone(data);
+    delete updated[Object.keys(updated)[0]!];
+    root().vm.$emit('update', { kind: 'set', value: updated });
+    await flushPromises();
+    assertLocal(updated);
+    expect(await doc.undo()).toBe(true);
+    await flushPromises();
+    assertLocal(data);
+    expect(await doc.redo()).toBe(true);
+    await flushPromises();
+    expect((await doc.save()).status).toBe('saved');
+    expect(mocks.miscSave.mock.lastCall![0].data).toEqual(updated);
+    expect(doc.dirty.value).toBe(false);
+    const navigation = useWorkspaceNavigationActions();
+    navigation.showSettings();
+    await flushPromises();
+    navigation.navigateToModJson('M:/one', 'misc-config');
+    await flushPromises();
+    expect(useJsonEditorStore().active).toBe(doc);
+    assertLocal(updated);
+    expect(mocks.feedback.error).not.toHaveBeenCalled();
+  });
+
   it('loads one faction detail with sparse local content and saves it through the form', async () => {
     const entity = entities.get(key('s1', 'faction', 'a'))!;
     entity.data = { knownShips: {} };
@@ -1237,7 +1303,7 @@ describe('composed JSON detail adoption', () => {
     expect(renderer.props('runtimeContext')!.composition).toBeDefined();
     await wrapper!.findAll('.schema-section input')[1]!.setValue('local');
     await doc.inputs.commit();
-    expect(wrapper!.get('.editor-fields > .ui-text-muted').text()).toBe('自持文件');
+    expect(wrapper!.get('.editor-fields > .ui-text-muted').text()).toBe('完整定义文件');
     await doc.undo();
     expect(wrapper!.get('.editor-fields > .ui-text-muted').text()).toBe('待组合文件');
   });

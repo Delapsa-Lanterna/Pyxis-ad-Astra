@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import type { RowData } from '@/shared/types';
 import { weaponStatistics, weaponMissileSpeed, weaponMissileTracking, weaponAccuracy, weaponTurnRate } from './weapon-statistics';
 
 describe('original weapon base statistics', () => {
@@ -48,16 +49,41 @@ describe('original weapon base statistics', () => {
     expect(stats.sustained).toBeCloseTo(23.33);
     expect(stats.fluxRatio).toBeCloseTo(150 / 233.3);
   });
-  it('retains MIRV static parameters and diagnoses unavailable script damage', () => {
-    const csv = { 'damage/shot': '10', chargedown: '1' },
-      spec = { specClass: 'projectile' };
-    expect(weaponStatistics(csv, spec, { missileType: 'MIRV', behaviorSpec: { params: { damage: 50, numShots: 4 } } })).toMatchObject({
-      damage: 200,
-      dps: 200,
-      emp: 0,
-    });
-    expect(weaponStatistics(csv, spec, { missileType: 'MIRV', behaviorSpec: { params: {} } }).diagnostics).toContain('MIRV');
-    expect(weaponStatistics(csv, spec, { missileType: 'MIRV' }).diagnostics).toContain('MIRV');
+  it.each([
+    [36, 1, 36],
+    [36, 3, 108],
+    [0, 4, 0],
+    [36, 0, 0],
+  ])('uses raw MIRV damage %s and count %s', (damage, numShots, expected) => {
+    const stats = weaponStatistics(
+      { 'damage/shot': '11', chargedown: '2', 'energy/shot': '0' },
+      { specClass: 'projectile' },
+      { missileType: 'MIRV', behaviorSpec: { damage, numShots, emp: 12 } },
+    );
+    expect(stats).toMatchObject({ damage: expected, dps: expected / 2, emp: 0, sustainedFlux: 0, diagnostics: '' });
+    expect(stats.submunitions).toEqual({ damage, numShots, emp: 12 });
+  });
+  it.each([
+    [{ damage: 36, emp: 12 }, 'numShots'],
+    [{ numShots: 3, emp: 12 }, 'damage'],
+    [undefined, 'damage、numShots、emp'],
+  ] satisfies Array<[RowData | undefined, string]>)('keeps CSV damage for incomplete MIRV parameters %s', (behaviorSpec, missing) => {
+    const stats = weaponStatistics(
+      { 'damage/shot': '11', chargedown: '2', 'energy/shot': '6' },
+      { specClass: 'projectile' },
+      { missileType: 'MIRV', ...(behaviorSpec ? { behaviorSpec } : {}) },
+    );
+    expect(stats).toMatchObject({ damage: 11, dps: 5.5, sustainedFlux: 3, submunitions: null });
+    expect(stats.diagnostics).toContain(missing);
+  });
+  it('retains derived MIRV damage while diagnosing unavailable display EMP', () => {
+    const stats = weaponStatistics(
+      { 'damage/shot': '11', chargedown: '2' },
+      { specClass: 'projectile' },
+      { missileType: 'MIRV', behaviorSpec: { damage: 36, numShots: 3 } },
+    );
+    expect(stats).toMatchObject({ damage: 108, dps: 54, submunitions: null });
+    expect(stats.diagnostics).toContain('emp');
   });
   it('uses original display thresholds and missile engine maneuverability', () => {
     expect([125, 175, 225, 275, 276].map(weaponMissileSpeed)).toEqual(['非常慢', '较慢', '中等', '较快', '非常快']);

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { variantJointFixture } from '@/test/fixtures/joint-edit/variant-joint-edit';
+import { fixtureCsvRecord, fixtureSpecRecord } from '@/test/fixtures/joint-edit/joint-record';
 import { projectVariantPanel, variantOpSegments, variantPreviewInputs } from './variant-panel';
 import { immersiveSnapshotScene } from '../hull-scene';
 import { variantEditableRecords } from '../source-records';
@@ -8,6 +9,46 @@ import { equipVariantWing, setVariantHullmod } from './variant-actions';
 import type { RowData } from '@/shared/types';
 
 describe('variant base configuration projection', () => {
+  it.each([
+    ['FIGHTER', 5],
+    ['FRIGATE', 10],
+    ['DESTROYER', 20],
+    ['CRUISER', 30],
+    ['CAPITAL_SHIP', 50],
+  ])('projects the %s allocation limit as %s', (hullSize, limit) => {
+    const snapshot = variantJointFixture();
+    const values = {
+      spec: {
+        state: 'present' as const,
+        value: { ...jointObject(snapshot.records.find((record) => record.key === 'spec')!.value), hullSize },
+      },
+    };
+    expect(projectVariantPanel(snapshot, values).variants[0]!.fluxLimit).toBe(limit);
+  });
+  it.each([
+    ['DECORATIVE', 'ENERGY', '800'],
+    ['ENERGY', 'DECORATIVE', '803'],
+  ])('sums flux by weapon type %s in slot type %s', (type, slotType, expected) => {
+    const snapshot = variantJointFixture(),
+      hull = snapshot.hull!;
+    snapshot.records.push(
+      fixtureSpecRecord('aux-spec', 'weapon', { id: 'fixture_aux', specClass: type === 'DECORATIVE' ? 'beam' : 'projectile', type }),
+      fixtureCsvRecord(
+        'aux-csv',
+        'weapons',
+        { id: 'fixture_aux' },
+        { id: 'fixture_aux', name: 'Auxiliary', 'damage/shot': '36', 'energy/shot': '6.5', chargedown: '2' },
+      ),
+    );
+    hull.slots.push({ id: 'AUX', type: slotType, size: 'SMALL', mount: 'TURRET', locations: [0, 0] });
+    hull.weapons.AUX = 'fixture_aux';
+    hull.builtInWeapons.AUX = 'fixture_aux';
+    const panel = projectVariantPanel(snapshot, {}).variants[0]!,
+      flux = panel.stats.at(-1)!;
+    expect(flux.display).toBe(expected);
+    expect(flux.formula!.includes('Auxiliary')).toBe(type !== 'DECORATIVE');
+    expect(panel.weapons.map((weapon) => weapon.id)).toEqual(['chaingun', 'chaingun', 'fixture_aux']);
+  });
   it('normalizes equipment ordering while retaining referenced content changes', () => {
     const snapshot = variantJointFixture();
     const data = {

@@ -8,10 +8,11 @@
     :runtime-context="runtimeContext"
     @update="publish($event)"
   >
-    <template #default="{ row, update }">
+    <template #default="{ row, origin: rowOrigin, update }">
       <SchemaValueInput
         :field="row.field"
         :value="row.value"
+        :origin="rowOrigin"
         :input-key="row.inputKey"
         :field-path="row.path"
         :runtime-context="runtimeContext"
@@ -26,6 +27,7 @@
     :input-key="fieldInputKey"
     :field-path="fieldPath"
     :runtime-context="runtimeContext"
+    :origin="sourceOrigin"
     @update="publish($event)"
   />
   <ColorPicker
@@ -35,17 +37,19 @@
     :output="active.type === 'color-rgb' ? 'rgb-array' : 'rgba-array'"
     :label="active.label"
     :input-key="fieldInputKey"
+    :source-origin="sourceOrigin"
     @update:model-value="publish({ kind: 'set', value: $event })"
   />
-  <n-switch
-    v-else-if="mode !== 'plain' && active.type === 'boolean'"
-    class="tool-switch field-switch"
-    :theme-overrides="inherited ? { railColorActive: 'var(--color-muted)' } : undefined"
-    :value="booleanValue === true || (typeof booleanValue === 'string' && booleanValue.toLowerCase() === 'true')"
-    size="small"
-    :disabled="active.editable === false"
-    @update:value="publish({ kind: 'set', value: $event })"
-  />
+  <div v-else-if="mode !== 'plain' && active.type === 'boolean'" class="ui-control-between ui-layout-stretch">
+    <n-switch
+      class="tool-switch field-switch"
+      :value="booleanValue === true || (typeof booleanValue === 'string' && booleanValue.toLowerCase() === 'true')"
+      size="small"
+      :disabled="active.editable === false"
+      @update:value="publish({ kind: 'set', value: $event })"
+    />
+    <span v-if="sourceOrigin" class="ui-text-muted ui-text-small">{{ booleanValue }} (来自 {{ sourceOrigin }})</span>
+  </div>
   <NumberValueInput
     v-else-if="
       mode !== 'plain' && ['integer', 'float'].includes(active.type) && !(active.numberFormat === 'starsector' && typeof value === 'string')
@@ -53,6 +57,7 @@
     :value="inherited ? undefined : value"
     :inherited-value="inherited ? Number(value) : undefined"
     :placeholder="inherited ? String(value ?? '') : undefined"
+    :source-origin="sourceOrigin"
     :input-key="fieldInputKey"
     :label="active.label"
     :integer="active.type === 'integer'"
@@ -69,6 +74,7 @@
     v-else
     :field-path="fieldPath"
     :field="scalar"
+    :origin="sourceOrigin"
     :runtime-context="runtimeContext"
     :value="value"
     :input-key="fieldInputKey"
@@ -78,7 +84,8 @@
 </template>
 <script setup lang="ts">
 import { computed } from 'vue';
-import { compositionPath, composeJson, setCompositionValue, editComposedJson, compositionOrigin } from '@/domain/json-composition';
+import { compositionPath, composeJson, setCompositionValue, editComposedJson } from '@/domain/json-composition';
+import { fieldCompositionOrigin } from '@/domain/field-editor/field-editor-context';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
 import SchemaCollectionInput from './SchemaCollectionInput.vue';
 import SchemaReferenceInput from './SchemaReferenceInput.vue';
@@ -94,6 +101,7 @@ const props = defineProps<{
   field: FieldSchema;
   value: unknown;
   runtimeContext?: FieldEditorContext | null;
+  origin?: string | null;
   inputKey?: string;
   fieldPath?: string;
 }>();
@@ -106,7 +114,7 @@ function publish(update: SchemaFieldUpdate) {
     return;
   }
   const path = compositionPath(props.fieldPath ?? props.field.key);
-  if (update.kind === 'remove' || update.value === '') {
+  if (update.kind === 'remove') {
     context.apply(path, undefined);
     return;
   }
@@ -119,11 +127,10 @@ function publish(update: SchemaFieldUpdate) {
 }
 const mode = useFieldEditMode();
 const fieldInputKey = computed(() => props.inputKey ?? props.field.key);
-const inherited = computed(() => {
-  const context = props.runtimeContext?.composition,
-    sources = context?.sources();
-  return context && sources && compositionOrigin(context.local(), sources, compositionPath(props.fieldPath ?? props.field.key)) !== null;
-});
+const sourceOrigin = computed(() =>
+  props.origin === undefined ? fieldCompositionOrigin(props.runtimeContext, props.fieldPath ?? props.field.key) : props.origin,
+);
+const inherited = computed(() => sourceOrigin.value !== null);
 const active = computed(() =>
   fieldSchemaForContext(props.field.variants ? schemaFieldVariant(props.field, props.value) : props.field, props.runtimeContext),
 );

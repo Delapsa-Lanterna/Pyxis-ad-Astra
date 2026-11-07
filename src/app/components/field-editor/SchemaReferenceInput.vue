@@ -6,12 +6,12 @@
     :input-key="inputKey"
     :field-path="fieldPath"
     :runtime-context="runtimeContext"
+    :origin="sourceOrigin"
     @update="emit('update', $event)"
   />
   <n-select
     v-else-if="field.type === 'enum'"
     ref="referenceSelect"
-    :theme-overrides="inherited ? { peers: { InternalSelection: { textColor: 'var(--color-muted)' } } } : undefined"
     :show="reference ? referenceOpen : undefined"
     :value="strVal"
     :options="displayOptions"
@@ -47,7 +47,16 @@
       @keydown.esc="reference?.cancel()"
       @update:value="reference && (reference.update($event ?? ''), reference.commit())"
     />
-    <SchemaScalarInput v-else :field="field" :value="value" :input-key="inputKey" @update="emit('update', $event)" />
+    <SchemaScalarInput
+      v-else
+      :field="field"
+      :value="value"
+      :input-key="inputKey"
+      :field-path="fieldPath"
+      :runtime-context="runtimeContext"
+      :origin="sourceOrigin"
+      @update="emit('update', $event)"
+    />
     <n-button
       class="compact-icon-button ui-control-reset"
       size="small"
@@ -99,11 +108,11 @@ import { NTag } from 'naive-ui/es/tag';
 import SchemaScalarInput from './SchemaScalarInput.vue';
 import ResourceOptionThumbnail from '@/app/components/media/ResourceOptionThumbnail.vue';
 import { useFieldSourceOptions } from '@/app/composables/field-editor/use-field-source-options';
-import { compositionOrigin, compositionPath } from '@/domain/json-composition';
 import { useFieldPathPicker } from '@/app/composables/field-editor/use-field-path-picker';
 import { useFieldOptionMedia } from '@/app/composables/field-editor/use-field-option-media';
 import { useImageSourceOptions } from '@/app/composables/field-editor/use-image-source-options';
 import { useFieldEditMode } from '@/app/composables/field-editor/use-field-edit-mode';
+import { fieldCompositionOrigin } from '@/domain/field-editor/field-editor-context';
 import { isCsvFieldSource, isEntityFieldSource } from '@/domain/schema/schema-source-definitions';
 import {
   fieldSourceCurrentValues,
@@ -131,17 +140,16 @@ const props = defineProps<{
   inputKey: string;
   fieldPath?: string;
   runtimeContext?: FieldEditorContext | null;
+  origin?: string | null;
 }>();
 const emit = defineEmits<{ update: [update: SchemaFieldUpdate] }>();
-const inherited = computed(() => {
-  const context = props.runtimeContext?.composition,
-    sources = context?.sources();
-  return context && sources && compositionOrigin(context.local(), sources, compositionPath(props.fieldPath ?? props.field.key)) !== null;
-});
 const mode = useFieldEditMode();
 const plainMode = computed(() => mode.value === 'plain');
 const fieldInputKey = computed(() => props.inputKey);
 const strVal = computed(() => schemaStringValue(props.value));
+const sourceOrigin = computed(() =>
+  props.origin === undefined ? fieldCompositionOrigin(props.runtimeContext, props.fieldPath ?? props.field.key) : props.origin,
+);
 const referenceOpen = ref(false),
   referenceSelect = ref<{ focusInput: () => void } | null>(null);
 const reference =
@@ -153,10 +161,8 @@ const reference =
         text: () => (['enum', 'path-image'].includes(props.field.type) ? strVal.value : ''),
         convert: (text) => {
           if (!['enum', 'path-image'].includes(props.field.type)) return { kind: 'value', value: text };
-          if (text === '')
-            return props.runtimeContext?.composition || !props.field.required
-              ? { kind: 'remove' }
-              : { kind: 'error', message: '必填字段不能为空' };
+          if (text === '' && !props.runtimeContext?.composition)
+            return props.field.required ? { kind: 'error', message: '必填字段不能为空' } : { kind: 'remove' };
           const result = convertSchemaScalarInput(text, props.field);
           return result.kind === 'set' ? { kind: 'value', value: String(result.value) } : result;
         },
@@ -242,16 +248,24 @@ watch([sourceOptions, () => fieldSourceCurrentValues(props.field, props.value)],
 
 // Render label with optional thumbnail for n-select options.
 function renderSelectLabel(option: SelectOption & { label?: string; value?: string }) {
-  const label = h('span', { class: 'schema-select-option-label' }, selectOptionText(option));
-  if (!option.resourceRef || !props.runtimeContext?.sessionId) return h('span', { title: selectOptionTitle(option) }, [label]);
-  return h('span', { class: 'schema-select-option', title: selectOptionTitle(option) }, [
-    h(ResourceOptionThumbnail, {
-      sessionId: props.runtimeContext.sessionId,
-      resource: option.resourceRef,
-      label: selectOptionText(option),
-      class: 'schema-select-option-thumb',
-    }),
-    label,
+  const text = selectOptionText(option);
+  const origin = selectOptionOrigin(option);
+  const label = h('span', { class: ['schema-select-option-label', origin && 'ui-text-muted'] }, text);
+  const content =
+    option.resourceRef && props.runtimeContext?.sessionId
+      ? h('span', { class: 'schema-select-option ui-layout-shrink' }, [
+          h(ResourceOptionThumbnail, {
+            sessionId: props.runtimeContext.sessionId,
+            resource: option.resourceRef,
+            label: text,
+            class: 'schema-select-option-thumb',
+          }),
+          label,
+        ])
+      : label;
+  return h('span', { class: 'ui-control-between ui-layout-stretch', title: selectOptionTitle(option) }, [
+    content,
+    origin ? h('span', { class: 'ui-text-muted ui-text-small' }, `(来自 ${origin})`) : null,
   ]);
 }
 
@@ -273,6 +287,14 @@ function selectOptionTitle(option: SelectOption & { label?: string; value?: stri
   const value = option.value ?? '';
   const label = selectOptionText(option);
   return [value, label !== value ? label : '', option.description ?? ''].filter(Boolean).join('\n') || undefined;
+}
+
+function selectOptionOrigin(option: SelectOption & { value?: string }): string | null {
+  const value = String(option.value ?? '');
+  if (props.field.type === 'enum' || props.field.type === 'path-image') return value === strVal.value ? sourceOrigin.value : null;
+  const values = props.field.type === 'tag-select' ? tagSelectVal.value : arrVal.value;
+  const index = values.indexOf(value);
+  return index < 0 ? null : fieldCompositionOrigin(props.runtimeContext, `${props.fieldPath ?? props.field.key}[${index}]`);
 }
 
 const enumOptions = computed(() => {
@@ -318,8 +340,12 @@ watch(
 function renderGraphicsLabel(option: SelectOption & { label?: string; value?: string }) {
   if (option.type === 'group') return option.label;
   const path = option.value ?? '';
-  const filename = schemaPathDisplayLabel(path);
-  return h('span', { title: path, class: 'schema-select-option-label' }, filename);
+  const origin = path === strVal.value ? sourceOrigin.value : null;
+  const filename = h('span', { class: ['schema-select-option-label', origin && 'ui-text-muted'] }, schemaPathDisplayLabel(path));
+  return h('span', { title: path, class: 'ui-control-between ui-layout-stretch' }, [
+    filename,
+    origin ? h('span', { class: 'ui-text-muted ui-text-small' }, `(来自 ${origin})`) : null,
+  ]);
 }
 
 function handleSelectShowUpdate(show: boolean) {

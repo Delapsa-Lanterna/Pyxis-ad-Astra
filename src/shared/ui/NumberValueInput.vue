@@ -14,30 +14,34 @@
     :disabled="disabled"
     :size="size"
     :placeholder="placeholder"
+    :theme-overrides="sourceOrigin ? { peers: { Input: { placeholderColor: 'var(--color-muted)' } } } : undefined"
     :status="invalid ? 'error' : undefined"
     @update:value="controlUpdated"
     @blur="commit"
     @keydown.enter="commit"
   >
-    <template v-if="showButton" #suffix>
-      <n-button
-        v-for="direction in [-1, 1]"
-        :key="direction"
-        class="compact-icon-button ui-control-reset"
-        text
-        :focusable="false"
-        :disabled="
-          disabled || (numericValue !== null && (direction < 0 ? numericValue <= (min ?? -Infinity) : numericValue >= (max ?? Infinity)))
-        "
-        :aria-label="direction < 0 ? '减少' : '增加'"
-        @mousedown.prevent
-        @click="adjust(direction, $event)"
-      >
-        <svg class="compact-icon-button-icon ui-control-icon" viewBox="0 0 24 24" aria-hidden="true">
-          <path d="M5 12h14" />
-          <path v-if="direction > 0" d="M12 5v14" />
-        </svg>
-      </n-button>
+    <template v-if="showButton || sourceOrigin" #suffix>
+      <span v-if="sourceOrigin" class="ui-text-muted ui-text-small">(来自 {{ sourceOrigin }})</span>
+      <template v-if="showButton">
+        <n-button
+          v-for="direction in [-1, 1]"
+          :key="direction"
+          class="compact-icon-button ui-control-reset"
+          text
+          :focusable="false"
+          :disabled="
+            disabled || (numericValue !== null && (direction < 0 ? numericValue <= (min ?? -Infinity) : numericValue >= (max ?? Infinity)))
+          "
+          :aria-label="direction < 0 ? '减少' : '增加'"
+          @mousedown.prevent
+          @click="adjust(direction, $event)"
+        >
+          <svg class="compact-icon-button-icon ui-control-icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M5 12h14" />
+            <path v-if="direction > 0" d="M12 5v14" />
+          </svg>
+        </n-button>
+      </template>
     </template>
   </n-input-number>
 </template>
@@ -64,6 +68,7 @@ const props = withDefaults(
     disabled?: boolean;
     size?: 'small' | 'medium' | 'large';
     placeholder?: string;
+    sourceOrigin?: string | null;
   }>(),
   {
     inheritedValue: undefined,
@@ -78,6 +83,7 @@ const props = withDefaults(
     disabled: false,
     size: 'medium',
     placeholder: undefined,
+    sourceOrigin: null,
   },
 );
 const emit = defineEmits<{ 'update:value': [value: number | null]; remove: [] }>();

@@ -32,22 +32,24 @@
         <span v-else>{{ row.field.label }}</span>
       </template>
       <template #[row.actionSlot]>
-        <div v-if="row.remove" :class="row.group ? 'section-header-meta ui-control-row' : undefined" @click.stop>
+        <div v-if="row.remove || row.origin" :class="row.group ? 'section-header-meta ui-control-row' : 'ui-control-row'" @click.stop>
+          <span v-if="row.origin && row.group" class="ui-text-muted ui-text-small">(来自 {{ row.origin }})</span>
           <n-button
+            v-if="row.remove"
             class="compact-icon-button ui-control-reset"
             size="tiny"
             quaternary
-            :title="row.group ? '删除分组' : '删除'"
+            :title="row.removeLabel"
+            :aria-label="row.removeLabel"
             @click.stop="remove(currentRow(row.id))"
           >
             <svg class="compact-icon-button-icon ui-control-icon" viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M6 6l12 12M18 6 6 18" />
+              <path d="M4 7h16M9 7V4h6v3m3 0-.8 13H6.8L6 7m3 3v7m6-7v7" />
             </svg>
           </n-button>
         </div>
       </template>
-      <slot :row="currentRow(row.id)" :update="(update: SchemaFieldUpdate) => updateRow(currentRow(row.id), update)" />
-      <small v-if="origin(row.path)" class="ui-text-muted">来自 {{ origin(row.path) }}</small>
+      <slot :row="currentRow(row.id)" :origin="row.origin" :update="(update: SchemaFieldUpdate) => updateRow(currentRow(row.id), update)" />
     </component>
     <div
       v-if="canAdd && field.editable !== false && field.operations?.add !== false && entries.length < (field.maxEntries ?? Infinity)"
@@ -84,8 +86,7 @@
 import { computed, nextTick, ref, shallowRef, watch } from 'vue';
 import type { SelectInst } from 'naive-ui/es/select';
 import { stableDeepEqual } from '@/shared/lib/stable-compare';
-import { compositionOrigin, compositionPath } from '@/domain/json-composition';
-import type { FieldEditorContext } from '@/domain/field-editor/field-editor-context';
+import { fieldCompositionOrigin, type FieldEditorContext } from '@/domain/field-editor/field-editor-context';
 import EditorCollapse from '@/app/components/editors/common/EditorCollapse.vue';
 import NCollapseItem from '@/app/components/editors/common/EditorCollapseItem.vue';
 import SchemaFieldRow from './SchemaFieldRow.vue';
@@ -115,11 +116,6 @@ const props = defineProps<{
   runtimeContext?: FieldEditorContext | null;
 }>();
 const emit = defineEmits<{ update: [update: SchemaFieldUpdate] }>();
-function origin(path: string) {
-  const context = props.runtimeContext?.composition,
-    sources = context?.sources();
-  return context && sources ? compositionOrigin(context.local(), sources, compositionPath(path)) : null;
-}
 const inputs = useFieldInputs();
 const mode = useFieldEditMode();
 const array = computed(() => props.field.type === 'array');
@@ -188,6 +184,8 @@ interface Row {
   group: boolean;
   labelSlot: string;
   actionSlot: string;
+  origin: string | null;
+  removeLabel: string;
   rename: boolean;
   remove: boolean;
   path: string;
@@ -233,6 +231,7 @@ const rows = computed<Row[]>((previous) => {
       ...(props.field.partial || props.runtimeContext?.partial ? { required: false, requiredWhen: undefined, partial: true } : {}),
     };
     const group = props.field.presentation === 'groups' ? !variable || field.type === 'object' : variable && schemaCollection(field);
+    const origin = fieldCompositionOrigin(props.runtimeContext, `${props.fieldPath}[${array.value ? key : JSON.stringify(key)}]`);
     const row: Row = {
       id,
       key,
@@ -243,11 +242,14 @@ const rows = computed<Row[]>((previous) => {
       group,
       labelSlot: group ? 'header' : 'label',
       actionSlot: group ? 'header-extra' : 'actions',
+      origin,
       rename: variable && !array.value && props.field.editable !== false && props.field.operations?.rename !== false,
       remove:
         props.field.editable !== false &&
         props.field.operations?.remove !== false &&
+        origin === null &&
         (variable || (index >= 0 && !field.required && props.field.presentation !== 'groups')),
+      removeLabel: rowRemoveLabel(group, array.value),
       path: `${props.fieldPath}[${array.value ? key : JSON.stringify(key)}]`,
       inputKey: `${props.inputKey}/${id}`,
       validateName:
@@ -316,6 +318,10 @@ const rows = computed<Row[]>((previous) => {
 const rowById = computed(() => new Map(rows.value.map((row) => [row.id, row])));
 function currentRow(id: string) {
   return rowById.value.get(id)!;
+}
+
+function rowRemoveLabel(group: boolean, isArray: boolean) {
+  return group ? '删除分组' : isArray ? '删除条目' : '移除字段';
 }
 
 const expanded = computed(() =>

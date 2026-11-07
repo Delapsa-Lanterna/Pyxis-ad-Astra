@@ -1,5 +1,5 @@
 <template>
-  <aside ref="surface" class="variant-refit-stats" @scroll.capture="hover.locate">
+  <aside ref="surface" class="variant-refit-stats" @scroll.capture="hover.locate" @keydown.capture="keyState" @keyup.capture="keyState">
     <div class="variant-op-display ui-layout-row ui-layout-center">
       <VariantShipInfo
         :variant="variant"
@@ -42,7 +42,8 @@
             class="variant-step ui-button ui-control-center ui-control-pointer ui-control-reset ui-content-surface-muted"
             :disabled="!variant.editable || (index ? variant.vents : variant.capacitors) <= 0"
             :aria-label="index ? '减少耗散通道' : '减少幅能寄存器'"
-            @click="$emit('step', field, -1)"
+            @pointerdown="startStepRepeat(field, -1, $event)"
+            @click="clickStep(field, -1, $event)"
           >
             <ImmersiveText text="−" font="op" />
           </button>
@@ -51,7 +52,8 @@
             class="variant-step ui-button ui-control-center ui-control-pointer ui-control-reset ui-content-surface-muted"
             :disabled="!variant.editable"
             :aria-label="index ? '增加耗散通道' : '增加幅能寄存器'"
-            @click="$emit('step', field, 1)"
+            @pointerdown="startStepRepeat(field, 1, $event)"
+            @click="clickStep(field, 1, $event)"
           >
             <ImmersiveText text="+" font="op" />
           </button>
@@ -180,7 +182,7 @@
   </Teleport>
 </template>
 <script setup lang="ts">
-import { computed, inject, ref, onMounted, watch } from 'vue';
+import { computed, inject, ref, onMounted, onScopeDispose, watch } from 'vue';
 import { immersiveBlockedKey } from '../immersive-render-context';
 import type { VariantPanelEntry } from '@/domain/immersive/variant/variant-panel';
 import { formatVariantNumber, variantOpSegments } from '@/domain/immersive/variant/variant-panel';
@@ -203,9 +205,78 @@ const props = defineProps<{
   render: ImmersiveRenderContext;
   vm: ReturnType<typeof useImmersiveVariantEditor>;
   pickerOpen: boolean;
+  onStep: (field: string, delta: number) => Promise<boolean>;
 }>();
 const pickerButton = ref<HTMLButtonElement | null>(null);
 const blocked = inject(immersiveBlockedKey, ref(false));
+let activeStepPress: { pointerId: number; field: string; delta: number } | null = null,
+  repeatTimer: ReturnType<typeof setTimeout> | null = null,
+  finishRepeatDelay: (() => void) | null = null;
+const shiftHeld = ref(false);
+function keyState(event: KeyboardEvent) {
+  if (event.key === 'Shift') shiftHeld.value = event.type === 'keydown';
+}
+function finishStepRepeat(event?: PointerEvent) {
+  if (event && activeStepPress?.pointerId !== event.pointerId) return;
+  activeStepPress = null;
+  if (repeatTimer) clearTimeout(repeatTimer);
+  repeatTimer = null;
+  finishRepeatDelay?.();
+  finishRepeatDelay = null;
+  window.removeEventListener('pointerup', finishStepRepeat);
+  window.removeEventListener('pointercancel', finishStepRepeat);
+  window.removeEventListener('blur', cancelStepRepeat);
+}
+function cancelStepRepeat() {
+  finishStepRepeat();
+}
+function repeatDelay(milliseconds: number) {
+  return new Promise<boolean>((resolve) => {
+    finishRepeatDelay = () => {
+      finishRepeatDelay = null;
+      resolve(false);
+    };
+    repeatTimer = setTimeout(() => {
+      repeatTimer = null;
+      finishRepeatDelay = null;
+      resolve(true);
+    }, milliseconds);
+  });
+}
+async function repeatStep(press: NonNullable<typeof activeStepPress>) {
+  const applied = await props.onStep(press.field, press.delta);
+  if (activeStepPress !== press) return;
+  if (!applied) {
+    finishStepRepeat();
+    return;
+  }
+  let interval = 500,
+    repeats = 0;
+  while (activeStepPress === press && (await repeatDelay(interval)) && activeStepPress === press) {
+    const continued = await props.onStep(press.field, press.delta);
+    if (activeStepPress !== press) return;
+    if (!continued) break;
+    interval = (repeats++ === 0 ? 250 : 125) * (shiftHeld.value ? 0.1 : 1);
+  }
+  if (activeStepPress === press) finishStepRepeat();
+}
+function startStepRepeat(field: string, delta: number, event: PointerEvent) {
+  if (event.button !== 0 || blocked.value || !props.variant.editable) return;
+  finishStepRepeat();
+  event.preventDefault();
+  (event.currentTarget as HTMLButtonElement).focus({ preventScroll: true });
+  activeStepPress = { pointerId: event.pointerId, field, delta };
+  shiftHeld.value = event.shiftKey;
+  window.addEventListener('pointerup', finishStepRepeat);
+  window.addEventListener('pointercancel', finishStepRepeat);
+  window.addEventListener('blur', cancelStepRepeat);
+  void repeatStep(activeStepPress);
+}
+function clickStep(field: string, delta: number, event: MouseEvent) {
+  if (event.detail === 0 && !blocked.value) void props.onStep(field, delta);
+}
+onScopeDispose(() => finishStepRepeat());
+watch([() => props.variant.key, () => props.vm.joint.currentTarget.value, blocked], cancelStepRepeat);
 const surface = ref<HTMLElement | null>(null);
 const hover = useImmersiveHover<string>(
   () => 393,
@@ -252,7 +323,7 @@ function showDetails(id: string, event: MouseEvent | FocusEvent) {
 }
 defineExpose({ focusPicker: () => pickerButton.value!.focus({ preventScroll: true }) });
 const opSegments = computed(() => variantOpSegments(props.variant.opUsed, props.variant.opTotal));
-defineEmits<{ picker: []; step: [field: string, delta: number]; mod: [id: string, category: HullmodCategory | null] }>();
+defineEmits<{ picker: []; mod: [id: string, category: HullmodCategory | null] }>();
 const media = useVisibleResourceMedia({
   thumbnailSize: 34,
   sessionId: () => props.vm.joint.currentTarget.value?.sessionId,

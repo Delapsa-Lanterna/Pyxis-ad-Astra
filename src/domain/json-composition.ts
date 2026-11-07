@@ -110,6 +110,12 @@ export function compositionOrigin(local: RowData, composition: JsonComposition, 
   return source ? (source.source.source === 'core' ? '原版' : source.source.root.split(/[/\\]/).at(-1)!) : null;
 }
 
+export function hasRestorableCompositionValue(local: RowData, composition: JsonComposition, path: string[]): boolean {
+  if (compositionValue(local, path) === undefined) return false;
+  const restored = composeJson(setCompositionValue(local, path, undefined), composition);
+  return compositionValue(restored, path) !== undefined;
+}
+
 /**
  * Converts an edit of the composed value into the local draft. Arrays can only extend inherited items;
  * any other change of inherited array items switches the file object at `root` to whole-file replacement.

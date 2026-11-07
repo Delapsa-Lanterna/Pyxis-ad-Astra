@@ -5,6 +5,7 @@ import {
   compositionOrigin,
   compositionPath,
   editComposedJson,
+  hasRestorableCompositionValue,
   setCompositionValue,
   takeReplaceBase,
 } from './json-composition';
@@ -46,6 +47,18 @@ describe('game JSON composition', () => {
       ships: ['C', 'D'],
     });
     expect(compositionPath('file.shipRoles["combat.small"]["A"]')).toEqual(['file', 'shipRoles', 'combat.small', 'A']);
+  });
+  it('keeps supplemental JSON scalar types and only restores an existing inherited value', () => {
+    const composition = sources({ amount: 3, enabled: false, empty: null, nested: { rank: 4 } });
+    const local = { amount: 5, enabled: true, empty: 'local', nested: { rank: 6 }, localOnly: 'value' };
+    expect(composeJson(local, composition)).toEqual({ amount: 5, enabled: true, empty: 'local', nested: { rank: 6 }, localOnly: 'value' });
+    expect(hasRestorableCompositionValue(local, composition, ['amount'])).toBe(true);
+    expect(hasRestorableCompositionValue(local, composition, ['enabled'])).toBe(true);
+    expect(hasRestorableCompositionValue(local, composition, ['empty'])).toBe(true);
+    expect(hasRestorableCompositionValue(local, composition, ['nested', 'rank'])).toBe(true);
+    expect(hasRestorableCompositionValue(local, composition, ['localOnly'])).toBe(false);
+    expect(hasRestorableCompositionValue(local, { ...composition, layers: [] }, ['amount'])).toBe(false);
+    expect(hasRestorableCompositionValue(local, { ...composition, replace: true }, ['amount'])).toBe(false);
   });
   it('replaces the whole file when inherited array items change and leaves replacement through undo', () => {
     const composition = sources({ turretOffsets: [10, -3, 10, 3], name: 'base' });

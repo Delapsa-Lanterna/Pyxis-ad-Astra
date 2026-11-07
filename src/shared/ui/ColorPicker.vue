@@ -12,7 +12,7 @@
         <button
           class="color-picker-preview ui-button ui-control-pointer ui-control-reset ui-control-border"
           type="button"
-          :style="{ '--preview-color': cssColor(currentColor) }"
+          :style="{ '--preview-color': hasValue ? cssColor(currentColor) : 'transparent' }"
           title="选择颜色"
           @click="openPanel"
         />
@@ -91,13 +91,17 @@
       class="color-picker-text-input ui-layout-shrink"
       :value="textDraft"
       size="small"
+      :theme-overrides="sourceOrigin ? { textColor: 'var(--color-muted)' } : undefined"
       :status="textValid ? undefined : 'error'"
       :disabled="panelOpen"
       placeholder="#RRGGBB / rgba(...) / [r,g,b,a]"
       @update:value="updateTextDraft"
       @blur="commitTextDraft"
       @keyup.enter="commitTextDraft"
-    />
+      ><template v-if="sourceOrigin" #suffix
+        ><span class="ui-text-muted">(来自 {{ sourceOrigin }})</span></template
+      ></n-input
+    >
   </div>
 </template>
 
@@ -135,6 +139,7 @@ const props = withDefaults(
     output?: ColorOutput;
     label?: string;
     inputKey?: string;
+    sourceOrigin?: string | null;
     defaultValue?: number[];
     allowTextInput?: boolean;
   }>(),
@@ -143,6 +148,7 @@ const props = withDefaults(
     output: 'rgba-array',
     label: '',
     inputKey: undefined,
+    sourceOrigin: null,
     defaultValue: () => [128, 128, 128, 255],
     allowTextInput: true,
   },
@@ -166,6 +172,9 @@ const effectiveOutput = computed<ColorOutput>(() =>
 );
 
 const currentColor = computed<RgbaColor>(() => parseColor(modelValue.value, arrayToRgba(props.defaultValue, props.defaultValue))!);
+const hasValue = computed(() =>
+  Array.isArray(modelValue.value) ? modelValue.value.length > 0 : modelValue.value !== undefined && modelValue.value !== null,
+);
 const hueRgb = computed(() => hsvToRgb(draft.h, 100, 100));
 const draftColor = computed<RgbaColor>(() => ({ ...hsvToRgb(draft.h, draft.s, draft.v), a: clampChannel(draft.a) }));
 const panelBaseline = ref<RgbaColor>({ ...draftColor.value });
@@ -176,11 +185,11 @@ const inputDirty = computed(
 );
 
 watch(
-  currentColor,
-  (color) => {
+  [currentColor, hasValue],
+  ([color, present]) => {
     if (!panelOpen.value) loadDraft(color);
     if (!textDirty.value) {
-      textDraft.value = String(formatColor(color, effectiveOutput.value));
+      textDraft.value = present ? String(formatColor(color, effectiveOutput.value)) : '';
       textBaseline.value = textDraft.value;
       textValid.value = true;
     }
@@ -317,7 +326,7 @@ registerFieldInput({
   },
   cancel: () => {
     cancelPanel();
-    textDraft.value = String(formatColor(currentColor.value, effectiveOutput.value));
+    textDraft.value = hasValue.value ? String(formatColor(currentColor.value, effectiveOutput.value)) : '';
     textBaseline.value = textDraft.value;
     textValid.value = true;
   },

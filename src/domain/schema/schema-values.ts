@@ -89,6 +89,7 @@ export function parseSchemaPlainNumber(raw: string, integer: boolean): number | 
 }
 
 export function convertSchemaScalarInput(raw: string, field: FieldSchema): SchemaFieldUpdate | { kind: 'error'; message: string } {
+  if (field.identity && raw === '') return { kind: 'remove' };
   if (['string', 'text', 'enum', 'path', 'path-image'].includes(field.type) && !field.required)
     return field.reservedKeys?.includes(raw) ? { kind: 'error', message: '名称重复或为保留名称' } : { kind: 'set', value: raw };
   if (raw.trim() === '') {

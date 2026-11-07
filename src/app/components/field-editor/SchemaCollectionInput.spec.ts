@@ -127,4 +127,78 @@ describe('retained collection rows', () => {
     expect(wrapper.findAll('.n-collapse-item')[2]!.classes()).toContain('n-collapse-item--active');
     expect(wrapper.findAll('.n-collapse-item')[1]!.classes()).not.toContain('n-collapse-item--active');
   });
+  it('uses a distinct remove icon and label for optional fields', () => {
+    wrapper = mount(
+      {
+        setup() {
+          provideAppFeedback(feedback);
+          return () =>
+            h(SchemaFieldRenderer, {
+              field: {
+                key: 'knownFighters',
+                label: 'Known fighters',
+                type: 'object',
+                nested: [{ key: 'fighters', label: 'Fighters', type: 'string-array' }],
+              },
+              value: { fighters: [] },
+              runtimeContext: { sessionId: 'collections', modRoot: 'M:/collections' },
+            });
+        },
+      },
+      { global },
+    );
+    const remove = wrapper.get('button[aria-label="移除字段"]');
+    expect(remove.get('svg path').attributes('d')).toContain('M4 7h16');
+  });
+  it.each([
+    ['core', 'M:/core'],
+    ['reference', 'M:/preceding-mod'],
+  ] as const)('does not offer removal for a field inherited from %s', (source, root) => {
+    wrapper = mount(
+      {
+        setup() {
+          provideAppFeedback(feedback);
+          return () =>
+            h(
+              SchemaCollectionInput,
+              {
+                field: {
+                  key: 'file',
+                  label: 'File',
+                  type: 'object',
+                  nested: [{ key: 'shipNamePrefix', label: 'Prefix', type: 'string' }],
+                },
+                value: { shipNamePrefix: 'ISS' },
+                inputKey: 'file',
+                fieldPath: 'file',
+                runtimeContext: {
+                  sessionId: 'collections',
+                  modRoot: 'M:/local',
+                  composition: {
+                    local: () => ({}),
+                    sources: () => ({
+                      layers: [
+                        {
+                          source: { source, root, path: root + '/file.json', relPath: 'file.json' },
+                          version: { path: root + '/file.json', fingerprint: source },
+                          data: { file: { shipNamePrefix: 'ISS' } },
+                          replace: false,
+                        },
+                      ],
+                      excluded: [],
+                      replace: false,
+                    }),
+                    apply: vi.fn(),
+                  },
+                },
+              },
+              { default: ({ origin }: { origin: string | null }) => h('span', { class: 'row-origin' }, [origin]) },
+            );
+        },
+      },
+      { global },
+    );
+    expect(wrapper.find('button[aria-label="移除字段"]').exists()).toBe(false);
+    expect(wrapper.get('.row-origin').text()).toBe(source === 'core' ? '原版' : 'preceding-mod');
+  });
 });

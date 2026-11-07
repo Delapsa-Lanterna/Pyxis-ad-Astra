@@ -112,4 +112,19 @@ mod tests {
             }
         }
     }
+
+    #[test]
+    fn supplemental_json_scalars_keep_their_original_types() {
+        let mut base = serde_json::json!({"name":"base"});
+        merge_game_json(
+            &mut base,
+            &serde_json::json!({"amount":4,"enabled":false,"empty":null,"nested":{"rank":2}}),
+            &[],
+        )
+        .unwrap();
+        assert_eq!(base["amount"], Value::Number(4.into()));
+        assert_eq!(base["enabled"], Value::Bool(false));
+        assert_eq!(base["empty"], Value::Null);
+        assert_eq!(base["nested"]["rank"], Value::Number(2.into()));
+    }
 }

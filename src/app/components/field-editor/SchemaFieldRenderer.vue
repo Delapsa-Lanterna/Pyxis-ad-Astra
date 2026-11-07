@@ -4,15 +4,14 @@
       :field="active"
       :value="value"
       :runtime-context="runtimeContext"
+      :origin="origin"
       :input-key="inputKey"
       :field-path="fieldPath"
-      :class="{ 'ui-text-muted': origin }"
-      :title="origin ? '来自 ' + origin : undefined"
       @update="$emit('update', $event)"
     />
     <template v-if="runtimeContext?.composition" #actions>
-      <n-button v-if="typeof value === 'string'" size="tiny" @click="runtimeContext.composition.apply(path, '')">设为空值</n-button>
       <n-button
+        v-if="canRestoreReference"
         class="compact-icon-button ui-control-reset"
         size="tiny"
         quaternary
@@ -30,10 +29,10 @@
 <script setup lang="ts">
 import SchemaFieldRow from './SchemaFieldRow.vue';
 import SchemaValueInput from '@/app/components/field-editor/SchemaValueInput.vue';
-import { fieldSchemaForContext, type FieldEditorContext } from '@/domain/field-editor/field-editor-context';
+import { fieldCompositionOrigin, fieldSchemaForContext, type FieldEditorContext } from '@/domain/field-editor/field-editor-context';
 import type { FieldSchema, SchemaFieldUpdate } from '@/domain/schema/schema.types';
 import { computed } from 'vue';
-import { compositionOrigin, compositionPath } from '@/domain/json-composition';
+import { compositionPath, hasRestorableCompositionValue } from '@/domain/json-composition';
 
 const props = defineProps<{
   field: FieldSchema;
@@ -45,9 +44,12 @@ const props = defineProps<{
 const active = computed(() => fieldSchemaForContext(props.field, props.runtimeContext));
 const path = computed(() => compositionPath(props.fieldPath ?? props.field.key));
 const origin = computed(() => {
+  return fieldCompositionOrigin(props.runtimeContext, props.fieldPath ?? props.field.key);
+});
+const canRestoreReference = computed(() => {
   const context = props.runtimeContext?.composition;
   const sources = context?.sources();
-  return context && sources ? compositionOrigin(context.local(), sources, path.value) : null;
+  return context && sources ? hasRestorableCompositionValue(context.local(), sources, path.value) : false;
 });
 defineEmits<{ update: [update: SchemaFieldUpdate] }>();
 </script>

@@ -3,7 +3,8 @@ import type * as DirectoryServiceModule from '@/services/directory.service';
 import type * as ProjectSessionServiceModule from '@/services/project-session.service';
 import type * as WorkspaceStateServiceModule from '@/services/workspace-state.service';
 import type * as SettingsPersistence from './settings-persistence.orchestrator';
-import type * as WorkspaceSource from './workspace-core-source.orchestrator';
+import { switchWorkspaceCoreSource as switchSource } from './workspace-core-source.orchestrator';
+import { openWorkspaceMod } from './workspace-opening.orchestrator';
 import { createPinia, setActivePinia } from 'pinia';
 import { nextTick } from 'vue';
 import { flushPromises } from '@vue/test-utils';
@@ -43,7 +44,6 @@ function settingsSnapshot(value: AppSettings, revision: number): SettingsSnapsho
   return { performanceMonitorActive: false, revision, value };
 }
 let settingsRuntime: typeof SettingsPersistence;
-let switchSource: typeof WorkspaceSource.switchWorkspaceCoreSource;
 beforeEach(async () => {
   vi.resetModules();
   const { initializeWindowsPathCase } = await import('@/shared/lib/paths');
@@ -61,7 +61,6 @@ beforeEach(async () => {
   let revision = 1;
   api.save.mockImplementation(async (value: AppSettings) => settingsSnapshot(value, ++revision));
   settingsRuntime = await import('./settings-persistence.orchestrator');
-  switchSource = (await import('./workspace-core-source.orchestrator')).switchWorkspaceCoreSource;
 });
 afterEach(() => window.dispatchEvent(new Event('pagehide')));
 async function setup() {
@@ -72,7 +71,6 @@ async function setup() {
   return {
     runtime,
     settings: useSettingsStore(),
-    switchSource,
     stopPersistence,
   };
 }
@@ -132,7 +130,7 @@ describe('formal settings commits', () => {
     useSettingsStore().replaceSettings(previous);
     useSettingsStore().confirmSavedSettings(previous);
     api.read.mockResolvedValue(settingsSnapshot(previous, 1));
-    const { runtime, settings, switchSource } = await setup();
+    const { runtime, settings } = await setup();
     const workspace = useWorkspaceStore();
     const overview = { starsectorRoot: 'G:/workspace', modsDir: 'G:/workspace/mods', coreAvailable: true, mods: [], warnings: [] };
     workspace.setGameOverview(overview);
@@ -199,7 +197,7 @@ describe('formal settings commits', () => {
     expect(api.workspaceSave).not.toHaveBeenCalled();
   });
   it('waits for existing actions and actual directory openings before changing the source', async () => {
-    const { runtime, settings, switchSource } = await setup();
+    const { runtime, settings } = await setup();
     const commands = useSaveCommandStore();
     let finishAction!: () => void, finishOpen!: (value: ReturnType<typeof sessionUpdateFixture>['content']['manifest']) => void;
     const action = commands.trackCloseAction(
@@ -221,7 +219,6 @@ describe('formal settings commits', () => {
       warnings: [],
       kind: 'game-root',
     });
-    const { openWorkspaceMod } = await import('./workspace-opening.orchestrator');
     const opening = openWorkspaceMod('M:/waiting', null);
     const close = vi.fn(async () => {
       await commands.settleCloseActions();
@@ -254,7 +251,7 @@ describe('formal settings commits', () => {
     ['error', false],
     ['error', true],
   ] as const)('holds closing through the final snapshot: %s, rejected=%s', async (status, rejected) => {
-    const { runtime, settings, switchSource } = await setup();
+    const { runtime, settings } = await setup();
     const commands = useSaveCommandStore();
     let finish!: () => void, fail!: (error: Error) => void;
     const finalError = new Error('final snapshot unavailable'),

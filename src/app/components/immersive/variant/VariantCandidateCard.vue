@@ -1,7 +1,7 @@
 <template>
   <button
     class="variant-candidate-card ui-button ui-text-normal ui-layout-grid ui-control-pointer ui-control-border"
-    :class="{ 'variant-current': current, 'variant-list-active': active }"
+    :class="{ 'variant-current': current }"
     :title="cardDiagnostic || entry.label + '\n' + entry.id"
     @click="$emit('select')"
     @mouseenter="$emit('hover', $event)"
