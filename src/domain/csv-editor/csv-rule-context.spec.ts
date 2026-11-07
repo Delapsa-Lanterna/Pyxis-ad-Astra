@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { hasCsvValidationInvalidation as affects } from './csv-rule-context';
+import { csvValidationRequest, hasCsvValidationInvalidation as affects } from './csv-rule-context';
 import { hasSourceInvalidation } from '@/services/source-catalog.service';
 import { savedWriteFixture } from '@/test/fixtures/write-result';
 import type { CsvValidationRequest, EntityKind } from '@/shared/types';
@@ -10,6 +10,24 @@ function request(kind: EntityKind = 'ship'): CsvValidationRequest {
 const hasCsvValidationInvalidation = (scope: Parameters<typeof affects>[0], input: CsvValidationRequest) =>
   affects(scope, input, (source) => hasSourceInvalidation(scope, source));
 describe('CSV validation dependency scope', () => {
+  it.each(['mod', 'core', 'reference'] as const)('requests both hull types and refreshes descriptions for %s skin changes', (source) => {
+    const input = csvValidationRequest(
+      'descriptions',
+      ['first', 'second'].map((rowKey) => ({
+        rowKey,
+        isComment: false,
+        data: { id: 'sample', type: 'SHIP' },
+      })),
+    );
+    expect(input.entities).toEqual([
+      { kind: 'ship', id: 'sample' },
+      { kind: 'skin', id: 'sample' },
+    ]);
+    const scope = savedWriteFixture().invalidation;
+    scope.entities = [{ kind: 'skin', id: 'sample' }];
+    scope.resources = [{ source, relPath: 'data/hulls/skins/sample.skin' }];
+    expect(hasCsvValidationInvalidation(scope, input)).toBe(true);
+  });
   it.each(['mod_info.json', 'data/hulls/ship_data.csv', 'graphics/unrelated.png'])(
     'retains spec validation when %s changes independently',
     (relPath) => {

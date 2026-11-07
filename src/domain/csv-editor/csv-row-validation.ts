@@ -265,8 +265,8 @@ export function csvRowProblems(
         problem('id', '正文已有内容而身份不完整，游戏会跳过该描述。');
       if (id && text('type') && !['text1', 'text2', 'text3', 'text4', 'text5'].some((key) => text(key)))
         problem('text1', '五个正文均为空，请确认描述显示。');
-      const kind = DESCRIPTION_KINDS[text('type')];
-      if (id && kind && context && !context.entities[`${kind}:${id}`])
+      const kinds = DESCRIPTION_KINDS[text('type')];
+      if (id && kinds && context && !kinds.some((kind) => context.entities[`${kind}:${id}`]))
         problem('id', '当前类型的同名实体未找到，请确认 descriptionId 或脚本对该描述的引用。');
     }
   });

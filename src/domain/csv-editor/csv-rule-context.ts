@@ -9,11 +9,11 @@ export const CSV_SPEC_KINDS: Partial<Record<CsvTableKey, EntityKind>> = {
   shipSystems: 'system',
   skills: 'skill',
 };
-export const DESCRIPTION_KINDS: Partial<Record<string, EntityKind>> = {
-  SHIP: 'ship',
-  WEAPON: 'weapon',
-  SHIP_SYSTEM: 'system',
-  FACTION: 'faction',
+export const DESCRIPTION_KINDS: Partial<Record<string, readonly EntityKind[]>> = {
+  SHIP: ['ship', 'skin'],
+  WEAPON: ['weapon'],
+  SHIP_SYSTEM: ['system'],
+  FACTION: ['faction'],
 };
 export function isCsvBusinessRow(row: CsvDraftRow, identityColumn = 'id'): boolean {
   return !row.isComment && cell(row.data[identityColumn]) !== '';
@@ -80,8 +80,7 @@ export function csvValidationRequest(table: CsvTableKey, rows: readonly CsvDraft
     }
     if (table === 'ships') entity('variant', cell(data['codex variant id']));
     if (table === 'descriptions') {
-      const kind = DESCRIPTION_KINDS[cell(data.type)];
-      if (kind) entity(kind, id);
+      for (const kind of DESCRIPTION_KINDS[cell(data.type)] ?? []) entity(kind, id);
     }
     if (table === 'industries' && cell(data.plugin) === 'com.fs.starfarer.api.impl.campaign.econ.impl.OrbitalStation') {
       stationData.add(cell(data.data));

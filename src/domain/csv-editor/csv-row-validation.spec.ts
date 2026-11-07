@@ -46,6 +46,24 @@ function context(table: CsvTableKey, values: RowData): CsvValidationContext {
   };
 }
 describe('CSV declared types and complete row rules', () => {
+  it.each([
+    ['SHIP', 'ship', 0],
+    ['SHIP', 'skin', 0],
+    ['SHIP', 'variant', 1],
+    ['WEAPON', 'weapon', 0],
+    ['WEAPON', 'skin', 1],
+    ['SHIP_SYSTEM', 'system', 0],
+    ['FACTION', 'faction', 0],
+  ] as const)('matches description type %s against %s with %s warnings', (type, kind, count) => {
+    const values = { type, text1: 'Sample description' };
+    const ctx = context('descriptions', values);
+    ctx.entities = { [`${kind}:entry`]: {} };
+    expect(check('descriptions', values, ctx)).toHaveLength(count);
+    ctx.entities = {};
+    expect(check('descriptions', values, ctx)).toEqual([
+      expect.objectContaining({ code: 'csv.relation', path: 'entry/id', severity: 'warning' }),
+    ]);
+  });
   it.each(TABLE_KEYS)('preserves annotation rows in %s', (table) => {
     const columns = getCsvColumnSchemas(table),
       row = sample(table, Object.fromEntries(columns.map((column) => [column.key, 'Section']))),
