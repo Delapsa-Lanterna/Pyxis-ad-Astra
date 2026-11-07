@@ -9,9 +9,10 @@ use crate::models::{
     ResourceSource, SessionContentUpdate, WriteResult,
 };
 use crate::services::project::invalidation;
-use crate::services::project::sources::core;
+use crate::services::project::sources::{SourceReadBatch, core};
 use crate::{io, models};
 use std::collections::BTreeMap;
+use std::fs;
 use std::path::Path;
 use std::sync::Arc;
 
@@ -76,7 +77,15 @@ pub(crate) fn refresh_root_sources(
             &core_sources,
         )?;
     }
-    refresh_candidates(&manifest.mod_root, &ids, &paths, false, &core_sources)
+    refresh_candidates(
+        &manifest.mod_root,
+        &ids,
+        &paths,
+        false,
+        &core_sources,
+        &SourceReadBatch::default(),
+        &paths,
+    )
 }
 
 pub(crate) fn loaded_source_targets(session_id: &str) -> AppResult<Vec<EntityEditTarget>> {
@@ -90,7 +99,15 @@ pub(crate) fn refresh_core_session(
 ) -> AppResult<SessionContentUpdate> {
     let handle = session_handle(session_id)?;
     let root = lock_ready_session(&handle)?.manifest.mod_root.clone();
-    let result = refresh_candidates(&root, &[session_id.to_string()], &[], false, sources)?;
+    let result = refresh_candidates(
+        &root,
+        &[session_id.to_string()],
+        &[],
+        false,
+        sources,
+        &SourceReadBatch::default(),
+        &[],
+    )?;
     Ok((*result
         .session_updates
         .into_iter()
@@ -99,21 +116,34 @@ pub(crate) fn refresh_core_session(
         .content)
         .clone())
 }
+#[cfg(test)]
 pub(crate) fn refresh_mod_root_sources(
     root: &str,
     ids: &[String],
     paths: &[String],
     rescan: bool,
 ) -> AppResult<WriteResult<()>> {
-    refresh_candidates(root, ids, paths, rescan, &[])
+    refresh_mod_root_batch(root, ids, paths, rescan, &[], &SourceReadBatch::default())
 }
 
+pub(crate) fn refresh_mod_root_batch(
+    root: &str,
+    ids: &[String],
+    paths: &[String],
+    rescan: bool,
+    required: &[String],
+    batch: &SourceReadBatch,
+) -> AppResult<WriteResult<()>> {
+    refresh_candidates(root, ids, paths, rescan, &[], batch, required)
+}
 fn refresh_candidates(
     root: &str,
     ids: &[String],
     paths: &[String],
     rescan: bool,
     core_sources: &[InvalidatedResourceScope],
+    batch: &SourceReadBatch,
+    required: &[String],
 ) -> AppResult<WriteResult<()>> {
     let _lease = io::acquire_root_write_lock(Path::new(root))?;
     let handles = lock_registry()?
@@ -132,24 +162,35 @@ fn refresh_candidates(
         .iter()
         .map(|handle| Ok(lock_ready_session(handle)?.source_versions.clone()))
         .collect::<AppResult<Vec<_>>>()?;
+    for handle in handles.iter().skip(1) {
+        let session = lock_ready_session(handle)?;
+        reader.versions.extend((*session.source_versions).clone());
+        reader.scopes.extend((*session.source_scopes).clone());
+        reader.stamps.extend((*session.source_stamps).clone());
+    }
+    reader.use_batch(batch);
     let boundary = FsRootBoundary::new(Path::new(root), "source root")?;
+    for path in required {
+        if let Some(relative) = boundary.resolve_changed_path_to_relative(path, "source target")? {
+            reader
+                .versions
+                .entry(relative)
+                .or_insert_with(|| FileVersion {
+                    path: path.clone(),
+                    fingerprint: None,
+                });
+        }
+    }
     let mut requested = paths.to_vec();
+    let mut rescanned = Vec::new();
     if rescan {
+        rescanned = reader.rescan_paths()?;
         requested.extend(
-            ["mod_info.json", "data", "graphics"]
+            rescanned
+                .iter()
                 .map(|path| Path::new(root).join(path).to_string_lossy().into_owned()),
         );
-        requested.extend(
-            versions
-                .iter()
-                .flat_map(|versions| versions.iter())
-                .filter(|(key, _)| {
-                    !["mod_info.json", "data", "graphics"]
-                        .iter()
-                        .any(|scope| io::relative_path_contains(scope, key))
-                })
-                .map(|(_, version)| version.path.clone()),
-        );
+        requested.extend(required.iter().cloned());
     }
     let mut relative = requested
         .iter()
@@ -166,21 +207,27 @@ fn refresh_candidates(
         )
     });
     let mut scopes: Vec<InvalidatedResourceScope> = Vec::new();
+    let mut notices = Vec::new();
+    if rescan && !reader.scopes.contains_key("graphics") {
+        reader.discover("graphics", &["png", "jpg", "jpeg", "gif"], false)?;
+        notices.push(InvalidatedResourceScope {
+            source: ResourceSource::Mod,
+            rel_path: "graphics".into(),
+        });
+    }
     for relative in relative {
         let scope_count = scopes.len();
         let path = boundary.root().join(&relative);
         let directory = path.is_dir();
-        // The first graphics rescan also covers removals before any image baseline existed.
-        if rescan
-            && relative == "graphics"
-            && versions
-                .iter()
-                .any(|versions| !versions.contains_key(&relative))
-        {
-            scopes.push(InvalidatedResourceScope {
-                source: ResourceSource::Mod,
-                rel_path: relative.clone(),
-            });
+        let content = reader.tracks_scope(&relative);
+        if !content {
+            if (rescan && rescanned.contains(&relative)) || reader.notice_changed(&relative)? {
+                notices.push(InvalidatedResourceScope {
+                    source: ResourceSource::Mod,
+                    rel_path: relative,
+                });
+            }
+            continue;
         }
         // Compare retained missing paths together with the files currently on disk.
         let changed = |key: &str, version: &FileVersion| {
@@ -244,7 +291,7 @@ fn refresh_candidates(
             }
         }
     }
-    if scopes.is_empty() && core_sources.is_empty() {
+    if scopes.is_empty() && core_sources.is_empty() && notices.is_empty() {
         return Ok(result);
     }
     let staged = reader.versions.clone();
@@ -262,7 +309,29 @@ fn refresh_candidates(
         .map(|handle| Ok(lock_ready_session(handle)?.clone()))
         .collect::<AppResult<Vec<_>>>()?;
     for candidate in &mut candidates {
-        let update = invalidation::refresh_sources_from(candidate, &scopes, &mut reader)?;
+        let mut update = invalidation::refresh_sources_from(candidate, &scopes, &mut reader)?;
+        update.resources.extend(notices.clone());
+        update.paths.extend(notices.iter().map(|scope| {
+            Path::new(root)
+                .join(&scope.rel_path)
+                .to_string_lossy()
+                .into_owned()
+        }));
+        if rescan {
+            update.paths.push(root.into());
+            for entry in fs::read_dir(root)? {
+                update
+                    .paths
+                    .push(entry?.path().to_string_lossy().into_owned());
+            }
+        }
+        update.query_scopes = invalidation::query_scopes_for_invalidation(
+            &update.tables,
+            &update.entities,
+            &update.resources,
+        )?;
+        candidate.source_scopes = reader.scopes.clone().into();
+        candidate.source_stamps = reader.stamps.clone().into();
         result.invalidation.merge(update.clone());
         result.session_updates.push(CommittedSessionUpdate {
             session_id: candidate.manifest.session_id.clone(),

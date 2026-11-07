@@ -54,7 +54,9 @@ pub(crate) use project::resources::core_assets::{
     query_core_root, scan_core_fields, scan_core_graphics,
 };
 pub(crate) use project::resources::fonts::query_original_font;
-pub(crate) use project::resources::media_cache::{clear_session_media, configure_media_cache};
+pub(crate) use project::resources::media_cache::{
+    clear_session_media, configure_media_cache, invalidate_source_media,
+};
 pub(crate) use project::resources::sprites::resolve_mod_relative_path;
 pub(crate) use project::write::csv_patch::save_csv_patch_snapshot;
 pub(crate) use project::write::csv_patch::{prepare_csv_save, write_csv_request};

@@ -147,11 +147,7 @@ test('window persistence access is treated as a global browser store', () => {
 
 test('file browser targets and configuration registries have their own inputs', () => {
   for (const [source, target, expected] of /** @type {[string, string, string][]} */ ([
-    [
-      'src/app/composables/file-browser/use-file-browser-view-model.ts',
-      'src/stores/workspace.store.ts',
-      'explicit file browser target',
-    ],
+    ['src/app/composables/file-browser/use-file-browser-view-model.ts', 'src/stores/workspace.store.ts', 'explicit file browser target'],
     ['src/services/misc-config.service.ts', 'src/domain/json-editor/json-document-definitions.ts', 'misc config definitions'],
   ])) {
     const context = architectureFixtures({

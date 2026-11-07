@@ -5,7 +5,7 @@ use crate::models::{
     CommittedSessionUpdate, EntityIdentityChange, ProjectManifest, ProjectSyncDelivery,
     ResourceSource, SourceSyncState, WriteResult, windows_path_key,
 };
-use crate::services::project::PerformanceTrace;
+use crate::services::project::{PerformanceTrace, SourceReadBatch};
 use crate::services::source_watch::{self, SourceChangeBatch, SourceSubscription};
 use crate::services::{project, project_session, windows};
 use crate::{diagnostics, io, services};
@@ -353,7 +353,8 @@ fn consume_queued_source_batch(batch: SourceChangeBatch, queued: Option<Arc<Save
         if let Some(diagnostic) = &batch.diagnostic {
             publish_source_status(&root, SourceSyncState::Failed, Some(diagnostic.clone()))?;
         }
-        consume_core_batch(&batch)?;
+        let reads = SourceReadBatch::default();
+        let core_result = consume_core_source(&batch, &reads);
         let mut manifests = Vec::new();
         for manifest in project::registered_manifests(&root, ResourceSource::Mod)? {
             if windows::accepts_save("source-watch", Some(&manifest.session_id))? {
@@ -370,7 +371,7 @@ fn consume_queued_source_batch(batch: SourceChangeBatch, queued: Option<Arc<Save
                     |_, _| Ok(WriteResult::<()>::from_changes(Vec::new())),
                 )?;
             }
-            return Ok(());
+            return core_result;
         };
         let task = match queued {
             Some(task) => task,
@@ -387,12 +388,10 @@ fn consume_queued_source_batch(batch: SourceChangeBatch, queued: Option<Arc<Save
             .map(|path| path.to_string_lossy().into_owned())
             .collect::<Vec<_>>();
         let result = execute_queued(task, &root, Some(&first.session_id), "refresh", |_, _| {
-            let mut paths = paths.clone();
             let mut targets = Vec::new();
+            let mut required = Vec::new();
             for manifest in &manifests {
-                if batch.rescan {
-                    paths.extend(windows::project_source_paths(&manifest.session_id)?);
-                }
+                required.extend(windows::project_source_paths(&manifest.session_id)?);
                 targets.extend(
                     project::loaded_source_targets(&manifest.session_id)?
                         .into_iter()
@@ -403,7 +402,14 @@ fn consume_queued_source_batch(batch: SourceChangeBatch, queued: Option<Arc<Save
                 .iter()
                 .map(|manifest| manifest.session_id.clone())
                 .collect::<Vec<_>>();
-            let mut result = project::refresh_mod_root_sources(&root, &ids, &paths, batch.rescan)?;
+            let mut result = project::refresh_mod_root_batch(
+                &root,
+                &ids,
+                &paths,
+                batch.rescan,
+                &required,
+                &reads,
+            )?;
             let renames = batch
                 .renames
                 .iter()
@@ -459,6 +465,15 @@ fn consume_queued_source_batch(batch: SourceChangeBatch, queued: Option<Arc<Save
                     });
                 }
             }
+            services::invalidate_source_media(
+                &root,
+                &result
+                    .invalidation
+                    .resources
+                    .iter()
+                    .map(|scope| scope.rel_path.clone())
+                    .collect::<Vec<_>>(),
+            )?;
             Ok(result)
         })?;
         for update in &result.session_updates {
@@ -466,6 +481,7 @@ fn consume_queued_source_batch(batch: SourceChangeBatch, queued: Option<Arc<Save
                 publish_references(snapshot, project::reference_updates()?)?;
             }
         }
+        core_result?;
         publish_source_status(
             &root,
             if batch.diagnostic.is_some() {
@@ -495,7 +511,11 @@ fn consume_queued_source_batch(batch: SourceChangeBatch, queued: Option<Arc<Save
         diagnostics::failure("source.refresh_failed", error, json!({"root":root}));
     }
 }
+#[cfg(test)]
 pub(super) fn consume_core_batch(batch: &SourceChangeBatch) -> AppResult<()> {
+    consume_core_source(batch, &SourceReadBatch::default())
+}
+fn consume_core_source(batch: &SourceChangeBatch, reads: &SourceReadBatch) -> AppResult<()> {
     let manifests = project::registered_manifests(&batch.root, ResourceSource::Core)?;
     let watched = saves()?;
     let game = manifests
@@ -534,7 +554,7 @@ pub(super) fn consume_core_batch(batch: &SourceChangeBatch) -> AppResult<()> {
                 .flatten()
                 .collect()
         };
-        project::prepare_core_source_refresh(&game, &paths, batch.rescan)?
+        project::prepare_core_source_batch(&game, &paths, batch.rescan, reads)?
     };
     if sources.is_empty() {
         return publish_source_status(
@@ -547,6 +567,13 @@ pub(super) fn consume_core_batch(batch: &SourceChangeBatch) -> AppResult<()> {
             batch.diagnostic.clone(),
         );
     }
+    services::invalidate_source_media(
+        &batch.root,
+        &sources
+            .iter()
+            .map(|scope| scope.rel_path.clone())
+            .collect::<Vec<_>>(),
+    )?;
     for window in saves()?.windows.values().filter(|window| {
         window
             .core_root
@@ -563,6 +590,10 @@ pub(super) fn consume_core_batch(batch: &SourceChangeBatch) -> AppResult<()> {
     thread::scope(|scope| {
         let jobs = manifests
             .into_iter()
+            // Same-root content belongs to the already queued source batch.
+            .filter(|manifest| {
+                windows_path_key(&manifest.mod_root) != windows_path_key(&batch.root)
+            })
             .map(|manifest| {
                 let sources = &sources;
                 scope.spawn(move || -> AppResult<()> {

@@ -11,7 +11,8 @@ use std::collections::btree_map::Entry;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::sync::{LazyLock, Mutex};
+use std::sync::{Arc, LazyLock, Mutex};
+use std::time::SystemTime;
 use walkdir::WalkDir;
 
 pub(super) mod core;
@@ -51,6 +52,21 @@ pub(crate) fn configure_persistent_index_cache(directory: &Path) -> AppResult<()
     Ok(())
 }
 
+type SourceBatchFiles = BTreeMap<PathBuf, (FileVersion, Vec<u8>)>;
+
+#[derive(Clone, Default)]
+pub(crate) struct SourceReadBatch {
+    bytes: Arc<Mutex<SourceBatchFiles>>,
+    paths: Arc<Mutex<BTreeMap<PathBuf, Vec<PathBuf>>>>,
+}
+
+#[derive(Clone, Default)]
+pub(super) struct SourceScope {
+    extensions: BTreeSet<String>,
+    content: bool,
+    entries: BTreeMap<String, Option<(u64, SystemTime)>>,
+}
+
 pub(super) struct SourceReader {
     boundary: FsRootBoundary,
     records: BTreeMap<String, SourceRecord>,
@@ -61,6 +77,9 @@ pub(super) struct SourceReader {
     bytes: BTreeMap<String, (FileVersion, Vec<u8>)>,
     reused: usize,
     dirty: bool,
+    pub scopes: BTreeMap<String, SourceScope>,
+    pub stamps: BTreeMap<String, Option<(u64, SystemTime)>>,
+    batch: Option<SourceReadBatch>,
 }
 
 impl SourceReader {
@@ -125,6 +144,9 @@ impl SourceReader {
             bytes: BTreeMap::new(),
             reused: 0,
             dirty: false,
+            scopes: BTreeMap::new(),
+            stamps: BTreeMap::new(),
+            batch: None,
         }
     }
     pub fn root(&self) -> &Path {
@@ -139,6 +161,8 @@ impl SourceReader {
         fork.tables = self.tables.clone();
         fork.bytes = self.bytes.clone();
         fork.reused = self.reused;
+        fork.scopes = self.scopes.clone();
+        fork.stamps = self.stamps.clone();
         fork
     }
     pub fn path(&self, relative: &str) -> AppResult<PathBuf> {
@@ -160,8 +184,59 @@ impl SourceReader {
         self.versions.insert(self.key(&path), version.clone());
         Ok(version)
     }
+    pub fn notice_changed(&mut self, relative: &str) -> AppResult<bool> {
+        let path = self.path(relative)?;
+        let stamp = if path.exists() {
+            let metadata = fs::metadata(path)?;
+            Some((metadata.len(), metadata.modified()?))
+        } else {
+            None
+        };
+        if let Some(scope) = self.scopes.iter_mut().find_map(|(directory, scope)| {
+            let extension = Path::new(relative)
+                .extension()
+                .and_then(|part| part.to_str());
+            (io::relative_path_contains(directory, relative)
+                && extension.is_some_and(|part| scope.extensions.contains(part)))
+            .then_some(scope)
+        }) {
+            let changed = scope.entries.get(relative).cloned() != Some(stamp);
+            scope.entries.insert(relative.to_string(), stamp);
+            return Ok(changed);
+        }
+        if self.tracks(relative)
+            || self.versions.contains_key(relative)
+            || io::relative_path_contains("graphics", relative)
+        {
+            let changed = self.stamps.get(relative).cloned() != Some(stamp);
+            self.stamps.insert(relative.to_string(), stamp);
+            return Ok(changed);
+        }
+        Ok(true)
+    }
+    pub fn end_batch(&mut self) {
+        self.batch = None;
+    }
+    pub fn use_batch(&mut self, batch: &SourceReadBatch) {
+        self.batch = Some(batch.clone());
+    }
+    fn read_file(&self, path: &Path) -> AppResult<(FileVersion, Vec<u8>)> {
+        let Some(batch) = &self.batch else {
+            return io::read_authorized_bytes(path);
+        };
+        let mut batch = batch
+            .bytes
+            .lock()
+            .map_err(|_| AppError::message("source.batch_lock", "来源批次不可用"))?;
+        if let Some(value) = batch.get(path) {
+            return Ok(value.clone());
+        }
+        let value = io::read_authorized_bytes(path)?;
+        batch.insert(path.to_path_buf(), value.clone());
+        Ok(value)
+    }
     fn stage_file(&mut self, path: &Path) -> AppResult<FileVersion> {
-        let (version, bytes) = io::read_authorized_bytes(path)?;
+        let (version, bytes) = self.read_file(path)?;
         let key = self.key(path);
         self.bytes.insert(key.clone(), (version.clone(), bytes));
         self.versions.insert(key, version.clone());
@@ -173,6 +248,10 @@ impl SourceReader {
         keep_bytes: impl Fn(&str, &FileVersion) -> bool,
     ) -> AppResult<BTreeMap<PathBuf, FileVersion>> {
         let files = self.files(relative)?;
+        let files = files
+            .into_iter()
+            .filter(|file| self.tracks(&self.key(file)))
+            .collect::<Vec<_>>();
         let mut checked = BTreeMap::new();
         // The directory walk validates each traversed entry before its bytes enter this batch.
         for file in &files {
@@ -186,6 +265,7 @@ impl SourceReader {
         Ok(checked)
     }
     pub fn begin_batch(&mut self) {
+        self.batch = None;
         self.bytes.clear();
         self.paths.clear();
     }
@@ -218,7 +298,7 @@ impl SourceReader {
         self.bytes
             .remove(&self.key(path))
             .map(Ok)
-            .unwrap_or_else(|| io::read_authorized_bytes(path))
+            .unwrap_or_else(|| self.read_file(path))
     }
     pub fn json(&mut self, path: &Path) -> AppResult<Value> {
         let authorized = self.resolve_source(path, "JSON source")?;
@@ -368,12 +448,149 @@ impl SourceReader {
         Ok(count)
     }
     pub fn walk(&mut self, directory: &str, extension: &str) -> AppResult<Vec<(PathBuf, Value)>> {
-        let paths = self.files(directory)?;
+        let paths = self.discover(directory, &[extension], true)?;
         paths
             .into_iter()
-            .filter(|path| path.extension().and_then(|part| part.to_str()) == Some(extension))
             .map(|path| self.json_at(&path).map(|value| (path, value)))
             .collect()
+    }
+    pub fn discover(
+        &mut self,
+        directory: &str,
+        extensions: &[&str],
+        content: bool,
+    ) -> AppResult<Vec<PathBuf>> {
+        let files = self.files(directory)?;
+        let paths = files
+            .iter()
+            .filter(|path| {
+                path.extension()
+                    .and_then(|part| part.to_str())
+                    .is_some_and(|part| extensions.contains(&part))
+            })
+            .cloned()
+            .collect::<Vec<_>>();
+        let mut extensions_set = extensions
+            .iter()
+            .map(|part| part.to_string())
+            .collect::<BTreeSet<_>>();
+        let (scope_extensions, scope_content) = self
+            .scopes
+            .get(directory)
+            .map(|scope| (scope.extensions.clone(), scope.content))
+            .unwrap_or_default();
+        extensions_set.extend(scope_extensions);
+        let entries = if content || scope_content {
+            None
+        } else {
+            let previous = self
+                .scopes
+                .get(directory)
+                .map(|scope| scope.entries.clone())
+                .unwrap_or_default();
+            let mut entries = files
+                .into_iter()
+                .filter(|path| {
+                    path.extension()
+                        .and_then(|part| part.to_str())
+                        .is_some_and(|part| extensions_set.contains(part))
+                })
+                .map(|path| {
+                    let metadata = fs::metadata(&path)?;
+                    Ok((
+                        self.key(&path),
+                        Some((metadata.len(), metadata.modified()?)),
+                    ))
+                })
+                .collect::<AppResult<BTreeMap<_, _>>>()?;
+            for path in previous.keys() {
+                entries.entry(path.clone()).or_insert(None);
+            }
+            for (path, stamp) in &self.stamps {
+                if io::relative_path_contains(directory, path)
+                    && Path::new(path)
+                        .extension()
+                        .and_then(|part| part.to_str())
+                        .is_some_and(|part| extensions_set.contains(part))
+                {
+                    entries.entry(path.clone()).or_insert(*stamp);
+                }
+            }
+            Some(entries)
+        };
+        let scope = self.scopes.entry(directory.to_string()).or_default();
+        scope
+            .extensions
+            .extend(extensions.iter().map(|part| part.to_string()));
+        scope.content |= content;
+        if let Some(entries) = entries {
+            scope.entries = entries;
+            self.stamps.retain(|path, _| {
+                !io::relative_path_contains(directory, path)
+                    || Path::new(path)
+                        .extension()
+                        .and_then(|part| part.to_str())
+                        .is_none_or(|part| !scope.extensions.contains(part))
+            });
+        }
+        Ok(paths)
+    }
+    pub fn tracks(&self, relative: &str) -> bool {
+        self.versions.contains_key(relative)
+            || self.scopes.iter().any(|(directory, scope)| {
+                scope.content
+                    && io::relative_path_contains(directory, relative)
+                    && Path::new(relative)
+                        .extension()
+                        .and_then(|part| part.to_str())
+                        .is_some_and(|part| scope.extensions.contains(part))
+            })
+    }
+    pub fn tracks_scope(&self, relative: &str) -> bool {
+        self.tracks(relative)
+            || self.scopes.iter().any(|(directory, scope)| {
+                scope.content && io::relative_path_contains(relative, directory)
+            })
+            || self
+                .versions
+                .keys()
+                .any(|known| io::relative_path_contains(relative, known))
+    }
+    pub fn rescan_paths(&mut self) -> AppResult<Vec<String>> {
+        let mut paths = self.versions.keys().cloned().collect::<BTreeSet<_>>();
+        paths.extend(
+            self.stamps
+                .keys()
+                .filter(|path| {
+                    !self.scopes.iter().any(|(directory, scope)| {
+                        !scope.content
+                            && io::relative_path_contains(directory, path)
+                            && Path::new(path)
+                                .extension()
+                                .and_then(|part| part.to_str())
+                                .is_some_and(|part| scope.extensions.contains(part))
+                    })
+                })
+                .cloned(),
+        );
+        for (directory, scope) in self.scopes.clone() {
+            let extensions = scope
+                .extensions
+                .iter()
+                .map(String::as_str)
+                .collect::<Vec<_>>();
+            self.scopes.remove(&directory);
+            let current = self.discover(&directory, &extensions, scope.content)?;
+            if scope.content {
+                paths.extend(current.iter().map(|path| self.key(path)));
+            } else {
+                let next = &self.scopes[&directory].entries;
+                if scope.entries != *next {
+                    paths.insert(directory);
+                }
+            }
+        }
+        Ok(paths.into_iter().collect())
     }
     pub fn files(&mut self, directory: &str) -> AppResult<Vec<PathBuf>> {
         if let Some(paths) = self.paths.get(directory) {
@@ -391,6 +608,17 @@ impl SourceReader {
                 .cloned()
                 .collect());
         }
+        let shared = self
+            .batch
+            .as_ref()
+            .map(|batch| batch.paths.lock())
+            .transpose()
+            .map_err(|_| AppError::message("source.batch_lock", "来源批次不可用"))?;
+        if let Some(paths) = shared.as_ref().and_then(|paths| paths.get(&dir)).cloned() {
+            self.paths.insert(directory.to_string(), paths.clone());
+            return Ok(paths);
+        }
+        drop(shared);
         let mut paths = Vec::new();
         if dir.exists() {
             if !dir.is_dir() {
@@ -418,6 +646,13 @@ impl SourceReader {
             }
         }
         paths.sort();
+        if let Some(batch) = &self.batch {
+            batch
+                .paths
+                .lock()
+                .map_err(|_| AppError::message("source.batch_lock", "来源批次不可用"))?
+                .insert(dir, paths.clone());
+        }
         self.paths.insert(directory.to_string(), paths.clone());
         Ok(paths)
     }
@@ -499,6 +734,8 @@ impl SourceReader {
             self.loaded.insert(key);
         }
         self.versions.extend(sources.versions);
+        self.scopes.extend(sources.scopes);
+        self.stamps.extend(sources.stamps);
     }
 
     pub fn capture_changed_versions(&mut self, paths: &[&str]) -> AppResult<()> {

@@ -1,10 +1,10 @@
 use crate::diagnostics;
 use crate::errors::{AppError, AppResult};
-use crate::models::{CacheLimits, CacheSize};
+use crate::models::{CacheLimits, CacheSize, windows_path_key};
 use serde_json::json;
 use std::collections::{HashMap, VecDeque};
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::{LazyLock, Mutex};
 use std::time::SystemTime;
 
@@ -155,6 +155,30 @@ pub(in crate::services::project) fn insert_entry(
     );
 }
 
+pub(crate) fn invalidate_source_media(root: &str, paths: &[String]) -> AppResult<()> {
+    let scopes = paths
+        .iter()
+        .map(|path| windows_path_key(&Path::new(root).join(path).to_string_lossy()))
+        .collect::<Vec<_>>();
+    let mut cache = sprite_media_cache()
+        .lock()
+        .map_err(|_| AppError::message("resource.media_lock", "媒体缓存不可用"))?;
+    let keys = cache
+        .entries
+        .iter()
+        .filter(|(_, entry)| {
+            let path = windows_path_key(&entry.resolved_path.to_string_lossy());
+            scopes
+                .iter()
+                .any(|scope| Path::new(&path).starts_with(scope))
+        })
+        .map(|(key, _)| key.clone())
+        .collect::<Vec<_>>();
+    for key in keys {
+        cache.remove(&key);
+    }
+    Ok(())
+}
 pub(crate) fn clear_session_media(session_id: &str) {
     let Ok(mut cache) = sprite_media_cache().lock() else {
         diagnostics::failure(

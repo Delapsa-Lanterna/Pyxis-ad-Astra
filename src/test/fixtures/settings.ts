@@ -3,7 +3,7 @@ import type { AppSettings } from '@/shared/types';
 export function createSettingsFixture(overrides: Partial<AppSettings> = {}): AppSettings {
   return {
     performanceMonitorEnabled: false,
-    watchFileChanges: false,
+    watchFileChanges: true,
     toastDurations: { success: 5, info: 7, warning: 7, error: 0 },
     cacheLimits: {
       mediaData: { entries: 2048, MiB: 64 },

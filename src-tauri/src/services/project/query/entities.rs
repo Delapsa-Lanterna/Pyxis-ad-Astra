@@ -282,6 +282,8 @@ mod tests {
             loaded_edit_targets: Vec::new(),
             content_pending: false,
             source_versions: Default::default(),
+            source_scopes: Default::default(),
+            source_stamps: Default::default(),
             manifest: ProjectManifest {
                 base_versions: Vec::new(),
                 session_id: "test".to_string(),

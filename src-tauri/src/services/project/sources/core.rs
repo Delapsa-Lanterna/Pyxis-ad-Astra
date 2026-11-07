@@ -1,14 +1,14 @@
 use super::documents::{LoadedSpecRecord, load_faction_files_from, load_spec_records_from};
 use super::json_documents::{load_skin_files_from, load_variant_files_from};
 use crate::errors::{AppError, AppResult, ErrorLocation};
-use crate::io::{FsRootBoundary, forward_slash_relative_path, validate_walk_entry};
+use crate::io::{FsRootBoundary, forward_slash_relative_path};
 #[cfg(test)]
 use crate::models;
 use crate::models::{
     CsvTable, DiscoveredField, DiscoveredFieldType, EntityFileLocation, FileVersion,
     InvalidatedResourceScope, JsonSourceLayer, ResourceSource, SkinFile, VariantFile,
 };
-use crate::services::project::sources::SourceReader;
+use crate::services::project::sources::{SourceReadBatch, SourceReader};
 #[cfg(test)]
 use crate::test_support::work_counts;
 use crate::{diagnostics, io};
@@ -17,7 +17,6 @@ use serde_json::{Value, json};
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Condvar, LazyLock, Mutex, MutexGuard};
-use walkdir::WalkDir;
 
 const WEAPON_SOURCE_DIRS: &[&str] = &["data/weapons", "data/shipsystems/wpn"];
 
@@ -332,8 +331,10 @@ where
             let mut sources = lock_core_cache(&cache)?.sources.fork_loaded();
             #[cfg(test)]
             work_counts::record("core-product", &Path::new(starsector_root).join(product));
-            let value = Arc::new(load.take().expect("core loader")(&mut sources)?);
+            let result = load.take().expect("core loader")(&mut sources);
             let mut entry = lock_core_cache(&cache)?;
+            entry.sources.scopes.extend(sources.scopes.clone());
+            let value = Arc::new(result?);
             store(&mut entry.data, value.clone());
             entry.sources.absorb(sources);
             entry.dirty = true;
@@ -493,31 +494,7 @@ pub(crate) fn load_core_graphics(starsector_root: &str) -> AppResult<Vec<String>
 }
 
 fn load_core_graphics_from(sources: &mut SourceReader) -> AppResult<Vec<String>> {
-    let dir = sources.path("graphics")?;
-    if !dir.exists() {
-        return Ok(vec![]);
-    }
-    let mut paths = Vec::new();
-    for entry in WalkDir::new(&dir) {
-        let entry = entry.map_err(|error| {
-            AppError::message("io.walk_failed", format!("遍历原版图片目录失败: {error}"))
-        })?;
-        validate_walk_entry(entry.path(), "core graphics")?;
-        if !entry.file_type().is_file() {
-            continue;
-        }
-        if !matches!(
-            entry
-                .path()
-                .extension()
-                .and_then(|extension| extension.to_str()),
-            Some("png" | "jpg" | "jpeg" | "gif")
-        ) {
-            continue;
-        }
-        paths.push(entry.into_path());
-    }
-    paths.sort();
+    let paths = sources.discover("graphics", &["png", "jpg", "jpeg", "gif"], false)?;
     Ok(paths
         .iter()
         .map(|path| forward_slash_relative_path(sources.root(), path))
@@ -742,15 +719,31 @@ pub(in crate::services::project) fn invalidate_core_sources(
     Ok(())
 }
 
+#[cfg(test)]
 pub(crate) fn prepare_core_source_refresh(
     game: &str,
     paths: &[String],
     rescan: bool,
 ) -> AppResult<Vec<InvalidatedResourceScope>> {
+    prepare_core_source_batch(game, paths, rescan, &SourceReadBatch::default())
+}
+pub(crate) fn prepare_core_source_batch(
+    game: &str,
+    paths: &[String],
+    rescan: bool,
+    batch: &SourceReadBatch,
+) -> AppResult<Vec<InvalidatedResourceScope>> {
     let handle = core_cache_handle(game)?;
     let mut entry = lock_core_cache(&handle)?;
-    entry.sources.begin_batch();
-    let versions = entry.sources.versions.clone();
+    let mut reader = entry.sources.fork_loaded();
+    reader.begin_batch();
+    reader.use_batch(batch);
+    let paths = if rescan {
+        reader.rescan_paths()?
+    } else {
+        paths.to_vec()
+    };
+    let versions = reader.versions.clone();
     let retry_failed = rescan && !entry.failed_products.is_empty();
     let mut sources = Vec::new();
     let mut files = BTreeSet::new();
@@ -761,22 +754,20 @@ pub(crate) fn prepare_core_source_refresh(
             || (!rescan && known.is_none())
             || known.and_then(|known| known.fingerprint.as_ref()) != version.fingerprint.as_ref()
     };
-    for relative in paths {
-        let path = entry.sources.path(relative)?;
-        if rescan && relative == "graphics" && !versions.contains_key(relative) {
+    for relative in &paths {
+        let path = reader.path(relative)?;
+        if !reader.tracks(relative)
+            && (rescan && paths.contains(relative) || reader.notice_changed(relative)?)
+        {
             sources.push(InvalidatedResourceScope {
                 source: ResourceSource::Core,
                 rel_path: relative.clone(),
             });
         }
         if path.is_dir() {
-            let staged = entry.sources.stage_directory(relative, changed)?;
+            let staged = reader.stage_directory(relative, changed)?;
             files.extend(staged.keys().cloned());
             checked.extend(staged);
-            if rescan && relative == "graphics" {
-                let version = entry.sources.directory_version(&path)?;
-                entry.sources.versions.insert(relative.clone(), version);
-            }
         }
         files.extend(
             versions
@@ -784,29 +775,31 @@ pub(crate) fn prepare_core_source_refresh(
                 .filter(|(key, _)| io::relative_path_contains(relative, key))
                 .map(|(_, version)| PathBuf::from(&version.path)),
         );
-        if !path.is_dir() {
+        if !path.is_dir() && reader.tracks(relative) {
             files.insert(path);
         }
     }
     for path in files {
-        let key = entry.sources.key(&path);
+        let key = reader.key(&path);
         let version = match checked.get(&path) {
             Some(version) => version.clone(),
             None if path.is_dir() => continue,
-            None => entry.sources.stage_version(&path)?,
+            None => reader.stage_version(&path)?,
         };
         if changed(&key, &version) {
             if io::relative_path_contains("graphics", &key) {
-                entry.sources.discard_staged_bytes(&key);
+                reader.discard_staged_bytes(&key);
             }
             sources.push(InvalidatedResourceScope {
                 source: ResourceSource::Core,
                 rel_path: key,
             });
         } else {
-            entry.sources.discard_staged_bytes(&key);
+            reader.discard_staged_bytes(&key);
         }
     }
+    reader.end_batch();
+    entry.sources = reader;
     drop(entry);
     invalidate_core_sources(game, &sources)?;
     Ok(sources)

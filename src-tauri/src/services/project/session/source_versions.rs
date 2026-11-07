@@ -26,6 +26,9 @@ pub(in crate::services::project) fn source_reader_for_session(
         let count = session.manifest.table_entity_summaries[&table_key];
         sources.retain_csv_summary(path, version, &summary.header, count);
     }
+    sources.versions.extend((*session.source_versions).clone());
+    sources.scopes = (*session.source_scopes).clone();
+    sources.stamps = (*session.source_stamps).clone();
     Ok(sources)
 }
 
@@ -79,8 +82,8 @@ pub(in crate::services::project) fn capture_project_versions(
     for table in model::csv_table_specs() {
         paths.push(sources.path(table.rel_path)?);
     }
-    // Business credentials stay complete; graphics enter the refresh baseline on demand.
-    paths.extend(sources.files("data")?);
+    // Mission saves own the complete directory; other products register their own source files.
+    paths.extend(sources.files("data/missions")?);
     for path in paths {
         let key = sources.key(&path);
         if let Entry::Vacant(entry) = sources.versions.entry(key) {

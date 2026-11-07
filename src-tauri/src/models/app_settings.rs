@@ -55,7 +55,7 @@ impl Default for ToastDurations {
 pub struct AppSettings {
     #[serde(default)]
     pub performance_monitor_enabled: bool,
-    #[serde(default)]
+    #[serde(default = "default_watch_file_changes")]
     pub watch_file_changes: bool,
     #[serde(default)]
     pub cache_limits: CacheLimits,
@@ -104,7 +104,7 @@ impl Default for AppSettings {
     fn default() -> Self {
         Self {
             performance_monitor_enabled: false,
-            watch_file_changes: false,
+            watch_file_changes: default_watch_file_changes(),
             cache_limits: CacheLimits::default(),
             toast_durations: ToastDurations::default(),
             theme: None,
@@ -157,6 +157,10 @@ fn default_edit_mode() -> EditMode {
 }
 
 fn default_immersive_game_font() -> bool {
+    true
+}
+
+fn default_watch_file_changes() -> bool {
     true
 }
 

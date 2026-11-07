@@ -15,6 +15,7 @@ use crate::models::{
 use crate::services::project::query::{hull_references, joint_edit, resources as query_resources};
 #[cfg(test)]
 use crate::services::project::resources::core_assets;
+use crate::services::project::session::source_refresh::refresh_mod_root_sources;
 use crate::services::project::test_support::project_workspace;
 #[cfg(test)]
 use crate::services::project::{
@@ -26,6 +27,7 @@ use crate::test_support;
 use crate::test_support::work_counts;
 #[cfg(test)]
 use std::fs;
+use std::slice;
 
 #[test]
 fn directory_staging_retains_only_changed_bytes_and_hands_off_the_same_snapshot() {
@@ -36,6 +38,7 @@ fn directory_staging_retains_only_changed_bytes_and_hands_off_the_same_snapshot(
     fs::write(&first, r#"{"hullId":"first"}"#).unwrap();
     fs::write(&second, r#"{"hullId":"second"}"#).unwrap();
     let mut reader = SourceReader::new(&root).unwrap();
+    reader.discover("data", &["ship"], true).unwrap();
     let checked = reader
         .stage_directory("data", |key, _| key == "data/first.ship")
         .unwrap();
@@ -374,6 +377,99 @@ fn joint_parent_version_matches() {
     assert_eq!(expected, &file_version(&parent).unwrap());
     assert!(record.base_versions.contains(expected));
     verify_versions(&manifest.mod_root, &snapshot.base_versions).unwrap();
+    release_project_session(manifest.session_id).unwrap();
+    root.close().unwrap();
+}
+
+#[test]
+fn source_batch_shares_reads_and_keeps_discovery_separate_from_content() {
+    let root = project_workspace("scoped_source_batch");
+    fs::create_dir_all(root.join("data/hulls")).unwrap();
+    fs::create_dir_all(root.join("graphics")).unwrap();
+    let ship = root.join("data/hulls/sample.ship");
+    let ignored = root.join("data/hulls/archive.zip");
+    let image = root.join("graphics/sample.png");
+    fs::write(&ship, r#"{"hullId":"sample"}"#).unwrap();
+    fs::write(&ignored, b"archive").unwrap();
+    fs::write(&image, b"image").unwrap();
+    let mut candidate = SourceReader::new(&root).unwrap();
+    assert!(candidate.notice_changed("graphics/sample.png").unwrap());
+    candidate.discover("graphics", &["png"], false).unwrap();
+    assert!(!candidate.stamps.contains_key("graphics/sample.png"));
+    candidate.begin_batch();
+    assert!(candidate.rescan_paths().unwrap().is_empty());
+    let batch = SourceReadBatch::default();
+    for _ in 0..2 {
+        let mut reader = SourceReader::new(&root).unwrap();
+        reader.use_batch(&batch);
+        assert_eq!(reader.walk("data/hulls", "ship").unwrap().len(), 1);
+        reader.discover("graphics", &["png"], false).unwrap();
+        assert!(reader.tracks("data/hulls/next.ship"));
+        assert!(!reader.tracks("data/hulls/archive.zip"));
+        assert!(!reader.tracks("graphics/sample.png"));
+    }
+    assert_eq!(work_counts::count("read", &ship), 1);
+    assert_eq!(work_counts::count("walk", &root.join("data/hulls")), 1);
+    assert_eq!(work_counts::count("read", &ignored), 0);
+    assert_eq!(work_counts::count("read", &image), 0);
+    root.close().unwrap();
+}
+
+#[test]
+fn source_rescan_observes_catalog_membership_and_keeps_media_unread() {
+    let root = project_workspace("scoped_catalog_changes");
+    fs::create_dir_all(root.join("graphics")).unwrap();
+    let image = root.join("graphics/sample.png");
+    let archive = root.join("graphics/archive.zip");
+    fs::write(&image, b"before").unwrap();
+    fs::write(&archive, b"archive").unwrap();
+    let mut reader = SourceReader::new(&root).unwrap();
+    reader.discover("graphics", &["png"], false).unwrap();
+    reader.begin_batch();
+    assert!(reader.rescan_paths().unwrap().is_empty());
+    for exists in [false, true] {
+        if exists {
+            fs::write(&image, b"after").unwrap();
+        } else {
+            fs::remove_file(&image).unwrap();
+        }
+        reader.begin_batch();
+        assert_eq!(reader.rescan_paths().unwrap(), vec!["graphics"]);
+        reader.begin_batch();
+        assert!(reader.rescan_paths().unwrap().is_empty());
+    }
+    assert_eq!(work_counts::count("read", &image), 0);
+    assert_eq!(work_counts::count("read", &archive), 0);
+    root.close().unwrap();
+}
+
+#[test]
+fn session_startup_captures_consumed_sources_and_full_mission_dependencies() {
+    let root = project_workspace("scoped_session_credentials");
+    fs::create_dir_all(root.join("data/missions/sample")).unwrap();
+    fs::create_dir_all(root.join("data/unused")).unwrap();
+    fs::create_dir_all(root.join("graphics")).unwrap();
+    let mission = root.join("data/missions/sample/logic.java");
+    let archive = root.join("data/unused/archive.zip");
+    let image = root.join("graphics/image.png");
+    fs::write(&mission, b"mission source").unwrap();
+    fs::write(&archive, b"archive").unwrap();
+    fs::write(&image, b"image").unwrap();
+    let manifest =
+        open_project_session_traced(&root, None, &mut PerformanceTrace::new("scope.startup"))
+            .unwrap();
+    assert_eq!(work_counts::count("read", &archive), 0);
+    assert_eq!(work_counts::count("read", &image), 0);
+    let changed = refresh_mod_root_sources(
+        &manifest.mod_root,
+        slice::from_ref(&manifest.session_id),
+        &[],
+        true,
+    )
+    .unwrap();
+    assert_eq!(changed.session_updates.len(), 1);
+    assert_eq!(work_counts::count("read", &archive), 0);
+    assert_eq!(work_counts::count("read", &image), 0);
     release_project_session(manifest.session_id).unwrap();
     root.close().unwrap();
 }

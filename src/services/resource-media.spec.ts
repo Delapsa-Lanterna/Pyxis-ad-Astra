@@ -7,6 +7,7 @@ import {
   resourceMediaDataUrl,
   invalidateResourceMediaForSession,
   invalidateResourceMediaByProject,
+  hasResourceInvalidation,
 } from './resource-media.service';
 import { initializeCacheLimits } from '@/shared/runtime/cache-limits';
 import { createSettingsFixture } from '@/test/fixtures/settings';
@@ -167,6 +168,30 @@ it('separates Mod and Core physical identities', () => {
   expect(mediaResourceKey(session, resource('Graphics/ONE.png/'))).toBe(mediaResourceKey(session, resource('graphics/one.png')));
   expect(mediaResourceKey(session, { ...resource(), source: 'core' })).not.toBe(mediaResourceKey(session, resource()));
 });
+it('invalidates directory media through existing leases and preserves adjacent scopes', async () => {
+  const inside = resource('graphics/ships/sample.png');
+  const adjacent = resource('graphics-extra/sample.png');
+  const core: ResourceRef = { ...inside, source: 'core' };
+  const held = acquireResourceMedia(session, inside);
+  await vi.advanceTimersByTimeAsync(25);
+  await held.ready;
+  await queryResourceDataUrls(session, [adjacent, core]);
+  const calls = mock.load.mock.calls.length;
+  const invalidation = { session: false, resources: [{ source: 'mod', relPath: 'graphics' }] } as ProjectInvalidation;
+  expect(hasResourceInvalidation(invalidation, [inside])).toBe(true);
+  expect(hasResourceInvalidation(invalidation, [adjacent, core])).toBe(false);
+  invalidateResourceMediaByProject(session, invalidation);
+  expect(held.dataUrl.value).toBeUndefined();
+  expect(resourceMediaDataUrl(session, adjacent)).toBe('data:graphics-extra/sample.png');
+  expect(resourceMediaDataUrl(session, core)).toBe('data:graphics/ships/sample.png');
+  const next = acquireResourceMedia(session, inside);
+  held.release();
+  await vi.advanceTimersByTimeAsync(25);
+  expect(await next.ready).toBe('data:graphics/ships/sample.png');
+  expect(mock.load).toHaveBeenCalledTimes(calls + 1);
+  next.release();
+});
+
 it('serves retained results before the cold batch interval', async () => {
   await queryResourceDataUrls(session, [resource()]);
   const held = acquireResourceMedia(session, resource());

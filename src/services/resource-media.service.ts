@@ -8,7 +8,7 @@ import type {
 } from '@/shared/types';
 import { invokeCommand } from '@/shared/runtime/command.runtime';
 import { requireSessionReady, currentReferenceRevision, waitForReferenceSources } from '@/services/project-readiness.service';
-import { normalizeFsPath } from '@/shared/lib/paths';
+import { normalizeFsPath, pathBelongsToRoot } from '@/shared/lib/paths';
 import { sameResourceRef } from '@/shared/lib/resource-ref';
 import { AppError, MediaReadError } from '@/shared/lib/errors';
 import { createResidentCache } from '@/shared/runtime/resident-cache';
@@ -229,21 +229,25 @@ export function subscribeResourceInvalidations(listener: (event: ResourceMediaIn
   listeners.add(listener);
   return () => listeners.delete(listener);
 }
+function mediaScopeMatches(scope: ProjectInvalidation['resources'][number], resource: ResourceRef): boolean {
+  return (
+    mediaResourceKey('', { ...scope, relPath: '' }) === mediaResourceKey('', { ...resource, relPath: '' }) &&
+    (!scope.relPath || pathBelongsToRoot(resource.relPath, scope.relPath))
+  );
+}
 export function hasResourceInvalidation(invalidation: ProjectInvalidation, resources: readonly ResourceRef[]): boolean {
   if (!resources.length) return false;
   if (invalidation.session) return true;
-  const keys = new Set(resources.map((resource) => mediaResourceKey('', resource)));
-  return invalidation.resources.some((resource) => keys.has(mediaResourceKey('', resource)));
+  return invalidation.resources.some((scope) => resources.some((resource) => mediaScopeMatches(scope, resource)));
 }
 function invalidate(sessionId: string, invalidation: ProjectInvalidation | null) {
   debugLog('media.invalidated', () => ({ sessionId, reason: invalidation ? 'project' : 'session' }));
   const all = new Map([...retained.keys()].map((key) => [key, retained.get(key)!]));
   for (const [key, entry] of working) all.set(key, entry);
-  const scopes =
-    invalidation && !invalidation.session ? new Set(invalidation.resources.map((resource) => mediaResourceKey(sessionId, resource))) : null;
+  const scopes = invalidation && !invalidation.session ? invalidation.resources : null;
   const resources: ResourceRef[] = [];
   for (const [key, entry] of all) {
-    if (entry.sessionId !== sessionId || (scopes && !scopes.has(key))) continue;
+    if (entry.sessionId !== sessionId || (scopes && !scopes.some((scope) => mediaScopeMatches(scope, entry.resource)))) continue;
     resources.push(entry.resource);
     entry.request?.invalidate(invalidation ? 'project' : 'session');
     entry.value.value = undefined;

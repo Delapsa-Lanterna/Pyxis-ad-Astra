@@ -75,11 +75,11 @@ describe('settings limit controls', () => {
     expect(section.get('h3').text()).toBe('工作区资源');
     expect(section.findAll('.field-label').map((label) => label.text())).toEqual(['Starsector 安装路径', '监听文件变化']);
     expect(section.text()).toContain('监听工作区文件的外部变化，并自动更新已打开的内容。');
-    expect(useSettingsStore().watchFileChanges).toBe(false);
+    expect(useSettingsStore().watchFileChanges).toBe(true);
     await section.get('.n-switch-stub').trigger('click');
-    expect(useSettingsStore().settingsSnapshot().watchFileChanges).toBe(true);
+    expect(useSettingsStore().settingsSnapshot().watchFileChanges).toBe(false);
     await section.get('.n-switch-stub').trigger('click');
-    expect(useSettingsStore().watchFileChanges).toBe(false);
+    expect(useSettingsStore().watchFileChanges).toBe(true);
     wrapper.unmount();
   });
   it('places toast durations below cache limits and edits all four levels in seconds', async () => {

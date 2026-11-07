@@ -435,8 +435,15 @@ mod tests {
     #[test]
     fn file_watching_roundtrips_through_saved_settings() {
         let root = TestWorkspace::new("file_watch_setting");
-        assert!(!AppSettings::default().watch_file_changes);
-        for enabled in [true, false] {
+        assert!(AppSettings::default().watch_file_changes);
+        let mut missing = serde_json::to_value(AppSettings::default()).unwrap();
+        missing.as_object_mut().unwrap().remove("watchFileChanges");
+        assert!(
+            serde_json::from_value::<AppSettings>(missing)
+                .unwrap()
+                .watch_file_changes
+        );
+        for enabled in [false, true] {
             let settings = AppSettings {
                 watch_file_changes: enabled,
                 ..Default::default()

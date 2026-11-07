@@ -1,3 +1,4 @@
+use super::sources::SourceScope;
 use super::sources::core::CoreSourceRequirements;
 use super::sources::documents::LoadedSpecRecord;
 use crate::models::{
@@ -8,6 +9,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use std::collections::{BTreeMap, HashMap};
 use std::sync::{Arc, Mutex};
+use std::time::SystemTime;
 
 pub(super) const MISSION_LIST_TABLE_KEY: &str = "missions";
 
@@ -300,6 +302,8 @@ pub(super) struct ProjectSession {
     pub loaded_edit_targets: Vec<EntityEditTarget>,
     pub content_pending: bool,
     pub source_versions: Arc<BTreeMap<String, FileVersion>>,
+    pub source_scopes: Arc<BTreeMap<String, SourceScope>>,
+    pub source_stamps: Arc<BTreeMap<String, Option<(u64, SystemTime)>>>,
     pub manifest: ProjectManifest,
     pub faction_files: Arc<BTreeMap<String, LoadedSpecRecord>>,
     pub faction_blueprint_tags: HashMap<String, String>,

@@ -101,20 +101,20 @@ describe('formal settings commits', () => {
   });
   it('persists file watching, reloads the saved choice and restores its default', async () => {
     const { runtime, settings, stopPersistence } = await setup();
-    expect(settings.watchFileChanges).toBe(false);
-    settings.setWatchFileChanges(true);
+    expect(settings.watchFileChanges).toBe(true);
+    settings.setWatchFileChanges(false);
     await runtime.flushSettings();
-    expect(api.save.mock.lastCall![0].watchFileChanges).toBe(true);
+    expect(api.save.mock.lastCall![0].watchFileChanges).toBe(false);
     stopPersistence();
     settings.replaceSettings(createSettingsFixture());
     const stop = runtime.startSettingsMirror();
     onTestFinished(stop);
-    expect(settings.watchFileChanges).toBe(true);
+    expect(settings.watchFileChanges).toBe(false);
     stop();
     onTestFinished(runtime.startSettingsPersistence(api.history));
     await runtime.resetSettings(vi.fn());
-    expect(settings.watchFileChanges).toBe(false);
-    expect(api.save.mock.lastCall![0].watchFileChanges).toBe(false);
+    expect(settings.watchFileChanges).toBe(true);
+    expect(api.save.mock.lastCall![0].watchFileChanges).toBe(true);
   });
   it('saves toast durations and restores their defaults through reset', async () => {
     const { runtime, settings } = await setup();

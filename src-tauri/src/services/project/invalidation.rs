@@ -337,6 +337,8 @@ fn invalidate_files(
         .cloned()
         .collect();
     Arc::make_mut(&mut session.source_versions).extend(sources.versions.clone());
+    Arc::make_mut(&mut session.source_scopes).extend(sources.scopes.clone());
+    Arc::make_mut(&mut session.source_stamps).extend(sources.stamps.clone());
     Ok(invalidation)
 }
 
@@ -646,7 +648,7 @@ fn is_exact_spec_path(path: &str, dir: &str, extension: &str) -> bool {
     path.starts_with(&format!("{dir}/")) && path.ends_with(extension)
 }
 
-fn query_scopes_for_invalidation(
+pub(super) fn query_scopes_for_invalidation(
     tables: &[CsvTableKey],
     entities: &[InvalidatedEntityRef],
     resources: &[InvalidatedResourceScope],

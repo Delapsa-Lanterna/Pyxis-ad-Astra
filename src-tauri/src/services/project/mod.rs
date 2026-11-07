@@ -28,15 +28,16 @@ pub(crate) use session::source_refresh::refresh_core_session;
 #[cfg(test)]
 pub use session::source_refresh::refresh_project_sources;
 pub(crate) use session::source_refresh::refresh_root_sources;
-pub(crate) use session::source_refresh::{loaded_source_targets, refresh_mod_root_sources};
+pub(crate) use session::source_refresh::{loaded_source_targets, refresh_mod_root_batch};
 pub(crate) use session::{affected_session_ids, current_project_manifest, mark_session_pending};
 pub use session::{
     ensure_project_session_mod_root, hold_session_openings, invalidate_core_cache,
     invalidate_project_session, registered_session_ids,
 };
+pub(crate) use sources::SourceReadBatch;
 pub(crate) use sources::configure_persistent_index_cache;
 pub(crate) use sources::core::core_dir;
-pub(crate) use sources::core::prepare_core_source_refresh;
+pub(crate) use sources::core::prepare_core_source_batch;
 pub(crate) use sources::roots::resolve_core_root;
 pub(crate) use sources::roots::{
     infer_starsector_root, is_game_root, is_mod_root, resolve_game_mods_directory,

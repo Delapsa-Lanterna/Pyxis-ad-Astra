@@ -242,6 +242,8 @@ pub(super) fn build_project_session(
     });
     sources.flush();
     let source_versions = sources.versions;
+    let source_scopes = sources.scopes;
+    let source_stamps = sources.stamps;
     let mut csv_tables = build_registered_session_csv_tables();
     for (path, csv) in sources.tables {
         if let Some((key, state)) = csv_tables.iter_mut().find(|(_, table)| table.path == path) {
@@ -324,6 +326,8 @@ pub(super) fn build_project_session(
         loaded_edit_targets: Vec::new(),
         content_pending: false,
         source_versions: source_versions.into(),
+        source_scopes: source_scopes.into(),
+        source_stamps: source_stamps.into(),
         manifest,
         faction_files: faction_files.into(),
         faction_blueprint_tags,
@@ -1262,25 +1266,38 @@ mod source_refresh_tests {
                 .invalidation
                 .resources
                 .iter()
-                .any(|scope| scope.rel_path == "graphics/image.png")
+                .any(|scope| scope.rel_path == "graphics")
         );
         assert!(
             !lock_ready_session(&session_handle(&manifest.session_id).unwrap())
                 .unwrap()
-                .source_versions["graphics/image.png"]
-                .fingerprint
-                .is_some()
+                .source_versions
+                .contains_key("graphics/image.png")
         );
+        assert_eq!(work_counts::count("read", &image), 0);
+        let handle = session_handle(&manifest.session_id).unwrap();
+        let session = lock_ready_session(&handle).unwrap();
+        let scopes = session.source_scopes.keys().cloned().collect::<Vec<_>>();
+        let stamps = session.source_stamps.clone();
+        drop(session);
+        let repeated = refresh_mod_root_sources(
+            &manifest.mod_root,
+            slice::from_ref(&manifest.session_id),
+            &[],
+            true,
+        )
+        .unwrap();
         assert!(
-            refresh_mod_root_sources(
-                &manifest.mod_root,
-                slice::from_ref(&manifest.session_id),
-                &[],
-                true
-            )
-            .unwrap()
-            .session_updates
-            .is_empty()
+            repeated.session_updates.is_empty(),
+            "repeated resource scopes: {:?}, scopes: {:?}, stamps: {:?}",
+            repeated
+                .invalidation
+                .resources
+                .iter()
+                .map(|scope| &scope.rel_path)
+                .collect::<Vec<_>>(),
+            scopes,
+            stamps,
         );
         release_project_session(manifest.session_id).unwrap();
         root.close().unwrap();

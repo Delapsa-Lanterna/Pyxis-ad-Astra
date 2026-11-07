@@ -649,6 +649,7 @@ mod tests {
     #[cfg(test)]
     use crate::services::{file_editor, file_history, project, project_save, write_transactions};
     use crate::test_support;
+    use crate::test_support::work_counts;
     #[cfg(test)]
     use crate::{io, services};
     use serde_json::Value;
@@ -1058,6 +1059,129 @@ mod tests {
             release_project_session(manifest.session_id).unwrap();
         }
         release_window("core-watch-first").unwrap();
+        work.close().unwrap();
+    }
+
+    #[test]
+    fn source_watch_shared_core_root_rescans_updates_and_releases() {
+        if test_support::isolated_test() {
+            return;
+        }
+        let _serial = TEST_QUEUE.lock().unwrap();
+        let work = project_workspace("shared_core_queue").with_cleanup(release_watched_workspace);
+        let game = work.join("game");
+        let core = game.join("starsector-core");
+        let mod_root = game.join("mods/sample");
+        let path = core.join("data/weapons/proj/shared.proj");
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        fs::create_dir_all(&mod_root).unwrap();
+        fs::write(&path, r#"{"id":"shared","damage":1}"#).unwrap();
+        let mut manifests = Vec::new();
+        for root in [&core, &core, &mod_root] {
+            let subscription = begin_source_watch(root).unwrap();
+            let core_subscription = begin_source_watch(&core).unwrap();
+            let manifest = project::open_project_session_traced(
+                root,
+                Some(&game),
+                &mut PerformanceTrace::new("source.sharedCore"),
+            )
+            .unwrap();
+            retain_source_watch(
+                manifest.session_id.clone(),
+                subscription,
+                ResourceSource::Mod,
+            )
+            .unwrap();
+            retain_source_watch(
+                format!("core:{}", manifest.session_id),
+                core_subscription,
+                ResourceSource::Core,
+            )
+            .unwrap();
+            manifests.push(manifest);
+        }
+        let owner = format!("watch:{}", windows_path_key(&work.to_string_lossy()));
+        let receiver = window(&owner);
+        configure_source_watch(true).unwrap();
+        source_changes::wait_source_batches(&core.to_string_lossy()).unwrap();
+        source_changes::wait_source_batches(&manifests[2].mod_root).unwrap();
+        receiver.try_iter().for_each(drop);
+        for damage in [2, 3] {
+            let reads = work_counts::count("read", &path);
+            fs::write(&path, format!(r#"{{"id":"shared","damage":{damage}}}"#)).unwrap();
+            let mut updated = BTreeSet::new();
+            while updated.len() < manifests.len() {
+                let delivery = receiver.recv_timeout(Duration::from_secs(15)).unwrap();
+                if delivery["kind"] == "saved" {
+                    for update in delivery["event"]["result"]["sessionUpdates"]
+                        .as_array()
+                        .unwrap()
+                    {
+                        updated.insert(update["sessionId"].as_str().unwrap().to_string());
+                    }
+                }
+            }
+            source_changes::wait_source_batches(&manifests[0].mod_root).unwrap();
+            assert_eq!(work_counts::count("read", &path) - reads, 1);
+            for manifest in &manifests {
+                assert_eq!(
+                    services::query_entity(&manifest.session_id, EntityKind::Projectile, "shared")
+                        .unwrap()
+                        .unwrap()
+                        .data["damage"],
+                    damage
+                );
+                assert_project_idle(&manifest.mod_root);
+            }
+            wait_projects(
+                &manifests
+                    .iter()
+                    .map(|manifest| manifest.mod_root.clone())
+                    .collect::<Vec<_>>(),
+            )
+            .unwrap();
+        }
+        configure_source_watch(false).unwrap();
+        for manifest in manifests {
+            release_project_session(manifest.session_id).unwrap();
+        }
+        release_window(&owner).unwrap();
+        work.close().unwrap();
+    }
+
+    #[test]
+    fn source_watch_failed_core_batch_releases_its_queued_task() {
+        let _serial = TEST_QUEUE.lock().unwrap();
+        let work = project_workspace("failed_core_queue").with_cleanup(release_watched_workspace);
+        let core = work.join("starsector-core");
+        fs::create_dir_all(&core).unwrap();
+        let manifest = project::open_project_session_traced(
+            &core,
+            Some(&work),
+            &mut PerformanceTrace::new("source.failedCore"),
+        )
+        .unwrap();
+        let owner = format!("watch:{}", windows_path_key(&work.to_string_lossy()));
+        let receiver = window(&owner);
+        let lease = io::acquire_root_write_lock(Path::new(&manifest.mod_root)).unwrap();
+        source_changes::enqueue_source_batch(SourceChangeBatch {
+            root: manifest.mod_root.clone(),
+            rescan: true,
+            ..Default::default()
+        });
+        fs::rename(&core, work.join("moved-core")).unwrap();
+        drop(lease);
+        loop {
+            let delivery = receiver.recv_timeout(Duration::from_secs(15)).unwrap();
+            if delivery["kind"] == "sourceStatus" && delivery["state"] == "failed" {
+                break;
+            }
+        }
+        source_changes::wait_source_batches(&manifest.mod_root).unwrap();
+        wait_projects(slice::from_ref(&manifest.mod_root)).unwrap();
+        assert_project_idle(&manifest.mod_root);
+        release_project_session(manifest.session_id).unwrap();
+        release_window(&owner).unwrap();
         work.close().unwrap();
     }
 
