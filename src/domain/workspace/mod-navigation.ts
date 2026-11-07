@@ -1,12 +1,13 @@
 import type { JsonEditorPageId, ProjectManifest, CsvTableKey, WorkspaceView } from '@/shared/types';
 import { MODULE_LABELS } from '@/shared/lib/starsector';
+import { isCoreProjectManifest } from './project-kind';
 
 export type ModNavigationTarget =
   | { type: 'mod-overview' }
   | { type: 'file-history' }
   | { type: 'json-editor'; page: JsonEditorPageId }
   | { type: 'table'; table: CsvTableKey }
-  | { type: 'mod-files' };
+  | { type: 'file-browser' };
 
 export interface ModNavigationItem {
   id: string;
@@ -32,19 +33,17 @@ const SECONDARY_TABLE_KEYS: CsvTableKey[] = [
 ];
 
 export function buildModNavigationSections(manifest: ProjectManifest | null | undefined): ModNavigationSection[] {
+  const isCore = isCoreProjectManifest(manifest);
   return [
     {
       id: 'workspace',
       items: [
-        { id: 'mod-overview', label: 'Mod 概览', count: null, target: { type: 'mod-overview' } },
-        { id: 'mod-files', label: 'Mod 文件', count: null, target: { type: 'mod-files' } },
+        { id: 'mod-overview', label: isCore ? 'Core 概览' : 'Mod 概览', count: null, target: { type: 'mod-overview' } },
+        { id: 'file-browser', label: '文件概览', count: null, target: { type: 'file-browser' } },
         { id: 'file-history', label: '文件历史', count: null, target: { type: 'file-history' } },
       ],
     },
-    {
-      id: 'mod-info',
-      items: [jsonItem('mod-info', 'Mod 信息')],
-    },
+    ...(isCore ? [] : [{ id: 'mod-info', items: [jsonItem('mod-info', 'Mod 信息')] }]),
     {
       id: 'combat',
       items: [
@@ -73,7 +72,7 @@ export function isModNavigationItemActive(
   jsonPage: JsonEditorPageId,
   currentTable: CsvTableKey,
 ): boolean {
-  if (item.target.type === 'mod-files') return currentView === 'mod-files';
+  if (item.target.type === 'file-browser') return currentView === 'file-browser';
   if (item.target.type === 'mod-overview') return currentView === 'mod-overview';
   if (item.target.type === 'file-history') return currentView === 'file-history';
   if (item.target.type === 'json-editor') return currentView === 'json-editor' && jsonPage === item.target.page;

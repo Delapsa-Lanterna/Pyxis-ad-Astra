@@ -91,11 +91,11 @@ export const projectCapabilities = [
       owners: readOwners,
     },
   ]),
-  ...capabilities({ role: 'service', domain: 'mod-file-browser' }, [
+  ...capabilities({ role: 'service', domain: 'file-browser' }, [
     {
-      capability: 'mod-file-browser-read',
-      names: ['queryModDirectory', 'queryModFileSearch', 'queryModTextFileTarget'],
-      owners: [{ layer: 'app', role: 'composable', domain: 'mod-file-browser-view-model' }],
+      capability: 'file-browser-read',
+      names: ['queryFileDirectory', 'queryFileSearch', 'queryFileTextTarget'],
+      owners: [{ layer: 'app', role: 'composable', domain: 'file-browser-view-model' }],
     },
   ]),
   ...capabilities({ path: 'src/shared/runtime/command.runtime.ts', layer: 'shared', role: 'shared', domain: 'runtime' }, [

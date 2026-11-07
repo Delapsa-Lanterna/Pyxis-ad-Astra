@@ -52,9 +52,9 @@ export function frontendDependencyFailure(current, target, edge) {
   )
     return { message: 'CSV editors consume explicit table targets and host actions', expected: 'CSV editor host contract' };
   const browser =
-    current.path.includes('/mod-file-browser/') ||
-    current.path === 'src/stores/mod-file-browser.store.ts' ||
-    current.path === 'src/services/mod-file-browser.service.ts';
+    current.path.includes('/file-browser/') ||
+    current.path === 'src/stores/file-browser.store.ts' ||
+    current.path === 'src/services/file-browser.service.ts';
   if (browser && target.path === 'src/stores/workspace.store.ts')
     return { message: 'file browser targets belong to the calling workspace host', expected: 'explicit file browser target' };
   if (current.domain === 'misc-config' && target.path.startsWith('src/domain/json-editor/'))

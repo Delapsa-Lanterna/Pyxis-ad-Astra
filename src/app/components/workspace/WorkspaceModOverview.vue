@@ -3,7 +3,7 @@
     <header class="mod-overview-header page-header">
       <div class="page-identity">
         <h1 class="page-title">{{ modName }}</h1>
-        <p class="mod-overview-header-description page-description">{{ modVersion || '未声明版本' }}</p>
+        <p v-if="!overview.isCore" class="mod-overview-header-description page-description">{{ modVersion || '未声明版本' }}</p>
       </div>
     </header>
     <div class="mod-overview-grid ui-layout-grid">
@@ -24,16 +24,18 @@
         <p class="mod-overview-card-description ui-text-description ui-text-reset ui-text-muted ui-text-small">势力与战役配置项</p>
       </article>
       <article class="mod-overview-card wide ui-layout-shrink ui-control-border ui-content-surface ui-layout-grid">
-        <span class="mod-overview-card-label ui-text-description ui-text-reset ui-text-muted ui-text-small">目录</span>
+        <span class="mod-overview-card-label ui-text-description ui-text-reset ui-text-muted ui-text-small">{{
+          overview.isCore ? 'Core 来源' : '目录'
+        }}</span>
         <strong
           class="mod-overview-card-value wide-value ui-emphasis ui-text-truncate ui-text-wrap ui-text-body ui-text-normal ui-layout-shrink"
           >{{ overview.modRootText }}</strong
         >
         <p class="mod-overview-card-description ui-text-description ui-text-reset ui-text-muted ui-text-small">
-          当前工作区会原位读写该 Mod 目录下的数据文件
+          {{ overview.isCore ? '当前工作区直接读取该 Core 目录下的原版数据文件' : '当前工作区会原位读写该 Mod 目录下的数据文件' }}
         </p>
       </article>
-      <article class="mod-overview-card wide ui-layout-shrink ui-control-border ui-content-surface ui-layout-grid">
+      <article v-if="!overview.isCore" class="mod-overview-card wide ui-layout-shrink ui-control-border ui-content-surface ui-layout-grid">
         <span class="mod-overview-card-label ui-text-description ui-text-reset ui-text-muted ui-text-small">原版资源</span>
         <strong
           class="mod-overview-card-value wide-value ui-emphasis ui-text-truncate ui-text-wrap ui-text-body ui-text-normal ui-layout-shrink"

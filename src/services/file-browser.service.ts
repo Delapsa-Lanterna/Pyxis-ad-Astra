@@ -1,12 +1,12 @@
 import { invokeCommand } from '@/shared/runtime/command.runtime';
-import type { ModDirectory, ModTextFileTarget, ModFileSearch } from '@/shared/types';
-export function queryModDirectory(sessionId: string, directory: string | null): Promise<ModDirectory> {
-  return invokeCommand('query_mod_directory', { payload: { sessionId, directory } });
+import type { FileDirectory, FileTextTarget, FileSearch } from '@/shared/types';
+export function queryFileDirectory(sessionId: string, directory: string | null): Promise<FileDirectory> {
+  return invokeCommand('query_file_directory', { payload: { sessionId, directory } });
 }
-export function queryModTextFileTarget(sessionId: string, relPath: string): Promise<ModTextFileTarget | null> {
-  return invokeCommand('query_mod_text_file_target', { payload: { sessionId, relPath } });
+export function queryFileTextTarget(sessionId: string, relPath: string): Promise<FileTextTarget | null> {
+  return invokeCommand('query_file_text_target', { payload: { sessionId, relPath } });
 }
 
-export function queryModFileSearch(sessionId: string, query: string): Promise<ModFileSearch> {
-  return invokeCommand('query_mod_file_search', { payload: { sessionId, query } });
+export function queryFileSearch(sessionId: string, query: string): Promise<FileSearch> {
+  return invokeCommand('query_file_search', { payload: { sessionId, query } });
 }

@@ -1,5 +1,5 @@
 import { useJsonEditorStore } from '@/stores/json-editor.store';
-import { useModFileBrowserStore } from '@/stores/mod-file-browser.store';
+import { useFileBrowserStore } from '@/stores/file-browser.store';
 import { useFileHistoryStore } from '@/stores/file-history.store';
 import { useProjectStore } from '@/stores/project.store';
 import { useCsvEditorStore } from '@/stores/csv-editor.store';
@@ -65,7 +65,7 @@ export function removeModRuntimeState(modRoot: string) {
   const writeSync = useProjectSyncStore();
   const sessionId = project.getSessionId(modRoot);
   if (sessionId) useJsonEditorStore().releaseSession(sessionId);
-  useModFileBrowserStore().removeModState(modRoot);
+  useFileBrowserStore().releaseProjectState(modRoot);
   workspace.removeLoadedModEntry(modRoot);
   tables.removeModState(modRoot);
   fileHistory.removeModState(modRoot);

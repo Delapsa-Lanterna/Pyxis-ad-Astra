@@ -1,86 +1,86 @@
-.mod-files-toolbar {
+.file-browser-toolbar {
   flex-wrap: wrap;
   gap: var(--space-3);
 }
-.mod-files-toolbar > .n-input {
+.file-browser-toolbar > .n-input {
   flex: 1 1 240px;
   min-width: min(100%, 240px);
   max-width: 560px;
 }
-.mod-files-tools {
+.file-browser-tools {
   flex-shrink: 0;
   gap: var(--space-2);
   margin-left: auto;
 }
-.mod-files-table {
+.file-browser-table {
   overflow-x: auto;
   overflow-y: hidden;
   border-radius: var(--radius-md);
   scrollbar-gutter: stable;
 }
-.mod-files-table-content {
+.file-browser-table-content {
   min-width: 740px;
   height: 100%;
 }
-.mod-files-columns {
+.file-browser-columns {
   grid-template-columns: minmax(260px, 1fr) 128px 112px 192px;
   flex-shrink: 0;
   padding: 0 var(--space-2);
   border-bottom: 1px solid var(--color-border);
 }
-.mod-files-columns .mod-files-columns-button {
+.file-browser-columns .file-browser-columns-button {
   gap: var(--space-2);
   font: inherit;
   text-align: left;
   padding: 4px 8px;
   min-height: 28px;
 }
-.mod-files-columns .mod-files-columns-button:hover {
+.file-browser-columns .file-browser-columns-button:hover {
   background: var(--color-surface-hover);
   color: var(--color-text);
 }
-.mod-files-columns .mod-files-columns-button:focus-visible,
-.mod-files-tree:focus-visible {
+.file-browser-columns .file-browser-columns-button:focus-visible,
+.file-browser-tree:focus-visible {
   outline: 2px solid var(--color-primary);
   outline-offset: -2px;
 }
-.mod-files-columns > .mod-files-number .mod-files-number-button {
+.file-browser-columns > .file-browser-number .file-browser-number-button {
   justify-content: flex-end;
 }
-.mod-files-sort {
+.file-browser-sort {
   width: 12px;
   height: 12px;
   stroke-width: 1.5;
   color: var(--color-primary);
 }
-.mod-files-node-icon {
+.file-browser-node-icon {
   width: 14px;
   height: 14px;
   stroke-width: 1.5;
 }
-.mod-files-tree {
+.file-browser-tree {
   flex: 1;
 }
-.mod-files-tree .n-tree {
+.file-browser-tree .n-tree {
   height: 100%;
   padding: 4px;
   font-size: 12px;
 }
-.mod-files-tree .n-tree-node-content {
+.file-browser-tree .n-tree-node-content {
   flex: 1;
   min-width: 0;
   padding-right: 0;
 }
-.mod-files-tree .n-tree-node-content__text {
+.file-browser-tree .n-tree-node-content__text {
   flex: 1;
   min-width: 0;
   overflow: hidden;
 }
-.mod-files-tree .n-tree-node-content__suffix {
+.file-browser-tree .n-tree-node-content__suffix {
   flex-shrink: 0;
   margin-left: 0;
 }
-.mod-files-tree .mod-files-metadata {
+.file-browser-tree .file-browser-metadata {
   display: grid;
   grid-template-columns: 128px 112px 192px;
   width: 432px;
@@ -88,41 +88,41 @@
   font-size: 12px;
   font-variant-numeric: tabular-nums;
 }
-.mod-files-tree .mod-files-metadata > .mod-files-metadata-label {
+.file-browser-tree .file-browser-metadata > .file-browser-metadata-label {
   padding: 0 var(--space-2);
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
 }
-.mod-files-tree .mod-files-number {
+.file-browser-tree .file-browser-number {
   text-align: right;
 }
-.mod-files-tree .mod-files-name {
+.file-browser-tree .file-browser-name {
   display: flex;
   align-items: center;
   gap: var(--space-2);
   min-width: 0;
 }
-.mod-files-tree .mod-files-name-text {
+.file-browser-tree .file-browser-name-text {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.mod-files-tree .mod-files-match {
+.file-browser-tree .file-browser-match {
   color: var(--color-primary);
 }
-.mod-files-tree .mod-files-node-status {
+.file-browser-tree .file-browser-node-status {
   color: var(--color-muted);
   white-space: nowrap;
 }
-.mod-files-empty {
+.file-browser-empty {
   padding: var(--space-4);
 }
-.mod-files-error {
+.file-browser-error {
   gap: var(--space-2);
   color: var(--color-danger);
 }
-.mod-files-tree .mod-files-retry {
+.file-browser-tree .file-browser-retry {
   flex-shrink: 0;
   padding: 0;
   border: 0;
@@ -131,10 +131,10 @@
   font: inherit;
   cursor: pointer;
 }
-.mod-files-tree .mod-files-retry:focus-visible {
+.file-browser-tree .file-browser-retry:focus-visible {
   outline: 2px solid var(--color-primary);
 }
-.mod-files-toolbar,
-.mod-files-tools {
+.file-browser-toolbar,
+.file-browser-tools {
   gap: 8px;
 }

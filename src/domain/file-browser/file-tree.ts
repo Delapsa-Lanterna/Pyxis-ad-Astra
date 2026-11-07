@@ -1,11 +1,11 @@
-import type { ModDirectoryState, ModFileEntry, ModFileSearch, ModFileSort } from '@/shared/types';
-export type ModFileNode = {
+import type { FileDirectoryState, FileEntry, FileSearch, FileSort } from '@/shared/types';
+export type FileNode = {
   key: string;
   label: string;
   isLeaf: boolean;
   disabled: boolean;
-  kind: ModFileEntry['kind'] | 'status';
-  children?: ModFileNode[];
+  kind: FileEntry['kind'] | 'status';
+  children?: FileNode[];
   typeText?: string;
   sizeText?: string;
   modifiedText?: string;
@@ -13,18 +13,18 @@ export type ModFileNode = {
 };
 const collator = new Intl.Collator('zh-CN', { numeric: true, sensitivity: 'base' });
 
-export function modFileType(entry: Pick<ModFileEntry, 'name' | 'kind'>) {
+export function fileType(entry: Pick<FileEntry, 'name' | 'kind'>) {
   if (entry.kind === 'directory') return '文件夹';
   if (entry.kind === 'restricted') return '受限条目';
   const dot = entry.name.lastIndexOf('.');
   return dot > 0 && dot < entry.name.length - 1 ? entry.name.slice(dot + 1).toUpperCase() + ' 文件' : '文件';
 }
-export function modFileSize(bytes: number | null) {
+export function fileSize(bytes: number | null) {
   if (bytes === null) return '—';
   const unit = Math.min(3, bytes === 0 ? 0 : Math.floor(Math.log(bytes) / Math.log(1024)));
   return (bytes / 1024 ** unit).toLocaleString('zh-CN', { maximumFractionDigits: unit ? 2 : 0 }) + ' ' + ['B', 'KiB', 'MiB', 'GiB'][unit];
 }
-export function modFileTime(time: number | null) {
+export function fileTime(time: number | null) {
   if (time === null) return '—';
   const date = new Date(time),
     pad = (value: number) => String(value).padStart(2, '0');
@@ -42,9 +42,9 @@ export function modFileTime(time: number | null) {
     pad(date.getSeconds())
   );
 }
-export function sortModFiles(entries: readonly ModFileEntry[], sort: ModFileSort = { key: 'name', ascending: true }): ModFileEntry[] {
-  const value = (entry: ModFileEntry) =>
-    sort.key === 'name' ? entry.name : sort.key === 'type' ? modFileType(entry) : sort.key === 'size' ? entry.sizeBytes : entry.modifiedAt;
+export function sortFiles(entries: readonly FileEntry[], sort: FileSort = { key: 'name', ascending: true }): FileEntry[] {
+  const value = (entry: FileEntry) =>
+    sort.key === 'name' ? entry.name : sort.key === 'type' ? fileType(entry) : sort.key === 'size' ? entry.sizeBytes : entry.modifiedAt;
   return [...entries].sort((a, b) => {
     const folders = Number(b.kind === 'directory') - Number(a.kind === 'directory');
     if (folders) return folders;
@@ -56,60 +56,56 @@ export function sortModFiles(entries: readonly ModFileEntry[], sort: ModFileSort
     return (sort.ascending ? comparison : -comparison) || tie;
   });
 }
-export function modFileTree(
-  directories: ReadonlyMap<string | null, ModDirectoryState>,
+export function fileTree(
+  directories: ReadonlyMap<string | null, FileDirectoryState>,
   directory: string | null = null,
-  sort: ModFileSort = { key: 'name', ascending: true },
-): ModFileNode[] {
-  return sortModFiles(directories.get(directory)?.entries ?? [], sort).map((entry) => {
+  sort: FileSort = { key: 'name', ascending: true },
+): FileNode[] {
+  return sortFiles(directories.get(directory)?.entries ?? [], sort).map((entry) => {
     const state = directories.get(entry.relPath);
-    const children = entry.kind === 'directory' ? modFileTree(directories, entry.relPath, sort) : undefined;
+    const children = entry.kind === 'directory' ? fileTree(directories, entry.relPath, sort) : undefined;
     if (children && state?.entries && children.length === 0)
       children.push({ key: 'status:' + entry.relPath, label: '空文件夹', isLeaf: true, disabled: true, kind: 'status' });
-    return { ...modFileNode(entry), ...(children ? { children } : {}) };
+    return { ...fileNode(entry), ...(children ? { children } : {}) };
   });
 }
-function modFileNode(entry: ModFileEntry): ModFileNode {
+function fileNode(entry: FileEntry): FileNode {
   return {
     key: entry.relPath,
     label: entry.name,
     isLeaf: entry.kind !== 'directory',
     disabled: entry.kind === 'restricted',
     kind: entry.kind,
-    typeText: modFileType(entry),
-    sizeText: modFileSize(entry.sizeBytes),
-    modifiedText: modFileTime(entry.modifiedAt),
+    typeText: fileType(entry),
+    sizeText: fileSize(entry.sizeBytes),
+    modifiedText: fileTime(entry.modifiedAt),
   };
 }
 
-export function createModFileTreeCache() {
+export function createFileTreeCache() {
   const cache = new Map<
     string | null,
     {
-      entries: readonly ModFileEntry[] | null;
+      entries: readonly FileEntry[] | null;
       sort: string;
-      sorted: ModFileEntry[];
-      nodes: ModFileNode[];
+      sorted: FileEntry[];
+      nodes: FileNode[];
     }
   >();
-  let labels = new WeakMap<ModFileEntry, ModFileNode>();
-  const empty: ModFileNode[] = [];
-  function project(
-    directories: ReadonlyMap<string | null, ModDirectoryState>,
-    expanded: readonly string[],
-    sort: ModFileSort,
-  ): ModFileNode[] {
+  let labels = new WeakMap<FileEntry, FileNode>();
+  const empty: FileNode[] = [];
+  function project(directories: ReadonlyMap<string | null, FileDirectoryState>, expanded: readonly string[], sort: FileSort): FileNode[] {
     const open = new Set(expanded),
       sortKey = sort.key + ':' + sort.ascending;
-    function visit(directory: string | null): ModFileNode[] {
+    function visit(directory: string | null): FileNode[] {
       const entries = directories.get(directory)?.entries ?? null;
       const previous = cache.get(directory);
-      const sorted = previous?.entries === entries && previous.sort === sortKey ? previous.sorted : sortModFiles(entries ?? [], sort);
+      const sorted = previous?.entries === entries && previous.sort === sortKey ? previous.sorted : sortFiles(entries ?? [], sort);
       const previousNodes = new Map(previous?.nodes.map((node) => [node.key, node]));
       const nodes = sorted.map((entry) => {
         let base = labels.get(entry);
         if (!base) {
-          base = modFileNode(entry);
+          base = fileNode(entry);
           labels.set(entry, base);
         }
         if (entry.kind !== 'directory') return base;
@@ -144,14 +140,14 @@ export function createModFileTreeCache() {
   }
   return { project, forget, clear };
 }
-export function visibleModFiles(nodes: readonly ModFileNode[], expanded: readonly string[]): ModFileNode[] {
+export function visibleFiles(nodes: readonly FileNode[], expanded: readonly string[]): FileNode[] {
   return nodes.flatMap((node) => [
     ...(node.kind === 'status' ? [] : [node]),
-    ...(expanded.includes(node.key) ? visibleModFiles(node.children ?? [], expanded) : []),
+    ...(expanded.includes(node.key) ? visibleFiles(node.children ?? [], expanded) : []),
   ]);
 }
-export function affectedModDirectories(
-  directories: ReadonlyMap<string | null, ModDirectoryState>,
+export function affectedFileDirectories(
+  directories: ReadonlyMap<string | null, FileDirectoryState>,
   paths: readonly string[],
 ): Array<string | null> {
   return [...directories.keys()]
@@ -164,17 +160,17 @@ export function affectedModDirectories(
     .sort((a, b) => (a?.split('/').length ?? 0) - (b?.split('/').length ?? 0));
 }
 
-export function modFileSearchTree(result: ModFileSearch, sort: ModFileSort): ModFileNode[] {
-  const directories = new Map<string | null, ModDirectoryState>([[null, { entries: [], loading: false, error: '' }]]);
+export function fileSearchTree(result: FileSearch, sort: FileSort): FileNode[] {
+  const directories = new Map<string | null, FileDirectoryState>([[null, { entries: [], loading: false, error: '' }]]);
   for (const entry of result.entries)
     if (entry.kind === 'directory') directories.set(entry.relPath, { entries: [], loading: false, error: '' });
   for (const entry of result.entries) {
     const slash = entry.relPath.lastIndexOf('/');
     directories.get(slash < 0 ? null : entry.relPath.slice(0, slash))!.entries!.push(entry);
   }
-  const tree = modFileTree(directories, null, sort);
+  const tree = fileTree(directories, null, sort);
   const matches = new Set(result.matchedPaths);
-  function mark(nodes: ModFileNode[]) {
+  function mark(nodes: FileNode[]) {
     for (const node of nodes) {
       node.matched = matches.has(node.key);
       if (node.kind === 'status') node.label = '无匹配子项';

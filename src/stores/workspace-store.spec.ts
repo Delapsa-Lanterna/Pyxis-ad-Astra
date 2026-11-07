@@ -77,7 +77,7 @@ describe('workspace active project projection', () => {
     expect(restored.mods.get('M:/beta')?.referenceable).toBeUndefined();
   });
 
-  it.each(['mod-overview', 'file-history', 'json-editor', 'table', 'mod-files'] as const)(
+  it.each(['mod-overview', 'file-history', 'json-editor', 'table', 'file-browser'] as const)(
     'restores the %s view independently for each Mod',
     (view) => {
       const workspace = useWorkspaceStore();
@@ -87,7 +87,7 @@ describe('workspace active project projection', () => {
       if (view === 'file-history') workspace.activateModFileHistory('M:/alpha');
       if (view === 'json-editor') workspace.activateModJson('M:/alpha', 'mission');
       if (view === 'table') workspace.activateModTable('M:/alpha');
-      if (view === 'mod-files') workspace.activateModFiles('M:/alpha');
+      if (view === 'file-browser') workspace.activateFileBrowser('M:/alpha');
       expect(workspace.isModView).toBe(true);
       workspace.activateModJson('M:/beta', 'skins');
       workspace.showSettings();
@@ -111,6 +111,24 @@ describe('workspace active project projection', () => {
     useProjectStore().registerProjectManifest(update.content.manifest);
     return update.content.manifest;
   }
+  it('redirects remembered and direct Core Mod-info routes to the project overview', () => {
+    const workspace = useWorkspaceStore();
+    const project = useProjectStore();
+    const modRoot = 'D:/game/starsector-core';
+    const manifest = register('core', modRoot);
+    workspace.registerMod({ modRoot, displayName: 'Core', version: '', status: 'ready' });
+
+    workspace.activateModJson(modRoot, 'mod-info');
+    expect(workspace.currentView).toBe('json-editor');
+
+    project.replaceProjectManifest({ ...manifest, starsectorRoot: 'D:/game', modInfo: null });
+    workspace.showSettings();
+    workspace.activateModTab(modRoot);
+    expect(workspace.currentView).toBe('mod-overview');
+
+    workspace.activateModJson(modRoot, 'mod-info');
+    expect(workspace.currentView).toBe('mod-overview');
+  });
   it('derives the selected manifest as it becomes available and follows session and projection replacement', () => {
     const workspace = useWorkspaceStore();
     const project = useProjectStore();
@@ -139,7 +157,7 @@ describe('workspace active project projection', () => {
     }
     workspace.activateModOverview('M:/alpha');
     expect(workspace.activeSessionId).toBe('alpha');
-    workspace.activateModFiles('M:/beta');
+    workspace.activateFileBrowser('M:/beta');
     expect(workspace.activeSessionId).toBe('beta');
     workspace.removeLoadedModEntry('M:/alpha');
     expect(workspace.activeSessionId).toBe('beta');

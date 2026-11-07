@@ -48,6 +48,21 @@ describe('buildWorkspaceModOverview', () => {
     expect(overview.coreResourceText).toContain('starsector-core');
   });
 
+  it('projects the Core root without Mod identity or redundant Core resource details', () => {
+    const manifest = {
+      ...manifestFixture(),
+      modRoot: 'D:\\games\\starsector\\starsector-core',
+      modInfo: null,
+    };
+    const overview = buildWorkspaceModOverview(manifest);
+    expect(overview.isCore).toBe(true);
+    expect(overview.modName).toBe('Core 概览');
+    expect(overview.modVersion).toBe('');
+    expect(overview.modRootText).toBe(manifest.modRoot);
+    expect(overview.tableTotal).toBe(10 + 20 + 1 + 2 + 3 + 4 + 5);
+    expect(overview.configTotal).toBe(2 + 3 + 4 + 5);
+  });
+
   it('sums table and config breakdown categories separately', () => {
     const overview = buildWorkspaceModOverview(manifestFixture());
     expect(overview.tableTotal).toBe(10 + 20 + 1 + 2 + 3 + 4 + 5);

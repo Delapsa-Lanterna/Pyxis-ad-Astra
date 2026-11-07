@@ -1,6 +1,6 @@
 import { createReadTicket, isReadInvalidated } from '@/shared/runtime/read-request';
 import type { ReadEndReason, ReadTicket } from '@/shared/runtime/read-request';
-import type { ModDirectory } from '@/shared/types';
+import type { FileDirectory } from '@/shared/types';
 
 type Priority = 'foreground' | 'prefetch';
 interface DirectoryIdentity {
@@ -12,14 +12,14 @@ interface DirectoryRead {
   priority: Priority;
   promise: Promise<boolean>;
   resolve: (accepted: boolean) => void;
-  ticket?: ReadTicket<ModDirectory, DirectoryIdentity>;
+  ticket?: ReadTicket<FileDirectory, DirectoryIdentity>;
   error?: unknown;
 }
 
-export function createModDirectoryReads(handlers: {
-  load: (identity: DirectoryIdentity) => Promise<ModDirectory>;
+export function createFileDirectoryReads(handlers: {
+  load: (identity: DirectoryIdentity) => Promise<FileDirectory>;
   started: (identity: DirectoryIdentity) => void;
-  ready: (identity: DirectoryIdentity, result: ModDirectory) => void;
+  ready: (identity: DirectoryIdentity, result: FileDirectory) => void;
   error: (identity: DirectoryIdentity, error: unknown) => void;
   settled: (identity: DirectoryIdentity) => void;
 }) {

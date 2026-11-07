@@ -15,10 +15,11 @@ import type {
 import { gameModsDirectoryPath } from '@/shared/lib/paths';
 import { isRowData } from '@/shared/lib/row-data';
 import { useProjectStore } from '@/stores/project.store';
+import { isCoreProjectManifest } from '@/domain/workspace/project-kind';
 
 interface ModNavigationState {
   jsonPage: JsonEditorPageId;
-  currentView: Extract<WorkspaceView, 'mod-overview' | 'file-history' | 'json-editor' | 'table' | 'mod-files'>;
+  currentView: Extract<WorkspaceView, 'mod-overview' | 'file-history' | 'json-editor' | 'table' | 'file-browser'>;
 }
 
 function createDefaultModNavigationState(): ModNavigationState {
@@ -43,7 +44,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
   const activeMod = computed(() => (activeModRoot.value ? (mods.value.get(activeModRoot.value) ?? null) : null));
   const activeManifest = computed(() => (activeModRoot.value ? project.getManifest(activeModRoot.value) : null));
   const activeSessionId = computed(() => activeManifest.value?.sessionId ?? null);
-  const isModView = computed(() => ['mod-overview', 'file-history', 'json-editor', 'table', 'mod-files'].includes(currentView.value));
+  const isModView = computed(() => ['mod-overview', 'file-history', 'json-editor', 'table', 'file-browser'].includes(currentView.value));
   const loadedModList = computed(() => [...mods.value.values()]);
   const referenceableModRoots = computed(() => {
     const ready = loadedModList.value.filter((mod) => mod.status === 'ready');
@@ -179,15 +180,19 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     updateModNavigationState(modRoot, { currentView: 'table' });
   }
 
-  function activateModFiles(modRoot: string) {
+  function activateFileBrowser(modRoot: string) {
     if (!mods.value.has(modRoot)) return;
     activeModRoot.value = modRoot;
-    currentView.value = 'mod-files';
-    updateModNavigationState(modRoot, { currentView: 'mod-files' });
+    currentView.value = 'file-browser';
+    updateModNavigationState(modRoot, { currentView: 'file-browser' });
   }
 
   function activateModJson(modRoot: string, page: JsonEditorPageId) {
     if (!mods.value.has(modRoot)) return;
+    if (page === 'mod-info' && isCoreProjectManifest(project.getManifest(modRoot))) {
+      activateModOverview(modRoot);
+      return;
+    }
     activeModRoot.value = modRoot;
     currentView.value = 'json-editor';
     jsonPage.value = page;
@@ -198,6 +203,15 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     if (!mods.value.has(modRoot)) return;
     const navigation = modNavigationStates.value.get(modRoot) ?? createDefaultModNavigationState();
     activeModRoot.value = modRoot;
+    if (
+      navigation.currentView === 'json-editor' &&
+      navigation.jsonPage === 'mod-info' &&
+      isCoreProjectManifest(project.getManifest(modRoot))
+    ) {
+      currentView.value = 'mod-overview';
+      updateModNavigationState(modRoot, { currentView: 'mod-overview' });
+      return;
+    }
     currentView.value = navigation.currentView;
     jsonPage.value = navigation.jsonPage;
   }
@@ -309,7 +323,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     mods,
     activateModFileHistory,
     activateModJson,
-    activateModFiles,
+    activateFileBrowser,
     activateModOverview,
     activateModTable,
     applyPersistedWorkspaceSnapshot,

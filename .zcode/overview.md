@@ -6,7 +6,7 @@
 
 - 以项目会话隔离实体读取、授权写入、缓存、草稿、历史和窗口状态。
 - 保存、回放、外部更新和窗口交接遵循统一的目标、版本和生命周期原则。
-- 提供字段编辑、舰船与武器画布、弹体编辑、只读开火预览、Mod 文件树浏览和资源引用。
+- 提供字段编辑、舰船与武器画布、弹体编辑、只读开火预览、项目文件树浏览和资源引用。
 - 管理已加载 Mod 的 CSV、`.ship`、`.wpn`、`.proj`、`.system` 规格和配置实体。
 
 ## 技术栈
@@ -74,7 +74,7 @@
 - JSON 来源组合：正式有序来源与版本、本地内容 → `composeJson` 或 `compose_game_json` → 有效内容及来源定位 → `editComposedJson` 交付稀疏修改或整体覆盖 → 保存准备提取 `replace` 意图并消费实际本地内容
 - Spec 字段与画布编辑：规格窗口定义 → 正式目标、规格与依赖 → 舰船、武器、弹体或战术系统 ViewModel → schema 字段或画布手势 → 领域投影与工作值 → Draft Session、历史及保存动作
 - 联合与沉浸式编辑：ship、weapon、wing 或 variant 的 `JointEditRoot` → `query_joint_edit` → 规格、CSV、描述、Skin 与模块来源图 → `JointEditSnapshot` → 所属字段、装备、场景与关联编辑器动作 → 联合草稿
-- 文件浏览与文本打开：宿主交付 session 与正式 Mod 根 → Mod 文件页 → 目录查询或全目录搜索 → 按 session 接纳条目 → `query_mod_text_file_target` 核对路径与内容 → 完整文件窗口请求 → 文本加载与行列定位
+- 文件浏览与文本打开：宿主交付 session 与正式项目根 → 文件概览页 → 目录查询或全目录搜索 → 按 session 接纳条目 → `query_file_text_target` 核对路径与内容 → 完整文件窗口请求 → 文本加载与行列定位
 - 文本编辑：`EditableFileData` 与版本 → 文本 Draft Session → 原文、dirty 及文本撤销栈 → 保存时捕获文本与目标 → 实际写盘文本接纳基线 → 保留后续输入；外部差异进入待载入版本
 - Mod 整体保存：`Ctrl+Shift+S` 捕获 `sessionId + modRoot` → 主窗口捕获各窗口文档参与者 → 所属输入提交与文档保存 → 串行批次汇总实际结果 → 发起窗口反馈与请求释放
 - 项目保存：编辑面提交输入并捕获 `SaveRequest` → `save_project` → 项目同步 FIFO → 所属业务准备 → `write_transactions::begin` 与版本复核 → 业务 changeset → 历史及正式内容登记 → 发布 `WriteResult` 并释放项目工作

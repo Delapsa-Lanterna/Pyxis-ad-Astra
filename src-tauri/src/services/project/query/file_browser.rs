@@ -2,8 +2,7 @@ use super::super::session::{lock_ready_session, session_handle};
 use crate::errors::{AppError, AppResult};
 use crate::io::{FsRootBoundary, forward_slash_path, read_text_bytes_no_bom};
 use crate::models::{
-    ModDirectory, ModFileEntry, ModFileKind, ModFileSearch, ModTextFileTarget,
-    decode_starsector_text,
+    FileDirectory, FileEntry, FileKind, FileSearch, FileTextTarget, decode_starsector_text,
 };
 use chrono::{DateTime, Utc};
 use std::collections::BTreeMap;
@@ -19,11 +18,11 @@ fn session_boundary(session_id: &str) -> AppResult<FsRootBoundary> {
     let session = lock_ready_session(&handle)?;
     FsRootBoundary::new(Path::new(&session.manifest.mod_root), "mod root")
 }
-pub fn query_mod_directory(session_id: &str, directory: Option<&str>) -> AppResult<ModDirectory> {
+pub fn query_file_directory(session_id: &str, directory: Option<&str>) -> AppResult<FileDirectory> {
     let boundary = session_boundary(session_id)?;
     read_directory(&boundary, directory)
 }
-fn read_directory(boundary: &FsRootBoundary, directory: Option<&str>) -> AppResult<ModDirectory> {
+fn read_directory(boundary: &FsRootBoundary, directory: Option<&str>) -> AppResult<FileDirectory> {
     let path = directory
         .map(|rel| boundary.resolve_relative(rel, "mod directory"))
         .transpose()?
@@ -43,26 +42,26 @@ fn read_directory(boundary: &FsRootBoundary, directory: Option<&str>) -> AppResu
         let target = child.path();
         entries.push(describe_entry(boundary, &target)?);
     }
-    Ok(ModDirectory {
+    Ok(FileDirectory {
         directory: directory.map(str::to_owned),
         entries,
     })
 }
-fn describe_entry(boundary: &FsRootBoundary, target: &Path) -> AppResult<ModFileEntry> {
+fn describe_entry(boundary: &FsRootBoundary, target: &Path) -> AppResult<FileEntry> {
     let metadata = fs::symlink_metadata(target).map_err(|error| {
         AppError::context(format!("读取条目失败 ({})", target.display()), error.into())
             .at_path(target)
     })?;
     let kind = if metadata.file_type().is_symlink() || is_reparse_point(&metadata) {
-        ModFileKind::Restricted
+        FileKind::Restricted
     } else if metadata.is_dir() {
-        ModFileKind::Directory
+        FileKind::Directory
     } else if metadata.is_file() {
-        ModFileKind::File
+        FileKind::File
     } else {
-        ModFileKind::Restricted
+        FileKind::Restricted
     };
-    Ok(ModFileEntry {
+    Ok(FileEntry {
         name: target
             .file_name()
             .expect("directory child has a name")
@@ -74,25 +73,25 @@ fn describe_entry(boundary: &FsRootBoundary, target: &Path) -> AppResult<ModFile
                 .expect("enumerated entry belongs to root"),
         ),
         kind,
-        size_bytes: (kind == ModFileKind::File).then_some(metadata.len()),
+        size_bytes: (kind == FileKind::File).then_some(metadata.len()),
         modified_at: metadata
             .modified()
             .ok()
             .map(|time| DateTime::<Utc>::from(time).timestamp_millis()),
     })
 }
-pub fn query_mod_file_search(session_id: &str, query: &str) -> AppResult<ModFileSearch> {
+pub fn query_file_search(session_id: &str, query: &str) -> AppResult<FileSearch> {
     search_files(&session_boundary(session_id)?, query)
 }
-fn search_files(boundary: &FsRootBoundary, query: &str) -> AppResult<ModFileSearch> {
+fn search_files(boundary: &FsRootBoundary, query: &str) -> AppResult<FileSearch> {
     let query = query.trim().to_owned();
     let needle = query.to_lowercase();
     let mut walker = WalkDir::new(boundary.root())
         .min_depth(1)
         .follow_links(false)
         .into_iter();
-    let mut directories = BTreeMap::<String, ModFileEntry>::new();
-    let mut entries = BTreeMap::<String, ModFileEntry>::new();
+    let mut directories = BTreeMap::<String, FileEntry>::new();
+    let mut entries = BTreeMap::<String, FileEntry>::new();
     let mut matched_paths = Vec::new();
     while let Some(next) = walker.next() {
         let next = next.map_err(|error| {
@@ -104,10 +103,10 @@ fn search_files(boundary: &FsRootBoundary, query: &str) -> AppResult<ModFileSear
             .at_path(path)
         })?;
         let entry = describe_entry(boundary, next.path())?;
-        if entry.kind == ModFileKind::Restricted && next.file_type().is_dir() {
+        if entry.kind == FileKind::Restricted && next.file_type().is_dir() {
             walker.skip_current_dir();
         }
-        if entry.kind == ModFileKind::Directory {
+        if entry.kind == FileKind::Directory {
             directories.insert(entry.rel_path.clone(), entry.clone());
         }
         if entry.name.to_lowercase().contains(&needle) {
@@ -123,7 +122,7 @@ fn search_files(boundary: &FsRootBoundary, query: &str) -> AppResult<ModFileSear
             entries.insert(entry.rel_path.clone(), entry);
         }
     }
-    Ok(ModFileSearch {
+    Ok(FileSearch {
         query,
         entries: entries.into_values().collect(),
         matched_paths,
@@ -137,16 +136,16 @@ fn is_reparse_point(metadata: &Metadata) -> bool {
 fn is_reparse_point(_metadata: &Metadata) -> bool {
     false
 }
-pub fn query_mod_text_file_target(
+pub fn query_file_text_target(
     session_id: &str,
     rel_path: &str,
-) -> AppResult<Option<ModTextFileTarget>> {
+) -> AppResult<Option<FileTextTarget>> {
     let boundary = session_boundary(session_id)?;
     let target = boundary.resolve_relative(rel_path, "mod file")?;
     if !is_text_file(&target)? {
         return Ok(None);
     }
-    Ok(Some(ModTextFileTarget {
+    Ok(Some(FileTextTarget {
         session_id: session_id.into(),
         mod_root: forward_slash_path(boundary.root()),
         path: forward_slash_path(&target),
@@ -214,7 +213,7 @@ mod tests {
 
     #[test]
     fn lists_direct_children_hidden_files_and_empty_directories() {
-        let root = project_workspace("mod_file_browser_list");
+        let root = project_workspace("file_browser_list");
         fs::create_dir_all(root.join("data/nested")).unwrap();
         fs::write(root.join(".hidden"), b"hidden").unwrap();
         fs::write(root.join("data/deep.txt"), b"text").unwrap();
@@ -224,12 +223,12 @@ mod tests {
         assert!(
             list.entries
                 .iter()
-                .any(|entry| entry.name == ".hidden" && entry.kind == ModFileKind::File)
+                .any(|entry| entry.name == ".hidden" && entry.kind == FileKind::File)
         );
         assert!(
             list.entries
                 .iter()
-                .any(|entry| entry.rel_path == "data" && entry.kind == ModFileKind::Directory)
+                .any(|entry| entry.rel_path == "data" && entry.kind == FileKind::Directory)
         );
         assert!(
             read_directory(&boundary, Some("data/nested"))
@@ -242,7 +241,7 @@ mod tests {
     }
     #[test]
     fn content_detection_preserves_text_formats_and_reports_actual_encoding_path() {
-        let root = project_workspace("mod_file_browser_content");
+        let root = project_workspace("file_browser_content");
         for (name, bytes) in [
             ("README", b"hello".as_slice()),
             ("empty", b"".as_slice()),
@@ -286,7 +285,7 @@ mod tests {
         assert!(
             list.entries
                 .iter()
-                .any(|entry| entry.name == "linked" && entry.kind == ModFileKind::Restricted)
+                .any(|entry| entry.name == "linked" && entry.kind == FileKind::Restricted)
         );
         assert!(read_directory(&boundary, Some("linked")).is_err());
         assert!(
@@ -328,9 +327,9 @@ mod tests {
         fs::write(root.join("archive.jar"), b"PK\x03\x04").unwrap();
         let mut trace = PerformanceTrace::new("project.openSession");
         let manifest = session::open_project_session_traced(&root, None, &mut trace).unwrap();
-        let entries = query_mod_directory(&manifest.session_id, None).unwrap();
+        let entries = query_file_directory(&manifest.session_id, None).unwrap();
         assert_eq!(entries.entries.len(), 2);
-        let target = query_mod_text_file_target(&manifest.session_id, "README")
+        let target = query_file_text_target(&manifest.session_id, "README")
             .unwrap()
             .unwrap();
         assert_eq!(target.session_id, manifest.session_id);
@@ -346,21 +345,21 @@ mod tests {
         .unwrap();
         assert_eq!(loaded.text, "中文");
         assert!(
-            query_mod_text_file_target(&manifest.session_id, "archive.jar")
+            query_file_text_target(&manifest.session_id, "archive.jar")
                 .unwrap()
                 .is_none()
         );
-        assert!(query_mod_text_file_target(&manifest.session_id, "../external.txt").is_err());
-        assert!(query_mod_directory(&manifest.session_id, Some("../external")).is_err());
+        assert!(query_file_text_target(&manifest.session_id, "../external.txt").is_err());
+        assert!(query_file_directory(&manifest.session_id, Some("../external")).is_err());
         release_project_session(manifest.session_id.clone()).unwrap();
         assert_eq!(
-            query_mod_directory(&manifest.session_id, None)
+            query_file_directory(&manifest.session_id, None)
                 .unwrap_err()
                 .code(),
             "session.unknown"
         );
         assert_eq!(
-            query_mod_text_file_target(&manifest.session_id, "README")
+            query_file_text_target(&manifest.session_id, "README")
                 .unwrap_err()
                 .code(),
             "session.unknown"
@@ -370,7 +369,7 @@ mod tests {
 
     #[test]
     fn search_returns_unopened_matches_with_ancestors_and_metadata() {
-        let root = project_workspace("mod_file_search_metadata");
+        let root = project_workspace("file_search_metadata");
         fs::create_dir_all(root.join("data/hulls")).unwrap();
         fs::create_dir_all(root.join("匹配目录")).unwrap();
         fs::write(root.join("data/hulls/测试.SHIP"), "中文").unwrap();
@@ -430,7 +429,7 @@ mod tests {
         );
         assert_eq!(
             search_files(&boundary, "linked").unwrap().entries[0].kind,
-            ModFileKind::Restricted
+            FileKind::Restricted
         );
         root.close().unwrap();
     }

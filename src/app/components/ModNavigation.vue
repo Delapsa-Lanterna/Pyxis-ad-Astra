@@ -93,8 +93,8 @@ function navigate(item: ModNavigationItem) {
   if (modNavigationPanel.state.narrow) modNavigationPanel.close();
   const modRoot = workspace.activeModRoot;
   if (!modRoot) return;
-  if (item.target.type === 'mod-files') {
-    navigation.navigateToModFiles(modRoot);
+  if (item.target.type === 'file-browser') {
+    navigation.navigateToFileBrowser(modRoot);
     return;
   }
   if (item.target.type === 'mod-overview') {

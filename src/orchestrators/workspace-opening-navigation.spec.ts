@@ -62,7 +62,7 @@ const mocks = vi.hoisted(() => {
     fileHistory: { activateFor: vi.fn(), removeModState: vi.fn() },
     csvHistory: { clearForMod: vi.fn() },
     writeSync: { pending: [], removeModState: vi.fn() },
-    fileBrowser: { removeModState: vi.fn() },
+    fileBrowser: { releaseProjectState: vi.fn() },
     openProject: vi.fn(),
     closeProjectSession: vi.fn(async () => {}),
   };
@@ -73,7 +73,7 @@ vi.mock('@/stores/project.store', () => ({ useProjectStore: () => mocks.project 
 vi.mock('@/stores/csv-editor.store', () => ({ useCsvEditorStore: () => mocks.tables }));
 vi.mock('@/stores/file-history.store', () => ({ useFileHistoryStore: () => mocks.fileHistory }));
 vi.mock('@/stores/project-sync.store', () => ({ useProjectSyncStore: () => mocks.writeSync }));
-vi.mock('@/stores/mod-file-browser.store', () => ({ useModFileBrowserStore: () => mocks.fileBrowser }));
+vi.mock('@/stores/file-browser.store', () => ({ useFileBrowserStore: () => mocks.fileBrowser }));
 vi.mock('@/services/project-sync.service', () => ({ closeProjectSession: mocks.closeProjectSession }));
 vi.mock('@/services/project-session.service', () => ({
   openProject: mocks.openProject,
@@ -136,7 +136,7 @@ describe('workspace Mod opening navigation', () => {
     });
 
     expect(mocks.workspaceStore.removeLoadedModEntry).toHaveBeenCalledWith(modRoot);
-    expect(mocks.fileBrowser.removeModState).toHaveBeenCalledWith(modRoot);
+    expect(mocks.fileBrowser.releaseProjectState).toHaveBeenCalledWith(modRoot);
     expect(mocks.workspaceStore.setModOpeningFailure).toHaveBeenCalledWith({
       modRoot,
       message: 'CSV 解析失败',

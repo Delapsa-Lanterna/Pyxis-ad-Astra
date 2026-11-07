@@ -21,6 +21,14 @@ function manifestFixture(): ProjectManifest {
 
 const sections = () => buildModNavigationSections(manifestFixture());
 
+function coreManifestFixture(): ProjectManifest {
+  return {
+    ...manifestFixture(),
+    modRoot: 'D:\\games\\starsector\\starsector-core',
+    starsectorRoot: 'D:/games/starsector',
+  };
+}
+
 describe('buildModNavigationSections', () => {
   it('places misc config directly after descriptions', () => {
     const items = sections().flatMap((section) => section.items);
@@ -33,9 +41,17 @@ describe('buildModNavigationSections', () => {
 
   it('keeps workspace and mod-info entries without counts', () => {
     const byId = new Map(sections().map((section) => [section.id, section]));
-    expect(byId.get('workspace')?.items.map((item) => item.id)).toEqual(['mod-overview', 'mod-files', 'file-history']);
+    expect(byId.get('workspace')?.items.map((item) => item.id)).toEqual(['mod-overview', 'file-browser', 'file-history']);
+    expect(byId.get('workspace')?.items.map((item) => item.label)).toEqual(['Mod 概览', '文件概览', '文件历史']);
     expect(byId.get('workspace')?.items.every((item) => item.count === null)).toBe(true);
     expect(byId.get('mod-info')?.items.map((item) => item.id)).toEqual(['json:mod-info']);
+  });
+
+  it('uses Core overview naming and omits Mod information for the Core root', () => {
+    const coreSections = buildModNavigationSections(coreManifestFixture());
+    const workspace = coreSections.find((section) => section.id === 'workspace')!;
+    expect(workspace.items.map((item) => item.label)).toEqual(['Core 概览', '文件概览', '文件历史']);
+    expect(coreSections.some((section) => section.id === 'mod-info')).toBe(false);
   });
 
   it('reads JSON counts from the manifest entity summaries', () => {

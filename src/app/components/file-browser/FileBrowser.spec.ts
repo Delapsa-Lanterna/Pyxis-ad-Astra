@@ -4,8 +4,8 @@ import { NTree } from 'naive-ui/es/tree';
 import { NInput } from 'naive-ui/es/input';
 import { NButton } from 'naive-ui/es/button';
 import { defineComponent, h, reactive } from 'vue';
-import { modFileTree } from '@/domain/mod-file-browser/file-tree';
-import ModFileBrowser from './ModFileBrowser.vue';
+import { fileTree } from '@/domain/file-browser/file-tree';
+import FileBrowser from './FileBrowser.vue';
 const mocks = vi.hoisted(() => ({ vm: vi.fn() }));
 const TestTree = defineComponent({
   inheritAttrs: false,
@@ -14,7 +14,7 @@ const TestTree = defineComponent({
     return () => h(NTree, { ...attrs, virtualScroll: false, animated: false });
   },
 });
-vi.mock('@/app/composables/mod-file-browser/use-mod-file-browser-view-model', () => ({ useModFileBrowserViewModel: mocks.vm }));
+vi.mock('@/app/composables/file-browser/use-file-browser-view-model', () => ({ useFileBrowserViewModel: mocks.vm }));
 let wrapper: ReturnType<typeof mount> | null = null;
 afterEach(() => {
   wrapper?.unmount();
@@ -39,7 +39,7 @@ function open() {
     ['data', { entries: [], loading: false, error: '拒绝读取目录' }],
   ]);
   const view = reactive({
-    nodes: modFileTree(directories),
+    nodes: fileTree(directories),
     searching: false,
     searchText: '',
     sort: { key: 'name' as const, ascending: true },
@@ -70,7 +70,7 @@ function open() {
     setSort: vi.fn(),
   };
   mocks.vm.mockReturnValue({ view, actions });
-  wrapper = mount(ModFileBrowser, {
+  wrapper = mount(FileBrowser, {
     props: { target: { sessionId: 's1', modRoot: 'M:/mod' } },
     global: { components: { NTree: TestTree, NButton, NInput } },
     attachTo: document.body,
@@ -106,7 +106,7 @@ describe('mod file browser controls', () => {
     await switcher().trigger('dblclick');
     expect(view.expanded).toEqual([]);
     expect(actions.activate).not.toHaveBeenCalled();
-    const label = () => wrapper.get('[title="data"] .mod-files-name-text');
+    const label = () => wrapper.get('[title="data"] .file-browser-name-text');
     await label().trigger('dblclick');
     expect(view.expanded).toEqual(['data']);
     await label().trigger('dblclick');
@@ -117,7 +117,7 @@ describe('mod file browser controls', () => {
     const { view, actions, wrapper } = open();
     await flushPromises();
     view.refreshing = true;
-    const stage = wrapper.get('[aria-label="Mod 文件树"]');
+    const stage = wrapper.get('[aria-label="文件树"]');
     stage.element.scrollTop = 120;
     await stage.trigger('scroll');
     expect(actions.setScroll).toHaveBeenCalledWith(120);
@@ -127,7 +127,7 @@ describe('mod file browser controls', () => {
     await flushPromises();
     view.scrollTop = 120;
     view.searching = true;
-    const stage = wrapper.get('[aria-label="Mod 文件树"]');
+    const stage = wrapper.get('[aria-label="文件树"]');
     stage.element.scrollTop = 0;
     await stage.trigger('scroll');
     expect(actions.setScroll).not.toHaveBeenCalled();
@@ -156,7 +156,7 @@ describe('mod file browser controls', () => {
   });
   it('dispatches focused tree keys while the refresh button retains keyboard behavior', async () => {
     const { actions, wrapper } = open();
-    await wrapper.get('[aria-label="Mod 文件树"]').trigger('keydown', { key: 'Enter' });
+    await wrapper.get('[aria-label="文件树"]').trigger('keydown', { key: 'Enter' });
     expect(actions.navigate).toHaveBeenCalledWith('Enter');
     actions.navigate.mockClear();
     await wrapper
@@ -172,11 +172,13 @@ describe('file information toolbar', () => {
   it('shows the four sortable columns and passes search, clear and collapse actions', async () => {
     const { view, actions, wrapper } = open();
     await flushPromises();
+    expect(wrapper.get('h1').text()).toBe('文件概览');
+    expect(wrapper.get('[aria-label="文件树"]').attributes('aria-label')).toBe('文件树');
     expect(wrapper.findAll('[role="columnheader"]').map((column) => column.text())).toEqual(['文件名', '类型', '大小', '修改时间']);
     expect(wrapper.findAll('[role="columnheader"]')[0]!.attributes('aria-sort')).toBe('ascending');
     await wrapper.findAll('[role="columnheader"]')[2]!.get('button').trigger('click');
     expect(actions.setSort).toHaveBeenCalledWith('size');
-    await wrapper.get('input[aria-label="搜索整个 Mod 的文件名"]').setValue('file');
+    await wrapper.get('input[aria-label="搜索文件名"]').setValue('file');
     expect(actions.setSearch.mock.lastCall?.[0]).toBe('file');
     await wrapper.get('input').trigger('keydown', { key: 'Enter' });
     expect(actions.submitSearch).toHaveBeenCalledOnce();
@@ -194,7 +196,7 @@ describe('file information toolbar', () => {
       .find((button) => button.text() === '全部收起')!
       .trigger('click');
     expect(actions.collapseAll).toHaveBeenCalledOnce();
-    expect(wrapper.find('.mod-files-metadata').text()).toContain('文件夹');
+    expect(wrapper.find('.file-browser-metadata').text()).toContain('文件夹');
     expect(wrapper.text()).toContain('1 KiB');
   });
 });

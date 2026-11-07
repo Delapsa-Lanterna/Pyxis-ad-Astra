@@ -31,7 +31,7 @@ export interface WorkspaceEntityLocation {
 }
 
 /** Which main-content view is shown */
-export type WorkspaceView = 'overview' | 'table' | 'settings' | 'mod-overview' | 'file-history' | 'json-editor' | 'about' | 'mod-files';
+export type WorkspaceView = 'overview' | 'table' | 'settings' | 'mod-overview' | 'file-history' | 'json-editor' | 'about' | 'file-browser';
 
 /** Which JSON document is shown when currentView === 'json-editor' */
 export type JsonEditorPageId = 'mod-info' | 'factions' | 'skins' | 'variants' | 'mission' | 'misc-config';

@@ -1,43 +1,43 @@
-export type ModFileKind = 'directory' | 'file' | 'restricted';
-export interface ModFileEntry {
+export type FileKind = 'directory' | 'file' | 'restricted';
+export interface FileEntry {
   name: string;
   relPath: string;
-  kind: ModFileKind;
+  kind: FileKind;
   sizeBytes: number | null;
   modifiedAt: number | null;
 }
-export interface ModDirectory {
+export interface FileDirectory {
   directory: string | null;
-  entries: ModFileEntry[];
+  entries: FileEntry[];
 }
-export interface ModTextFileTarget {
+export interface FileTextTarget {
   sessionId: string;
   modRoot: string;
   path: string;
 }
-export interface ModDirectoryState {
-  entries: ModFileEntry[] | null;
+export interface FileDirectoryState {
+  entries: FileEntry[] | null;
   loading: boolean;
   error: string;
 }
-export interface ModFileBranch {
+export interface FileBranch {
   expanded: string[];
   selected: string | null;
   scrollTop: number;
 }
-export interface ModFileSearch {
+export interface FileSearch {
   query: string;
-  entries: ModFileEntry[];
+  entries: FileEntry[];
   matchedPaths: string[];
 }
-export type ModFileSortKey = 'name' | 'type' | 'size' | 'modified';
-export interface ModFileSort {
-  key: ModFileSortKey;
+export type FileSortKey = 'name' | 'type' | 'size' | 'modified';
+export interface FileSort {
+  key: FileSortKey;
   ascending: boolean;
 }
-export interface ModFileBrowserState extends ModFileBranch {
-  modRoot: string;
-  directories: Map<string | null, ModDirectoryState>;
-  sort: ModFileSort;
-  search: ModFileBranch & { text: string; result: ModFileSearch | null; loading: boolean; error: string };
+export interface FileBrowserState extends FileBranch {
+  root: string;
+  directories: Map<string | null, FileDirectoryState>;
+  sort: FileSort;
+  search: FileBranch & { text: string; result: FileSearch | null; loading: boolean; error: string };
 }

@@ -136,7 +136,7 @@ describe('restorePersistedWorkspace', () => {
 
   it.each(
     (
-      ['overview', 'settings', 'about', 'mod-overview', 'table', 'file-history', 'json-editor', 'mod-files'] satisfies WorkspaceView[]
+      ['overview', 'settings', 'about', 'mod-overview', 'table', 'file-history', 'json-editor', 'file-browser'] satisfies WorkspaceView[]
     ).flatMap((view) => (['scan', 'mod'] as const).map((phase) => ({ view, phase }))),
   )('preserves $view selected during $phase restoration', async ({ view, phase }) => {
     const workspace = useWorkspaceStore();

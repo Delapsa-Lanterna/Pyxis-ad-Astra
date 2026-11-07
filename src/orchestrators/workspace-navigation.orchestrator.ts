@@ -40,11 +40,11 @@ export function navigateToModTable(modRoot: string, tab: CsvTableKey) {
   workspace.activateModTable(modRoot);
 }
 
-export function navigateToModFiles(modRoot: string) {
+export function navigateToFileBrowser(modRoot: string) {
   const workspace = useWorkspaceStore();
   if (!workspace.mods.has(modRoot)) return;
   syncActiveModRuntime(modRoot);
-  workspace.activateModFiles(modRoot);
+  workspace.activateFileBrowser(modRoot);
 }
 
 export function navigateToModJson(modRoot: string, page: JsonEditorPageId) {

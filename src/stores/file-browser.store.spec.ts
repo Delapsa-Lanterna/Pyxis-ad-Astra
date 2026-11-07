@@ -1,9 +1,9 @@
 import { createPinia, setActivePinia } from 'pinia';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { useModFileBrowserStore } from './mod-file-browser.store';
-import type { ModFileEntry } from '@/shared/types';
+import { useFileBrowserStore } from './file-browser.store';
+import type { FileEntry } from '@/shared/types';
 
-const entry = (relPath: string, kind: ModFileEntry['kind'] = 'file'): ModFileEntry => ({
+const entry = (relPath: string, kind: FileEntry['kind'] = 'file'): FileEntry => ({
   name: relPath.split('/').at(-1)!,
   relPath,
   kind,
@@ -14,7 +14,7 @@ beforeEach(() => setActivePinia(createPinia()));
 
 describe('directory cache identity', () => {
   it('retains identical listings and entries across enumeration order and metadata updates', () => {
-    const store = useModFileBrowserStore();
+    const store = useFileBrowserStore();
     const state = store.establish('s1', 'M:/A');
     store.acceptDirectory('s1', { directory: null, entries: [entry('a'), entry('b')] });
     const before = state.directories.get(null)!.entries!;
@@ -27,7 +27,7 @@ describe('directory cache identity', () => {
     expect(after[1]).toMatchObject({ sizeBytes: 30, modifiedAt: 2000 });
   });
   it('cleans removed directory state while retaining other sessions and valid browser state', () => {
-    const store = useModFileBrowserStore();
+    const store = useFileBrowserStore();
     const state = store.establish('s1', 'M:/A');
     const other = store.establish('s2', 'M:/B');
     store.acceptDirectory('s1', { directory: null, entries: [entry('data', 'directory'), entry('other', 'directory')] });

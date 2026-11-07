@@ -1,12 +1,12 @@
 import { defineStore } from 'pinia';
 import { reactive } from 'vue';
-import type { ModDirectory, ModFileBrowserState, ModDirectoryState } from '@/shared/types';
-export const useModFileBrowserStore = defineStore('mod-file-browser', () => {
-  const sessions = reactive(new Map<string, ModFileBrowserState>());
-  function establish(sessionId: string, modRoot: string) {
+import type { FileDirectory, FileBrowserState, FileDirectoryState } from '@/shared/types';
+export const useFileBrowserStore = defineStore('file-browser', () => {
+  const sessions = reactive(new Map<string, FileBrowserState>());
+  function establish(sessionId: string, root: string) {
     if (!sessions.has(sessionId))
       sessions.set(sessionId, {
-        modRoot,
+        root,
         directories: new Map(),
         expanded: [],
         selected: null,
@@ -16,12 +16,12 @@ export const useModFileBrowserStore = defineStore('mod-file-browser', () => {
       });
     return sessions.get(sessionId)!;
   }
-  function directoryState(sessionId: string, directory: string | null): ModDirectoryState {
+  function directoryState(sessionId: string, directory: string | null): FileDirectoryState {
     const state = sessions.get(sessionId)!;
     if (!state.directories.has(directory)) state.directories.set(directory, { entries: null, loading: false, error: '' });
     return state.directories.get(directory)!;
   }
-  function acceptDirectory(sessionId: string, result: ModDirectory) {
+  function acceptDirectory(sessionId: string, result: FileDirectory) {
     const state = sessions.get(sessionId)!;
     const previous = directoryState(sessionId, result.directory);
     const removed: string[] = [];
@@ -57,8 +57,8 @@ export const useModFileBrowserStore = defineStore('mod-file-browser', () => {
     previous.error = '';
     return removed;
   }
-  function removeModState(modRoot: string) {
-    for (const [id, state] of sessions) if (state.modRoot === modRoot) sessions.delete(id);
+  function releaseProjectState(root: string) {
+    for (const [id, state] of sessions) if (state.root === root) sessions.delete(id);
   }
-  return { sessions, establish, directoryState, acceptDirectory, removeModState };
+  return { sessions, establish, directoryState, acceptDirectory, releaseProjectState };
 });

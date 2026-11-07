@@ -1,4 +1,4 @@
-import type * as ModFileBrowserServiceModule from '@/services/mod-file-browser.service';
+import type * as FileBrowserServiceModule from '@/services/file-browser.service';
 import type * as FileEditorWindowModule from '@/windows/file-editor.window';
 import type * as ProjectSyncOrchestratorModule from '@/orchestrators/project-sync.orchestrator';
 import { observeSavedContentFixture, committedChangeFixture, dispatchProjectChangeFixture } from '@/test/unit/project-changes';
@@ -7,25 +7,25 @@ import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
 import { enableAutoUnmount, flushPromises } from '@vue/test-utils';
 import { mountSetup } from '@/test/unit/mount-setup';
-import { useModFileBrowserViewModel } from './use-mod-file-browser-view-model';
+import { useFileBrowserViewModel } from './use-file-browser-view-model';
 import { useWorkspaceStore } from '@/stores/workspace.store';
 import { useProjectStore } from '@/stores/project.store';
-import { useModFileBrowserStore } from '@/stores/mod-file-browser.store';
+import { useFileBrowserStore } from '@/stores/file-browser.store';
 import { sessionUpdateFixture, savedWriteFixture } from '@/test/fixtures/write-result';
 
-import type { ModDirectory, ModFileEntry } from '@/shared/types/mod-file-browser.types';
+import type { FileDirectory, FileEntry } from '@/shared/types/file-browser.types';
 const mocks = vi.hoisted(() => ({
-  directory: vi.fn<typeof ModFileBrowserServiceModule.queryModDirectory>(),
-  search: vi.fn<typeof ModFileBrowserServiceModule.queryModFileSearch>(),
-  file: vi.fn<typeof ModFileBrowserServiceModule.queryModTextFileTarget>(),
+  directory: vi.fn<typeof FileBrowserServiceModule.queryFileDirectory>(),
+  search: vi.fn<typeof FileBrowserServiceModule.queryFileSearch>(),
+  file: vi.fn<typeof FileBrowserServiceModule.queryFileTextTarget>(),
   open: vi.fn<typeof FileEditorWindowModule.openFileEditorWindow>(),
   error: vi.fn(),
   listen: vi.fn<typeof ProjectSyncOrchestratorModule.listenSavedContent>(),
 }));
-vi.mock('@/services/mod-file-browser.service', () => ({
-  queryModDirectory: mocks.directory,
-  queryModFileSearch: mocks.search,
-  queryModTextFileTarget: mocks.file,
+vi.mock('@/services/file-browser.service', () => ({
+  queryFileDirectory: mocks.directory,
+  queryFileSearch: mocks.search,
+  queryFileTextTarget: mocks.file,
 }));
 vi.mock('@/windows/file-editor.window', () => ({ openFileEditorWindow: mocks.open }));
 vi.mock('@/app/composables/use-app-feedback', () => ({ useAppFeedback: () => ({ error: mocks.error }) }));
@@ -43,7 +43,7 @@ async function paint() {
   await flushPromises();
 }
 enableAutoUnmount(afterEach);
-const entry = (relPath: string, kind: ModFileEntry['kind'] = 'file'): ModFileEntry => ({
+const entry = (relPath: string, kind: FileEntry['kind'] = 'file'): FileEntry => ({
   name: relPath.split('/').at(-1)!,
   relPath,
   kind,
@@ -55,10 +55,10 @@ function register(id = 's1', root = 'M:/A') {
   workspace.registerMod({ modRoot: root, displayName: root, version: '', status: 'ready' });
   const update = sessionUpdateFixture(id, root);
   useProjectStore().registerProjectManifest(update.content.manifest);
-  workspace.activateModFiles(root);
+  workspace.activateFileBrowser(root);
 }
 async function open() {
-  const { value: vm, wrapper } = mountSetup(() => useModFileBrowserViewModel(() => useWorkspaceStore().activeManifest));
+  const { value: vm, wrapper } = mountSetup(() => useFileBrowserViewModel(() => useWorkspaceStore().activeManifest));
   await flushPromises();
   return { vm, wrapper };
 }
@@ -95,7 +95,7 @@ describe('mod file browser actions and read lifetime', () => {
     'revokes directory reads when its active manifest is removed before a late %s',
     async (completion) => {
       const { vm } = await open();
-      let resolve!: (result: ModDirectory) => void;
+      let resolve!: (result: FileDirectory) => void;
       let reject!: (error: Error) => void;
       mocks.directory.mockImplementationOnce(
         () =>
@@ -149,7 +149,7 @@ describe('mod file browser actions and read lifetime', () => {
     expect(vm.view.expanded).toEqual([]);
     expect(vm.view.scrollTop).toBe(0);
     vm.actions.setScroll(20);
-    useWorkspaceStore().activateModFiles('M:/A');
+    useWorkspaceStore().activateFileBrowser('M:/A');
     await flushPromises();
     expect(vm.view.selected).toEqual(['data/spec.wpn']);
     expect(vm.view.expanded).toEqual(['data']);
@@ -218,7 +218,7 @@ describe('mod file browser actions and read lifetime', () => {
     await vm.actions.activate('data');
     await flushPromises();
     vm.actions.select(['data/spec.wpn']);
-    let complete!: (result: ModDirectory) => void;
+    let complete!: (result: FileDirectory) => void;
     mocks.directory.mockImplementationOnce(
       () =>
         new Promise((resolve) => {
@@ -233,11 +233,11 @@ describe('mod file browser actions and read lifetime', () => {
     expect(vm.view.expanded).toEqual([]);
     expect(vm.view.selected).toEqual([]);
     expect(vm.view.nodes.map((node) => node.key)).toEqual(['README']);
-    expect(useModFileBrowserStore().sessions.get('s1')!.directories.has('data')).toBe(false);
+    expect(useFileBrowserStore().sessions.get('s1')!.directories.has('data')).toBe(false);
   });
   it('shares simultaneous directory reads and ignores late errors after release', async () => {
     const { vm, wrapper } = await open();
-    let complete!: (value: ModDirectory) => void;
+    let complete!: (value: FileDirectory) => void;
     mocks.directory.mockImplementationOnce(
       () =>
         new Promise((resolve) => {
@@ -318,8 +318,8 @@ describe('mod file browser actions and read lifetime', () => {
     finish(stop);
     await flushPromises();
     expect(stop).toHaveBeenCalledOnce();
-    useModFileBrowserStore().removeModState('M:/A');
-    expect(useModFileBrowserStore().sessions.has('s1')).toBe(false);
+    useFileBrowserStore().releaseProjectState('M:/A');
+    expect(useFileBrowserStore().sessions.has('s1')).toBe(false);
   });
 });
 
@@ -335,7 +335,7 @@ describe('directory preload and display continuity', () => {
     await paint();
     expect(mocks.directory).toHaveBeenCalledTimes(2);
 
-    let complete!: (value: ModDirectory) => void;
+    let complete!: (value: FileDirectory) => void;
     mocks.directory.mockImplementationOnce(
       () =>
         new Promise((resolve) => {
@@ -358,7 +358,7 @@ describe('directory preload and display continuity', () => {
   });
   it('joins a running preload on expansion and accepts its result once', async () => {
     const { vm } = await open();
-    let complete!: (value: ModDirectory) => void;
+    let complete!: (value: FileDirectory) => void;
     mocks.directory.mockImplementationOnce(
       () =>
         new Promise((resolve) => {
@@ -374,7 +374,7 @@ describe('directory preload and display continuity', () => {
   });
   it('invalidates an in-flight listing on a committed change before reading its replacement', async () => {
     const { vm } = await open();
-    let complete!: (value: ModDirectory) => void;
+    let complete!: (value: FileDirectory) => void;
     mocks.directory.mockImplementationOnce(
       () =>
         new Promise((resolve) => {
@@ -407,7 +407,7 @@ describe('directory preload and display continuity', () => {
     expect(mocks.directory).toHaveBeenCalledOnce();
     vm.actions.clearSearch();
     await flushPromises();
-    let complete!: (value: ModDirectory) => void;
+    let complete!: (value: FileDirectory) => void;
     mocks.directory.mockImplementationOnce(
       () =>
         new Promise((resolve) => {
@@ -419,7 +419,7 @@ describe('directory preload and display continuity', () => {
     await flushPromises();
     complete({ directory: 'data', entries: [entry('data/obsolete')] });
     await flushPromises();
-    expect(useModFileBrowserStore().sessions.get('s1')!.directories.get('data')!.entries).toBe(null);
+    expect(useFileBrowserStore().sessions.get('s1')!.directories.get('data')!.entries).toBe(null);
     wrapper.unmount();
     await paint();
     expect(frames.size).toBe(0);
@@ -427,7 +427,7 @@ describe('directory preload and display continuity', () => {
   });
 });
 
-function searchResult(query: string, entries: ModFileEntry[] = [entry('data', 'directory'), entry('data/find.txt')]) {
+function searchResult(query: string, entries: FileEntry[] = [entry('data', 'directory'), entry('data/find.txt')]) {
   return { query, entries, matchedPaths: entries.filter((entry) => entry.kind === 'file').map((entry) => entry.relPath) };
 }
 describe('full Mod search state and input boundary', () => {
@@ -539,7 +539,7 @@ describe('full Mod search state and input boundary', () => {
     await flushPromises();
     expect(vm.view.searchText).toBe('');
     expect(vm.view.sort).toEqual({ key: 'name', ascending: true });
-    useWorkspaceStore().activateModFiles('M:/A');
+    useWorkspaceStore().activateFileBrowser('M:/A');
     await flushPromises();
     expect(vm.view.searchText).toBe('find');
     expect(vm.view.sort).toEqual({ key: 'size', ascending: false });
@@ -579,7 +579,7 @@ describe('full Mod search state and input boundary', () => {
 
 it('reads the explicitly delivered target independently of workspace selection', async () => {
   register('other', 'M:/B');
-  const { value: vm } = mountSetup(() => useModFileBrowserViewModel(() => ({ sessionId: 's1', modRoot: 'M:/A' })));
+  const { value: vm } = mountSetup(() => useFileBrowserViewModel(() => ({ sessionId: 's1', modRoot: 'M:/A' })));
   await flushPromises();
   expect(useWorkspaceStore().activeManifest!.sessionId).toBe('other');
   expect(mocks.directory).toHaveBeenCalledWith('s1', null);

@@ -1,61 +1,61 @@
 <template>
-  <section class="mod-files-page page-content">
-    <header class="mod-files-header page-header">
-      <div class="mod-files-header-content page-identity">
-        <h1 class="page-title">Mod 文件</h1>
+  <section class="file-browser-page page-content">
+    <header class="file-browser-header page-header">
+      <div class="file-browser-header-content page-identity">
+        <h1 class="page-title">文件概览</h1>
         <p
-          class="mod-files-header-description page-path ui-text-truncate ui-text-description ui-text-muted ui-text-reset ui-text-small"
+          class="file-browser-header-description page-path ui-text-truncate ui-text-description ui-text-muted ui-text-reset ui-text-small"
           :title="view.title"
         >
           <code class="page-path-code ui-code">{{ view.title }}</code>
         </p>
       </div>
     </header>
-    <div class="mod-files-toolbar ui-layout-row ui-layout-center">
+    <div class="file-browser-toolbar ui-layout-row ui-layout-center">
       <n-input
         :value="view.searchText"
         clearable
-        placeholder="搜索整个 Mod 的文件名"
-        :input-props="{ 'aria-label': '搜索整个 Mod 的文件名' }"
+        placeholder="搜索文件名"
+        :input-props="{ 'aria-label': '搜索文件名' }"
         @update:value="actions.setSearch"
         @keydown.enter.prevent="actions.submitSearch()"
       />
-      <div class="mod-files-tools ui-layout-row">
+      <div class="file-browser-tools ui-layout-row">
         <n-button :disabled="!view.searchText" @click="actions.clearSearch">清空搜索</n-button
         ><n-button :disabled="!view.expanded.length" @click="actions.collapseAll">全部收起</n-button
         ><n-button :loading="view.refreshing" @click="actions.refresh">刷新</n-button>
       </div>
     </div>
-    <p v-if="view.loading" class="mod-files-status ui-text-muted ui-text-small ui-text-reset" role="status">
+    <p v-if="view.loading" class="file-browser-status ui-text-muted ui-text-small ui-text-reset" role="status">
       {{ view.searching ? '正在搜索…' : '正在读取目录…' }}
     </p>
-    <div v-if="view.error" class="mod-files-error ui-control-between ui-text-small">
-      <span class="mod-files-error-label ui-layout-shrink ui-text-wrap">{{ view.error }}</span
+    <div v-if="view.error" class="file-browser-error ui-control-between ui-text-small">
+      <span class="file-browser-error-label ui-layout-shrink ui-text-wrap">{{ view.error }}</span
       ><n-button size="small" @click="actions.refresh">重试</n-button>
     </div>
-    <div class="mod-files-table ui-content-fill ui-control-border ui-content-surface">
-      <div class="mod-files-table-content ui-layout-row ui-layout-stack">
-        <div class="mod-files-columns ui-layout-grid ui-content-surface-muted" role="row">
+    <div class="file-browser-table ui-content-fill ui-control-border ui-content-surface">
+      <div class="file-browser-table-content ui-layout-row ui-layout-stack">
+        <div class="file-browser-columns ui-layout-grid ui-content-surface-muted" role="row">
           <div
             v-for="column in columns"
             :key="column.key"
             role="columnheader"
             :aria-sort="view.sort.key === column.key ? (view.sort.ascending ? 'ascending' : 'descending') : 'none'"
-            :class="{ 'mod-files-number': column.key === 'size' }"
+            :class="{ 'file-browser-number': column.key === 'size' }"
           >
             <button
-              class="ui-button mod-files-columns-button mod-files-number-button ui-control-button ui-text-soft ui-text-small ui-layout-row ui-layout-center ui-layout-stretch"
+              class="ui-button file-browser-columns-button file-browser-number-button ui-control-button ui-text-soft ui-text-small ui-layout-row ui-layout-center ui-layout-stretch"
               type="button"
               @click="actions.setSort(column.key)"
             >
               {{ column.label }}
-              <svg class="mod-files-sort ui-control-icon" viewBox="0 0 16 16" aria-hidden="true">
+              <svg class="file-browser-sort ui-control-icon" viewBox="0 0 16 16" aria-hidden="true">
                 <path v-if="view.sort.key === column.key" :d="view.sort.ascending ? 'M8 13V3M4 7l4-4 4 4' : 'M8 3v10M4 9l4 4 4-4'" />
               </svg>
             </button>
           </div>
         </div>
-        <div ref="stage" class="mod-files-tree ui-content-contained" tabindex="0" aria-label="Mod 文件树" @scroll.capture="onScroll">
+        <div ref="stage" class="file-browser-tree ui-content-contained" tabindex="0" aria-label="文件树" @scroll.capture="onScroll">
           <n-tree
             v-if="view.ready && view.nodes.length"
             ref="tree"
@@ -73,13 +73,13 @@
             @update:expanded-keys="actions.setExpanded"
             @update:selected-keys="actions.select"
           />
-          <p v-else-if="view.ready && !view.loading" class="mod-files-empty ui-text-muted ui-text-small ui-text-reset">
+          <p v-else-if="view.ready && !view.loading" class="file-browser-empty ui-text-muted ui-text-small ui-text-reset">
             {{ view.searching ? '未找到匹配项' : '空文件夹' }}
           </p>
         </div>
       </div>
     </div>
-    <footer class="mod-files-footer ui-footer ui-text-description ui-text-muted ui-text-small ui-text-reset">
+    <footer class="file-browser-footer ui-footer ui-text-description ui-text-muted ui-text-small ui-text-reset">
       双击文件夹展开或收起，双击文本文件打开编辑器。
     </footer>
   </section>
@@ -87,12 +87,12 @@
 <script setup lang="ts">
 import { h, nextTick, onMounted, onScopeDispose, useTemplateRef, watch } from 'vue';
 import type { TreeInst, TreeProps } from 'naive-ui/es/tree';
-import type { ModFileSortKey } from '@/shared/types';
-import { useModFileBrowserViewModel, type ModFileBrowserTarget } from '@/app/composables/mod-file-browser/use-mod-file-browser-view-model';
+import type { FileSortKey } from '@/shared/types';
+import { useFileBrowserViewModel, type FileBrowserTarget } from '@/app/composables/file-browser/use-file-browser-view-model';
 import { useWindowShortcuts } from '@/app/composables/use-window-shortcuts';
-const props = defineProps<{ target: ModFileBrowserTarget | null }>();
-const { view, actions } = useModFileBrowserViewModel(() => props.target);
-const columns: Array<{ key: ModFileSortKey; label: string }> = [
+const props = defineProps<{ target: FileBrowserTarget | null }>();
+const { view, actions } = useFileBrowserViewModel(() => props.target);
+const columns: Array<{ key: FileSortKey; label: string }> = [
   { key: 'name', label: '文件名' },
   { key: 'type', label: '类型' },
   { key: 'size', label: '大小' },
@@ -110,7 +110,7 @@ const nodeProps: NonNullable<TreeProps['nodeProps']> = ({ option }) => ({
 const renderPrefix: NonNullable<TreeProps['renderPrefix']> = ({ option }) =>
   option.kind === 'status'
     ? null
-    : h('svg', { class: 'mod-files-node-icon ui-control-icon', viewBox: '0 0 16 16', 'aria-hidden': true }, [
+    : h('svg', { class: 'file-browser-node-icon ui-control-icon', viewBox: '0 0 16 16', 'aria-hidden': true }, [
         h('path', {
           d:
             option.kind === 'directory'
@@ -122,19 +122,19 @@ const renderPrefix: NonNullable<TreeProps['renderPrefix']> = ({ option }) =>
       ]);
 const renderLabel: NonNullable<TreeProps['renderLabel']> = ({ option }) => {
   const status = view.searching ? undefined : view.directories.get(String(option.key));
-  return h('span', { class: 'mod-files-name' }, [
+  return h('span', { class: 'file-browser-name' }, [
     h(
       'span',
-      { class: { 'mod-files-name-text': true, 'mod-files-match': option.matched }, title: String(option.label) },
+      { class: { 'file-browser-name-text': true, 'file-browser-match': option.matched }, title: String(option.label) },
       String(option.label),
     ),
-    status?.loading ? h('span', { class: 'mod-files-node-status' }, '读取中…') : null,
+    status?.loading ? h('span', { class: 'file-browser-node-status' }, '读取中…') : null,
     status?.error
       ? h(
           'button',
           {
             type: 'button',
-            class: 'mod-files-retry',
+            class: 'file-browser-retry',
             title: status.error,
             onClick: (event: MouseEvent) => {
               event.stopPropagation();
@@ -148,9 +148,9 @@ const renderLabel: NonNullable<TreeProps['renderLabel']> = ({ option }) => {
   ]);
 };
 const renderSuffix: NonNullable<TreeProps['renderSuffix']> = ({ option }) =>
-  h('span', { class: 'mod-files-metadata' }, [
+  h('span', { class: 'file-browser-metadata' }, [
     h('span', { title: String(option.typeText ?? '') }, String(option.typeText ?? '')),
-    h('span', { class: 'mod-files-number' }, String(option.sizeText ?? '')),
+    h('span', { class: 'file-browser-number' }, String(option.sizeText ?? '')),
     h('span', {}, String(option.modifiedText ?? '')),
   ]);
 let scrollRestore: { top: number } | null = null;

@@ -29,6 +29,7 @@
 - `src/domain/workspace/mod-navigation.ts`：每个 Mod 的页面状态与导航投影。
 - `src/domain/workspace/mod-overview.ts`：正式 manifest 的 Mod 概览统计投影。
 - `src/domain/workspace/mod-status.ts`：Mod 展示状态的纯投影。
+- `src/domain/workspace/project-kind.ts`：正式项目清单的 Core 身份判断。
 - `src/orchestrators/workspace-core-source.orchestrator.ts`：原版来源切换，拥有关闭、设置提交交接、Mod 重开及最终快照的完整等待。
 - `src/orchestrators/workspace-history.orchestrator.ts`：当前编辑面草稿历史选择、文件回放确认与展示交接。
 - `src/orchestrators/workspace-lifecycle.orchestrator.ts`：生命周期，拥有关闭目标捕获、所属模块清理用例与工作区关闭。
@@ -61,13 +62,14 @@
 - JSON 会话与 CSV 提供未保存判定，导航及关闭消费所属输入和保存句柄。
 - JSON 文档运行态归所属模块，工作区宿主持有当前页面目标的只读投影、定位完成及基础船体导航动作。
 - Mod 概览、文件历史和 JSON 编辑使用独立工作区视图，业务侧栏消费各自导航目标。
+- Core 概览与 Mod 概览共用正式概览投影；Core 身份消费实际游戏根与 Core 根的路径对应关系。
 - Mod 页面上下文、概览与打开失败状态归本次运行，列宽和目录进入恢复快照。
 - workspace store 拥有全局视图、Mod 页签、运行代次、页面上下文、概览、失败记录与列宽。
 - 工作区按已就绪标签顺序生成会话序列，并从同一序列派生可引用来源，经项目同步统一发布。
 - 启动恢复重建 session 与运行态并保留用户当前页面，初始引导界面随工作区数据接纳显示总览。
 - 导航编排按 Mod 根同步 project、tables、editor 和 history 运行态，并恢复所属页面。
 - 持久化编排投影可恢复数据，Rust service 读写工具私有 workspace 文件。
-- 文件浏览模块拥有按 session 隔离的目录树与浏览状态，工作区拥有 mod-files 页面及 Mod 页面记忆。
+- 文件浏览器模块拥有按 session 隔离的目录树与浏览状态，工作区拥有 file-browser 页面及项目页面记忆。
 - 生命周期编排消费 Rust 实际释放结果，拥有所属 Mod 清理和前端缓存释放。
 - 没有游戏概览时，原版条目随最后一个普通 Mod 共同进入关闭范围；会话按实际释放结果清理，加载中条目在关闭成功后撤销接纳权。
 - 启动恢复以游戏目录或普通 Mod 为工作区依据；仅含原版条目且没有游戏目录的快照结束为空工作区，并由恢复收尾保存当前快照。
@@ -134,6 +136,7 @@
 - 工作区刷新必须复用总览刷新入口并更新游戏扫描和已打开项目，原版图标刷新按有效游戏根更新关联项目与原版来源；全部刷新保留页面、草稿、标签身份和顺序。
 - 原版来源切换必须捕获游戏目录、Mod 列表与列宽，并复用正式关闭及恢复流程；切换期间暂停快照保存，结束后保存最终列表，重开失败按 Mod 登记。
 - JSON 与 CSV 草稿必须随所属 session 保留；导航提交活动输入并等待保存，移除 session 按最新 dirty 确认放弃。
+- Core 导航必须隐藏 Mod 信息入口；直接进入 Mod 信息页及恢复到该页时必须切换到 Core 概览。
 - Mod 代次必须在注册时分配、移除时撤销，并且只允许保存在当前运行的内存中；恢复响应沿用捕获的代次。
 - workspace 缺失返回空默认；损坏时报错且严禁立即用空态覆盖。
 - 主窗口导航必须等待全部已登记保存及同步，连续请求只执行最新导航意图；输入失败保留原字段和焦点。

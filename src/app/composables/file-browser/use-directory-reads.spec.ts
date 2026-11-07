@@ -1,20 +1,20 @@
 import { describe, expect, it, vi } from 'vitest';
 import { flushPromises } from '@vue/test-utils';
-import { createModDirectoryReads } from './use-mod-directory-reads';
-import type { ModDirectory } from '@/shared/types';
+import { createFileDirectoryReads } from './use-directory-reads';
+import type { FileDirectory } from '@/shared/types';
 
 function setup() {
-  const pending: Array<{ directory: string | null; resolve: (value: ModDirectory) => void; reject: (error: Error) => void }> = [];
+  const pending: Array<{ directory: string | null; resolve: (value: FileDirectory) => void; reject: (error: Error) => void }> = [];
   const load = vi.fn(
     ({ directory }: { sessionId: string; directory: string | null }) =>
-      new Promise<ModDirectory>((resolve, reject) => {
+      new Promise<FileDirectory>((resolve, reject) => {
         pending.push({ directory, resolve, reject });
       }),
   );
   const ready = vi.fn(),
     error = vi.fn(),
     settled = vi.fn();
-  const reads = createModDirectoryReads({ load, started: vi.fn(), ready, error, settled });
+  const reads = createFileDirectoryReads({ load, started: vi.fn(), ready, error, settled });
   const request = (directory: string, priority: 'foreground' | 'prefetch' = 'foreground', sessionId = 's1') =>
     reads.request({ sessionId, directory }, priority);
   const complete = async (directory: string) => {

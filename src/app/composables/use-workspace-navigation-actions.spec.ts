@@ -16,7 +16,7 @@ const mocks = vi.hoisted(() => ({
   },
   navigation: {
     navigateToModOverview: vi.fn(),
-    navigateToModFiles: vi.fn(),
+    navigateToFileBrowser: vi.fn(),
     navigateToModTable: vi.fn(),
     navigateToModJson: vi.fn(),
     navigateToModFileHistory: vi.fn(),
@@ -32,7 +32,7 @@ vi.mock('@/app/composables/use-app-feedback', () => ({
 
 vi.mock('@/orchestrators/workspace-navigation.orchestrator', () => ({
   navigateToModOverview: mocks.navigation.navigateToModOverview,
-  navigateToModFiles: mocks.navigation.navigateToModFiles,
+  navigateToFileBrowser: mocks.navigation.navigateToFileBrowser,
   navigateToModTable: mocks.navigation.navigateToModTable,
   navigateToModJson: mocks.navigation.navigateToModJson,
   navigateToModFileHistory: mocks.navigation.navigateToModFileHistory,
@@ -148,8 +148,8 @@ describe('useWorkspaceNavigationActions', () => {
     const workspace = useWorkspaceStore();
     workspace.registerMod({ modRoot: 'M:/A', displayName: 'A', version: '', status: 'ready' });
     workspace.activateModJson('M:/A', 'mod-info');
-    useWorkspaceNavigationActions().navigateToModFiles('M:/A');
-    expect(mocks.navigation.navigateToModFiles).toHaveBeenCalledWith('M:/A');
+    useWorkspaceNavigationActions().navigateToFileBrowser('M:/A');
+    expect(mocks.navigation.navigateToFileBrowser).toHaveBeenCalledWith('M:/A');
   });
   it('navigates to tables and mod tabs', () => {
     const actions = useWorkspaceNavigationActions();

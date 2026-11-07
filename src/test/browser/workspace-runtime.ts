@@ -571,7 +571,7 @@ export function createBrowserWorkspace(systemTheme: T.AppTheme = 'light') {
       case 'refresh_project_sources':
         result = receiver.write(null, { kind: 'json', origin: { kind: 'modInfo' } }, (payload.paths as string[]) ?? []);
         break;
-      case 'query_mod_file_search': {
+      case 'query_file_search': {
         const query = String(payload.query).trim();
         const files = [...new Set([...receiver.textFiles.keys(), ...gameImages.keys(), ...gameAudio.keys()])]
           .filter((path) => path.startsWith(receiver.manifest.modRoot + '/'))
@@ -582,7 +582,7 @@ export function createBrowserWorkspace(systemTheme: T.AppTheme = 'light') {
           const parts = file.split('/');
           for (let i = 1; i <= parts.length; i++) paths.add(parts.slice(0, i).join('/'));
         }
-        const entries = new Map<string, T.ModFileEntry>();
+        const entries = new Map<string, T.FileEntry>();
         for (const path of paths)
           if (path.split('/').at(-1)!.toLowerCase().includes(query.toLowerCase())) {
             matchedPaths.push(path);
@@ -600,7 +600,7 @@ export function createBrowserWorkspace(systemTheme: T.AppTheme = 'light') {
           }
         return { query, entries: [...entries.values()], matchedPaths };
       }
-      case 'query_mod_directory': {
+      case 'query_file_directory': {
         const directory = payload.directory as string | null;
         const prefix = directory ? directory + '/' : '';
         const assets = [...gameImages.keys(), ...gameAudio.keys()]
@@ -632,7 +632,7 @@ export function createBrowserWorkspace(systemTheme: T.AppTheme = 'light') {
           ],
         };
       }
-      case 'query_mod_text_file_target':
+      case 'query_file_text_target':
         return receiver.textFiles.has(receiver.manifest.modRoot + '/' + payload.relPath)
           ? { sessionId, modRoot: receiver.manifest.modRoot, path: receiver.manifest.modRoot + '/' + payload.relPath }
           : null;

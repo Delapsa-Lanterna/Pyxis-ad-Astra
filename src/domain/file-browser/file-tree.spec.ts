@@ -1,17 +1,17 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
-  createModFileTreeCache,
-  sortModFiles,
-  modFileTree,
-  visibleModFiles,
-  affectedModDirectories,
-  modFileType,
-  modFileSize,
-  modFileTime,
-  modFileSearchTree,
+  createFileTreeCache,
+  sortFiles,
+  fileTree,
+  visibleFiles,
+  affectedFileDirectories,
+  fileType,
+  fileSize,
+  fileTime,
+  fileSearchTree,
 } from './file-tree';
-import type { ModDirectoryState, ModFileEntry } from '@/shared/types/mod-file-browser.types';
-const entry = (relPath: string, kind: ModFileEntry['kind'] = 'file'): ModFileEntry => ({
+import type { FileDirectoryState, FileEntry } from '@/shared/types/file-browser.types';
+const entry = (relPath: string, kind: FileEntry['kind'] = 'file'): FileEntry => ({
   name: relPath.split('/').at(-1)!,
   relPath,
   kind,
@@ -20,7 +20,7 @@ const entry = (relPath: string, kind: ModFileEntry['kind'] = 'file'): ModFileEnt
 });
 describe('mod directory projections', () => {
   it('orders folders before naturally sorted filenames', () => {
-    expect(sortModFiles([entry('file10'), entry('z', 'directory'), entry('file2'), entry('.hidden')]).map((item) => item.name)).toEqual([
+    expect(sortFiles([entry('file10'), entry('z', 'directory'), entry('file2'), entry('.hidden')]).map((item) => item.name)).toEqual([
       'z',
       '.hidden',
       'file2',
@@ -28,26 +28,26 @@ describe('mod directory projections', () => {
     ]);
   });
   it('keeps siblings visible while expanding nested folders and represents empty folders', () => {
-    const directories = new Map<string | null, ModDirectoryState>([
+    const directories = new Map<string | null, FileDirectoryState>([
       [null, { entries: [entry('data', 'directory'), entry('README')], loading: false, error: '' }],
       ['data', { entries: [entry('data/empty', 'directory')], loading: false, error: '' }],
       ['data/empty', { entries: [], loading: false, error: '' }],
     ]);
-    const tree = modFileTree(directories);
-    expect(visibleModFiles(tree, ['data', 'data/empty']).map((node) => node.key)).toEqual(['data', 'data/empty', 'README']);
+    const tree = fileTree(directories);
+    expect(visibleFiles(tree, ['data', 'data/empty']).map((node) => node.key)).toEqual(['data', 'data/empty', 'README']);
     expect(tree[0]!.children![0]!.children![0]).toMatchObject({ label: '空文件夹', disabled: true });
-    expect(affectedModDirectories(directories, ['data/empty'])).toEqual(['data', 'data/empty']);
+    expect(affectedFileDirectories(directories, ['data/empty'])).toEqual(['data', 'data/empty']);
   });
 });
 
 describe('file metadata and sorting', () => {
   it('formats byte units, extensions, zero size and local timestamps', () => {
-    expect(modFileType(entry('README'))).toBe('文件');
-    expect(modFileType(entry('abc.wpn'))).toBe('WPN 文件');
-    expect(modFileType(entry('data', 'directory'))).toBe('文件夹');
-    expect([0, 1024, 1024 ** 2, 1024 ** 3, null].map(modFileSize)).toEqual(['0 B', '1 KiB', '1 MiB', '1 GiB', '—']);
-    expect(modFileTime(new Date(2025, 0, 2, 3, 4, 5).getTime())).toBe('2025-01-02 03:04:05');
-    expect(modFileTime(null)).toBe('—');
+    expect(fileType(entry('README'))).toBe('文件');
+    expect(fileType(entry('abc.wpn'))).toBe('WPN 文件');
+    expect(fileType(entry('data', 'directory'))).toBe('文件夹');
+    expect([0, 1024, 1024 ** 2, 1024 ** 3, null].map(fileSize)).toEqual(['0 B', '1 KiB', '1 MiB', '1 GiB', '—']);
+    expect(fileTime(new Date(2025, 0, 2, 3, 4, 5).getTime())).toBe('2025-01-02 03:04:05');
+    expect(fileTime(null)).toBe('—');
   });
   it.each([true, false])('sorts siblings by size with folders first and missing values last, ascending=%s', (ascending) => {
     const files = [
@@ -57,12 +57,12 @@ describe('file metadata and sorting', () => {
       { ...entry('c'), sizeBytes: 10 },
       entry('folder', 'directory'),
     ];
-    expect(sortModFiles(files, { key: 'size', ascending }).map((file) => file.name)).toEqual(
+    expect(sortFiles(files, { key: 'size', ascending }).map((file) => file.name)).toEqual(
       ascending ? ['folder', 'a', 'b', 'c', 'z'] : ['folder', 'c', 'a', 'b', 'z'],
     );
   });
   it('applies type and time sorting to each tree level', () => {
-    const directories = new Map<string | null, ModDirectoryState>([
+    const directories = new Map<string | null, FileDirectoryState>([
       [null, { entries: [entry('data', 'directory'), entry('b.json'), entry('a.txt')], loading: false, error: '' }],
       [
         'data',
@@ -76,8 +76,8 @@ describe('file metadata and sorting', () => {
         },
       ],
     ]);
-    expect(modFileTree(directories, null, { key: 'type', ascending: true }).map((node) => node.key)).toEqual(['data', 'b.json', 'a.txt']);
-    expect(modFileTree(directories, null, { key: 'modified', ascending: false })[0]!.children!.map((node) => node.key)).toEqual([
+    expect(fileTree(directories, null, { key: 'type', ascending: true }).map((node) => node.key)).toEqual(['data', 'b.json', 'a.txt']);
+    expect(fileTree(directories, null, { key: 'modified', ascending: false })[0]!.children!.map((node) => node.key)).toEqual([
       'data/b',
       'data/a',
     ]);
@@ -88,7 +88,7 @@ describe('file metadata and sorting', () => {
       entries: [entry('data', 'directory'), entry('data/hulls', 'directory'), entry('data/hulls/船.ship'), entry('船目录', 'directory')],
       matchedPaths: ['data/hulls/船.ship', '船目录'],
     };
-    const tree = modFileSearchTree(result, { key: 'name', ascending: true });
+    const tree = fileSearchTree(result, { key: 'name', ascending: true });
     const nested = tree.find((node) => node.key === 'data')!;
     expect(nested.matched).toBe(false);
     expect(nested.children![0]!.children![0]).toMatchObject({ key: 'data/hulls/船.ship', matched: true });
@@ -127,12 +127,12 @@ describe('cached visible directory cache', () => {
     }
   });
   function setup() {
-    const directories = new Map<string | null, ModDirectoryState>([
+    const directories = new Map<string | null, FileDirectoryState>([
       [null, { entries: [entry('data', 'directory'), entry('other', 'directory'), entry('README')], loading: false, error: '' }],
       ['data', { entries: [entry('data/spec.wpn')], loading: false, error: '' }],
       ['other', { entries: [], loading: false, error: '' }],
     ]);
-    const cache = createModFileTreeCache();
+    const cache = createFileTreeCache();
     const project = (expanded: string[] = [], ascending = true) => cache.project(directories, expanded, { key: 'name', ascending });
     return { directories, cache, project };
   }

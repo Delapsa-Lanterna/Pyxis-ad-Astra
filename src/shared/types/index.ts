@@ -35,17 +35,17 @@ export type {
   HullWeaponSlot,
 } from '@/shared/types/resources.types';
 export type {
-  ModFileEntry,
-  ModDirectory,
-  ModFileKind,
-  ModTextFileTarget,
-  ModDirectoryState,
-  ModFileBrowserState,
-  ModFileBranch,
-  ModFileSearch,
-  ModFileSortKey,
-  ModFileSort,
-} from '@/shared/types/mod-file-browser.types';
+  FileEntry,
+  FileDirectory,
+  FileKind,
+  FileTextTarget,
+  FileDirectoryState,
+  FileBrowserState,
+  FileBranch,
+  FileSearch,
+  FileSortKey,
+  FileSort,
+} from '@/shared/types/file-browser.types';
 export type {
   DeepReadonly,
   ReadonlyJsonValue,

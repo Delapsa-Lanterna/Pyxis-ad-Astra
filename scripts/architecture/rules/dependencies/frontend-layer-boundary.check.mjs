@@ -148,7 +148,7 @@ test('window persistence access is treated as a global browser store', () => {
 test('file browser targets and configuration registries have their own inputs', () => {
   for (const [source, target, expected] of /** @type {[string, string, string][]} */ ([
     [
-      'src/app/composables/mod-file-browser/use-mod-file-browser-view-model.ts',
+      'src/app/composables/file-browser/use-file-browser-view-model.ts',
       'src/stores/workspace.store.ts',
       'explicit file browser target',
     ],

@@ -53,9 +53,9 @@ export function useWorkspaceNavigationActions() {
     confirmNavigation(() => workspaceNavigation.navigateToModTable(modRoot, table), { modRoot, table, page: 'table' });
   }
 
-  function navigateToModFiles(modRoot: string): void {
-    if (workspace.activeModRoot === modRoot && workspace.currentView === 'mod-files') return;
-    confirmNavigation(() => workspaceNavigation.navigateToModFiles(modRoot), { modRoot, page: 'mod-files' });
+  function navigateToFileBrowser(modRoot: string): void {
+    if (workspace.activeModRoot === modRoot && workspace.currentView === 'file-browser') return;
+    confirmNavigation(() => workspaceNavigation.navigateToFileBrowser(modRoot), { modRoot, page: 'file-browser' });
   }
 
   function navigateToModFileHistory(modRoot: string): void {
@@ -143,7 +143,7 @@ export function useWorkspaceNavigationActions() {
     activateModTab,
     navigateToModFileHistory,
     navigateToModJson,
-    navigateToModFiles,
+    navigateToFileBrowser,
     navigateToModOverview,
     navigateToModTable,
     showAbout,

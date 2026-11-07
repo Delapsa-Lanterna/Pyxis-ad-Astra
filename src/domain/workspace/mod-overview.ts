@@ -1,6 +1,7 @@
 import type { ProjectManifest, CsvTableKey } from '@/shared/types';
 import { gameCoreDirectoryPath } from '@/shared/lib/paths';
 import { cell, formatModVersion, MODULE_LABELS } from '@/shared/lib/starsector';
+import { isCoreProjectManifest } from './project-kind';
 
 export interface WorkspaceModOverviewBreakdownItem {
   label: string;
@@ -9,6 +10,7 @@ export interface WorkspaceModOverviewBreakdownItem {
 }
 
 export interface WorkspaceModOverviewModel {
+  isCore: boolean;
   modName: string;
   modVersion: string;
   modRootText: string;
@@ -22,10 +24,12 @@ export interface WorkspaceModOverviewModel {
 const OVERVIEW_TABLE_KEYS: CsvTableKey[] = ['ships', 'weapons', 'wings', 'hullmods', 'shipSystems', 'industries', 'skills'];
 
 export function buildWorkspaceModOverview(manifest: ProjectManifest | null | undefined): WorkspaceModOverviewModel {
+  const isCore = isCoreProjectManifest(manifest);
   const breakdown = manifest ? overviewBreakdown(manifest) : [];
   return {
-    modName: cell(manifest?.modInfo?.name) || 'Mod 概览',
-    modVersion: formatModVersion(manifest?.modInfo?.version),
+    isCore,
+    modName: isCore ? 'Core 概览' : cell(manifest?.modInfo?.name) || 'Mod 概览',
+    modVersion: isCore ? '' : formatModVersion(manifest?.modInfo?.version),
     modRootText: manifest?.modRoot || '未加载',
     coreAvailable: Boolean(manifest?.coreAvailable),
     coreResourceText: coreResourceText(manifest),

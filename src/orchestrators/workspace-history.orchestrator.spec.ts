@@ -78,7 +78,7 @@ describe.each([
     expect(feedback.error).toHaveBeenCalledWith(error, expect.any(String));
     expect(direction === 'undo' ? mocks.fileUndo : mocks.fileRedo).not.toHaveBeenCalled();
   });
-  it.each(['mod-overview', 'file-history', 'mod-files', 'overview', 'settings', 'about'] as const)(
+  it.each(['mod-overview', 'file-history', 'file-browser', 'overview', 'settings', 'about'] as const)(
     'uses file history on %s',
     async (view) => {
       mocks.workspace.currentView = view;

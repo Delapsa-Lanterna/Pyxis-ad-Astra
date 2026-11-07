@@ -1,24 +1,24 @@
 import { useContextMenuScope } from '@/app/composables/use-context-menu';
 import { computed, nextTick, onScopeDispose, reactive, ref, watch } from 'vue';
-import { useModFileBrowserStore } from '@/stores/mod-file-browser.store';
-import { queryModDirectory, queryModFileSearch, queryModTextFileTarget } from '@/services/mod-file-browser.service';
+import { useFileBrowserStore } from '@/stores/file-browser.store';
+import { queryFileDirectory, queryFileSearch, queryFileTextTarget } from '@/services/file-browser.service';
 import { createReadOwner } from '@/shared/runtime/read-request';
-import { createModFileTreeCache, modFileSearchTree, visibleModFiles, affectedModDirectories } from '@/domain/mod-file-browser/file-tree';
+import { createFileTreeCache, fileSearchTree, visibleFiles, affectedFileDirectories } from '@/domain/file-browser/file-tree';
 import { listenSavedContent, sessionContentUpdate } from '@/orchestrators/project-sync.orchestrator';
 import { openFileEditorWindow } from '@/windows/file-editor.window';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
 import { formatError } from '@/shared/lib/errors';
 import { relativePathFromRoot, normalizeFsPath, isAbsoluteFsPath } from '@/shared/lib/paths';
-import { createModDirectoryReads } from './use-mod-directory-reads';
+import { createFileDirectoryReads } from './use-directory-reads';
 import { recordPerformance, startPerformance, performanceMonitorEnabled } from '@/shared/runtime/performance';
-import type { ModDirectoryState, ModFileSortKey, ProjectManifest } from '@/shared/types';
+import type { FileDirectoryState, FileSortKey, ProjectManifest } from '@/shared/types';
 
-export type ModFileBrowserTarget = Readonly<Pick<ProjectManifest, 'sessionId' | 'modRoot'>>;
-export function useModFileBrowserViewModel(getTarget: () => ModFileBrowserTarget | null) {
-  const store = useModFileBrowserStore(),
+export type FileBrowserTarget = Readonly<Pick<ProjectManifest, 'sessionId' | 'modRoot'>>;
+export function useFileBrowserViewModel(getTarget: () => FileBrowserTarget | null) {
+  const store = useFileBrowserStore(),
     feedback = useAppFeedback(),
     reads = createReadOwner(),
-    tree = createModFileTreeCache();
+    tree = createFileTreeCache();
   const target = computed(getTarget);
   const state = computed(() => (target.value ? store.sessions.get(target.value.sessionId)! : null));
   const searching = computed(() => Boolean(state.value?.search.text.trim()));
@@ -28,7 +28,7 @@ export function useModFileBrowserViewModel(getTarget: () => ModFileBrowserTarget
     if (!current) return [];
     return searching.value
       ? current.search.result
-        ? modFileSearchTree(current.search.result, current.sort)
+        ? fileSearchTree(current.search.result, current.sort)
         : []
       : tree.project(current.directories, current.expanded, current.sort);
   });
@@ -44,8 +44,8 @@ export function useModFileBrowserViewModel(getTarget: () => ModFileBrowserTarget
       searchTimer = null;
     }
   }
-  const directoryReads = createModDirectoryReads({
-    load: ({ sessionId, directory }) => queryModDirectory(sessionId, directory),
+  const directoryReads = createFileDirectoryReads({
+    load: ({ sessionId, directory }) => queryFileDirectory(sessionId, directory),
     started: ({ sessionId, directory }) => {
       const status = store.directoryState(sessionId, directory);
       status.loading = true;
@@ -94,7 +94,7 @@ export function useModFileBrowserViewModel(getTarget: () => ModFileBrowserTarget
         for (const [directory, sample] of pending) {
           if (!isDisplayed(directory)) continue;
           if (performanceMonitorEnabled && sample)
-            recordPerformance('modFiles.directoryFrame', performance.now() - sample.startedAt, {
+            recordPerformance('fileBrowser.directoryFrame', performance.now() - sample.startedAt, {
               cached: sample.cached,
             });
         }
@@ -126,7 +126,7 @@ export function useModFileBrowserViewModel(getTarget: () => ModFileBrowserTarget
     const search = state.value!.search;
     search.loading = true;
     search.error = '';
-    await reads.consume('search', { sessionId: captured.sessionId, query }, () => queryModFileSearch(captured.sessionId, query), {
+    await reads.consume('search', { sessionId: captured.sessionId, query }, () => queryFileSearch(captured.sessionId, query), {
       ready: (result) => {
         const same = search.result?.query === result.query;
         const directories = result.entries.filter((entry) => entry.kind === 'directory').map((entry) => entry.relPath);
@@ -221,7 +221,7 @@ export function useModFileBrowserViewModel(getTarget: () => ModFileBrowserTarget
   }
   async function activate(path: string) {
     const current = branch.value!,
-      node = visibleModFiles(nodes.value, current.expanded).find((node) => node.key === path);
+      node = visibleFiles(nodes.value, current.expanded).find((node) => node.key === path);
     if (!node || node.disabled) return;
     current.selected = path;
     if (node.kind === 'directory') {
@@ -229,7 +229,7 @@ export function useModFileBrowserViewModel(getTarget: () => ModFileBrowserTarget
       return;
     }
     const captured = target.value!;
-    await reads.consume('open', { sessionId: captured.sessionId, path }, () => queryModTextFileTarget(captured.sessionId, path), {
+    await reads.consume('open', { sessionId: captured.sessionId, path }, () => queryFileTextTarget(captured.sessionId, path), {
       ready: (result) => {
         if (result)
           void openFileEditorWindow({ ...result }).catch((error) => {
@@ -241,7 +241,7 @@ export function useModFileBrowserViewModel(getTarget: () => ModFileBrowserTarget
   }
   function navigate(key: string) {
     const current = branch.value!,
-      items = visibleModFiles(nodes.value, current.expanded).filter((node) => !node.disabled);
+      items = visibleFiles(nodes.value, current.expanded).filter((node) => !node.disabled);
     if (!items.length) return;
     const index = items.findIndex((node) => node.key === current.selected),
       node = items[index];
@@ -283,7 +283,7 @@ export function useModFileBrowserViewModel(getTarget: () => ModFileBrowserTarget
     if (searching.value) {
       return paths.length ? [() => submitSearch(true)] : [];
     }
-    const affected = affectedModDirectories(state.value!.directories, paths);
+    const affected = affectedFileDirectories(state.value!.directories, paths);
     directoryReads.revoke(({ directory }) => affected.includes(directory));
     return affected.map((directory) => () => load(directory, true).then(() => {}));
   }
@@ -312,7 +312,7 @@ export function useModFileBrowserViewModel(getTarget: () => ModFileBrowserTarget
       else stopWrites = stop;
     })
     .catch((error) => {
-      if (!disposed) feedback.error(error, '监听 Mod 文件变化失败');
+      if (!disposed) feedback.error(error, '监听文件变化失败');
     });
   onScopeDispose(() => {
     disposed = true;
@@ -342,7 +342,7 @@ export function useModFileBrowserViewModel(getTarget: () => ModFileBrowserTarget
         searching.value ? state.value?.search.result !== null : root.value?.entries !== null && root.value?.entries !== undefined,
       ),
       error: computed(() => (searching.value ? (state.value?.search.error ?? '') : (root.value?.error ?? ''))),
-      directories: computed(() => state.value?.directories ?? new Map<string | null, ModDirectoryState>()),
+      directories: computed(() => state.value?.directories ?? new Map<string | null, FileDirectoryState>()),
     }),
     actions: {
       load,
@@ -355,7 +355,7 @@ export function useModFileBrowserViewModel(getTarget: () => ModFileBrowserTarget
       submitSearch,
       clearSearch: () => setSearch(''),
       collapseAll: () => setExpanded([]),
-      setSort: (key: ModFileSortKey) => {
+      setSort: (key: FileSortKey) => {
         const sort = state.value!.sort;
         state.value!.sort = { key, ascending: sort.key === key ? !sort.ascending : true };
       },

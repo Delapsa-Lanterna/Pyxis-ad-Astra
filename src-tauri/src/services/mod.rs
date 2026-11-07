@@ -36,15 +36,15 @@ pub(crate) use project::query::entity_targets::{
     query_entity_edit_target, query_entity_identity_intent, query_file_entity_target,
     require_csv_version_scope, require_entity_version_scope,
 };
+pub(crate) use project::query::file_browser::{
+    query_file_directory, query_file_search, query_file_text_target,
+};
 pub(crate) use project::query::hull_references::query_hull_references;
 pub(crate) use project::query::joint_edit::{
     prepare_joint_edit, query_joint_edit_request, query_variant_catalog,
 };
 pub(crate) use project::query::json_layers::query_json_composition;
 pub(crate) use project::query::json_recovery::prepare_json_source_recovery;
-pub(crate) use project::query::mod_file_browser::{
-    query_mod_directory, query_mod_file_search, query_mod_text_file_target,
-};
 pub(crate) use project::query::resources::{
     query_draft_resources, query_engine_render_assets, query_resource_data_urls,
 };

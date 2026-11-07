@@ -14,9 +14,9 @@
       @close-workspace="actions.confirmCloseWorkspace"
       @load-mod="actions.loadOverviewMod" /><SettingsPage
       v-else-if="workspace.currentView === 'settings'"
-      :change-source="actions.switchCoreSource" /><AboutPage v-else-if="workspace.currentView === 'about'" /><ModFileBrowser
+      :change-source="actions.switchCoreSource" /><AboutPage v-else-if="workspace.currentView === 'about'" /><FileBrowser
       :target="workspace.activeManifest"
-      v-else-if="workspace.currentView === 'mod-files' && workspace.activeManifest" /><CsvEditorPage
+      v-else-if="workspace.currentView === 'file-browser' && workspace.activeManifest" /><CsvEditorPage
       v-else-if="csvHost.target.value"
       :key="JSON.stringify(csvHost.target.value)"
       :target="csvHost.target.value"
@@ -71,7 +71,7 @@ const OverviewPage = defineAsyncComponent(() => import('@/app/components/Overvie
 const SettingsPage = defineAsyncComponent(() => import('@/app/components/SettingsPage.vue'));
 const AboutPage = defineAsyncComponent(() => import('@/app/components/AboutPage.vue'));
 const CsvEditorPage = defineAsyncComponent(() => import('@/app/components/csv-editor/CsvEditorPage.vue'));
-const ModFileBrowser = defineAsyncComponent(() => import('@/app/components/mod-file-browser/ModFileBrowser.vue'));
+const FileBrowser = defineAsyncComponent(() => import('@/app/components/file-browser/FileBrowser.vue'));
 const WorkspaceModOverview = defineAsyncComponent(() => import('@/app/components/workspace/WorkspaceModOverview.vue'));
 const WorkspaceFileHistory = defineAsyncComponent(() => import('@/app/components/workspace/WorkspaceFileHistory.vue'));
 const JsonEditorPage = defineAsyncComponent(() => import('@/app/components/json-editor/JsonEditorPage.vue'));
