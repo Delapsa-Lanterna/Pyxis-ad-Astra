@@ -7,7 +7,7 @@ import { csvEditorView } from '@/app/composables/csv-editor/tests/csv-editor-vie
 import type { AppFeedback } from '@/shared/types';
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi, onTestFinished } from 'vitest';
 import { useCsvTableViewModel } from './use-csv-table-view-model';
 import { useCsvEditorStore } from '@/stores/csv-editor.store';
 import { useWorkspaceStore } from '@/stores/workspace.store';
@@ -15,7 +15,7 @@ import { useProjectStore } from '@/stores/project.store';
 import { initializeSettingsStore } from '@/stores/settings.store';
 import { createSettingsFixture } from '@/test/fixtures/settings';
 import { sessionUpdateFixture, savedWriteFixture } from '@/test/fixtures/write-result';
-import { dispatchProjectChangeFixture, committedChangeFixture } from '@/test/unit/project-changes';
+import { dispatchProjectChangeFixture, committedChangeFixture, closeProjectChangeFixture } from '@/test/unit/project-changes';
 import { csvDraftRow, csvTableIndex } from '@/test/fixtures/csv-row';
 import { deepClone } from '@/shared/lib/starsector';
 import { ref } from 'vue';
@@ -434,29 +434,25 @@ describe('CSV index and keyed content owner', () => {
     expect(vm.sourceIndex.value).toBe(sources);
     expect(vm.gridModel.value.rowsByKey['key-0']?.data.name).toBe('Edited');
   });
-  it('batches missing identities with two concurrent reads and deduplicates repeated viewport requests', async () => {
+  it.each([16, 51200])('sizes missing demand from %i-character rows and shares overlapping requests', async (length) => {
+    for (const row of rows) row.data.name = 'x'.repeat(length);
     const releases: Array<() => void> = [];
-    let active = 0,
-      maximum = 0;
     mocks.rows.mockImplementation(
       (_session: string, _table: string, keys: string[]) =>
         new Promise<CsvTableRowsRead>((resolve) => {
-          active++;
-          maximum = Math.max(maximum, active);
           releases.push(() => {
-            active--;
             resolve(readRows(keys));
           });
         }),
     );
     const vm = harness();
     await flushPromises();
-    const loading = vm.loadTableWindow(240, 760);
+    const loading = vm.ensureTableRows(rows.slice(240).map((row) => row.rowKey));
     await flushPromises();
-    expect(mocks.rows).toHaveBeenCalledTimes(2);
+    expect(mocks.rows).toHaveBeenCalledTimes(length === 16 ? 1 : 2);
     const duplicate = vm.loadTableWindow(240, 160);
     const range = vm.ensureTableRows(['key-240', 'key-399']);
-    expect(mocks.rows).toHaveBeenCalledTimes(2);
+    expect(mocks.rows).toHaveBeenCalledTimes(length === 16 ? 1 : 2);
     while (releases.length) {
       releases.shift()!();
       await flushPromises();
@@ -464,8 +460,7 @@ describe('CSV index and keyed content owner', () => {
     await loading;
     await duplicate;
     expect(await range).toBe(true);
-    expect(maximum).toBe(2);
-    expect(mocks.rows.mock.calls.every((call) => call[2].length <= 160)).toBe(true);
+    expect(mocks.rows.mock.calls.flatMap((call) => call[2])).toEqual(rows.slice(240).map((row) => row.rowKey));
     expect(Object.keys(vm.gridModel.value.rowsByKey)).toHaveLength(1000);
   });
   it('loads the actual identities after moving an unloaded target into the viewport', async () => {
@@ -475,6 +470,59 @@ describe('CSV index and keyed content owner', () => {
     await vm.loadTableWindow(0, 40);
     expect(mocks.rows).toHaveBeenLastCalledWith('session', 'ships', ['key-900'], expect.any(AbortSignal));
     expect(csvEditorView(target).rows[0]?.rowKey).toBe('key-900');
+  });
+  it.each(['finish', 'release', 'unmount'])('prioritizes the latest viewport and preserves selection demand until %s', async (ending) => {
+    const requests: Array<{ keys: string[]; finish: () => void }> = [];
+    const works: Promise<unknown>[] = [];
+    mocks.rows.mockImplementation(
+      (_session, _table, keys) => new Promise((resolve) => requests.push({ keys, finish: () => resolve(readRows(keys)) })),
+    );
+    const vm = harness();
+    onTestFinished(async () => {
+      wrapper.unmount();
+      requests.forEach((request) => request.finish());
+      await Promise.allSettled(works);
+    });
+    await flushPromises();
+    works.push(vm.loadTableWindow(240, 10), vm.loadTableWindow(300, 10));
+    works.push(vm.loadTableWindow(400, 10));
+    const selection = vm.ensureTableRows(['key-400']);
+    works.push(selection);
+    const obsolete = vm.loadTableWindow(500, 10);
+    works.push(obsolete, vm.loadTableWindow(600, 10));
+    await obsolete;
+    expect(vm.gridModel.value.rowsByKey['key-500']).toBeUndefined();
+    expect(requests.map((request) => request.keys)).toEqual([
+      rows.slice(240, 250).map((row) => row.rowKey),
+      rows.slice(300, 310).map((row) => row.rowKey),
+    ]);
+    if (ending === 'finish') {
+      requests[0]!.finish();
+      await flushPromises();
+      expect(requests[2]!.keys).toEqual(rows.slice(600, 610).map((row) => row.rowKey));
+      requests[1]!.finish();
+      await flushPromises();
+      expect(requests[3]!.keys).toEqual(rows.slice(400, 410).map((row) => row.rowKey));
+      requests.slice(2).forEach((request) => request.finish());
+      await Promise.all(works);
+      expect(await selection).toBe(true);
+      expect(vm.gridModel.value.rowsByKey['key-600']).toBeDefined();
+      const retry = vm.loadTableWindow(500, 10);
+      works.push(retry);
+      requests[4]!.finish();
+      await retry;
+      expect(vm.gridModel.value.rowsByKey['key-500']).toBeDefined();
+    } else {
+      if (ending === 'release') closeProjectChangeFixture(target.sessionId);
+      else wrapper.unmount();
+      await Promise.all(works);
+      requests.forEach((request) => request.finish());
+      await flushPromises();
+      expect(await selection).toBe(false);
+      expect(requests).toHaveLength(2);
+      expect(vm.gridModel.value.rowsByKey['key-240']).toBeUndefined();
+    }
+    expect(mocks.error).not.toHaveBeenCalled();
   });
   it('reuses loaded range contents without another row, index or source read', async () => {
     const vm = harness();
@@ -564,25 +612,6 @@ describe('CSV index and keyed content owner', () => {
     await flushPromises();
     expect(mocks.error).not.toHaveBeenCalled();
     expect(useCsvEditorStore().getCsvModState(target.modRoot)).toBeUndefined();
-  });
-  it('settles queued waits and rejects late row acceptance on unmount', async () => {
-    let finish!: (value: CsvTableRowsRead) => void;
-    mocks.rows.mockImplementation(
-      () =>
-        new Promise<CsvTableRowsRead>((resolve) => {
-          finish = resolve;
-        }),
-    );
-    const vm = harness();
-    await flushPromises();
-    const loading = vm.loadTableWindow(240, 760);
-    await flushPromises();
-    wrapper.unmount();
-    await loading;
-    finish(readRows(['key-600']));
-    await flushPromises();
-    expect(useCsvEditorStore().getCsvModState(target.modRoot)!.documents.ships.rows['key-600']).toBeUndefined();
-    expect(mocks.rows).toHaveBeenCalledTimes(2);
   });
   it('filters identities while retaining loaded content and column widths', async () => {
     const vm = harness();

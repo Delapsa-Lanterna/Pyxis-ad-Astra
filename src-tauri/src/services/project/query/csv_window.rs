@@ -313,12 +313,19 @@ mod tests {
             query_csv_table_rows(&manifest.session_id, CsvTableKey::Ships, requested).unwrap();
         assert_eq!(batch.rows[0].data["id"], "b");
         assert!(batch.rows[1].is_comment);
-        let too_many = commands::query_csv_table_rows(CsvTableRowsPayload {
+        let requested_rows = commands::query_csv_table_rows(CsvTableRowsPayload {
             session_id: manifest.session_id.clone(),
             table: CsvTableKey::Ships,
             row_keys: vec![index.row_keys[0].clone(); 161],
-        });
-        assert!(too_many.is_err());
+        })
+        .unwrap();
+        assert_eq!(requested_rows.rows.len(), 161);
+        assert!(
+            requested_rows
+                .rows
+                .iter()
+                .all(|row| row.row_key == index.row_keys[0])
+        );
         assert!(
             query_csv_table_rows(
                 &manifest.session_id,

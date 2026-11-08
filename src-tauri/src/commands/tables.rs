@@ -43,12 +43,6 @@ pub fn query_csv_table_index(payload: CsvTableIndexPayload) -> Result<CsvTableIn
 
 #[command_macros::command(async)]
 pub fn query_csv_table_rows(payload: CsvTableRowsPayload) -> Result<CsvTableRowsRead, AppError> {
-    if payload.row_keys.len() > 160 {
-        return Err(AppError::message(
-            "table.row_batch_too_large",
-            "CSV 单批读取超过 160 行",
-        ));
-    }
     services::query_csv_table_rows(&payload.session_id, payload.table, payload.row_keys)
 }
 

@@ -36,10 +36,15 @@ export function useCsvTableViewModel(model: CsvEditorModel, host: CsvEditorHost)
   let validationFailed = false;
   let validationPending: { key: string; work: Promise<boolean> } | null = null;
   let pendingRows = new Map<string, Promise<void>>();
-  const rowQueue: Array<{ run: () => Promise<void>; cancel: () => void }> = [];
+  const rowQueue: Array<{ keys: string[]; required: boolean; run: () => Promise<void>; cancel: () => void }> = [];
   let rowReads = 0;
   let lastRange = { start: 0, count: 240 };
   const widthSample = ref<CsvDraftRow[]>([]);
+  // Bound response work by measured row size while allowing compact demands in one call.
+  const rowBatchSize = computed(() => {
+    const bytes = new TextEncoder().encode(JSON.stringify(widthSample.value)).length;
+    return Math.max(1, Math.floor((3 * 1024 * 1024 * widthSample.value.length) / bytes));
+  });
   const loadedSourceOptions = ref(new Map<string, SelectOption[]>());
   const searchPending = ref(false),
     windowReady = ref(false);
@@ -342,7 +347,10 @@ export function useCsvTableViewModel(model: CsvEditorModel, host: CsvEditorHost)
       return tasks;
     },
     (sessionId) => {
-      if (sessionId === target.value?.sessionId) reads.revoke('session');
+      if (sessionId === target.value?.sessionId) {
+        reads.revoke('session');
+        clearRowQueue();
+      }
     },
   );
 
@@ -533,28 +541,45 @@ export function useCsvTableViewModel(model: CsvEditorModel, host: CsvEditorHost)
   }
   function loadTableWindow(start: number, count: number): Promise<void> {
     lastRange = { start, count };
-    return loadRows(view.rowKeys.slice(start, start + count));
+    return loadRows(view.rowKeys.slice(start, start + count), false);
   }
-  function loadRows(requested: string[]): Promise<void> {
+  function loadRows(requested: string[], required = true): Promise<void> {
     const captured = target.value;
-    if (!captured || !requested.length || !windowReady.value) return Promise.resolve();
+    if (!captured || !windowReady.value) return Promise.resolve();
     const state = tables.getCsvModState(captured.modRoot);
     if (!state) return Promise.resolve();
+    // Selection reads must survive replacement of speculative viewport work.
+    for (let index = rowQueue.length - 1; index >= 0; index--) {
+      const job = rowQueue[index]!;
+      if (required) {
+        if (job.keys.some((key) => requested.includes(key))) job.required = true;
+      } else if (!job.required) {
+        rowQueue.splice(index, 1);
+        job.cancel();
+      }
+    }
     const generation = tables.tableReadGeneration(captured.modRoot, captured.table);
-    const missing = requested.filter((key) => !state.documents[captured.table].rows[key] && !pendingRows.has(key));
+    const keys = requested.filter((key) => !state.documents[captured.table].rows[key] && !pendingRows.has(key));
     const pending = pendingRows;
     const waits: Promise<void>[] = requested.flatMap((key) => (pending.has(key) ? [pending.get(key)!] : []));
-    for (let offset = 0; offset < missing.length; offset += 160) {
-      const keys = missing.slice(offset, offset + 160);
+    let priority = 0;
+    for (let offset = 0; offset < keys.length; offset += rowBatchSize.value) {
+      const batch = keys.slice(offset, offset + rowBatchSize.value);
       const wait = new Promise<void>((resolve) => {
-        rowQueue.push({
-          cancel: resolve,
+        const complete = () => {
+          batch.forEach((key) => pending.delete(key));
+          resolve();
+        };
+        const job = {
+          keys: batch,
+          required,
+          cancel: complete,
           run: async () => {
             try {
               await reads.consume(
-                'rows:' + keys[0],
-                { ...captured, generation, keys },
-                (signal) => queryTableRows(captured.sessionId, captured.table, keys, signal),
+                'rows:' + batch[0],
+                { ...captured, generation, keys: batch },
+                (signal) => queryTableRows(captured.sessionId, captured.table, batch, signal),
                 {
                   ready: (rows) => {
                     if (
@@ -575,13 +600,14 @@ export function useCsvTableViewModel(model: CsvEditorModel, host: CsvEditorHost)
                 },
               );
             } finally {
-              keys.forEach((key) => pending.delete(key));
-              resolve();
+              complete();
             }
           },
-        });
+        };
+        if (required) rowQueue.push(job);
+        else rowQueue.splice(priority++, 0, job);
       });
-      keys.forEach((key) => pending.set(key, wait));
+      batch.forEach((key) => pending.set(key, wait));
       waits.push(wait);
     }
     drainRows();
