@@ -1,4 +1,4 @@
-import type { ErrorDiagnostic, ErrorLocation, FeedbackNotice, FeedbackFileTarget, FileReference } from '@/shared/types';
+import type { ErrorDiagnostic, ErrorLocation, FeedbackNotice, FeedbackFileTarget, FileReference, FieldProblem } from '@/shared/types';
 import { commandErrorCopy } from '@/shared/lib/error-messages';
 export type { FileReference } from '@/shared/types';
 
@@ -11,6 +11,7 @@ export class AppError extends Error {
   override readonly cause?: unknown;
   readonly userMessage?: string;
   readonly fileTarget?: FeedbackFileTarget;
+  readonly issues?: FieldProblem[];
 
   constructor(
     message: string,
@@ -23,6 +24,7 @@ export class AppError extends Error {
       cause?: unknown;
       userMessage?: string;
       fileTarget?: FeedbackFileTarget;
+      issues?: FieldProblem[];
     } = {},
   ) {
     super(message);
@@ -35,7 +37,23 @@ export class AppError extends Error {
     this.cause = options.cause;
     this.userMessage = options.userMessage;
     this.fileTarget = options.fileTarget;
+    this.issues = options.issues ?? errorProblemsOf(options.cause);
   }
+}
+
+function errorProblemsOf(error: unknown): FieldProblem[] | undefined {
+  if (error instanceof AppError) return error.issues;
+  if (!error || typeof error !== 'object' || !('issues' in error) || !Array.isArray(error.issues)) return undefined;
+  return error.issues.filter((issue): issue is FieldProblem =>
+    Boolean(
+      issue &&
+      typeof issue === 'object' &&
+      (issue.severity === 'error' || issue.severity === 'warning') &&
+      typeof issue.code === 'string' &&
+      typeof issue.path === 'string' &&
+      typeof issue.message === 'string',
+    ),
+  );
 }
 
 export function withCause(message: string, cause: unknown, action?: string): AppError {

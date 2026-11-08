@@ -61,7 +61,7 @@ describe('CSV declared types and complete row rules', () => {
     expect(check('descriptions', values, ctx)).toHaveLength(count);
     ctx.entities = {};
     expect(check('descriptions', values, ctx)).toEqual([
-      expect.objectContaining({ code: 'csv.relation', path: 'entry/id', severity: 'warning' }),
+      expect.objectContaining({ code: 'csv.description_reference', path: 'entry/id', severity: 'warning' }),
     ]);
   });
   it.each(TABLE_KEYS)('preserves annotation rows in %s', (table) => {

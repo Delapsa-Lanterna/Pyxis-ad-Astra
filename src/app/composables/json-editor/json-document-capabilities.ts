@@ -176,8 +176,8 @@ export async function saveJsonDocument(
       composition,
     );
     if (!result) return;
-    receipt = result.receipt;
-    value = result.entity.data;
+    receipt = result;
+    value = result.content!.value.data as RowData;
   } else {
     const draft = kind === 'faction' ? configFactionSaveDraft(data, schema, nextId) : configMissionSaveDraft(data, schema);
     const result = await saveIndexedEntityAction(
@@ -198,13 +198,14 @@ export async function saveJsonDocument(
       composition,
     );
     if (!result) return;
-    receipt = result.receipt;
+    receipt = result;
+    const entity = result.content!.value;
     value =
       kind === 'faction'
-        ? result.entity.entityData!
+        ? entity.entityData!
         : {
-            ...result.entity.entityData!,
-            list: result.entity.indexRows.find((row) => !row.isComment && row.data.mission === nextId)!.data,
+            ...entity.entityData!,
+            list: entity.indexRows.find((row) => !row.isComment && row.data.mission === nextId)!.data,
           };
     value = kind === 'faction' ? value : jsonDocumentValue(kind, value);
   }
@@ -256,23 +257,21 @@ export async function createJsonDocument(
   if (kind === 'variant' || kind === 'skin') {
     if (!companion)
       throw new AppError(file!.companionField + ' 不能为空', { action: 'create-json-document', code: 'config.missing_field' });
-    return (await createJsonFileAction(kind, sessionId, modRoot, companion, id, request)).receipt;
+    return createJsonFileAction(kind, sessionId, modRoot, companion, id, request);
   }
-  return (
-    await createIndexedEntityAction(
-      {
-        sessionId,
-        modRoot,
-        kind: kind as 'faction' | 'mission',
-        previousId: null,
-        nextId: id,
-        baseVersions: [],
-        indexRow: kind === 'faction' ? buildFactionIndexRow(id) : buildMissionIndexRow([], ['mission'], id),
-        entityData: kind === 'faction' ? { file: createDefaultFaction(id) } : { descriptor: { title: id }, text: '' },
-      },
-      request,
-    )
-  ).receipt;
+  return createIndexedEntityAction(
+    {
+      sessionId,
+      modRoot,
+      kind: kind as 'faction' | 'mission',
+      previousId: null,
+      nextId: id,
+      baseVersions: [],
+      indexRow: kind === 'faction' ? buildFactionIndexRow(id) : buildMissionIndexRow([], ['mission'], id),
+      entityData: kind === 'faction' ? { file: createDefaultFaction(id) } : { descriptor: { title: id }, text: '' },
+    },
+    request,
+  );
 }
 
 export function deleteJsonDocument(

@@ -136,7 +136,7 @@ export function rustServicePaths(code, rel, exports, positionAt = () => ({ line:
             ? resolveParts(base, ['self', ...item.path])
             : alias
               ? [...alias, ...item.path.slice(1)]
-              : null;
+              : item.path;
       if (!resolved) continue;
       scopeAt(match.index).aliases.set(item.alias, resolved);
       add(

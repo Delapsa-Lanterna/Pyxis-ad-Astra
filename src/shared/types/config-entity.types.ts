@@ -1,13 +1,7 @@
-import type { JsonValue, RowData } from '@/shared/types/json.types';
-import type { WriteResult } from '@/shared/types/write-commit.types';
+import type { RowData } from '@/shared/types/json.types';
 import type { CsvRow } from '@/shared/types/tables.types';
 import type { FileVersion } from '@/shared/types/project-identity.types';
 import type { JsonWriteOptions } from '@/shared/types/json-write.types';
-
-export interface SavedConfig<T> {
-  entity: T;
-  receipt: WriteResult;
-}
 
 export interface ConfigEditTarget {
   sessionId: string;
@@ -24,11 +18,6 @@ export interface IndexedConfigEntityRefresh {
   indexPath: string;
   indexHeader: string[];
   indexRows: CsvRow[];
-  entityData: JsonValue;
-}
-
-export interface IndexedConfigEntityData extends Omit<IndexedConfigEntityRefresh, 'entityData'> {
-  baseVersions: FileVersion[];
   entityData: RowData | null;
 }
 

@@ -20,6 +20,7 @@
 
 ### 消费
 
+- `src/app/composables/use-app-feedback.ts`：窗口反馈的提供与消费入口。
 - `src/shared/lib/paths.ts`：目标根与物理路径的规范化及目录包含判定。
 - `src/shared/runtime/document-editor.ts`：CSV 与 JSON 的完整活动目标、输入、保存及历史结果契约。
 - `src/shared/runtime/field-inputs.ts`：目标输入集合，拥有登记顺序、提交接纳、取消与释放。
@@ -27,6 +28,7 @@
 - `src/shared/types/edit-context.types.ts`：目标键、基线代次与交接类型。
 - `src/shared/types/joint-edit.types.ts`：目标比较消费的 session、Mod 根与写入路径协议。
 - `src/shared/types/write-commit.types.ts`：保存结果消费方交付的公共接纳任务契约。
+- `src/stores/project-sync.store.ts`：当前待办、错误和项目等待状态。
 
 ### 装配
 
@@ -48,6 +50,7 @@
 - 快照历史绑定 `EditContext`，消费方负责业务身份映射与响应式容量输入。
 - 控件提供无写入的校验结果，FieldInputs 交付原文错误及所属文档问题；文档完整性检查独立于控件挂载，目标释放清理所属登记。
 - 控件拥有原文与转换错误，领域拥有字段形状和转换，`FieldInputs` 拥有提交顺序与接纳权。
+- 完整文档检查责任由宿主显式登记，附加提醒登记保持所属检查范围；原文错误与独立提醒共同保留。
 - 未保存注册表按 Mod 根聚合会话和 CSV 判定源，导航与关闭消费其判定入口。
 - 编辑会话原语持有完整目标快照、base、draft、revision、dirty 与 `pending` external。
 - 适配器提供 Ref API，目标会话接纳读取结果、保存句柄及实际持久化基线。

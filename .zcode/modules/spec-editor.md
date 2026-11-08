@@ -16,11 +16,12 @@ Spec 编辑器基础模块提供规格窗口宿主、共同输入契约和业务
 - `src/app/composables/spec-editor/spec-schema-context.ts`：所属规格目标的字段来源上下文交付。
 - `src/app/composables/spec-editor/use-spec-editor-draft-images.ts`：草稿图像读取及接纳。
 - `src/app/composables/spec-editor/use-spec-editor-window-view-model.ts`：四类规格目标会话、保存、身份与外部基线接纳。
+- `src/app/composables/spec-editor/use-spec-problem-navigation.ts`：规格问题定位、所属分组展开与有效请求滚动交接。
 - `src/app/composables/spec-editor/use-spec-problems.ts`：会话问题聚合、原文优先级、失败保留及共享展示。
 - `src/domain/editors/lib/game-spec-enums.ts`：弹体、导弹与战术系统分支的游戏枚举。
 - `src/domain/spec-editor/spec-editor-definitions.ts`：窗口名称和尺寸的纯定义。
 - `src/domain/spec-editor/spec-fields.ts`：字段声明、嵌套路径定位及字段更新。
-- `src/domain/spec-editor/spec-schemas.ts`：Spec 资产引用解析及当前分支装配。
+- `src/domain/spec-editor/spec-schemas.ts`：正式完整字段定义消费及当前分支装配。
 - `src/domain/spec-editor/spec-validation.ts`：规格字段路径及条件必填到共同字段规则的装配。
 - `src/orchestrators/spec-editor-identity.orchestrator.ts`：规格身份意图、冲突聚焦及规格窗口身份交接。
 - `src/services/spec-editor.service.ts`：规格保存、导入及身份意图交接。
@@ -28,6 +29,7 @@ Spec 编辑器基础模块提供规格窗口宿主、共同输入契约和业务
 
 ### 消费
 
+- `src-tauri/src/domain/entity_definitions.rs`：八种实体的目录、后缀、ID 字段及规格、表格关联登记。
 - `src-tauri/src/models/spec_editor.rs`：规格种类、武器分支、保存及外部导入请求协议。
 - `src/app/components/editors/common/EditorCollapse.vue`：共同分组的展开列表交接。
 - `src/app/components/editors/common/EditorCollapseItem.vue`：共同分组的标题、辅助动作与保留输入的内容展示。
@@ -35,23 +37,39 @@ Spec 编辑器基础模块提供规格窗口宿主、共同输入契约和业务
 - `src/app/components/editors/common/EditorHeader.vue`：编辑与预览共用的标题、dirty、外部基线及动作插槽。
 - `src/app/components/editors/common/EditorInspector.vue`：编辑与预览共用的属性区标题及独立滚动容器。
 - `src/app/components/field-editor/SchemaValueInput.vue`：声明来源的规格引用字段控件。
+- `src/app/composables/editors/use-editor-document.ts`：工作值、动作起点、提交快照、字段与手势边界及历史交接。
+- `src/app/composables/use-app-feedback.ts`：窗口反馈的提供与消费入口。
+- `src/app/composables/use-edit-target-draft-session.ts`：完整目标快照、读取票据、保存 Promise 与接纳上下文。
 - `src/app/composables/use-field-input-actions.ts`：所属输入集合登记、活动输入提交与释放。
 - `src/domain/edit-session.ts`：编辑会话与撤销栈原语，拥有 base/draft/dirty/revision/pending external 状态机与双栈状态工厂。
+- `src/domain/editors/lib/editor-constants.ts`：吸附步长与选项常量。
 - `src/domain/entity-write/spec-construction.ts`：规格与嵌套对象初始内容。
+- `src/domain/field-editor/field-editor-context.ts`：编辑上下文、候选展示和 CSV 选项索引。
+- `src/domain/json-composition.ts`：前端内容组合、来源定位、稀疏编辑及覆盖撤销。
 - `src/domain/project/entity-definitions.ts`：实体内容 ID 字段及字符串 ID 提取。
 - `src/domain/project/entity-versions.ts`：保存目标版本捕获与关联表凭据交接。
 - `src/domain/schema/config-schema-registry.ts`：规格内联引擎样式消费的正式对象定义。
 - `src/domain/schema/schema-validation.ts`：字段类型、结构及声明约束的共同问题投影。
+- `src/domain/schema/schema-values.ts`：字段与列资产加载、来源声明、值及结构纯规则。
 - `src/domain/schema/schema.types.ts`：对象字段与扩展权限的共同声明。
 - `src/orchestrators/entity-write.orchestrator.ts`：实体保存的文件名选择。
 - `src/orchestrators/json-write-confirmation.orchestrator.ts`：保存提交所属的 JSON 原文保留和逐源重排确认。
+- `src/orchestrators/project-sync.orchestrator.ts`：窗口内保存消费过程和内容维护者交接。
+- `src/orchestrators/window-target-focus.orchestrator.ts`：冲突目标、已加载路径与规格或文本窗口聚焦的动作。
+- `src/services/entity-query.service.ts`：四类查询定义、正式请求与实体失效选择。
 - `src/services/source-catalog.service.ts`：规格字段的正式候选目录读取。
+- `src/services/window.service.ts`：窗口 command 的类型化签名与参数装配。
 - `src/shared/runtime/dialog.runtime.ts`：目录、文件、规格与图片的原生选择适配。
 - `src/shared/runtime/editor-problems.ts`：原文与文档问题去重、保存失败保留及共同聚合。
 - `src/shared/types/spec-editor.types.ts`：规格种类、分支、保存及导入请求与窗口业务读取投影。
 - `src/shared/ui/EditorProblems.vue`：红黄分级、完整问题列表及条数展示。
 - `src/shared/ui/FieldLabel.vue`：显式名称、字段键与完整路径的共同标签。
 - `src/shared/ui/FieldRow.vue`：字段、集合、说明与辅助动作的共同展示。
+- `src/stores/project-sync.store.ts`：当前待办、错误和项目等待状态。
+- `src/stores/save-command.store.ts`：文档保存句柄、进行中动作、等待与关闭交接登记。
+- `src/windows/current.window.ts`：当前窗口生命周期，提供关闭请求、关闭监听、最小化、最大化、拖拽、重载与显示。
+- `src/windows/managed.window.ts`：请求交付，等待所属请求的终结回执。
+- `src/windows/window-context.window.ts`：只读上下文、请求监听接纳及上下文版本的前端运行态。
 
 ### 装配
 
@@ -91,6 +109,7 @@ Spec 编辑器基础模块提供规格窗口宿主、共同输入契约和业务
 
 - 保存提醒必须逐项交付字段、当前值和完整原因；缺失规格确认通过下拉选择默认内容或导入来源并交付正式路径和实际类型，主按钮执行当前选择，内容沿所属会话接纳。
 - 支持组合的规格必须按本次本地身份共同交付字段标记、输入规则与保存问题；本地无 ID 时允许顶层和嵌套必填内容缺省。
+- 四类规格检查必须直接向共同字段规则交付完整或局部内容，已提供字段的类型检查保持独立于展示条件，问题直接使用 FieldProblem。
 - 规格保存必须消费实体写入的统一 ID 状态变化确认；确认后提交同次捕获内容，并保留后续输入。
 - 局部规格草稿必须保留本地内容，归一化、画布与依赖预览消费合并后的展示内容；字段提交只允许写入实际修改的本地路径。
 - 保存必须在共同会话入口检查全部错误并确认全部警告；按钮保持可点击，内容错误拒绝保存并提示解决顶部错误，警告每次确认，确认目标、内容与问题变化重新检查。

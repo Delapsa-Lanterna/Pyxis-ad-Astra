@@ -156,7 +156,7 @@ const cases: Array<{
     unrelated: detail,
     value: { root, referenceSettings: snapshot.referenceSettings, catalog: { kind: 'weapons', entries: [] } },
   },
-  { name: 'joint-edit-preview', read: () => queryJointEditPreview(draft), matching: changed, unrelated: detail, value: snapshot },
+  { name: 'joint-edit-candidate', read: () => queryJointEditPreview(draft), matching: changed, unrelated: detail, value: snapshot },
   {
     name: 'joint-edit-prepare',
     read: () => prepareJointEdit(draft),

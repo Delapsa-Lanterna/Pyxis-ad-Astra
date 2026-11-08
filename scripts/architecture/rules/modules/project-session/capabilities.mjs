@@ -63,7 +63,6 @@ export const projectCapabilities = [
       capability: 'entity-target-read',
       names: ['querySessionEntityEditTarget'],
       owners: [
-        { layer: 'orchestrators', domain: 'edit-target-handoff' },
         { layer: 'orchestrators', domain: 'spec-editor-identity' },
         { layer: 'orchestrators', domain: 'window-target-focus' },
         { layer: 'services' },

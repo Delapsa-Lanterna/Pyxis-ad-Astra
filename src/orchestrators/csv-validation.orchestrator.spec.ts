@@ -63,6 +63,22 @@ function fixture() {
   return { tables, manifest, target, document, edit, save, context, choose };
 }
 describe('CSV schema checks in the actual save entry', () => {
+  it('refreshes retained dependency errors before deciding the captured save', async () => {
+    const f = fixture();
+    f.edit('name', 'Edited');
+    const { csvValidationRequest } = await import('@/domain/csv-editor/csv-rule-context');
+    const { csvValidationRows } = await import('@/domain/csv-editor/csv-validation');
+    f.tables.acceptTableValidation(f.target, JSON.stringify(csvValidationRequest('ships', csvValidationRows(f.document))), {
+      ...f.context,
+      entities: {},
+    });
+    expect(f.tables.getTableProblems(f.target).issues.value).toMatchObject([{ code: 'csv.spec_missing' }]);
+    mocks.read.mockResolvedValueOnce(f.context);
+    mocks.write.mockResolvedValueOnce(savedWriteFixture());
+    await expect(f.save()).resolves.toMatchObject({ status: 'saved' });
+    expect(mocks.read).toHaveBeenCalledTimes(1);
+    expect(mocks.write).toHaveBeenCalledTimes(1);
+  });
   it.each(['beam', 'projectile'])('saves burst size through its declared float type with %s associated content', async (specClass) => {
     const f = fixture();
     const target = { ...f.target, table: 'weapons' as const };

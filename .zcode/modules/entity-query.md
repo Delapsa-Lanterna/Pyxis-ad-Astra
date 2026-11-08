@@ -16,11 +16,19 @@
 
 ### 消费
 
+- `src-tauri/src/domain/entity_definitions.rs`：八种实体的目录、后缀、ID 字段及规格、表格关联登记。
+- `src-tauri/src/domain/entity_identity.rs`：跨编辑器实体 ID、路径与来源范围纯规则。
 - `src-tauri/src/domain/json_composition.rs`：正式 JSON 来源的游戏合并规则。
 - `src-tauri/src/models/entity_query.rs`：实体详情、列表请求及返回记录。
+- `src-tauri/src/services/project/definitions/entity_definitions.rs`：实体来源、读取准备、刷新与摘要的登记规则。
+- `src-tauri/src/services/project/model.rs`：会话、引用视图、可编辑 CSV 行身份及表格业务元数据。
 - `src-tauri/src/services/project/query/json_layers.rs`：会话所属的正式有序 JSON 来源和版本。
 - `src-tauri/src/services/project/resources/entity_references.rs`：详情、列表资源映射及实际资源来源。
 - `src-tauri/src/services/project/resources/resource_identity.rs`：实体呈现按正式来源接纳资源集合的引用身份。
+- `src-tauri/src/services/project/session/access.rs`：捕获引用快照后锁定并交付所属就绪会话。
+- `src-tauri/src/services/project/session/csv_tables.rs`：正式表格内容、稳定行身份、来源保留、加载版本及实体计数构建。
+- `src-tauri/src/services/project/session/registry.rs`：会话存活登记、句柄与内容就绪门控。
+- `src-tauri/src/services/project/versions.rs`：会话已接纳来源的路径凭据投影。
 - `src/domain/project/query-scopes.ts`：标准实体失效 scope 匹配。
 - `src/services/query-cache.service.ts`：会话缓存、实时请求与失效通知。
 - `src/shared/types/entity-query.types.ts`：与 Rust 对应的实体请求与返回协议。

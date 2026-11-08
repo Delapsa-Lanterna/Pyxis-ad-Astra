@@ -15,6 +15,7 @@ import { useImmersiveEditorRuntime } from './immersive-editor/use-immersive-edit
 import { useImmersiveVariantEditor } from './immersive-editor/variant/use-immersive-variant-editor';
 import { useImmersiveWingEditor } from './immersive-editor/wing/use-immersive-wing-editor';
 import { useImmersiveWeaponEditor } from './immersive-editor/weapon/use-immersive-weapon-editor';
+import { validateJointFiles } from './joint-editor-validation';
 
 type ImmersivePanel = ShipImmersivePanel | WeaponPanel | WingPanel | VariantPanel;
 const immersiveEditorDefinitions: Record<JointEditRoot['kind'], ImmersiveEditorDefinition<ImmersivePanel>> = {
@@ -70,6 +71,7 @@ const immersiveEditorDefinitions: Record<JointEditRoot['kind'], ImmersiveEditorD
 
 export function useImmersiveEditorViewModel(root: JointEditRoot & { rowKey?: string }) {
   const runtime = useImmersiveEditorRuntime(root, immersiveEditorDefinitions[root.kind], {
+    validate: validateJointFiles,
     readSnapshot: root.kind === 'wing' ? (target, signal) => wing!.readSnapshot(target, signal) : undefined,
     onContentUpdate: root.kind === 'wing' ? (target) => wing!.refreshWingBaseline(target) : undefined,
   });

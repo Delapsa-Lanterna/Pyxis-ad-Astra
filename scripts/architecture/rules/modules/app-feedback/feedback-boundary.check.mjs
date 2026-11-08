@@ -1,8 +1,7 @@
-import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { messages, architectureFixtures } from '../../../testing/fixtures.mjs';
+import { architectureFixtures, messages } from '../../../testing/fixtures.mjs';
+import assert from 'node:assert/strict';
 import { feedbackBoundaryRule } from './feedback-boundary.mjs';
-import { capabilityBoundaryRule } from '../../capabilities/capability-boundary.mjs';
 
 test('settings and log declarations have separate owners and share the type barrel', () => {
   const files = architectureFixtures({
@@ -31,16 +30,6 @@ test('log service consumes log types and keeps settings persistence at its owner
   }
 });
 
-test('file commands use the service capability boundary', () => {
-  for (const owner of ['src/services/files.service.ts', 'src/shared/wire.ts']) {
-    const files = architectureFixtures({
-      [owner]: "import { invokeCommand } from '@/shared/runtime/command.runtime'; invokeCommand('load_editable_file');",
-      'src/shared/runtime/command.runtime.ts': 'export function invokeCommand() {}',
-    });
-    assert.equal(messages(capabilityBoundaryRule.check(files)).length, Number(owner.startsWith('src/shared/')));
-  }
-});
-
 for (const source of ['src/app/app-feedback.ts', 'src/app/composables/use-app-feedback.ts']) {
   for (const target of [
     'src/services/files.service.ts',
@@ -58,6 +47,7 @@ for (const source of ['src/app/app-feedback.ts', 'src/app/composables/use-app-fe
         assert.equal(messages(feedbackBoundaryRule.check(files)).length, 1);
       });
 }
+
 test('feedback presentation consumes shared diagnostics, UI providers and the existing log capability', () => {
   const files = architectureFixtures({
     'src/app/app-feedback.ts':

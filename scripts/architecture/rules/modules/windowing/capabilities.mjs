@@ -10,15 +10,12 @@ export const windowsCapabilities = [
     {
       capability: 'edit-target-coordination',
       names: ['reserveEditTargets', 'focusEditTargetOwner'],
-      owners: [{ layer: 'orchestrators', domain: 'edit-target-handoff' }],
+      owners: [{ layer: 'orchestrators', domain: 'window-target-focus' }],
     },
     {
       capability: 'edit-target-owners',
       names: ['queryEditTargetOwners'],
-      owners: [
-        { layer: 'orchestrators', domain: 'edit-target-handoff' },
-        { layer: 'orchestrators', domain: 'mod-save' },
-      ],
+      owners: [{ layer: 'orchestrators', domain: 'mod-save' }],
     },
     {
       capability: 'window-mod-save',
@@ -55,7 +52,6 @@ export const windowsCapabilities = [
       capability: 'entity-window-identity',
       names: ['reserveNativeWindowTargets'],
       owners: [
-        { layer: 'orchestrators', domain: 'edit-target-handoff' },
         { layer: 'orchestrators', domain: 'spec-editor-identity' },
         { layer: 'orchestrators', domain: 'window-identity' },
         { layer: 'orchestrators', domain: 'csv-save' },
@@ -66,7 +62,6 @@ export const windowsCapabilities = [
       capability: 'window-target-release',
       names: ['releaseNativeWindowTargets'],
       owners: [
-        { layer: 'orchestrators', domain: 'edit-target-handoff' },
         { layer: 'orchestrators', domain: 'spec-editor-identity' },
         { layer: 'orchestrators', domain: 'window-identity' },
         { layer: 'orchestrators', domain: 'csv-save' },

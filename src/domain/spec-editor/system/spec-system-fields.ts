@@ -1,17 +1,15 @@
 import type { RowData } from '@/shared/types';
 import { deepClone } from '@/shared/lib/starsector';
 import { specSchema, specSections } from '@/domain/spec-editor/spec-schemas';
-import { schemaFieldIssues } from '@/domain/schema/schema-validation';
+import { schemaDocumentIssues } from '@/domain/schema/schema-validation';
 const schema = specSchema('spec-system');
 export const SYSTEM_SOUND_FIELDS = schema.sections!.find((section) => section.id === 'sound')!.fields.filter((field) => field.source);
 export const SYSTEM_AI_HINTS_SCHEMA = schema.sections!.find((section) => section.id === 'aiHints')!.fields[0]!;
 export function systemSections(system: RowData) {
   return specSections('spec-system', system);
 }
-export function systemSpecIssues(system: RowData) {
-  return systemSections(system).flatMap((section) =>
-    section.fields.flatMap((field) => schemaFieldIssues(field, system[field.key], field.key, false, system)),
-  );
+export function systemSpecIssues(system: RowData, partial = false) {
+  return schemaDocumentIssues(schema, system, partial);
 }
 export function normalizeSystemSpec(system: RowData): RowData {
   const normalized = deepClone(system);

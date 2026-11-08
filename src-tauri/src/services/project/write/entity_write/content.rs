@@ -37,6 +37,7 @@ fn content_schema(kind: EntityKind) -> Option<&'static Value> {
     }))
 }
 
+#[cfg(test)]
 pub fn validate_entity_content(
     session_id: &str,
     kind: EntityKind,
@@ -57,7 +58,7 @@ pub fn validate_entity_content(
     )
 }
 
-fn validate_entity_content_in(
+pub(in crate::services::project) fn validate_entity_content_in(
     session: &ProjectSession,
     kind: EntityKind,
     relative: &str,
@@ -71,18 +72,28 @@ fn validate_entity_content_in(
     let mut composition = composition.cloned().unwrap_or_default();
     composition.replace |= replacing;
     let effective = json_composition::compose_game_json(&composition, data)?;
+    let mut issues = Vec::new();
+    let mut code = "config.shape_invalid";
+    let mut collect = |result: AppResult<()>| {
+        if let Err(error) = result {
+            if issues.is_empty() {
+                code = error.code();
+            }
+            issues.extend(error.field_problems());
+        }
+    };
     let id_field = entity_spec_definition(kind).expect("spec format").id_field;
     if data
         .get(id_field)
         .and_then(Value::as_str)
         .is_none_or(str::is_empty)
     {
-        schema::validate_partial_document(schema, data)?;
+        collect(schema::validate_partial_document(schema, data));
     } else if matches!(
         kind,
         EntityKind::Faction | EntityKind::Skin | EntityKind::Variant
     ) {
-        schema::validate_document(schema, &effective)?;
+        collect(schema::validate_document(schema, &effective));
     }
     if kind == EntityKind::Weapon
         && data
@@ -91,21 +102,32 @@ fn validate_entity_content_in(
             .is_some_and(|id| !id.is_empty())
         && effective.get("specClass").is_some()
     {
-        entity_construction::validate_weapon_editor_spec(
+        collect(entity_construction::validate_weapon_editor_spec(
             &effective,
             &Path::new(&session.manifest.mod_root).join(relative),
             schema,
-        )?;
+        ));
     }
     if kind == EntityKind::Skin && effective.get("baseHullId").is_some() {
-        single_files::validate_skin_engine_changes_in(session, &effective)?;
+        collect(single_files::validate_skin_engine_changes_in(
+            session, &effective,
+        ));
     }
     if kind == EntityKind::Ship
-        && let Some(bounds) = effective.get("bounds").filter(|value| !value.is_null())
+        && let Some(bounds) = effective.get("bounds")
     {
-        schema::validate_field(&schema["definitions"]["bounds"], bounds, "bounds", true)?;
+        collect(schema::validate_field(
+            &schema["definitions"]["bounds"],
+            bounds,
+            "bounds",
+            true,
+        ));
     }
-    Ok(())
+    if issues.is_empty() {
+        Ok(())
+    } else {
+        Err(AppError::Validation { code, issues })
+    }
 }
 pub fn save_entity_spec(
     session_id: &str,

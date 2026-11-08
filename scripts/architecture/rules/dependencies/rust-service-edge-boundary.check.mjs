@@ -1,7 +1,10 @@
+import { test } from 'node:test';
+import { architectureFixtures, messages } from '../../testing/fixtures.mjs';
 import assert from 'node:assert/strict';
-import test from 'node:test';
 import { rustServiceEdgeBoundaryRule } from './rust-service-edge-boundary.mjs';
-import { messages, architectureFixtures } from '../../testing/fixtures.mjs';
+
+const serviceAssembly =
+  'pub(crate) use project::query::entities::query_entity; pub(crate) use project::write::entity_write::content::save_entity_spec;';
 
 test('project synchronization assembles authorized roots and source watches', () => {
   const context = architectureFixtures({
@@ -53,6 +56,7 @@ test('application assembly consumes the media cache configuration capability', (
     [],
   );
 });
+
 test('settings consumers keep unrelated project capabilities at their owner', () => {
   const failures = messages(
     rustServiceEdgeBoundaryRule.check(
@@ -110,4 +114,12 @@ test('log directory assembly captures workspace roots at its actual owner', () =
     assert.equal(diagnostic.line, 2);
     assert.equal(diagnostic.target, 'crate::services::workspace_persistence::load_persisted_workspace_roots');
   }
+});
+
+test('production permissions exclude test-only imports through formal service exports', () => {
+  const files = architectureFixtures({
+    'src-tauri/src/services/mod.rs': serviceAssembly,
+    'src-tauri/src/services/app_settings.rs': '#[cfg(test)] mod tests { fn query() { crate::services::query_entity(); } }',
+  });
+  assert.deepEqual(messages(rustServiceEdgeBoundaryRule.check(files)), []);
 });

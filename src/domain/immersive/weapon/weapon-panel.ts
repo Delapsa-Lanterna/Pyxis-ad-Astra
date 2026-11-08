@@ -5,6 +5,8 @@ import type { ImmersiveField, ImmersiveStat } from '../fields';
 import { immersiveSourceRecords } from '../source-records';
 import { jointObject } from '@/domain/joint-edit';
 import { getCsvColumnSchemas } from '@/domain/schema/csv-schema-registry';
+import { csvFieldSchema } from '@/domain/schema/csv-value-validation';
+import { getSchema } from '@/domain/schema/config-schema-registry';
 import { schemaStringValue } from '@/domain/schema/schema-values';
 import { weaponStatistics, weaponAccuracy, weaponTurnRate, weaponMissileSpeed, weaponMissileTracking } from './weapon-statistics';
 import { weaponImageLayers, weaponLoadedMissile } from '@/shared/lib/starsector/weapon-images';
@@ -78,30 +80,24 @@ export function projectWeaponPanel(
     description = jointObject(values[sources.description.key]);
   const columns = getCsvColumnSchemas('weapons');
   const cf = (key: string, label = columns.find((column) => column.key === key)?.label ?? key): ImmersiveField => {
-    const column = columns.find((column) => column.key === key);
+    const column = columns.find((column) => column.key === key)!;
     return {
       id: 'csv/' + key,
       recordKey: sources.csv.key,
-      schema: {
-        key,
-        label,
-        type:
-          column?.control === 'number'
-            ? 'float'
-            : column?.control === 'boolean'
-              ? 'boolean'
-              : column?.control === 'enum' || column?.source
-                ? 'enum'
-                : 'string',
-        options: column?.options,
-        source: column?.source,
-      },
+      column,
+      schema: { ...csvFieldSchema(column), label },
     };
   };
-  const sf = (key: string, label: string, options?: string[]): ImmersiveField => ({
+  const specFields = getSchema('spec-weapon')!.sections!.flatMap((section) => section.fields);
+  const sf = (key: string, label: string): ImmersiveField => ({
     id: 'spec/' + key,
     recordKey: sources.spec.key,
-    schema: { key, label, type: options ? 'enum' : 'string', options },
+    schema: {
+      ...(specFields.find((field) => field.key === key) ??
+        getSchema('spec-weapon')!.definitions![key] ??
+        getSchema('spec-weapon')!.definitions!.save!.nested!.find((field) => field.key === key))!,
+      label,
+    },
     optionLabels: {
       ...WEAPON_TYPE_LABELS,
       ...WEAPON_SIZE_LABELS,
@@ -115,7 +111,7 @@ export function projectWeaponPanel(
       false: '关闭',
     },
   });
-  const n = (key: string, fallback = 0) => immersiveNumber(csv, key, fallback);
+  const n = (key: string, fallback = 0) => immersiveNumber(csv, key, fallback, 'weapons');
   const association = preview?.records.find((record) => record.key === preview.bindings.projectile);
   const projectile = jointObject(association?.value);
   const stats = weaponStatistics(csv, spec, projectile);
@@ -166,21 +162,11 @@ export function projectWeaponPanel(
     'mount',
     '安装类型',
     `${WEAPON_SIZE_LABELS[schemaStringValue(spec.size)] ?? schemaStringValue(spec.size)}，${WEAPON_TYPE_LABELS[schemaStringValue(spec.mountTypeOverride) || schemaStringValue(spec.type)] ?? schemaStringValue(spec.type)}`,
-    [
-      sf('size', '尺寸', Object.keys(WEAPON_SIZE_LABELS)),
-      sf('type', '武器类型', Object.keys(WEAPON_TYPE_LABELS)),
-      sf('mountTypeOverride', '挂载覆盖类型', Object.keys(WEAPON_TYPE_LABELS)),
-    ],
+    [sf('size', '尺寸'), sf('type', '武器类型'), sf('mountTypeOverride', '挂载覆盖类型')],
   );
   const cycleFields = [cf('chargeup'), cf('chargedown'), cf('burst size'), cf('burst delay')];
-  const shotFields = [
-    cf('damage/shot'),
-    ...cycleFields,
-    sf('barrelMode', '发射模式', ['ALTERNATING', 'ALTERNATING_BURST', 'DUAL', 'LINKED']),
-    { ...sf('turretOffsets', '炮塔发射点'), schema: { key: 'turretOffsets', label: '炮塔发射点', type: 'array' as const } },
-  ];
-  const beamFields = [cf('damage/second'), ...cycleFields, sf('beamFireOnlyOnFullCharge', '仅满充能开火', ['true', 'false'])];
-  beamFields.at(-1)!.schema.type = 'boolean';
+  const shotFields = [cf('damage/shot'), ...cycleFields, sf('barrelMode', '发射模式'), sf('turretOffsets', '炮塔发射点')];
+  const beamFields = [cf('damage/second'), ...cycleFields, sf('beamFireOnlyOnFullCharge', '仅满充能开火')];
   const damageFields = stats.beam ? beamFields : shotFields;
   const count = stats.barrels * (spec.interruptibleBurst ? 1 : stats.burst);
   const showCount = count > 1 && stats.ammo > count && count < 1000;
@@ -321,12 +307,7 @@ export function projectWeaponPanel(
           : '弹体使用原版充能、连射与再次射击周期；interruptibleBurst 使用 chargedown。',
       ),
     );
-  const branch = stat('branch', '规格分支', schemaStringValue(spec.specClass) || '请选择规格分支', [
-    {
-      ...sf('specClass', '规格分支', ['projectile', 'beam']),
-      schema: { key: 'specClass', label: '规格分支', type: 'enum', options: ['projectile', 'beam'], required: true },
-    },
-  ]);
+  const branch = stat('branch', '规格分支', schemaStringValue(spec.specClass) || '请选择规格分支', [sf('specClass', '规格分支')]);
   const projectileStat = stats.beam
     ? null
     : stat('projectile', '弹体来源', schemaStringValue(spec.projectileSpecId) || '引用未提供', [sf('projectileSpecId', '弹体引用')]);

@@ -18,14 +18,32 @@
 
 ### 消费
 
+- `src-tauri/src/domain/entity_definitions.rs`：八种实体的目录、后缀、ID 字段及规格、表格关联登记。
 - `src-tauri/src/models/file_editor.rs`：文本读取、保存、转码与身份请求协议。
 - `src-tauri/src/parsers/preserve_json.rs`：文本 ID 字段范围定位与替换。
+- `src-tauri/src/services/project/query/entity_targets.rs`：实际编辑目标、身份意图及正式版本范围。
+- `src-tauri/src/services/project/session.rs`：会话打开、关闭、内容更新与内部登记及就绪访问能力交付。
 - `src-tauri/src/services/project/write/entity_write.rs`：已识别实体文本的身份及关联写入。
+- `src/app/composables/use-app-feedback.ts`：窗口反馈的提供与消费入口。
+- `src/app/composables/use-context-menu.ts`：窗口菜单状态、目标操作、事件生命周期与业务根登记。
+- `src/app/composables/use-edit-target-draft-session.ts`：完整目标快照、读取票据、保存 Promise 与接纳上下文。
+- `src/app/composables/use-field-input-actions.ts`：所属输入集合登记、活动输入提交与释放。
+- `src/app/composables/use-managed-window-requests.ts`：组件作用域内请求接纳及释放适配。
+- `src/app/composables/use-snapshot-history.ts`：目标与基线代次绑定的文本和画布快照历史。
 - `src/app/composables/use-window-close-state.ts`：窗口内容关闭登记及操作锁。
+- `src/app/composables/use-window-shortcuts.ts`：统一窗口按键监听、菜单优先、关闭屏蔽及卸载释放。
 - `src/domain/project/entity-versions.ts`：保存目标版本捕获与关联表凭据交接。
+- `src/orchestrators/project-sync.orchestrator.ts`：窗口内保存消费过程和内容维护者交接。
 - `src/orchestrators/window-identity.orchestrator.ts`：正式文件身份预约及窗口交接。
+- `src/services/window.service.ts`：窗口 command 的类型化签名与参数装配。
 - `src/shared/types/file-editor.types.ts`：文本读取、保存、转码与身份请求协议。
 - `src/shared/types/write-commit.types.ts`：公共保存回执、提交同步、行键映射与正式内容交付。
+- `src/stores/project-sync.store.ts`：当前待办、错误和项目等待状态。
+- `src/stores/save-command.store.ts`：文档保存句柄、进行中动作、等待与关闭交接登记。
+- `src/stores/settings.store.ts`：settings 运行态，只持状态、setter 与派生值；初始快照经统一初始化入口注入。
+- `src/windows/current.window.ts`：当前窗口生命周期，提供关闭请求、关闭监听、最小化、最大化、拖拽、重载与显示。
+- `src/windows/managed.window.ts`：请求交付，等待所属请求的终结回执。
+- `src/windows/window-context.window.ts`：只读上下文、请求监听接纳及上下文版本的前端运行态。
 
 ### 装配
 

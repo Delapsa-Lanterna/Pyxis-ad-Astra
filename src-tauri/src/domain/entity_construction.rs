@@ -46,21 +46,11 @@ pub fn create_associated_spec(params: &AssociatedSpecCreateParams) -> Value {
 fn validate_weapon_rule(content: &Value, path: &Path, rule: &'static Value) -> AppResult<()> {
     let key = rule["key"].as_str().expect("bundled weapon field");
     schema::validate_field(rule, content.get(key).unwrap_or(&Value::Null), key, true).map_err(
-        |_| {
-            AppError::message(
-                rule["issueCode"]
-                    .as_str()
-                    .expect("bundled weapon issue code"),
-                format!(
-                    "{}: {key} {}",
-                    path.display(),
-                    rule["issueMessage"]
-                        .as_str()
-                        .expect("bundled weapon issue message")
-                ),
-            )
-            .at_field(key)
-            .at_path(path)
+        |error| AppError::Validation {
+            code: rule["issueCode"]
+                .as_str()
+                .expect("bundled weapon issue code"),
+            issues: error.at_path(path).field_problems(),
         },
     )
 }
@@ -76,13 +66,24 @@ pub fn validate_weapon_editor_spec(
     path: &Path,
     schema: &'static Value,
 ) -> AppResult<()> {
+    let mut issues = Vec::new();
+    let mut code = "config.shape_invalid";
     for rule in schema["definitions"]["save"]["nested"]
         .as_array()
         .expect("bundled weapon rules")
     {
-        validate_weapon_rule(content, path, rule)?;
+        if let Err(error) = validate_weapon_rule(content, path, rule) {
+            if issues.is_empty() {
+                code = error.code();
+            }
+            issues.extend(error.field_problems());
+        }
     }
-    Ok(())
+    if issues.is_empty() {
+        Ok(())
+    } else {
+        Err(AppError::Validation { code, issues })
+    }
 }
 
 #[cfg(test)]

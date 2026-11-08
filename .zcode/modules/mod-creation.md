@@ -22,6 +22,7 @@
 - `src-tauri/src/models/mod_creation.rs`：新建目的地、模板与正式创建结果。
 - `src-tauri/src/services/project/sources/roots.rs`：新建目标消费的游戏 mods 目录授权与游戏根推断。
 - `src/domain/schema/mod-info-schema.ts`：新建模板消费的已校验 Mod 信息字段默认值。
+- `src/domain/schema/schema-sections.ts`：字段与列资产加载、来源声明、值及结构纯规则。
 - `src/shared/types/mod-creation.types.ts`：类型化创建请求与返回模型。
 
 ## 边界

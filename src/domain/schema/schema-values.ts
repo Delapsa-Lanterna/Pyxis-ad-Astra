@@ -197,7 +197,9 @@ export function schemaKeyValueOutput(
 }
 
 export function getNestedValue(obj: RowData, key: string): unknown {
-  const parts = key.split('.');
+  const parts = [...key.matchAll(/(?:^|\.)([^.[\]]+)|\[("(?:[^"\\]|\\.)*"|\d+)\]/g)].map(
+    (match) => match[1] ?? (match[2]!.startsWith('"') ? String(JSON.parse(match[2]!)) : match[2]!),
+  );
   let current: unknown = obj;
   for (const part of parts) {
     if (current === null || current === undefined || typeof current !== 'object') return undefined;

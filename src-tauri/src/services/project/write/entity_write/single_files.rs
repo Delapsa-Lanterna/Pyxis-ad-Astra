@@ -113,47 +113,51 @@ pub(in crate::services::project) fn validate_skin_engine_changes_in(
     Ok(())
 }
 
-pub fn save_variant_entity(
+pub fn save_file_entity(
     session_id: &str,
+    kind: EntityKind,
     previous_id: Option<&str>,
     next_id: &str,
     data: Value,
     options: JsonWriteOptions,
     ordered_json: Option<&str>,
 ) -> AppResult<WriteResult<Value>> {
-    let content_id = data
-        .get("variantId")
-        .and_then(Value::as_str)
-        .ok_or_else(|| AppError::message("spec.id_mismatch", "装配数据缺少 variantId"))?;
-    if validate_entity_id(content_id, "装配 ID 无效")?
-        != validate_entity_id(next_id, "装配 ID 无效")?
+    let definition = spec_entity_definition(kind)?;
+    let content_id = models::file_content_id(&data, definition.id_field, Path::new(next_id));
+    if validate_entity_id(&content_id, definition.invalid_id_message)?
+        != validate_entity_id(next_id, definition.invalid_id_message)?
     {
         return Err(AppError::message(
             "spec.id_mismatch",
-            "装配数据 variantId 与保存目标不一致",
+            "文件内容 ID 与保存目标不一致",
         ));
     }
-    let info = entity_targets::query_entity_edit_target(
-        session_id,
-        EntityKind::Variant,
-        previous_id.unwrap_or(next_id),
-    )?;
+    let info =
+        entity_targets::query_entity_edit_target(session_id, kind, previous_id.unwrap_or(next_id))?;
     let result = save_entity_spec(session_id, &info.target, data, options, ordered_json)?;
     let after = &result.identity_changes[0].after;
     let content = &result
         .content
         .as_ref()
-        .expect("variant save returns data")
+        .expect("file save returns data")
         .value;
-    let refreshed = json_documents::build_variant_file(
-        Path::new(&after.write.root),
-        &after.write.rel_path,
-        content,
-    )?;
+    let refreshed = if kind == EntityKind::Variant {
+        serde_json::to_value(json_documents::build_variant_file(
+            Path::new(&after.write.root),
+            &after.write.rel_path,
+            content,
+        )?)?
+    } else {
+        serde_json::to_value(json_documents::build_skin_file(
+            Path::new(&after.write.root),
+            &after.write.rel_path,
+            content,
+        )?)?
+    };
     let owner = WriteContentTarget::Json {
         origin: after.into(),
     };
-    Ok(result.with_content(owner, serde_json::to_value(refreshed)?))
+    Ok(result.with_content(owner, refreshed))
 }
 
 pub struct JsonEntityFileInput<'a> {

@@ -29,7 +29,8 @@ pub(crate) use project::query::csv_validation::query_csv_validation;
 pub(crate) use project::query::csv_window::query_csv_table_window;
 pub(crate) use project::query::csv_window::read_project_csv;
 pub(crate) use project::query::csv_window::{
-    query_csv_row_preview, query_csv_row_resources, query_csv_table_index, query_csv_table_rows,
+    query_csv_row_preview, query_csv_row_resources, query_csv_source_index, query_csv_table_index,
+    query_csv_table_rows,
 };
 pub(crate) use project::query::entities::{query_entity, query_entity_list};
 pub(crate) use project::query::entity_targets::{
@@ -62,11 +63,10 @@ pub(crate) use project::write::csv_patch::save_csv_patch_snapshot;
 pub(crate) use project::write::csv_patch::{prepare_csv_save, write_csv_request};
 pub(crate) use project::write::entity_write::associated_spec_preparation::prepare_csv_associated_specs;
 pub(crate) use project::write::entity_write::content::save_entity_spec;
-pub(crate) use project::write::entity_write::content::validate_entity_content;
 pub(crate) use project::write::entity_write::content::{prepare_spec_save, write_spec_request};
 pub(crate) use project::write::entity_write::faction_index::delete_faction_entity;
 pub(crate) use project::write::entity_write::single_files::{
-    save_variant_entity, validate_skin_engine_changes,
+    save_file_entity, validate_skin_engine_changes,
 };
 pub(crate) use project::write::faction_identity::save_faction_entity;
 pub(crate) use project::write::joint_edit::prepare_joint_save;
@@ -77,6 +77,5 @@ pub use project::write::json_recovery::recreate_json_sources;
 pub mod performance_monitor;
 
 pub(crate) use project::write::entity_write::single_files::{
-    JsonEntityFileInput, create_json_entity_file, delete_json_entity_file, save_json_entity_file,
-    spec_entity_definition,
+    create_json_entity_file, delete_json_entity_file, spec_entity_definition,
 };

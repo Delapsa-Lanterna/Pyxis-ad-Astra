@@ -4,6 +4,8 @@ import { jointObject } from '@/domain/joint-edit';
 import { hullDataIndex, hullFieldValue, hullFieldInputs } from '../hull-fields';
 import { schemaStringValue } from '@/domain/schema/schema-values';
 import { getCsvColumnSchemas } from '@/domain/schema/csv-schema-registry';
+import { csvFieldSchema } from '@/domain/schema/csv-value-validation';
+import { getSchema } from '@/domain/schema/config-schema-registry';
 import { parseInputNumber } from '@/shared/lib/input-number';
 import { designTypeColor } from '../design-type';
 import { highlightedTextParts } from '../highlighted-text';
@@ -47,15 +49,28 @@ export function projectWingPanel(
   const wingKey = snapshot.bindings.csv!,
     wing = data(wingKey);
   const columns = getCsvColumnSchemas('wings');
-  const field = (recordKey: string, key: string, label: string, type: ImmersiveField['schema']['type'] = 'string'): ImmersiveField => ({
-    id:
-      (Object.entries(snapshot.bindings).find(([, binding]) => binding === recordKey)?.[0] ??
-        'skin/' + snapshot.hull!.skinKeys.indexOf(recordKey)) +
-      '/' +
-      key,
-    recordKey,
-    schema: { key, label, type },
-  });
+  const field = (recordKey: string, key: string, label: string, type: ImmersiveField['schema']['type'] = 'string'): ImmersiveField => {
+    const record = graph.records.find((record) => record.key === recordKey)!;
+    const column = record.target.kind === 'csv' ? getCsvColumnSchemas(record.target.table).find((column) => column.key === key) : undefined;
+    const schema =
+      record.target.kind === 'spec'
+        ? getSchema(record.target.target.kind)!
+            .sections!.flatMap((section) => section.fields)
+            .find((field) => field.key === key)!
+        : column
+          ? csvFieldSchema(column)
+          : { key, label, type };
+    return {
+      id:
+        (Object.entries(snapshot.bindings).find(([, binding]) => binding === recordKey)?.[0] ??
+          'skin/' + snapshot.hull!.skinKeys.indexOf(recordKey)) +
+        '/' +
+        key,
+      recordKey,
+      column,
+      schema: { ...schema, label, ...(type === 'text' ? { type } : {}) },
+    };
+  };
   const wf = (key: string, label?: string): ImmersiveField => {
     const column = columns.find((column) => column.key === key)!;
     const result = field(
@@ -64,17 +79,14 @@ export function projectWingPanel(
       label ?? column.label ?? key,
       column.control === 'number' ? 'float' : column.control === 'enum' || column.source ? 'enum' : 'string',
     );
-    result.schema.options = column.options;
-    result.schema.source = column.source;
+    result.column = column;
+    result.schema = { ...csvFieldSchema(column), label: result.schema.label };
     return result;
   };
-  const hf = (key: string, label: string, type: ImmersiveField['schema']['type'] = 'string'): ImmersiveField[] => {
+  const hf = (key: string, label: string): ImmersiveField[] => {
     const binding = hull?.fields[key];
     if (!binding) return [];
-    return hullFieldInputs(binding, key, label).map((input, index) => ({
-      ...input,
-      schema: index ? input.schema : { ...input.schema, type: input.schema.source ? 'enum' : type },
-    }));
+    return hullFieldInputs(binding, key, label);
   };
   const hv = (key: string) => {
     const binding = hull?.fields[key];
@@ -94,12 +106,7 @@ export function projectWingPanel(
     diagnostic: wing[key] === undefined ? `${key} 缺失，显示原版默认值 ${fallback}` : undefined,
   });
   const hn = (key: string, label: string, fallback: number) => ({
-    ...stat(
-      key,
-      label,
-      hull ? displayNumber(number(hv(key), fallback)) : '来源未提供',
-      hf(key, label, key === 'min crew' ? 'float' : 'integer'),
-    ),
+    ...stat(key, label, hull ? displayNumber(number(hv(key), fallback)) : '来源未提供', hf(key, label)),
     diagnostic: hull && hv(key) === undefined ? `${key} 缺失，显示原版默认值 ${fallback}` : undefined,
   });
   const variantKey = snapshot.bindings.variant,
@@ -166,11 +173,11 @@ export function projectWingPanel(
       shield === 'PHASE'
         ? stat('defense', phaseId === 'phasecloak' ? '防御方式' : '特殊系统', phaseName, [
             ...hf('shield type', '防御类型'),
-            ...hf('defense id', '防御系统', 'enum'),
+            ...hf('defense id', '防御系统'),
           ])
         : stat('defense', shield === 'FRONT' ? '前盾 (幅能容量)' : '全盾 (幅能容量)', displayNumber(number(hv('max flux'), 10)), [
             ...hf('shield type', '防御类型'),
-            ...hf('max flux', '幅能容量', 'integer'),
+            ...hf('max flux', '幅能容量'),
           ]);
     const selector = defense.fields[0];
     if (selector) {
@@ -201,7 +208,7 @@ export function projectWingPanel(
     'system',
     '战术系统',
     schemaStringValue(jointObject(systemCsv?.value).name) || systemId || '无',
-    hf('system id', '战术系统', 'enum'),
+    hf('system id', '战术系统'),
   );
   for (const entry of system.fields) entry.schema.source = 'csv:shipSystems.id';
   const counts = new Map<string, number>();

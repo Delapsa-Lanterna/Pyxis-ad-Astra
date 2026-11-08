@@ -43,14 +43,41 @@
 
 - `src-tauri/src/app_data_dir.rs`：工作区快照持久化的工具私有目录解析。
 - `src-tauri/src/models/workspace_persistence.rs`：工作区持久化 wire 契约。
+- `src/app/components/FeedbackFileActions.vue`：消费窗口反馈交付的文件动作并渲染列表按钮。
+- `src/app/components/ModOpeningFailureList.vue`：Mod 打开失败诊断与文件定位展示。
+- `src/app/composables/csv-editor/csv-editor-context.ts`：CSV 查询、输入、动作装配与保存参与者。
+- `src/app/composables/csv-editor/use-csv-save-participants.ts`：CSV 查询、输入、动作装配与保存参与者。
 - `src/app/composables/json-editor/json-editor-context.ts`：JSON 页面所需的目标、定位输入及具体宿主动作契约。
+- `src/app/composables/use-app-feedback.ts`：窗口反馈的提供与消费入口。
+- `src/app/composables/use-context-menu.ts`：窗口菜单状态、目标操作、事件生命周期与业务根登记。
+- `src/app/composables/use-window-close-state.ts`：窗口操作锁、具名关闭请求、内容参与登记和卸载释放。
 - `src/app/composables/use-window-shortcuts.ts`：窗口键盘监听、命中路由及关闭屏蔽。
+- `src/domain/csv-editor/associated-spec-candidates.ts`：表格草稿、操作历史、关联规格及展示投影。
+- `src/domain/mod-creation/new-mod-template.ts`：模板与校验，拥有 ID/名称/版本规则与 mod-info 默认值。
+- `src/domain/project/load-diagnostics.ts`：加载警告与打开失败的诊断投影。
+- `src/orchestrators/core-assets.orchestrator.ts`：显式响应式根输入、根代次、共享 Promise、接纳与失败日志。
 - `src/orchestrators/file-history-replay.orchestrator.ts`：明确目标的回放计划、复核及实际结果。
 - `src/orchestrators/mod-creation.orchestrator.ts`：最小 Mod 骨架的实际创建结果。
+- `src/orchestrators/project-sync.orchestrator.ts`：窗口内保存消费过程和内容维护者交接。
+- `src/services/core-assets.service.ts`：Core 读取与缓存清理协议。
 - `src/services/directory.service.ts`：目录识别与游戏概览扫描结果。
+- `src/services/file-history.service.ts`：历史读取、清空与按条目回放能力包装。
+- `src/services/project-readiness.service.ts`：窗口内按 session 维护正式内容读取门控。
+- `src/services/project-session.service.ts`：session 打开协议。
+- `src/services/project-sync.service.ts`：所属同步命令与有序通道交付。
+- `src/services/query-cache.service.ts`：类型化缓存实例、共享请求、即时读取、门控及失效通知。
+- `src/services/resource-media.service.ts`：唯一持有媒体读取、合批、租约、响应式结果、闲置预算和失效。
 - `src/shared/types/workspace-persistence.types.ts`：工作区保存请求、目录、Mod、扫描结果及列宽快照。
 - `src/shared/types/workspace.types.ts`：工作区页面与 Mod 导航契约。
+- `src/stores/core-assets.store.ts`：根与两类状态。
+- `src/stores/csv-editor.store.ts`：表格运行态，拥有窗口行、选择、dirty、当前表与保存中状态；`initializeModTables` 按 session、Mod 和 manifest 一次建立表格状态与输入集合。
+- `src/stores/draft-sessions.store.ts`：未保存工作注册表，按 `modRoot` 聚合会话登记与判定源。
+- `src/stores/file-browser.store.ts`：按 session 隔离的目录、搜索、排序及两组浏览状态。
+- `src/stores/file-history.store.ts`：带版本的历史摘要投影。
+- `src/stores/json-editor.store.ts`：文档登记、每 session 类型选择记忆及当前文档动作。
+- `src/stores/project-sync.store.ts`：当前待办、错误和项目等待状态。
 - `src/stores/project.store.ts`：按 Mod 根查询正式清单与 session，当前项目投影消费原清单引用。
+- `src/stores/save-command.store.ts`：文档保存句柄、进行中动作、等待与关闭交接登记。
 
 ### 关联
 

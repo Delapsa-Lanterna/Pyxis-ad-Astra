@@ -1,11 +1,12 @@
-import type { JointEditSnapshot, JointValue, ResourceRef, JointHull, DeepReadonly, RowData } from '@/shared/types';
+import type { JointEditSnapshot, JointValue, ResourceRef, JointHull, DeepReadonly, RowData, FieldProblem } from '@/shared/types';
 import type { ImmersiveField, ImmersiveStat } from '../fields';
 import { jointObject } from '@/domain/joint-edit';
 import { hullDataIndex, hullFieldInputs, hullFieldValue } from '../hull-fields';
 import { immersiveSourceRecords } from '../source-records';
 import { getCsvColumnSchemas } from '@/domain/schema/csv-schema-registry';
 import { schemaStringValue } from '@/domain/schema/schema-values';
-import { parseInputNumber } from '@/shared/lib/input-number';
+import { csvFieldSchema, parseCsvValue } from '@/domain/schema/csv-value-validation';
+import { getSchema } from '@/domain/schema/config-schema-registry';
 import { designTypeColor } from '../design-type';
 import type { TextRun } from '@/domain/fonts/font.types';
 export interface ImmersiveShipPanelInput {
@@ -19,7 +20,7 @@ export interface ImmersiveShipPanelInput {
   weapons: DeepReadonly<Array<{ id: string; name: string; builtin: boolean }>>;
   wings: DeepReadonly<Array<{ id: string; name: string; index: number; builtin: boolean }>>;
   mods: DeepReadonly<Array<{ name: string; category: 'builtin' | 'normal' | 'permanent' | 's'; strengthened: boolean }>>;
-  diagnostics: readonly string[];
+  diagnostics: readonly FieldProblem[];
 }
 
 export interface ShipImmersivePanel {
@@ -61,19 +62,6 @@ const MOUNT_LABELS: Record<string, string> = {
 };
 const format = (value: number) =>
   Number.isFinite(value) ? new Intl.NumberFormat('zh-CN', { maximumFractionDigits: 2, useGrouping: false }).format(value) : '无有效值';
-const INTEGER_COLUMNS = new Set([
-  'fleet pts',
-  'hitpoints',
-  'armor rating',
-  'max flux',
-  'flux dissipation',
-  'ordnance points',
-  'fighter bays',
-  'max speed',
-  'acceleration',
-  'deceleration',
-  'base value',
-]);
 
 export function projectShipPanel(
   snapshot: JointEditSnapshot,
@@ -102,23 +90,12 @@ export function projectShipPanel(
   };
   const columns = getCsvColumnSchemas('ships');
   function csvField(key: string, label?: string): ImmersiveField {
-    const column = columns.find((column) => column.key === key);
+    const column = columns.find((column) => column.key === key) ?? { key, control: 'number' as const, valueType: 'float' as const };
     return {
       id: 'csv/' + key,
       recordKey: sources.csv.key,
-      schema: {
-        key,
-        label: label ?? column?.label ?? key,
-        type: INTEGER_COLUMNS.has(key)
-          ? 'integer'
-          : column?.control === 'number'
-            ? 'float'
-            : column?.control === 'enum' || column?.source
-              ? 'enum'
-              : 'string',
-        options: column?.options,
-        source: column?.source,
-      },
+      column,
+      schema: { ...csvFieldSchema(column), label: label ?? column.label ?? key },
     };
   }
   function csvFields(key: string, label?: string): ImmersiveField[] {
@@ -130,7 +107,6 @@ export function projectShipPanel(
     const raw = schemaStringValue(value(key));
     const amount = number(key, fallback);
     const fields = csvFields(key, label);
-    fields[0]!.schema.type = INTEGER_COLUMNS.has(key) ? 'integer' : 'float';
     return {
       id: key,
       label,
@@ -145,8 +121,8 @@ export function projectShipPanel(
     if (variant && key === 'flux dissipation') return variant.dissipation;
     const raw = schemaStringValue(value(key));
     if (!raw.trim()) return fallback;
-    const parsed = parseInputNumber(raw, INTEGER_COLUMNS.has(key));
-    return typeof parsed === 'number' ? parsed : NaN;
+    const parsed = parseCsvValue(columns.find((column) => column.key === key) ?? { key, control: 'number', valueType: 'float' }, raw);
+    return parsed.kind === 'value' && typeof parsed.value === 'number' ? parsed.value : NaN;
   }
   const heading: ImmersiveStat[] = [
     {
@@ -222,7 +198,9 @@ export function projectShipPanel(
       {
         id: 'spec/hullSize',
         recordKey: sources.spec.key,
-        schema: { key: 'hullSize', label: '船体级别', type: 'enum', required: true, options: Object.keys(HULL_SIZE_LABELS) },
+        schema: getSchema('spec-ship')!
+          .sections!.flatMap((section) => section.fields)
+          .find((field) => field.key === 'hullSize')!,
       },
     ],
   };
@@ -408,7 +386,7 @@ export function projectShipPanel(
     hullSize: schemaStringValue(spec.hullSize),
     allStats,
     equipment: [],
-    notes: variant ? ['基础配置口径 · 插件效果按零效果计算', ...variant.diagnostics] : [],
+    notes: variant ? ['基础配置口径 · 插件效果按零效果计算', ...variant.diagnostics.map((issue) => issue.message)] : [],
   };
   panel.equipment = [
     { label: '安装槽位', text: panel.mounts, runs: panel.mountRuns },

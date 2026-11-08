@@ -3,7 +3,9 @@ use super::super::model::{SessionCsvRow, csv_table_spec};
 use super::super::query::joint_edit::query_joint_edit;
 use super::super::session::csv_writes::CsvTableDraft;
 use super::super::session::{lock_ready_session, session_handle};
-use super::super::write::entity_write::content::stage_entity_content;
+use super::super::write::entity_write::content::{
+    stage_entity_content, validate_entity_content_in,
+};
 use crate::domain::{
     csv_column_order, entity_construction, entity_definitions, joint_hull, save_edits,
     variant_modules,
@@ -25,22 +27,29 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 use std::slice;
 
-/// Consumes the current snapshot prepared under the project's root lease.
-/// Source credentials are rechecked before staging, while the graph is reused.
-pub fn save_joint_edit(payload: &JointEditSubmission) -> AppResult<WriteResult<JointEditSnapshot>> {
-    let current = &payload.snapshot;
-    let source_versions = current
+fn verify_joint_reference_versions(snapshot: &JointEditSnapshot) -> AppResult<()> {
+    let source_versions = snapshot
         .records
         .iter()
-        .filter(|record| payload.values.contains_key(&record.key))
-        .filter_map(|record| record.source_version.as_ref())
+        .filter_map(|record| match record.source.as_ref()?.source {
+            ResourceSource::Mod => None,
+            _ => record.source_version.as_ref(),
+        })
+        .chain(
+            snapshot
+                .records
+                .iter()
+                .filter_map(|record| record.composition.as_ref())
+                .flat_map(|composition| composition.layers.iter().map(|layer| &layer.version)),
+        )
+        .chain(&snapshot.reference_settings.versions)
         .map(|version| (windows_path_key(&version.path), version))
         .collect::<BTreeMap<_, _>>();
     for expected in source_versions.into_values() {
         let actual = io::file_version(Path::new(&expected.path))
             .map_err(|error| error.at_path(&expected.path))?;
         if actual != *expected
-            && !io::source_recreation_allowed(&current.root.mod_root, &expected.path)
+            && !io::source_recreation_allowed(&snapshot.root.mod_root, &expected.path)
         {
             return Err(
                 AppError::message("write.version_conflict", "联合保存来源内容已变化")
@@ -48,6 +57,14 @@ pub fn save_joint_edit(payload: &JointEditSubmission) -> AppResult<WriteResult<J
             );
         }
     }
+    Ok(())
+}
+
+/// Consumes the current snapshot prepared under the project's root lease.
+/// Source credentials are rechecked before staging, while the graph is reused.
+pub fn save_joint_edit(payload: &JointEditSubmission) -> AppResult<WriteResult<JointEditSnapshot>> {
+    let current = &payload.snapshot;
+    verify_joint_reference_versions(current)?;
     for required in current
         .records
         .iter()
@@ -120,6 +137,69 @@ pub fn save_joint_edit(payload: &JointEditSubmission) -> AppResult<WriteResult<J
     let mut saved = current.clone();
     let mut records = current.records.iter().collect::<Vec<_>>();
     records.sort_by_key(|record| !matches!(record.target, JointRecordTarget::Spec { .. }));
+    let mut field_problems = Vec::new();
+    let mut problem_code = "config.shape_invalid";
+    for record in &records {
+        if let (JointRecordTarget::Spec { target }, Some(JointValue::Present(data))) =
+            (&record.target, values.get_mut(&record.key))
+        {
+            if record.value == JointValue::Present(data.clone())
+                && !payload.create_overrides.contains(&record.key)
+            {
+                continue;
+            }
+            if matches!(record.value, JointValue::Missing)
+                && matches!(target.kind, EntityKind::Ship | EntityKind::Weapon)
+            {
+                let params = if target.kind == EntityKind::Ship {
+                    AssociatedSpecCreateParams::Ship {
+                        id: target.id.clone(),
+                        hull_name: target.id.clone(),
+                    }
+                } else {
+                    AssociatedSpecCreateParams::Weapon {
+                        id: target.id.clone(),
+                        spec_class: serde_json::from_value(
+                            data.get("specClass").cloned().ok_or_else(|| {
+                                AppError::message(
+                                    "spec.weapon_class_unsupported",
+                                    "请选择 projectile 或 beam 规格分支",
+                                )
+                            })?,
+                        )?,
+                    }
+                };
+                let mut content = entity_construction::create_associated_spec(&params);
+                let edited = data
+                    .as_object()
+                    .ok_or_else(|| AppError::message("joint.value_shape", "规格内容必须为对象"))?;
+                content
+                    .as_object_mut()
+                    .expect("associated spec template is an object")
+                    .extend(edited.clone());
+                *data = content;
+            }
+            if let Err(error) = validate_entity_content_in(
+                &session,
+                target.kind,
+                &target.write.rel_path,
+                data,
+                payload.json_write.replaces(&target.write.rel_path),
+                record.composition.as_ref(),
+            ) {
+                if field_problems.is_empty() {
+                    problem_code = error.code();
+                }
+                field_problems.extend(error.at_path(&target.write.path).field_problems());
+            }
+        }
+    }
+    if !field_problems.is_empty() {
+        return Err(AppError::Validation {
+            code: problem_code,
+            issues: field_problems,
+        });
+    }
     for record in records {
         let Some(value) = values.get(&record.key) else {
             continue;
@@ -144,40 +224,6 @@ pub fn save_joint_edit(payload: &JointEditSubmission) -> AppResult<WriteResult<J
         }
         match (&record.target, value) {
             (JointRecordTarget::Spec { target }, JointValue::Present(data)) => {
-                let constructed = if matches!(record.value, JointValue::Missing)
-                    && matches!(target.kind, EntityKind::Ship | EntityKind::Weapon)
-                {
-                    let params = if target.kind == EntityKind::Ship {
-                        AssociatedSpecCreateParams::Ship {
-                            id: target.id.clone(),
-                            hull_name: target.id.clone(),
-                        }
-                    } else {
-                        AssociatedSpecCreateParams::Weapon {
-                            id: target.id.clone(),
-                            spec_class: serde_json::from_value(
-                                data.get("specClass").cloned().ok_or_else(|| {
-                                    AppError::message(
-                                        "spec.weapon_class_unsupported",
-                                        "请选择 projectile 或 beam 规格分支",
-                                    )
-                                })?,
-                            )?,
-                        }
-                    };
-                    let mut content = entity_construction::create_associated_spec(&params);
-                    let edited = data.as_object().ok_or_else(|| {
-                        AppError::message("joint.value_shape", "规格内容必须为对象")
-                    })?;
-                    content
-                        .as_object_mut()
-                        .expect("associated spec template is an object")
-                        .extend(edited.clone());
-                    content
-                } else {
-                    data.clone()
-                };
-                let data = &constructed;
                 let definition = entity_definitions::entity_spec_definition(target.kind)
                     .expect("joint spec has format");
                 if let Some(id) = data
@@ -677,6 +723,8 @@ pub fn prepare_joint_save(
     edits: &[SaveEdit],
     identities: &[EntityIdentityChange],
 ) -> Result<(), AppError> {
+    verify_joint_reference_versions(&payload.snapshot)?;
+    io::verify_versions(&payload.snapshot.root.mod_root, &payload.base_versions)?;
     for identity in identities {
         if identity.before.id == payload.snapshot.root.id
             && matches!(

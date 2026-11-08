@@ -24,11 +24,22 @@
 - `src-tauri/src/models/save_action.rs`：统一保存入口消费的请求与业务动作。
 - `src-tauri/src/models/write_commit.rs`：实际保存结果、窗口交付及公共写入协议。
 - `src-tauri/src/services/file_history.rs`：最后同根项目注销后的历史释放。
+- `src-tauri/src/services/file_history/records.rs`：按实际 Mod 根持有 changeset、双栈、revision、容量及回放交接。
 - `src-tauri/src/services/project/mod.rs`：原子注销事实、会话内容清理及引用状态交接。
+- `src-tauri/src/services/project/performance.rs`：ProjectSession 阶段计时。
 - `src-tauri/src/services/project/query/entity_targets.rs`：可靠来源改名后的实际实体目标。
 - `src-tauri/src/services/project/resources/media_cache.rs`：完整项目释放中的所属 session 媒体清理。
+- `src-tauri/src/services/project/session.rs`：会话打开、关闭、内容更新与内部登记及就绪访问能力交付。
+- `src-tauri/src/services/project/session/references.rs`：有序引用来源、代次、共享快照与按需表格视图。
+- `src-tauri/src/services/project/session/registry.rs`：会话存活登记、句柄与内容就绪门控。
+- `src-tauri/src/services/project/session/source_refresh.rs`：同根正式候选构造、手动及自动来源接纳、缺失路径与 Core 会话更新。
+- `src-tauri/src/services/project/sources/core.rs`：按根共享 Core 产品、只读 CSV、单飞读取及缓存释放。
+- `src-tauri/src/services/project/sources/mod.rs`：来源记录、发现、读取、Core 文档运行态、持久化与行为验证。
+- `src-tauri/src/services/project_session.rs`：游戏根与 Mod 根授权、来源输入准备及会话范围核对。
 - `src-tauri/src/services/source_watch.rs`：共享根监听与变化批次。
 - `src-tauri/src/services/windows.rs`：窗口范围、实际编辑来源、关闭及释放。
+- `src/app/composables/use-app-feedback.ts`：窗口反馈的提供与消费入口。
+- `src/orchestrators/window-event-errors.orchestrator.ts`：窗口事件失败的统一反馈交接。
 - `src/services/project-readiness.service.ts`：正式读取门控。
 - `src/services/query-cache.service.ts`：所属查询和在途读取失效。
 - `src/services/resource-media.service.ts`：资源缓存与租约失效。
@@ -36,6 +47,7 @@
 - `src/shared/types/write-commit.types.ts`：所属保存结果及 SaveAcceptanceTask 接纳回调契约。
 - `src/stores/file-history.store.ts`：文件历史摘要接纳。
 - `src/stores/project.store.ts`：当前会话清单。
+- `src/windows/window-context.window.ts`：只读上下文、请求监听接纳及上下文版本的前端运行态。
 
 ### 装配
 

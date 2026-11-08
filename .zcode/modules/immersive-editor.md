@@ -44,13 +44,55 @@
 ### 消费
 
 - `schemas/skin-hull-fields.json`：船体标量属性与皮肤来源的统一映射。
+- `src/app/components/fonts/FontText.vue`：默认 DOM、位图画布、缺字诊断与尺寸监听。
+- `src/app/composables/canvas/use-canvas-navigation.ts`：骨架和装配消费的右键平移、滚轮缩放与指针位置。
+- `src/app/composables/canvas/use-canvas-runtime.ts`：完整目标身份、悬停、检查器锁定、镜像开关与候选预览。
+- `src/app/composables/canvas/use-canvas-selection.ts`：骨架和装配消费的距离命中、选区身份与显式选择。
+- `src/app/composables/canvas/use-canvas-surface.ts`：画布表面、导航、视口、选择与指针阶段及其测试。
+- `src/app/composables/canvas/use-canvas-viewport.ts`：视口缩放与平移。
+- `src/app/composables/editors/use-engine-rendering.ts`：统一装配引擎样式查询、媒体、解码、着色成品与引用释放。
+- `src/app/composables/field-editor/use-field-edit-mode.ts`：来源读取、路径选择、输入模式、行身份及选项媒体寿命。
+- `src/app/composables/field-editor/use-field-source-options.ts`：来源读取、路径选择、输入模式、行身份及选项媒体寿命。
+- `src/app/composables/use-app-feedback.ts`：窗口反馈的提供与消费入口。
+- `src/app/composables/use-context-menu.ts`：窗口菜单状态、目标操作、事件生命周期与业务根登记。
 - `src/app/composables/use-joint-edit-session.ts`：消费编辑会话原语的联合目标适配器。
+- `src/app/composables/use-resource-images.ts`：场景与图片展示的解码引用和迟到接纳。
+- `src/app/composables/use-resource-media-registry.ts`：持有集合差量、业务引用、媒体租约与所属反馈。
+- `src/app/composables/use-resource-thumbnail.ts`：交付普通缩略图需求与静态成品展示生命周期。
+- `src/app/composables/use-snapshot-history.ts`：目标与基线代次绑定的文本和画布快照历史。
+- `src/app/composables/use-window-image-runtime.ts`：窗口图片、成品、代次、引用与预读并发。
+- `src/app/renderers/editors/canvas-drawing.ts`：清屏、网格与像素贴图的无状态绘制入口。
+- `src/app/renderers/editors/engine-renderer.ts`：作为 Spec 与沉浸式引擎静态成品的唯一样式、尺寸与绘制入口。
+- `src/app/renderers/editors/weapon-images.ts`：武器编辑、开火预览、舰船与装配消费的共享贴图、装备阶段及光效绘制入口。
+- `src/app/renderers/editors/weapon-slot-renderer.ts`：武器槽位与起降口的共同样式、几何和无状态绘制。
+- `src/domain/editors/editor-types.ts`：编辑坐标、模式与悬停预览的纯数据类型。
 - `src/domain/entity-write/spec-construction.ts`：装配与皮肤的正式初始内容。
+- `src/domain/field-editor/field-editor-context.ts`：编辑上下文、候选展示和 CSV 选项索引。
+- `src/domain/field-editor/field-options.ts`：编辑上下文、候选展示和 CSV 选项索引。
+- `src/domain/fonts/font.types.ts`：字体身份、文本片段、位图对象与排布结果的纯类型。
+- `src/domain/joint-edit.ts`：联合写入范围提取、身份映射、草稿重接与冲突选择投影。
+- `src/domain/json-composition.ts`：前端内容组合、来源定位、稀疏编辑及覆盖撤销。
 - `src/domain/project/entity-definitions.ts`：实体内容 ID 字段及字符串 ID 提取。
+- `src/domain/resources/hull-references.ts`：选项及内置槽位的纯投影。
+- `src/domain/schema/config-schema-registry.ts`：字段与列资产加载、来源声明、值及结构纯规则。
+- `src/domain/schema/csv-schema-registry.ts`：字段与列资产加载、来源声明、值及结构纯规则。
+- `src/domain/schema/csv-value-validation.ts`：字段与列资产加载、来源声明、值及结构纯规则。
 - `src/domain/schema/schema-source-definitions.ts`：共同字段的来源分类。
+- `src/domain/schema/schema-values.ts`：字段与列资产加载、来源声明、值及结构纯规则。
+- `src/domain/schema/schema.types.ts`：字段与列资产加载、来源声明、值及结构纯规则。
+- `src/domain/settings/theme.ts`：主题令牌与色彩数学，拥有 accent 预设、light/dark 中性色、`createThemeColors` 纯函数及 `THEME_TOKEN_MAP` 的 ThemeColorTokens 与主题属性映射。
+- `src/orchestrators/joint-edit.orchestrator.ts`：联合读取、冲突确认与提交顺序。
+- `src/orchestrators/project-sync.orchestrator.ts`：窗口内保存消费过程和内容维护者交接。
+- `src/services/hull-reference.service.ts`：Hull 查询及引用投影。
+- `src/services/joint-edit.service.ts`：三个 command 的类型化协议装配。
 - `src/services/source-catalog.service.ts`：联合上下文的候选目录读取与失效判断。
+- `src/services/window.service.ts`：窗口 command 的类型化签名与参数装配。
 - `src/shared/lib/starsector/variant-modules.ts`：装配模块的共同格式规则。
 - `src/shared/runtime/use-layout-frame.ts`：展示尺寸与位置更新的帧合并和作用域释放。
+- `src/stores/project-sync.store.ts`：当前待办、错误和项目等待状态。
+- `src/stores/settings.store.ts`：settings 运行态，只持状态、setter 与派生值；初始快照经统一初始化入口注入。
+- `src/windows/managed.window.ts`：请求交付，等待所属请求的终结回执。
+- `src/windows/window-context.window.ts`：只读上下文、请求监听接纳及上下文版本的前端运行态。
 
 ### 装配
 
@@ -62,6 +104,7 @@
 - 共同运行态拥有联合会话、历史、来源读取与释放。
 - 只读与编辑模式共同消费所属内容布局。
 - 字段协议提供原文、来源、展示和提交语义。
+- CSV 字段持有正式列定义，原文提交与计算消费同一解释结果；规格字段直接消费展开后的正式定义。
 - 应用装配选择业务实现并交接展示协议。
 - 来源选择提供所属可编辑集合，联合模块拥有实际保存和物理协调。
 - 船体场景拥有共用坐标、装备展示、媒体、引擎着色成品引用和导航。

@@ -1,7 +1,10 @@
 import ts from 'typescript';
+import { sourceChecker } from '../../shared/frontend-source.mjs';
+import { readTicketProtocol } from './read-ticket-protocol.mjs';
+import { ticketFlowFailures } from './read-ticket-flow.mjs';
 
 /**
- * @typedef {{ line: number, column: number, handles: Set<string>, currentChecks: Set<string>, invalidates: Set<string> }} ReadTicketLifecycle
+ * @typedef {{ line: number, column: number, handles: Set<string>, currentChecks: Set<string>, invalidates: Set<string>, flowFailures:import('./read-ticket-flow.mjs').FlowFailure[] }} ReadTicketLifecycle
  */
 
 /**
@@ -16,6 +19,7 @@ import ts from 'typescript';
  */
 export function readTicketLifecycles(file, creations, files = new Map([[file.rel, file]])) {
   if (!creations.length) return [];
+  const protocol = readTicketProtocol(files.get('src/shared/runtime/read-request.ts'));
   /** @type {Map<string, ReadTicketLifecycle>} */
   const byPosition = new Map(
     creations.map((creation) => [
@@ -25,6 +29,7 @@ export function readTicketLifecycles(file, creations, files = new Map([[file.rel
         handles: new Set(),
         currentChecks: new Set(),
         invalidates: new Set(),
+        flowFailures: [],
       },
     ]),
   );
@@ -42,7 +47,7 @@ export function readTicketLifecycles(file, creations, files = new Map([[file.rel
         const key = positionKey(positionOf(node, file, ast, offset));
         const lifecycle = byPosition.get(key);
         if (lifecycle) for (const handle of assignmentHandles(node, pathOf)) lifecycle.handles.add(handle);
-        const method = methodCall(node, pathOf);
+        const method = methodCall(node, pathOf, protocol);
         if (method) methods.push(method);
       }
       for (const edge of aliasEdges(node, pathOf)) aliases.push(edge);
@@ -114,8 +119,23 @@ export function readTicketLifecycles(file, creations, files = new Map([[file.rel
   for (const method of methods)
     for (const ticket of byPosition.values())
       if ([...ticket.handles].some((handle) => aliasPrefix(handle, method.receiver) === handle))
-        (method.name === 'requireCurrent' ? ticket.currentChecks : ticket.invalidates).add(method.receiver);
-  return [...byPosition.values()];
+        (method.name === 'current' ? ticket.currentChecks : ticket.invalidates).add(method.receiver);
+  const lifecycles = [...byPosition.values()];
+  for (const { ast, offset } of file.syntax.scripts) {
+    const checker = sourceChecker(ast);
+    const channels = collectionChannels(ast, checker, offset, file, files);
+    const failures = ticketFlowFailures(
+      ast,
+      lifecycles,
+      protocol,
+      (node) => expressionPath(node, checker, offset, channels),
+      (node) => positionOf(node, file, ast, offset),
+      checker,
+      file,
+    );
+    if (lifecycles[0]) lifecycles[0].flowFailures.push(...failures);
+  }
+  return lifecycles;
 }
 
 /** @param {ts.Node} root @param {(node: ts.Node) => void} callback */
@@ -127,16 +147,16 @@ function visit(root, callback) {
   walk(root);
 }
 
-/** @param {ts.CallExpression} node @param {(node: ts.Node) => string} pathOf @returns {{name: string, receiver: string} | null} */
-function methodCall(node, pathOf) {
+/** @param {ts.CallExpression} node @param {(node: ts.Node) => string} pathOf @param {import('./read-ticket-protocol.mjs').ReadTicketProtocol} protocol @returns {{name: string, receiver: string} | null} */
+function methodCall(node, pathOf, protocol) {
   if (!ts.isPropertyAccessExpression(node.expression) && !ts.isElementAccessExpression(node.expression)) return null;
   const name = ts.isPropertyAccessExpression(node.expression)
     ? node.expression.name.text
     : ts.isStringLiteralLike(node.expression.argumentExpression)
       ? node.expression.argumentExpression.text
       : null;
-  if (name !== 'requireCurrent' && name !== 'invalidate') return null;
-  return { name, receiver: pathOf(node.expression.expression) };
+  if (!name || (!protocol.checks.has(name) && !protocol.invalidations.has(name))) return null;
+  return { name: protocol.checks.has(name) ? 'current' : 'invalidate', receiver: pathOf(node.expression.expression) };
 }
 
 /** @param {ts.Node} node @param {(node: ts.Node) => string} pathOf @returns {{from: string, to: string}[]} */
@@ -407,14 +427,6 @@ function collectionKey(node, checker, offset, channels) {
 /** @param {string} storage @param {string} key */
 function collectionSlot(storage, key) {
   return key === `iteration:${storage}.[keys]` ? storage + '.[*]' : `${storage}.[${key}]`;
-}
-
-/** @param {ts.SourceFile} ast */
-function sourceChecker(ast) {
-  const options = { noLib: true, noResolve: true, allowJs: true, allowNonTsExtensions: true };
-  const host = ts.createCompilerHost(options);
-  host.getSourceFile = (name) => (name === ast.fileName ? ast : undefined);
-  return ts.createProgram([ast.fileName], options, host).getTypeChecker();
 }
 
 /** @param {ts.PropertyName | undefined} name @returns {string} */

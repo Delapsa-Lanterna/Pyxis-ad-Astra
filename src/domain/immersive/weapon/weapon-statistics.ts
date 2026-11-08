@@ -4,7 +4,7 @@ import { schemaStringValue } from '@/domain/schema/schema-values';
 import { isRowData } from '@/shared/lib/row-data';
 
 export function weaponStatistics(csv: Readonly<RowData>, spec: Readonly<RowData>, projectile: Readonly<RowData>) {
-  const n = (key: string, fallback = 0) => immersiveNumber(csv, key, fallback);
+  const n = (key: string, fallback = 0) => immersiveNumber(csv, key, fallback, 'weapons');
   const beam = spec.specClass === 'beam';
   const burst = beam ? n('burst size') : Math.trunc(n('burst size', 1));
   const charge = n('chargeup'),

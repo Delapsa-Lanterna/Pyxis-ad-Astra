@@ -1,6 +1,6 @@
 use super::serde_fields::deserialize_nullable;
 use super::{CsvTableKey, EntityKind, ProjectSessionId, ResourceRef};
-use crate::models::FileVersion;
+use crate::models::{EntityFileLocation, FileVersion};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use std::collections::BTreeMap;
@@ -91,6 +91,8 @@ pub struct CsvTableRowsRead {
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CsvTableIndexPayload {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source: Option<EntityFileLocation>,
     pub session_id: ProjectSessionId,
     pub table: CsvTableKey,
     pub initial_count: usize,

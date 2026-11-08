@@ -201,8 +201,15 @@ export function gameQuery(project: WorkspaceProject, command: string, payload: R
   if (command === 'query_csv_table_index' || command === 'query_csv_table_rows') {
     const input = payload as unknown as T.CsvTableIndexPayload & T.CsvTableRowsPayload;
     const search = input.search?.toLowerCase();
-    const table = project.tables.get(input.table)!,
-      path = project.manifest.modRoot + '/' + gameTablePaths[input.table];
+    const owner = input.source
+      ? groups.find(
+          (group) =>
+            group.origin === input.source!.source &&
+            (group.origin !== 'reference' || group.reference.sessionId === input.source!.reference?.sessionId),
+        )!.source
+      : project;
+    const table = owner.tables.get(input.table)!,
+      path = owner.manifest.modRoot + '/' + gameTablePaths[input.table];
     const rows =
       command === 'query_csv_table_rows'
         ? input.rowKeys.map((key) => table.rows.find((row) => row.rowKey === key)!)
@@ -234,7 +241,7 @@ export function gameQuery(project: WorkspaceProject, command: string, payload: R
           : [],
       rowKeys: rows.map((row) => row.rowKey),
       rows: command === 'query_csv_table_rows' ? rows : rows.slice(0, input.initialCount),
-      baseVersions: [project.version(path)],
+      baseVersions: [owner.version(path)],
     };
   }
   if (command === 'prepare_csv_associated_specs') {

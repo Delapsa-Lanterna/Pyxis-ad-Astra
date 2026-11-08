@@ -41,12 +41,16 @@
 ### 消费
 
 - `src-tauri/src/app_data_dir.rs`：持久化来源索引所属的工具私有目录解析。
+- `src-tauri/src/domain/csv_column_order.rs`：从唯一 CSV schema 提取标准列并维护补列顺序。
 - `src-tauri/src/domain/json_composition.rs`：正式来源组合消费的游戏 JSON 纯规则。
+- `src-tauri/src/io/mod.rs`：底层文件、路径及 changeset 能力导出。
 - `src-tauri/src/models/collections.rs`：内容更新和失效范围的稳定去重追加。
 - `src-tauri/src/models/mod.rs`：正式模型登记及聚合导出。
 - `src-tauri/src/models/project_identity.rs`：会话、实体、表、资源、目标及版本身份与 session 范围实现宏。
 - `src-tauri/src/models/project_session.rs`：会话请求、清单、摘要与正式失效结果。
 - `src-tauri/src/models/serde_fields.rs`：会话输入字段的空值转换与非空字符串归一化。
+- `src-tauri/src/services/app_settings.rs`：正式快照、revision、串行写盘、目录回调结果接纳及装配传入的运行参数提交动作。
+- `src-tauri/src/services/project/performance.rs`：ProjectSession 阶段计时。
 - `src-tauri/src/services/project/query/entities.rs`：实际实体详情与列表查询。
 - `src-tauri/src/services/project/query/entity_targets.rs`：实体查询交付实际编辑目标、身份意图与版本范围。
 - `src-tauri/src/services/project/sources/`：成套来源内容、版本与解析成果读取。

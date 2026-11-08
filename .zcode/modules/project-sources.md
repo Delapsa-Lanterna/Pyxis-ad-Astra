@@ -21,6 +21,7 @@
 - `src-tauri/src/io/faction_index.rs`：势力索引引用的正式路径授权。
 - `src-tauri/src/io/file_versions.rs`：文件与目录凭据的生成及核对。
 - `src-tauri/src/io/json_files.rs`：带版本的 JSON 字节读取与解析。
+- `src-tauri/src/io/mod.rs`：底层文件、路径及 changeset 能力导出。
 - `src-tauri/src/io/paths.rs`：实际根、规范路径及父链授权。
 
 ### 装配

@@ -7,14 +7,71 @@ use super::super::session::{lock_ready_session, session_handle};
 use crate::errors::{AppError, AppResult};
 #[cfg(test)]
 use crate::io::csv_files;
+use crate::io::{FsRootBoundary, read_versioned_csv};
 use crate::models::{
     CsvRowPreview, CsvRowRecord, CsvSearchField, CsvTable, CsvTableIndex, CsvTableKey,
-    CsvTableRowsRead, ResourceRef, ResourceSource,
+    CsvTableRowsRead, EntityFileLocation, ResourceRef, ResourceSource,
 };
 use crate::services::project::session::csv_tables;
+use crate::services::project::sources::core;
 use crate::services::project::{model, versions};
 use serde_json::Value;
 use std::collections::BTreeMap;
+use std::path::Path;
+
+pub fn query_csv_source_index(
+    session_id: &str,
+    table: CsvTableKey,
+    columns: &[String],
+    source: &EntityFileLocation,
+) -> AppResult<CsvTableIndex> {
+    let handle = session_handle(session_id)?;
+    let session = lock_ready_session(&handle)?;
+    let root = match source.source {
+        ResourceSource::Mod => session.manifest.mod_root.clone(),
+        ResourceSource::Core => core::core_dir(
+            session
+                .manifest
+                .starsector_root
+                .as_deref()
+                .ok_or_else(|| AppError::message("csv.source_missing", "原版来源未设置"))?,
+        )?
+        .to_string_lossy()
+        .into_owned(),
+        ResourceSource::Reference => session
+            .references
+            .iter()
+            .find(|view| source.reference.as_deref() == Some(&view.identity))
+            .map(|view| view.identity.mod_root.clone())
+            .ok_or_else(|| AppError::message("csv.source_changed", "引用来源已变化"))?,
+    };
+    let boundary = FsRootBoundary::new(Path::new(&root), "CSV validation source")?;
+    let path = boundary.resolve_relative(model::csv_table_spec(table).rel_path, "CSV source")?;
+    let (version, csv) = read_versioned_csv(&path)?;
+    let rows = csv
+        .rows
+        .into_iter()
+        .enumerate()
+        .map(|(index, row)| CsvRowRecord {
+            row_key: format!("{}:source:{index}", table.as_str()),
+            is_comment: row.is_comment,
+            data: row
+                .data
+                .into_iter()
+                .filter(|(key, _)| columns.contains(key))
+                .collect(),
+        })
+        .collect::<Vec<_>>();
+    Ok(CsvTableIndex {
+        table,
+        header: csv.header,
+        total_rows: rows.len(),
+        row_keys: rows.iter().map(|row| row.row_key.clone()).collect(),
+        validation_rows: rows,
+        rows: Vec::new(),
+        base_versions: vec![version],
+    })
+}
 
 pub(crate) fn read_project_csv(session_id: &str, relative: &str) -> AppResult<CsvTable> {
     let handle = session_handle(session_id)?;
@@ -241,6 +298,43 @@ mod tests {
     use serde_json::json;
     #[cfg(test)]
     use std::fs;
+
+    #[test]
+    fn source_index_reads_the_authorized_core_table_with_matching_versions() {
+        let work = project_workspace("csv_source_index");
+        let root = work.join("mods/sample");
+        let core = work.join("starsector-core");
+        fs::create_dir_all(&root).unwrap();
+        fs::create_dir_all(core.join("data/weapons")).unwrap();
+        let path = core.join("data/weapons/weapon_data.csv");
+        fs::write(&path, "id,name,OPs,custom\none,One,1.5,retained\n").unwrap();
+        let manifest = open_project_session_traced(
+            &root,
+            Some(&work),
+            &mut PerformanceTrace::new("csv.source"),
+        )
+        .unwrap();
+        let source = EntityFileLocation {
+            source: ResourceSource::Core,
+            reference: None,
+            root: "ignored-root".into(),
+            path: "ignored-path".into(),
+            rel_path: "ignored.csv".into(),
+        };
+        let index = query_csv_source_index(
+            &manifest.session_id,
+            CsvTableKey::Weapons,
+            &["id".into(), "OPs".into()],
+            &source,
+        )
+        .unwrap();
+        assert_eq!(index.validation_rows.len(), 1);
+        assert_eq!(index.validation_rows[0].data["OPs"], "1.5");
+        assert!(!index.validation_rows[0].data.contains_key("custom"));
+        assert_eq!(index.base_versions, [io::file_version(&path).unwrap()]);
+        release_project_session(manifest.session_id).unwrap();
+        work.close().unwrap();
+    }
 
     #[test]
     fn index_and_keyed_batches_preserve_identity_and_refresh_the_lookup_after_a_write() {

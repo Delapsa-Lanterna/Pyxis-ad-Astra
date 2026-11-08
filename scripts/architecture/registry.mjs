@@ -1,4 +1,5 @@
 import { frontendLayerBoundaryRule } from './rules/dependencies/frontend-layer-boundary.mjs';
+import { moduleConsumptionBoundaryRule } from './rules/dependencies/module-consumption-boundary.mjs';
 import { moduleImportCycleRule } from './rules/dependencies/module-import-cycle.mjs';
 import { rustProjectLayerBoundaryRule } from './rules/dependencies/rust-project-layer-boundary.mjs';
 import { rustServiceEdgeBoundaryRule } from './rules/dependencies/rust-service-edge-boundary.mjs';
@@ -33,10 +34,13 @@ import { workspacePersistenceBoundaryRule } from './rules/modules/workspace/work
 import { moduleStructureRule } from './rules/documentation/module-structure.mjs';
 import { moduleOwnershipRule } from './rules/documentation/module-ownership.mjs';
 import { ruleBoundaryRule } from './rules/meta/rule-boundary.mjs';
+import { capabilityContractBoundaryRule } from './rules/meta/capability-contract-boundary.mjs';
+import { effectBoundaryRule } from './rules/dependencies/effect-boundary.mjs';
 
 export const rules = [
   frontendLayerBoundaryRule,
   moduleImportCycleRule,
+  moduleConsumptionBoundaryRule,
   rustProjectLayerBoundaryRule,
   rustServiceEdgeBoundaryRule,
   sharedTypesBoundaryRule,
@@ -70,4 +74,6 @@ export const rules = [
   moduleStructureRule,
   moduleOwnershipRule,
   ruleBoundaryRule,
+  capabilityContractBoundaryRule,
+  effectBoundaryRule,
 ];

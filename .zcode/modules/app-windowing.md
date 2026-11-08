@@ -26,7 +26,9 @@
 ### 消费
 
 - `src-tauri/src/models/window.rs`：规格、文本与恢复窗口的判别身份、Windows 路径比较键与生命周期消息。
+- `src-tauri/src/services/project/session.rs`：会话打开、关闭、内容更新与内部登记及就绪访问能力交付。
 - `src/domain/spec-editor/spec-editor-definitions.ts`：规格窗口名称、初始及最小尺寸的定义入口。
+- `src/services/entity-query.service.ts`：四类查询定义、正式请求与实体失效选择。
 - `src/shared/lib/keyboard-shortcuts.ts`：四种键盘命令及可编辑目标的公共纯规则。
 - `src/shared/runtime/event.runtime.ts`：公共事件注册、载荷和错误交接，解除由窗口运行态持有。
 - `src/shared/types/window.types.ts`：前端窗口输入、上下文与交付结果模型。

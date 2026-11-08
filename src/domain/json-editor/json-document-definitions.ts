@@ -20,6 +20,8 @@ import { variantFileDefinition, skinFileDefinition, jsonFileTitle, type JsonFile
 import { requireRowData } from '@/shared/lib/row-data';
 import { miscConfigDefinition } from '@/domain/misc-config';
 import { composeJson } from '@/domain/json-composition';
+import { schemaDocumentIssues } from '@/domain/schema/schema-validation';
+import type { FileSchema } from '@/domain/schema/schema.types';
 
 export type JsonDocumentKind = 'mod-info' | 'faction' | 'mission' | 'variant' | 'skin' | 'misc-config';
 export interface ConfigDocumentTarget {
@@ -129,6 +131,16 @@ export function jsonDocumentContent(kind: JsonDocumentKind, value: RowData): Row
 export function jsonDocumentId(definition: JsonDocumentDefinition, value: RowData): string {
   const data = definition.kind === 'mission' ? (value.list as RowData) : jsonDocumentContent(definition.kind, value);
   return String(data[definition.idField] ?? '').trim();
+}
+export function jsonDocumentPartial(definition: JsonDocumentDefinition, value: RowData, composition?: JsonComposition): boolean {
+  return definition.kind === 'misc-config' || Boolean(composition && definition.kind !== 'variant' && !jsonDocumentId(definition, value));
+}
+export function jsonDocumentIssues(definition: JsonDocumentDefinition, schema: FileSchema, value: RowData, composition?: JsonComposition) {
+  const key =
+    definition.kind === 'mission' ? 'descriptor' : ['faction', 'mod-info', 'misc-config'].includes(definition.kind) ? 'file' : null;
+  const sources = definition.kind === 'misc-config' ? undefined : composition;
+  const effective = key ? { ...value, [key]: composeJson(value[key] as RowData, sources) } : composeJson(value, sources);
+  return schemaDocumentIssues(schema, effective, jsonDocumentPartial(definition, value, composition));
 }
 export function jsonDocumentSummary(
   definition: JsonDocumentDefinition,

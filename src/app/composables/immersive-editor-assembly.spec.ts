@@ -21,6 +21,7 @@ import { variantJointFixture } from '@/test/fixtures/joint-edit/variant-joint-ed
 import { setVariantHullmod, equipVariantWing } from '@/domain/immersive/variant/variant-actions';
 import type { AppFeedback, JointEditSnapshot, SessionContentUpdate, JsonValue } from '@/shared/types';
 import type { queryJointEditPreview } from '@/services/joint-edit.service';
+import type { validateJointFiles } from './joint-editor-validation';
 import { initializeSettingsStore } from '@/stores/settings.store';
 import { createSettingsFixture } from '@/test/fixtures/settings';
 import { savedWriteFixture, sessionUpdateFixture } from '@/test/fixtures/write-result';
@@ -30,6 +31,7 @@ const mocks = vi.hoisted(() => ({
   query: vi.fn(),
   save: vi.fn(),
   preview: vi.fn<typeof queryJointEditPreview>(),
+  validate: vi.fn<typeof validateJointFiles>(),
   catalog: vi.fn<typeof JointEditServiceModule.queryJointVariantCatalog>(),
   candidate: vi.fn<typeof JointEditServiceModule.queryJointCandidate>(),
   listen: vi.fn<typeof ProjectSyncOrchestratorModule.listenSavedIdentity>(),
@@ -52,6 +54,7 @@ vi.mock('@/services/joint-edit.service', () => ({
   queryJointVariantCatalog: mocks.catalog,
   queryJointCandidate: mocks.candidate,
 }));
+vi.mock('./joint-editor-validation', () => ({ validateJointFiles: mocks.validate }));
 vi.mock('@/app/composables/use-joint-edit-actions', () => ({ useJointEditActions: () => ({ open: mocks.query, save: mocks.save }) }));
 vi.mock('@/app/composables/use-app-feedback', () => ({
   useAppFeedback: () => ({ error: mocks.error, success: vi.fn(), choose: mocks.choose }),
@@ -116,6 +119,7 @@ beforeEach(() => {
   setActivePinia(createPinia());
   initializeSettingsStore(createSettingsFixture({ theme: 'dark', editHistoryLimit: 20, logRotationSizeMiB: 10, logBackupCount: 5 }));
   vi.clearAllMocks();
+  mocks.validate.mockResolvedValue([]);
   mocks.invalidations.length = 0;
   mocks.projectUpdates.length = 0;
   mocks.query.mockResolvedValue(shipJointFixture());

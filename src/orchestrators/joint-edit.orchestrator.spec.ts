@@ -5,7 +5,7 @@ import { editorUiStubs, nSelect } from '@/test/unit/ui-stubs';
 import { weaponJointFixture } from '@/test/fixtures/joint-edit/weapon-joint-edit';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { shipJointFixture } from '@/test/fixtures/joint-edit/ship-joint-edit';
-import { jointFixtureValues } from '@/test/fixtures/joint-edit/joint-record';
+import { jointFixtureValues, fixtureSpecRecord } from '@/test/fixtures/joint-edit/joint-record';
 import { savedWriteFixture } from '@/test/fixtures/write-result';
 import { appLogQueue } from '@/shared/runtime/app-log-queue';
 import type { AppLogEntry, AppFeedback, JointEditDraft } from '@/shared/types';
@@ -13,11 +13,13 @@ const mocks = vi.hoisted(() => ({
   prepare: vi.fn<typeof JointEditServiceModule.prepareJointEdit>(),
   save: vi.fn<typeof JointEditServiceModule.saveJointEdit>(),
   query: vi.fn<typeof JointEditServiceModule.queryJointEdit>(),
+  preview: vi.fn<typeof JointEditServiceModule.queryJointEditPreview>(),
 }));
 vi.mock('@/services/joint-edit.service', () => ({
   prepareJointEdit: mocks.prepare,
   saveJointEdit: mocks.save,
   queryJointEdit: mocks.query,
+  queryJointEditPreview: mocks.preview,
 }));
 vi.mock('@/orchestrators/json-write-confirmation.orchestrator', () => ({
   runConfirmedJsonWrite: async (_feedback: unknown, action: (options: unknown) => unknown) =>
@@ -30,6 +32,7 @@ let feedback: AppFeedback;
 beforeEach(async () => {
   await appLogQueue.flush();
   vi.clearAllMocks();
+  mocks.preview.mockImplementation(async ({ baseline }) => baseline);
   records.length = 0;
   appLogQueue.install(async (batch) => {
     records.push(...batch);
@@ -45,6 +48,71 @@ beforeEach(async () => {
   };
 });
 describe('joint declared editing scope confirmation', () => {
+  it('keeps newly referenced files and their versions through confirmation and submission', async () => {
+    const snapshot = shipJointFixture(),
+      values = jointFixtureValues(snapshot);
+    const dependency = fixtureSpecRecord('added', 'projectile', { id: 'added' });
+    mocks.prepare.mockResolvedValue({ snapshot, values, conflicts: [] });
+    mocks.preview.mockResolvedValue({
+      ...snapshot,
+      records: [...snapshot.records, dependency],
+      baseVersions: [...snapshot.baseVersions, ...dependency.baseVersions],
+    });
+    const validate = vi.fn(async () => []);
+    mocks.save.mockResolvedValue({ ...savedWriteFixture(), content: { target: { kind: 'joint', root: snapshot.root }, value: snapshot } });
+    await submitJointEdit({ baseline: snapshot, values }, feedback, async () => [], [], undefined, validate);
+    expect(mocks.save.mock.lastCall![0].snapshot.records).toContainEqual(dependency);
+    expect(mocks.save.mock.lastCall![0].baseVersions).toEqual(expect.arrayContaining(dependency.baseVersions));
+    expect(validate.mock.calls[0]).toBeDefined();
+    expect(snapshot.records).not.toContainEqual(dependency);
+  });
+  it('collects all final-file errors after conflict selection', async () => {
+    const snapshot = shipJointFixture(),
+      values = jointFixtureValues(snapshot);
+    mocks.prepare.mockResolvedValueOnce({ snapshot, values, conflicts: [] });
+    const issues = ['mass', 'hitpoints'].map((field) => ({
+      severity: 'error' as const,
+      code: 'csv.value_invalid',
+      path: JSON.stringify(['csv', field]),
+      message: field,
+      location: { path: 'M:/mod/data/hulls/ship_data.csv', field, rowKey: 'csv', line: null, column: null },
+    }));
+    const validate = vi.fn(async () => issues);
+    await expect(submitJointEdit({ baseline: snapshot, values }, feedback, async () => [], [], undefined, validate)).rejects.toMatchObject({
+      action: 'joint-validation',
+      issues,
+    });
+    expect(validate).toHaveBeenCalledTimes(1);
+    expect(mocks.save).not.toHaveBeenCalled();
+  });
+  it('confirms local warnings once and retains readonly-source errors without blocking', async () => {
+    const snapshot = shipJointFixture(),
+      values = jointFixtureValues(snapshot);
+    mocks.prepare.mockResolvedValueOnce({ snapshot, values, conflicts: [] });
+    mocks.save.mockResolvedValueOnce({
+      ...savedWriteFixture(),
+      content: { target: { kind: 'joint', root: snapshot.root }, value: snapshot },
+    });
+    const validate = vi.fn(async () => [
+      {
+        severity: 'warning' as const,
+        code: 'csv.relation',
+        path: 'csv/mass',
+        message: 'Confirm mass',
+        location: { path: 'M:/mod/data/hulls/ship_data.csv', field: 'mass', line: null, column: null },
+      },
+      {
+        severity: 'error' as const,
+        code: 'spec.field_invalid',
+        path: 'external/width',
+        message: 'External width',
+        location: { path: 'G:/core/file.wpn', field: 'width', line: null, column: null },
+      },
+    ]);
+    await submitJointEdit({ baseline: snapshot, values }, feedback, async () => [], [], undefined, validate);
+    expect(feedback.choose).toHaveBeenCalledTimes(1);
+    expect(mocks.save).toHaveBeenCalledTimes(1);
+  });
   it.each(['disk', 'draft'] as const)('checks the final CSV content selected from a conflict: %s', async (choice) => {
     const snapshot = shipJointFixture();
     const record = snapshot.records.find((record) => record.key === 'csv')!;

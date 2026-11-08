@@ -28,10 +28,34 @@
 - `src/app/components/editors/common/EditorHeader.vue`：编辑与预览共用的标题、dirty、外部基线及动作插槽。
 - `src/app/components/editors/common/EditorInspector.vue`：编辑与预览共用的属性区标题及独立滚动容器。
 - `src/app/composables/canvas/use-canvas-navigation.ts`：预览消费右键平移与鼠标锚点缩放。
+- `src/app/composables/canvas/use-canvas-palette.ts`：主题派生与重绘通知的装配。
+- `src/app/composables/canvas/use-canvas-surface.ts`：画布表面、导航、视口、选择与指针阶段及其测试。
 - `src/app/composables/canvas/use-canvas-viewport.ts`：预览消费缩放、平移、适应状态及画布尺寸。
+- `src/app/composables/editors/use-editor-frame-loop.ts`：帧循环的启动、停止与释放。
+- `src/app/composables/editors/use-engine-rendering.ts`：统一装配引擎样式查询、媒体、解码、着色成品与引用释放。
+- `src/app/composables/editors/use-projectile-rendering.ts`：统一持有开火图片租约、解码与着色成品。
+- `src/app/composables/use-app-feedback.ts`：窗口反馈的提供与消费入口。
+- `src/app/composables/use-context-menu.ts`：窗口菜单状态、目标操作、事件生命周期与业务根登记。
+- `src/app/composables/use-managed-window-requests.ts`：组件作用域内请求接纳及释放适配。
+- `src/app/composables/use-window-close-state.ts`：窗口操作锁、具名关闭请求、内容参与登记和卸载释放。
+- `src/app/composables/use-window-shortcuts.ts`：统一窗口按键监听、菜单优先、关闭屏蔽及卸载释放。
 - `src/app/renderers/editors/canvas-scene.ts`：预览消费共同网格、鼠标十字及坐标绘制。
+- `src/app/renderers/editors/engine-renderer.ts`：作为 Spec 与沉浸式引擎静态成品的唯一样式、尺寸与绘制入口。
+- `src/app/renderers/editors/projectile-renderer.ts`：统一绘制 Spec 与开火预览的弹体、导弹、光束及等离子本体。
+- `src/app/renderers/editors/weapon-images.ts`：武器编辑、开火预览、舰船与装配消费的共享贴图、装备阶段及光效绘制入口。
+- `src/domain/editors/editor-types.ts`：编辑坐标、模式与悬停预览的纯数据类型。
+- `src/domain/editors/lib/geometry.ts`：舰船与武器坐标、角度、距离及边界线段纯规则。
+- `src/domain/editors/projectile-appearance.ts`：投影共享弹体外观、原点、纹理参数及引擎几何。
+- `src/orchestrators/project-sync.orchestrator.ts`：窗口内保存消费过程和内容维护者交接。
+- `src/services/entity-query.service.ts`：四类查询定义、正式请求与实体失效选择。
+- `src/services/resource-media.service.ts`：唯一持有媒体读取、合批、租约、响应式结果、闲置预算和失效。
 - `src/services/weapon-data.service.ts`：消费共享武器规格、CSV 与授权武器资源查询。
+- `src/services/window.service.ts`：窗口 command 的类型化签名与参数装配。
 - `src/shared/types/weapon-fire-preview.types.ts`：来源及只读查询结果交接模型。
+- `src/stores/settings.store.ts`：settings 运行态，只持状态、setter 与派生值；初始快照经统一初始化入口注入。
+- `src/windows/current.window.ts`：当前窗口生命周期，提供关闭请求、关闭监听、最小化、最大化、拖拽、重载与显示。
+- `src/windows/managed.window.ts`：请求交付，等待所属请求的终结回执。
+- `src/windows/window-context.window.ts`：只读上下文、请求监听接纳及上下文版本的前端运行态。
 
 ### 装配
 

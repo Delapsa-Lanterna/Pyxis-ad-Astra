@@ -91,7 +91,7 @@ export function csvRowProblems(
             context.complete ? 'error' : 'warning',
             'image_missing',
           );
-        if (!value) problem(column.key, '图标为空，请确认预期显示或默认图标。');
+        if (!value) problem(column.key, '图标为空，请确认预期显示或默认图标。', 'warning', 'image_empty');
       }
       if (column.control === 'reference' && column.source && column.source !== 'csv:variants.variantId' && value)
         reference(
@@ -102,9 +102,9 @@ export function csvRowProblems(
             : 'error',
         );
     }
-    if (id && id !== id.trim()) problem('id', 'ID 包含首尾空白，游戏按原值区分身份。');
+    if (id && id !== id.trim()) problem('id', 'ID 包含首尾空白，游戏按原值区分身份。', 'warning', 'identity_whitespace');
     if (header.includes('name') && !text('name') && (table !== 'ships' || !text('designation')))
-      problem('name', table === 'ships' ? '名称与定位均为空，请确认显示效果。' : '名称为空，请确认显示效果。');
+      problem('name', table === 'ships' ? '名称与定位均为空，请确认显示效果。' : '名称为空，请确认显示效果。', 'warning', 'name_empty');
     const ownKind = CSV_SPEC_KINDS[table];
     const spec = context && ownKind ? context.entities[`${ownKind}:${id}`] : null;
     if (id && context && ownKind && !spec)
@@ -119,12 +119,12 @@ export function csvRowProblems(
         ['min crew', 'max crew'],
         ['minPieces', 'maxPieces'],
       ] as const)
-        if (text(a) && text(b) && num(a) > num(b)) problem(a, `${a} 大于 ${b}。`);
+        if (text(a) && text(b) && num(a) > num(b)) problem(a, `${a} 大于 ${b}。`, 'warning', 'range_order');
       pair('WEAPONS_FRONT_TO_BACK', 'WEAPONS_BACK_TO_FRONT', '两种排序同时存在，游戏优先采用 WEAPONS_FRONT_TO_BACK。');
       if (text('shield type') === 'PHASE' && !text('defense id') && text('system id') && text('system id') !== 'phasecloak')
-        problem('system id', '当前相位防御配置会将系统 ID 设置为 phasecloak。');
+        problem('system id', '当前相位防御配置会将系统 ID 设置为 phasecloak。', 'warning', 'phase_system');
       if (context && text('codex variant id') && !context.entities[`variant:${text('codex variant id')}`])
-        problem('codex variant id', '数据百科装配引用尚未找到。');
+        problem('codex variant id', '数据百科装配引用尚未找到。', 'warning', 'codex_variant');
       if (spec) {
         const slots = Array.isArray(spec.weaponSlots) ? spec.weaponSlots.filter(isRowData) : [];
         if (hints.has('PLAY_FIGHTER_OVERLOAD_SOUNDS') && spec.hullSize !== 'FIGHTER')
@@ -147,7 +147,7 @@ export function csvRowProblems(
     }
     if (table === 'weapons') {
       if (text('min spread') && text('max spread') && num('min spread') > num('max spread'))
-        problem('min spread', '最小散布大于最大散布。');
+        problem('min spread', '最小散布大于最大散布。', 'warning', 'spread_order');
       if (hints.has('PD_ALSO') && !hints.has('PD') && !hints.has('PD_ONLY'))
         hintProblem('PD_ALSO', 'PD_ALSO 的兼用点防御行为需要相应点防御配置，请确认。');
       for (const [a, b, message] of [
@@ -191,7 +191,9 @@ export function csvRowProblems(
               'proj hitpoints',
             ]
           : ['damage/second', 'beam speed'];
-        for (const key of ignored) if (text(key)) problem(key, `当前 ${beam ? '光束' : '实弹'} 读取分支使用另一组字段，请确认该值的用途。`);
+        for (const key of ignored)
+          if (text(key))
+            problem(key, `当前 ${beam ? '光束' : '实弹'} 读取分支使用另一组字段，请确认该值的用途。`, 'warning', 'branch_field');
         if (!beam && spec.projectileSpecId && context && !context.entities[`projectile:${cell(spec.projectileSpecId)}`])
           problem('id', '武器引用的弹体规格未找到。', context.complete ? 'error' : 'warning', 'projectile_missing');
       }
@@ -203,23 +205,26 @@ export function csvRowProblems(
         const skin = context.entities[`skin:${cell(variant.hullId)}`];
         const hull =
           context.entities[`ship:${cell(variant.hullId)}`] ?? (skin?.hullSize ? skin : context.entities[`ship:${cell(skin?.baseHullId)}`]);
-        if (hull && hull.hullSize && hull.hullSize !== 'FIGHTER') problem('variant', '当前装配基础船体属于非战机类型，请确认联队用途。');
+        if (hull && hull.hullSize && hull.hullSize !== 'FIGHTER')
+          problem('variant', '当前装配基础船体属于非战机类型，请确认联队用途。', 'warning', 'wing_hull');
       }
     }
     if (table === 'shipSystems') {
-      if (yes('noDissipation') && yes('noHardDissipation')) problem('noHardDissipation', '禁止全部耗散已经覆盖硬幅能耗散限制。');
-      if (text('max uses') && num('max uses') === 0) problem('max uses', '基础可用次数为零，请确认脚本覆盖。');
+      if (yes('noDissipation') && yes('noHardDissipation'))
+        problem('noHardDissipation', '禁止全部耗散已经覆盖硬幅能耗散限制。', 'warning', 'dissipation_flags');
+      if (text('max uses') && num('max uses') === 0) problem('max uses', '基础可用次数为零，请确认脚本覆盖。', 'warning', 'uses_zero');
     }
     if (table === 'hullmods') {
       if (yes('hiddenEverywhere') && (yes('unlocked') || num('base value') > 0))
-        problem('hiddenEverywhere', '完全隐藏与解锁、出售用途同时声明，请确认。');
+        problem('hiddenEverywhere', '完全隐藏与解锁、出售用途同时声明，请确认。', 'warning', 'hidden_flags');
       for (const key of ['desc', 'sModDesc']) {
         const error = formatStringError(text(key));
         if (error) problem(key, error, 'error', 'format_invalid');
       }
     }
     if (table === 'industries') {
-      for (const key of ['upgrade', 'downgrade']) if (id && text(key) === id) problem(key, '升级或降级目标指向自身。');
+      for (const key of ['upgrade', 'downgrade'])
+        if (id && text(key) === id) problem(key, '升级或降级目标指向自身。', 'warning', 'self_reference');
       if (context && text('plugin') === 'com.fs.starfarer.api.impl.campaign.econ.impl.OrbitalStation') {
         const parsed = context.stationData[text('data')]!,
           value = parsed.value;
@@ -241,21 +246,32 @@ export function csvRowProblems(
     }
     if (table === 'skills' && spec && context?.sources[`aptitudeEffect:${cell(spec.governingAptitude)}`]?.includes(id))
       for (const key of ['name', 'description', 'tier', 'reqPoints', 'reqPointsPerExtraSkill'])
-        if (text(key)) problem(key, '类别效果技能由天赋类别定义接管此内容。');
+        if (text(key)) problem(key, '类别效果技能由天赋类别定义接管此内容。', 'warning', 'aptitude_override');
     if (table === 'specialItems' && context && text('plugin') === 'com.fs.starfarer.api.campaign.impl.items.GenericSpecialItemPlugin')
       for (const value of text('plugin params')
         .split(',')
         .map((v) => v.trim())
         .filter(Boolean))
         if (!context.sources['csv:industries.id']!.includes(value))
-          problem('plugin params', `通用物品参数中的工业 ${JSON.stringify(value)} 未找到。`);
+          problem(
+            'plugin params',
+            `通用物品参数中的工业 ${JSON.stringify(value)} 未找到。`,
+            'warning',
+            'plugin_industry.' + JSON.stringify(value),
+          );
     if (table === 'specialItems' && context && text('plugin') === 'com.fs.starfarer.api.campaign.impl.items.MultiBlueprintItemPlugin') {
       const tags = new Set(['csv:ships.tags', 'csv:weapons.tags', 'csv:wings.tags'].flatMap((source) => context.sources[source]!));
       for (const tag of text('plugin params')
         .split(',')
         .map((v) => v.trim())
         .filter(Boolean))
-        if (!tags.has(tag)) problem('plugin params', `蓝图包标签 ${JSON.stringify(tag)} 在当前舰船、武器和联队来源中未找到。`);
+        if (!tags.has(tag))
+          problem(
+            'plugin params',
+            `蓝图包标签 ${JSON.stringify(tag)} 在当前舰船、武器和联队来源中未找到。`,
+            'warning',
+            'blueprint_tag.' + JSON.stringify(tag),
+          );
     }
     if (table === 'simOpponents' && context && text('variant id')) {
       const value = text('variant id');
@@ -265,12 +281,12 @@ export function csvRowProblems(
     }
     if (table === 'descriptions') {
       if ((!id || !text('type')) && ['text1', 'text2', 'text3', 'text4', 'text5'].some((key) => text(key)))
-        problem('id', '正文已有内容而身份不完整，游戏会跳过该描述。');
+        problem('id', '正文已有内容而身份不完整，游戏会跳过该描述。', 'warning', 'description_identity');
       if (id && text('type') && !['text1', 'text2', 'text3', 'text4', 'text5'].some((key) => text(key)))
-        problem('text1', '五个正文均为空，请确认描述显示。');
+        problem('text1', '五个正文均为空，请确认描述显示。', 'warning', 'description_empty');
       const kinds = DESCRIPTION_KINDS[text('type')];
       if (id && kinds && context && !kinds.some((kind) => context.entities[`${kind}:${id}`]))
-        problem('id', '当前类型的同名实体未找到，请确认 descriptionId 或脚本对该描述的引用。');
+        problem('id', '当前类型的同名实体未找到，请确认 descriptionId 或脚本对该描述的引用。', 'warning', 'description_reference');
     }
   });
   return issues;

@@ -1,8 +1,6 @@
 import type { FieldSchema } from '@/domain/schema/schema.types';
 import type { RowData, JsonValue } from '@/shared/types';
-export type SpecField = FieldSchema;
-
-export type SpecSection = { name: string; title: string; fields: SpecField[] };
+export type SpecSection = { name: string; title: string; fields: FieldSchema[] };
 
 export function specFieldParent(content: RowData, path: string, create = false): { parent: RowData; key: string } {
   const keys = path.replaceAll('[', '.').replaceAll(']', '').split('.');

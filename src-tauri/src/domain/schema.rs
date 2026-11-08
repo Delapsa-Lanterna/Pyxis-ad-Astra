@@ -1,41 +1,70 @@
-use crate::errors::{AppError, AppResult};
-use serde_json::Value;
+use crate::errors::{AppError, AppResult, ErrorLocation, FieldProblem};
+use serde_json::{Map, Value};
 
 pub fn validate_document(schema: &Value, data: &Value) -> AppResult<()> {
-    validate_document_fields(schema, data, true)
+    checked(document_issues(schema, data, true))
 }
-
 pub fn validate_partial_document(schema: &Value, data: &Value) -> AppResult<()> {
-    validate_document_fields(schema, data, false)
+    checked(document_issues(schema, data, false))
 }
-
-fn validate_document_fields(schema: &Value, data: &Value, complete: bool) -> AppResult<()> {
-    if let Some(root) = schema.get("root") {
-        return validate_field(
-            root,
-            data,
-            root["key"].as_str().expect("bundled root key"),
-            complete,
-        );
-    }
-    for section in schema["sections"].as_array().expect("bundled sections") {
-        for field in section["fields"].as_array().expect("bundled fields") {
-            let key = field["key"].as_str().expect("bundled field key");
-            let key = key.strip_prefix("file.").unwrap_or(key);
-            let pointer = format!("/{}", key.replace(['.', '['], "/").replace(']', ""));
-            let value = data.get(key).or_else(|| data.pointer(&pointer));
-            let required = complete
-                && field["required"] == true
-                && visible(&section["visibleWhen"], data)
-                && visible(&field["visibleWhen"], data);
-            if value.is_some() || required {
-                validate_field(field, value.unwrap_or(&Value::Null), key, complete)?;
-            }
-        }
-    }
-    Ok(())
+pub fn validate_field(field: &Value, data: &Value, path: &str, complete: bool) -> AppResult<()> {
+    checked(field_issues(field, Some(data), path, complete, data))
 }
-
+fn checked(issues: Vec<FieldProblem>) -> AppResult<()> {
+    if issues.is_empty() {
+        Ok(())
+    } else {
+        Err(AppError::Validation {
+            code: "config.shape_invalid",
+            issues,
+        })
+    }
+}
+fn invalid(field: &Value, path: &str, message: &str) -> FieldProblem {
+    FieldProblem {
+        severity: "error".into(),
+        code: field["issueCode"]
+            .as_str()
+            .unwrap_or("config.shape_invalid")
+            .into(),
+        path: path.into(),
+        message: format!(
+            "{} ({path}): {}",
+            field["label"].as_str().unwrap_or(path),
+            field["issueMessage"].as_str().unwrap_or(message)
+        ),
+        location: Some(Box::new(ErrorLocation {
+            field: Some(path.into()),
+            ..Default::default()
+        })),
+    }
+}
+fn read_path<'a>(data: &'a Value, path: &str) -> Option<&'a Value> {
+    data.get(path).or_else(|| {
+        data.pointer(&format!(
+            "/{}",
+            path.replace(['.', '['], "/").replace(']', "")
+        ))
+    })
+}
+fn required(field: &Value, read: impl Fn(&str) -> Option<Value>) -> bool {
+    field["required"] == true
+        || field["requiredWhen"].as_object().is_some_and(|conditions| {
+            conditions.iter().all(|(key, expected)| {
+                let value = read(key);
+                if expected.is_string() {
+                    value.as_ref() == Some(expected)
+                } else if let Some(minimum) = expected["min"].as_f64() {
+                    value
+                        .as_ref()
+                        .and_then(Value::as_f64)
+                        .is_some_and(|value| value >= minimum)
+                } else {
+                    value.is_none()
+                }
+            })
+        })
+}
 fn visible(condition: &Value, data: &Value) -> bool {
     let matches = |branch: &Value| {
         branch
@@ -43,18 +72,21 @@ fn visible(condition: &Value, data: &Value) -> bool {
             .expect("bundled visibility")
             .iter()
             .all(|(key, expected)| {
-                let value = &data[key];
+                let value = read_path(data, key).unwrap_or(&Value::Null);
                 if let Some(values) = expected.as_array() {
-                    values.contains(value)
+                    let actual = value
+                        .as_str()
+                        .map(str::to_owned)
+                        .unwrap_or_else(|| value.to_string());
+                    values
+                        .iter()
+                        .any(|expected| expected.as_str() == Some(actual.as_str()))
                 } else {
                     value
                         .as_f64()
                         .or_else(|| value.as_str()?.parse::<f64>().ok())
                         .is_some_and(|value| {
-                            value
-                                > expected["gt"]
-                                    .as_f64()
-                                    .expect("bundled visibility threshold")
+                            value > expected["gt"].as_f64().expect("visibility threshold")
                         })
                 }
             })
@@ -65,7 +97,6 @@ fn visible(condition: &Value, data: &Value) -> bool {
         _ => matches(condition),
     }
 }
-
 fn matches_type(field: &Value, data: &Value) -> bool {
     match field["type"].as_str().expect("bundled field type") {
         "json" => true,
@@ -73,182 +104,288 @@ fn matches_type(field: &Value, data: &Value) -> bool {
         "array" | "color-rgba" | "color-rgb" | "string-array" | "tag-select" => data.is_array(),
         "boolean" => {
             data.is_boolean()
-                || data.as_str().is_some_and(|s| {
-                    s.eq_ignore_ascii_case("true") || s.eq_ignore_ascii_case("false")
+                || data.as_str().is_some_and(|value| {
+                    value.eq_ignore_ascii_case("true") || value.eq_ignore_ascii_case("false")
                 })
         }
         "float" | "integer" => data.is_number() || data.is_string(),
         _ => data.is_string(),
     }
 }
-
-pub fn validate_field(field: &Value, data: &Value, path: &str, complete: bool) -> AppResult<()> {
-    let invalid = || {
-        AppError::message("config.shape_invalid", format!("字段内容无效：{path}")).at_field(path)
+pub fn document_issues(schema: &Value, data: &Value, complete: bool) -> Vec<FieldProblem> {
+    if let Some(root) = schema.get("root") {
+        return field_issues(
+            root,
+            Some(data),
+            root["key"].as_str().expect("root key"),
+            complete,
+            data,
+        );
+    }
+    let mut issues = Vec::new();
+    let fields = schema["sections"]
+        .as_array()
+        .expect("bundled sections")
+        .iter()
+        .flat_map(|section| {
+            section["fields"]
+                .as_array()
+                .expect("section fields")
+                .iter()
+                .map(|field| {
+                    let mut field = field.clone();
+                    if !visible(&section["visibleWhen"], data) {
+                        field["required"] = Value::Bool(false);
+                        field["requiredWhen"] = Value::Null;
+                    }
+                    field
+                })
+        })
+        .collect::<Vec<_>>();
+    for field in &fields {
+        let key = field["key"]
+            .as_str()
+            .expect("field key")
+            .strip_prefix("file.")
+            .unwrap_or(field["key"].as_str().expect("field key"));
+        let mut field = field.clone();
+        field["required"] = Value::Bool(required(&field, |key| {
+            read_path(data, key.strip_prefix("file.").unwrap_or(key))
+                .cloned()
+                .or_else(|| {
+                    fields
+                        .iter()
+                        .find(|field| field["key"] == key)
+                        .and_then(|field| field.get("default"))
+                        .cloned()
+                })
+        }));
+        issues.extend(field_issues(
+            &field,
+            read_path(data, key),
+            key,
+            complete,
+            data,
+        ));
+    }
+    issues
+}
+fn field_issues(
+    field: &Value,
+    data: Option<&Value>,
+    path: &str,
+    complete: bool,
+    root: &Value,
+) -> Vec<FieldProblem> {
+    let fail = |message| vec![invalid(field, path, message)];
+    if data.is_none() && !visible(&field["visibleWhen"], root) {
+        return Vec::new();
+    }
+    let Some(data) = data else {
+        return if complete && field["required"] == true {
+            fail("必填字段未设置")
+        } else {
+            Vec::new()
+        };
     };
     if complete
         && field["required"] == true
-        && (data.is_null() || data.as_str().is_some_and(|s| s.trim().is_empty()))
+        && data.as_str().is_some_and(|value| value.trim().is_empty())
     {
-        return Err(invalid());
+        return fail("必填字段未设置");
     }
     if let Some(variants) = field["variants"].as_array() {
-        let variant = variants
+        let Some(variant) = variants
             .iter()
-            .find(|field| matches_type(field, data))
-            .ok_or_else(invalid)?;
-        return validate_field(variant, data, path, complete);
+            .find(|candidate| matches_type(candidate, data))
+        else {
+            return fail("内容类型不符合字段定义");
+        };
+        let mut variant = variant.clone();
+        if let Some(required) = field.get("required") {
+            variant["required"] = required.clone();
+        }
+        return field_issues(&variant, Some(data), path, complete, root);
+    }
+    if field["required"] != true
+        && data.as_str() == Some("")
+        && ["string", "text", "enum", "path", "path-image"]
+            .contains(&field["type"].as_str().expect("field type"))
+    {
+        return Vec::new();
     }
     if !matches_type(field, data) {
-        return Err(invalid());
+        return fail("内容类型不符合字段定义");
     }
-    match field["type"].as_str().expect("bundled field type") {
+    let mut issues = Vec::new();
+    match field["type"].as_str().expect("field type") {
         "object" if data.is_array() => {
-            for entry in data.as_array().expect("validated entries") {
-                let object = entry.as_object().ok_or_else(invalid)?;
-                if object.len() != 1 {
-                    return Err(invalid());
+            let entries = data.as_array().expect("entry array");
+            let mut object = Map::new();
+            for entry in entries {
+                if let Some(entry) = entry.as_object().filter(|entry| entry.len() == 1) {
+                    object.extend(entry.clone());
+                } else {
+                    return fail("每个条目应包含一个键值");
                 }
-                validate_field(field, entry, path, complete)?;
             }
+            issues.extend(field_issues(
+                field,
+                Some(&Value::Object(object)),
+                path,
+                complete,
+                root,
+            ));
         }
         "object" => {
-            let object = data.as_object().expect("validated dictionary");
-            if field["minEntries"]
-                .as_u64()
-                .is_some_and(|min| object.len() < min as usize)
-                || field["maxEntries"]
-                    .as_u64()
-                    .is_some_and(|max| object.len() > max as usize)
+            let object = data.as_object().expect("object");
+            let count = object.len() as u64;
+            if field["minEntries"].as_u64().is_some_and(|min| count < min)
+                || field["maxEntries"].as_u64().is_some_and(|max| count > max)
             {
-                return Err(invalid());
+                let mut issue = invalid(field, path, "条目数量不符合要求");
+                if field["issueCode"].is_null() {
+                    issue.code = "spec.entry_count".into();
+                }
+                issues.push(issue);
             }
-            if complete {
-                if let Some(keys) = field["exclusiveKeys"].as_array()
-                    && keys
-                        .iter()
-                        .filter(|key| {
-                            object.contains_key(key.as_str().expect("bundled exclusive key"))
-                        })
+            if complete
+                && field["exclusiveKeys"].as_array().is_some_and(|keys| {
+                    keys.iter()
+                        .filter(|key| object.contains_key(key.as_str().expect("exclusive key")))
                         .count()
                         != 1
-                {
-                    return Err(invalid());
+                })
+            {
+                let mut issue = invalid(field, path, "应设置一个互斥字段");
+                if field["issueCode"].is_null() {
+                    issue.code = "spec.exclusive_keys".into();
                 }
-                if let Some(fields) = field["nested"].as_array() {
-                    for child in fields {
-                        let key = child["key"].as_str().expect("bundled field key");
-                        let required = child["required"] == true
-                            || child["requiredWhen"].as_object().is_some_and(|conditions| {
-                                conditions.iter().all(|(key, expected)| {
-                                    let value = object.get(key).or_else(|| {
-                                        fields
-                                            .iter()
-                                            .find(|field| field["key"] == *key)
-                                            .and_then(|field| field.get("default"))
-                                    });
-                                    if expected.is_string() {
-                                        value == Some(expected)
-                                    } else if let Some(minimum) = expected["min"].as_f64() {
-                                        value
-                                            .and_then(Value::as_f64)
-                                            .is_some_and(|value| value >= minimum)
-                                    } else {
-                                        value.is_none()
-                                    }
-                                })
-                            });
-                        if required && !object.contains_key(key) {
-                            return Err(AppError::message(
-                                "config.shape_invalid",
-                                format!("缺少必填字段：{path}/{key}"),
-                            )
-                            .at_field(format!("{path}[{}]", Value::String(key.into()))));
-                        }
-                    }
-                }
+                issues.push(issue);
+            }
+            let nested = field["nested"].as_array();
+            for child in nested.into_iter().flatten() {
+                let key = child["key"].as_str().expect("field key");
+                let mut child = child.clone();
+                child["required"] = Value::Bool(required(&child, |key| {
+                    object.get(key).cloned().or_else(|| {
+                        nested
+                            .and_then(|fields| fields.iter().find(|field| field["key"] == key))
+                            .and_then(|field| field.get("default"))
+                            .cloned()
+                    })
+                }));
+                issues.extend(field_issues(
+                    &child,
+                    object.get(key),
+                    &format!("{path}[{}]", Value::String(key.into())),
+                    complete,
+                    root,
+                ));
             }
             for (key, value) in object {
-                let child_path = format!("{path}[{}]", Value::String(key.clone()));
-                let fixed = field["nested"]
-                    .as_array()
-                    .and_then(|fields| fields.iter().find(|child| child["key"] == *key));
-                if fixed.is_none() && field["allowExtraFields"] != true {
+                if nested.is_some_and(|fields| fields.iter().any(|child| child["key"] == *key))
+                    || field["allowExtraFields"] != true
+                {
                     continue;
                 }
+                let child_path = format!("{path}[{}]", Value::String(key.clone()));
                 if field["reservedKeys"]
                     .as_array()
-                    .is_some_and(|keys| keys.iter().any(|v| v.as_str() == Some(key)))
+                    .is_some_and(|keys| keys.iter().any(|value| value.as_str() == Some(key)))
                 {
-                    return Err(invalid());
+                    issues.push(invalid(field, &child_path, "名称为保留名称"));
                 }
-                if let Some(schema) = fixed.or_else(|| field.get("valueSchema")) {
-                    if fixed.is_none()
-                        && let Some(keys) = field.get("keySchema")
-                    {
-                        if keys["type"] == "integer" && key.parse::<usize>().is_err() {
-                            return Err(invalid());
-                        }
-                        validate_field(keys, &Value::String(key.clone()), &child_path, complete)?;
-                    }
-                    validate_field(schema, value, &child_path, complete)?;
+                if let Some(keys) = field.get("keySchema") {
+                    issues.extend(field_issues(
+                        keys,
+                        Some(&Value::String(key.clone())),
+                        &child_path,
+                        true,
+                        root,
+                    ));
+                }
+                if let Some(schema) = field.get("valueSchema") {
+                    issues.extend(field_issues(
+                        schema,
+                        Some(value),
+                        &child_path,
+                        complete,
+                        root,
+                    ));
                 }
             }
         }
-        "array" => {
-            let count = data.as_array().expect("validated array").len();
-            if field["minEntries"]
-                .as_u64()
-                .is_some_and(|min| count < min as usize)
-                || field["maxEntries"]
-                    .as_u64()
-                    .is_some_and(|max| count > max as usize)
+        "array" | "string-array" | "tag-select" | "color-rgb" | "color-rgba" => {
+            let values = data.as_array().expect("array");
+            let count = values.len() as u64;
+            if field["minEntries"].as_u64().is_some_and(|min| count < min)
+                || field["maxEntries"].as_u64().is_some_and(|max| count > max)
             {
-                return Err(invalid());
+                issues.push(invalid(field, path, "条目数量不符合要求"));
             }
-            if let Some(schema) = field.get("item") {
-                for (index, value) in data.as_array().expect("validated array").iter().enumerate() {
-                    validate_field(schema, value, &format!("{path}[{index}]"), complete)?;
+            if ["string-array", "tag-select"].contains(&field["type"].as_str().expect("field type"))
+                && values.iter().any(|value| {
+                    !value.is_string()
+                        || field["options"]
+                            .as_array()
+                            .is_some_and(|options| !options.contains(value))
+                })
+            {
+                issues.push(invalid(field, path, "列表项不符合字段定义"));
+            }
+            if field["type"]
+                .as_str()
+                .expect("field type")
+                .starts_with("color-")
+                && (values.len() != if field["type"] == "color-rgb" { 3 } else { 4 }
+                    || values
+                        .iter()
+                        .any(|value| value.as_u64().is_none_or(|value| value > 255)))
+            {
+                issues.push(invalid(field, path, "颜色通道应为 0 至 255 的整数"));
+            }
+            if let Some(item) = field.get("item") {
+                for (index, value) in values.iter().enumerate() {
+                    issues.extend(field_issues(
+                        item,
+                        Some(value),
+                        &format!("{path}[{index}]"),
+                        complete,
+                        root,
+                    ));
                 }
-            }
-        }
-        "string-array" | "tag-select"
-            if data
-                .as_array()
-                .expect("validated string array")
-                .iter()
-                .any(|value| !value.is_string()) =>
-        {
-            return Err(invalid());
-        }
-        "color-rgb" | "color-rgba" => {
-            let values = data.as_array().expect("validated color");
-            let size = if field["type"] == "color-rgb" { 3 } else { 4 };
-            if values.len() != size || values.iter().any(|v| v.as_u64().is_none_or(|n| n > 255)) {
-                return Err(invalid());
             }
         }
         "float" | "integer" => {
-            let number = data
-                .as_f64()
-                .or_else(|| {
-                    data.as_str().and_then(|text| {
-                        let text = text.trim();
-                        let text = if field["numberFormat"] == "starsector" {
-                            text.strip_suffix(['f', 'F', 'd', 'D']).unwrap_or(text)
-                        } else {
-                            text
-                        };
-                        text.parse::<f64>().ok()
-                    })
+            let number = data.as_f64().or_else(|| {
+                data.as_str().and_then(|text| {
+                    let text = text.trim();
+                    if field["type"] == "integer"
+                        && (text.trim_start_matches(['+', '-']).is_empty()
+                            || !text
+                                .trim_start_matches(['+', '-'])
+                                .bytes()
+                                .all(|value| value.is_ascii_digit()))
+                    {
+                        return None;
+                    }
+                    let text = if field["numberFormat"] == "starsector" {
+                        text.strip_suffix(['f', 'F', 'd', 'D']).unwrap_or(text)
+                    } else {
+                        text
+                    };
+                    text.parse::<f64>().ok()
                 })
-                .ok_or_else(invalid)?;
-            if !number.is_finite()
-                || (field["type"] == "integer" && number.fract() != 0.0)
-                || field["min"].as_f64().is_some_and(|min| number < min)
-                || field["max"].as_f64().is_some_and(|max| number > max)
-            {
-                return Err(invalid());
+            });
+            if number.is_none_or(|value| {
+                !value.is_finite()
+                    || (field["type"] == "integer"
+                        && (value.fract() != 0.0 || value.abs() > 9007199254740991.0))
+                    || field["min"].as_f64().is_some_and(|min| value < min)
+                    || field["max"].as_f64().is_some_and(|max| value > max)
+            }) {
+                issues.push(invalid(field, path, "数值不符合字段定义"));
             }
         }
         "enum"
@@ -256,11 +393,11 @@ pub fn validate_field(field: &Value, data: &Value, path: &str, complete: bool) -
                 .as_array()
                 .is_some_and(|options| !options.contains(data)) =>
         {
-            return Err(invalid());
+            issues.push(invalid(field, path, "值不在允许范围内"));
         }
         _ => {}
     }
-    Ok(())
+    issues
 }
 
 #[cfg(test)]
@@ -268,6 +405,42 @@ mod tests {
     use super::*;
     use crate::parsers;
     use serde_json::json;
+
+    #[test]
+    fn collects_every_structural_failure_and_keeps_partial_omissions() {
+        let schema = json!({"sections":[{"fields":[
+            {"key":"count","label":"Count","type":"integer"},
+            {"key":"choice","label":"Choice","type":"object","exclusiveKeys":["a","b"]},
+            {"key":"items","label":"Items","type":"array","item":{"type":"object","nested":[{"key":"name","type":"string","required":true}]}}
+        ]}]});
+        let data = json!({"count":null,"choice":{"a":1,"b":2},"items":[{},{}]});
+        let issues = document_issues(&schema, &data, true);
+        assert_eq!(
+            issues
+                .iter()
+                .map(|issue| issue.path.as_str())
+                .collect::<Vec<_>>(),
+            [
+                "count",
+                "choice",
+                "items[0][\"name\"]",
+                "items[1][\"name\"]"
+            ]
+        );
+        assert!(document_issues(&schema, &json!({"items":[{}]}), false).is_empty());
+        let error = validate_document(&schema, &data)
+            .unwrap_err()
+            .at_path("fixture.json");
+        let wire = serde_json::to_value(error).unwrap();
+        assert_eq!(wire["issues"].as_array().unwrap().len(), 4);
+        assert!(
+            wire["issues"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .all(|issue| issue["location"]["path"] == "fixture.json")
+        );
+    }
 
     #[test]
     fn document_checks_declared_required_paths_and_visibility() {

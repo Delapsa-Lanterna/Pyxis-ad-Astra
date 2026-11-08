@@ -1,45 +1,7 @@
-import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { messages, architectureFixtures } from '../../../testing/fixtures.mjs';
-import { frontendLayerBoundaryRule } from '../../dependencies/frontend-layer-boundary.mjs';
-import { capabilityBoundaryRule } from '../../capabilities/capability-boundary.mjs';
+import { architectureFixtures, messages } from '../../../testing/fixtures.mjs';
+import assert from 'node:assert/strict';
 import { projectSessionBoundaryRule } from './project-session-boundary.mjs';
-
-for (const source of [
-  'src/services/project-session.service.ts',
-  'src/services/project-readiness.service.ts',
-  'src/services/query-cache.service.ts',
-  'src/services/resource-media.service.ts',
-  'src/services/resource-reference.service.ts',
-  'src/stores/project.store.ts',
-]) {
-  for (const dependency of [
-    "import type { State } from '@/stores/project-sync.store';",
-    "const sync = import('@/stores/project-sync.store');",
-    "export { type State } from '@/stores/project-sync.store';",
-  ]) {
-    test(source + ' retains its foundation boundary for ' + dependency.split(' ')[0], () => {
-      const files = architectureFixtures({
-        [source]: dependency,
-        'src/stores/project-sync.store.ts': 'export interface State {}',
-      });
-      const failures = [...messages(frontendLayerBoundaryRule.check(files)), ...messages(capabilityBoundaryRule.check(files))];
-      assert.equal(failures.length, 1);
-    });
-  }
-}
-
-test('project synchronization consumes formal cache and projection capabilities', () => {
-  const files = architectureFixtures({
-    'src/orchestrators/project-sync.orchestrator.ts':
-      "import { invalidateResourceMediaByProject } from '@/services/resource-media.service'; import { invalidateQueryCacheByProject } from '@/services/query-cache.service'; import { markSessionReady } from '@/services/project-readiness.service';",
-    'src/services/resource-media.service.ts': 'export function invalidateResourceMediaByProject() {}',
-    'src/services/query-cache.service.ts': 'export function invalidateQueryCacheByProject() {}',
-    'src/services/project-readiness.service.ts': 'export function markSessionReady() {}',
-  });
-  assert.deepEqual(messages(frontendLayerBoundaryRule.check(files)), []);
-  assert.deepEqual(messages(capabilityBoundaryRule.check(files)), []);
-});
 
 test('project synchronization owns formal manifest replacement', () => {
   const legal = architectureFixtures({

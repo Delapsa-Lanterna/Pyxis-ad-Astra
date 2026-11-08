@@ -2,6 +2,22 @@ import ts from 'typescript';
 import { sourcePositions } from './source-position.mjs';
 import { parse } from 'vue/compiler-sfc';
 
+/** @type {WeakMap<ts.SourceFile, ts.TypeChecker>} */
+const sourceCheckers = new WeakMap();
+
+/** @param {ts.SourceFile} ast @returns {ts.TypeChecker} */
+export function sourceChecker(ast) {
+  let checker = sourceCheckers.get(ast);
+  if (!checker) {
+    const options = { noLib: true, noResolve: true, allowJs: true, allowNonTsExtensions: true };
+    const host = ts.createCompilerHost(options);
+    host.getSourceFile = (name) => (name === ast.fileName ? ast : undefined);
+    checker = ts.createProgram([ast.fileName], options, host).getTypeChecker();
+    sourceCheckers.set(ast, checker);
+  }
+  return checker;
+}
+
 /** @typedef {{ importedName: string | null, localName: string | null, specifier: string, typeOnly: boolean, kind: 'import' | 'export' | 'dynamic' | 'type', line: number, column: number }} ImportBinding */
 /** @typedef {{ exportedName: string, localName: string, specifier: string | null, importedName: string, typeOnly: boolean, line: number, column: number }} ExportBinding */
 /** @typedef {{ localName: string | null, member: string | null, specifier: string | null, arguments: (string | null)[], argumentExpressions: (string | null)[], factory: boolean, line: number, column: number }} SourceCall */

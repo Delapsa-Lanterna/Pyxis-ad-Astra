@@ -19,7 +19,7 @@ export const editorsCapabilities = [
     },
     {
       capability: 'spec-weapon-editor-dependencies',
-      names: ['querySpecWeaponEditorImages', 'querySpecWeaponProjectileOptions'],
+      names: ['querySpecWeaponEditorImages'],
       owners: [{ layer: 'app', role: 'composable', domain: 'spec-weapon-editor-dependencies' }],
     },
   ]),
@@ -45,6 +45,7 @@ export const editorsCapabilities = [
       owners: [
         { layer: 'orchestrators', domain: 'joint-edit' },
         { layer: 'app', role: 'composable', domain: 'joint-edit-session' },
+        { layer: 'app', role: 'composable', domain: 'joint-editor-validation' },
         { layer: 'app', role: 'composable', domain: 'immersive-editor-runtime' },
         { layer: 'app', role: 'composable', domain: 'immersive-variant-editor' },
         { layer: 'app', role: 'composable', domain: 'immersive-wing-editor' },

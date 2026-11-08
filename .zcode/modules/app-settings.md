@@ -28,7 +28,12 @@
 - `src-tauri/src/app_data_dir.rs`：正式设置快照持久化的工具私有目录解析。
 - `src-tauri/src/models/app_settings.rs`：设置 wire 模型与四项容量的默认值。
 - `src-tauri/src/models/cache_limits.rs`：设置持久化消费的缓存预算模型与默认值。
+- `src/app/composables/settings/use-app-config-actions.ts`：目录打开动作与错误反馈。
+- `src/app/composables/use-app-feedback.ts`：窗口反馈的提供与消费入口。
+- `src/app/composables/use-context-menu.ts`：窗口菜单状态、目标操作、事件生命周期与业务根登记。
+- `src/app/performance-monitor.ts`：窗口采集装配、批量交付与采集错误状态。
 - `src/domain/cache-limits.ts`：缓存预算完整性与数值范围校验。
+- `src/services/app-log.service.ts`：日志命令、停写通知、状态读取与维护动作。
 - `src/shared/runtime/cache-limits.ts`：正式预算快照、变更通知与缓存订阅释放。
 - `src/shared/runtime/event.runtime.ts`：设置通知消费的通用事件传输。
 - `src/shared/types/app-settings.types.ts`：完整设置快照、主题及保存请求。

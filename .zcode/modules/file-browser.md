@@ -23,6 +23,12 @@
 ### 消费
 
 - `src-tauri/src/models/file_browser.rs`：目录条目、种类与文本窗口目标的 wire 模型。
+- `src-tauri/src/services/project/session/access.rs`：捕获引用快照后锁定并交付所属就绪会话。
+- `src-tauri/src/services/project/session/registry.rs`：会话存活登记、句柄与内容就绪门控。
+- `src/app/composables/use-app-feedback.ts`：窗口反馈的提供与消费入口。
+- `src/app/composables/use-context-menu.ts`：窗口菜单状态、目标操作、事件生命周期与业务根登记。
+- `src/app/composables/use-window-shortcuts.ts`：统一窗口按键监听、菜单优先、关闭屏蔽及卸载释放。
+- `src/orchestrators/project-sync.orchestrator.ts`：窗口内保存消费过程和内容维护者交接。
 - `src/shared/types/file-browser.types.ts`：前端条目与浏览状态交接模型。
 - `src/windows/file-editor.window.ts`：浏览动作消费的文本窗口创建与复用入口。
 

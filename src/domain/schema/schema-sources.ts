@@ -51,6 +51,7 @@ function validateSchemaFieldSources(fields: FieldSchema[], parentPath: string): 
     if (field.nested) validateSchemaFieldSources(field.nested, path);
     if (field.item) validateSchemaFieldSources([field.item], `${path}[]`);
     if (field.valueSchema) validateSchemaFieldSources([field.valueSchema], `${path}{}`);
+    if (field.keySchema) validateSchemaFieldSources([field.keySchema], `${path}{key}`);
     if (field.variants) validateSchemaFieldSources(field.variants, path);
   }
 }

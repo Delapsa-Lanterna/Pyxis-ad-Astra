@@ -59,10 +59,10 @@ import FieldRow from '@/shared/ui/FieldRow.vue';
 import { toOptions } from '@/domain/editors/lib/editor-constants';
 import { fieldSchemaForContext } from '@/domain/field-editor/field-editor-context';
 import { schemaCollection, schemaFieldRequired } from '@/domain/schema/schema-values';
-import { specFieldParent, type SpecField } from '@/domain/spec-editor/spec-fields';
+import { specFieldParent } from '@/domain/spec-editor/spec-fields';
 import type { JsonValue, RowData } from '@/shared/types';
-import type { SchemaFieldUpdate } from '@/domain/schema/schema.types';
-const props = withDefaults(defineProps<{ content: RowData; fields: SpecField[]; prefix?: string; readonlyFields?: string[] }>(), {
+import type { SchemaFieldUpdate, FieldSchema } from '@/domain/schema/schema.types';
+const props = withDefaults(defineProps<{ content: RowData; fields: FieldSchema[]; prefix?: string; readonlyFields?: string[] }>(), {
   prefix: '',
   readonlyFields: () => [],
 });
@@ -81,15 +81,15 @@ const fields = computed(() =>
   ),
 );
 const emit = defineEmits<{ update: [path: string, value: JsonValue]; remove: [path: string]; change: [path: string] }>();
-function updateField(field: SpecField, update: SchemaFieldUpdate) {
+function updateField(field: FieldSchema, update: SchemaFieldUpdate) {
   if (update.kind === 'set') emit('update', path(field), update.value as JsonValue);
   else emit('remove', path(field));
   if (field.type === 'path-image') emit('change', path(field));
 }
-const path = (field: Pick<SpecField, 'key'>) => props.prefix + field.key;
-const stored = (field: Pick<SpecField, 'key'>) => {
+const path = (field: Pick<FieldSchema, 'key'>) => props.prefix + field.key;
+const stored = (field: Pick<FieldSchema, 'key'>) => {
   const { parent, key } = specFieldParent(props.content, path(field));
   return parent[key];
 };
-const value = (field: SpecField) => stored(field) ?? (field.required ? undefined : field.default);
+const value = (field: FieldSchema) => stored(field) ?? (field.required ? undefined : field.default);
 </script>

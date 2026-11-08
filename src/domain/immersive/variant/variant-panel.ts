@@ -1,7 +1,7 @@
 import { immersiveNumber } from '../fields';
 import { variantEditableRecords } from '../source-records';
 import { immersiveCatalogScene } from '../hull-scene';
-import type { JointEditSnapshot, JointValue, JointHull, ResourceRef, RowData, ReadonlyVariantEntry } from '@/shared/types';
+import type { JointEditSnapshot, JointValue, JointHull, ResourceRef, RowData, ReadonlyVariantEntry, FieldProblem } from '@/shared/types';
 import { jointObject } from '@/domain/joint-edit';
 import { hullDataIndex, hullFieldValue } from '../hull-fields';
 import { isRowData } from '@/shared/lib/row-data';
@@ -9,6 +9,7 @@ import { schemaStringValue } from '@/domain/schema/schema-values';
 import { weaponStatistics } from '../weapon/weapon-statistics';
 import { variantWeaponGroups, weaponSlotCompatibility, type HullmodCategory } from './variant-actions';
 import { variantModuleEntries } from '@/shared/lib/starsector/variant-modules';
+import { getSchema } from '@/domain/schema/config-schema-registry';
 import type { ImmersiveField, ImmersiveStat } from '../fields';
 import {
   mountedWeaponImages,
@@ -70,7 +71,7 @@ export interface VariantPanelEntry {
   vents: number;
   capacitors: number;
   fluxLimit: number;
-  diagnostics: string[];
+  diagnostics: FieldProblem[];
   modules: Array<{ slot: RowData; variant: VariantPanelEntry }>;
 }
 export interface VariantPanel {
@@ -155,25 +156,26 @@ export function projectVariantPanel(
       };
       const number = (name: string, fallback = 0) => immersiveNumber({ [name]: fieldValue(name) ?? '' }, name, fallback);
       const hullSize = schemaStringValue(spec.hullSize);
-      const field = (name: string, label: string, type: ImmersiveField['schema']['type']): ImmersiveField => ({
+      const declared = getSchema('variant')!.sections!.flatMap((section) => section.fields);
+      const field = (name: string, label: string): ImmersiveField => ({
         id: role + '/' + name,
         recordKey: key,
-        schema: { key: name, label, type, ...(type === 'integer' ? { min: 0 } : {}) },
+        schema: { ...declared.find((field) => field.key === name)!, label },
       });
-      const vf = (name: string, label: string, type: ImmersiveField['schema']['type'] = 'string'): ImmersiveStat => ({
+      const vf = (name: string, label: string): ImmersiveStat => ({
         id: role + '/' + name,
         label,
         display: schemaStringValue(variant[name]),
-        fields: [field(name, label, type)],
+        fields: [field(name, label)],
       });
       const name = vf('displayName', '装配名称');
       name.font = 'ship-title';
       name.display = [schemaStringValue(fieldValue('name')), schemaStringValue(variant.displayName)].filter(Boolean).join(' · ');
-      const hullField = vf('hullId', '船体／Skin', 'enum');
+      const hullField = vf('hullId', '船体／Skin');
       hullField.fields[0]!.schema.source = 'hull:ids';
       hullField.fields[0]!.schema.required = true;
       hullField.fields[0]!.handoff = true;
-      const fields = [name, hullField, vf('fluxCapacitors', '幅能寄存器', 'integer'), vf('fluxVents', '耗散通道', 'integer')];
+      const fields = [name, hullField, vf('fluxCapacitors', '幅能寄存器'), vf('fluxVents', '耗散通道')];
       fields[2]!.font = 'ship-title';
       fields[3]!.font = 'ship-title';
       const weapons = hull.slots.filter(isRowData).map((slot): VariantWeapon => {
@@ -201,7 +203,7 @@ export function projectVariantPanel(
           builtin,
           flux: id ? statistics.sustainedFlux : 0,
           peakFlux: id ? statistics.fluxPerSecond : 0,
-          cost: builtin || !id ? 0 : immersiveNumber(weaponCsv, 'OPs', NaN),
+          cost: builtin || !id ? 0 : immersiveNumber(weaponCsv, 'OPs', NaN, 'weapons'),
           diagnostic: id
             ? !item || item.value.state === 'missing' || !row || row.value.state === 'missing'
               ? '武器来源缺失：' + id
@@ -227,8 +229,8 @@ export function projectVariantPanel(
           id,
           name:
             [fighterName, schemaStringValue(jointObject(wingVariant?.value).displayName)].filter(Boolean).join(' ') || id || '空置战机甲板',
-          count: immersiveNumber(wing, 'num', 1),
-          cost: builtin || !id ? 0 : immersiveNumber(wing, 'op cost', NaN),
+          count: immersiveNumber(wing, 'num', 1, 'wings'),
+          cost: builtin || !id ? 0 : immersiveNumber(wing, 'op cost', NaN, 'wings'),
           builtin,
           resource: fighterHull?.sprite ?? null,
         };
@@ -262,7 +264,7 @@ export function projectVariantPanel(
           design: schemaStringValue(mod['tech/manufacturer']),
           category,
           strengthened: strengthened.includes(id),
-          cost: category === 'normal' ? immersiveNumber(mod, costField, NaN) : 0,
+          cost: category === 'normal' ? immersiveNumber(mod, costField, NaN, 'hullmods') : 0,
           icon: row?.resourceRefs.icon ?? null,
         };
       });
@@ -321,24 +323,47 @@ export function projectVariantPanel(
         mods.reduce((sum, mod) => sum + mod.cost, 0);
       const opTotal = number('ordnance points'),
         fluxLimit = ({ FIGHTER: 5, FRIGATE: 10, DESTROYER: 20, CRUISER: 30, CAPITAL_SHIP: 50 } as Record<string, number>)[hullSize] ?? 100;
+      const problem = (code: string, path: string, message: string): FieldProblem => ({
+        severity: 'warning',
+        code: `variant.${code}`,
+        path,
+        message,
+      });
       const diagnostics = weapons
         .filter((weapon) => weapon.diagnostic)
-        .map((weapon) => `${schemaStringValue(weapon.slot.id)}：${weapon.diagnostic}`);
+        .map((weapon) =>
+          problem(
+            'weapon_compatibility',
+            `weaponSlots[${JSON.stringify(schemaStringValue(weapon.slot.id))}]`,
+            `${schemaStringValue(weapon.slot.id)}：${weapon.diagnostic}`,
+          ),
+        );
       for (const recordKey of new Set([
         hull.hullKey,
         ...Object.values(hull.fields).flatMap((inputs) => inputs.map((field) => field.recordKey)),
       ])) {
         const source = graph.records.find((entry) => entry.key === recordKey)!;
         if (source.value.state === 'missing')
-          diagnostics.push('船体来源缺失：' + (source.target.kind === 'spec' ? source.target.target.write.path : source.target.write.path));
+          diagnostics.push(
+            problem(
+              'hull_missing',
+              'hullId',
+              '船体来源缺失：' + (source.target.kind === 'spec' ? source.target.target.write.path : source.target.write.path),
+            ),
+          );
       }
       for (const wing of wings)
-        if (wing.id && !Number.isFinite(wing.cost)) diagnostics.push('战机甲板 ' + (wing.index + 1) + '：战机联队来源缺失 ' + wing.id);
+        if (wing.id && !Number.isFinite(wing.cost))
+          diagnostics.push(
+            problem('wing_missing', `wings[${wing.index}]`, '战机甲板 ' + (wing.index + 1) + '：战机联队来源缺失 ' + wing.id),
+          );
       for (const mod of mods)
-        if (!csv('hullmods', mod.id) || csv('hullmods', mod.id)!.value.state === 'missing') diagnostics.push('插件来源缺失：' + mod.id);
-      if (opUsed > opTotal) diagnostics.push(`装配点数超预算：${opUsed}/${opTotal}`);
-      if (vents > fluxLimit || capacitors > fluxLimit) diagnostics.push(`幅能分配超过船体级别基础上限 ${fluxLimit}`);
-      if (!Number.isFinite(opUsed)) diagnostics.push('装配点数来源未确定，查看缺失装备／插件记录');
+        if (!csv('hullmods', mod.id) || csv('hullmods', mod.id)!.value.state === 'missing')
+          diagnostics.push(problem('hullmod_missing', `hullMods[${JSON.stringify(mod.id)}]`, '插件来源缺失：' + mod.id));
+      if (opUsed > opTotal) diagnostics.push(problem('op_budget', 'variantId', `装配点数超预算：${opUsed}/${opTotal}`));
+      if (vents > fluxLimit || capacitors > fluxLimit)
+        diagnostics.push(problem('flux_limit', 'fluxVents', `幅能分配超过船体级别基础上限 ${fluxLimit}`));
+      if (!Number.isFinite(opUsed)) diagnostics.push(problem('op_source', 'variantId', '装配点数来源未确定，查看缺失装备／插件记录'));
       return {
         key,
         role,
@@ -371,7 +396,13 @@ export function projectVariantPanel(
       const child = variants.find((item) => item.key === module.variantKey),
         slot = variant.weapons.find((item) => item.slot.id === module.slotId)?.slot;
       if (child && slot) variant.modules.push({ slot, variant: child });
-      else variant.diagnostics.push('模块 ' + module.slotId + '：装配或槽位来源缺失');
+      else
+        variant.diagnostics.push({
+          severity: 'warning',
+          code: 'variant.module_missing',
+          path: `modules[${JSON.stringify(module.slotId)}]`,
+          message: '模块 ' + module.slotId + '：装配或槽位来源缺失',
+        });
     }
   return {
     kind: 'variant',

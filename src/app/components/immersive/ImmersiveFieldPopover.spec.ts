@@ -13,6 +13,8 @@ import { skinJointFixture } from '@/test/fixtures/joint-edit/skin-joint-edit';
 import { shipJointFixture } from '@/test/fixtures/joint-edit/ship-joint-edit';
 import { jointFixtureValues } from '@/test/fixtures/joint-edit/joint-record';
 import { projectShipPanel } from '@/domain/immersive/ship/ship-panel';
+import { projectWeaponPanel } from '@/domain/immersive/weapon/weapon-panel';
+import { weaponJointFixture } from '@/test/fixtures/joint-edit/weapon-joint-edit';
 import { updateImmersiveField, type ImmersiveFieldChange } from '@/domain/immersive/fields';
 import ImmersiveFieldPopover from './ImmersiveFieldPopover.vue';
 const feedback = vi.hoisted(() => ({ error: vi.fn() }));
@@ -70,6 +72,50 @@ function harness(id = 'hitpoints', missing = false, skin = false, baseReadonly =
   return { wrapper, inputs, values, active };
 }
 describe('immersive raw field popover', () => {
+  it('uses the declared integer rule and preserves the OP original through one input batch', async () => {
+    const snapshot = weaponJointFixture(),
+      values = shallowRef(jointFixtureValues(snapshot));
+    const stat = projectWeaponPanel(snapshot, values.value).allStats.find((stat) => stat.id === 'OPs')!;
+    const inputs = createFieldInputs(ref('op-fixture'));
+    const wrapper = mount(
+      {
+        setup() {
+          provideFieldInputs(inputs);
+          return () =>
+            h(ImmersiveFieldPopover, {
+              stat,
+              snapshot,
+              values: values.value,
+              active: true,
+              runtimeContext: { sessionId: 's', modRoot: 'M:/mod' },
+              onUpdate: (changes: ImmersiveFieldChange[]) => {
+                for (const { field, update } of changes)
+                  values.value = updateImmersiveField(
+                    values.value,
+                    snapshot.records.find((record) => record.key === field.recordKey)!,
+                    field,
+                    update,
+                  );
+              },
+            });
+        },
+      },
+      { global: { components: { NInput, NSelect, NButton } } },
+    );
+    try {
+      await flushPromises();
+      await wrapper.get('input').setValue('1.5');
+      await expect(inputs.commit()).rejects.toMatchObject({ action: 'commit-field-inputs' });
+      expect(wrapper.get<HTMLInputElement>('input').element.value).toBe('1.5');
+      expect(jointObject(values.value.csv).OPs).not.toBe('1.5');
+      await wrapper.get('input').setValue('2e2');
+      await inputs.commit();
+      expect(jointObject(values.value.csv).OPs).toBe('2e2');
+    } finally {
+      wrapper.unmount();
+      inputs.release();
+    }
+  });
   it('keeps inherited values unchanged on inspection and edits the Mod skin beside a readonly base', async () => {
     const own = harness('max speed', false, true, true);
     await flushPromises();

@@ -17,6 +17,29 @@
 
 ### 消费
 
+- `src/app/components/immersive/ImmersiveHullScene.vue`：船体场景的媒体、导航与绘制装配。
+- `src/app/components/immersive/ImmersivePanelRow.vue`：共同字段行及标签排布。
+- `src/app/components/immersive/ImmersivePanelSources.vue`：面板来源记录展示。
+- `src/app/components/immersive/ImmersiveSection.vue`：共同内容分组及标题展示。
+- `src/app/components/immersive/ImmersiveText.vue`：沉浸式文本片段与字体角色展示。
+- `src/app/components/immersive/immersive-render-context.ts`：只读与编辑展示契约。
+- `src/app/composables/immersive-editor/use-immersive-editor-runtime.ts`：联合会话、历史、字段与关联读取运行态。
+- `src/app/composables/use-app-feedback.ts`：窗口反馈的提供与消费入口。
+- `src/domain/entity-write/spec-construction.ts`：前端规格、装配和皮肤构造及分支补全。
+- `src/domain/fonts/font.types.ts`：字体身份、文本片段、位图对象与排布结果的纯类型。
+- `src/domain/immersive/design-type.ts`：设计类型名称及颜色规则。
+- `src/domain/immersive/fields.ts`：字段规则、数值投影与具名关联查询输入契约。
+- `src/domain/immersive/highlighted-text.ts`：说明文本的高亮片段纯投影。
+- `src/domain/immersive/hull-fields.ts`：船体基础与皮肤字段的统一读取、计算与输入投影。
+- `src/domain/immersive/hull-scene.ts`：有效船体、装备层序、坐标与编队投影。
+- `src/domain/immersive/source-records.ts`：可编辑来源与装配记录选择。
+- `src/domain/joint-edit.ts`：联合写入范围提取、身份映射、草稿重接与冲突选择投影。
+- `src/domain/schema/config-schema-registry.ts`：字段与列资产加载、来源声明、值及结构纯规则。
+- `src/domain/schema/csv-schema-registry.ts`：字段与列资产加载、来源声明、值及结构纯规则。
+- `src/domain/schema/csv-value-validation.ts`：字段与列资产加载、来源声明、值及结构纯规则。
+- `src/domain/schema/schema-values.ts`：字段与列资产加载、来源声明、值及结构纯规则。
+- `src/orchestrators/immersive-editor.orchestrator.ts`：联合根读取、编辑目标准备与沉浸式窗口交付。
+- `src/services/joint-edit.service.ts`：三个 command 的类型化协议装配。
 - `src/test/fixtures/joint-edit/wing-joint-edit.ts`：战机联队联合来源及行键的测试构造。
 - `src/windows/immersive-editor.window.ts`：舰船与装配沉浸式窗口身份及打开请求。
 

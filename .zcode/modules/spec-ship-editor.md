@@ -16,11 +16,48 @@
 
 ### 消费
 
+- `src/app/components/field-editor/SchemaScalarInput.vue`：字段、表单、集合及标量输入展示。
+- `src/app/components/field-editor/SchemaValueInput.vue`：字段、表单、集合及标量输入展示。
+- `src/app/components/spec-editor/SpecFieldList.vue`：同构字段、默认值展示和辅助动作事件。
+- `src/app/components/spec-editor/SpecProblems.vue`：固定顶部红黄框及全部问题计数。
 - `src/app/composables/canvas/use-canvas-editor.ts`：舰船消费的共享画布交互、选区和动作提交入口。
+- `src/app/composables/canvas/use-canvas-palette.ts`：主题派生与重绘通知的装配。
+- `src/app/composables/canvas/use-canvas-runtime.ts`：完整目标身份、悬停、检查器锁定、镜像开关与候选预览。
+- `src/app/composables/canvas/use-canvas-viewport.ts`：视口缩放与平移。
+- `src/app/composables/editors/use-editor-document.ts`：工作值、动作起点、提交快照、字段与手势边界及历史交接。
+- `src/app/composables/editors/use-editor-images.ts`：贴图加载、替换、结果接纳、解码修订、着色缓存与释放。
+- `src/app/composables/editors/use-engine-rendering.ts`：统一装配引擎样式查询、媒体、解码、着色成品与引用释放。
+- `src/app/composables/spec-editor/spec-schema-context.ts`：所属规格目标的字段来源上下文交付。
 - `src/app/composables/spec-editor/use-spec-editor-window-view-model.ts`：四类规格目标会话、保存、身份与外部基线接纳。
+- `src/app/composables/spec-editor/use-spec-problem-navigation.ts`：规格问题定位、所属分组展开与有效请求滚动交接。
+- `src/app/composables/spec-editor/use-spec-problems.ts`：会话问题聚合、原文优先级、失败保留及共享展示。
+- `src/app/composables/use-app-feedback.ts`：窗口反馈的提供与消费入口。
+- `src/app/composables/use-context-menu.ts`：窗口菜单状态、目标操作、事件生命周期与业务根登记。
+- `src/app/composables/use-resource-media-registry.ts`：持有集合差量、业务引用、媒体租约与所属反馈。
+- `src/app/renderers/editors/canvas-drawing.ts`：清屏、网格与像素贴图的无状态绘制入口。
+- `src/app/renderers/editors/canvas-scene.ts`：共享背景、镜像轴、边界与光标场景的绘制入口。
+- `src/app/renderers/editors/canvas-styles.ts`：场景消费的标记样式投影入口。
+- `src/app/renderers/editors/canvas-visuals.ts`：消费显式样式的实体绘制原语。
+- `src/app/renderers/editors/engine-renderer.ts`：作为 Spec 与沉浸式引擎静态成品的唯一样式、尺寸与绘制入口。
+- `src/app/renderers/editors/weapon-images.ts`：武器编辑、开火预览、舰船与装配消费的共享贴图、装备阶段及光效绘制入口。
+- `src/app/renderers/editors/weapon-slot-renderer.ts`：武器槽位与起降口的共同样式、几何和无状态绘制。
+- `src/domain/editors/editor-types.ts`：编辑坐标、模式与悬停预览的纯数据类型。
+- `src/domain/editors/lib/editor-constants.ts`：吸附步长与选项常量。
 - `src/domain/editors/lib/geometry.ts`：舰船与武器坐标、角度、距离及边界线段纯规则。
 - `src/domain/editors/lib/mirror.ts`：舰船消费的共享几何镜像规则。
+- `src/domain/entity-write/spec-construction.ts`：前端规格、装配和皮肤构造及分支补全。
+- `src/domain/joint-edit.ts`：联合写入范围提取、身份映射、草稿重接与冲突选择投影。
+- `src/domain/schema/schema-validation.ts`：字段与列资产加载、来源声明、值及结构纯规则。
+- `src/domain/spec-editor/spec-fields.ts`：字段声明、嵌套路径定位及字段更新。
+- `src/domain/spec-editor/spec-schemas.ts`：Spec 资产引用解析及当前分支装配。
+- `src/domain/spec-editor/spec-validation.ts`：规格字段路径及条件必填到共同字段规则的装配。
+- `src/orchestrators/project-sync.orchestrator.ts`：窗口内保存消费过程和内容维护者交接。
+- `src/services/entity-query.service.ts`：四类查询定义、正式请求与实体失效选择。
+- `src/services/joint-edit.service.ts`：三个 command 的类型化协议装配。
+- `src/services/resource-media.service.ts`：唯一持有媒体读取、合批、租约、响应式结果、闲置预算和失效。
+- `src/services/resource-reference.service.ts`：草稿资源查询与授权相对引用解析能力。
 - `src/shared/ui/FieldHints.vue`：检查器说明的共同展示。
+- `src/stores/settings.store.ts`：settings 运行态，只持状态、setter 与派生值；初始快照经统一初始化入口注入。
 
 ### 关联
 

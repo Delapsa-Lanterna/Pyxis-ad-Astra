@@ -7,8 +7,11 @@ import type {
   JsonValue,
   ResourceRef,
   RowData,
+  CsvTableKey,
 } from '@/shared/types';
-import type { FieldSchema, SchemaFieldUpdate } from '@/domain/schema/schema.types';
+import type { CsvColumnSchema, FieldSchema, SchemaFieldUpdate } from '@/domain/schema/schema.types';
+import { getCsvColumnSchemas } from '@/domain/schema/csv-schema-registry';
+import { parseCsvValue } from '@/domain/schema/csv-value-validation';
 import { applySchemaFieldUpdate, getNestedValue, schemaStringValue } from '@/domain/schema/schema-values';
 import { entityContentIdField } from '@/domain/project/entity-definitions';
 import { jointObject } from '@/domain/joint-edit';
@@ -38,6 +41,7 @@ export interface ImmersiveField {
   id: string;
   recordKey: string;
   schema: FieldSchema;
+  column?: CsvColumnSchema;
   optionLabels?: Record<string, string>;
   inheritOnEmpty?: boolean;
   handoff?: boolean;
@@ -108,9 +112,14 @@ export function updateImmersiveField(
   return { ...values, [record.key]: { state: 'present', value: edit.value } };
 }
 
-export function immersiveNumber(csv: Readonly<RowData>, key: string, fallback: number): number {
+export function immersiveNumber(csv: Readonly<RowData>, key: string, fallback: number, table?: CsvTableKey): number {
   const raw = schemaStringValue(csv[key]);
   if (!raw.trim()) return fallback;
-  const value = parseInputNumber(raw, false);
+  const column = table && getCsvColumnSchemas(table).find((column) => column.key === key);
+  if (column) {
+    const parsed = parseCsvValue(column, raw);
+    return parsed.kind === 'value' && typeof parsed.value === 'number' ? parsed.value : NaN;
+  }
+  const value = parseInputNumber(raw.replace(/[fFdD]$/, ''), false);
   return typeof value === 'number' ? value : NaN;
 }

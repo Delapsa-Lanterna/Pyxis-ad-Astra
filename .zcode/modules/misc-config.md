@@ -21,12 +21,16 @@
 - `schemas/hull-styles.schema.json`：船体样式字段、初值及前后端共同校验依据。
 - `schemas/sounds.schema.json`：音效、声音组与音乐格式及字段定义。
 - `src-tauri/src/domain/json_composition.rs`：游戏同路径 JSON 合并规则。
+- `src-tauri/src/domain/save_edits.rs`：当前正式内容的字段修改应用。
 - `src-tauri/src/domain/schema.rs`：字段结构、条件必填及分支约束校验。
 - `src-tauri/src/io/`：路径授权、版本、JSON 原文保留与文件变更集。
 - `src-tauri/src/models/document_identity.rs`：配置文件类别与文档来源身份。
 - `src-tauri/src/models/misc_config.rs`：配置查询记录、保存与删除协议。
 - `src-tauri/src/parsers/field_schema.rs`：内嵌字段资产读取。
 - `src-tauri/src/services/project/query/json_layers.rs`：会话所属的正式有序 JSON 来源组合与版本。
+- `src-tauri/src/services/project/session.rs`：会话打开、关闭、内容更新与内部登记及就绪访问能力交付。
+- `src-tauri/src/services/project/sources/core.rs`：按根共享 Core 产品、只读 CSV、单飞读取及缓存释放。
+- `src-tauri/src/services/project_session.rs`：游戏根与 Mod 根授权、来源输入准备及会话范围核对。
 - `src-tauri/src/services/write_transactions.rs`：根事务、版本校验、历史及提交同步。
 - `src/services/query-cache.service.ts`：所属会话的实时读取与失效。
 - `src/shared/types/misc-config.types.ts`：前后端对应的类型化文件协议。

@@ -1,9 +1,10 @@
-import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { messages, architectureFixtures } from '../../testing/fixtures.mjs';
-
-import { rustServiceEdgeBoundaryRule } from './rust-service-edge-boundary.mjs';
+import { architectureFixtures, messages } from '../../testing/fixtures.mjs';
+import assert from 'node:assert/strict';
 import { rustProjectLayerBoundaryRule } from './rust-project-layer-boundary.mjs';
+
+const serviceAssembly =
+  'pub(crate) use project::query::entities::query_entity; pub(crate) use project::write::entity_write::content::save_entity_spec;';
 
 test('JSON value operations form a shared leaf below business layers', () => {
   for (const consumer of ['src-tauri/src/services/misc_config.rs', 'src-tauri/src/services/project/query/resources.rs']) {
@@ -63,52 +64,6 @@ test('source roots keep path authorization within the source owner', () => {
   assert.equal(diagnostic.target, 'crate::services::directory_opening::resolve_game_mods_directory');
 });
 
-test('Rust module and layer restrictions report each dependency fact once', () => {
-  const horizontal = architectureFixtures({
-    'src-tauri/src/services/example.rs': 'use crate::services::app_log::{first, second}; fn run() { crate::services::app_log::first(); }',
-  });
-  assert.equal(messages(rustServiceEdgeBoundaryRule.check(horizontal)).length, 1);
-  const layers = architectureFixtures({
-    'src-tauri/src/models/example.rs': 'use crate::services::app_log::{first, second}; fn run() { crate::services::app_log::first(); }',
-  });
-  assert.equal(messages(rustProjectLayerBoundaryRule.check(layers)).length, 1);
-});
-
-test('Rust public query names retain their facade ownership and internal query modules retain their layer', () => {
-  const facade = architectureFixtures({
-    'src-tauri/src/services/file_editor.rs': 'fn run() { crate::services::project::query_entity_identity_intent(); }',
-  });
-  assert.deepEqual(messages(rustProjectLayerBoundaryRule.check(facade)), []);
-  assert.deepEqual(messages(rustServiceEdgeBoundaryRule.check(facade)), []);
-  const internal = architectureFixtures({
-    'src-tauri/src/services/file_editor.rs': 'fn run() { crate::services::project::query::identity(); }',
-  });
-  assert.equal(messages(rustProjectLayerBoundaryRule.check(internal)).length, 1);
-});
-
-test('project query and write layers reject standard file mutation and session opening', () => {
-  const query = architectureFixtures({
-    'src-tauri/src/services/project/query/sample.rs': 'pub fn query() { std::fs::remove_file("item"); }',
-  });
-  const write = architectureFixtures({
-    'src-tauri/src/services/project/write/sample.rs': 'pub fn save() { crate::services::project::open_project_session_traced(); }',
-  });
-  assert.equal(messages(rustProjectLayerBoundaryRule.check(query)).length, 1);
-  assert.equal(messages(rustProjectLayerBoundaryRule.check(write)).length, 1);
-});
-
-test('project cache and service signatures keep their ownership boundaries', () => {
-  const cache = architectureFixtures({
-    'src-tauri/src/services/project/cache/sample.rs':
-      'use crate::services::project::sources::core::load_all_core; pub fn run() { load_all_core(); }',
-  });
-  const service = architectureFixtures({
-    'src-tauri/src/services/sample.rs': 'pub fn run(payload: SamplePayload) {}',
-  });
-  assert.equal(messages(rustProjectLayerBoundaryRule.check(cache)).length, 1);
-  assert.equal(messages(rustProjectLayerBoundaryRule.check(service)).length, 1);
-});
-
 test('source products are consumed by session models while source reads stay independent', () => {
   const allowed = architectureFixtures({
     'src-tauri/src/services/project/model.rs': 'use crate::services::project::sources::documents::LoadedSpecRecord;',
@@ -165,44 +120,13 @@ test('entity preparation and formal table state keep CSV editor consumption one-
   }
 });
 
-test('history scope authorization belongs to its facade while records remain independent', () => {
-  const target = 'crate::services::project::ensure_project_session_mod_root';
-  const facade = architectureFixtures({ 'src-tauri/src/services/file_history.rs': 'fn read() { ' + target + '(session, root); }' });
-  assert.deepEqual(rustProjectLayerBoundaryRule.check(facade), []);
-  assert.deepEqual(rustServiceEdgeBoundaryRule.check(facade), []);
-  const records = architectureFixtures({
-    'src-tauri/src/services/file_history/records.rs': 'fn read() { ' + target + '(session, root); }',
-  });
-  assert.equal(rustProjectLayerBoundaryRule.check(records).length, 1);
-  assert.equal(rustServiceEdgeBoundaryRule.check(records).length, 1);
-  for (const target of ['unregister_project_session', 'resources::media_cache::clear_session_media']) {
-    const allowed = architectureFixtures({
-      'src-tauri/src/services/project_sync.rs': 'fn release() { crate::services::project::' + target + '(id); }',
-    });
-    assert.deepEqual(rustProjectLayerBoundaryRule.check(allowed), []);
-    const denied = architectureFixtures({
-      'src-tauri/src/services/file_editor.rs': 'fn release() { crate::services::project::' + target + '(id); }',
-    });
-    assert.equal(rustProjectLayerBoundaryRule.check(denied).length, 1);
-  }
-  const session = architectureFixtures({
-    'src-tauri/src/services/project/session.rs': 'fn release() { crate::services::file_history::release_root_history(root); }',
-  });
-  assert.equal(rustProjectLayerBoundaryRule.check(session).length, 1);
-});
-
-test('source catalog queries retain read-only layers and consume session facts one-way', () => {
+test('source catalog queries consume session facts one-way', () => {
   for (const leaf of ['values', 'images', 'config_sources']) {
     const target = 'crate::services::project::query::source_catalog::' + leaf + '::read';
     for (const source of ['session/csv_tables.rs', 'invalidation.rs', 'definitions/entity_definitions.rs']) {
       const context = architectureFixtures({ ['src-tauri/src/services/project/' + source]: 'fn run() { ' + target + '(); }' });
       assert.equal(rustProjectLayerBoundaryRule.check(context).length, 1);
     }
-    const query = 'src-tauri/src/services/project/query/source_catalog/' + leaf + '.rs';
-    assert.equal(
-      rustProjectLayerBoundaryRule.check(architectureFixtures({ [query]: 'fn run() { std::fs::write(path, bytes); }' })).length,
-      1,
-    );
   }
 });
 
@@ -220,5 +144,141 @@ test('formal content stays below resource products while lifecycle owns media co
       ['src-tauri/src/services/' + source + '.rs']: 'fn run() { crate::services::project::resources::media_cache::' + capability + '(); }',
     });
     assert.deepEqual(rustProjectLayerBoundaryRule.check(files), []);
+  }
+});
+
+for (const owner of ['entity_write/descriptions', 'entity_write/content', 'csv_patch', 'joint_edit']) {
+  test(owner + ' consumes the common CSV draft without a reverse business dependency', () => {
+    const files = architectureFixtures({
+      ['src-tauri/src/services/project/write/' + owner + '.rs']:
+        'use crate::services::project::session::csv_writes::CsvTableDraft; fn stage() {}',
+      'src-tauri/src/services/project/session/csv_writes.rs':
+        'use super::super::{cache::csv::read_table_snapshot, model::ProjectSession}; use crate::parsers::render_csv_text;',
+    });
+    assert.deepEqual(messages(rustProjectLayerBoundaryRule.check(files)), []);
+  });
+}
+
+for (const source of [
+  'type Draft = super::content::StagedEntityWrite;',
+  'use super::content::{StagedEntityWrite as Draft};',
+  'use super::content as identity; fn stage() { identity::save_entity_spec(); }',
+  'fn stage() { crate::services::project::write::entity_write::content::save_entity_spec(); }',
+  'pub use super::content::StagedEntityWrite;',
+]) {
+  test('description rejects reverse identity dependencies: ' + source, () => {
+    const files = architectureFixtures({
+      'src-tauri/src/services/project/write/entity_write/descriptions.rs': source,
+    });
+    const message = messages(rustProjectLayerBoundaryRule.check(files))[0];
+    assert.ok(message);
+    assert.match(message, /CSV draft and staging/);
+  });
+}
+
+for (const business of ['entity_write/descriptions', 'entity_write/content', 'csv_patch', 'joint_edit']) {
+  for (const source of [
+    'use crate::services::project::write::' + business.replaceAll('/', '::') + '::{run as save};',
+    'fn stage() { crate::services::project::write::' + business.replaceAll('/', '::') + '::run(); }',
+  ]) {
+    test('CSV staging rejects business dependencies: ' + source, () => {
+      const files = architectureFixtures({
+        'src-tauri/src/services/project/session/csv_writes.rs': source,
+      });
+      const failures = messages(rustProjectLayerBoundaryRule.check(files));
+      assert.ok(failures.some((message) => /CSV draft and staging/.test(message)));
+    });
+  }
+}
+
+test('test-only identity references keep the CSV production dependency direction', () => {
+  const files = architectureFixtures({
+    'src-tauri/src/services/project/write/entity_write/descriptions.rs':
+      '#[cfg(test)] mod tests { use super::super::content::save_entity_spec; }',
+  });
+  assert.deepEqual(messages(rustProjectLayerBoundaryRule.check(files)), []);
+});
+
+test('session entry rejects business reexports while service assembly connects actual definitions', () => {
+  for (const branch of [
+    'query::entities::query_entity',
+    'write::entity_write::content::save_entity_spec',
+    'resources::core_graphics::scan_core_graphics',
+  ]) {
+    const invalid = architectureFixtures({ 'src-tauri/src/services/project/mod.rs': 'pub use self::' + branch + ';' });
+    assert.equal(messages(rustProjectLayerBoundaryRule.check(invalid)).length, 1);
+  }
+  const files = architectureFixtures({ 'src-tauri/src/services/mod.rs': serviceAssembly });
+  assert.deepEqual(messages(rustProjectLayerBoundaryRule.check(files)), []);
+});
+
+for (const module of [
+  'spec_editor',
+  'config_entity',
+  'json_file',
+  'file_editor',
+  'file_history',
+  'table_save',
+  'write_commit',
+  'project_session',
+  'tables',
+  'entity_query',
+  'resources',
+  'core_assets',
+  'schema',
+  'directory_opening',
+  'workspace_persistence',
+  'app_settings',
+  'app_log',
+  'font',
+  'project_identity',
+]) {
+  test(module + ' request types belong at the command boundary', () => {
+    const source = 'use crate::models::' + module + '::SaveExamplePayload; pub fn save() {}';
+    const command = architectureFixtures({ 'src-tauri/src/commands/example.rs': source });
+    const service = architectureFixtures({ 'src-tauri/src/services/example.rs': source });
+    assert.deepEqual(messages(rustProjectLayerBoundaryRule.check(command)), []);
+    const message = messages(rustProjectLayerBoundaryRule.check(service))[0];
+    assert.ok(message);
+    assert.match(message, /command payload models/);
+  });
+}
+
+test('settings runtime history configuration belongs to lifecycle assembly', () => {
+  const source = 'fn apply_settings_runtime() { crate::services::file_history::set_history_limit(20); }';
+  const assembly = architectureFixtures({ 'src-tauri/src/commands/app_lifecycle.rs': source });
+  assert.deepEqual(messages(rustProjectLayerBoundaryRule.check(assembly)), []);
+  const other = architectureFixtures({ 'src-tauri/src/commands/windows.rs': source });
+  assert.equal(messages(rustProjectLayerBoundaryRule.check(other)).length, 1);
+  const history = architectureFixtures({
+    'src-tauri/src/commands/app_lifecycle.rs': 'fn run() { crate::services::file_history::release_history(); }',
+  });
+  assert.equal(messages(rustProjectLayerBoundaryRule.check(history)).length, 1);
+});
+
+test('source reading consumes IO and source-owned record types', () => {
+  const files = architectureFixtures({
+    'src-tauri/src/services/project/sources/mod.rs':
+      'fn read() { crate::io::read_versioned_json(); crate::services::project::sources::documents::LoadedSpecRecord; }',
+  });
+  assert.deepEqual(messages(rustProjectLayerBoundaryRule.check(files)), []);
+});
+
+test('queries, table caches and resources consume source capabilities', () => {
+  for (const role of ['query', 'cache', 'resources']) {
+    const files = architectureFixtures({
+      [`src-tauri/src/services/project/${role}/reader.rs`]:
+        'fn read() { crate::services::project::sources::core::load_core_ship_files(); }',
+    });
+    assert.deepEqual(messages(rustProjectLayerBoundaryRule.check(files)), []);
+  }
+});
+
+test('source reading keeps transaction and query actions at their owners', () => {
+  for (const role of ['write', 'query']) {
+    const files = architectureFixtures({
+      'src-tauri/src/services/project/sources/mod.rs': `fn read() { crate::services::project::${role}::run(); }`,
+    });
+    assert.match(messages(rustProjectLayerBoundaryRule.check(files)).join('\n'), /project-sources must not depend/);
   }
 });

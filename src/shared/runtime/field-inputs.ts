@@ -30,11 +30,11 @@ const fieldInputsKey: InjectionKey<FieldInputs> = Symbol('field-inputs');
 
 export function createFieldInputs(targetKey: Readonly<Ref<string | null>> = ref(null)) {
   const fields = shallowReactive(new Set<FieldInput>());
-  const validators = shallowReactive(new Set<() => FieldProblem[]>());
-  const documentProblems = computed(() => [...validators].flatMap((read) => read()));
-  const hasDocumentValidation = computed(() => validators.size > 0);
-  function registerDocumentValidation(read: () => FieldProblem[]) {
-    validators.add(read);
+  const validators = shallowReactive(new Map<() => FieldProblem[], boolean>());
+  const documentProblems = computed(() => [...validators.keys()].flatMap((read) => read()));
+  const hasCompleteDocumentValidation = computed(() => [...validators.values()].some(Boolean));
+  function registerDocumentValidation(read: () => FieldProblem[], complete = false) {
+    validators.set(read, complete);
     return () => validators.delete(read);
   }
   const finalizers = new Map<(validate: boolean) => void | boolean | Promise<void | boolean>, string | undefined>();
@@ -135,7 +135,7 @@ export function createFieldInputs(targetKey: Readonly<Ref<string | null>> = ref(
     dirty,
     errors,
     documentProblems,
-    hasDocumentValidation,
+    hasCompleteDocumentValidation,
     registerDocumentValidation,
     dirtyDescendants,
     register,

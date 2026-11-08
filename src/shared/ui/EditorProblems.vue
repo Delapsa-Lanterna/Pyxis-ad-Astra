@@ -8,11 +8,11 @@
       :class="level"
       :role="level === 'error' ? 'alert' : 'status'"
     >
-      <strong>{{ level === 'error' ? '无法保存' : '保存前请确认' }} ({{ items(level).length }})</strong>
+      <strong>{{ level === 'error' ? (isBlocking ? '错误' : '无法保存') : '保存前请确认' }} ({{ items(level).length }})</strong>
       <ul class="editor-problem-list ui-content-scroll ui-text-reset">
         <li
           v-for="issue in items(level)"
-          :key="`${issue.code}:${issue.location?.rowKey ?? ''}:${issue.path}`"
+          :key="fieldProblemKey(issue)"
           role="button"
           tabindex="0"
           title="点击定位到对应位置"
@@ -22,6 +22,8 @@
           @keydown.space.prevent="$emit('locate', issue)"
         >
           {{ issue.message }}
+          <small v-if="issue.location?.path" class="ui-text-muted"> · {{ issue.location.path }}</small>
+          <span v-if="isBlocking && !isBlocking(issue)" class="ui-text-muted"> · 来源问题</span>
         </li>
       </ul>
     </section>
@@ -29,7 +31,8 @@
 </template>
 <script setup lang="ts">
 import type { FieldProblem } from '@/shared/types';
-const props = defineProps<{ issues: readonly FieldProblem[] }>();
+import { fieldProblemKey } from '@/shared/runtime/editor-problems';
+const props = defineProps<{ issues: readonly FieldProblem[]; isBlocking?: (issue: FieldProblem) => boolean }>();
 defineEmits<{ locate: [issue: FieldProblem] }>();
 const levels = ['error', 'warning'] as const;
 const items = (level: (typeof levels)[number]) => props.issues.filter((item) => item.severity === level);

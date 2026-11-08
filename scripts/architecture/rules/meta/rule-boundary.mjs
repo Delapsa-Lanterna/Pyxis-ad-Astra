@@ -1,12 +1,46 @@
+import { pairedSourcePaths } from '../../../shared/files.mjs';
 import { defineRule } from '../../diagnostics.mjs';
 
 export const ruleBoundaryRule = defineRule('rule-boundary', '.zcode/modules/static-checks.md#规范', import.meta.url, (context, report) => {
+  const identities = new Set();
   for (const rule of context.registeredRules) {
-    const [reference] = /** @type {[string, ...string[]]} */ (rule.reference.split('#'));
+    if (identities.has(rule.name))
+      report({ rel: rule.source }, { line: 1, column: 1 }, 'registered rule identities must be unique', {
+        symbol: rule.name,
+        expected: 'unique rule identity',
+      });
+    identities.add(rule.name);
+    const [reference, anchor] = /** @type {[string, string?]} */ (rule.reference.split('#'));
+    const contract = context.byPath.get(reference);
+    if (
+      anchor &&
+      contract &&
+      !contract.document.lines.some(
+        (line) =>
+          /^#{1,6} /.test(line) && line.replace(/^#+ /, '').replace(/\s+/g, '-').toLowerCase() === decodeURIComponent(anchor).toLowerCase(),
+      )
+    )
+      report({ rel: rule.source }, { line: 1, column: 1 }, 'rule references must resolve to an existing contract heading', {
+        target: rule.reference,
+        expected: 'existing contract heading',
+      });
     if (!context.paths.has(reference))
       report({ rel: rule.source }, { line: 1, column: 1 }, 'architecture rules must reference an existing contract', {
         target: reference,
         expected: 'existing contract',
+      });
+  }
+  for (const rel of context.paths) {
+    if (!rel.endsWith('.check.mjs')) continue;
+    if (context.byPath.has('package.json') && !context.testFiles.has(rel))
+      report({ rel }, { line: 1, column: 1 }, 'checker tests must be discovered by test:checks', {
+        target: 'package.json',
+        expected: 'test:checks discovery',
+      });
+    if (!pairedSourcePaths(rel).some((source) => context.paths.has(source)))
+      report({ rel }, { line: 1, column: 1 }, 'checker tests must be colocated with their implementation', {
+        target: rel,
+        expected: 'same-directory implementation',
       });
   }
   const sources = new Set(context.registeredRules.map((rule) => rule.source));

@@ -11,7 +11,7 @@ import { queryBuiltInWeaponSlotOptions, hasHullReferencesInvalidation } from '@/
 
 import { hasResourceInvalidation } from '@/services/resource-media.service';
 import { queryFactionPreviewImages, queryMissionDraftIcon } from '@/services/json-entity.service';
-import { jsonDocumentId, jsonDocumentContent } from '@/domain/json-editor/json-document-definitions';
+import { jsonDocumentPartial, jsonDocumentContent } from '@/domain/json-editor/json-document-definitions';
 import { AppError } from '@/shared/lib/errors';
 import { isExternalSource } from '@/shared/lib/resource-ref';
 import type { JsonDocumentSession } from './use-json-document-session';
@@ -40,9 +40,7 @@ export function useJsonDocumentView(
   const canNavigateBaseHull = computed(
     () => definition.kind === 'skin' && String(document.draftValue.value.baseHullId ?? '').trim().length > 0,
   );
-  const partial = computed(() =>
-    Boolean(document.composition.value && definition.kind !== 'variant' && !jsonDocumentId(definition, document.draftValue.value)),
-  );
+  const partial = computed(() => jsonDocumentPartial(definition, document.draftValue.value, document.composition.value));
   const schemaRuntimeContext = computed<FieldEditorContext>(() => {
     const target = document.target.value!;
     if (definition.kind === 'misc-config') return { modRoot: target.modRoot, sessionId: target.sessionId, partial: true };

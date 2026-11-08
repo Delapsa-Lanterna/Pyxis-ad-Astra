@@ -137,9 +137,7 @@ export type {
 export type { ProjectSyncDelivery, SourceSyncState } from '@/shared/types/project-sync.types';
 export type { JsonEntityFile, JsonFileSave, JsonFileDelete, VariantFile, SkinFile } from '@/shared/types/json-file.types';
 export type {
-  SavedConfig,
   ConfigEditTarget,
-  IndexedConfigEntityData,
   IndexedConfigEntityRefresh,
   IndexedConfigKind,
   ModInfoSave,

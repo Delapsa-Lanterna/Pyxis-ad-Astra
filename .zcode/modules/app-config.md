@@ -19,6 +19,7 @@
 - `src-tauri/src/app_data_dir.rs`：工具私有数据目录的公共解析能力。
 - `src/app/components/SettingsPage.vue`：设置页面的目录打开入口。
 - `src/app/composables/settings/use-settings-view-model.ts`：设置页消费配置维护动作。
+- `src/app/composables/use-app-feedback.ts`：窗口反馈的提供与消费入口。
 
 ## 边界
 

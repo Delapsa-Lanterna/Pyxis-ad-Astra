@@ -42,14 +42,25 @@
 
 - `src/app/components/editors/common/editor-collapse.ts`：共同分组的关闭完成等待。
 - `src/app/composables/spec-editor/use-spec-editor-draft-images.ts`：草稿图像读取票据、状态诊断、资源失效及投影接纳的共享运行态。
+- `src/app/composables/use-app-feedback.ts`：窗口反馈的提供与消费入口。
+- `src/app/composables/use-edit-action-context.ts`：保存连续性与异步编辑动作接纳。
+- `src/app/composables/use-field-input-actions.ts`：所属输入集合登记、活动输入提交与释放。
+- `src/app/composables/use-resource-images.ts`：场景与图片展示的解码引用和迟到接纳。
+- `src/app/composables/use-resource-media-registry.ts`：持有集合差量、业务引用、媒体租约与所属反馈。
 - `src/app/composables/use-snapshot-history.ts`：编辑文档消费的目标快照历史适配器。
+- `src/app/composables/use-window-image-runtime.ts`：窗口图片、成品、代次、引用与预读并发。
+- `src/app/composables/use-window-shortcuts.ts`：统一窗口按键监听、菜单优先、关闭屏蔽及卸载释放。
 - `src/domain/editors/lib/game-spec-enums.ts`：弹体、导弹与战术系统分支的游戏枚举。
+- `src/domain/settings/theme.ts`：主题令牌与色彩数学，拥有 accent 预设、light/dark 中性色、`createThemeColors` 纯函数及 `THEME_TOKEN_MAP` 的 ThemeColorTokens 与主题属性映射。
+- `src/orchestrators/project-sync.orchestrator.ts`：窗口内保存消费过程和内容维护者交接。
+- `src/services/engine-assets.service.ts`：通过正式资源查询交付合并引擎样式、来源版本及授权图片引用。
 - `src/shared/lib/entry-keys.ts`：稳定条目键，为列表渲染提供结构化稳定 key。
 - `src/shared/lib/next-formatted-id.ts`：舰船及弹体消费的编号分配纯原语。
 - `src/shared/lib/starsector/colors.ts`：挂载类型颜色、槽位半径与 RGBA 样式投影。
 - `src/shared/lib/starsector/weapon-images.ts`：武器贴图、挂载阶段与已装载导弹的共同投影。
 - `src/shared/lib/starsector/weapon-render-order.ts`：挂载武器的游戏层序及槽位顺序。
 - `src/shared/lib/starsector/weapon-sprite-fields.ts`：武器贴图字段、原点及发射位置键。
+- `src/stores/settings.store.ts`：settings 运行态，只持状态、setter 与派生值；初始快照经统一初始化入口注入。
 - `src/test/unit/canvas-recorder.ts`：画布绘制调用与样式的测试记录器。
 - `src/test/unit/canvas-stub.ts`：画布尺寸及绘制上下文的测试装配。
 

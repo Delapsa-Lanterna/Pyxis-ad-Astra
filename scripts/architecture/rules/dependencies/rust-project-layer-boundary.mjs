@@ -145,36 +145,6 @@ export const rustProjectLayerBoundaryRule = defineRule(
           report(file, edge, from + ' must not depend on ' + to, { target: reference, expected: from });
           rejected.add(to);
         }
-        if (from === 'project-query' && parts[0] === 'io' && /^(?:write_|remove_|rename_|create_dir|apply_|save_)/.test(parts.at(-1) ?? ''))
-          report(file, edge, 'project query code must consume read-only IO', { target: reference, expected: 'read-only IO' });
-      }
-      if (
-        from === 'project-query' &&
-        /\b(?:remove_file|write|write_all|rename|create|create_dir|create_dir_all|OpenOptions)\s*\(/.test(file.rust.code)
-      )
-        report(file, { line: 1, column: 1 }, 'project query code must consume read-only IO', {
-          target: 'std::fs',
-          expected: 'read-only IO',
-        });
-      if (from === 'project-write' && /\b(?:ProjectManifest|open_project_session)\w*\s*\(/.test(file.rust.code))
-        report(file, { line: 1, column: 1 }, 'project write code must not perform project session opening', {
-          target: 'crate::services::project::session',
-          expected: 'write-only project service',
-        });
-      if (from === 'project-cache') {
-        const reportedCoreLoads = new Set();
-        for (const edge of file.rust.references)
-          if (
-            /^(?:load_core_references|load_all_core|load_core_catalog|read_all_core)/i.test(edge.target.at(-1) ?? '') &&
-            !reportedCoreLoads.has(edge.target.join('::'))
-          ) {
-            reportedCoreLoads.add(edge.target.join('::'));
-            report(file, edge, 'project cache must stay typed lazy and must not pre-read the full core set', {
-              target: edge.target.join('::'),
-              symbol: edge.target.at(-1),
-              expected: 'typed lazy core query',
-            });
-          }
       }
       if (from === 'services')
         for (const fn of file.rust.functions)

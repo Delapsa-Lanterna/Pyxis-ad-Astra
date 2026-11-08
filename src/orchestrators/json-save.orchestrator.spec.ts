@@ -178,8 +178,8 @@ describe('JSON save orchestrator', () => {
       entityData: {},
     });
 
-    expect(entityId?.entity).toMatchObject({ entityId: 'npc_dave', baseVersions: [] });
-    expect(entityId!.receipt).toEqual(writeResult(indexedEntity('npc_dave')));
+    expect(entityId?.content?.value).toMatchObject({ entityId: 'npc_dave' });
+    expect(entityId).toEqual(writeResult(indexedEntity('npc_dave')));
   });
 
   it('create indexed entity delegates to the create write and records a create label', async () => {
@@ -196,10 +196,10 @@ describe('JSON save orchestrator', () => {
       entityData: {},
     });
 
-    expect(entityId.entity.entityId).toBe('mission_new');
+    expect(entityId.content!.value.entityId).toBe('mission_new');
     expect(mocks.writeCreateIndexedConfigEntity).toHaveBeenCalledTimes(1);
     expect(mocks.writeIndexedConfigEntity).not.toHaveBeenCalled();
-    expect(entityId.receipt).toEqual(writeResult(indexedEntity('mission_new')));
+    expect(entityId).toEqual(writeResult(indexedEntity('mission_new')));
   });
 
   it('delete indexed entity forwards the delete target flag', async () => {
@@ -232,7 +232,7 @@ describe('JSON save orchestrator', () => {
 
     const variant = await createJsonFileAction('variant', SESSION_ID, MOD_ROOT, 'npc_dave', 'variant_new');
 
-    expect(variant.entity.id).toBe('variant_new');
+    expect(variant.content!.value).toMatchObject({ variantId: 'variant_new' });
     const payload = mocks.writeCreateVariantEntity.mock.calls[0]![0];
     expect(payload.nextId).toBe('variant_new');
     expect(payload.data).toEqual(createDefaultVariant('npc_dave', 'variant_new'));
@@ -298,7 +298,7 @@ describe('JSON save orchestrator', () => {
 
     const skin = await createJsonFileAction('skin', SESSION_ID, MOD_ROOT, 'npc_dave', 'skin_new');
 
-    expect(skin.entity.id).toBe('skin_new');
+    expect(skin.content!.value).toMatchObject({ skinHullId: 'skin_new' });
     expect(mocks.writeCreateSkinEntity).toHaveBeenCalledTimes(1);
   });
 

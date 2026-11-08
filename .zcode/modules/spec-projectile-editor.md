@@ -19,7 +19,35 @@
 - `src-tauri/src/domain/entity_definitions.rs`：八种实体的目录、后缀、ID 字段及规格、表格关联登记。
 - `src-tauri/src/services/project/definitions/projectiles.rs`：Mod 弹体及 Core 回退的正式读取。
 - `src-tauri/src/services/project/resources/entity_references.rs`：舰船、武器、弹体、系统及配置实体的授权资源字段映射。
+- `src/app/components/spec-editor/SpecFieldList.vue`：同构字段、默认值展示和辅助动作事件。
+- `src/app/components/spec-editor/SpecProblems.vue`：固定顶部红黄框及全部问题计数。
+- `src/app/composables/canvas/use-canvas-navigation.ts`：骨架和装配消费的右键平移、滚轮缩放与指针位置。
+- `src/app/composables/canvas/use-canvas-palette.ts`：主题派生与重绘通知的装配。
+- `src/app/composables/canvas/use-canvas-surface.ts`：画布表面、导航、视口、选择与指针阶段及其测试。
+- `src/app/composables/canvas/use-canvas-viewport.ts`：视口缩放与平移。
+- `src/app/composables/editors/use-editor-document.ts`：工作值、动作起点、提交快照、字段与手势边界及历史交接。
+- `src/app/composables/editors/use-engine-rendering.ts`：统一装配引擎样式查询、媒体、解码、着色成品与引用释放。
+- `src/app/composables/editors/use-projectile-rendering.ts`：统一持有开火图片租约、解码与着色成品。
+- `src/app/composables/spec-editor/use-spec-problem-navigation.ts`：规格问题定位、所属分组展开与有效请求滚动交接。
+- `src/app/composables/spec-editor/use-spec-problems.ts`：会话问题聚合、原文优先级、失败保留及共享展示。
+- `src/app/composables/use-window-shortcuts.ts`：统一窗口按键监听、菜单优先、关闭屏蔽及卸载释放。
+- `src/app/renderers/editors/canvas-scene.ts`：共享背景、镜像轴、边界与光标场景的绘制入口。
+- `src/app/renderers/editors/canvas-styles.ts`：场景消费的标记样式投影入口。
+- `src/app/renderers/editors/canvas-visuals.ts`：消费显式样式的实体绘制原语。
+- `src/app/renderers/editors/engine-renderer.ts`：作为 Spec 与沉浸式引擎静态成品的唯一样式、尺寸与绘制入口。
+- `src/app/renderers/editors/projectile-renderer.ts`：统一绘制 Spec 与开火预览的弹体、导弹、光束及等离子本体。
+- `src/domain/editors/editor-types.ts`：编辑坐标、模式与悬停预览的纯数据类型。
+- `src/domain/editors/projectile-appearance.ts`：投影共享弹体外观、原点、纹理参数及引擎几何。
+- `src/domain/entity-write/spec-construction.ts`：前端规格、装配和皮肤构造及分支补全。
+- `src/domain/schema/schema-validation.ts`：字段与列资产加载、来源声明、值及结构纯规则。
+- `src/domain/spec-editor/spec-fields.ts`：字段声明、嵌套路径定位及字段更新。
+- `src/domain/spec-editor/spec-schemas.ts`：Spec 资产引用解析及当前分支装配。
+- `src/domain/spec-editor/spec-validation.ts`：规格字段路径及条件必填到共同字段规则的装配。
+- `src/services/entity-query.service.ts`：四类查询定义、正式请求与实体失效选择。
+- `src/services/resource-media.service.ts`：唯一持有媒体读取、合批、租约、响应式结果、闲置预算和失效。
+- `src/services/resource-reference.service.ts`：草稿资源查询与授权相对引用解析能力。
 - `src/shared/ui/FieldHints.vue`：检查器说明的共同展示。
+- `src/stores/settings.store.ts`：settings 运行态，只持状态、setter 与派生值；初始快照经统一初始化入口注入。
 - `src/windows/spec-editor.window.ts`：四类规格的身份、尺寸与结构化窗口请求。
 
 ## 边界

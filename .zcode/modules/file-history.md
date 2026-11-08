@@ -20,6 +20,7 @@
 - `src-tauri/src/io/file_changes.rs`：历史清空消费的根写入租约。
 - `src-tauri/src/models/file_history.rs`：历史查询、清空与回放请求、条目摘要及双栈快照。
 - `src-tauri/src/services/project/mod.rs`：历史读取与清空消费的 session 及根归属核对。
+- `src-tauri/src/services/project/session.rs`：会话打开、关闭、内容更新与内部登记及就绪访问能力交付。
 - `src/orchestrators/project-sync.orchestrator.ts`：回放消费的提交同步入口，交付历史摘要与会话正式内容。
 - `src/shared/types/file-history.types.ts`：历史查询、清空与回放请求、条目摘要及双栈快照契约。
 - `src/shared/types/write-commit.types.ts`：公共保存回执、提交同步、行键映射与正式内容交付。

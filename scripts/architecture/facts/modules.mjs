@@ -1,3 +1,4 @@
+import { pairedSourcePaths } from '../../shared/files.mjs';
 /** @typedef {{path: string, group: string, line: number}} ModuleReference */
 /** @typedef {{lines: string[], headings: {name: string, index: number}[], references: ModuleReference[], styleLines: number[]}} ModuleFacts */
 
@@ -58,6 +59,10 @@ export function moduleMapFacts(files, paths) {
   const shared = readSharedPaths(map, paths, report);
   const ownershipReferences = readOwnershipReferences(files, descendants);
   const owners = new Map(ownershipReferences.filter(({ rel }) => !shared.has(rel)).map(({ rel, file }) => [rel, file]));
+  for (const rel of paths) {
+    const source = pairedSourcePaths(rel).find((source) => owners.has(source));
+    if (source && !owners.has(rel) && !shared.has(rel)) owners.set(rel, /** @type {string} */ (owners.get(source)));
+  }
   return { descendants, index, shared, owners, ownershipReferences, failures };
 }
 
@@ -103,11 +108,7 @@ function readSharedPaths(map, paths, report) {
     for (const path of paths) if (path === target || path.startsWith(target + '/')) shared.add(path.replace(/\/$/, ''));
   }
   for (const path of paths) {
-    const paired = /\.spec\.[cm]?[jt]sx?$/.test(path)
-      ? [path.replace(/\.spec(\.[cm]?[jt]sx?)$/, '$1'), path.replace(/\.spec\.[cm]?[jt]sx?$/, '.vue')]
-      : /_tests?\.rs$/.test(path)
-        ? [path.replace(/_tests?\.rs$/, '.rs')]
-        : [];
+    const paired = pairedSourcePaths(path);
     if (paired.some((source) => shared.has(source))) shared.add(path);
   }
   return shared;

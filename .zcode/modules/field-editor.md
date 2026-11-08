@@ -16,12 +16,14 @@
 
 - `src/app/components/editors/common/EditorCollapse.vue`：共同分组交接。
 - `src/app/components/editors/common/EditorCollapseItem.vue`：保留输入的折叠展示。
+- `src/app/components/media/ResourceOptionThumbnail.vue`：授权图片与配置选项消费的缩略图展示。
 - `src/app/composables/editors/use-resource-reference.ts`：所属 Mod 图片路径授权。
 - `src/app/composables/use-app-feedback.ts`：所属窗口反馈。
 - `src/app/composables/use-resource-media-registry.ts`：选项媒体集合及租约。
 - `src/domain/json-composition.ts`：来源组合、覆盖编辑及来源定位。
 - `src/domain/schema/`：字段、来源及值纯规则。
 - `src/orchestrators/project-sync.orchestrator.ts`：有序内容失效、重读、失败重试和释放。
+- `src/services/resource-media.service.ts`：唯一持有媒体读取、合批、租约、响应式结果、闲置预算和失效。
 - `src/services/source-catalog.service.ts`：正式字段与图片候选读取。
 - `src/shared/runtime/field-inputs.ts`：原文登记和字段提交。
 - `src/shared/runtime/focus-field-input.ts`：结构输入焦点恢复。

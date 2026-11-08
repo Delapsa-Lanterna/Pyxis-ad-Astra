@@ -13,8 +13,11 @@ const technicalExports = new Set([
 /** @typedef {ReturnType<typeof rustImportFacts>} RustFacts */
 /** @typedef {{path: string, rel: string, text: string, facts: RustFacts, owner: string | undefined}} RustSource */
 /** @typedef {{modules: Map<string, string>, sources: Map<string, RustSource>, owners: ReadonlyMap<string, string>}} RustModuleBoundaryContext */
-/** @typedef {{file: string, owner: string | undefined, itemKind: string | null, module: boolean, hops: number}} RustTarget */
+/** @typedef {{file: string, owner: string | undefined, itemKind: string | null, name: string | null, module: boolean, hops: number}} RustTarget */
 /** @typedef {{path: string[], alias: string, wildcard: boolean}} RustUseItem */
+
+/** @type {WeakMap<readonly import('./shared/files.mjs').SourceFile[],RustModuleBoundaryContext>} */
+const boundaryContexts = new WeakMap();
 
 /** @param {string} body @param {string[]} [prefix] @returns {RustUseItem[]} */
 function rustUseItems(body, prefix = []) {
@@ -44,6 +47,8 @@ function modulePath(rel) {
 
 /** @param {readonly import('./shared/files.mjs').SourceFile[]} files @param {ReadonlyMap<string, string>} owners @returns {RustModuleBoundaryContext} */
 export function rustModuleBoundaryContext(files, owners) {
+  const cached = boundaryContexts.get(files);
+  if (cached?.owners === owners) return cached;
   const modules = new Map();
   const sources = new Map();
   for (const file of files) {
@@ -56,7 +61,9 @@ export function rustModuleBoundaryContext(files, owners) {
       owner: owners.get(file.rel),
     });
   }
-  return { modules, sources, owners };
+  const context = { modules, sources, owners };
+  boundaryContexts.set(files, context);
+  return context;
 }
 
 /** @param {string} rel @param {RustScope} scope @param {string[]} parts @param {RustModuleBoundaryContext} context @param {Set<string>} [visited] @param {number} [hops] @returns {RustTarget | null} */
@@ -87,13 +94,14 @@ function resolveUseTarget(rel, scope, parts, context, visited = new Set(), hops 
   }
   if (!targetFile) return null;
   const remaining = moduleParts.slice(consumed);
-  if (!remaining.length) return { file: targetFile, owner: context.owners.get(targetFile), itemKind: null, module: true, hops };
+  if (!remaining.length) return { file: targetFile, owner: context.owners.get(targetFile), itemKind: null, name: null, module: true, hops };
   if (remaining.length !== 1) return null;
   const name = /** @type {string} */ (remaining[0]);
   const target = context.sources.get(targetFile);
   if (!target) return null;
   const declaration = target.facts.declarations.find((entry) => entry.scope === target.facts.root && entry.name === name);
-  if (declaration) return { file: targetFile, owner: target.owner, itemKind: declaration.kind, module: false, hops };
+  if (declaration)
+    return { file: targetFile, owner: target.owner, itemKind: declaration.kind, name: declaration.name, module: false, hops };
   const key = targetFile + '::' + name;
   if (visited.has(key)) return null;
   visited.add(key);
@@ -106,6 +114,12 @@ function resolveUseTarget(rel, scope, parts, context, visited = new Set(), hops 
     }
   }
   return null;
+}
+
+/** @param {RustModuleBoundaryContext} context @param {string} rel @param {string[]} parts @returns {RustTarget | null} */
+export function rustReferenceTarget(context, rel, parts) {
+  const source = context.sources.get(rel);
+  return source ? resolveUseTarget(rel, source.facts.root, ['crate', ...parts], context) : null;
 }
 
 /** @param {RustScope} scope @returns {boolean} */

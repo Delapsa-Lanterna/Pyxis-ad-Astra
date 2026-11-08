@@ -1,7 +1,7 @@
-import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { architectureFixtures } from '../testing/fixtures.mjs';
 import { productionRustSource } from '../../shared/rust-source.mjs';
+import assert from 'node:assert/strict';
+import { architectureFixtures, fixtureFile } from '../testing/fixtures.mjs';
 
 test('Rust masking preserves offsets through nested comments, raw strings, chars and test items', () => {
   const text =
@@ -23,6 +23,18 @@ test('Rust masking preserves offsets through nested comments, raw strings, chars
   assert.ok(fn);
   assert.equal(fn.name, 'read');
 });
+
+test('native file receiver methods retain constructor origins and source positions', () => {
+  const context = architectureFixtures({
+    'src-tauri/src/services/sample.rs': 'use std::fs::File; fn run(){ let mut held=File::open("sample"); held.write_all(bytes); }',
+  });
+  const file = context.rust[0];
+  assert.ok(file);
+  const call = file.rust.calls.find((call) => call.name === 'write_all');
+  assert.equal(call?.target, 'std::fs::File::write_all');
+  assert.equal(call?.line, 1);
+});
+
 test('Rust module and local aliases retain lexical scopes and service definitions', () => {
   const context = architectureFixtures({
     'src-tauri/src/services/mod.rs': 'pub(crate) use project::query::entities::query_entity as read;',
@@ -38,4 +50,17 @@ test('Rust module and local aliases retain lexical scopes and service definition
     ),
   );
   assert.ok(file.rust.references.some((edge) => edge.line === 4 && edge.target.join('::') === 'services::project::model::Value'));
+});
+
+test('Rust module aliases and function values retain their resolved service path', () => {
+  const files = architectureFixtures({
+    'src-tauri/src/services/mod.rs': 'pub(crate) use project::query::query_entity;',
+    'src-tauri/src/services/example.rs':
+      'use crate::services::project::query as query_layer; fn run() { let action = query_layer::query_entity; action(); }',
+  });
+  const file = fixtureFile(files, (item) => item.rel === 'src-tauri/src/services/example.rs');
+  assert.equal(
+    file.rust.references.some((edge) => edge.target.join('::').includes('project::query')),
+    true,
+  );
 });

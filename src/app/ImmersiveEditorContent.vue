@@ -22,7 +22,7 @@
     @slow="vm.logSlowPreparation"
     @load-external="vm.loadExternal"
   >
-    <EditorProblems :issues="joint.problems.issues.value" @locate="locateProblem" />
+    <EditorProblems :issues="joint.problems.issues.value" :is-blocking="joint.isBlocking" @locate="locateProblem" />
     <ShipImmersivePanel v-if="panel?.kind === 'ship'" :panel="panel" :render="render" />
     <WeaponImmersivePanel
       v-else-if="panel?.kind === 'weapon'"

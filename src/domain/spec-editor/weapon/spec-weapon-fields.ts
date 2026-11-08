@@ -2,7 +2,7 @@ import type { RowData } from '@/shared/types';
 import { isRowData } from '@/shared/lib/row-data';
 import { specSchema, specSections } from '@/domain/spec-editor/spec-schemas';
 import { specFieldsIssues } from '@/domain/spec-editor/spec-validation';
-import { schemaFieldIssues } from '@/domain/schema/schema-validation';
+import { schemaDocumentIssues, schemaFieldIssues } from '@/domain/schema/schema-validation';
 const schema = specSchema('spec-weapon');
 export const WEAPON_OBJECT_FIELDS = {
   muzzleFlashSpec: schema.definitions!.muzzleFlashSpec!.nested!,
@@ -11,17 +11,16 @@ export const WEAPON_OBJECT_FIELDS = {
 export function weaponSections(weapon: RowData) {
   return specSections('spec-weapon', weapon);
 }
-export function weaponSpecIssues(weapon: RowData) {
+export function weaponSpecIssues(weapon: RowData, partial = false) {
   return [
-    ...specFieldsIssues(
-      weaponSections(weapon).flatMap((section) => section.fields),
-      weapon,
-    ),
-    ...schema.definitions!.save!.nested!.slice(1).flatMap((field) => schemaFieldIssues(field, weapon[field.key])),
+    ...schemaDocumentIssues(schema, weapon, partial),
+    ...schema
+      .definitions!.save!.nested!.slice(1)
+      .flatMap((field) => schemaFieldIssues(field, weapon[field.key], field.key, partial, weapon)),
     ...Object.entries(WEAPON_OBJECT_FIELDS).flatMap(([key, fields]) =>
       isRowData(weapon[key])
-        ? specFieldsIssues(fields, weapon[key], `${key}.`)
-        : schemaFieldIssues({ ...schema.definitions![key]!, nested: undefined }, weapon[key]),
+        ? specFieldsIssues(fields, weapon[key], `${key}.`, partial)
+        : schemaFieldIssues({ ...schema.definitions![key]!, nested: undefined }, weapon[key], key, partial, weapon),
     ),
   ];
 }

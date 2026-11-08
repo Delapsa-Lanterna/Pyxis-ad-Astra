@@ -46,7 +46,7 @@ function jointValueData(value: JointValue | undefined) {
 export function useImmersiveEditorRuntime<TPanel extends ImmersivePanel>(
   root: JointEditRoot & { rowKey?: string },
   definition: ImmersiveEditorDefinition<TPanel>,
-  hooks: Pick<NonNullable<Parameters<typeof useJointEditSession>[0]>, 'readSnapshot' | 'onContentUpdate'>,
+  hooks: Pick<NonNullable<Parameters<typeof useJointEditSession>[0]>, 'readSnapshot' | 'onContentUpdate' | 'validate'>,
 ) {
   const feedback = useAppFeedback();
   const settings = useSettingsStore();

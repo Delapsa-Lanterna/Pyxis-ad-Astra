@@ -29,34 +29,63 @@ JSON 文档编辑模块提供 Mod 信息、势力、战役、装配、舰船皮�
 
 - `src-tauri/src/domain/entity_definitions.rs`：八种实体的目录、后缀、ID 字段及规格、表格关联登记。
 - `src-tauri/src/domain/entity_identity.rs`：实体 ID、路径及来源边界纯规则。
+- `src-tauri/src/domain/misc_config.rs`：文件种类、固定路径与所属内容校验。
+- `src-tauri/src/domain/save_edits.rs`：当前正式内容的字段修改应用。
 - `src-tauri/src/domain/schema.rs`：保存时消费的字段内容与结构校验。
 - `src-tauri/src/io/faction_index.rs`：势力索引引用的所属根授权。
 - `src-tauri/src/models/config_entity.rs`：Mod 信息与索引实体请求、刷新内容及势力索引结构。
 - `src-tauri/src/models/json_file.rs`：JSON 文件写入与删除请求协议。
 - `src-tauri/src/models/json_recovery.rs`：来源重建请求、计划和版本协议。
+- `src-tauri/src/services/project/query/csv_window.rs`：CSV 窗口行、搜索与单行预览查询。
+- `src-tauri/src/services/project/query/entities.rs`：按实际来源装配详情与列表。
+- `src-tauri/src/services/project/query/entity_presentation.rs`：实体是否参与组合的判定及对外内容、目标和资源呈现装配。
+- `src-tauri/src/services/project/query/entity_targets.rs`：实际编辑目标、身份意图及正式版本范围。
 - `src-tauri/src/services/project/query/json_layers.rs`：会话所属的正式有序 JSON 来源组合与版本。
+- `src-tauri/src/services/project/session.rs`：会话打开、关闭、内容更新与内部登记及就绪访问能力交付。
+- `src-tauri/src/services/project/session/registry.rs`：会话存活登记、句柄与内容就绪门控。
 - `src-tauri/src/services/project/sources/json_documents.rs`：Variant 与 Skin 的实际来源文件产品构造。
 - `src-tauri/src/services/project/write/entity_write.rs`：Variant、Skin、势力及关联文件的实际写入。
+- `src-tauri/src/services/project/write/entity_write/content.rs`：实体内容、关联规格准备与复核、描述、父引用、单文件和势力索引写入。
+- `src-tauri/src/services/project/write/entity_write/faction_index.rs`：实体内容、关联规格准备与复核、描述、父引用、单文件和势力索引写入。
+- `src-tauri/src/services/project/write/entity_write/single_files.rs`：实体内容、关联规格准备与复核、描述、父引用、单文件和势力索引写入。
 - `src/app/components/field-editor/SchemaFormRenderer.vue`：schema 字段表单展示。
+- `src/app/components/media/ResourceThumbnail.vue`：授权图片与配置选项消费的缩略图展示。
+- `src/app/composables/field-editor/use-field-source-options.ts`：来源读取、路径选择、输入模式、行身份及选项媒体寿命。
+- `src/app/composables/use-app-feedback.ts`：窗口反馈的提供与消费入口。
+- `src/app/composables/use-context-menu.ts`：窗口菜单状态、目标操作、事件生命周期与业务根登记。
+- `src/app/composables/use-core-schema.ts`：配置 schema 与当前 Core 字段的响应式合并门面。
 - `src/app/composables/use-edit-target-draft-session.ts`：目标快照、草稿、保存与外部版本交接。
 - `src/app/composables/use-field-input-actions.ts`：字段输入提交、取消与外部版本确认。
 - `src/app/composables/use-query-read-owner.ts`：所属读取票据与读取生命周期。
 - `src/app/composables/use-snapshot-history.ts`：按 EditContext 绑定的前后值撤销历史。
+- `src/app/composables/use-visible-resource-media.ts`：可视区媒体解析。
 - `src/domain/entity-write/spec-construction.ts`：装配与皮肤的正式初始内容。
+- `src/domain/field-editor/field-editor-context.ts`：编辑上下文、候选展示和 CSV 选项索引。
+- `src/domain/field-editor/field-options.ts`：编辑上下文、候选展示和 CSV 选项索引。
+- `src/domain/json-composition.ts`：前端内容组合、来源定位、稀疏编辑及覆盖撤销。
 - `src/domain/misc-config.ts`：配置文件登记、顺序、路径、schema 与初始值。
 - `src/domain/project/entity-definitions.ts`：实体内容 ID、通用 ID 规则与重命名身份投影。
 - `src/domain/project/entity-versions.ts`：目标版本凭据与改名目标凭据交接。
 - `src/domain/schema/config-schema-registry.ts`：装配与皮肤 schema。
+- `src/domain/schema/schema-identity.ts`：字段与列资产加载、来源声明、值及结构纯规则。
+- `src/domain/schema/schema-sources.ts`：字段与列资产加载、来源声明、值及结构纯规则。
 - `src/domain/schema/schema-validation.ts`：当前有效文档及捕获保存内容的共同字段问题。
+- `src/domain/schema/schema.types.ts`：字段与列资产加载、来源声明、值及结构纯规则。
 - `src/orchestrators/entity-write.orchestrator.ts`：实体保存的文件名选择。
 - `src/orchestrators/immersive-editor.orchestrator.ts`：装配沉浸式编辑器打开动作。
 - `src/orchestrators/json-write-confirmation.orchestrator.ts`：保存提交所属的 JSON 原文保留和逐源重排确认。
 - `src/orchestrators/project-sync.orchestrator.ts`：提交 receipt 接纳、来源刷新及跨窗口通知。
+- `src/orchestrators/window-identity.orchestrator.ts`：已准备文件身份的预约和原生窗口身份交接。
+- `src/orchestrators/window-target-focus.orchestrator.ts`：冲突目标、已加载路径与规格或文本窗口聚焦的动作。
 - `src/orchestrators/workspace-history.orchestrator.ts`：主窗口活动 JSON 草稿撤销与重做分派。
 - `src/services/entity-query.service.ts`：实体列表、详情、正式目标和身份意图查询。
 - `src/services/hull-reference.service.ts`：船体名称、Hull 引用和内置武器槽查询。
+- `src/services/misc-config.service.ts`：读取票据、路径失效和写入协议包装。
 - `src/services/query-cache.service.ts`：实体与引用查询失效订阅。
+- `src/services/resource-media.service.ts`：唯一持有媒体读取、合批、租约、响应式结果、闲置预算和失效。
+- `src/services/resource-reference.service.ts`：草稿资源查询与授权相对引用解析能力。
 - `src/services/source-catalog.service.ts`：文档宿主的正式字段候选目录读取。
+- `src/services/window.service.ts`：窗口 command 的类型化签名与参数装配。
 - `src/shared/lib/starsector/variant-modules.ts`：装配模块格式及引用修改。
 - `src/shared/runtime/document-editor.ts`：活动文档的输入、保存与历史动作契约。
 - `src/shared/types/config-entity.types.ts`：Mod 信息与索引实体保存请求、刷新内容及编辑投影契约。
@@ -65,6 +94,7 @@ JSON 文档编辑模块提供 Mod 信息、势力、战役、装配、舰船皮�
 - `src/shared/types/project-identity.types.ts`：实体目标与版本凭据协议。
 - `src/shared/types/write-commit.types.ts`：公共保存回执、提交同步、行键映射与正式内容交付。
 - `src/stores/draft-sessions.store.ts`：按 Mod 根登记未保存草稿。
+- `src/stores/project-sync.store.ts`：当前待办、错误和项目等待状态。
 - `src/stores/project.store.ts`：指定 Mod 的正式清单与 session 查询，异步动作消费捕获目标。
 - `src/stores/save-command.store.ts`：保存等待、活动保存动作和目标交接状态。
 - `src/stores/settings.store.ts`：JSON 写入方式与编辑历史容量设置。
@@ -79,6 +109,8 @@ JSON 文档编辑模块提供 Mod 信息、势力、战役、装配、舰船皮�
 
 - JSON 保存编排拥有 Mod 信息、势力、战役、装配与皮肤的写动作和 receipt 交接。
 - JSON 文档会话拥有 base、draft、dirty、活动输入、外部基线和对象快照历史。
+- 文档领域统一解释本地包装、有效内容与局部覆盖条件，会话、视图和保存消费同一投影。
+- JSON 保存编排直接交付具有准确内容类型的 WriteResult，文档接纳消费同次内容、身份和版本。
 - JSON 页面消费完整宿主目标、定位请求及具体动作，独立 effectScope 与模块登记表持有全部已访问文档直至 session 关闭。
 - 共同列表与文档宿主装配 JSON 页面，类型定义与能力提供 schema、内容转换、排序、媒体及关联文件规则。
 - 文档类型定义提供所属逻辑文档的身份字段并消费正式实体 ID 规则，独立文件定义提供装配与皮肤的标题、排序及引用差异。

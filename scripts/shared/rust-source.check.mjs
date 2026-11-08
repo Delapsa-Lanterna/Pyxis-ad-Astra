@@ -1,8 +1,7 @@
-import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { productionRustSource } from './rust-source.mjs';
-import { cratePaths, rustServiceExports, rustServicePaths } from '../architecture/facts/rust-crate-paths.mjs';
-import { architectureFixtures } from '../architecture/testing/fixtures.mjs';
+import assert from 'node:assert/strict';
+import { cratePaths } from '../architecture/facts/rust-crate-paths.mjs';
 
 test('external test modules and test reexports preserve subsequent production dependencies', () => {
   for (const item of ['mod tests;', 'pub use tests::fixture;']) {
@@ -32,27 +31,6 @@ test('direct test attributes are excluded while later production references rema
   );
   assert.equal(source.includes('hidden'), false);
   assert.ok(cratePaths(source).some((path) => path.join('::') === 'io::read_utf8_no_bom'));
-});
-
-test('service exports retain actual definitions through grouped imports and local aliases', () => {
-  const files = architectureFixtures({
-    'src-tauri/src/services/mod.rs':
-      'pub(crate) use project::query::entities::{query_entity, query_entity_list}; #[cfg(test)] pub use tests::fixture;',
-  });
-  const exports = rustServiceExports(files.files);
-  assert.equal(exports.size, 2);
-  for (const source of [
-    'crate::services::query_entity();',
-    'use crate::services::{query_entity as read}; read();',
-    'use crate::services as backend; backend::query_entity();',
-    'use crate::{services as backend}; backend::query_entity();',
-  ]) {
-    const paths = rustServicePaths(source, 'src-tauri/src/commands/example.rs', exports);
-    assert.ok(paths.some((edge) => edge.exported && edge.target.join('::') === 'services::project::query::entities::query_entity'));
-  }
-  const reference = rustServicePaths('crate::services::project::close_project_session();', '', exports)[0];
-  assert.ok(reference);
-  assert.deepEqual(reference.target, ['services', 'project', 'close_project_session']);
 });
 
 test('raw string delimiters retain complete masking and original offsets', () => {

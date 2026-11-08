@@ -35,13 +35,25 @@
 
 ### 消费
 
+- `src-tauri/src/domain/entity_identity.rs`：跨编辑器实体 ID、路径与来源范围纯规则。
 - `src-tauri/src/domain/json_composition.rs`：引擎样式的游戏 JSON 合并纯运算。
 - `src-tauri/src/models/project_identity.rs`：资源来源与所属身份。
 - `src-tauri/src/models/resources.rs`：草稿资源、批量图片、路径及船体引用请求与结果。
 - `src-tauri/src/services/project/model.rs`：资源读取消费的已加载来源记录。
 - `src-tauri/src/services/project/query/json_layers.rs`：正式有序 JSON 来源层及其版本。
 - `src-tauri/src/services/project/resources/fonts.rs`：session 来源补充、安装根授权及 FNT 图集读取。
+- `src-tauri/src/services/project/session/access.rs`：捕获引用快照后锁定并交付所属就绪会话。
+- `src-tauri/src/services/project/session/csv_tables.rs`：正式表格内容、稳定行身份、来源保留、加载版本及实体计数构建。
+- `src-tauri/src/services/project/session/references.rs`：有序引用来源、代次、共享快照与按需表格视图。
+- `src-tauri/src/services/project/session/registry.rs`：会话存活登记、句柄与内容就绪门控。
 - `src-tauri/src/services/project/sources/core.rs`：实际来源根所属的共享 Core 文档目录。
+- `src-tauri/src/services/project/sources/documents.rs`：来源规格记录、势力索引装载、实际位置及内容构造。
+- `src-tauri/src/services/project/sources/engine_styles.rs`：经正式来源读取交付引擎样式与匹配版本。
+- `src-tauri/src/services/project_session.rs`：游戏根与 Mod 根授权、来源输入准备及会话范围核对。
+- `src/app/composables/use-app-feedback.ts`：窗口反馈的提供与消费入口。
+- `src/domain/project/query-scopes.ts`：标准实体失效 scope 的种类、ID 与通配匹配。
+- `src/services/project-readiness.service.ts`：窗口内按 session 维护正式内容读取门控。
+- `src/services/query-cache.service.ts`：类型化缓存实例、共享请求、即时读取、门控及失效通知。
 - `src/shared/lib/resource-ref.ts`：资源身份键、相等与集合纯规则。
 - `src/shared/runtime/app-log-queue.ts`：媒体请求、解码、成品接纳和释放的详细记录。
 - `src/shared/runtime/cache.ts`：资源缓存消费的 LRU 及 `pending` 原语。

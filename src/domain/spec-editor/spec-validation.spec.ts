@@ -11,6 +11,20 @@ import { createProjectileSpec } from '@/domain/entity-write/spec-construction';
 import type { JsonValue } from '@/shared/types';
 
 describe('Spec schema validation', () => {
+  it.each([
+    [shipSpecIssues, { width: false }, 'width'],
+    [weaponSpecIssues, { specClass: 'projectile', width: false }, 'width'],
+    [projectileSpecIssues, { specClass: 'missile', width: false }, 'width'],
+    [systemSpecIssues, { type: 'STAT_MOD', launchSpeed: false }, 'launchSpeed'],
+  ] as const)('checks supplied fields in a partial document independently of visibility: %s', (check, value, path) => {
+    expect(check(value, true).map((issue) => issue.path)).toEqual([path]);
+    expect(check({}, true)).toEqual([]);
+  });
+  it('applies partial omission rules inside structured spec values', () => {
+    expect(shipSpecIssues({ weaponSlots: [{ type: 'BALLISTIC' }], engineSlots: [{ style: 'CUSTOM' }] }, true)).toEqual([]);
+    expect(weaponSpecIssues({ muzzleFlashSpec: {} }, true)).toEqual([]);
+    expect(projectileSpecIssues({ explosionSpec: {} }, true)).toEqual([]);
+  });
   it('checks raw bounds items with their declared numeric rule', () => {
     const ship = { ...createShipSpec('bounds-fixture'), spriteName: 'graphics/fixture.png' };
     for (const bounds of [[], [0, 0], [0, 0, 2.625], [0, 0, '7e1', -2]])

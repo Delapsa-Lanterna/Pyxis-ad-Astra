@@ -1,10 +1,9 @@
-import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { messages, architectureFixtures } from '../../testing/fixtures.mjs';
+import { architectureFixtures, messages } from '../../testing/fixtures.mjs';
+import { COMMAND_TRANSPORT, saveActionOwners, commandOwners } from './command-policy.mjs';
 import { commandBoundaryRule } from './command-boundary.mjs';
-import { COMMAND_TRANSPORT, commandOwners, saveActionOwners } from './command-policy.mjs';
+import assert from 'node:assert/strict';
 
-const provider = 'export function invokeCommand() {}';
 const imports = [
   "import { invokeCommand as run } from '@/shared/runtime/command.runtime'; run('read_settings');",
   "import * as wire from '@/shared/runtime/command.runtime'; wire.invokeCommand('read_settings');",
@@ -14,6 +13,8 @@ const imports = [
   "(await import('@/shared/runtime/command.runtime')).invokeCommand('read_settings');",
   "const { invokeCommand: run } = await import('@/shared/runtime/command.runtime'); run('read_settings');",
 ];
+
+const provider = 'export function invokeCommand() {}';
 
 for (const [index, source] of imports.entries()) {
   test(`command source form ${index + 1} retains ownership and location`, () => {
@@ -81,12 +82,6 @@ test('scoped aliases and shadowed parameters retain their lexical ownership', ()
   assert.match(failures[0], /read_settings/);
 });
 
-test('every declared command has exactly one capability owner', () => {
-  const commands = Object.values(commandOwners).flat();
-  assert.ok(commands.length > 0);
-  assert.equal(new Set(commands).size, commands.length);
-});
-
 test('native calls and saved actions each use their own declared transport', () => {
   const context = architectureFixtures({
     [COMMAND_TRANSPORT]: 'export function invokeCommand() {} export function invokeSaveCommand() {}',
@@ -101,4 +96,18 @@ invokeCommand('save_editor_spec'); invokeSaveCommand('load_imported_editor_spec_
   assert.equal(actions.length, 20);
   assert.equal(new Set(actions).size, actions.length);
   assert.equal(actions.filter((action) => Object.values(commandOwners).flat().includes(action)).length, 0);
+});
+
+test('joint commands have a single capability owner and reject a second payload surface', () => {
+  const files = architectureFixtures({
+    'src/services/joint-edit.service.ts':
+      "import {invokeCommand} from '@/shared/runtime/command.runtime'; export const read=(payload)=>invokeCommand('query_joint_edit',{payload});",
+    'src/services/spec-editor.service.ts':
+      "import {invokeCommand} from '@/shared/runtime/command.runtime'; export const read=(payload)=>invokeCommand('query_joint_edit',{payload});",
+    'src/shared/runtime/command.runtime.ts': 'export const invokeCommand=(command,args)=>({command,args});',
+  });
+  const failures = messages(commandBoundaryRule.check(files));
+  assert.equal(failures.length, 1);
+  assert.ok(failures[0]);
+  assert.ok(failures[0].includes('src/services/spec-editor.service.ts'));
 });

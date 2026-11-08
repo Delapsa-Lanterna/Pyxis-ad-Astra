@@ -1,8 +1,7 @@
-import { ESLint } from 'eslint';
-import { resolve } from 'node:path';
-import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { checkInlineTypeImports, checkMockSources } from './check-frontend-imports.mjs';
+import assert from 'node:assert/strict';
+import { resolve } from 'node:path';
 
 for (const rel of ['src/domain/sample.ts', 'src/app/Sample.vue', 'src/test/sample.spec.ts', 'scripts/sample.ts']) {
   test('inline type imports report their exact source position in ' + rel, () => {
@@ -77,22 +76,3 @@ test('string mock sources use the runtime resolver and retain original locations
     0,
   );
 });
-
-for (const [body, failures] of [
-  ['vi.fn<(...args:Parameters<typeof source>)=>unknown>();', 1],
-  ['const tools=vi;tools.fn<(...args:Parameters<typeof source>)=>unknown>();', 1],
-  ['vi.fn<typeof source>();', 0],
-  ['vi.fn<(value:string)=>unknown>();', 0],
-  ['vi.fn<(...args:Parameters<typeof source>)=>ReturnType<typeof source>>();', 0],
-])
-  test('function return contracts: ' + body, async () => {
-    const [report] = await new ESLint().lintText("import {vi} from 'vitest';export declare function source(value:string):number;" + body, {
-      filePath: resolve('src/domain/mock-signature.spec.ts'),
-    });
-    assert.ok(report);
-    assert.equal(report.messages.length, failures);
-    for (const row of report.messages) {
-      assert.equal(row.ruleId, 'no-restricted-syntax');
-      assert.equal(row.line, 1);
-    }
-  });

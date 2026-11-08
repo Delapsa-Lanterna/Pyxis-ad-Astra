@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { architectureFixtures } from '../../../testing/fixtures.mjs';
+import { architectureFixtures, readTicketSource } from '../../../testing/fixtures.mjs';
 import { readTicketBoundaryRule } from './read-ticket-boundary.mjs';
 
 const ticket = 'src/shared/runtime/read-request.ts';
@@ -10,7 +10,7 @@ for (const source of [
   "const reads=import('@/shared/runtime/read-request');",
 ]) {
   test('read ticket ownership follows ' + source, () => {
-    const declarations = { [ticket]: 'export function createReadOwner() {}' };
+    const declarations = { [ticket]: readTicketSource };
     const legal = architectureFixtures({ ...declarations, 'src/app/composables/use-sample.ts': source });
     assert.deepEqual(readTicketBoundaryRule.check(legal), []);
     const context = architectureFixtures({ ...declarations, 'src/app/components/Sample.vue': '<script setup>\n' + source + '</script>' });
@@ -34,14 +34,14 @@ test('read ticket types and unrelated local names retain their own meaning', () 
 
 test('direct ReadTicket consumers must accept and invalidate their ticket', () => {
   const invalid = architectureFixtures({
-    [ticket]: 'export function createReadTicket() {}',
+    [ticket]: readTicketSource,
     'src/app/composables/use-sample.ts':
       "import {createReadTicket} from '@/shared/runtime/read-request'; const ticket=createReadTicket(id, load); void ticket.promise;",
   });
   const diagnostics = readTicketBoundaryRule.check(invalid);
   assert.deepEqual(diagnostics.map(({ expected }) => expected).sort(), ['ticket.requireCurrent()', 'ticket.invalidate(reason)'].sort());
   const legal = architectureFixtures({
-    [ticket]: 'export function createReadTicket() {}',
+    [ticket]: readTicketSource,
     'src/app/composables/use-sample.ts':
       "import {createReadTicket} from '@/shared/runtime/read-request'; const ticket=createReadTicket(id, load); void ticket.promise.then(() => ticket.requireCurrent()); onScopeDispose(() => ticket.invalidate('consumer'));",
   });
@@ -50,7 +50,7 @@ test('direct ReadTicket consumers must accept and invalidate their ticket', () =
 
 test('each direct ticket keeps its own acceptance obligation', () => {
   const context = architectureFixtures({
-    [ticket]: 'export function createReadTicket() {}',
+    [ticket]: readTicketSource,
     'src/app/composables/use-sample.ts': `
       import {createReadTicket} from '@/shared/runtime/read-request';
       const first=createReadTicket(firstId, load);
@@ -75,7 +75,7 @@ for (const unrelated of [
 ]) {
   test('unrelated declarations preserve both ticket obligations: ' + unrelated, () => {
     const context = architectureFixtures({
-      [ticket]: 'export function createReadTicket() {}',
+      [ticket]: readTicketSource,
       'src/app/composables/use-sample.ts': `import {createReadTicket} from '@/shared/runtime/read-request';
 function read() { const task = createReadTicket(id, load); void task.promise; }
 ${unrelated}`,
@@ -91,7 +91,7 @@ ${unrelated}`,
 
 test('same-named tickets in separate functions retain independent obligations', () => {
   const context = architectureFixtures({
-    [ticket]: 'export function createReadTicket() {}',
+    [ticket]: readTicketSource,
     'src/app/composables/use-sample.ts': `import {createReadTicket} from '@/shared/runtime/read-request';
 function complete() { const task = createReadTicket(id, load); task.requireCurrent(); task.invalidate(); }
 function incomplete() { const task = createReadTicket(id, load); }`,
@@ -114,7 +114,7 @@ for (const handoff of [
 ]) {
   test('explicit ticket handoff preserves lifecycle evidence: ' + handoff, () => {
     const context = architectureFixtures({
-      [ticket]: 'export function createReadTicket() {}',
+      [ticket]: readTicketSource,
       'src/app/composables/use-sample.ts': `import {createReadTicket} from '@/shared/runtime/read-request';
 const task = createReadTicket(id, load); ${handoff}`,
     });
@@ -132,7 +132,7 @@ const items = new Map(); const separate = new Map();
 return { ${read}(key) { return items.get(key); }, ${write}(key, value) { items.set(key, value); },
 readSeparate(key) { return separate.get(key); } }; }`;
     const context = architectureFixtures({
-      [ticket]: 'export function createReadTicket() {}',
+      [ticket]: readTicketSource,
       'src/shared/storage.ts': storage,
       'src/app/composables/use-sample.ts': `import {createReadTicket} from '@/shared/runtime/read-request';
 import {createStorage} from '@/shared/storage';
@@ -144,7 +144,7 @@ held.task.requireCurrent(); held.task.invalidate();`,
     const consumer = context.byPath.get('src/app/composables/use-sample.ts');
     assert.ok(consumer);
     const unrelated = architectureFixtures({
-      [ticket]: 'export function createReadTicket() {}',
+      [ticket]: readTicketSource,
       'src/shared/storage.ts': storage,
       [consumer.rel]: consumer.text.replace(`storage.${read}(id)`, 'storage.readSeparate(id)'),
     });
@@ -154,7 +154,7 @@ held.task.requireCurrent(); held.task.invalidate();`,
 
 test('same-named object properties retain their declared owner through aliases', () => {
   const context = architectureFixtures({
-    [ticket]: 'export function createReadTicket() {}',
+    [ticket]: readTicketSource,
     'src/app/composables/use-sample.ts': `import {createReadTicket} from '@/shared/runtime/read-request';
 const task = createReadTicket(id, load); const owner = { task }; const other = { task: external() };
 other.task.requireCurrent(); other.task.invalidate();`,
@@ -166,7 +166,7 @@ other.task.requireCurrent(); other.task.invalidate();`,
 function collectionDiagnostics(body, sources = {}) {
   return readTicketBoundaryRule.check(
     architectureFixtures({
-      [ticket]: 'export function createReadTicket() {}',
+      [ticket]: readTicketSource,
       'src/app/composables/use-sample.ts': "import {createReadTicket} from '@/shared/runtime/read-request';\n" + body,
       ...sources,
     }),

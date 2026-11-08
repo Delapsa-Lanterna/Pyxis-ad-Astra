@@ -1,5 +1,5 @@
 import { readFile } from 'node:fs/promises';
-import { extname } from 'node:path';
+import { extname, matchesGlob } from 'node:path';
 import { collectRepoPaths } from '../../shared/files.mjs';
 import { prepareArchitectureFiles } from './imports.mjs';
 import { frontendFile, specFile } from './classify.mjs';
@@ -8,7 +8,7 @@ import { serviceExportsFromSource } from './rust-crate-paths.mjs';
 import { moduleFacts, moduleMapFacts } from './modules.mjs';
 
 /** @typedef {import('./imports.mjs').ResolvedFile & {rust: import('./rust.mjs').RustFacts, document: import('./modules.mjs').ModuleFacts}} ArchitectureFile */
-/** @typedef {{files: readonly ArchitectureFile[], byPath: ReadonlyMap<string, ArchitectureFile>, paths: ReadonlySet<string>, frontend: readonly ArchitectureFile[], rust: readonly ArchitectureFile[], documents: readonly ArchitectureFile[], failures: import('../diagnostics.mjs').Diagnostic[], moduleMap: ReturnType<typeof moduleMapFacts>, registeredRules: readonly import('../diagnostics.mjs').ArchitectureRule[], counts: {frontend: number, rust: number, documents: number}}} ArchitectureContext */
+/** @typedef {{files: readonly ArchitectureFile[], byPath: ReadonlyMap<string, ArchitectureFile>, paths: ReadonlySet<string>, frontend: readonly ArchitectureFile[], rust: readonly ArchitectureFile[], documents: readonly ArchitectureFile[], testFiles: ReadonlySet<string>, failures: import('../diagnostics.mjs').Diagnostic[], moduleMap: ReturnType<typeof moduleMapFacts>, registeredRules: readonly import('../diagnostics.mjs').ArchitectureRule[], counts: {frontend: number, rust: number, documents: number}}} ArchitectureContext */
 const sourceExtensions = new Set(['.js', '.jsx', '.mjs', '.rs', '.ts', '.tsx', '.vue']);
 
 /** @param {import('../../shared/files.mjs').SourceFile[]} sources @param {string[]} [available] @returns {ArchitectureContext} */
@@ -37,6 +37,9 @@ export function architectureContext(sources, available = sources.map((file) => f
   const frontend = files.filter((file) => frontendFile(file.rel) && !specFile(file.rel));
   const rust = files.filter((file) => file.rel.endsWith('.rs'));
   const documents = files.filter((file) => file.rel.startsWith('.zcode/modules/') && file.rel.endsWith('.md'));
+  const packageFile = sources.find((file) => file.rel === 'package.json');
+  const testCommand = packageFile ? JSON.parse(packageFile.text).scripts['test:checks'] : '';
+  const testPatterns = [...testCommand.matchAll(/["']([^"']+\.check\.mjs)["']/g)].map((match) => match[1]);
   return {
     files,
     registeredRules: [],
@@ -45,6 +48,7 @@ export function architectureContext(sources, available = sources.map((file) => f
     frontend,
     rust,
     documents,
+    testFiles: new Set(available.filter((rel) => testPatterns.some((pattern) => matchesGlob(rel, pattern)))),
     moduleMap: moduleMapFacts(files, files[0]?.repositoryPaths ?? new Set(available)),
     failures: files.flatMap((file) =>
       file.dependencyFailures.map((failure) => ({
@@ -76,7 +80,8 @@ export async function collectArchitectureContext(root) {
         (file.rel.startsWith('src/') || file.rel.startsWith('src-tauri/') || file.rel.startsWith('scripts/architecture/rules/'))) ||
         file.rel === 'tsconfig.json' ||
         file.rel === '.zcode/module-map.md' ||
-        (file.rel.startsWith('.zcode/modules/') && extension === '.md'))
+        (file.rel.startsWith('.zcode/') && !file.rel.startsWith('.zcode/plans/') && extension === '.md') ||
+        file.rel === 'package.json')
     );
   });
   const sources = await Promise.all(paths.map(async (file) => ({ ...file, text: await readFile(file.path, 'utf8') })));

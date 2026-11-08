@@ -111,6 +111,34 @@ fn cleanup(dir: TestWorkspace, root: &JointEditRoot) {
 }
 
 #[test]
+fn readonly_dependency_version_changes_reject_the_captured_save() {
+    let (dir, root) = fixture();
+    let snapshot = query_joint_edit(&root).unwrap();
+    let key = snapshot.bindings["csv"].clone();
+    let mut input = payload(snapshot);
+    input.values.retain(|record, _| record == &key);
+    let dependency = dir.join("data/weapons/weapon.wpn");
+    write_utf8_no_bom(
+        &dependency,
+        r#"{"id":"weapon","specClass":"beam","size":"LARGE"}"#,
+    )
+    .unwrap();
+    assert_eq!(
+        prepare_joint_save(&mut input, &[], &[]).unwrap_err().code(),
+        "write.version_conflict"
+    );
+    let error = submit(&input).unwrap_err();
+    assert_eq!(error.code(), "write.version_conflict");
+    assert!(
+        query_file_history(&root.session_id, &root.mod_root)
+            .unwrap()
+            .undo_stack
+            .is_empty()
+    );
+    cleanup(dir, &root);
+}
+
+#[test]
 fn queued_joint_save_graph_builds() {
     for (kind, id, binding, field, value) in [
         (JointEditKind::Ship, "a", "spec", "hullName", json!("Saved")),
@@ -167,6 +195,61 @@ fn queued_joint_save_graph_builds() {
         assert_eq!(data[field], value, "{kind:?}");
         cleanup(dir, &root);
     }
+}
+
+#[test]
+fn invalid_joint_files_collect_every_location_before_writing() {
+    let (dir, mut root) = fixture();
+    root.kind = JointEditKind::Variant;
+    root.id = "var".into();
+    let mut input = payload(query_joint_edit(&root).unwrap());
+    let before_variant = fs::read(dir.join("data/variants/var.variant")).unwrap();
+    let before_weapon = fs::read(dir.join("data/weapons/weapon.wpn")).unwrap();
+    for record in &input.snapshot.records {
+        let JointRecordTarget::Spec { target } = &record.target else {
+            continue;
+        };
+        let Some(JointValue::Present(data)) = input.values.get_mut(&record.key) else {
+            continue;
+        };
+        if target.kind == EntityKind::Variant {
+            data["weaponGroups"] = json!([{"mode":"LINKED"}]);
+        }
+        if target.kind == EntityKind::Weapon {
+            data["turretOffsets"] = json!([]);
+            data["hardpointOffsets"] = json!([]);
+        }
+    }
+    let error = submit(&input).unwrap_err();
+    let issues = error.field_problems();
+    assert_eq!(issues.len(), 3);
+    assert!(
+        issues
+            .iter()
+            .any(|issue| issue.path == "weaponGroups[0][\"weapons\"]")
+    );
+    assert!(issues.iter().any(|issue| issue.path == "turretOffsets"));
+    assert!(issues.iter().any(|issue| issue.path == "hardpointOffsets"));
+    assert!(
+        issues
+            .iter()
+            .all(|issue| issue.location.as_ref().unwrap().path.is_some())
+    );
+    assert_eq!(
+        fs::read(dir.join("data/variants/var.variant")).unwrap(),
+        before_variant
+    );
+    assert_eq!(
+        fs::read(dir.join("data/weapons/weapon.wpn")).unwrap(),
+        before_weapon
+    );
+    assert!(
+        query_file_history(&root.session_id, &root.mod_root)
+            .unwrap()
+            .undo_stack
+            .is_empty()
+    );
+    cleanup(dir, &root);
 }
 
 #[test]

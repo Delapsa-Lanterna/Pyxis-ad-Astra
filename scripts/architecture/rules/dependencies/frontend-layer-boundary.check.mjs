@@ -1,7 +1,7 @@
-import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { architectureFixtures, messages } from '../../testing/fixtures.mjs';
 import { frontendLayerBoundaryRule } from './frontend-layer-boundary.mjs';
-import { messages, architectureFixtures } from '../../testing/fixtures.mjs';
+import assert from 'node:assert/strict';
 
 test('settings persistence dependencies follow actual workspace responsibilities', () => {
   for (const owner of [
@@ -267,4 +267,87 @@ test('context menus consume runtime capabilities through their window host', () 
       "import {useContextMenuScope as register} from '@/app/composables/use-context-menu';",
   });
   assert.deepEqual(frontendLayerBoundaryRule.check(allowed), []);
+});
+
+test('runtime and type edges share one layer-violation diagnostic', () => {
+  const files = architectureFixtures({
+    'src/domain/sample.ts': "import { type Shape, run } from '@/stores/sample.store';",
+    'src/stores/sample.store.ts': 'export interface Shape {} export function run() {}',
+  });
+  assert.equal(messages(frontendLayerBoundaryRule.check(files)).length, 1);
+});
+
+test('editing and resource projections consume their own rules and public contracts', () => {
+  for (const [source, target] of [
+    ['src/app/composables/use-edit-target-draft-session.ts', 'src/stores/project-sync.store.ts'],
+    ['src/domain/resources/hull-references.ts', 'src/domain/field-editor/field-options.ts'],
+    ['src/services/source-catalog.service.ts', 'src/domain/field-editor/csv-source-options.ts'],
+  ])
+    for (const typeOnly of [false, true]) {
+      assert.ok(source && target);
+      const context = architectureFixtures({
+        [source]: `\nimport ${typeOnly ? 'type ' : ''}{Value as Selected} from '@/${target.slice(4, -3)}';`,
+        [target]: 'export interface Value {}',
+      });
+      const diagnostics = frontendLayerBoundaryRule.check(context);
+      assert.equal(diagnostics.length, 1);
+      const diagnostic = diagnostics[0];
+      assert.ok(diagnostic);
+      assert.equal(diagnostic.file, source);
+      assert.equal(diagnostic.line, 2);
+      assert.equal(diagnostic.target, target);
+      assert.ok(['owned projection or shared contract', 'field definitions or public contracts'].includes(diagnostic.expected ?? ''));
+    }
+  for (const [source, target] of [
+    ['src/domain/edit-session.ts', 'src/shared/lib/json-edits.ts'],
+    ['src/app/composables/use-edit-target-draft-session.ts', 'src/shared/lib/json-edits.ts'],
+    ['src/services/source-catalog.service.ts', 'src/domain/schema/schema-source-definitions.ts'],
+    ['src/app/composables/use-edit-target-draft-session.ts', 'src/domain/edit-session.ts'],
+    ['src/domain/resources/hull-references.ts', 'src/shared/types/resources.types.ts'],
+    ['src/stores/project-sync.store.ts', 'src/shared/types/write-commit.types.ts'],
+  ]) {
+    assert.ok(source && target);
+    const context = architectureFixtures({
+      [source]: `import type {Value} from '@/${target.slice(4, -3)}';`,
+      [target]: 'export interface Value {}',
+    });
+    assert.deepEqual(frontendLayerBoundaryRule.check(context), []);
+  }
+});
+
+test('field definitions and JSON composition consume their own pure contracts', () => {
+  for (const [source, target] of /** @type {const} */ ([
+    ['src/domain/schema/schema-source-definitions.ts', 'src/domain/field-editor/field-options.ts'],
+    ['src/domain/schema/schema-values.ts', 'src/domain/json-composition.ts'],
+    ['src/domain/json-composition.ts', 'src/domain/schema/schema-values.ts'],
+    ['src/domain/json-composition.ts', 'src/domain/project/versions.ts'],
+  ]))
+    for (const typeOnly of [false, true]) {
+      const context = architectureFixtures({
+        [source]: '\nimport ' + (typeOnly ? 'type ' : '') + '{Value as Selected} from "@/' + target.slice(4, -3) + '";',
+        [target]: 'export interface Value {}',
+      });
+      const [diagnostic] = frontendLayerBoundaryRule.check(context);
+      assert.equal(diagnostic?.ruleId, 'frontend-layer-boundary');
+      assert.equal(diagnostic?.file, source);
+      assert.equal(diagnostic?.line, 2);
+      assert.equal(diagnostic?.target, target);
+      assert.equal(diagnostic?.expected, 'owned definitions or public contracts');
+    }
+  const allowed = architectureFixtures({
+    'src/domain/schema/schema-asset-parser.ts': 'import {source} from "./schema-source-definitions";',
+    'src/domain/schema/schema-source-definitions.ts': 'export const source = "config:sounds";',
+    'src/domain/json-composition.ts': 'import {captureJsonEdits} from "@/shared/lib/json-edits";',
+    'src/shared/lib/json-edits.ts': 'export function captureJsonEdits() {}',
+  });
+  assert.deepEqual(frontendLayerBoundaryRule.check(allowed), []);
+});
+
+test('immersive presentation consumes window and query capabilities through its owners', () => {
+  const files = architectureFixtures({
+    'src/app/components/immersive/ImmersiveStatRow.vue':
+      "<script setup>import {retargetNativeWindow} from '@/services/window.service'; retargetNativeWindow(identity,title);</script>",
+    'src/services/window.service.ts': 'export const retargetNativeWindow=(identity,title)=>({identity,title});',
+  });
+  assert.ok(messages(frontendLayerBoundaryRule.check(files)).some((failure) => failure.includes('components must consume')));
 });

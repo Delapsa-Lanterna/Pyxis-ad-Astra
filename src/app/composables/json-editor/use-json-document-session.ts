@@ -4,8 +4,6 @@ import { releaseNativeWindowTargets } from '@/services/window.service';
 import { stableDeepEqual } from '@/shared/lib/stable-compare';
 import { requireRowData } from '@/shared/lib/row-data';
 import { createEditorProblems } from '@/shared/runtime/editor-problems';
-import { schemaDocumentIssues } from '@/domain/schema/schema-validation';
-import { composeJson } from '@/domain/json-composition';
 import { AppError } from '@/shared/lib/errors';
 import { miscConfigDocumentValue } from '@/domain/json-editor/json-document-definitions';
 import { observeSavedContent, sessionContentUpdate } from '@/orchestrators/project-sync.orchestrator';
@@ -26,6 +24,7 @@ import {
   jsonRecoveryValue,
   jsonDocumentOrigin,
   jsonDocumentValue,
+  jsonDocumentIssues,
   type ConfigDocumentTarget,
   type JsonDocumentDefinition,
   type JsonDocumentRecord,
@@ -113,18 +112,9 @@ function createJsonDocumentSession(definition: JsonDocumentDefinition, record: J
   });
   session.loadBaseForTarget({ ...record, meta: { receipt: null, resources: record.resources, composition: record.composition } });
   function readProblems(value: RowData) {
-    const sources = definition.kind === 'misc-config' ? undefined : composition.value;
-    const wrapped = definition.kind === 'faction' || definition.kind === 'mod-info' || definition.kind === 'misc-config';
-    const effective = wrapped
-      ? { ...value, file: composeJson(value.file as RowData, sources) }
-      : definition.kind === 'mission'
-        ? { ...value, descriptor: composeJson(value.descriptor as RowData, sources) }
-        : composeJson(value, sources);
-    const partial =
-      definition.kind === 'misc-config' || Boolean(sources && definition.kind !== 'variant' && !jsonDocumentId(definition, value));
-    return schemaDocumentIssues(schema.value, effective, partial);
+    return jsonDocumentIssues(definition, schema.value, value, composition.value);
   }
-  const problems = createEditorProblems(session.inputs, () => readProblems(session.draftValue.value));
+  const problems = createEditorProblems(session.inputs, () => readProblems(session.draftValue.value), true);
   watch([session.draftValue, session.context, composition], problems.clearFailure);
   watch(
     () => session.baselineSnapshot.value?.meta.composition,

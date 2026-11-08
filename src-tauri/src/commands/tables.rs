@@ -31,6 +31,14 @@ pub fn prepare_csv_associated_specs(
 
 #[command_macros::command(async)]
 pub fn query_csv_table_index(payload: CsvTableIndexPayload) -> Result<CsvTableIndex, AppError> {
+    if let Some(source) = payload.source {
+        return services::query_csv_source_index(
+            &payload.session_id,
+            payload.table,
+            &payload.validation_columns,
+            &source,
+        );
+    }
     services::query_csv_table_index(
         &payload.session_id,
         payload.table,

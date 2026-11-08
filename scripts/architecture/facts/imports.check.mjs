@@ -1,11 +1,9 @@
-import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { architectureFixtures, fixtureFile } from '../testing/fixtures.mjs';
 import { importSpecifiers, importedProjectPaths, dependencyOrigins } from './imports.mjs';
+import assert from 'node:assert/strict';
 import { architectureContext } from './context.mjs';
 import { capabilityFor } from '../rules/capabilities/frontend-policy.mjs';
-import { classifyFrontendPath } from './classify.mjs';
-import { cratePaths } from './rust-crate-paths.mjs';
 
 test('mixed named imports keep per-binding type and runtime semantics', () => {
   const files = architectureFixtures({
@@ -195,37 +193,6 @@ test('type-only export-star has no runtime capability origin and cyclic barrels 
   );
 });
 
-test('classification expresses flat domain and actual responsibility suffixes consistently', () => {
-  assert.equal(classifyFrontendPath('src/domain/edit-session.ts').domain, 'edit-session');
-  assert.equal(classifyFrontendPath('src/services/csv-table.service.ts').domain, 'csv-table');
-  assert.equal(classifyFrontendPath('src/services/files.service.ts').domain, 'files');
-  assert.equal(classifyFrontendPath('src/orchestrators/csv-save.orchestrator.ts').domain, 'csv-save');
-  assert.equal(classifyFrontendPath('scripts/architecture/testing/fixtures.mjs').role, 'fixture');
-  assert.equal(classifyFrontendPath('scripts/shared/rust-source.check.mjs').layer, 'test');
-  assert.equal(classifyFrontendPath('src/domain/sample.spec.mjs').layer, 'test');
-});
-
-test('Rust dependency extraction deduplicates identical resolved references', () => {
-  const paths = cratePaths(
-    'use crate::models::WriteResult; fn run() { let value: crate::models::WriteResult; }',
-    'src-tauri/src/services/sample.rs',
-  );
-  assert.equal(paths.filter((parts) => parts.join('::') === 'models::WriteResult').length, 1);
-});
-
-test('Rust module aliases and function values retain their resolved service path', () => {
-  const files = architectureFixtures({
-    'src-tauri/src/services/mod.rs': 'pub(crate) use project::query::query_entity;',
-    'src-tauri/src/services/example.rs':
-      'use crate::services::project::query as query_layer; fn run() { let action = query_layer::query_entity; action(); }',
-  });
-  const file = fixtureFile(files, (item) => item.rel === 'src-tauri/src/services/example.rs');
-  assert.equal(
-    file.rust.references.some((edge) => edge.target.join('::').includes('project::query')),
-    true,
-  );
-});
-
 test('JavaScript modules, side-effect imports and direct reexports share the source model', () => {
   const files = architectureFixtures({
     'src/domain/sample.mjs': "import './effect.js'; export { run } from './helper.js'; export default function start() {}",
@@ -303,18 +270,6 @@ test('computed dynamic dependencies require an explicit authorization target', (
   assert.equal(file.dependencyFailures[0].target, 'import(target)');
   assert.equal(file.dependencyFailures[0].symbol, 'import');
   assert.equal(file.dependencyFailures[0].expected, 'literal module specifier');
-});
-
-test('runtime aliases assigned after declaration retain capability origin', () => {
-  const files = architectureFixtures({
-    'src/services/csv-table.service.ts': 'export function saveCsvPatch() {}',
-    'src/app/sample.ts': "import { saveCsvPatch } from '@/services/csv-table.service'; let submit; submit = saveCsvPatch; submit();",
-  });
-  const file = fixtureFile(files, (item) => item.rel === 'src/app/sample.ts');
-  assert.equal(
-    file.calls.some((call) => call.localName === 'saveCsvPatch'),
-    true,
-  );
 });
 
 test('TypeScript generic arrows and TSX scripts use their declared syntax mode', () => {

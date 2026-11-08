@@ -51,3 +51,13 @@ async function collectPaths(root, dir, include, includeDirectories) {
 function normalizePath(path) {
   return path.replace(/\\/g, '/');
 }
+
+/** @param {string} rel @returns {string[]} */
+export function pairedSourcePaths(rel) {
+  if (/\.(?:spec|test|check)\.[cm]?[jt]sx?$/.test(rel)) {
+    const stem = rel.replace(/\.(?:spec|test|check)\.[cm]?[jt]sx?$/, '');
+    const extension = rel.slice(rel.lastIndexOf('.'));
+    return [stem + extension, stem + '.vue', ...(extension === '.mjs' ? [stem + '.js'] : [])];
+  }
+  return /_tests?\.rs$/.test(rel) ? [rel.replace(/_tests?\.rs$/, '.rs')] : [];
+}

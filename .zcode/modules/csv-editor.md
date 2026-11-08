@@ -23,28 +23,59 @@ CSV 文档编辑模块管理整表文件的领域规则、运行态、展示、�
 ### 消费
 
 - `src-tauri/src/domain/csv_column_order.rs`：字段模式所属的标准列与补列顺序。
+- `src-tauri/src/domain/json_composition.rs`：游戏 JSON 合并、排除字段及整体覆盖组合。
+- `src-tauri/src/domain/save_edits.rs`：当前正式内容的字段修改应用。
+- `src-tauri/src/io/mod.rs`：底层文件、路径及 changeset 能力导出。
 - `src-tauri/src/models/table_save.rs`：CSV 保存请求、行修改、关联规格动作与写入目标。
 - `src-tauri/src/models/tables.rs`：CSV 查询请求、解析记录、搜索与窗口结果。
 - `src-tauri/src/services/project/model.rs`：正式表格路径、身份列、摘要来源与 Core 要求。
 - `src-tauri/src/services/project/query/entities.rs`：按正式来源、目标及组合规则交付校验实体内容。
+- `src-tauri/src/services/project/query/entity_targets.rs`：实际编辑目标、身份意图及正式版本范围。
 - `src-tauri/src/services/project/query/source_catalog/values.rs`：校验消费的完整引用候选。
 - `src-tauri/src/services/project/resources/table_references.rs`：行预览与来源选项的授权图片及显示名称。
+- `src-tauri/src/services/project/session/access.rs`：捕获引用快照后锁定并交付所属就绪会话。
 - `src-tauri/src/services/project/session/csv_tables.rs`：正式表格内容、稳定行身份与来源版本。
 - `src-tauri/src/services/project/session/csv_writes.rs`：表格暂存与成功应用后的正式状态接纳。
+- `src-tauri/src/services/project/session/registry.rs`：会话存活登记、句柄与内容就绪门控。
+- `src-tauri/src/services/project/sources/core.rs`：按根共享 Core 产品、只读 CSV、单飞读取及缓存释放。
+- `src-tauri/src/services/project/versions.rs`：会话已接纳来源的路径凭据投影。
 - `src-tauri/src/services/project/write/entity_write.rs`：实体关联规格与描述的实际文件写入。
 - `src-tauri/src/services/project/write/entity_write/associated_spec_preparation.rs`：关联文件实际来源、目标准备与匹配版本。
+- `src-tauri/src/services/project/write/entity_write/associated_specs.rs`：实体内容、关联规格准备与复核、描述、父引用、单文件和势力索引写入。
+- `src-tauri/src/services/project/write/entity_write/descriptions.rs`：实体内容、关联规格准备与复核、描述、父引用、单文件和势力索引写入。
+- `src/app/components/media/ResourceThumbnail.vue`：授权图片与配置选项消费的缩略图展示。
 - `src/app/composables/csv-editor/csv-editor-context.ts`：表格目标、清单、列宽及实体定位的宿主契约。
+- `src/app/composables/field-editor/use-field-edit-mode.ts`：来源读取、路径选择、输入模式、行身份及选项媒体寿命。
+- `src/app/composables/field-editor/use-field-option-media.ts`：来源读取、路径选择、输入模式、行身份及选项媒体寿命。
+- `src/app/composables/field-editor/use-image-source-options.ts`：来源读取、路径选择、输入模式、行身份及选项媒体寿命。
+- `src/app/composables/use-app-feedback.ts`：窗口反馈的提供与消费入口。
+- `src/app/composables/use-context-menu.ts`：窗口菜单状态、目标操作、事件生命周期与业务根登记。
+- `src/app/composables/use-field-input-actions.ts`：所属输入集合登记、活动输入提交与释放。
+- `src/app/composables/use-resource-thumbnail.ts`：交付普通缩略图需求与静态成品展示生命周期。
+- `src/app/composables/use-thumbnail-preload.ts`：可见优先与邻近预读队列的资源集合消费。
+- `src/app/composables/use-visible-resource-media.ts`：可视区媒体解析。
+- `src/app/composables/use-window-shortcuts.ts`：统一窗口按键监听、菜单优先、关闭屏蔽及卸载释放。
 - `src/domain/csv-editor/csv-dirty.ts`：保存快照消费的表格行脏标记。
 - `src/domain/csv-editor/csv-table-draft.ts`：提交后的表格基线、行序、行键映射及 dirty 接纳。
 - `src/domain/edit-session.ts`：历史双栈原语与正式保存后保留后续草稿的接纳规则。
 - `src/domain/editors/weapon-spec.ts`：武器关联创建消费的统一分支推断。
 - `src/domain/entity-write/spec-construction.ts`：武器分支定义与正式规格构造。
+- `src/domain/field-editor/csv-source-options.ts`：编辑上下文、候选展示和 CSV 选项索引。
+- `src/domain/field-editor/field-options.ts`：编辑上下文、候选展示和 CSV 选项索引。
 - `src/domain/schema/csv-schema-registry.ts`：表格消费的列 schema 加载入口。
 - `src/domain/schema/csv-value-validation.ts`：列 schema 所属的数字、整数、布尔、固定选项及必填值检查。
 - `src/domain/schema/schema-source-definitions.ts`：表格字段候选的来源解析与配置刷新路径。
+- `src/domain/schema/schema.types.ts`：字段与列资产加载、来源声明、值及结构纯规则。
+- `src/domain/spec-editor/spec-editor-definitions.ts`：窗口名称和尺寸的纯定义。
+- `src/orchestrators/immersive-editor.orchestrator.ts`：联合根读取、编辑目标准备与沉浸式窗口交付。
+- `src/orchestrators/joint-edit.orchestrator.ts`：联合读取、冲突确认与提交顺序。
 - `src/orchestrators/json-write-confirmation.orchestrator.ts`：保存提交所属的逐源重排确认。
 - `src/orchestrators/project-sync.orchestrator.ts`：表格保存消费的 receipt 同步与反馈入口。
+- `src/services/entity-query.service.ts`：四类查询定义、正式请求与实体失效选择。
+- `src/services/query-cache.service.ts`：类型化缓存实例、共享请求、即时读取、门控及失效通知。
+- `src/services/resource-media.service.ts`：唯一持有媒体读取、合批、租约、响应式结果、闲置预算和失效。
 - `src/services/source-catalog.service.ts`：表格字段候选读取及失效判断。
+- `src/services/window.service.ts`：窗口 command 的类型化签名与参数装配。
 - `src/shared/lib/starsector/rows.ts`：表格行显示标识与关联规格标识。
 - `src/shared/lib/starsector/tables.ts`：游戏表格名称。
 - `src/shared/runtime/app-log-queue.ts`：行实际挂载、输入提交及驻留生命周期的详细记录。
@@ -55,10 +86,17 @@ CSV 文档编辑模块管理整表文件的领域规则、运行态、展示、�
 - `src/shared/types/tables.types.ts`：CSV 行、单元格目标、窗口、预览与行资源结果契约。
 - `src/shared/types/write-commit.types.ts`：公共保存回执、提交同步、行键映射与正式内容交付。
 - `src/shared/ui/EditorProblems.vue`：完整红黄问题列表、计数与共同展示。
+- `src/stores/draft-sessions.store.ts`：未保存工作注册表，按 `modRoot` 聚合会话登记与判定源。
+- `src/stores/project-sync.store.ts`：当前待办、错误和项目等待状态。
 - `src/stores/project.store.ts`：指定 Mod 的正式清单与 session 查询，异步动作消费捕获目标。
+- `src/stores/save-command.store.ts`：文档保存句柄、进行中动作、等待与关闭交接登记。
+- `src/stores/settings.store.ts`：settings 运行态，只持状态、setter 与派生值；初始快照经统一初始化入口注入。
 - `src/test/fixtures/csv-row.ts`：CSV 草稿行的测试构造。
 - `src/test/unit/csv-input-host.ts`：CSV 输入提交的组件测试宿主。
 - `src/windows/current.window.ts`：保存来源消费的当前原生窗口身份。
+- `src/windows/file-editor.window.ts`：消费完整文件请求并交付常规与恢复模式窗口身份。
+- `src/windows/spec-editor.window.ts`：四类规格的身份、尺寸与结构化窗口请求。
+- `src/windows/weapon-fire-preview.window.ts`：完整预览身份、来源、标题与尺寸的请求入口。
 
 ### 装配
 
@@ -199,6 +237,8 @@ CSV 文档编辑模块管理整表文件的领域规则、运行态、展示、�
 
 - 表格读取等待必须消费所属索引任务、在途行需求与搜索提交；读取失败在表格区域交付重试，重试复用索引及失败行读取并保留草稿、原文、历史和选择。
 - 分表检查必须登记所需列与纯校验函数，共同消费全表精简基线、当前草稿及稳定行身份；顶部提示与保存门控消费同一问题结果。
+- 整表纯检查必须直接消费所属表、行、表头和来源内容，保存先检查纯字段与身份问题，再取得本次权威来源并检查全部问题。
+- 外部表格检查必须按当前会话授权的原版或引用根读取正式路径，文件版本、表头与精简行来自同次读取。
 - 类型错误、必读列缺失与确定失效的必需引用必须阻断保存，字段关系、有效 hints 组合及脚本来源不确定交付黄色提醒；USE_VS_FRIGATES 允许独立使用。
 - 图片及脚本检查必须使用授权的当前 Mod、引用与 Core 根，脚本 JAR 每次读取建立一次类条目索引并供同批类名复用；校验严禁执行用户脚本。
 - 缺失舰船或技能规格的身份创建必须沿关联规格选择交付，只有 CSV 的提交拒绝缺少所需规格的记录。

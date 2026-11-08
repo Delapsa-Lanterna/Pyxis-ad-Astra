@@ -1,4 +1,4 @@
-import type { CsvDraftRow, CsvTableKey, CsvTableState, FieldProblem } from '@/shared/types';
+import type { CsvDraftRow, CsvTableKey, CsvTableState, CsvValidationContext, FieldProblem } from '@/shared/types';
 import { cell } from '@/shared/lib/starsector';
 import { csvDirtyCells } from './csv-dirty';
 import { getCsvColumnSchemas } from '@/domain/schema/csv-schema-registry';
@@ -94,5 +94,14 @@ export function csvTableIssues(state: CsvTableState): FieldProblem[] {
       .filter((row) => state.dirty[row.rowKey]?.action === 'upsert' && cell(row.data.id) !== cell(state.baselineRows[row.rowKey]?.data.id))
       .map((row) => cell(row.data.id)),
   );
-  return [...csvValidationDefinitions[state.table].validate(rows), ...csvRowProblems(state.table, rows, state.header, context, deferred)];
+  return csvTableProblems(state.table, rows, state.header, context, deferred);
+}
+export function csvTableProblems(
+  table: CsvTableKey,
+  rows: readonly CsvDraftRow[],
+  header: readonly string[],
+  context: CsvValidationContext | null,
+  deferred?: ReadonlySet<string>,
+): FieldProblem[] {
+  return [...csvValidationDefinitions[table].validate(rows), ...csvRowProblems(table, rows, header, context, deferred)];
 }

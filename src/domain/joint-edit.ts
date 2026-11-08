@@ -22,6 +22,25 @@ import { renameVariantModules } from '@/shared/lib/starsector/variant-modules';
 import { composeJson, editComposedJson, takeReplaceBase } from '@/domain/json-composition';
 import { getCsvColumnSchemas } from '@/domain/schema/csv-schema-registry';
 import { csvValueError } from '@/domain/schema/csv-value-validation';
+import { normalizeFsPath } from '@/shared/lib/paths';
+
+export function jointProblemBlocks(
+  snapshot: JointEditSnapshot,
+  values: Record<string, JointValue>,
+  issue: FieldProblem,
+  overrides: readonly string[] = [],
+): boolean {
+  if (!issue.location?.path || issue.code === 'field.input_invalid' || issue.code === 'write.version_conflict') return true;
+  const path = normalizeFsPath(issue.location.path);
+  return snapshot.records.some((record) => {
+    const write = record.target.kind === 'spec' ? record.target.target.write : record.target.write;
+    return (
+      normalizeFsPath(write.path) === path &&
+      Object.hasOwn(values, record.key) &&
+      (record.source?.source === 'mod' || overrides.includes(record.key) || !stableDeepEqual(values[record.key], record.value))
+    );
+  });
+}
 
 export function jointCsvProblems(snapshot: JointEditSnapshot, values: Record<string, JointValue>): FieldProblem[] {
   return snapshot.records.flatMap((record) => {

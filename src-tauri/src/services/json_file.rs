@@ -4,8 +4,7 @@ use crate::models::{
     EntityIdentityChange, EntityKind, JsonFileDelete, JsonFileSave, SaveEdit, WriteResult,
 };
 use crate::services::{
-    JsonEntityFileInput, config_entity, create_json_entity_file, delete_json_entity_file,
-    save_json_entity_file, spec_entity_definition,
+    config_entity, create_json_entity_file, delete_json_entity_file, spec_entity_definition,
 };
 use crate::{io, models, parsers, services};
 use serde_json::Value;
@@ -133,8 +132,9 @@ pub fn write_variant_request(payload: JsonFileSave) -> Result<WriteResult<Value>
         &payload.next_id,
         payload.rel_path.as_deref(),
     )?;
-    let result = services::save_variant_entity(
+    let result = services::save_file_entity(
         &payload.session_id,
+        EntityKind::Variant,
         payload.previous_id.as_deref(),
         &payload.next_id,
         payload.data,
@@ -145,39 +145,27 @@ pub fn write_variant_request(payload: JsonFileSave) -> Result<WriteResult<Value>
 }
 
 pub fn write_skin_request(payload: JsonFileSave) -> Result<WriteResult<Value>, AppError> {
-    let relative = payload.rel_path.as_deref().expect("skin source path");
-    services::validate_entity_content(
-        &payload.session_id,
-        EntityKind::Skin,
-        relative,
-        &payload.data,
-        &payload.json_write,
-    )?;
     services::require_entity_version_scope(
         &payload.session_id,
         EntityKind::Skin,
         payload.previous_id.as_deref().unwrap_or(&payload.next_id),
         &payload.base_versions,
     )?;
-    let target_exists = json_file_save_context(
+    json_file_save_context(
         &payload.session_id,
         EntityKind::Skin,
         payload.previous_id.as_deref(),
         &payload.next_id,
         payload.rel_path.as_deref(),
     )?;
-    let result = save_json_entity_file(
-        &payload.mod_root,
+    let result = services::save_file_entity(
+        &payload.session_id,
         EntityKind::Skin,
         payload.previous_id.as_deref(),
         &payload.next_id,
-        JsonEntityFileInput {
-            source_rel_path: payload.rel_path.as_deref(),
-            target_exists_in_index: target_exists,
-            data: payload.data,
-            json_write: payload.json_write,
-            ordered_json: payload.ordered_json.as_deref(),
-        },
+        payload.data,
+        payload.json_write,
+        payload.ordered_json.as_deref(),
     )?;
     Ok(result)
 }

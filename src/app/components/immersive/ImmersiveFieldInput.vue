@@ -32,6 +32,7 @@
 import { computed, ref, watch } from 'vue';
 import type { ImmersiveField } from '@/domain/immersive/fields';
 import { convertSchemaScalarInput, schemaStringValue } from '@/domain/schema/schema-values';
+import { parseCsvValue } from '@/domain/schema/csv-value-validation';
 import type { SchemaFieldUpdate } from '@/domain/schema/schema.types';
 import type { FieldEditorContext } from '@/domain/field-editor/field-editor-context';
 import { useFieldSourceOptions } from '@/app/composables/field-editor/use-field-source-options';
@@ -65,6 +66,10 @@ const { raw, invalid, update } = useRawFieldInput<unknown>({
   text: () => (jsonShape.value ? formatJsonInput(props.value, jsonShape.value) : schemaStringValue(props.value)),
   convert: (text) => {
     if ((props.field.inheritOnEmpty || props.inheritedValue !== undefined) && !text.trim()) return { kind: 'remove' };
+    if (props.field.column) {
+      const parsed = parseCsvValue(props.field.column, text);
+      return parsed.kind === 'error' ? parsed : { kind: 'value', value: text };
+    }
     const schema = props.field.schema;
     if (jsonShape.value) return parseJsonInput(text, jsonShape.value);
     if (schema.type === 'integer' || schema.type === 'float' || schema.type === 'boolean') {

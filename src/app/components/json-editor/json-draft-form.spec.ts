@@ -233,7 +233,13 @@ function savedFile(session: string, root: string, id: string, data: RowData, pre
   receipt.identityChanges = [{ before: before.target, after: after.target }];
   entities.delete(key(session, kind, before.id));
   entities.set(key(session, kind, id), { ...after, baseVersions: receipt.baseVersions });
-  return { entity: { id, relPath: after.target.write.relPath, data, baseVersions: receipt.baseVersions }, receipt };
+  return {
+    ...receipt,
+    content: {
+      target: { kind: 'json', origin: { kind: 'entity', target: { kind, id, relPath: after.target.write.relPath } } },
+      value: { data },
+    },
+  };
 }
 beforeEach(() => {
   setActivePinia(createPinia());
@@ -262,15 +268,20 @@ beforeEach(() => {
     entities.delete(key(write.sessionId, write.kind, before.id));
     entities.set(key(write.sessionId, write.kind, after.id), after);
     return {
-      entity: {
-        baseVersions: receipt.baseVersions,
-        entityId: write.nextId,
-        indexPath: write.modRoot + (write.kind === 'faction' ? '/data/world/factions/factions.csv' : '/data/missions/mission_list.csv'),
-        indexHeader: [],
-        entityData: write.entityData,
-        indexRows: [{ data: write.indexRow, isComment: false }],
+      ...receipt,
+      content: {
+        target: {
+          kind: 'json',
+          origin: { kind: 'entity', target: { kind: write.kind, id: write.nextId, relPath: after.target.write.relPath } },
+        },
+        value: {
+          entityId: write.nextId,
+          indexPath: write.modRoot + (write.kind === 'faction' ? '/data/world/factions/factions.csv' : '/data/missions/mission_list.csv'),
+          indexHeader: [],
+          entityData: write.entityData,
+          indexRows: [{ data: write.indexRow, isComment: false }],
+        },
       },
-      receipt,
     };
   });
   mocks.complete.mockImplementation(async (modRoot: string, _session: string, result: WriteResult) => {
@@ -1345,7 +1356,7 @@ describe('JSON common workspace and form', () => {
         kind = definition.kind as 'faction' | 'mission' | 'variant' | 'skin';
       mocks.create.mockImplementation(async () => {
         entities.set(key('s1', kind, 'created'), jsonEntityFixture(kind, 'created', 'Created'));
-        return { entity: {}, receipt: savedWriteFixture() };
+        return savedWriteFixture();
       });
       mocks.remove.mockImplementation(async () => {
         entities.delete(key('s1', kind, 'created'));

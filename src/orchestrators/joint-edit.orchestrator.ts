@@ -12,11 +12,13 @@ import type {
   JointEditPrepared,
   RowData,
   WeaponSpecClass,
+  FieldProblem,
+  JointValue,
 } from '@/shared/types';
-import { queryJointEdit, queryJointEditRow, prepareJointEdit, saveJointEdit } from '@/services/joint-edit.service';
+import { queryJointEdit, queryJointEditRow, queryJointEditPreview, prepareJointEdit, saveJointEdit } from '@/services/joint-edit.service';
 import { confirmEntityIdChanges, entityChangeContent, entityIdPresenceChanged } from '@/orchestrators/entity-write.orchestrator';
 import { runConfirmedJsonWrite } from '@/orchestrators/json-write-confirmation.orchestrator';
-import { jointObject, applyJointConflictChoices, takeJointReplaceBase, jointCsvProblems } from '@/domain/joint-edit';
+import { jointObject, applyJointConflictChoices, takeJointReplaceBase, jointCsvProblems, jointProblemBlocks } from '@/domain/joint-edit';
 import { cloneQuerySnapshot } from '@/shared/lib/query-snapshot';
 import { infoLog } from '@/shared/runtime/app-log-queue';
 import { logIdentity } from '@/shared/lib/log-fields';
@@ -69,6 +71,12 @@ export async function submitJointEdit(
   chooseConflicts: (prepared: JointEditPrepared) => Promise<JointConflictChoice[] | null>,
   createOverrides: string[] = [],
   request?: SaveCommandRequest,
+  validate?: (
+    snapshot: JointEditSnapshot,
+    values: Record<string, JointValue>,
+    signal?: AbortSignal,
+    createOverrides?: readonly string[],
+  ) => Promise<FieldProblem[]>,
 ): Promise<JointEditWriteResult | null> {
   request ??= { id: crypto.randomUUID() };
   const context = { ...draft.baseline.root, requestId: request.id };
@@ -91,8 +99,11 @@ export async function submitJointEdit(
     }));
   if (choices === null) return null;
   const values = applyJointConflictChoices(prepared, choices);
-  const problem = jointCsvProblems(prepared.snapshot, values)[0];
-  if (problem) throw new AppError(problem.message, { code: problem.code, location: problem.location });
+  if (!validate) {
+    const issues = jointCsvProblems(prepared.snapshot, values);
+    const problem = issues[0];
+    if (problem) throw new AppError(problem.message, { code: problem.code, location: problem.location, issues });
+  }
   const identityChanges = prepared.snapshot.records
     .flatMap((record) => {
       const next = values[record.key];
@@ -186,6 +197,35 @@ export async function submitJointEdit(
   if (!confirmed) return null;
   for (const { record, selected } of branches)
     values[record.key] = { state: 'present', value: changeWeaponSpecClass(jointObject(values[record.key]), selected.value) };
+
+  if (validate) {
+    const projected = cloneQuerySnapshot<JointEditSnapshot>(await queryJointEditPreview({ baseline: prepared.snapshot, values }));
+    for (const record of projected.records)
+      if (!prepared.snapshot.records.some((existing) => existing.key === record.key))
+        prepared.snapshot.records.push(cloneQuerySnapshot(record));
+    for (const version of projected.baseVersions)
+      if (!prepared.snapshot.baseVersions.some((existing) => existing.path === version.path))
+        prepared.snapshot.baseVersions.push({ ...version });
+    const issues = await validate(prepared.snapshot, values, undefined, createOverrides);
+    const relevant = issues.filter((issue) => jointProblemBlocks(prepared.snapshot, values, issue, createOverrides));
+    if (relevant.some((issue) => issue.severity === 'error'))
+      throw new AppError('请先解决联合文件中的错误', { action: 'joint-validation', issues });
+    const warnings = relevant.filter((issue) => issue.severity === 'warning');
+    if (
+      warnings.length &&
+      (await feedback.choose({
+        title: '仍要保存吗？',
+        content: () =>
+          dialogBody(
+            `联合文件有 ${warnings.length} 条保存提醒：`,
+            ...warnings.map((issue) => `${issue.location?.path ?? ''} · ${issue.message}`),
+          ),
+        choices: [{ label: '仍然保存', value: 'save', type: 'warning' }],
+        cancelText: '返回编辑',
+      })) !== 'save'
+    )
+      return null;
+  }
 
   infoLog('joint.targets_submitted', () => ({
     ...context,

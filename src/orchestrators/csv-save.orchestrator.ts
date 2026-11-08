@@ -24,7 +24,7 @@ import { stableDeepEqual } from '@/shared/lib/stable-compare';
 import { AppError } from '@/shared/lib/errors';
 import { dialogBody, dialogFiles } from '@/shared/ui/dialog-content';
 import { retainLaterDraft } from '@/domain/edit-session';
-import { csvValidationRows } from '@/domain/csv-editor/csv-validation';
+import { csvTableIssues, csvValidationRows } from '@/domain/csv-editor/csv-validation';
 import { csvValidationRequest } from '@/domain/csv-editor/csv-rule-context';
 import { isAbsoluteFsPath, joinRootRelativePath, normalizeFsPath } from '@/shared/lib/paths';
 
@@ -112,7 +112,7 @@ async function saveTarget(target: CapturedTableSaveTarget, options: TableSaveOpt
       userMessage: `${MODULE_LABELS[table]}：请先解决详情栏顶部错误后再保存`,
     });
   };
-  if (problems.issues.value.some((issue) => issue.severity === 'error')) refuse();
+  if (csvTableIssues({ ...state.documents[table], validationContext: null }).some((issue) => issue.severity === 'error')) refuse();
   const request = csvValidationRequest(table, csvValidationRows(state.documents[table]));
   const key = JSON.stringify(request);
   const context = await queryCsvValidation(manifest.sessionId, request);

@@ -91,6 +91,23 @@ export function rustFacts(file, code, exports) {
       ...at(match.index),
     });
   }
+  for (const call of calls) {
+    const receiver = /\b([A-Za-z_]\w*)\.\s*$/.exec(code.slice(0, call.offset));
+    if (!receiver) continue;
+    const owner = functions.filter((fn) => fn.start < call.offset && fn.end > call.offset).sort((a, b) => b.start - a.start)[0];
+    if (!owner) continue;
+    const assignments = [
+      ...code
+        .slice(owner.start, call.offset)
+        .matchAll(/\blet\s+(?:mut\s+)?([A-Za-z_]\w*)\s*(?::[^=;]+)?=\s*([A-Za-z_][A-Za-z0-9_:]*)\s*\(/g),
+    ];
+    const assigned = assignments.filter((match) => match[1] === receiver[1]).at(-1);
+    if (!assigned) continue;
+    const offset = owner.start + assigned.index + assigned[0].lastIndexOf(/** @type {string} */ (assigned[2]));
+    const constructor = targets.get(offset) ?? assigned[2];
+    if (/^(?:std|tokio)::fs::File::(?:open|create|create_new)$/.test(constructor ?? ''))
+      call.target = constructor?.replace(/::[^:]+$/, '::' + call.name) ?? call.target;
+  }
 
   const embeddedAssets = [];
   for (const match of code.matchAll(/\b(include_str|include_bytes)\s*!\s*([([{])/g)) {

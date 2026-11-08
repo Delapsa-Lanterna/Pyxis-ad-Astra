@@ -8,6 +8,7 @@
 
 ### 拥有
 
+- `scripts/performance/app-log.mjs`：日志队列编译、受控负载与统计采样。
 - `scripts/performance/profile.mjs`：连接已运行应用的 DevTools endpoint，采集并导出 CPU profile。
 - `src-tauri/command-macros/`：命令声明与登记的计时调用生成。
 - `src-tauri/src/commands/performance_monitor.rs`：批量交付及状态、重置、导出命令。

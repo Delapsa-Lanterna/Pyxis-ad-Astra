@@ -12,6 +12,7 @@ import type {
   EntityKind,
   EntityTargetSnapshot,
   EntityIdentityIntent,
+  IndexedConfigEntityRefresh,
 } from '@/shared/types';
 import { querySessionEntityEditTarget, querySessionEntityIdentityIntent } from '@/services/entity-query.service';
 import { querySessionDraftResources } from '@/services/resource-reference.service';
@@ -45,7 +46,7 @@ export function saveIndexedConfigEntity(
   jsonWrite?: JsonWriteOptions,
   original?: RowData,
   request?: SaveCommandRequest,
-): Promise<WriteResult> {
+): Promise<WriteResult<IndexedConfigEntityRefresh>> {
   return invokeSaveCommand(
     'save_indexed_config_entity',
     {
@@ -71,7 +72,7 @@ export function saveIndexedConfigEntity(
 export function createIndexedConfigEntity(
   write: Omit<IndexedConfigSave, 'jsonWrite' | 'orderedJson'>,
   request?: SaveCommandRequest,
-): Promise<WriteResult> {
+): Promise<WriteResult<IndexedConfigEntityRefresh>> {
   return invokeSaveCommand('create_indexed_config_entity', { payload: { ...write } satisfies IndexedConfigSave }, [], request);
 }
 

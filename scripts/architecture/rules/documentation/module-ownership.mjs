@@ -1,14 +1,8 @@
+import { pairedSourcePaths } from '../../../shared/files.mjs';
+import { specFile, frontendFile } from '../../facts/classify.mjs';
 import { defineRule } from '../../diagnostics.mjs';
 
 const moduleDirectory = '.zcode/modules/';
-
-/** @param {string} rel @returns {string[]} */
-function pairedSources(rel) {
-  if (/\.spec\.[cm]?[jt]sx?$/.test(rel))
-    return [rel.replace(/\.spec(\.[cm]?[jt]sx?)$/, '$1'), rel.replace(/\.spec\.[cm]?[jt]sx?$/, '.vue')];
-  if (/_tests?\.rs$/.test(rel)) return [rel.replace(/_tests?\.rs$/, '.rs')];
-  return [];
-}
 
 export const moduleOwnershipRule = defineRule('module-ownership', '.zcode/module-map.md#登记与归属', import.meta.url, (context, report) => {
   const { index, shared, owners, ownershipReferences } = context.moduleMap;
@@ -51,8 +45,30 @@ export const moduleOwnershipRule = defineRule('module-ownership', '.zcode/module
       });
     else declarations.set(reference.rel, { file: reference.file, line: owner.line });
   }
+  for (const rel of context.paths) {
+    if (!index.size) break;
+    if (rel.endsWith('/') || specFile(rel) || /(?:^|\/)tests?\//.test(rel)) continue;
+    if (!/^(?:src\/|src-tauri\/|scripts\/|schemas\/|\.github\/)/.test(rel) && !/^[^/]+\.(?:[cm]?[jt]s|json|html|toml|ps1|bat)$/.test(rel))
+      continue;
+    if (!owners.has(rel) && !shared.has(rel))
+      report({ rel }, { line: 1, column: 1 }, 'repository files must have one module owner or public identity', {
+        target: rel,
+        expected: 'module ownership or public registration',
+      });
+    const file = context.byPath.get(rel);
+    if (
+      frontendFile(rel) &&
+      !shared.has(rel) &&
+      file?.role.layer === 'unknown' &&
+      file.syntax.scripts.some(({ ast }) => ast.statements.length)
+    )
+      report({ rel }, { line: 1, column: 1 }, 'production source must belong to a declared architecture layer', {
+        target: rel,
+        expected: 'declared frontend layer',
+      });
+  }
   for (const [rel, module] of owners)
-    for (const source of pairedSources(rel)) {
+    for (const source of pairedSourcePaths(rel)) {
       const implementation = owners.get(source);
       if (implementation && implementation !== module)
         report({ rel }, { line: 1, column: 1 }, 'test ownership conflicts with ' + source + ' in ' + implementation, {

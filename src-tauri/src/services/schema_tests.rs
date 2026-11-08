@@ -79,7 +79,8 @@ fn variant_weapon_group_limit() {
         } else {
             let error = result.unwrap_err();
             assert_eq!(error.code(), "config.shape_invalid");
-            assert_eq!(error.to_string(), "字段内容无效：weaponGroups");
+            assert_eq!(error.field_problems()[0].path, "weaponGroups");
+            assert!(error.to_string().contains("weaponGroups"));
         }
     }
 }

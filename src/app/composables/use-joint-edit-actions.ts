@@ -5,7 +5,7 @@ import JointEditConflictChoices from '@/app/components/JointEditConflictChoices.
 import type { JointEditDraft, JointEditPrepared, JointConflictChoice, JointEditRoot } from '@/shared/types';
 import type { SaveCommandRequest } from '@/shared/runtime/command.runtime';
 
-export function useJointEditActions() {
+export function useJointEditActions(validate?: Parameters<typeof submitJointEdit>[5]) {
   const feedback = useAppFeedback();
   async function chooseConflicts(prepared: JointEditPrepared): Promise<JointConflictChoice[] | null> {
     const choices = ref<JointConflictChoice[]>(
@@ -28,6 +28,6 @@ export function useJointEditActions() {
   return {
     open: (root: JointEditRoot, signal?: AbortSignal) => openJointEditSnapshot(root, feedback, signal),
     save: (draft: JointEditDraft, createOverrides: string[] = [], request?: SaveCommandRequest) =>
-      submitJointEdit(draft, feedback, chooseConflicts, createOverrides, request),
+      submitJointEdit(draft, feedback, chooseConflicts, createOverrides, request, validate),
   };
 }

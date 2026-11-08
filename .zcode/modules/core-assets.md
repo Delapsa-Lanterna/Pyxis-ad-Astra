@@ -19,8 +19,18 @@ Core 索引与加载模块按游戏根管理字段和图形目录的独立读取
 ### 消费
 
 - `src-tauri/src/models/core_assets.rs`：Core 扫描、失效请求与发现字段协议。
+- `src-tauri/src/services/app_settings.rs`：正式快照、revision、串行写盘、目录回调结果接纳及装配传入的运行参数提交动作。
+- `src-tauri/src/services/project/session.rs`：会话打开、关闭、内容更新与内部登记及就绪访问能力交付。
+- `src-tauri/src/services/project/session/access.rs`：捕获引用快照后锁定并交付所属就绪会话。
+- `src-tauri/src/services/project/session/registry.rs`：会话存活登记、句柄与内容就绪门控。
 - `src-tauri/src/services/project/sources/core.rs`：按游戏根交付 Core 来源、字段、图形和文档缓存。
+- `src-tauri/src/services/project/sources/roots.rs`：游戏及 Mod 根识别、游戏 mods 授权、位置推断及正式来源根选择。
 - `src-tauri/src/services/project_sync.rs`：窗口 Core 根订阅与独立变化交付。
+- `src-tauri/src/services/project_sync/source_changes.rs`：根订阅角色与寿命、来源状态、合并批次、后台排队及 Core 分发。
+- `src/domain/schema/config-schema-registry.ts`：字段与列资产加载、来源声明、值及结构纯规则。
+- `src/domain/schema/schema-core-fields.ts`：字段与列资产加载、来源声明、值及结构纯规则。
+- `src/orchestrators/project-sync.orchestrator.ts`：窗口内保存消费过程和内容维护者交接。
+- `src/orchestrators/window-event-errors.orchestrator.ts`：窗口事件失败的统一反馈交接。
 - `src/shared/types/core-assets.types.ts`：Core 扫描、失效请求与发现字段协议。
 
 ### 装配

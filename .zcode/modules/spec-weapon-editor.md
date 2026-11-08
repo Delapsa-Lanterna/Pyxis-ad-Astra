@@ -18,10 +18,41 @@
 
 ### 消费
 
+- `src/app/components/spec-editor/SpecFieldList.vue`：同构字段、默认值展示和辅助动作事件。
+- `src/app/components/spec-editor/SpecProblems.vue`：固定顶部红黄框及全部问题计数。
+- `src/app/composables/canvas/use-canvas-editor.ts`：指针阶段、输入适配、导航、快捷键与窗口监听。
+- `src/app/composables/canvas/use-canvas-palette.ts`：主题派生与重绘通知的装配。
+- `src/app/composables/canvas/use-canvas-runtime.ts`：完整目标身份、悬停、检查器锁定、镜像开关与候选预览。
+- `src/app/composables/canvas/use-canvas-viewport.ts`：视口缩放与平移。
+- `src/app/composables/editors/use-editor-document.ts`：工作值、动作起点、提交快照、字段与手势边界及历史交接。
+- `src/app/composables/editors/use-editor-fields.ts`：所属文档字段、颜色与对象输入的绑定入口。
+- `src/app/composables/editors/use-editor-frame-loop.ts`：帧循环的启动、停止与释放。
+- `src/app/composables/editors/use-editor-images.ts`：贴图加载、替换、结果接纳、解码修订、着色缓存与释放。
+- `src/app/composables/spec-editor/spec-editor.types.ts`：目标、响应式输入及规格定义契约。
+- `src/app/composables/spec-editor/use-spec-editor-draft-images.ts`：草稿图像读取及接纳。
+- `src/app/composables/spec-editor/use-spec-problem-navigation.ts`：规格问题定位、所属分组展开与有效请求滚动交接。
+- `src/app/composables/spec-editor/use-spec-problems.ts`：会话问题聚合、原文优先级、失败保留及共享展示。
+- `src/app/renderers/editors/canvas-scene.ts`：共享背景、镜像轴、边界与光标场景的绘制入口。
+- `src/app/renderers/editors/canvas-styles.ts`：场景消费的标记样式投影入口。
+- `src/app/renderers/editors/canvas-visuals.ts`：消费显式样式的实体绘制原语。
+- `src/app/renderers/editors/weapon-images.ts`：武器编辑、开火预览、舰船与装配消费的共享贴图、装备阶段及光效绘制入口。
+- `src/domain/editors/editor-types.ts`：编辑坐标、模式与悬停预览的纯数据类型。
+- `src/domain/editors/lib/editor-constants.ts`：吸附步长与选项常量。
+- `src/domain/editors/lib/geometry.ts`：舰船与武器坐标、角度、距离及边界线段纯规则。
+- `src/domain/editors/lib/mirror.ts`：镜像规则，拥有对称判定、镜像角度与成对新增。
+- `src/domain/entity-write/spec-construction.ts`：前端规格、装配和皮肤构造及分支补全。
+- `src/domain/schema/schema-validation.ts`：字段与列资产加载、来源声明、值及结构纯规则。
+- `src/domain/spec-editor/spec-fields.ts`：字段声明、嵌套路径定位及字段更新。
+- `src/domain/spec-editor/spec-schemas.ts`：Spec 资产引用解析及当前分支装配。
+- `src/domain/spec-editor/spec-validation.ts`：规格字段路径及条件必填到共同字段规则的装配。
+- `src/services/entity-query.service.ts`：四类查询定义、正式请求与实体失效选择。
+- `src/services/resource-media.service.ts`：唯一持有媒体读取、合批、租约、响应式结果、闲置预算和失效。
+- `src/services/resource-reference.service.ts`：草稿资源查询与授权相对引用解析能力。
 - `src/shared/lib/starsector/weapon-images.ts`：武器静态贴图、挂载阶段及已装载导弹的共同投影。
 - `src/shared/lib/starsector/weapon-render-order.ts`：挂载武器的游戏层序与槽位比较。
 - `src/shared/lib/starsector/weapon-sprite-fields.ts`：武器贴图字段、原点及发射位置键。
 - `src/shared/ui/FieldHints.vue`：检查器说明的共同展示。
+- `src/stores/settings.store.ts`：settings 运行态，只持状态、setter 与派生值；初始快照经统一初始化入口注入。
 - `src/windows/spec-editor.window.ts`：四类规格的身份、尺寸与结构化窗口请求。
 
 ## 边界

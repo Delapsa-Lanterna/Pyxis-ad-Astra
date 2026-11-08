@@ -34,6 +34,16 @@ beforeEach(() => {
   invalidateQueryCacheForSession(root.sessionId);
 });
 describe('joint edit capability protocols', () => {
+  it('shares identical draft graphs between display and validation and rereads after invalidation', async () => {
+    invoke.mockResolvedValue(snapshot);
+    const draft = { baseline: snapshot, values: { spec: { state: 'present' as const, value: { hullId: 'next' } } } };
+    await Promise.all([queryJointEditPreview(draft), queryJointEditPreview(draft)]);
+    await queryJointEditPreview(draft);
+    expect(invoke).toHaveBeenCalledTimes(1);
+    invalidateQueryCacheForSession(root.sessionId);
+    await queryJointEditPreview(draft);
+    expect(invoke).toHaveBeenCalledTimes(2);
+  });
   it('caches module catalogs independently by source', async () => {
     invoke.mockResolvedValue({ root, referenceSettings: snapshot.referenceSettings, catalog: { kind: 'variants', entries: [] } });
     await queryJointVariantCatalog(root, 'variants', undefined, 'mod');

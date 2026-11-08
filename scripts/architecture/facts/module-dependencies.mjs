@@ -3,7 +3,7 @@ import { rustModuleBoundaryContext, rustImportDependencies } from '../../check-r
 
 /** @typedef {{source:string,target:string,file:string,resolved:string,line:number,column:number,symbol:string}} ModuleDependency */
 /** @param {import('./context.mjs').ArchitectureContext} context @returns {ModuleDependency[]} */
-export function moduleDependencies(context) {
+export function moduleDependencyEdges(context) {
   const owners = context.moduleMap.owners;
   /** @type {Map<string,ModuleDependency>} */
   const dependencies = new Map();
@@ -12,7 +12,7 @@ export function moduleDependencies(context) {
     const source = owners.get(file),
       target = owners.get(resolved);
     if (source && target && source !== target) {
-      const key = source + '\0' + target;
+      const key = [source, target, file, resolved, position.line, position.column, symbol].join('\0');
       if (!dependencies.has(key))
         dependencies.set(key, { source, target, file, resolved, line: position.line, column: position.column, symbol });
     }
@@ -37,4 +37,14 @@ export function moduleDependencies(context) {
   for (const file of context.rust)
     for (const asset of file.rust.embeddedAssets) if (asset.path) add(file.rel, asset.path, asset, asset.macro);
   return [...dependencies.values()];
+}
+
+/** @param {import('./context.mjs').ArchitectureContext} context @returns {ModuleDependency[]} */
+export function moduleDependencies(context) {
+  const edges = new Map();
+  for (const edge of moduleDependencyEdges(context)) {
+    const key = edge.source + '\0' + edge.target;
+    if (!edges.has(key)) edges.set(key, edge);
+  }
+  return [...edges.values()];
 }

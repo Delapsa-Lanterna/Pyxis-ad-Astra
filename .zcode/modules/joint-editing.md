@@ -24,26 +24,49 @@
 
 ### 消费
 
+- `src-tauri/src/domain/csv_column_order.rs`：从唯一 CSV schema 提取标准列并维护补列顺序。
 - `src-tauri/src/domain/entity_construction.rs`：缺失规格的正式构造。
+- `src-tauri/src/domain/entity_definitions.rs`：八种实体的目录、后缀、ID 字段及规格、表格关联登记。
+- `src-tauri/src/domain/entity_identity.rs`：跨编辑器实体 ID、路径与来源范围纯规则。
+- `src-tauri/src/domain/json_composition.rs`：游戏 JSON 合并、排除字段及整体覆盖组合。
+- `src-tauri/src/domain/save_edits.rs`：当前正式内容的字段修改应用。
 - `src-tauri/src/domain/variant_modules.rs`：装配模块格式的读取和引用替换。
 - `src-tauri/src/models/joint_edit.rs`：联合来源记录、缺失值、冲突与提交模型。
 - `src-tauri/src/models/joint_target.rs`：联合业务根、类别与所属项目范围。
 - `src-tauri/src/models/project_identity.rs`：联合来源消费的实体、CSV 表与版本身份。
 - `src-tauri/src/models/write_commit.rs`：联合提交消费的公共回执与行键映射。
 - `src-tauri/src/services/project/model.rs`：来源装配消费的已加载记录。
+- `src-tauri/src/services/project/query/entity_presentation.rs`：实体是否参与组合的判定及对外内容、目标和资源呈现装配。
+- `src-tauri/src/services/project/query/entity_targets.rs`：实际编辑目标、身份意图及正式版本范围。
+- `src-tauri/src/services/project/query/hull_references.rs`：船体引用、槽位及来源选择查询。
 - `src-tauri/src/services/project/query/json_layers.rs`：会话所属的正式有序 JSON 来源组合与版本。
 - `src-tauri/src/services/project/resources/entity_references.rs`：联合内容及提交结果的实体资源引用。
 - `src-tauri/src/services/project/resources/resource_identity.rs`：联合查询按实际规格来源接纳资源集合的引用身份。
+- `src-tauri/src/services/project/resources/table_references.rs`：表格行、图片路径列及来源引用的授权资源与显示名称投影。
+- `src-tauri/src/services/project/session.rs`：会话打开、关闭、内容更新与内部登记及就绪访问能力交付。
+- `src-tauri/src/services/project/session/access.rs`：捕获引用快照后锁定并交付所属就绪会话。
+- `src-tauri/src/services/project/session/csv_tables.rs`：正式表格内容、稳定行身份、来源保留、加载版本及实体计数构建。
 - `src-tauri/src/services/project/session/csv_writes.rs`：所属表格写入缓冲与成功接纳。
+- `src-tauri/src/services/project/session/registry.rs`：会话存活登记、句柄与内容就绪门控。
 - `src-tauri/src/services/project/sources/`：带版本来源读取与共享 Core 文档成果。
+- `src-tauri/src/services/project/versions.rs`：会话已接纳来源的路径凭据投影。
 - `src-tauri/src/services/project/write/entity_write.rs`：实体暂存、描述及父引用的写入规则。
+- `src-tauri/src/services/project/write/entity_write/content.rs`：实体内容、关联规格准备与复核、描述、父引用、单文件和势力索引写入。
+- `src-tauri/src/services/project/write/entity_write/descriptions.rs`：实体内容、关联规格准备与复核、描述、父引用、单文件和势力索引写入。
 - `src/app/WindowRuntime.vue`：显式交付窗口反馈并挂载目标交接。
+- `src/app/composables/use-app-feedback.ts`：窗口反馈的提供与消费入口。
+- `src/app/composables/use-edit-target-draft-session.ts`：完整目标快照、读取票据、保存 Promise 与接纳上下文。
 - `src/domain/edit-session.ts`：保存准备与跨窗口请求消费的目标重叠比较。
+- `src/domain/entity-write/spec-construction.ts`：前端规格、装配和皮肤构造及分支补全。
+- `src/domain/json-composition.ts`：前端内容组合、来源定位、稀疏编辑及覆盖撤销。
 - `src/domain/project/entity-definitions.ts`：实体内容 ID 字段及字符串 ID 提取。
 - `src/domain/schema/csv-schema-registry.ts`：CSV 记录消费的正式列声明。
 - `src/domain/schema/csv-value-validation.ts`：联合 CSV 草稿与保存内容消费的共同值规则。
 - `src/orchestrators/entity-write.orchestrator.ts`：实体本地 ID 状态变化的统一确认。
 - `src/orchestrators/json-write-confirmation.orchestrator.ts`：保存提交所属的原文保留、逐源确认和写入重试。
+- `src/orchestrators/project-sync.orchestrator.ts`：窗口内保存消费过程和内容维护者交接。
+- `src/services/query-cache.service.ts`：类型化缓存实例、共享请求、即时读取、门控及失效通知。
+- `src/services/window.service.ts`：窗口 command 的类型化签名与参数装配。
 - `src/shared/lib/starsector/variant-modules.ts`：前端装配模块格式及身份映射。
 - `src/shared/types/joint-edit.types.ts`：前端联合记录、冲突及交接协议。
 - `src/shared/types/write-commit.types.ts`：公共保存回执、提交同步、行键映射与正式内容交付。
@@ -73,6 +96,7 @@
 - 有效船体字段由基础船体和有序皮肤来源共同定义，实际规格、贴图、槽位、引擎与 hints 按基础至有效皮肤顺序合成。
 - 窗口壳装配目标接收与登记生命周期，manifest 和会话释放交还所属登记。
 - 联合编排拥有按业务目标捕获的修改、所属确认、目标预约与释放。
+- 窗口装配交付完整检查动作，联合会话按读取票据接纳同次来源图与草稿的问题结果。
 
 ## 链路
 
@@ -96,14 +120,18 @@
 1. 后端比较原始基线、权威磁盘和提交草稿。
 2. 独立字段合并，重叠差异返回结构化冲突。
 3. 用户按字段选择磁盘或草稿，确认共享影响及 Mod 覆盖。
-4. 命令取得根事务并核对确认版本。
-5. write 装配规格身份、CSV 记录及描述到同一 changeset，完成 JSON 确认后原子应用。
-6. 返回实际快照、身份、行键、版本及文件历史；项目同步先接纳历史、清单及缓存，再完成所属会话与相关窗口的内容交接。
+4. 窗口装配按最终候选来源图检查规格、装配与完整 CSV 文件，保留实际写入候选及新增关联的来源和版本，汇总警告确认。
+5. 队列消费已接纳身份更新本地凭据，重新准备前复核本地版本及确认的外部来源、组合层和引用配置版本，命令取得根事务并复核实际写入版本。
+6. write 装配规格身份、CSV 记录及描述到同一 changeset，完成 JSON 确认后原子应用。
+7. 返回实际快照、身份、行键、版本及文件历史；项目同步先接纳历史、清单及缓存，再完成所属会话与相关窗口的内容交接。
 
 ## 规范
 
 - 联合保存必须按冲突选择后的实际修改记录消费实体写入校验，失败保留原始码、实际文件、CSV 行键与字段路径；问题聚合消费所属输入集合，修正及基线交接清理所属保存失败。
 - 联合 CSV 记录必须按正式列声明消费共同值规则，问题汇总、捕获保存内容及冲突选择后的实际内容共同检查；字段原文与所属草稿历史保持原有归属。
+- 联合文件检查必须覆盖来源图中的规格及所属整表，当前窗口修改叠加正式内容，同文件检查与来源读取按物理文件合并。
+- 本地待写文件的错误必须阻断保存，警告一次汇总确认；外部来源问题保持实际文件位置并独立展示，来源自身问题按其所属范围判定。
+- 最终检查必须消费冲突与分支选择后的候选内容，后端规格问题共同收集后通过原错误通道交付完整数组。
 - 冲突必须逐字段通过下拉选择并展示所选完整内容，三份完整来源支持展开查看；身份、覆盖、共享影响与武器分支共同审阅，取消保持原草稿。
 - 联合保存必须在冲突选择完成后，按实际物理文件汇总本地 ID 有无变化，并消费实体写入的统一确认能力。
 - 联合规格的局部覆盖校验必须消费各文件的本地身份；确认与事务共同消费准备后的内容和版本。

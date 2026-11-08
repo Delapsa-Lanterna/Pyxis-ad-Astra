@@ -26,6 +26,44 @@
 
 ### 消费
 
+- `src/app/components/immersive/ImmersiveFallbackIcon.vue`：伤害类型、插件与甲板的共用缺省图标。
+- `src/app/components/immersive/ImmersiveHullScene.vue`：船体场景的媒体、导航与绘制装配。
+- `src/app/components/immersive/ImmersiveHullThumbnail.vue`：通过正式船体绘制交付静态成品。
+- `src/app/components/immersive/ImmersivePanelRow.vue`：共同字段行及标签排布。
+- `src/app/components/immersive/ImmersiveText.vue`：沉浸式文本片段与字体角色展示。
+- `src/app/components/immersive/ImmersiveWeaponIcon.vue`：武器图层与已装载导弹的缓存图标展示。
+- `src/app/components/immersive/immersive-render-context.ts`：只读与编辑展示契约。
+- `src/app/components/immersive/ship/ShipImmersivePanel.vue`：舰船内容与静态贴图展示组件。
+- `src/app/components/immersive/weapon/WeaponImmersivePanel.vue`：武器内容与弹体及开火预览事件入口。
+- `src/app/components/immersive/wing/WingImmersivePanel.vue`：战机联队内容及来源字段展示。
+- `src/app/components/media/ResourceThumbnail.vue`：授权图片与配置选项消费的缩略图展示。
+- `src/app/composables/immersive-editor/use-immersive-editor-runtime.ts`：联合会话、历史、字段与关联读取运行态。
+- `src/app/composables/immersive-editor/use-immersive-thumbnails.ts`：交付武器与船体缩略图的实际绘制参数、依赖和成品需求。
+- `src/app/composables/use-app-feedback.ts`：窗口反馈的提供与消费入口。
+- `src/app/composables/use-original-fonts.ts`：窗口字体运行态、读取票据、逐项接纳、日志与响应式测量。
+- `src/app/composables/use-resource-media-registry.ts`：持有集合差量、业务引用、媒体租约与所属反馈。
+- `src/app/composables/use-resource-thumbnail.ts`：交付普通缩略图需求与静态成品展示生命周期。
+- `src/app/composables/use-thumbnail-preload.ts`：可见优先与邻近预读队列的资源集合消费。
+- `src/app/composables/use-visible-resource-media.ts`：可视区媒体解析。
+- `src/domain/fonts/font.types.ts`：字体身份、文本片段、位图对象与排布结果的纯类型。
+- `src/domain/fonts/text-layout.ts`：文本分段、排布与墨迹范围计算。
+- `src/domain/immersive/appearance.ts`：沉浸式缩放、主题与颜色投影。
+- `src/domain/immersive/design-type.ts`：设计类型名称及颜色规则。
+- `src/domain/immersive/fields.ts`：字段规则、数值投影与具名关联查询输入契约。
+- `src/domain/immersive/font-roles.ts`：沉浸式文本角色到字体样式的投影。
+- `src/domain/immersive/hull-fields.ts`：船体基础与皮肤字段的统一读取、计算与输入投影。
+- `src/domain/immersive/hull-scene.ts`：有效船体、装备层序、坐标与编队投影。
+- `src/domain/immersive/ship/ship-panel.ts`：舰船来源、后勤、战斗、装备投影及系统与防御关联查询输入投影。
+- `src/domain/immersive/source-records.ts`：可编辑来源与装配记录选择。
+- `src/domain/immersive/weapon-icon.ts`：挂载颜色与形状纯投影。
+- `src/domain/immersive/weapon/weapon-panel.ts`：武器字段、说明、图标来源、分支投影及弹体与贴图关联查询输入投影。
+- `src/domain/immersive/weapon/weapon-statistics.ts`：武器周期、弹药与伤害统计纯规则。
+- `src/domain/immersive/wing/wing-panel.ts`：技术信息、来源绑定与编队输入投影。
+- `src/domain/joint-edit.ts`：联合写入范围提取、身份映射、草稿重接与冲突选择投影。
+- `src/domain/schema/config-schema-registry.ts`：字段与列资产加载、来源声明、值及结构纯规则。
+- `src/domain/schema/schema-values.ts`：字段与列资产加载、来源声明、值及结构纯规则。
+- `src/orchestrators/project-sync.orchestrator.ts`：窗口内保存消费过程和内容维护者交接。
+- `src/services/joint-edit.service.ts`：三个 command 的类型化协议装配。
 - `src/shared/lib/starsector/variant-modules.ts`：Variant 模块字段的对象/数组读取与写回。
 - `src/shared/runtime/app-log-queue.ts`：候选实际挂载、隐藏、恢复及释放的详细记录。
 - `src/shared/runtime/use-layout-frame.ts`：候选尺寸与位置测量的帧合并及作用域释放。

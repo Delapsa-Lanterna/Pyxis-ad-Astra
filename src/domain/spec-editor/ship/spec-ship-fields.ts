@@ -2,7 +2,7 @@ import type { RowData } from '@/shared/types';
 import { isRowData } from '@/shared/lib/row-data';
 import { specSections, specSchema } from '@/domain/spec-editor/spec-schemas';
 import { specFieldsIssues } from '@/domain/spec-editor/spec-validation';
-import { schemaFieldIssues } from '@/domain/schema/schema-validation';
+import { schemaDocumentIssues, schemaFieldIssues } from '@/domain/schema/schema-validation';
 const schema = specSchema('spec-ship');
 export const SHIP_SECTIONS = specSections('spec-ship', {});
 export const SHIP_SLOT_FIELDS = schema.definitions!.slot!.nested!;
@@ -17,19 +17,20 @@ export function shipBuiltInWeaponsSchema(slots: readonly RowData[]) {
       .map((slot) => ({ ...schema.definitions!.builtInWeapon!, key: String(slot.id) })),
   };
 }
-export function shipSpecIssues(ship: RowData) {
+export function shipSpecIssues(ship: RowData, partial = false) {
   const slots = Array.isArray(ship.weaponSlots) ? ship.weaponSlots : [];
   const engines = Array.isArray(ship.engineSlots) ? ship.engineSlots : [];
   return [
-    ...schemaFieldIssues(schema.definitions!.bounds!, ship.bounds),
-    ...specFieldsIssues([...SHIP_SECTIONS.flatMap((section) => section.fields), ...SHIP_BUILTIN_FIELDS], ship),
-    ...['weaponSlots', 'engineSlots'].flatMap((key) => schemaFieldIssues(schema.definitions![key]!, ship[key])),
-    ...schemaFieldIssues(shipBuiltInWeaponsSchema(slots.filter(isRowData)), ship.builtInWeapons),
+    ...schemaFieldIssues(schema.definitions!.bounds!, ship.bounds, 'bounds', partial, ship),
+    ...schemaDocumentIssues(schema, ship, partial),
+    ...specFieldsIssues(SHIP_BUILTIN_FIELDS, ship, '', partial),
+    ...['weaponSlots', 'engineSlots'].flatMap((key) => schemaFieldIssues(schema.definitions![key]!, ship[key], key, partial, ship)),
+    ...schemaFieldIssues(shipBuiltInWeaponsSchema(slots.filter(isRowData)), ship.builtInWeapons, 'builtInWeapons', partial, ship),
     ...slots.flatMap((slot, index) =>
       isRowData(slot)
         ? [
-            ...specFieldsIssues(SHIP_SLOT_FIELDS, slot, `weaponSlots[${index}].`),
-            ...(slots.findIndex((other) => isRowData(other) && other.id === slot.id) !== index
+            ...specFieldsIssues(SHIP_SLOT_FIELDS, slot, `weaponSlots[${index}].`, partial),
+            ...(slot.id !== undefined && slots.findIndex((other) => isRowData(other) && other.id === slot.id) !== index
               ? [
                   {
                     severity: 'error' as const,
@@ -45,8 +46,8 @@ export function shipSpecIssues(ship: RowData) {
     ...engines.flatMap((engine, index) =>
       isRowData(engine)
         ? [
-            ...specFieldsIssues(SHIP_ENGINE_FIELDS, engine, `engineSlots[${index}].`),
-            ...(engine.style === 'CUSTOM' ? specFieldsIssues(SHIP_CUSTOM_ENGINE_FIELDS, engine, `engineSlots[${index}].`) : []),
+            ...specFieldsIssues(SHIP_ENGINE_FIELDS, engine, `engineSlots[${index}].`, partial),
+            ...(engine.style === 'CUSTOM' ? specFieldsIssues(SHIP_CUSTOM_ENGINE_FIELDS, engine, `engineSlots[${index}].`, partial) : []),
           ]
         : [],
     ),

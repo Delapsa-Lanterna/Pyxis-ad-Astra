@@ -1,10 +1,8 @@
 import { recreateJsonSources } from '@/services/json-recovery.service';
 import type {
   AppFeedback,
-  SavedConfig,
   IndexedConfigKind,
-  IndexedConfigEntityData,
-  JsonEntityFile,
+  IndexedConfigEntityRefresh,
   JsonRecoveryPlan,
   EntityKind,
   FileVersion,
@@ -23,8 +21,6 @@ import {
 } from '@/services/json-entity.service';
 import { createSkinEntity, createVariantEntity, saveSkinEntity, saveVariantEntity } from '@/services/json-file.service';
 import { createDefaultSkin, createDefaultVariant } from '@/domain/entity-write/spec-construction';
-import { indexedConfigEntityData } from '@/domain/json-editor/json-config-records';
-import { jsonEntitySavedData } from '@/domain/json-editor/json-file-records';
 import type { SaveCommandRequest } from '@/shared/runtime/command.runtime';
 
 import { runConfirmedJsonWrite } from '@/orchestrators/json-write-confirmation.orchestrator';
@@ -119,7 +115,7 @@ export async function saveIndexedEntityAction(
   request?: SaveCommandRequest,
   replacePaths: string[] = [],
   composition?: JsonComposition,
-): Promise<SavedConfig<IndexedConfigEntityData> | null> {
+): Promise<WriteResult<IndexedConfigEntityRefresh> | null> {
   const settled = await settledVersions(
     write.sessionId,
     write.modRoot,
@@ -147,9 +143,7 @@ export async function saveIndexedEntityAction(
       replacePaths,
     ),
   );
-  if (!result) return null;
-  const entity = indexedConfigEntityData(result);
-  return { entity, receipt: result };
+  return result;
 }
 
 export async function createIndexedEntityAction(
@@ -164,11 +158,9 @@ export async function createIndexedEntityAction(
     entityData: RowData;
   },
   request?: SaveCommandRequest,
-): Promise<SavedConfig<IndexedConfigEntityData>> {
+): Promise<WriteResult<IndexedConfigEntityRefresh>> {
   const baseVersions = await capturedVersions(write.sessionId, write.modRoot, write.kind, write.nextId, write.nextId, [], true);
-  const result = await retainConfigReservation(createIndexedConfigEntity({ ...write, baseVersions }, request));
-  const entity = indexedConfigEntityData(result);
-  return { entity, receipt: result };
+  return retainConfigReservation(createIndexedConfigEntity({ ...write, baseVersions }, request));
 }
 
 export async function saveJsonFileAction(
@@ -185,7 +177,7 @@ export async function saveJsonFileAction(
   request?: SaveCommandRequest,
   replacePaths: string[] = [],
   composition?: JsonComposition,
-): Promise<SavedConfig<JsonEntityFile> | null> {
+): Promise<WriteResult<VariantFile | SkinFile> | null> {
   const settled = await settledVersions(
     sessionId,
     modRoot,
@@ -213,7 +205,7 @@ export async function saveJsonFileAction(
       replacePaths,
     ),
   );
-  return result ? { entity: jsonEntitySavedData(result), receipt: result } : null;
+  return result;
 }
 
 export async function createJsonFileAction(
@@ -223,14 +215,14 @@ export async function createJsonFileAction(
   baseHullId: string,
   id: string,
   request?: SaveCommandRequest,
-): Promise<SavedConfig<JsonEntityFile>> {
+): Promise<WriteResult<VariantFile | SkinFile>> {
   const createEntity = kind === 'variant' ? createVariantEntity : createSkinEntity;
   const initial = kind === 'variant' ? createDefaultVariant : createDefaultSkin;
   const baseVersions = await capturedVersions(sessionId, modRoot, kind, id, id, [], true);
   const result = await retainConfigReservation<WriteResult<VariantFile | SkinFile>>(
     createEntity({ baseVersions, sessionId, modRoot, previousId: null, relPath: null, nextId: id, data: initial(baseHullId, id) }, request),
   );
-  return { entity: jsonEntitySavedData(result), receipt: result };
+  return result;
 }
 
 export async function recreateJsonSourcesAction(

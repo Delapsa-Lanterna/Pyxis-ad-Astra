@@ -108,7 +108,7 @@ const inputs = useFieldInputs();
 if (inputs)
   onScopeDispose(
     inputs.registerFinalizer(async (validate) => {
-      if (!validate || inputs.hasDocumentValidation.value) return;
+      if (!validate || inputs.hasCompleteDocumentValidation.value) return;
       if (props.field.required && raw.value.trim() === '' && !props.runtimeContext?.partial) {
         await focusFieldInput((multiline ? input.value?.textareaElRef : input.value?.inputElRef) ?? null);
         input.value?.focus();

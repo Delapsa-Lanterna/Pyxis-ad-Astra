@@ -48,10 +48,7 @@ vi.mock('@/services/window.service', () => ({ releaseNativeWindowTargets: vi.fn(
 const mocks = vi.hoisted(() => ({
   read: vi.fn<typeof EntityQueryServiceModule.querySessionEntity>(),
   saveFile: vi.fn(),
-  saveIndexed:
-    vi.fn<
-      (...args: Parameters<typeof JsonSaveOrchestratorModule.saveIndexedEntityAction>) => Promise<{ entity: unknown; receipt: WriteResult }>
-    >(),
+  saveIndexed: vi.fn<typeof JsonSaveOrchestratorModule.saveIndexedEntityAction>(),
   saveMod: vi.fn<typeof JsonSaveOrchestratorModule.saveModInfoAction>(),
   prepare: vi.fn<typeof JsonRecoveryServiceModule.prepareJsonSourceRecovery>(),
   recreate: vi.fn<typeof JsonSaveOrchestratorModule.recreateJsonSourcesAction>(),
@@ -232,7 +229,13 @@ beforeEach(() => {
       entities.set(session + ':' + kind + ':' + id, after);
       const result = receipt(before, after);
       after.baseVersions = result.baseVersions;
-      return { entity: { ...after, id, data, relPath: after.target.write.relPath, path: after.target.write.path }, receipt: result };
+      return {
+        ...result,
+        content: {
+          target: { kind: 'json', origin: { kind: 'entity', target: { kind, id, relPath: after.target.write.relPath } } },
+          value: { data },
+        },
+      };
     },
   );
   mocks.saveIndexed.mockImplementation(async (write: IndexedConfigSave) => {
@@ -244,13 +247,20 @@ beforeEach(() => {
     const result = receipt(before, after);
     after.baseVersions = result.baseVersions;
     return {
-      entity: {
-        entityId: write.nextId,
-        entityData: write.entityData,
-        indexRows: [{ data: write.indexRow, isComment: false }],
-        baseVersions: result.baseVersions,
+      ...result,
+      content: {
+        target: {
+          kind: 'json',
+          origin: { kind: 'entity', target: { kind: write.kind, id: write.nextId, relPath: after.target.write.relPath } },
+        },
+        value: {
+          entityId: write.nextId,
+          entityData: write.entityData,
+          indexRows: [{ data: write.indexRow, isComment: false }],
+          indexPath: '',
+          indexHeader: [],
+        },
       },
-      receipt: result,
     };
   });
   mocks.saveMod.mockImplementation(async (_session: string, root: string, data: RowData) => ({
@@ -811,10 +821,10 @@ describe('complete JSON document runtime', () => {
     const doc = useJsonDocumentSession(definition, initial, feedback);
     const writer = mocks.saveIndexed.getMockImplementation()!;
     mocks.saveIndexed.mockImplementationOnce(async (write: IndexedConfigSave) => {
-      const saved = await writer(write);
+      const saved = (await writer(write))!;
       entities.get(write.sessionId + ':faction:' + write.nextId)!.composition = { layers: [], excluded: [], replace: false };
       if (!renamed) {
-        saved.receipt.identityChanges[0]!.after.write = { ...initial.target.entity!.write };
+        saved.identityChanges[0]!.after.write = { ...initial.target.entity!.write };
       }
       return saved;
     });

@@ -28,6 +28,32 @@ pub struct ErrorDiagnostic {
     pub location: Option<Box<ErrorLocation>>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FieldProblem {
+    pub severity: String,
+    pub code: String,
+    pub path: String,
+    pub message: String,
+    pub location: Option<Box<ErrorLocation>>,
+}
+
+fn problem_messages(issues: &[FieldProblem]) -> String {
+    issues
+        .iter()
+        .map(|issue| {
+            issue
+                .location
+                .as_ref()
+                .and_then(|location| location.path.as_ref())
+                .map_or_else(
+                    || issue.message.clone(),
+                    |path| format!("{path}: {}", issue.message),
+                )
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct JsonRewriteFile {
@@ -40,6 +66,11 @@ pub type AppResult<T> = Result<T, AppError>;
 
 #[derive(Debug, thiserror::Error)]
 pub enum AppError {
+    #[error("{}", problem_messages(.issues))]
+    Validation {
+        code: &'static str,
+        issues: Vec<FieldProblem>,
+    },
     #[error("{source}")]
     Located {
         location: ErrorLocation,
@@ -89,6 +120,7 @@ impl AppError {
 
     pub fn code(&self) -> &'static str {
         match self {
+            Self::Validation { code, .. } => code,
             Self::Message { code, .. } => code,
             Self::Context { source, .. } => source.code(),
             Self::Located { source, .. } => source.code(),
@@ -105,13 +137,23 @@ impl AppError {
 
     pub fn location(&self) -> Option<&ErrorLocation> {
         match self {
+            Self::Validation { issues, .. } => {
+                issues.first().and_then(|issue| issue.location.as_deref())
+            }
             Self::Located { location, .. } => Some(location),
             Self::Context { source, .. } => source.location(),
             _ => None,
         }
     }
 
-    pub fn at_path(self, path: impl AsRef<Path>) -> Self {
+    pub fn at_path(mut self, path: impl AsRef<Path>) -> Self {
+        if let Self::Validation { issues, .. } = &mut self {
+            for issue in issues {
+                issue.location.get_or_insert_with(Default::default).path =
+                    Some(path.as_ref().to_string_lossy().into_owned());
+            }
+            return self;
+        }
         let mut location = self.location().cloned().unwrap_or_default();
         location.path = Some(path.as_ref().to_string_lossy().into_owned());
         Self::Located {
@@ -169,6 +211,41 @@ impl AppError {
         }
     }
 
+    fn validation_issues(&self) -> Option<&[FieldProblem]> {
+        match self {
+            Self::Validation { issues, .. } => Some(issues),
+            Self::Context { source, .. } | Self::Located { source, .. } => {
+                source.validation_issues()
+            }
+            _ => None,
+        }
+    }
+    pub fn field_problems(&self) -> Vec<FieldProblem> {
+        let mut issues = self.validation_issues().map_or_else(
+            || {
+                vec![FieldProblem {
+                    severity: "error".into(),
+                    code: self.code().into(),
+                    path: self
+                        .location()
+                        .and_then(|location| location.field.as_deref())
+                        .unwrap_or("保存")
+                        .into(),
+                    message: self.to_string(),
+                    location: self.location().cloned().map(Box::new),
+                }]
+            },
+            |issues| issues.to_vec(),
+        );
+        for issue in &mut issues {
+            let location = issue.location.get_or_insert_with(Default::default);
+            if location.path.is_none() {
+                location.path = self.location().and_then(|location| location.path.clone());
+            }
+        }
+        issues
+    }
+
     fn conflicting_target(&self) -> Option<&EntityEditTarget> {
         match self {
             Self::EntityTargetExists { target } => Some(target),
@@ -189,6 +266,9 @@ impl Serialize for AppError {
         state.serialize_field("code", self.code())?;
         state.serialize_field("message", &self.to_string())?;
         state.serialize_field("location", &self.location())?;
+        if self.validation_issues().is_some() {
+            state.serialize_field("issues", &self.field_problems())?;
+        }
         if let Some(files) = self.rewrite_files() {
             state.serialize_field("files", files)?;
         }

@@ -1,4 +1,11 @@
-import type { ProjectSessionId, ResourceRef, CsvTableKey, FileVersion, EntityKind } from '@/shared/types/project-identity.types';
+import type {
+  ProjectSessionId,
+  ResourceRef,
+  CsvTableKey,
+  FileVersion,
+  EntityKind,
+  EntityFileLocation,
+} from '@/shared/types/project-identity.types';
 import type { RowData } from '@/shared/types/json.types';
 
 export interface CsvTableState {
@@ -90,6 +97,7 @@ export interface CsvTableRowsRead {
 }
 
 export interface CsvTableIndexPayload {
+  source?: EntityFileLocation;
   sessionId: ProjectSessionId;
   table: CsvTableKey;
   initialCount: number;

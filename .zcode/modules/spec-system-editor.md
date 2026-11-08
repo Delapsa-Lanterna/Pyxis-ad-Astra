@@ -19,9 +19,18 @@
 ### 消费
 
 - `src/app/components/field-editor/SchemaFieldRenderer.vue`：系统字段、颜色及对象的共同展示。
+- `src/app/components/spec-editor/SpecProblems.vue`：固定顶部红黄框及全部问题计数。
+- `src/app/composables/editors/use-editor-document.ts`：工作值、动作起点、提交快照、字段与手势边界及历史交接。
 - `src/app/composables/editors/use-editor-fields.ts`：系统消费的文档字段、颜色与对象绑定入口。
+- `src/app/composables/spec-editor/spec-schema-context.ts`：所属规格目标的字段来源上下文交付。
 - `src/app/composables/spec-editor/use-spec-editor-window-view-model.ts`：四类规格目标会话、保存、身份与外部基线接纳。
+- `src/app/composables/spec-editor/use-spec-problem-navigation.ts`：规格问题定位、所属分组展开与有效请求滚动交接。
+- `src/app/composables/spec-editor/use-spec-problems.ts`：会话问题聚合、原文优先级、失败保留及共享展示。
+- `src/domain/entity-write/spec-construction.ts`：前端规格、装配和皮肤构造及分支补全。
+- `src/domain/schema/schema-validation.ts`：字段与列资产加载、来源声明、值及结构纯规则。
 - `src/domain/schema/schema.types.ts`：系统表单消费的正式 schema 类型。
+- `src/domain/spec-editor/spec-schemas.ts`：Spec 资产引用解析及当前分支装配。
+- `src/services/entity-query.service.ts`：四类查询定义、正式请求与实体失效选择。
 
 ### 关联
 

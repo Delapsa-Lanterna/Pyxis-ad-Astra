@@ -22,6 +22,7 @@ import type {
   AssociatedSpecPreparation,
   CsvValidationRequest,
   CsvValidationContext,
+  EntityFileLocation,
 } from '@/shared/types';
 
 import { invokeCommand, invokeSaveCommand, type SaveCommandRequest } from '@/shared/runtime/command.runtime';
@@ -159,10 +160,11 @@ export function queryTableIndex(
   search: string | null,
   searchField: CsvSearchField,
   signal?: AbortSignal,
+  source?: EntityFileLocation,
 ): Promise<DeepReadonly<CsvTableIndex>> {
   return readTableIndex.read(
     sessionId,
-    { table, initialCount, search, searchField, validationColumns: csvValidationDefinitions[table].columns },
+    { table, initialCount, search, searchField, validationColumns: csvValidationDefinitions[table].columns, ...(source ? { source } : {}) },
     signal,
   );
 }

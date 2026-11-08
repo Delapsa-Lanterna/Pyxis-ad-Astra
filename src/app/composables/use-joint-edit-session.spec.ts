@@ -4,7 +4,7 @@ import { mount, flushPromises } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { savedWriteFixture, sessionUpdateFixture } from '@/test/fixtures/write-result';
-import type { JointEditSnapshot, JointEditWriteResult } from '@/shared/types';
+import type { JointEditSnapshot, JointEditWriteResult, FieldProblem } from '@/shared/types';
 import { AppError } from '@/shared/lib/errors';
 import { shipJointFixture } from '@/test/fixtures/joint-edit/ship-joint-edit';
 
@@ -49,6 +49,37 @@ beforeEach(() => {
   mocks.complete.mockResolvedValue(undefined);
 });
 describe('joint snapshot session acceptance', () => {
+  it('revokes an earlier complete check when the draft changes', async () => {
+    const completions: Array<(value: FieldProblem[]) => void> = [];
+    const validate = vi.fn(
+      (_snapshot: JointEditSnapshot, _values: unknown, signal?: AbortSignal) =>
+        new Promise<FieldProblem[]>((resolve) => {
+          completions.push(resolve);
+          expect(signal).toBeInstanceOf(AbortSignal);
+        }),
+    );
+    let session!: ReturnType<typeof useJointEditSession>;
+    const wrapper = mount({
+      setup() {
+        session = useJointEditSession({ validate });
+        return () => null;
+      },
+    });
+    try {
+      await session.loadTarget(root);
+      await flushPromises();
+      session.setDraft({ ship: { state: 'present', value: 'next' } });
+      await flushPromises();
+      expect(validate).toHaveBeenCalledTimes(2);
+      completions[1]!([{ severity: 'warning', code: 'fixture.current', path: 'next', message: 'Current' }]);
+      await flushPromises();
+      completions[0]!([{ severity: 'error', code: 'fixture.obsolete', path: 'before', message: 'Obsolete' }]);
+      await flushPromises();
+      expect(session.problems.issues.value).toMatchObject([{ code: 'fixture.current' }]);
+    } finally {
+      wrapper.unmount();
+    }
+  });
   it('reports an untouched malformed CSV value and blocks its captured save until correction', async () => {
     const graph = shipJointFixture();
     const record = graph.records.find((record) => record.key === 'csv')!;

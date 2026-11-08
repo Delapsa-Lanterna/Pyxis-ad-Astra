@@ -22,14 +22,19 @@
 - `src-tauri/src/models/project_identity.rs`：保存消费的会话、实体和版本身份。
 - `src-tauri/src/models/save_action.rs`：保存请求与明确业务动作聚合。
 - `src-tauri/src/models/write_commit.rs`：字段修改、实际结果及内容交付。
+- `src-tauri/src/services/app_settings.rs`：正式快照、revision、串行写盘、目录回调结果接纳及装配传入的运行参数提交动作。
 - `src-tauri/src/services/file_history.rs`：文件撤销重做。
+- `src-tauri/src/services/file_history/records.rs`：按实际 Mod 根持有 changeset、双栈、revision、容量及回放交接。
 - `src-tauri/src/services/project/mod.rs`：会话授权和正式结果。
+- `src-tauri/src/services/project/query/entity_targets.rs`：实际编辑目标、身份意图及正式版本范围。
+- `src-tauri/src/services/project/session.rs`：会话打开、关闭、内容更新与内部登记及就绪访问能力交付。
 - `src/shared/lib/json-edits.ts`：所属保存请求消费的实际 JSON 字段差异。
 - `src/shared/types/document-identity.types.ts`：JSON 文档来源与内容身份。
 - `src/shared/types/joint-target.types.ts`：联合保存的根身份。
 - `src/shared/types/json-write.types.ts`：JSON 原文保留与逐源确认输入。
 - `src/shared/types/save-action.types.ts`：保存请求与业务动作输入。
 - `src/shared/types/write-commit.types.ts`：前端实际保存结果和窗口交接类型。
+- `src/stores/settings.store.ts`：settings 运行态，只持状态、setter 与派生值；初始快照经统一初始化入口注入。
 
 ### 装配
 

@@ -164,10 +164,8 @@ export function useSpecEditorWindowViewModel(
   );
   const problems = createSpecProblems(draftSession.inputs, () => {
     const sources = draftSession.baselineSnapshot.value?.meta.data.composition;
-    const value = composeJson(draftSession.draftValue.value, sources);
-    return (definition.validate?.(value) ?? []).filter(
-      (issue) => !sources || !partial.value || compositionValue(value, compositionPath(issue.path)) !== undefined,
-    );
+    const value = partial.value ? draftSession.draftValue.value : composeJson(draftSession.draftValue.value, sources);
+    return definition.validate?.(value, partial.value) ?? [];
   });
   watch(draftSession.context, () => problems.clearFailure(), { flush: 'sync' });
   const unregisterSave = useSaveCommandStore().registerSaveParticipant({

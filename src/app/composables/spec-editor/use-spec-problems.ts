@@ -3,11 +3,11 @@ import type { FieldInputs } from '@/shared/runtime/field-inputs';
 import { useFieldInputs, createFieldInputs, provideFieldInputs } from '@/shared/runtime/field-inputs';
 import { createEditorProblems } from '@/shared/runtime/editor-problems';
 import { AppError } from '@/shared/lib/errors';
-import type { SpecIssue } from '@/domain/spec-editor/spec-validation';
+import type { FieldProblem } from '@/shared/types';
 
 export const specProblemsKey: InjectionKey<ReturnType<typeof createSpecProblems>> = Symbol('spec-problems');
-export function createSpecProblems(inputs: FieldInputs | null, validate: () => SpecIssue[] = () => []) {
-  const problems = createEditorProblems(inputs ?? createFieldInputs(), validate);
+export function createSpecProblems(inputs: FieldInputs | null, validate?: () => FieldProblem[]) {
+  const problems = createEditorProblems(inputs ?? createFieldInputs(), validate, Boolean(validate));
   return {
     ...problems,
     mapSaveError(error: unknown) {
@@ -21,12 +21,12 @@ export function createSpecProblems(inputs: FieldInputs | null, validate: () => S
     },
   };
 }
-export function useSpecProblems(read: () => SpecIssue[]) {
+export function useSpecProblems(read: () => FieldProblem[]) {
   const inherited = inject(specProblemsKey, null);
   const problems = inherited ?? createSpecProblems(useFieldInputs());
   provide(specProblemsKey, problems);
   provideFieldInputs(problems.inputs);
-  if (!inherited) onScopeDispose(problems.register(read));
+  if (!inherited) onScopeDispose(problems.register(read, true));
   else onScopeDispose(problems.register(() => read().filter((issue) => issue.severity === 'warning')));
   return problems;
 }
