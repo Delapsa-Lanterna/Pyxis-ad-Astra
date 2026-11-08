@@ -18,6 +18,8 @@ export function csvRowProblems(
   const add = (severity: FieldProblem['severity'], code: string, path: string, message: string) =>
     issues.push({ severity, code: `csv.${code}`, path, message });
   const business = new Set(rows.filter((row) => isCsvBusinessRow(row, table === 'simOpponents' ? 'variant id' : 'id')));
+  // Each source membership set is shared by all references in this validation call.
+  const referenceValues = new Map<string, Set<string>>();
   if (business.size)
     for (const column of definitions)
       if ((column.requiredColumn || column.required) && !header.includes(column.key))
@@ -42,12 +44,17 @@ export function csvRowProblems(
       if (hints.has(first) && hints.has(second)) hintProblem(`${first}.${second}`, message);
     };
     const reference = (key: string, source: string, severity: FieldProblem['severity']) => {
-      const values =
-        context &&
-        (source === `csv:${table}.id`
-          ? [...business].map((entry) => cell(entry.data.id)).concat(context.sources[`external:${source}`]!)
-          : context.sources[source]!);
-      if (context && text(key) && !values!.includes(text(key)))
+      if (!context || !text(key)) return;
+      let values = referenceValues.get(source);
+      if (!values) {
+        values = new Set(
+          source === `csv:${table}.id`
+            ? [...business].map((entry) => cell(entry.data.id)).concat(context.sources[`external:${source}`]!)
+            : context.sources[source]!,
+        );
+        referenceValues.set(source, values);
+      }
+      if (!values.has(text(key)))
         problem(
           key,
           `引用 ${JSON.stringify(text(key))} 在当前来源中未找到。`,

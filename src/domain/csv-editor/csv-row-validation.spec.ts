@@ -269,4 +269,61 @@ describe('CSV declared types and complete row rules', () => {
     ctx.sources['external:csv:industries.id'] = ['old'];
     expect(csvRowProblems('industries', rows, header, ctx).some((i) => i.code === 'csv.reference_missing')).toBe(false);
   });
+  it.each([
+    [100, 1],
+    [100, 2],
+    [1000, 1],
+    [1000, 2],
+  ] as const)('reads IDs linearly for %i rows with %i same-table references each', (count, references) => {
+    let idReads = 0,
+      sourceReads = 0;
+    const rows = Array.from({ length: count }, (_, index) => {
+      const row = sample('industries', {
+        upgrade: `item-${(index + 1) % count}`,
+        downgrade: references === 2 ? 'external-item' : '',
+      });
+      row.rowKey = `row-${index}`;
+      Object.defineProperty(row.data, 'id', {
+        enumerable: true,
+        get: () => {
+          idReads++;
+          return `item-${index}`;
+        },
+      });
+      return row;
+    });
+    const ctx = context('industries', { upgrade: 'item-0' });
+    Object.defineProperty(ctx.sources, 'external:csv:industries.id', {
+      get: () => {
+        sourceReads++;
+        return ['external-item'];
+      },
+    });
+    const issues = csvRowProblems(
+      'industries',
+      rows,
+      getCsvColumnSchemas('industries').map((c) => c.key),
+      ctx,
+    );
+    expect(issues.filter((issue) => issue.code === 'csv.reference_missing')).toEqual([]);
+    expect({ idReads, sourceReads }).toEqual({ idReads: 4 * count, sourceReads: 1 });
+  });
+  it.each(['commented', 'TARGET', ' target '])('keeps exact reference identity and excludes comment ID %j', (target) => {
+    const rows = [
+      sample('industries', { id: 'origin', upgrade: target }),
+      sample('industries', { id: 'target' }),
+      { ...sample('industries', { id: 'commented' }), isComment: true },
+    ];
+    const ctx = context('industries', rows[0]!.data);
+    ctx.sources['external:csv:industries.id'] = [];
+    const issues = csvRowProblems(
+      'industries',
+      rows,
+      getCsvColumnSchemas('industries').map((c) => c.key),
+      ctx,
+    );
+    expect(issues.filter((issue) => issue.code === 'csv.reference_missing')).toEqual([
+      expect.objectContaining({ path: 'entry/upgrade', severity: 'warning' }),
+    ]);
+  });
 });
