@@ -1,5 +1,5 @@
 use super::super::model::SessionCsvRow;
-use super::super::resources::table_references::csv_row_resource_ref;
+use super::super::resources::table_references::{csv_icon_resource_ref, csv_row_resource_ref};
 use super::super::session::csv_tables::{
     ensure_registered_table_rows, loaded_registered_csv_rows, registered_session_table,
 };
@@ -9,11 +9,12 @@ use crate::errors::{AppError, AppResult};
 use crate::io::csv_files;
 use crate::models::{
     CsvRowPreview, CsvRowRecord, CsvSearchField, CsvTable, CsvTableIndex, CsvTableKey,
-    CsvTableRowsRead,
+    CsvTableRowsRead, ResourceRef, ResourceSource,
 };
 use crate::services::project::session::csv_tables;
 use crate::services::project::{model, versions};
 use serde_json::Value;
+use std::collections::BTreeMap;
 
 pub(crate) fn read_project_csv(session_id: &str, relative: &str) -> AppResult<CsvTable> {
     let handle = session_handle(session_id)?;
@@ -160,6 +161,43 @@ pub fn query_csv_row_preview(
             .filter(|row| !row.is_comment)
             .and_then(|row| csv_row_resource_ref(&session, table, &row.data)),
     })
+}
+
+pub fn query_csv_row_resources(
+    session_id: &str,
+    table: CsvTableKey,
+    row_keys: Vec<String>,
+    drafts: Vec<CsvRowRecord>,
+) -> AppResult<BTreeMap<String, Option<ResourceRef>>> {
+    let mut rows = drafts
+        .into_iter()
+        .map(|row| (row.row_key.clone(), row))
+        .collect::<BTreeMap<_, _>>();
+    let missing = row_keys
+        .iter()
+        .filter(|key| !rows.contains_key(*key))
+        .cloned()
+        .collect();
+    rows.extend(
+        query_csv_table_rows(session_id, table, missing)?
+            .rows
+            .into_iter()
+            .map(|row| (row.row_key.clone(), row)),
+    );
+    Ok(row_keys
+        .into_iter()
+        .map(|row_key| {
+            let row = rows
+                .get(&row_key)
+                .expect("Requested CSV rows have been read or supplied as drafts");
+            (
+                row_key,
+                (!row.is_comment)
+                    .then(|| csv_icon_resource_ref(ResourceSource::Mod, table, &row.data))
+                    .flatten(),
+            )
+        })
+        .collect())
 }
 
 fn csv_row_matches(
@@ -379,6 +417,67 @@ mod tests {
         assert_eq!(resource.owner_kind, ResourceOwnerKind::Ship);
         assert_eq!(resource.owner_id, "ship_a");
         assert_eq!(resource.key, "thumbnail");
+        release_project_session(manifest.session_id).unwrap();
+        root.close().unwrap();
+    }
+
+    #[test]
+    fn row_image_batches_preserve_requested_identity_and_skip_comment_images() {
+        let root = project_workspace("csv_row_image_batch");
+        fs::create_dir_all(root.join("data/hullmods")).unwrap();
+        io::write_utf8_no_bom(
+            &root.join("data/hullmods/hull_mods.csv"),
+            "name,id,sprite\n# heading,,\nSample,first,graphics/hullmods/first.png\nSample,second,graphics/hullmods/second.png\n",
+        )
+        .unwrap();
+        let mut trace = PerformanceTrace::new("project.openSession");
+        let manifest = open_project_session_traced(&root, None, &mut trace).unwrap();
+        let index = query_csv_table_index(
+            &manifest.session_id,
+            CsvTableKey::Hullmods,
+            10,
+            None,
+            CsvSearchField::Id,
+            &[],
+        )
+        .unwrap();
+        let resources = query_csv_row_resources(
+            &manifest.session_id,
+            CsvTableKey::Hullmods,
+            vec![
+                index.row_keys[2].clone(),
+                index.row_keys[0].clone(),
+                index.row_keys[1].clone(),
+            ],
+            Vec::new(),
+        )
+        .unwrap();
+
+        assert_eq!(
+            resources[&index.row_keys[2]].as_ref().unwrap().rel_path,
+            "graphics/hullmods/second.png"
+        );
+        assert!(resources[&index.row_keys[0]].is_none());
+        assert_eq!(
+            resources[&index.row_keys[1]].as_ref().unwrap().rel_path,
+            "graphics/hullmods/first.png"
+        );
+        let mut draft = index.rows[1].clone();
+        draft.row_key = "hullmods:new:0".into();
+        draft
+            .data
+            .insert("sprite".into(), json!("graphics/hullmods/draft.png"));
+        let resources = query_csv_row_resources(
+            &manifest.session_id,
+            CsvTableKey::Hullmods,
+            vec![draft.row_key.clone()],
+            vec![draft],
+        )
+        .unwrap();
+        assert_eq!(
+            resources["hullmods:new:0"].as_ref().unwrap().rel_path,
+            "graphics/hullmods/draft.png"
+        );
         release_project_session(manifest.session_id).unwrap();
         root.close().unwrap();
     }

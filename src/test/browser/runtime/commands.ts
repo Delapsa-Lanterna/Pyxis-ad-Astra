@@ -267,6 +267,17 @@ export async function dispatch(command: string, args: Record<string, unknown>, m
     }
     case 'query_csv_row_preview':
       return { resourceRef: null };
+    case 'query_csv_row_resources': {
+      const payload = args.payload as { rowKeys: string[]; drafts: typeof model.rows },
+        byKey = new Map([...model.rows, ...payload.drafts].map((row) => [row.rowKey, row]));
+      return Object.fromEntries(
+        payload.rowKeys.map((rowKey) => {
+          const row = byKey.get(rowKey);
+          if (!row) throw new Error(`CSV row key does not exist: ${rowKey}`);
+          return [rowKey, !row.isComment ? (model.rowResources.get(rowKey) ?? null) : null];
+        }),
+      );
+    }
     case 'query_csv_source_options': {
       const source = (args.payload as { source: string }).source;
       if (isConfigFieldSource(source)) {

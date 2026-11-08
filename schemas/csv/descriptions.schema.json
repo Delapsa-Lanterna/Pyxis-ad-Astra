@@ -4,11 +4,13 @@
   "columns": [
     {
       "key": "id",
+      "summary": true,
       "label": "ID",
       "control": "text"
     },
     {
       "key": "type",
+      "summary": true,
       "label": "类型",
       "control": "enum",
       "options": [
@@ -27,11 +29,13 @@
     },
     {
       "key": "text1",
+      "summary": true,
       "label": "文本 1",
       "control": "text"
     },
     {
       "key": "text2",
+      "summary": true,
       "label": "文本 2",
       "control": "text"
     },

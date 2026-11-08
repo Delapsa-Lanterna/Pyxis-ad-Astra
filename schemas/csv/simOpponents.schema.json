@@ -4,6 +4,7 @@
   "columns": [
     {
       "key": "variant id",
+      "summary": true,
       "label": "装配",
       "control": "reference",
       "source": "csv:variants.variantId"

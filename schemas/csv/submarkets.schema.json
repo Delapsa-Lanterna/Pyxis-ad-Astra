@@ -4,11 +4,13 @@
   "columns": [
     {
       "key": "id",
+      "summary": true,
       "label": "ID",
       "control": "text"
     },
     {
       "key": "name",
+      "summary": true,
       "label": "名称",
       "control": "text"
     },

@@ -29,6 +29,7 @@ export const gameCommands = new Set([
   'query_hull_references',
   'query_resource_data_urls',
   'query_csv_row_preview',
+  'query_csv_row_resources',
   'query_csv_source_options',
   'query_image_source_options',
   'query_engine_render_assets',
@@ -482,16 +483,13 @@ export function gameQuery(project: WorkspaceProject, command: string, payload: R
               source.manifest.sessionId === resource.reference?.sessionId &&
               source.manifest.modRoot === resource.reference?.modRoot,
           );
+        const root = resource.source === 'core' ? coreRoot : (resource.reference?.modRoot ?? project.manifest.modRoot),
+          localUrl = gameImages.get(root + '/' + resource.relPath),
+          fallbackUrl = resource.source === 'mod' ? gameImages.get(coreRoot + '/' + resource.relPath) : null;
         return {
           ...resource,
           ...(unavailable ? { error: { code: 'reference.unavailable', message: '引用来源已不可用', location: null } } : {}),
-          dataUrl: unavailable
-            ? null
-            : (gameImages.get(
-                (resource.source === 'core' ? coreRoot : (resource.reference?.modRoot ?? project.manifest.modRoot)) +
-                  '/' +
-                  resource.relPath,
-              ) ?? null),
+          dataUrl: unavailable ? null : (localUrl ?? fallbackUrl ?? null),
         };
       }),
     };
@@ -518,6 +516,21 @@ export function gameQuery(project: WorkspaceProject, command: string, payload: R
     for (const relPath of ['graphics/fx/engineglow32.png', 'graphics/fx/engineflame32.png', 'graphics/fx/hit_glow.png'])
       resources[relPath] = { source: 'core', relPath, ownerKind: 'ship', ownerId: 'engines', key: relPath };
     return { styles, resources, versions: [] };
+  }
+  if (command === 'query_csv_row_resources') {
+    const table = payload.table as T.CsvTableKey,
+      field = iconFields[table];
+    return Object.fromEntries(
+      (payload.rowKeys as string[]).map((key) => {
+        const row =
+          (payload.drafts as T.CsvRowRecord[]).find((row) => row.rowKey === key) ??
+          project.tables.get(table)!.rows.find((row) => row.rowKey === key)!;
+        const id = String(row.data.id ?? '');
+        const data = { ...row.data, [field!]: row.data[field!] || (table === 'hullmods' ? 'graphics/hullmods/generic_mod.png' : '') };
+        const resource = project.resources(table as T.ResourceOwnerKind, id, data)[table === 'hullmods' ? 'icon' : field!];
+        return [key, row.isComment || !id || !resource ? null : { ...resource, source: 'mod', key: 'icon' }];
+      }),
+    );
   }
   if (command === 'query_csv_row_preview') {
     const row = project.tables.get(payload.table as T.CsvTableKey)!.rows.find((row) => row.rowKey === payload.rowKey);

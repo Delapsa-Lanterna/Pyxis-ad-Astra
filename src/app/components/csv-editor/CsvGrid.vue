@@ -99,7 +99,7 @@ import { useThumbnailPreload } from '@/app/composables/use-thumbnail-preload';
 import { resourceThumbnailRequest } from '@/app/composables/use-resource-thumbnail';
 import { sourceValue } from '@/domain/field-editor/csv-source-options';
 import { useFieldEditMode } from '@/app/composables/field-editor/use-field-edit-mode';
-import { provideCsvGridMedia } from '@/app/composables/csv-editor/use-csv-grid-media';
+import { provideCsvGridMedia, useCsvGridImages } from '@/app/composables/csv-editor/use-csv-grid-media';
 import { useCsvRowDrag } from '@/app/composables/csv-editor/use-csv-row-drag';
 import { useWindowShortcuts } from '@/app/composables/use-window-shortcuts';
 import type { CsvCellEdit } from '@/app/composables/csv-editor/csv-cell-edit';
@@ -266,30 +266,44 @@ watch(
 watch([editorRow, editorColumn], locateEditorAnchor, { flush: 'post', immediate: true });
 const mode = useFieldEditMode(),
   preload = useThumbnailPreload('CSV 网格');
-provideCsvGridMedia({ url: (resource) => preload.url(context.target.sessionId, resource) });
-// Keep media demand independent of row mounting; per-batch rescans consume the 4 ms mount budget.
-const mediaRequests = computed(() => {
+const mediaRange = computed(() => {
   const start = Math.floor(scrollTop.value / 24),
     count = Math.ceil(viewportHeight.value / 24);
+  return {
+    visible: rows.value.slice(start, start + count),
+    near: rows.value.slice(Math.max(0, start - count), start + count * 2),
+    columns: renderColumns.value.filter(
+      (view) => view.offsetPx + view.column.widthPx > scrollLeft.value + 16 && view.offsetPx < scrollLeft.value + viewportWidth.value,
+    ),
+  };
+});
+const image = useCsvGridImages(
+  context.target,
+  () => mediaRange.value.near.flatMap((key) => (props.model.rowsByKey[key] ? [props.model.rowsByKey[key]!] : [])),
+  () =>
+    mode.value === 'smart' ? mediaRange.value.columns.find(({ column }) => column.schema?.control === 'path-image')?.column : undefined,
+);
+provideCsvGridMedia({ url: (resource) => preload.url(context.target.sessionId, resource), image });
+// Keep media demand independent of row mounting; per-batch rescans consume the 4 ms mount budget.
+const mediaRequests = computed(() => {
   const resources = (keys: string[], columns: CsvRenderColumn[]) =>
     mode.value === 'smart'
       ? keys.flatMap((key) => {
           const row = props.model.rowsByKey[key];
           return row
             ? columns.flatMap(({ column }) => {
-                const resource = sourceValue(props.model.sourceIndex, column.schema?.source, String(row.data[column.key] ?? ''))?.option
-                  .resourceRef;
+                const resource =
+                  column.schema?.control === 'path-image'
+                    ? image(row, column)
+                    : sourceValue(props.model.sourceIndex, column.schema?.source, String(row.data[column.key] ?? ''))?.option.resourceRef;
                 return resource ? [resourceThumbnailRequest(context.target.sessionId, resource, 16, 16)] : [];
               })
             : [];
         })
       : [];
-  const visible = renderColumns.value.filter(
-    (view) => view.offsetPx + view.column.widthPx > scrollLeft.value + 16 && view.offsetPx < scrollLeft.value + viewportWidth.value,
-  );
   return {
-    visible: resources(rows.value.slice(start, start + count), visible),
-    near: resources(rows.value.slice(Math.max(0, start - count), start + count * 2), renderColumns.value),
+    visible: resources(mediaRange.value.visible, mediaRange.value.columns),
+    near: resources(mediaRange.value.near, renderColumns.value),
   };
 });
 watch(mediaRequests, ({ visible, near }) => preload.prepare(context.target.sessionId, visible, near), { immediate: true });

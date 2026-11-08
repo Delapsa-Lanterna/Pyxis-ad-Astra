@@ -687,6 +687,7 @@ export function createBrowserWorkspace(systemTheme: T.AppTheme = 'light') {
       case 'query_engine_render_assets':
       case 'query_resource_data_urls':
       case 'query_csv_row_preview':
+      case 'query_csv_row_resources':
       case 'query_csv_source_options':
       case 'query_image_source_options':
         result = gameQuery(receiver, command, payload);

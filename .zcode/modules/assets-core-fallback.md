@@ -18,7 +18,7 @@
 - `src-tauri/src/services/project/resources/mod.rs`：资源实现模块登记及内部引用能力。
 - `src-tauri/src/services/project/resources/resource_identity.rs`：资源引用构造、单项及集合的引用来源接纳与物理媒体键。
 - `src-tauri/src/services/project/resources/sprites.rs`：批次来源边界、媒体读取、缓存接纳和相对路径解析。
-- `src-tauri/src/services/project/resources/table_references.rs`：表格行与来源引用的图片、图标及显示名称投影。
+- `src-tauri/src/services/project/resources/table_references.rs`：表格行、图片路径列及来源引用的授权资源与显示名称投影。
 - `src/app/components/media/`：授权图片与配置选项消费的缩略图展示。
 - `src/app/composables/editors/use-resource-reference.ts`：贴图引用选择。
 - `src/app/composables/use-resource-images.ts`：场景与图片展示的解码引用和迟到接纳。
@@ -65,6 +65,7 @@
 - 舰船内置展示消费共享媒体集合，几何调整复用当前解码结果，资源失败按所属槽位、武器引用和路径交付诊断。
 - 船体引用能力分别提供创建目录和指定 ID 元数据，名称按 Mod CSV 优先、Core 补集解析。
 - 船体选项投影消费资源协议的只读字段，实体和表格资源直接消费资源所属船体解析器。
+- CSV 图片路径列资源按 Mod 行实际字段值投影，保留行实体 ID 与图标资源身份。
 - 贴图选择归引用能力，返回后端校验的 Mod 根内正斜杠相对路径。
 
 ## 链路

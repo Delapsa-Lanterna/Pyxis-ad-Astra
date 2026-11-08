@@ -4,21 +4,25 @@
   "columns": [
     {
       "key": "name",
+      "summary": true,
       "label": "名称",
       "control": "text"
     },
     {
       "key": "id",
+      "summary": true,
       "label": "ID",
       "control": "text"
     },
     {
       "key": "type",
+      "summary": true,
       "label": "类型",
       "control": "text"
     },
     {
       "key": "tags",
+      "summary": true,
       "label": "Tags 标签",
       "control": "tags",
       "source": "csv:abilities.tags"
@@ -31,12 +35,14 @@
     },
     {
       "key": "activationCooldown",
+      "summary": true,
       "label": "激活冷却",
       "control": "number",
       "step": 0.1
     },
     {
       "key": "durationDays",
+      "summary": true,
       "label": "持续天数",
       "control": "number",
       "step": 0.1
@@ -72,32 +78,38 @@
     {
       "key": "uiOn",
       "label": "UI 开启音",
-      "control": "text"
+      "control": "reference",
+      "source": "config:sounds"
     },
     {
       "key": "uiOff",
       "label": "UI 关闭音",
-      "control": "text"
+      "control": "reference",
+      "source": "config:sounds"
     },
     {
       "key": "uiLoop",
       "label": "UI 循环音",
-      "control": "text"
+      "control": "reference",
+      "source": "config:sounds"
     },
     {
       "key": "worldOn",
       "label": "世界开启音",
-      "control": "text"
+      "control": "reference",
+      "source": "config:sounds"
     },
     {
       "key": "worldOff",
       "label": "世界关闭音",
-      "control": "text"
+      "control": "reference",
+      "source": "config:sounds"
     },
     {
       "key": "worldLoop",
       "label": "世界循环音",
-      "control": "text"
+      "control": "reference",
+      "source": "config:sounds"
     },
     {
       "key": "icon",

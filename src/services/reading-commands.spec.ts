@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { queryTableIndex, querySessionCsvRowPreview } from './csv-table.service';
+import { queryTableIndex, querySessionCsvRowPreview, queryCsvRowResources } from './csv-table.service';
 import { getCsvColumnSchemas } from '@/domain/schema/csv-schema-registry';
 import { querySourceOptionCatalog, queryImageSourceOptions } from './source-catalog.service';
 import { querySessionHullReferences } from './hull-reference.service';
@@ -50,6 +50,12 @@ const cases: Array<[string, () => Promise<unknown>, object, unknown]> = [
     () => querySessionCsvRowPreview(sessionId, 'ships', 'row'),
     { sessionId, table: 'ships', rowKey: 'row' },
     { resourceRef: null },
+  ],
+  [
+    'query_csv_row_resources',
+    () => queryCsvRowResources(sessionId, 'hullmods', ['row-a', 'row-b'], []),
+    { sessionId, table: 'hullmods', rowKeys: ['row-a', 'row-b'], drafts: [] },
+    { 'row-a': resource, 'row-b': null },
   ],
   ['query_csv_source_options', () => querySourceOptionCatalog(sessionId, 'csv:ships.name'), { sessionId, source: 'csv:ships.name' }, []],
   [

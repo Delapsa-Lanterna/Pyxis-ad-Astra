@@ -43,11 +43,16 @@
         <div v-if="isCommentRow" class="muted ui-text-muted">注释行只允许编辑 CSV 内容。</div>
         <div v-else-if="!hasActions" class="muted ui-text-muted">当前模块没有专用编辑器。</div>
       </section>
-      <section class="panel-card detail-card ui-layout-grid ui-layout-shrink ui-control-border ui-content-surface">
+      <section
+        v-if="summaryItems.length"
+        class="panel-card detail-card ui-layout-grid ui-layout-shrink ui-control-border ui-content-surface"
+      >
         <div class="panel-section-title">字段速览</div>
         <div class="schema-preview-list ui-layout-grid">
           <div v-for="item in summaryItems" :key="item.key" class="schema-preview-row ui-layout-grid">
-            <span class="schema-preview-label ui-text-muted" :title="item.key">{{ item.label }}</span>
+            <span class="schema-preview-label ui-text-muted" :title="[item.key, item.description].filter(Boolean).join('\n')">{{
+              item.label
+            }}</span>
             <div class="schema-preview-value ui-control-row">
               <template v-if="item.kind === 'tags' || item.kind === 'multi'">
                 <span
@@ -141,6 +146,7 @@ const selectedDisplayId = computed(() => (view.selectedRow ? rowDisplayId(view.s
 const isCommentRow = computed(() => isCsvCommentRow(view.selectedRowRecord));
 const hasActions = computed(() => detailActions.value.length > 0);
 const schemaColumns = computed(() => csvColumnSchemasForTable(view.currentTab));
+const summaryColumns = computed(() => schemaColumns.value.filter((column) => column.summary && view.visibleColumns.includes(column.key)));
 const previewSrc = useCsvRowPreview({
   target: () =>
     props.model.target.value?.sessionId && view.selectedRowKey && view.selectedRow && !isCommentRow.value
@@ -151,10 +157,7 @@ const previewSrc = useCsvRowPreview({
 const summaryItems = computed<SchemaPreviewItem[]>(() => {
   const row = view.selectedRow;
   if (!row) return [];
-  return view.visibleColumns.slice(0, 8).map((column) => {
-    const schema = schemaColumns.value.find((item) => item.key === column);
-    return schema ? schemaPreviewItem(schema, row) : plainPreviewItem(column, row);
-  });
+  return summaryColumns.value.map((schema) => schemaPreviewItem(schema, row));
 });
 const detailActions = computed<TableDetailAction[]>(() => {
   const row = view.selectedRowRecord;
@@ -163,6 +166,7 @@ const detailActions = computed<TableDetailAction[]>(() => {
 });
 
 interface SchemaPreviewItem {
+  description?: string;
   display: string;
   key: string;
   kind: CsvColumnSchema['control'];
@@ -199,10 +203,10 @@ const previewState = computed<CsvRowPreview>(() => {
 const summaryResources = computed(() => {
   const row = view.selectedRow;
   return row && showReferenceDecorations.value
-    ? view.visibleColumns.slice(0, 8).flatMap((column) => {
-        const schema = schemaColumns.value.find((entry) => entry.key === column);
-        const resource =
-          schema && isCsvReferenceControl(schema.control) ? findSourceOption(schema.source, cell(row[column])).option?.resourceRef : null;
+    ? summaryColumns.value.flatMap((schema) => {
+        const resource = isCsvReferenceControl(schema.control)
+          ? findSourceOption(schema.source, cell(row[schema.key])).option?.resourceRef
+          : null;
         return resource ? [resource] : [];
       })
     : [];
@@ -236,6 +240,7 @@ function commentPreview(): CsvRowPreview {
 function schemaPreviewItem(schema: CsvColumnSchema, row: RowData): SchemaPreviewItem {
   const value = cell(row[schema.key]);
   const base: SchemaPreviewItem = {
+    description: schema.description,
     display: value,
     key: schema.key,
     kind: schema.control,
@@ -281,21 +286,6 @@ function schemaPreviewItem(schema: CsvColumnSchema, row: RowData): SchemaPreview
   }
 
   return base;
-}
-
-function plainPreviewItem(column: string, row: RowData): SchemaPreviewItem {
-  const value = cell(row[column]);
-  return {
-    display: value,
-    key: column,
-    kind: 'text',
-    label: column,
-    meta: '',
-    sprite: '',
-    source: undefined,
-    value,
-    values: [],
-  };
 }
 
 function findSourceOption(source: string | undefined, value: string): { group: string; option: SelectOption | null } {

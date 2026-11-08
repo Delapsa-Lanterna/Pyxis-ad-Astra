@@ -21,7 +21,7 @@ export function mountCsvInputHost(
     {
       setup() {
         onScopeDispose(inputs.release);
-        provideCsvGridMedia({ url: (resource) => resourceMediaDataUrl(target.sessionId, resource) ?? '' });
+        provideCsvGridMedia({ url: (resource) => resourceMediaDataUrl(target.sessionId, resource) ?? '', image: () => undefined });
         provideCsvTableInputs({
           target,
           inputs,

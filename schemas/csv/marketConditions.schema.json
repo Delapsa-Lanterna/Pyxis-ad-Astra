@@ -4,27 +4,32 @@
   "columns": [
     {
       "key": "name",
+      "summary": true,
       "label": "名称",
       "control": "text"
     },
     {
       "key": "id",
+      "summary": true,
       "label": "ID",
       "control": "text"
     },
     {
       "key": "tags",
+      "summary": true,
       "label": "Tags 标签",
       "control": "tags",
       "source": "csv:marketConditions.tags"
     },
     {
       "key": "planetary",
+      "summary": true,
       "label": "行星",
       "control": "boolean"
     },
     {
       "key": "decivRemove",
+      "summary": true,
       "label": "文明丧失时移除",
       "control": "boolean"
     },

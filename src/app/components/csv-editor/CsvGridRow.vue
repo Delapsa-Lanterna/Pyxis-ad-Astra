@@ -46,8 +46,10 @@
       <div
         class="csv-cell-frame ui-text-body ui-text-normal ui-layout-row ui-layout-center ui-layout-clip ui-layout-stretch ui-content-surface-muted"
         :class="[
-          'csv-cell-frame-' + (mode === 'plain' ? 'text' : cells[index]!.control),
-          { 'csv-cell-frame-simple': mode === 'plain' || cells[index]!.simple },
+          {
+            'csv-cell-frame-simple': mode === 'plain' || cells[index]!.simple,
+            'csv-cell-frame-select': mode === 'smart' && cells[index]!.caret,
+          },
         ]"
       >
         <span v-if="mode === 'plain' || cells[index]!.simple" class="csv-cell-value">{{
@@ -149,11 +151,10 @@ const cells = computed(() =>
     const list = isCsvListControl(control);
     const caret = csvControlUsesPicker(control) || control === 'path-image';
     return {
-      control,
       list,
       simple: !list && !caret && !match?.option.resourceRef,
       display: match?.option.label ?? raw,
-      resource: match?.option.resourceRef,
+      resource: control === 'path-image' ? media.image(props.row, column) : match?.option.resourceRef,
       caret,
       tags: list
         ? csvListValues(raw).map((value) => ({

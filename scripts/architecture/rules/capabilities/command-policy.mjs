@@ -66,6 +66,7 @@ export const commandOwners = {
     'query_csv_validation',
     'query_csv_table_rows',
     'query_csv_row_preview',
+    'query_csv_row_resources',
     'prepare_csv_associated_specs',
   ],
   'src/services/files.service.ts': ['load_editable_file', 'follow_text_identity'],

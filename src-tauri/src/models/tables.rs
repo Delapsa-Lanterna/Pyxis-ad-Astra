@@ -108,6 +108,15 @@ pub struct CsvTableRowsPayload {
     pub row_keys: Vec<String>,
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CsvRowResourcesPayload {
+    pub session_id: ProjectSessionId,
+    pub table: CsvTableKey,
+    pub row_keys: Vec<String>,
+    pub drafts: Vec<CsvRowRecord>,
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct CsvRowPreview {

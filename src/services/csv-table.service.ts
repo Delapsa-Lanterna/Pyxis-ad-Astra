@@ -2,6 +2,7 @@ import type {
   CsvTableIndex,
   CsvTableRowsRead,
   CsvRowPreview,
+  CsvRowResources,
   CsvTableIndexPayload,
   CsvTableRowsPayload,
   CsvRowPreviewPayload,
@@ -17,6 +18,7 @@ import type {
   FileVersion,
   CsvRowOrderEntry,
   CsvDraftRow,
+  CsvRowRecord,
   AssociatedSpecPreparation,
   CsvValidationRequest,
   CsvValidationContext,
@@ -47,6 +49,13 @@ const readTableRows = {
   invalidates: (parameters, invalidation) =>
     invalidation.queryScopes.some((scope) => scope.kind === 'csv-table-window' && (!scope.table || scope.table === parameters.table)),
 } satisfies SessionQueryDefinition<Omit<CsvTableRowsPayload, 'sessionId'>, CsvTableRowsRead>;
+
+const readRowResources = {
+  queryKind: 'csv-row-preview',
+  load: ({ sessionId, parameters }) => invokeCommand<CsvRowResources>('query_csv_row_resources', { payload: { sessionId, ...parameters } }),
+  // Grid drafts capture image identities; the media owner handles file invalidation.
+  invalidates: () => false,
+} satisfies SessionQueryDefinition<Omit<CsvTableRowsPayload, 'sessionId'> & { drafts: CsvRowRecord[] }, CsvRowResources>;
 
 const readValidation = {
   queryKind: 'csv-table-window',
@@ -174,6 +183,16 @@ export function querySessionCsvRowPreview(
   signal?: AbortSignal,
 ): Promise<DeepReadonly<CsvRowPreview>> {
   return readRowPreview.read(sessionId, { table, rowKey }, signal);
+}
+
+export function queryCsvRowResources(
+  sessionId: string,
+  table: CsvTableKey,
+  rowKeys: string[],
+  drafts: CsvRowRecord[],
+  signal?: AbortSignal,
+): Promise<DeepReadonly<CsvRowResources>> {
+  return readLiveSessionQuery(readRowResources, sessionId, { table, rowKeys, drafts }, signal);
 }
 
 export async function queryTableRowPreviewDataUrl(

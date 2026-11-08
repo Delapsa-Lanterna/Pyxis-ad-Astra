@@ -14,6 +14,7 @@ import type { CsvTableIndex, ProjectManifest } from '@/shared/types';
 import CsvRowDetails from './CsvRowDetails.vue';
 import { createCsvSourceIndex } from '@/domain/field-editor/csv-source-options';
 import { editorUiStubs } from '@/test/unit/ui-stubs';
+import * as columns from '@/domain/csv-editor/csv-column-schema';
 
 function tableSummariesFixture(): ProjectManifest['tableSummaries'] {
   const summaries = {} as ProjectManifest['tableSummaries'];
@@ -41,10 +42,11 @@ vi.mock('@/app/composables/use-app-feedback', () => ({
   }),
 }));
 
+const media = vi.hoisted(() => ({ replace: vi.fn(async () => {}), preview: vi.fn(async () => '') }));
 vi.mock('@/app/composables/field-editor/use-field-option-media', () => ({
   useFieldOptionMedia: () => ({
     dataUrl: vi.fn(() => 'data:image/png;base64,thumb'),
-    replaceCollection: vi.fn(async () => {}),
+    replaceCollection: media.replace,
     releaseCollection: vi.fn(),
   }),
 }));
@@ -54,6 +56,9 @@ let wrapper: VueWrapper | null = null;
 afterEach(() => {
   wrapper?.unmount();
   wrapper = null;
+  vi.restoreAllMocks();
+  media.replace.mockClear();
+  media.preview.mockClear();
 });
 
 function manifestFixture(modRoot: string): ProjectManifest {
@@ -91,7 +96,7 @@ function mountPane() {
         computed(() => ({ sessionId: 'sess-1', modRoot: 'M:/mod', table: useCsvEditorStore().getCsvModState('M:/mod')!.currentTab })),
       ),
       starsectorRoot: null,
-      queryRowPreview: vi.fn(async () => ''),
+      queryRowPreview: media.preview,
       sourceIndex: { optionsBySource: new Map(), valueIndexBySource: new Map(), valueSetsBySource: new Map() },
     },
     global: { plugins: [getActivePinia()!], stubs: editorUiStubs },
@@ -100,6 +105,67 @@ function mountPane() {
 }
 
 describe('CsvRowDetails', () => {
+  it.each(['smart', 'plain'] as const)('shares schema selection with media and descriptions in %s mode', async (mode) => {
+    const { tables } = activateProject();
+    useSettingsStore().setEditMode(mode);
+    const target = { sessionId: 'sess-1', modRoot: 'M:/mod', table: 'ships' as const };
+    const keys = Array.from({ length: 10 }, (_, index) => 'field-' + index);
+    vi.spyOn(columns, 'csvColumnSchemasForTable').mockImplementation((table) =>
+      table === 'ships'
+        ? [
+            ...keys.map((key, index) => ({
+              key,
+              label: key,
+              control: 'reference' as const,
+              source: 'csv:ships.id',
+              summary: true,
+              description: index === 0 ? 'First line\nSecond line' : '',
+            })),
+            { key: 'disabled', control: 'text', summary: false },
+            { key: 'ordinary', control: 'text' },
+            { key: 'absent', control: 'text', summary: true },
+          ]
+        : [],
+    );
+    const rows = ['first', 'second'].map((value) => ({
+      rowKey: value,
+      isComment: false,
+      data: Object.fromEntries([...keys, 'disabled', 'ordinary', 'extra'].map((key) => [key, value])),
+    }));
+    const index = csvTableIndex(rows, { table: 'ships', header: ['extra', 'ordinary', 'disabled', ...keys.toReversed()], totalRows: 2 });
+    tables.applyTableIndex(target, index);
+    tables.selectRowByKey(target, 'first');
+    const pane = mountPane();
+    const resource = (id: string) => ({
+      source: 'mod' as const,
+      relPath: 'graphics/' + id + '.png',
+      ownerKind: 'ship' as const,
+      ownerId: id,
+      key: 'sprite',
+    });
+    await pane.setProps({
+      sourceIndex: createCsvSourceIndex(
+        ['csv:ships.id'],
+        new Map([['csv:ships.id', ['first', 'second'].map((value) => ({ value, label: value, resourceRef: resource(value) }))]]),
+      ),
+    });
+    expect(pane.findAll('.schema-preview-label').map((label) => label.text())).toEqual(keys);
+    expect(pane.findAll('.schema-preview-label')[0]!.attributes('title')).toBe('field-0\nFirst line\nSecond line');
+    expect(pane.findAll('.schema-preview-label')[1]!.attributes('title')).toBe('field-1');
+    expect(media.replace).toHaveBeenLastCalledWith('sess-1', 'summary', mode === 'smart' ? keys.map(() => resource('first')) : []);
+    tables.selectRowByKey(target, 'second');
+    await pane.vm.$nextTick();
+    expect(pane.findAll('.schema-preview-value-value').map((value) => value.text())).toEqual(keys.map(() => 'second'));
+    expect(media.replace).toHaveBeenLastCalledWith('sess-1', 'summary', mode === 'smart' ? keys.map(() => resource('second')) : []);
+    expect(media.preview).toHaveBeenCalledTimes(2);
+    tables.applyTableIndex(target, { ...index, header: ['disabled', 'ordinary', 'extra'] });
+    await pane.vm.$nextTick();
+    expect(pane.findAll('.panel-section-title').map((title) => title.text())).toEqual(['详情栏', '操作']);
+    expect(media.replace).toHaveBeenLastCalledWith('sess-1', 'summary', []);
+    tables.switchTab(target.modRoot, 'wings');
+    await pane.vm.$nextTick();
+    expect(pane.get('.detail-empty-value').text()).toBe('未选择记录');
+  });
   beforeEach(() => {
     setActivePinia(createPinia());
     initializeSettingsStore(createSettingsFixture());

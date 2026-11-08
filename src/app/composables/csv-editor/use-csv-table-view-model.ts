@@ -231,7 +231,6 @@ export function useCsvTableViewModel(model: CsvEditorModel, host: CsvEditorHost)
       lockedColumnWidths.value = {};
       await initializeIndex();
       if (disposed || identity !== targetKey.value) return;
-      await reloadVisibleSourceOptions();
       lockColumnWidthsForLoadedModel();
     },
     { immediate: true },
@@ -247,7 +246,7 @@ export function useCsvTableViewModel(model: CsvEditorModel, host: CsvEditorHost)
   watch(
     () => stableStringify(columnModel.value.columns.map((column) => column.key)),
     () => {
-      lockColumnWidthsForLoadedModel();
+      void reloadVisibleSourceOptions().then(lockColumnWidthsForLoadedModel);
     },
     { immediate: true },
   );

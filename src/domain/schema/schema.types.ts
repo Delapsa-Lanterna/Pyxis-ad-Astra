@@ -108,6 +108,8 @@ export type CsvColumnControl = (typeof CSV_COLUMN_CONTROLS)[number];
 export const CSV_COLUMN_CONTROL_SET: ReadonlySet<string> = new Set(CSV_COLUMN_CONTROLS);
 
 export interface CsvColumnSchema {
+  description?: string;
+  summary?: boolean;
   valueType?: 'integer' | 'float';
   required?: boolean;
   requiredColumn?: boolean;

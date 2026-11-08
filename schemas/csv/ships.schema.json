@@ -4,27 +4,32 @@
   "columns": [
     {
       "key": "name",
+      "summary": true,
       "label": "名称",
       "control": "text"
     },
     {
       "key": "id",
+      "summary": true,
       "label": "ID",
       "control": "text"
     },
     {
       "key": "designation",
+      "summary": true,
       "label": "定位",
       "control": "text"
     },
     {
       "key": "tech/manufacturer",
+      "summary": true,
       "label": "设计类型",
       "control": "reference",
       "source": "config:designTypes"
     },
     {
       "key": "system id",
+      "summary": true,
       "label": "战术系统",
       "control": "reference",
       "source": "csv:shipSystems.id"
@@ -37,18 +42,21 @@
     },
     {
       "key": "hitpoints",
+      "summary": true,
       "label": "船体结构值",
       "control": "number",
       "step": 1
     },
     {
       "key": "armor rating",
+      "summary": true,
       "label": "装甲值",
       "control": "number",
       "step": 1
     },
     {
       "key": "max flux",
+      "summary": true,
       "label": "幅能容量",
       "control": "number",
       "step": 1
@@ -60,6 +68,7 @@
     },
     {
       "key": "flux dissipation",
+      "summary": true,
       "label": "幅能耗散",
       "control": "number",
       "step": 1
@@ -114,6 +123,7 @@
     },
     {
       "key": "shield type",
+      "summary": true,
       "label": "护盾类型",
       "control": "enum",
       "options": [
@@ -239,6 +249,7 @@
     },
     {
       "key": "supplies/mo",
+      "summary": true,
       "label": "维护消耗 (补给/月)",
       "control": "number",
       "step": 1
@@ -326,7 +337,8 @@
     {
       "key": "codex variant id",
       "label": "数据百科装配",
-      "control": "text"
+      "control": "reference",
+      "source": "csv:variants.variantId"
     },
     {
       "key": "rarity",

@@ -29,7 +29,7 @@ pub(crate) use project::query::csv_validation::query_csv_validation;
 pub(crate) use project::query::csv_window::query_csv_table_window;
 pub(crate) use project::query::csv_window::read_project_csv;
 pub(crate) use project::query::csv_window::{
-    query_csv_row_preview, query_csv_table_index, query_csv_table_rows,
+    query_csv_row_preview, query_csv_row_resources, query_csv_table_index, query_csv_table_rows,
 };
 pub(crate) use project::query::entities::{query_entity, query_entity_list};
 pub(crate) use project::query::entity_targets::{

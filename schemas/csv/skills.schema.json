@@ -4,11 +4,13 @@
   "columns": [
     {
       "key": "id",
+      "summary": true,
       "label": "ID",
       "control": "text"
     },
     {
       "key": "name",
+      "summary": true,
       "label": "名称",
       "control": "text"
     },
@@ -26,6 +28,7 @@
     },
     {
       "key": "reqPoints",
+      "summary": true,
       "label": "所需点数",
       "control": "number",
       "step": 1
@@ -48,21 +51,25 @@
     },
     {
       "key": "combat officer",
+      "summary": true,
       "label": "战斗军官",
       "control": "boolean"
     },
     {
       "key": "admiral",
+      "summary": true,
       "label": "指挥官",
       "control": "boolean"
     },
     {
       "key": "admin",
+      "summary": true,
       "label": "行政官",
       "control": "boolean"
     },
     {
       "key": "tags",
+      "summary": true,
       "label": "Tags 标签",
       "control": "tags",
       "source": "csv:skills.tags"

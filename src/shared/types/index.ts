@@ -159,6 +159,7 @@ export type {
   CsvTableTarget,
   CsvSearchField,
   CsvRowPreview,
+  CsvRowResources,
   CsvRowPreviewTarget,
   CsvTableRows,
   CsvTableIndex,

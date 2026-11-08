@@ -3,6 +3,15 @@ import { parseCsvColumnSchemas, parseFileSchema } from './schema-asset-parser';
 import { CSV_COLUMN_CONTROLS, type FileSchema } from './schema.types';
 
 describe('schema asset validation', () => {
+  it.each([undefined, false, true])('loads CSV descriptions and summary=%s', (summary) => {
+    const columns = [undefined, '', 'First line\nSecond line'].map((description, index) => ({
+      key: String(index),
+      control: 'text',
+      ...(description === undefined ? {} : { description }),
+      ...(summary === undefined ? {} : { summary }),
+    }));
+    expect(parseCsvColumnSchemas('sample', { $schema: 'pyxis-ad-astra/csv-columns/v1', table: 'sample', columns })).toEqual(columns);
+  });
   it('projects grouped CSV constraints onto their declared columns', () => {
     expect(
       parseCsvColumnSchemas('sample', {

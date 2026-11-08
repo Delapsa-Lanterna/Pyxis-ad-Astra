@@ -108,6 +108,8 @@ export interface CsvRowPreview {
   resourceRef: ResourceRef | null;
 }
 
+export type CsvRowResources = Record<string, ResourceRef | null>;
+
 export interface CsvRowPreviewTarget {
   rowKey: string;
   sessionId: ProjectSessionId;

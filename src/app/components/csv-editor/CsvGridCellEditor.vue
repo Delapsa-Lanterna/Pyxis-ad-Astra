@@ -41,20 +41,17 @@
           >{{ value }}</span
         >
       </template>
-      <template v-else-if="isReferenceControl">
+      <template v-else>
         <ResourceThumbnail
-          v-if="referenceMatch?.option.resourceRef"
+          v-if="resource"
           class="csv-cell-thumb"
           :session-id="context.target.sessionId"
-          :resource="referenceMatch.option.resourceRef"
+          :resource="resource"
           :url="sprite ?? ''"
           :label="displayValue"
           :width="16"
           :height="16"
         />
-        <span class="csv-cell-value ui-text-truncate ui-layout-shrink">{{ displayValue }}</span>
-      </template>
-      <template v-else>
         <span class="csv-cell-value ui-text-truncate ui-layout-shrink">{{ displayValue }}</span>
       </template>
       <Teleport :to="floating?.overlay.value ?? 'body'" :disabled="!floating?.overlay.value"
@@ -102,7 +99,6 @@ import {
   csvListValues,
   formatCsvListValue,
   isCsvListControl,
-  isCsvReferenceControl,
 } from '@/domain/csv-editor/csv-column-schema';
 import { useCsvGridMedia } from '@/app/composables/csv-editor/use-csv-grid-media';
 import { useCsvTableInputs } from '@/app/composables/csv-editor/use-csv-table-inputs';
@@ -155,7 +151,6 @@ const usesNativeInput = computed(() => {
   return csvControlUsesNativeInput(control.value);
 });
 const isListControl = computed(() => isCsvListControl(control.value));
-const isReferenceControl = computed(() => isCsvReferenceControl(control.value));
 const listValue = computed(() => csvListValues(raw.value));
 const imageOptions = useImageSourceOptions({
   sessionId: () => context.target.sessionId,
@@ -175,11 +170,10 @@ const pickerValues = computed(() => (isListControl.value ? listValue.value : raw
 const referenceMatch = computed(() => sourceValue(props.sourceIndex, props.column.schema?.source, rawValue.value));
 const displayValue = computed(() => referenceMatch.value?.option.label ?? rawValue.value);
 
-const sprite = computed(() => {
-  const match = referenceMatch.value;
-  if (!match?.option.resourceRef) return undefined;
-  return media.url(match.option.resourceRef);
-});
+const resource = computed(() =>
+  control.value === 'path-image' ? media.image(props.row, props.column) : referenceMatch.value?.option.resourceRef,
+);
+const sprite = computed(() => (resource.value ? media.url(resource.value) : undefined));
 
 watch(
   () => [props.row, props.row.rowKey, props.column.key],

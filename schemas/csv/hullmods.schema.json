@@ -4,11 +4,13 @@
   "columns": [
     {
       "key": "name",
+      "summary": true,
       "label": "名称",
       "control": "text"
     },
     {
       "key": "id",
+      "summary": true,
       "label": "ID",
       "control": "text"
     },
@@ -26,12 +28,14 @@
     },
     {
       "key": "tech/manufacturer",
+      "summary": true,
       "label": "设计类型",
       "control": "reference",
       "source": "config:designTypes"
     },
     {
       "key": "tags",
+      "summary": true,
       "label": "Tags 标签",
       "control": "tags",
       "source": "csv:hullmods.tags"
@@ -65,24 +69,28 @@
     },
     {
       "key": "cost_frigate",
+      "summary": true,
       "label": "护卫舰装配点数",
       "control": "number",
       "step": 1
     },
     {
       "key": "cost_dest",
+      "summary": true,
       "label": "驱逐舰装配点数",
       "control": "number",
       "step": 1
     },
     {
       "key": "cost_cruiser",
+      "summary": true,
       "label": "巡洋舰装配点数",
       "control": "number",
       "step": 1
     },
     {
       "key": "cost_capital",
+      "summary": true,
       "label": "主力舰装配点数",
       "control": "number",
       "step": 1

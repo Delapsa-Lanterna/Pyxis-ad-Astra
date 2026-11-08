@@ -28,6 +28,12 @@ function mountHeader() {
 }
 
 describe('CsvGridHeader column resize', () => {
+  it.each([undefined, '', 'First line\nSecond line'])('shows the column key and description %s', async (description) => {
+    const mounted = mountHeader();
+    await mounted.setProps({ columns: [{ ...column, schema: { key: 'id', control: 'text', label: 'Identity', description } }] });
+    expect(mounted.get('[role="columnheader"].schema-col-text').attributes('title')).toBe(description ? 'id\n' + description : 'id');
+    expect(mounted.get('.csv-th-label').text()).toBe('Identity');
+  });
   it.each([0, 1, 2])('reserves only the left button for resizing (button %s)', (button) => {
     const mounted = mountHeader();
     const event = new MouseEvent('mousedown', { button, clientX: 100, bubbles: true, cancelable: true });

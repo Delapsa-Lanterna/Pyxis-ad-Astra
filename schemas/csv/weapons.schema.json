@@ -4,11 +4,13 @@
   "columns": [
     {
       "key": "name",
+      "summary": true,
       "label": "名称",
       "control": "text"
     },
     {
       "key": "id",
+      "summary": true,
       "label": "ID",
       "control": "text"
     },
@@ -32,24 +34,28 @@
     },
     {
       "key": "range",
+      "summary": true,
       "label": "武器射程",
       "control": "number",
       "step": 1
     },
     {
       "key": "damage/second",
+      "summary": true,
       "label": "每秒伤害",
       "control": "number",
       "step": 0.1
     },
     {
       "key": "damage/shot",
+      "summary": true,
       "label": "每发伤害",
       "control": "number",
       "step": 1
     },
     {
       "key": "emp",
+      "summary": true,
       "label": "EMP",
       "control": "number",
       "step": 1
@@ -68,6 +74,7 @@
     },
     {
       "key": "OPs",
+      "summary": true,
       "label": "装配点数",
       "control": "number",
       "step": 1
@@ -92,6 +99,7 @@
     },
     {
       "key": "type",
+      "summary": true,
       "label": "伤害类型",
       "control": "enum",
       "options": [
@@ -206,6 +214,7 @@
     },
     {
       "key": "hints",
+      "summary": true,
       "label": "Hints 提示",
       "control": "tags",
       "source": "csv:weapons.hints",
@@ -250,6 +259,7 @@
     },
     {
       "key": "tags",
+      "summary": true,
       "label": "Tags 标签",
       "control": "tags",
       "source": "csv:weapons.tags"
@@ -261,6 +271,7 @@
     },
     {
       "key": "tech/manufacturer",
+      "summary": true,
       "label": "设计类型",
       "control": "reference",
       "source": "config:designTypes"

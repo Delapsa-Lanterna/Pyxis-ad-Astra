@@ -16,8 +16,9 @@ import { createSettingsFixture } from '@/test/fixtures/settings';
 import { NCollapse, NCollapseItem } from 'naive-ui/es/collapse';
 
 vi.mock('@/app/composables/use-app-feedback', () => ({ useAppFeedback: () => ({ error: vi.fn() }) }));
-const { prepare } = vi.hoisted(() => ({ prepare: vi.fn() }));
+const { prepare, queryImages } = vi.hoisted(() => ({ prepare: vi.fn(), queryImages: vi.fn() }));
 vi.mock('@/app/composables/use-thumbnail-preload', () => ({ useThumbnailPreload: () => ({ prepare, url: () => '' }) }));
+vi.mock('@/services/csv-table.service', () => ({ queryCsvRowResources: queryImages }));
 let fixture: ReturnType<typeof mountCsvInputHost>;
 
 let wrapper: VueWrapper | null = null;
@@ -35,6 +36,7 @@ beforeEach(() => {
     measureText: (text: string) => ({ width: text.length * 7 }),
   } as CanvasRenderingContext2D);
   prepare.mockClear();
+  queryImages.mockReset();
   vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(240);
   vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(240);
   vi.stubGlobal(
@@ -71,7 +73,7 @@ function modelFixture(): CsvGridModel {
   };
 }
 
-function mountGrid(model = modelFixture(), smart = false, anchored = false) {
+function mountGrid(model = modelFixture(), smart = false, anchored = false, real = false) {
   setActivePinia(createPinia());
   initializeSettingsStore(createSettingsFixture({ editMode: smart ? 'smart' : 'plain' }));
   fixture = mountCsvInputHost(
@@ -80,16 +82,19 @@ function mountGrid(model = modelFixture(), smart = false, anchored = false) {
       global: {
         components: { NCollapse, NCollapseItem },
         stubs: {
+          ResourceThumbnail: true,
           CsvGridHeader: {
             props: ['columns'],
             emits: ['resize-column'],
             template: '<thead class="header-stub" />',
           },
-          CsvGridBody: {
-            name: 'CsvGridBody',
-            props: ['entries', 'columns'],
-            emits: ['activate-cell', 'select-row', 'start-row-drag'],
-            template: `<div class="body-stub">
+          CsvGridBody: real
+            ? false
+            : {
+                name: 'CsvGridBody',
+                props: ['entries', 'columns'],
+                emits: ['activate-cell', 'select-row', 'start-row-drag'],
+                template: `<div class="body-stub">
             <div
               v-for="row in entries.filter(entry => entry.kind === 'item')"
               :key="row.key"
@@ -99,7 +104,7 @@ function mountGrid(model = modelFixture(), smart = false, anchored = false) {
               @dblclick="$emit('activate-cell', row.item, columns[0].column, $event)"
             >${anchored ? '<div class="csv-grid-cell" data-column-key="id"><span class="csv-cell-frame">{{ row.item.rowKey }}<button data-csv-picker>Open</button></span></div>' : '{{ row.item.rowKey }}'}</div>
           </div>`,
-          },
+              },
         },
       },
       attachTo: document.body,
@@ -277,6 +282,64 @@ describe('CsvGrid', () => {
     wrapper!.unmount();
     wrapper = null;
     expect(disconnect).toHaveBeenCalledOnce();
+  });
+
+  it('requests path image references only for Smart mode and releases them when its column leaves view', async () => {
+    const model = modelFixture();
+    model.columns[0]!.key = 'sprite';
+    model.columns[0]!.schema = { key: 'sprite', control: 'path-image' };
+    model.rowsByKey['key-0']!.data.sprite = 'graphics/icons/sample.png';
+    model.columns[0]!.widthPx = 400;
+    const resource: ResourceRef = {
+      source: 'mod',
+      relPath: 'graphics/icons/sample.png',
+      ownerKind: 'hullmods',
+      ownerId: 'sample',
+      key: 'sprite',
+    };
+    queryImages.mockResolvedValue({ 'key-0': resource });
+    const grid = mountGrid(model, true, false, true);
+    resize();
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    await flushPromises();
+    expect(queryImages).toHaveBeenCalledExactlyOnceWith(
+      fixture.target.sessionId,
+      fixture.target.table,
+      ['key-0'],
+      [{ rowKey: 'key-0', isComment: false, data: { id: 's0', sprite: resource.relPath } }],
+      expect.any(AbortSignal),
+    );
+    expect(prepare.mock.calls.at(-1)![1]).toEqual(expect.arrayContaining([expect.objectContaining({ resources: [resource] })]));
+    await vi.waitFor(() => expect(grid.find('[data-column-key="sprite"]').exists()).toBe(true));
+    expect(grid.get('.csv-cell-thumb').attributes('resource')).toBeDefined();
+    await grid.get('[data-column-key="sprite"] .csv-cell-value').trigger('click');
+    await grid.get('.csv-cell-selection-input').trigger('keydown', { key: 'F2' });
+    await flushPromises();
+    expect(grid.get('.csv-cell-editor .csv-cell-thumb').attributes('resource')).toEqual(
+      grid.get('.csv-cell-frame > .csv-cell-thumb').attributes('resource'),
+    );
+    await grid.get('.csv-cell-picker-search').trigger('keydown', { key: 'Escape' });
+    (fixture.props.value.model as CsvGridModel).rowsByKey['key-0']!.data.name = 'Changed';
+    await flushPromises();
+    expect(queryImages).toHaveBeenCalledOnce();
+    (fixture.props.value.model as CsvGridModel).rowsByKey['key-0']!.data.sprite = 'graphics/icons/edited.png';
+    queryImages.mockResolvedValue({ 'key-0': { ...resource, relPath: 'graphics/icons/edited.png' } });
+    await flushPromises();
+    expect(queryImages).toHaveBeenCalledTimes(2);
+    expect(queryImages.mock.calls[1]![3]).toEqual([
+      { rowKey: 'key-0', isComment: false, data: { id: 's0', sprite: 'graphics/icons/edited.png' } },
+    ]);
+    const panel = grid.get('.table-panel');
+    panel.element.scrollLeft = 400;
+    await panel.trigger('scroll');
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    await flushPromises();
+    expect(prepare.mock.calls.at(-1)!.slice(1)).toEqual([[], []]);
+    useSettingsStore().setEditMode('plain');
+    await grid.vm.$nextTick();
+    expect(queryImages).toHaveBeenCalledTimes(2);
+    wrapper!.unmount();
+    wrapper = null;
   });
 
   it('emits the visible window size on mount so the store can load data', async () => {

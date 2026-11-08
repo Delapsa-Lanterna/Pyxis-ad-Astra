@@ -1,10 +1,12 @@
 use crate::errors::AppError;
 use crate::models::{
     AssociatedSpecPreparation, CsvAssociatedSpecsPayload, CsvRowPreview, CsvRowPreviewPayload,
-    CsvTableIndex, CsvTableIndexPayload, CsvTableRowsPayload, CsvTableRowsRead,
+    CsvRowResourcesPayload, CsvTableIndex, CsvTableIndexPayload, CsvTableRowsPayload,
+    CsvTableRowsRead, ResourceRef,
 };
 use crate::models::{CsvValidationContext, CsvValidationPayload};
 use crate::services;
+use std::collections::BTreeMap;
 
 #[command_macros::command(async)]
 pub fn query_csv_validation(
@@ -53,4 +55,16 @@ pub fn query_csv_table_rows(payload: CsvTableRowsPayload) -> Result<CsvTableRows
 #[command_macros::command(async)]
 pub fn query_csv_row_preview(payload: CsvRowPreviewPayload) -> Result<CsvRowPreview, AppError> {
     services::query_csv_row_preview(&payload.session_id, payload.table, &payload.row_key)
+}
+
+#[command_macros::command(async)]
+pub fn query_csv_row_resources(
+    payload: CsvRowResourcesPayload,
+) -> Result<BTreeMap<String, Option<ResourceRef>>, AppError> {
+    services::query_csv_row_resources(
+        &payload.session_id,
+        payload.table,
+        payload.row_keys,
+        payload.drafts,
+    )
 }

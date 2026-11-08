@@ -4,22 +4,26 @@
   "columns": [
     {
       "key": "name",
+      "summary": true,
       "label": "名称",
       "control": "text"
     },
     {
       "key": "id",
+      "summary": true,
       "label": "ID",
       "control": "text"
     },
     {
       "key": "tags",
+      "summary": true,
       "label": "Tags 标签",
       "control": "tags",
       "source": "csv:specialItems.tags"
     },
     {
       "key": "tech/manufacturer",
+      "summary": true,
       "label": "设计类型",
       "control": "reference",
       "source": "config:designTypes"
@@ -32,6 +36,7 @@
     },
     {
       "key": "base price",
+      "summary": true,
       "label": "基础价格",
       "control": "number",
       "step": 1
@@ -50,6 +55,7 @@
     },
     {
       "key": "baseRaidDanger",
+      "summary": true,
       "label": "袭击风险",
       "control": "enum",
       "options": [

@@ -4,22 +4,26 @@
   "columns": [
     {
       "key": "id",
+      "summary": true,
       "label": "ID",
       "control": "text"
     },
     {
       "key": "name",
+      "summary": true,
       "label": "名称",
       "control": "text"
     },
     {
       "key": "cost mult",
+      "summary": true,
       "label": "成本倍数",
       "control": "number",
       "step": 0.1
     },
     {
       "key": "build time",
+      "summary": true,
       "label": "建造时间",
       "control": "number",
       "step": 1
@@ -32,24 +36,28 @@
     },
     {
       "key": "upkeep",
+      "summary": true,
       "label": "维护费",
       "control": "number",
       "step": 1
     },
     {
       "key": "downgrade",
+      "summary": true,
       "label": "降级为",
       "control": "reference",
       "source": "csv:industries.id"
     },
     {
       "key": "upgrade",
+      "summary": true,
       "label": "升级为",
       "control": "reference",
       "source": "csv:industries.id"
     },
     {
       "key": "tags",
+      "summary": true,
       "label": "Tags 标签",
       "control": "tags",
       "source": "csv:industries.tags"
@@ -85,6 +93,7 @@
     },
     {
       "key": "disruptDanger",
+      "summary": true,
       "label": "破坏危险度",
       "control": "enum",
       "options": [

@@ -112,4 +112,13 @@ describe('schema asset registries', () => {
     }
     expect(columnCount).toBe(285);
   });
+
+  it('keeps fixed CSV value sets distinct from dynamic references and open tag fields', () => {
+    for (const table of TABLE_KEYS)
+      for (const column of getCsvColumnSchemas(table)) {
+        if (column.control === 'enum') expect(column.options?.length, `${table}.${column.key}`).toBeGreaterThan(0);
+        if (column.control === 'reference') expect(column.source, `${table}.${column.key}`).toBeTruthy();
+        if (column.control === 'tags' && !column.options) expect(column.source, `${table}.${column.key}`).toBeTruthy();
+      }
+  });
 });

@@ -143,12 +143,7 @@
   overflow: clip;
   text-overflow: ellipsis;
 }
-.csv-cell-frame-select,
-.csv-cell-frame-reference,
-.csv-cell-frame-boolean,
-.csv-cell-frame-enum,
-.csv-cell-frame-tags,
-.csv-cell-frame-multi {
+.csv-cell-frame-select {
   gap: var(--space-1);
   padding-right: var(--space-1);
   background: var(--color-panel-muted);

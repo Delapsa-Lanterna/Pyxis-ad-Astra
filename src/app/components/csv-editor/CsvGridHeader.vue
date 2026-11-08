@@ -6,7 +6,7 @@
       v-for="column in columns"
       :key="column.key"
       :class="column.className"
-      :title="column.key"
+      :title="[column.key, column.schema?.description].filter(Boolean).join('\n')"
       role="columnheader"
     >
       <span class="csv-th-label ui-layout-clip">{{ column.schema?.label ?? column.key }}</span>

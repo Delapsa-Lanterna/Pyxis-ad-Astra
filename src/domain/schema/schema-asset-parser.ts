@@ -235,6 +235,8 @@ export function parseCsvColumnSchemas(table: string, raw: unknown): CsvColumnSch
     }
     if (record.imageDirectories !== undefined) schema.imageDirectories = parseImageDirectories(record.imageDirectories);
     if (isString(record.label)) schema.label = record.label;
+    if (isString(record.description)) schema.description = record.description;
+    if (isBoolean(record.summary)) schema.summary = record.summary;
     if (isString(record.source)) schema.source = record.source;
     if (schema.source?.startsWith('config:') && !isConfigFieldSource(schema.source)) {
       throw new Error(`csv column schema ${table}: 非法配置来源 ${schema.source}`);
