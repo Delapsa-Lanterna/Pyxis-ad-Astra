@@ -3,7 +3,7 @@ import { csvEditorView } from '@/app/composables/csv-editor/tests/csv-editor-vie
 import { csvTableIndex } from '@/test/fixtures/csv-row';
 import { enableAutoUnmount, flushPromises, mount, type VueWrapper } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
-import { defineComponent, h, ref } from 'vue';
+import { defineComponent, h, onScopeDispose, ref, type Component } from 'vue';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import CsvEditorPage from './CsvEditorPage.vue';
 import { NInput } from 'naive-ui/es/input';
@@ -62,7 +62,7 @@ beforeEach(() => {
   mocks.query.mockResolvedValue(record());
 });
 afterEach(() => wrapper?.unmount());
-async function mountWorkspace() {
+async function mountWorkspace(transitions = false, details: Component | boolean = true) {
   wrapper = mount(
     defineComponent({
       setup() {
@@ -73,12 +73,62 @@ async function mountWorkspace() {
     }),
     {
       attachTo: document.body,
-      global: { stubs: { ...editorUiStubs, 'n-input': NInput, CsvTableEditor: true, CsvRowDetails: true } },
+      global: { stubs: { ...editorUiStubs, transition: !transitions, 'n-input': NInput, CsvTableEditor: true, CsvRowDetails: details } },
     },
   );
   await flushPromises();
 }
 describe('table workspace search controls', () => {
+  it('retains registered raw input, selection and scroll when a detail transition is reversed', async () => {
+    const commit = vi.fn(() => null),
+      cancel = vi.fn();
+    const details = defineComponent({
+      setup() {
+        const raw = ref('Pending input');
+        onScopeDispose(
+          useCsvEditorStore()
+            .getTableInputs(target.modRoot, target.table)
+            .register({
+              key: 'row/name',
+              label: 'Name',
+              dirty: ref(true),
+              commit,
+              cancel,
+              focus: vi.fn(),
+            }),
+        );
+        return () =>
+          h('input', {
+            value: raw.value,
+            onInput: (event: Event) => {
+              raw.value = (event.target as HTMLInputElement).value;
+            },
+          });
+      },
+    });
+    await mountWorkspace(true, details);
+    const pane = wrapper.get('#csv-detail-panel'),
+      field = pane.get<HTMLInputElement>('input');
+    const tables = useCsvEditorStore();
+    tables.selectRowByKey(target, 'row');
+    pane.element.scrollTop = 73;
+    field.element.focus();
+    field.element.setSelectionRange(2, 7);
+    const toggle = wrapper.get('[aria-controls="csv-detail-panel"]');
+    await toggle.trigger('click');
+    await toggle.trigger('click');
+    await flushPromises();
+    expect(wrapper.get('#csv-detail-panel').element).toBe(pane.element);
+    expect(wrapper.get('#csv-detail-panel input').element).toBe(field.element);
+    expect(field.element.value).toBe('Pending input');
+    expect([field.element.selectionStart, field.element.selectionEnd]).toEqual([2, 7]);
+    expect(document.activeElement).toBe(field.element);
+    expect(pane.element.scrollTop).toBe(73);
+    expect(csvEditorView(target).selectedRowKey).toBe('row');
+    expect(tables.getTableInputs(target.modRoot, target.table).dirty.value).toBe(true);
+    expect(commit).not.toHaveBeenCalled();
+    expect(cancel).not.toHaveBeenCalled();
+  });
   it('retains collapsed details during edits and opens them for a save rejection', async () => {
     await mountWorkspace();
     await wrapper.get('[aria-controls]').trigger('click');

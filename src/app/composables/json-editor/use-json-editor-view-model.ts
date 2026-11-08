@@ -1,4 +1,4 @@
-import { computed, onScopeDispose, ref, shallowRef, watch } from 'vue';
+import { computed, onScopeDispose, ref, shallowReactive, shallowRef, watch } from 'vue';
 import { cloneQuerySnapshot } from '@/shared/lib/query-snapshot';
 import { stableDeepEqual } from '@/shared/lib/stable-compare';
 import { queryMiscConfigFiles, queryMiscConfigFile, hasMiscConfigInvalidation } from '@/services/misc-config.service';
@@ -26,10 +26,11 @@ import { queryHullReferenceOptions, querySessionHullReferences } from '@/service
 
 import { refreshProjectSourcePaths, observeSavedContent, sessionContentUpdate } from '@/orchestrators/project-sync.orchestrator';
 import { focusExistingEntityWindow } from '@/orchestrators/window-target-focus.orchestrator';
-import { warningNotice } from '@/shared/lib/errors';
+import { formatError, warningNotice } from '@/shared/lib/errors';
 import { startPerformance } from '@/shared/runtime/performance';
 import type { SelectOption } from '@/domain/field-editor/field-options';
 import type { DeepReadonly, JsonValue, MiscConfigEntry, JsonComposition } from '@/shared/types';
+import { waitForRead } from '@/shared/runtime/read-request';
 
 export function useJsonEditorViewModel(definition: JsonDocumentDefinition, context: JsonEditorContext) {
   const feedback = useAppFeedback();
@@ -52,7 +53,9 @@ export function useJsonEditorViewModel(definition: JsonDocumentDefinition, conte
   const hullOptions = shallowRef<SelectOption[]>([]);
   const listLoadStartedAt = ref(0);
   const current = shallowRef<JsonDocumentSession | null>(null);
-  const listFailed = ref(false);
+  const listError = shallowRef<unknown>(null);
+  const listFailed = computed(() => listError.value !== null);
+  const listReads = shallowReactive(new Set<Promise<unknown>>());
   const directory = shallowRef<DeepReadonly<MiscConfigEntry[]>>([]);
   const fileError = shallowRef<unknown>(null);
   const fileLoading = ref(false);
@@ -157,23 +160,40 @@ export function useJsonEditorViewModel(definition: JsonDocumentDefinition, conte
     await selection.select(location.id, () => !disposed && active.value && context.entityLocation.value === location);
     if (!disposed && active.value && selectedId.value === location.id) context.completeEntityLocation(location);
   });
+  function trackListRead<T>(work: Promise<T>, signal: AbortSignal) {
+    const waiting = waitForRead(work, { sessionId: sessionId.value, kind }, signal);
+    listReads.add(waiting);
+    return waiting.finally(() => listReads.delete(waiting));
+  }
+  function reconcileRecords() {
+    selection.reconcile(
+      items.value.map((item) => item.key),
+      Boolean(selectedId.value && documents.value.some((document) => document.target.value!.id === selectedId.value)),
+    );
+  }
   async function load(required = false) {
     listLoadStartedAt.value = startPerformance();
     if (kind === 'misc-config') {
       const scope = { sessionId: sessionId.value!, modRoot: modRoot.value! };
-      const accepted = await reads.consume('list', scope, (signal) => queryMiscConfigFiles(scope.sessionId, scope.modRoot, signal), {
-        ready: (files) => {
-          directory.value = [...files];
-          listFailed.value = false;
-        },
-        error: (error) => {
-          listFailed.value = true;
-          fileError.value = error;
-          feedback.error(error, '读取杂项配置目录失败');
+      const accepted = await reads.consume(
+        'list',
+        scope,
+        (signal) => trackListRead(queryMiscConfigFiles(scope.sessionId, scope.modRoot, signal), signal),
+        {
+          ready: (files) => {
+            directory.value = [...files];
+            listError.value = null;
+            reconcileRecords();
+          },
+          error: (error) => {
+            listError.value = error;
+            fileError.value = error;
+            feedback.error(error, '读取杂项配置目录失败');
 
-          if (required) throw error;
+            if (required) throw error;
+          },
         },
-      });
+      );
       if (!accepted) return false;
     } else if (kind === 'mod-info') {
       const manifest = context.manifest.value!;
@@ -185,21 +205,33 @@ export function useJsonEditorViewModel(definition: JsonDocumentDefinition, conte
           resources: {},
         }),
       ];
+      reconcileRecords();
     } else {
       const accepted = await reads.consume(
         'list',
         { sessionId: sessionId.value!, kind },
         (signal) =>
-          querySessionEntityList(sessionId.value!, kind, signal).then((entities) =>
-            entities.map((entity) => jsonDocumentRecord(sessionId.value!, modRoot.value!, entity)),
+          trackListRead(
+            querySessionEntityList(sessionId.value!, kind, signal).then(async (entities) => {
+              const records = entities.map((entity) => jsonDocumentRecord(sessionId.value!, modRoot.value!, entity));
+              const hullIds = [...records, ...documents.value.map((document) => document.record.value)].map(
+                (record) =>
+                  jsonDocumentSummary(definition, record, documentIndex.value.target.get(record.target.id)?.draftValue.value).companion,
+              );
+              const names = definition.file?.usesHullNames ? await querySessionHullReferences(sessionId.value!, hullIds, signal) : null;
+              return { records, names };
+            }),
+            signal,
           ),
         {
-          ready: (records) => {
-            listFailed.value = false;
+          ready: ({ records, names }) => {
+            listError.value = null;
+            if (names) hullNames.value = names.hullNames;
             formal.value = records.map(bindRecord);
+            reconcileRecords();
           },
           error: (error) => {
-            listFailed.value = true;
+            listError.value = error;
             feedback.error(error, '加载' + definition.label + '失败');
 
             if (required) throw error;
@@ -207,22 +239,6 @@ export function useJsonEditorViewModel(definition: JsonDocumentDefinition, conte
         },
       );
       if (!accepted) return false;
-    }
-    selection.reconcile(
-      items.value.map((item) => item.key),
-      Boolean(selectedId.value && documents.value.some((document) => document.target.value!.id === selectedId.value)),
-    );
-    if (definition.file?.usesHullNames) {
-      const hullIds = items.value.map((item) => item.companion);
-      await reads.consume('names', hullIds, (signal) => querySessionHullReferences(sessionId.value!, hullIds, signal), {
-        ready: (names) => {
-          hullNames.value = names.hullNames;
-        },
-        error: (error) => {
-          feedback.error(error, '读取船体名称失败');
-          if (required) throw error;
-        },
-      });
     }
     return true;
   }
@@ -424,10 +440,14 @@ export function useJsonEditorViewModel(definition: JsonDocumentDefinition, conte
     fileError,
     fileLoading: computed(() => fileLoading.value || (!directory.value.length && !listFailed.value)),
     retryFile: load,
+    retryList: load,
+    listLoading: computed(() => listReads.size > 0),
+    listErrorText: computed(() => (listError.value === null ? '' : formatError(listError.value))),
     repairFile: () => feedback.error(fileError.value, '读取杂项配置失败'),
     listFailed,
     items,
     selectedId,
+    selectingId: selection.selectingId,
     select: selection.select,
     actionsLocked: selection.locked,
     actionRunning: selection.writing,

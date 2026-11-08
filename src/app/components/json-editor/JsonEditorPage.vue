@@ -9,12 +9,16 @@
       :search="search"
       :set-search="setSearch"
       :load-failed="listFailed"
+      :loading="listLoading"
+      :load-error="listErrorText"
+      :selecting-id="selectingId"
       :action-running="actionRunning"
       :hull-options="hullOptions"
       :load-hull-options="loadHullOptions"
       :create="create"
       :list-load-started-at="listLoadStartedAt"
       @select="select"
+      @retry="retryList()"
     />
     <JsonDocumentEditor
       v-if="current"
@@ -79,7 +83,11 @@ const {
   search,
   setSearch,
   listFailed,
+  listLoading,
+  listErrorText,
+  retryList,
   selectedId,
+  selectingId,
   select,
   actionsLocked,
   actionRunning,

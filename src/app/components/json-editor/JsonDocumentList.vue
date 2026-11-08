@@ -2,7 +2,9 @@
   <aside ref="listElement" class="json-entity-list ui-layout-row ui-layout-stack ui-layout-clip ui-content-surface-muted">
     <header class="json-entity-list-header">
       <h3 class="json-entity-list-header-title ui-text-reset">{{ definition.label }}</h3>
-      <small class="json-entity-list-count">{{ search.text.trim() ? filteredItems.length + '/' : '' }}{{ items.length }} 项</small>
+      <small class="json-entity-list-count" role="status">{{
+        loading ? '正在读取…' : (search.text.trim() ? filteredItems.length + '/' : '') + items.length + ' 项'
+      }}</small>
     </header>
     <div class="json-entity-list-search">
       <n-input
@@ -28,9 +30,13 @@
       </n-input>
     </div>
     <ul :ref="setMediaRoot" class="json-entity-list-items ui-text-reset">
+      <li v-if="loadFailed" class="json-entity-list-empty ui-text-small" role="alert">
+        <p class="ui-text-reset ui-text-wrap">{{ loadError }}</p>
+        <n-button size="small" :loading="loading" @click="$emit('retry')">重试</n-button>
+      </li>
       <li v-if="items.length && !filteredItems.length" class="json-entity-list-empty ui-text-small">没有匹配项</li>
-      <li v-if="!items.length" class="json-entity-list-empty ui-text-small">
-        {{ loadFailed ? '读取失败，请通过错误提示修复文件后刷新。' : '未找到 ' + definition.directory + ' 下的' + definition.label + '。' }}
+      <li v-if="!items.length && !loading && !loadFailed" class="json-entity-list-empty ui-text-small">
+        {{ '未找到 ' + definition.directory + ' 下的' + definition.label + '。' }}
       </li>
       <li
         v-for="item in filteredItems"
@@ -60,7 +66,8 @@
           ><small class="json-entity-text-meta ui-text-truncate ui-text-muted ui-layout-shrink"
             >{{ item.filename || item.id }}<span v-if="item.dirty"> · 未保存</span><span v-if="item.missing"> · 来源缺失</span
             ><span v-else-if="item.state === 'missing'"> · 未创建</span><span v-else-if="item.state === 'present'"> · 已创建</span
-            ><span v-if="item.state === 'error'"> · 读取失败</span></small
+            ><span v-if="item.state === 'error'"> · 读取失败</span
+            ><span v-if="selectingId === item.key" role="status"> · 正在交接…</span></small
           ></span
         >
       </li>
@@ -110,12 +117,15 @@ const props = defineProps<{
   setSearch: ReturnType<typeof useJsonEditorViewModel>['setSearch'];
   actionRunning: boolean;
   loadFailed?: boolean;
+  loading: boolean;
+  loadError: string;
+  selectingId: string | null;
   hullOptions: SelectOption[];
   loadHullOptions: () => Promise<void>;
   create: (id: string, companion: string) => Promise<boolean>;
   listLoadStartedAt: number;
 }>();
-const emit = defineEmits<{ select: [id: string] }>();
+const emit = defineEmits<{ select: [id: string]; retry: [] }>();
 const settings = useSettingsStore();
 const searchLabels = { 'id-name': 'ID/名称', id: 'ID', name: '名称' };
 const searchOptions = Object.entries(searchLabels).map(([key, label]) => ({ key, label }));

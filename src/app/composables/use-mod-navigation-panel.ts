@@ -16,11 +16,10 @@ export function createModNavigationPanel() {
     else state.wideExpanded = !state.wideExpanded;
     if (state.narrow && state.narrowExpanded) {
       await nextTick();
-      document
-        .querySelector<HTMLButtonElement>(
-          '#mod-navigation-content .mod-navigation-button.active, #mod-navigation-content .mod-navigation-button',
-        )
-        ?.focus();
+      const target =
+        document.querySelector<HTMLButtonElement>('#mod-navigation-content .mod-navigation-button.active') ??
+        document.querySelector<HTMLButtonElement>('#mod-navigation-content .mod-navigation-button');
+      target?.focus({ preventScroll: true });
     }
   }
   return { state, expanded, close, toggle };

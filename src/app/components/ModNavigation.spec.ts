@@ -40,6 +40,21 @@ function mountNavigation(width: number) {
 }
 
 describe('workspace navigation controls', () => {
+  it('focuses the active narrow navigation entry without requesting scrolling', async () => {
+    const view = mountNavigation(600);
+    try {
+      const buttons = view.findAll('.mod-navigation-button');
+      buttons[0]!.element.classList.remove('active');
+      buttons[1]!.element.classList.add('active');
+      const focus = vi.spyOn(buttons[1]!.element as HTMLButtonElement, 'focus');
+      await view.get('[aria-controls="mod-navigation-content"]').trigger('click');
+      await flushPromises();
+      expect(focus).toHaveBeenCalledExactlyOnceWith({ preventScroll: true });
+      expect(document.activeElement).toBe(buttons[1]!.element);
+    } finally {
+      view.unmount();
+    }
+  });
   it.each(['ready', 'loading', 'error', 'dirty'] as const)('shows the Core status beside its icon: %s', async (status) => {
     coreModRoot.value = 'D:/game/starsector-core';
     const core = useCoreAssetsStore();

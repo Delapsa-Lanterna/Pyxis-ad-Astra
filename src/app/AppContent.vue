@@ -6,9 +6,17 @@
     :data-theme="settings.theme"
     ><template #titlebar><TitleBar /></template
     ><template #tabs><ModTabsBar :refresh-actions="actions" @remove-mod="actions.confirmRemoveMod" /></template
-    ><template #navigation><ModNavigation /></template><template #notice><ProjectSyncNotice /></template
+    ><template #navigation><ModNavigation /></template
+    ><template #notice>
+      <div v-if="actions.openingDirectory.value || actions.refreshingWorkspace.value" class="ui-notice" role="status">
+        <div v-if="actions.openingDirectory.value">正在打开目录…</div>
+        <div v-if="actions.refreshingWorkspace.value">正在刷新工作区…</div>
+      </div>
+      <ProjectSyncNotice /></template
     ><OverviewPage
       v-if="workspace.currentView === 'overview'"
+      :opening-directory="actions.openingDirectory.value"
+      :refreshing-workspace="actions.refreshingWorkspace.value"
       @import-mod="actions.openDirectory"
       @refresh-workspace="actions.refreshWorkspace"
       @close-workspace="actions.confirmCloseWorkspace"

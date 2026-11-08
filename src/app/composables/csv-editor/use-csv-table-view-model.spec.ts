@@ -19,6 +19,7 @@ import { dispatchProjectChangeFixture, committedChangeFixture, closeProjectChang
 import { csvDraftRow, csvTableIndex } from '@/test/fixtures/csv-row';
 import { deepClone } from '@/shared/lib/starsector';
 import { ref } from 'vue';
+import { pauseQueryReads } from '@/app/composables/use-query-read-owner';
 import type { CsvDraftRow, CsvTableIndex, CsvTableRowsRead } from '@/shared/types';
 const mocks = vi.hoisted(() => ({
   index: vi.fn<typeof CsvTableServiceModule.queryTableIndex>(),
@@ -99,6 +100,102 @@ beforeEach(() => {
 });
 afterEach(() => wrapper?.unmount());
 describe('CSV index and keyed content owner', () => {
+  it('shows the resumed index read after a cancelled window close', async () => {
+    const releases: Array<() => void> = [];
+    mocks.index.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          releases.push(() => resolve(csvTableIndex(rows.slice(0, 2))));
+        }),
+    );
+    const vm = harness();
+    const resume = pauseQueryReads();
+    onTestFinished(async () => {
+      await resume();
+      wrapper.unmount();
+      releases.forEach((release) => release());
+      await flushPromises();
+    });
+    await flushPromises();
+    expect(vm.reading.value).toBe(false);
+    await resume();
+    await flushPromises();
+    expect(releases).toHaveLength(2);
+    expect(vm.reading.value).toBe(true);
+    releases.forEach((release) => release());
+    await flushPromises();
+    expect(vm.reading.value).toBe(false);
+  });
+  it('exposes initial reading and ends it after failure and retry', async () => {
+    let fail!: (error: Error) => void;
+    mocks.index.mockImplementationOnce(
+      () =>
+        new Promise((_resolve, reject) => {
+          fail = reject;
+        }),
+    );
+    const vm = harness();
+    onTestFinished(async () => {
+      wrapper.unmount();
+      fail(new Error('Released read'));
+      await flushPromises();
+    });
+    expect(vm.reading.value).toBe(true);
+    fail(new Error('Index fixture'));
+    await flushPromises();
+    expect(vm.reading.value).toBe(false);
+    expect(vm.readError.value).toContain('Index fixture');
+    await vm.retryRead();
+    expect(vm.readError.value).toBe('');
+    expect(vm.gridModel.value.rowKeys).toHaveLength(1000);
+    expect(mocks.index).toHaveBeenCalledTimes(2);
+    expect(mocks.rows).not.toHaveBeenCalled();
+  });
+  it('preserves drafts and raw inputs while a failed viewport is retried', async () => {
+    const vm = harness();
+    await flushPromises();
+    const tables = useCsvEditorStore(),
+      inputs = tables.getTableInputs(target.modRoot, target.table);
+    tables.updateCellValue({ ...target, rowKey: 'key-0', column: 'name' }, 'Local draft');
+    const cancel = vi.fn(),
+      commit = vi.fn(),
+      dirty = ref(true);
+    const release = inputs.register({ key: 'key-0/name', label: 'Name', dirty, cancel, commit, focus: vi.fn() });
+    onTestFinished(() => {
+      release();
+    });
+    const history = deepClone(tables.getCsvModState(target.modRoot)!.documents.ships.history);
+    mocks.rows.mockRejectedValueOnce(new Error('Viewport fixture'));
+    await vm.loadTableWindow(600, 20);
+    expect(vm.readError.value).toContain('Viewport fixture');
+    await vm.loadTableWindow(700, 20);
+    let finish!: (value: CsvTableRowsRead) => void;
+    mocks.rows.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const work = vm.retryRead();
+    onTestFinished(async () => {
+      wrapper.unmount();
+      finish?.(readRows([]));
+      await work;
+    });
+    await flushPromises();
+    expect(vm.reading.value).toBe(true);
+    expect(vm.model.view.rowsByKey['key-0']!.data.name).toBe('Local draft');
+    finish(readRows(rows.slice(600, 620).map((row) => row.rowKey)));
+    await work;
+    expect(vm.reading.value).toBe(false);
+    expect(vm.readError.value).toBe('');
+    expect(vm.model.view.rowsByKey['key-600']).toBeDefined();
+    expect(vm.model.view.rowsByKey['key-0']!.data.name).toBe('Local draft');
+    expect(tables.getCsvModState(target.modRoot)!.documents.ships.history).toEqual(history);
+    expect(dirty.value).toBe(true);
+    expect(cancel).not.toHaveBeenCalled();
+    expect(commit).not.toHaveBeenCalled();
+  });
   it('reloads an own-table token catalog only when its column values change', async () => {
     mocks.index.mockResolvedValue(
       csvTableIndex([csvDraftRow({ id: 'one', name: 'First', tags: 'token' }, 'key-0')], { header: ['id', 'name', 'tags'] }),

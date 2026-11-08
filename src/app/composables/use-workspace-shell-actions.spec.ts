@@ -1,6 +1,7 @@
 import { createPinia, setActivePinia } from 'pinia';
 import type { AppFeedback, ProjectManifest } from '@/shared/types';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi, onTestFinished } from 'vitest';
+import { flushPromises } from '@vue/test-utils';
 
 type WorkspaceOpeningOutcomeLike = Record<string, unknown> & { type: string };
 
@@ -119,6 +120,99 @@ describe('useWorkspaceShellActions', () => {
     const actions = useWorkspaceShellActions(feedback);
     await actions.openDirectory();
     expect(mocks.openWorkspaceDirectory).not.toHaveBeenCalled();
+    expect(actions.openingDirectory.value).toBe(false);
+  });
+
+  it.each(['success', 'failure', 'unmount'] as const)('shares directory selection and opening through %s', async (ending) => {
+    let pick!: (path: string) => void, finish!: () => void;
+    mocks.pickDirectory.mockImplementationOnce(
+      () =>
+        new Promise<string>((resolve) => {
+          pick = resolve;
+        }),
+    );
+    mocks.openWorkspaceDirectory.mockImplementationOnce(
+      () =>
+        new Promise((resolve, reject) => {
+          finish = () =>
+            ending === 'failure'
+              ? reject(new Error('Opening fixture'))
+              : resolve({ type: 'game-overview', root: 'M:/game', availableModCount: 0 });
+        }),
+    );
+    const scope = effectScope(),
+      feedback = feedbackStub();
+    const actions = scope.run(() => useWorkspaceShellActions(feedback))!;
+    const work = actions.openDirectory();
+    onTestFinished(async () => {
+      scope.stop();
+      pick('M:/game');
+      finish?.();
+      await work;
+    });
+    expect(actions.openDirectory()).toBe(work);
+    expect(actions.openingDirectory.value).toBe(false);
+    expect(mocks.pickDirectory).toHaveBeenCalledTimes(1);
+    pick('M:/game');
+    await flushPromises();
+    expect(actions.openingDirectory.value).toBe(true);
+    expect(actions.openDirectory()).toBe(work);
+    expect(mocks.openWorkspaceDirectory).toHaveBeenCalledTimes(1);
+    if (ending === 'unmount') scope.stop();
+    finish();
+    await work;
+    expect(actions.openingDirectory.value).toBe(false);
+    expect(feedback.error).toHaveBeenCalledTimes(ending === 'failure' ? 1 : 0);
+    expect(feedback.success).toHaveBeenCalledTimes(ending === 'success' ? 1 : 0);
+  });
+
+  it.each(['success', 'failure'] as const)('shares workspace refreshing across page changes and permits retry after %s', async (ending) => {
+    const root = 'M:/game',
+      overview = { starsectorRoot: root, coreAvailable: true, modsDir: root + '/mods', mods: [], warnings: [] };
+    const workspace = useWorkspaceStore();
+    workspace.setGameOverview(overview);
+    registerOverview('M:/alpha', 'a');
+    registerOverview('M:/beta', 'b');
+    const feedback = feedbackStub(),
+      actions = useWorkspaceShellActions(feedback);
+    let scanned!: () => void, refreshed!: () => void;
+    mocks.scanDirectoryGameOverview.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          scanned = () => resolve(overview);
+        }),
+    );
+    mocks.refreshProjectSourcePaths.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve, reject) => {
+          refreshed = () => (ending === 'failure' ? reject(new Error('Refresh fixture')) : resolve());
+        }),
+    );
+    const work = actions.refreshWorkspace();
+    onTestFinished(async () => {
+      scanned();
+      refreshed?.();
+      await work;
+    });
+    expect(actions.refreshWorkspace()).toBe(work);
+    expect(actions.refreshingWorkspace.value).toBe(true);
+    expect(mocks.scanDirectoryGameOverview).toHaveBeenCalledTimes(1);
+    workspace.showSettings();
+    scanned();
+    await flushPromises();
+    expect(actions.refreshingWorkspace.value).toBe(true);
+    expect(actions.refreshWorkspace()).toBe(work);
+    refreshed();
+    await work;
+    expect(actions.refreshingWorkspace.value).toBe(false);
+    expect(workspace.currentView).toBe('settings');
+    expect(mocks.refreshProjectSourcePaths).toHaveBeenCalledTimes(ending === 'success' ? 2 : 1);
+    expect(feedback.error).toHaveBeenCalledTimes(ending === 'failure' ? 1 : 0);
+    mocks.scanDirectoryGameOverview.mockResolvedValueOnce(overview);
+    mocks.refreshProjectSourcePaths.mockResolvedValue(undefined);
+    await actions.refreshWorkspace();
+    expect(mocks.scanDirectoryGameOverview).toHaveBeenCalledTimes(2);
+    expect(actions.refreshingWorkspace.value).toBe(false);
   });
 
   it('confirms removing a mod with unsaved changes and removes after confirmation', async () => {

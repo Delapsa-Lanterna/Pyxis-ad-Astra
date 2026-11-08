@@ -1,4 +1,4 @@
-import { computed, getCurrentScope, onScopeDispose } from 'vue';
+import { computed, getCurrentScope, onScopeDispose, shallowRef } from 'vue';
 import type { AppFeedback } from '@/shared/types';
 
 import { useProjectStore } from '@/stores/project.store';
@@ -36,6 +36,9 @@ export function useWorkspaceShellActions(feedback: AppFeedback) {
   const saveCommands = useSaveCommandStore();
   let disposed = false;
   let closeIntent: Promise<boolean> | null = null;
+  let directoryIntent: Promise<void> | null = null;
+  const directoryOpening = shallowRef<Promise<WorkspaceOpeningOutcome> | null>(null);
+  const workspaceRefresh = shallowRef<Promise<void> | null>(null);
   const removeIntents = new Map<string, Promise<void>>();
   if (getCurrentScope())
     onScopeDispose(() => {
@@ -46,14 +49,25 @@ export function useWorkspaceShellActions(feedback: AppFeedback) {
     return switchWorkspaceCoreSource(root, requestClose, commitSettings);
   }
 
-  async function openDirectory() {
+  function openDirectory() {
+    if (directoryIntent) return directoryIntent;
+    directoryIntent = chooseAndOpenDirectory().finally(() => {
+      directoryIntent = null;
+    });
+    return directoryIntent;
+  }
+
+  async function chooseAndOpenDirectory() {
     try {
       const selected = await pickDirectory();
-      if (!selected) return;
-      const outcome = await openWorkspaceDirectory(selected, workspace.gameOverview?.starsectorRoot ?? null);
-      handleWorkspaceOpeningOutcome(outcome, selected);
+      if (!selected || disposed) return;
+      directoryOpening.value = openWorkspaceDirectory(selected, workspace.gameOverview?.starsectorRoot ?? null);
+      const outcome = await directoryOpening.value;
+      if (!disposed) handleWorkspaceOpeningOutcome(outcome, selected);
     } catch (err) {
-      feedback.error(err);
+      if (!disposed) feedback.error(err);
+    } finally {
+      directoryOpening.value = null;
     }
   }
 
@@ -128,7 +142,15 @@ export function useWorkspaceShellActions(feedback: AppFeedback) {
     }
   }
 
-  async function refreshWorkspace() {
+  function refreshWorkspace() {
+    if (workspaceRefresh.value) return workspaceRefresh.value;
+    workspaceRefresh.value = refreshWorkspaceContents().finally(() => {
+      workspaceRefresh.value = null;
+    });
+    return workspaceRefresh.value;
+  }
+
+  async function refreshWorkspaceContents() {
     const root = workspace.gameOverview?.starsectorRoot;
     const generation = workspace.getWorkspaceGeneration();
     const accepts = () => !disposed && workspace.getWorkspaceGeneration() === generation;
@@ -266,6 +288,8 @@ export function useWorkspaceShellActions(feedback: AppFeedback) {
   }
 
   return {
+    openingDirectory: computed(() => directoryOpening.value !== null),
+    refreshingWorkspace: computed(() => workspaceRefresh.value !== null),
     switchCoreSource,
     settleWorkspaceOpenings,
     confirmCloseWorkspace,

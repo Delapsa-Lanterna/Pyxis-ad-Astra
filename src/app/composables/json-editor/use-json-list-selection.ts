@@ -1,4 +1,4 @@
-import { computed, onScopeDispose, ref, watch, type Ref } from 'vue';
+import { computed, onScopeDispose, ref, shallowRef, watch, type Ref } from 'vue';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
 import { useSaveCommandStore } from '@/stores/save-command.store';
 import { useJsonEditorStore } from '@/stores/json-editor.store';
@@ -20,6 +20,7 @@ export function useJsonListSelection(options: {
   const deletedTarget = ref(false);
   const locked = ref(false);
   const writing = ref(false);
+  const selectionRequest = shallowRef<{ id: string | null; work: Promise<boolean> } | null>(null);
   const feedback = useAppFeedback();
   const commands = useSaveCommandStore();
   const jsonEditors = useJsonEditorStore();
@@ -112,14 +113,23 @@ export function useJsonListSelection(options: {
   }
 
   async function select(id: string | null, accepts: () => boolean = () => true) {
-    if (id === selectedId.value && !deletedTarget.value) return;
+    if (id === selectedId.value && !deletedTarget.value) {
+      if (selectionRequest.value) commands.beginTransition();
+      selectionRequest.value = null;
+      return;
+    }
     const captured = key.value;
+    const request = { id, work: prepare() };
+    selectionRequest.value = request;
     try {
-      if (!(await prepare()) || !accepts()) return;
+      if (!(await request.work) || !accepts()) return;
       selectedId.value = id;
       deletedTarget.value = false;
     } catch (error) {
-      if (!disposed && captured === key.value && accepts()) feedback.error(error, `切换${options.label}失败`);
+      if (!disposed && captured === key.value && selectionRequest.value === request && accepts())
+        feedback.error(error, `切换${options.label}失败`);
+    } finally {
+      if (selectionRequest.value === request) selectionRequest.value = null;
     }
   }
 
@@ -182,6 +192,7 @@ export function useJsonListSelection(options: {
       deletedTarget.value = false;
       currentRequestId.value = null;
       locked.value = false;
+      selectionRequest.value = null;
     },
     { flush: 'sync' },
   );
@@ -198,11 +209,13 @@ export function useJsonListSelection(options: {
   );
   onScopeDispose(() => {
     disposed = true;
+    selectionRequest.value = null;
     confirmations.forEach((finish) => finish(false));
     currentRequestId.value = null;
   });
 
   return {
+    selectingId: computed(() => selectionRequest.value?.id ?? null),
     selectedId,
     deletedTarget,
     locked,

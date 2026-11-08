@@ -1,4 +1,12 @@
 <template>
+  <div
+    v-if="csvTable.reading.value || csvTable.readError.value"
+    class="table-external-update-note ui-control-between ui-text-note"
+    role="status"
+  >
+    <span>{{ csvTable.reading.value ? '正在读取表格…' : csvTable.readError.value }}</span>
+    <n-button v-if="csvTable.readError.value" size="tiny" :loading="csvTable.reading.value" @click="csvTable.retryRead">重试</n-button>
+  </div>
   <div v-if="view.currentTableLocked" class="table-external-update-note ui-control-between ui-text-note">
     <span>规格身份正在交接，本表稍后恢复编辑。</span>
   </div>

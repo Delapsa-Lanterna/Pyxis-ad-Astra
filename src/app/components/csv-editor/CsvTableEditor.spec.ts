@@ -20,8 +20,18 @@ afterEach(() => {
   wrapper = null;
 });
 
-function tableVmFixture(overrides: { tables?: Record<string, unknown>; loadExternalTableUpdate?: () => void } = {}): CsvTableViewModel {
+function tableVmFixture(
+  overrides: {
+    tables?: Record<string, unknown>;
+    loadExternalTableUpdate?: () => void;
+    reading?: ReturnType<typeof ref<boolean>>;
+    readError?: ReturnType<typeof ref<string>>;
+  } = {},
+): CsvTableViewModel {
   return {
+    reading: overrides.reading ?? ref(false),
+    readError: overrides.readError ?? ref(''),
+    retryRead: vi.fn(),
     target: ref({ sessionId: 'sess-1', modRoot: 'M:/mod', table: 'ships' }),
     gridModel: ref({ columns: [], rows: [], totalWidthPx: 0, performanceSample: {}, sourceIndex: {} }),
     effectiveColumns: ref([]),
@@ -80,6 +90,26 @@ function mountTable(vm: CsvTableViewModel) {
 }
 
 describe('CsvTableEditor', () => {
+  it('keeps the grid mounted while reading and retries from its failure notice', async () => {
+    const reading = ref(false),
+      readError = ref('');
+    const vm = tableVmFixture({ reading, readError });
+    const mounted = mountTable(vm),
+      grid = mounted.get('.csv-grid-stub').element;
+    reading.value = true;
+    await mounted.vm.$nextTick();
+    expect(mounted.get('[role="status"]').text()).toContain('正在读取表格');
+    expect(mounted.get('.csv-grid-stub').element).toBe(grid);
+    reading.value = false;
+    readError.value = 'Table read fixture';
+    await mounted.vm.$nextTick();
+    await mounted.get('[role="status"] button').trigger('click');
+    expect(vm.retryRead).toHaveBeenCalledTimes(1);
+    expect(mounted.get('.csv-grid-stub').element).toBe(grid);
+    readError.value = '';
+    await mounted.vm.$nextTick();
+    expect(mounted.find('[role="status"]').exists()).toBe(false);
+  });
   it.each(['undo', 'redo'] as const)('forwards %s to the CSV action owner', (command) => {
     const mounted = mountTable(tableVmFixture());
     mounted.findComponent(CsvGrid).vm.$emit(command);

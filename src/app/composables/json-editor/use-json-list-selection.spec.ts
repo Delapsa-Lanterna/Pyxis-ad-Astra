@@ -1,7 +1,7 @@
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 import { ref } from 'vue';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi, onTestFinished } from 'vitest';
 import { useJsonListSelection } from './use-json-list-selection';
 import { useJsonEditorStore } from '@/stores/json-editor.store';
 import { createFieldInputs } from '@/shared/runtime/field-inputs';
@@ -96,6 +96,37 @@ function mutation(
 }
 
 describe('config list selection and action boundaries', () => {
+  it.each(['complete', 'newer', 'original', 'session', 'unmount', 'failure'] as const)(
+    'tracks only the current selection preparation through %s',
+    async (ending) => {
+      const { selection, sessionId } = harness();
+      let finish!: (value: boolean) => void, fail!: (error: Error) => void;
+      const wait = new Promise<boolean>((resolve, reject) => {
+        finish = resolve;
+        fail = reject;
+      });
+      vi.spyOn(useJsonEditorStore().active!.inputs, 'commit').mockReturnValueOnce(wait);
+      const pending = selection.select('b');
+      onTestFinished(async () => {
+        finish(true);
+        await pending;
+      });
+      expect(selection.selectingId.value).toBe('b');
+      expect(selection.locked.value).toBe(false);
+      if (ending === 'newer') await selection.select('c');
+      else if (ending === 'original') await selection.select('a');
+      else if (ending === 'session') {
+        sessionId.value = 's2';
+        await flushPromises();
+      } else if (ending === 'unmount') wrapper.unmount();
+      if (ending === 'failure') fail(new Error('Preparation fixture'));
+      else finish(true);
+      await pending;
+      expect(selection.selectingId.value).toBeNull();
+      expect(selection.selectedId.value).toBe(ending === 'complete' ? 'b' : ending === 'newer' ? 'c' : ending === 'session' ? null : 'a');
+      expect(mocks.feedback.error).toHaveBeenCalledTimes(ending === 'failure' ? 1 : 0);
+    },
+  );
   it('selects the domain-ordered first item and retains a surviving selection', () => {
     const { selection } = harness();
     expect(selection.selectedId.value).toBe('a');

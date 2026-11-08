@@ -6,7 +6,7 @@ import { useContextMenuScope } from '@/app/composables/use-context-menu';
 import { refreshProjectSourcePaths, observeSavedContent, sessionContentUpdate } from '@/orchestrators/project-sync.orchestrator';
 import { parseCsvFieldSource, CONFIG_FIELD_SOURCES, isConfigFieldSource } from '@/domain/schema/schema-source-definitions';
 import { useQueryReadOwner } from '@/app/composables/use-query-read-owner';
-import { computed, onUnmounted, ref, watch } from 'vue';
+import { computed, onUnmounted, ref, shallowReactive, shallowRef, watch } from 'vue';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
 import { useProjectStore } from '@/stores/project.store';
 import { useCsvEditorStore } from '@/stores/csv-editor.store';
@@ -25,6 +25,8 @@ import { queryCsvValidation } from '@/services/csv-table.service';
 import { csvValidationRows } from '@/domain/csv-editor/csv-validation';
 import { csvValidationRequest, hasCsvValidationInvalidation } from '@/domain/csv-editor/csv-rule-context';
 import { currentWindowLabel } from '@/windows/current.window';
+import { formatError } from '@/shared/lib/errors';
+import { waitForRead } from '@/shared/runtime/read-request';
 
 export function useCsvTableViewModel(model: CsvEditorModel, host: CsvEditorHost) {
   const tables = useCsvEditorStore();
@@ -32,10 +34,16 @@ export function useCsvTableViewModel(model: CsvEditorModel, host: CsvEditorHost)
   const view = model.view;
   const feedback = useAppFeedback();
   const reads = useQueryReadOwner();
-  let readFailed = false;
+  const indexReads = shallowReactive(new Set<Promise<unknown>>());
+  const readErrors = shallowReactive(new Map<string, { message: string; keys: string[] }>());
+  function trackIndexRead<T>(work: Promise<T>, signal: AbortSignal) {
+    const waiting = waitForRead(work, target.value!, signal);
+    indexReads.add(waiting);
+    return waiting.finally(() => indexReads.delete(waiting));
+  }
   let validationFailed = false;
   let validationPending: { key: string; work: Promise<boolean> } | null = null;
-  let pendingRows = new Map<string, Promise<void>>();
+  const pendingRows = shallowRef(shallowReactive(new Map<string, Promise<void>>()));
   const rowQueue: Array<{ keys: string[]; required: boolean; run: () => Promise<void>; cancel: () => void }> = [];
   let rowReads = 0;
   let lastRange = { start: 0, count: 240 };
@@ -295,12 +303,15 @@ export function useCsvTableViewModel(model: CsvEditorModel, host: CsvEditorHost)
             'index',
             { ...captured, requestId: event.result.requestId },
             (signal) =>
-              queryTableIndex(
-                captured.sessionId,
-                captured.table,
-                lastRange.start === 0 ? lastRange.count : 0,
-                view.searchText || null,
-                view.searchField,
+              trackIndexRead(
+                queryTableIndex(
+                  captured.sessionId,
+                  captured.table,
+                  lastRange.start === 0 ? lastRange.count : 0,
+                  view.searchText || null,
+                  view.searchField,
+                  signal,
+                ),
                 signal,
               ),
             {
@@ -309,6 +320,7 @@ export function useCsvTableViewModel(model: CsvEditorModel, host: CsvEditorHost)
                 if (fromSave) tables.acceptSavedTableIndex(captured, index, filtered);
                 else tables.applyTableIndex(captured, index, filtered);
                 refreshAfterSave = false;
+                if (readErrors.delete('index')) tables.getTableProblems(captured).clearFailure();
                 windowReady.value = true;
                 lockColumnWidthsForLoadedModel();
               },
@@ -379,6 +391,7 @@ export function useCsvTableViewModel(model: CsvEditorModel, host: CsvEditorHost)
   });
 
   function clearLocalQueryState() {
+    readErrors.clear();
     windowReady.value = false;
     reads.revoke();
     clearRowQueue();
@@ -442,7 +455,7 @@ export function useCsvTableViewModel(model: CsvEditorModel, host: CsvEditorHost)
     await reads.consume(
       'index',
       { ...captured, search, field, generation },
-      (signal) => queryTableIndex(captured.sessionId, captured.table, initialCount, search, field, signal),
+      (signal) => trackIndexRead(queryTableIndex(captured.sessionId, captured.table, initialCount, search, field, signal), signal),
       {
         ready: (index) => {
           if (
@@ -458,8 +471,7 @@ export function useCsvTableViewModel(model: CsvEditorModel, host: CsvEditorHost)
             filtered,
           );
           if (initialCount) widthSample.value = cloneQuerySnapshot<CsvDraftRow[]>(index.rows.slice(0, 50));
-          if (readFailed) tables.getTableProblems(captured).clearFailure();
-          readFailed = false;
+          if (readErrors.delete('index')) tables.getTableProblems(captured).clearFailure();
           windowReady.value = true;
           accepted = true;
           void locateRequestedRow();
@@ -470,7 +482,7 @@ export function useCsvTableViewModel(model: CsvEditorModel, host: CsvEditorHost)
             state === tables.getCsvModState(captured.modRoot) &&
             generation === tables.tableReadGeneration(captured.modRoot, captured.table)
           ) {
-            readFailed = true;
+            readErrors.set('index', { message: formatError(error), keys: [] });
             tables.getTableProblems(captured).recordFailure(error);
             feedback.error(error, '加载表格索引失败');
           }
@@ -527,6 +539,18 @@ export function useCsvTableViewModel(model: CsvEditorModel, host: CsvEditorHost)
     const accepted = await loadIndex(false, 240);
     if (accepted && !disposed && identity === targetKey.value && view.searchText.trim() && !hasSearch) await loadIndex(true, 0);
   }
+  async function retryRead() {
+    const identity = targetKey.value;
+    const failedKeys = [...readErrors.values()].flatMap((failure) => failure.keys);
+    if (windowReady.value) await loadIndex(Boolean(view.searchText.trim()), 0);
+    else await initializeIndex();
+    if (!disposed && identity === targetKey.value && windowReady.value) {
+      await loadRows([...new Set([...failedKeys, ...view.rowKeys.slice(lastRange.start, lastRange.start + lastRange.count)])]);
+      if (disposed || identity !== targetKey.value) return;
+      for (const [lane, failure] of readErrors)
+        if (lane !== 'index' && failure.keys.every((key) => view.rowsByKey[key])) readErrors.delete(lane);
+    }
+  }
   function drainRows() {
     while (rowReads < 2 && rowQueue.length) {
       rowReads++;
@@ -559,8 +583,8 @@ export function useCsvTableViewModel(model: CsvEditorModel, host: CsvEditorHost)
       }
     }
     const generation = tables.tableReadGeneration(captured.modRoot, captured.table);
-    const keys = requested.filter((key) => !state.documents[captured.table].rows[key] && !pendingRows.has(key));
-    const pending = pendingRows;
+    const keys = requested.filter((key) => !state.documents[captured.table].rows[key] && !pendingRows.value.has(key));
+    const pending = pendingRows.value;
     const waits: Promise<void>[] = requested.flatMap((key) => (pending.has(key) ? [pending.get(key)!] : []));
     let priority = 0;
     for (let offset = 0; offset < keys.length; offset += rowBatchSize.value) {
@@ -587,15 +611,19 @@ export function useCsvTableViewModel(model: CsvEditorModel, host: CsvEditorHost)
                       generation === tables.tableReadGeneration(captured.modRoot, captured.table) &&
                       !view.saving &&
                       !view.currentTableLocked
-                    )
+                    ) {
                       tables.applyTableRows(captured, rows);
+                      readErrors.delete('rows:' + batch[0]);
+                    }
                   },
                   error: (error) => {
                     if (
                       state === tables.getCsvModState(captured.modRoot) &&
                       generation === tables.tableReadGeneration(captured.modRoot, captured.table)
-                    )
+                    ) {
+                      readErrors.set('rows:' + batch[0], { message: formatError(error), keys: batch });
                       feedback.error(error, '加载表格内容失败');
+                    }
                   },
                 },
               );
@@ -650,7 +678,7 @@ export function useCsvTableViewModel(model: CsvEditorModel, host: CsvEditorHost)
   function clearRowQueue() {
     for (const job of rowQueue) job.cancel();
     rowQueue.length = 0;
-    pendingRows = new Map();
+    pendingRows.value = shallowReactive(new Map());
   }
 
   async function reloadVisibleSourceOptions(required = false, requested = [...visibleSourceIds()]) {
@@ -702,6 +730,9 @@ export function useCsvTableViewModel(model: CsvEditorModel, host: CsvEditorHost)
   }
 
   return {
+    reading: computed(() => indexReads.size > 0 || pendingRows.value.size > 0 || searchPending.value),
+    readError: computed(() => [...readErrors.values()][0]?.message ?? ''),
+    retryRead,
     model,
     target,
     targetKey,

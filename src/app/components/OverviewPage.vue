@@ -16,6 +16,7 @@
     <WorkspaceGameOverview
       v-if="workspace.gameOverview"
       :overview="workspace.gameOverview"
+      :refreshing="refreshingWorkspace"
       :opening-failures="workspace.modOpeningFailureList"
       @create-mod="beginCreateMod"
       @refresh-workspace="$emit('refresh-workspace')"
@@ -33,7 +34,7 @@
         <p class="empty-state-description ui-text-muted ui-text-reset">打开游戏目录，或打开一个 Mod 目录。</p>
         <div class="overview-empty-actions action-group">
           <n-button size="large" @click="beginCreateMod">创建新 Mod</n-button>
-          <n-button size="large" @click="$emit('import-mod')">打开目录</n-button>
+          <n-button size="large" :loading="openingDirectory" @click="$emit('import-mod')">打开目录</n-button>
         </div>
       </section>
 
@@ -74,6 +75,7 @@ import ModOpeningFailureList from '@/app/components/ModOpeningFailureList.vue';
 import { useWorkspaceModCreation } from '@/app/composables/use-workspace-mod-creation';
 import { useWorkspaceStore } from '@/stores/workspace.store';
 
+defineProps<{ openingDirectory?: boolean; refreshingWorkspace?: boolean }>();
 defineEmits<{
   'import-mod': [];
   'refresh-workspace': [];

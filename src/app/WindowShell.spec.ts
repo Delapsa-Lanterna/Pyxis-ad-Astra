@@ -3,6 +3,7 @@ import { createPinia, setActivePinia } from 'pinia';
 import { nextTick } from 'vue';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import WindowShell from './WindowShell.vue';
+import WindowTooltip from '@/app/components/WindowTooltip.vue';
 import { initializeSettingsStore, useSettingsStore } from '@/stores/settings.store';
 import { useWorkspaceStore } from '@/stores/workspace.store';
 import { useProjectStore } from '@/stores/project.store';
@@ -58,6 +59,35 @@ function mountWindow(mode: 'main' | 'child') {
 }
 
 describe('window Core root assembly', () => {
+  it('retains its popover for leaving and restores the previous anchor before opening the next', async () => {
+    vi.useFakeTimers();
+    mountWindow('main');
+    const first = document.createElement('button'),
+      second = document.createElement('button');
+    first.title = 'First tooltip';
+    second.title = 'Second tooltip';
+    document.body.append(first, second);
+    try {
+      first.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+      await vi.advanceTimersByTimeAsync(400);
+      const popover = wrapper.getComponent(WindowTooltip).getComponent(nPopover);
+      first.dispatchEvent(new MouseEvent('mouseout', { bubbles: true, relatedTarget: document.body }));
+      await nextTick();
+      expect(first.title).toBe('First tooltip');
+      expect(wrapper.getComponent(WindowTooltip).getComponent(nPopover).vm.$.uid).toBe(popover.vm.$.uid);
+      expect(popover.props('show')).toBe(false);
+      second.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+      await vi.advanceTimersByTimeAsync(400);
+      expect(wrapper.get('[role="tooltip"]').text()).toBe('Second tooltip');
+      expect(wrapper.getComponent(WindowTooltip).getComponent(nPopover).vm.$.uid).toBe(popover.vm.$.uid);
+      wrapper.unmount();
+      expect(second.title).toBe('Second tooltip');
+    } finally {
+      first.remove();
+      second.remove();
+      vi.useRealTimers();
+    }
+  });
   it('shares one title tooltip, accepts updated content and restores attributes on release', async () => {
     vi.useFakeTimers();
     mountWindow('main');

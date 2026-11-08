@@ -43,7 +43,6 @@ function close() {
   observer.disconnect();
   if (anchor?.getAttribute('title') === '') anchor.setAttribute('title', text.value);
   anchor = null;
-  text.value = '';
 }
 function suppressTitle() {
   anchor!.setAttribute('title', '');

@@ -11,7 +11,7 @@
       </div>
       <div class="game-overview-actions action-group">
         <n-button size="small" @click="$emit('create-mod')">创建新 Mod</n-button>
-        <n-button size="small" @click="$emit('refresh-workspace')">刷新工作区</n-button>
+        <n-button size="small" :loading="refreshing" @click="$emit('refresh-workspace')">刷新工作区</n-button>
         <n-button size="small" secondary type="error" @click="$emit('close-workspace')">关闭工作区</n-button>
       </div>
     </div>
@@ -38,7 +38,7 @@
       </p>
       <div class="game-overview-actions action-group">
         <n-button size="small" @click="$emit('create-mod')">创建新 Mod</n-button>
-        <n-button size="small" @click="$emit('refresh-workspace')">刷新工作区</n-button>
+        <n-button size="small" :loading="refreshing" @click="$emit('refresh-workspace')">刷新工作区</n-button>
         <n-button size="small" secondary type="error" @click="$emit('close-workspace')">关闭工作区</n-button>
       </div>
     </div>
@@ -78,7 +78,7 @@ import { appendFileReferenceLocation, extractFileReferenceFromError, formatError
 import { useWorkspaceStore } from '@/stores/workspace.store';
 import { useWorkspaceNavigationActions } from '@/app/composables/use-workspace-navigation-actions';
 
-defineProps<{ openingFailures: ModOpeningFailure[]; overview: GameOverviewData }>();
+defineProps<{ openingFailures: ModOpeningFailure[]; overview: GameOverviewData; refreshing?: boolean }>();
 defineEmits<{
   'create-mod': [];
   'refresh-workspace': [];

@@ -83,20 +83,21 @@
         aria-controls="csv-detail-panel"
         @click="detailPaneExpanded = !detailPaneExpanded"
       />
-      <aside
-        id="csv-detail-panel"
-        v-show="detailPaneExpanded"
-        class="csv-detail-panel ui-content-column ui-content-contained ui-content-surface-muted"
-      >
-        <EditorProblems :issues="problems.issues.value" @locate="locateProblem" />
-        <CsvRowDetails
-          :model="model"
-          :starsector-root="host.starsectorRoot.value"
-          :query-row-preview="csvTable.querySelectedRowPreview"
-          :source-index="csvTable.sourceIndex.value"
-          @detail-action="actions.handleDetailAction"
-        />
-      </aside>
+      <Transition name="editor-collapse"
+        ><aside
+          id="csv-detail-panel"
+          v-show="detailPaneExpanded"
+          class="csv-detail-panel ui-content-column ui-content-contained ui-content-surface-muted"
+        >
+          <EditorProblems :issues="problems.issues.value" @locate="locateProblem" />
+          <CsvRowDetails
+            :model="model"
+            :starsector-root="host.starsectorRoot.value"
+            :query-row-preview="csvTable.querySelectedRowPreview"
+            :source-index="csvTable.sourceIndex.value"
+            @detail-action="actions.handleDetailAction"
+          /></aside
+      ></Transition>
     </section>
   </section>
 </template>

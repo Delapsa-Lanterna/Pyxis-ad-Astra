@@ -4,9 +4,26 @@ import { describe, expect, it, vi } from 'vitest';
 import NCollapseItem from './EditorCollapseItem.vue';
 import EditorCollapse from './EditorCollapse.vue';
 import { installNaiveUi } from '@/app/naive-ui.runtime';
-import { waitForEditorCollapse } from './editor-collapse';
+import { scrollToNearest, waitForEditorCollapse } from './editor-collapse';
 
 describe('EditorCollapse', () => {
+  it.each([false, true])('uses the current reduced motion preference when locating a field: %s', (reduced) => {
+    const element = document.createElement('div'),
+      scrollTo = vi.fn();
+    element.scrollTo = scrollTo;
+    element.scrollTop = 50;
+    document.body.append(element);
+    try {
+      element.style.setProperty('--ui-motion-duration', reduced ? '0ms' : '100ms');
+      scrollToNearest(element, 100, 300, 12);
+      expect(scrollTo).toHaveBeenLastCalledWith({ left: 12, top: 100, behavior: reduced ? 'auto' : 'smooth' });
+      element.style.setProperty('--ui-motion-duration', reduced ? '100ms' : '0ms');
+      scrollToNearest(element, 100, 300, 12);
+      expect(scrollTo).toHaveBeenLastCalledWith({ left: 12, top: 100, behavior: reduced ? 'smooth' : 'auto' });
+    } finally {
+      element.remove();
+    }
+  });
   it.each(['reopen', 'unmount'])('settles pending hiding when its group changes through %s', async (boundary) => {
     const expanded = ref<(string | number)[]>(['field']);
     const view = mount(

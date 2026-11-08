@@ -25,7 +25,7 @@ export function scrollToNearest(scroll: HTMLElement, alignTop: number, alignBott
   scroll.scrollTo({
     left,
     top: Math.max(Math.min(alignTop, alignBottom), Math.min(scroll.scrollTop, Math.max(alignTop, alignBottom))),
-    behavior: 'smooth',
+    behavior: getComputedStyle(scroll).getPropertyValue('--ui-motion-duration').trim() === '0ms' ? 'auto' : 'smooth',
   });
 }
 

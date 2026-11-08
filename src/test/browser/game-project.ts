@@ -302,7 +302,7 @@ export function createWorkspaceProject(root: string, index: number) {
     const indexed = command.includes('indexed_config');
     const kind = indexed ? input.kind : command.includes('variant') ? 'variant' : 'skin';
     const deleting = command.startsWith('delete'),
-      previous = input.previousId ?? input.entityId ?? input.id;
+      previous = input.previousId ?? input.entityId ?? input.id ?? input.nextId;
     const id = deleting ? previous : input.nextId;
     const existing = entities.get(entityKey(kind, previous));
     const next = entityTargetFixture(kind, id, 'existing', root);
@@ -372,8 +372,11 @@ export function createWorkspaceProject(root: string, index: number) {
         ? null
         : { id, data, path: next.write.path, relPath: next.write.relPath };
     const result = write(value, { kind: 'json', origin }, touched);
-    if (existing && previous !== id && !deleting)
-      result.identityChanges.push({ before: existing.target, after: entities.get(entityKey(kind, id))!.target });
+    if (!deleting && (!indexed || (existing && previous !== id)))
+      result.identityChanges.push({
+        before: existing?.target ?? entityTargetFixture(kind, id, 'create', root),
+        after: entities.get(entityKey(kind, id))!.target,
+      });
     return result;
   }
   reindex();

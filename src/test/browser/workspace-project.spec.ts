@@ -7,8 +7,52 @@ import { createBrowserWorkspace } from './workspace-runtime';
 import { createWorkspaceProject, coreRoot, gameRoot, workspaceRoots } from './workspace-project';
 import { jsonDocumentMedia, jsonDocumentRecord, jsonDocumentSummary } from '@/domain/json-editor/json-document-definitions';
 import { composeJson } from '@/domain/json-composition';
+import { jsonEntitySavedData } from '@/domain/json-editor/json-file-records';
 
 describe('complete browser workspace fixtures', () => {
+  it.each((['variant', 'skin'] as const).flatMap((kind) => (['create', 'save', 'rename'] as const).map((action) => ({ kind, action }))))(
+    'delivers $kind identity and its actual path after $action',
+    async ({ kind, action }) => {
+      const workspace = createBrowserWorkspace();
+      const project = workspace.projects.find(
+        (owner) => owner.manifest.modRoot !== coreRoot && [...owner.entities.values()].some((entity) => entity.kind === kind),
+      )!;
+      const source = [...project.entities.values()].find((entity) => entity.kind === kind)!;
+      const original = project.textFiles.get(source.target.write.path)!;
+      const id = action === 'save' ? source.id : 'identity_fixture';
+      const data = { ...(source.data as T.RowData), [kind === 'variant' ? 'variantId' : 'skinHullId']: id, displayName: 'Edited fixture' };
+      const input: T.JsonFileSave = {
+        sessionId: project.manifest.sessionId,
+        modRoot: project.manifest.modRoot,
+        previousId: action === 'rename' ? source.id : null,
+        nextId: id,
+        data,
+        relPath: action === 'save' ? source.target.write.relPath : null,
+        baseVersions: action === 'create' ? [] : source.baseVersions,
+      };
+      const result = (await workspace.invoke('main', 'save_project', {
+        request: {
+          id: 'identity-fixture',
+          edits: [],
+          action: { kind: `${action === 'create' ? 'create' : 'save'}_${kind}_entity`, input },
+        },
+      })) as T.WriteResult;
+      const saved = jsonEntitySavedData(result);
+      expect(result.identityChanges).toHaveLength(1);
+      expect(saved).toMatchObject({ id, data, target: { state: 'existing', id } });
+      expect(result.identityChanges[0]!.before.state).toBe(action === 'create' ? 'create' : 'existing');
+      expect(saved.baseVersions).toEqual(
+        action === 'rename' ? [project.version(source.target.write.path), project.version(saved.path)] : [project.version(saved.path)],
+      );
+      expect(JSON.parse(project.textFiles.get(saved.path)!)).toEqual(data);
+      expect(project.history.undoStack).toHaveLength(1);
+      if (action === 'save') expect(saved.path).toBe(source.target.write.path);
+      else expect(project.textFiles.has(source.target.write.path)).toBe(action === 'create');
+      project.undo();
+      expect(project.textFiles.get(source.target.write.path)).toBe(original);
+      if (action !== 'save') expect(project.textFiles.has(saved.path)).toBe(false);
+    },
+  );
   it('keeps browser faction lists, details and inherited media aligned', async () => {
     const workspace = createBrowserWorkspace(),
       local = workspace.projects[1]!,

@@ -42,6 +42,7 @@ import type * as ProjectSyncOrchestratorModule from '@/orchestrators/project-syn
 import type * as MiscConfigServiceModule from '@/services/misc-config.service';
 import { h } from 'vue';
 import type { Component, VNode } from 'vue';
+import { pauseQueryReads } from '@/app/composables/use-query-read-owner';
 
 vi.mock('@/services/window.service', () => ({ releaseNativeWindowTargets: vi.fn(async () => {}) }));
 const mocks = vi.hoisted(() => ({
@@ -64,6 +65,7 @@ const mocks = vi.hoisted(() => ({
   miscDelete: vi.fn<typeof MiscConfigServiceModule.deleteMiscConfig>(),
   openImmersive: vi.fn<typeof ImmersiveEditorOrchestratorModule.openVariantImmersiveEditor>(),
   hullTarget: vi.fn<typeof EntityQueryServiceModule.querySessionEntityEditTarget>(),
+  hullNames: vi.fn(async () => ({ hullNames: {} as Record<string, string> })),
   feedback: {
     error: vi.fn(),
     warning: vi.fn(),
@@ -158,7 +160,7 @@ vi.mock('@/services/json-entity.service', () => ({
   queryMissionDraftIcon: mocks.missionPreview,
 }));
 vi.mock('@/services/hull-reference.service', () => ({
-  querySessionHullReferences: async () => ({ hullNames: {} }),
+  querySessionHullReferences: mocks.hullNames,
   queryHullReferenceOptions: async () => [],
   queryBuiltInWeaponSlotOptions: mocks.slots,
 }));
@@ -237,6 +239,7 @@ beforeEach(() => {
   setActivePinia(createPinia());
   initializeSettingsStore(createSettingsFixture({ editMode: 'smart' }));
   vi.clearAllMocks();
+  mocks.hullNames.mockResolvedValue({ hullNames: {} });
   mocks.listeners.clear();
   entities = new Map();
   wrapper = null;
@@ -310,6 +313,189 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 describe('JSON common workspace and form', () => {
+  it.each(['variants', 'skins', 'factions', 'mission', 'misc-config'] as const)(
+    '%s selects and opens its first record after a paused initial list is replayed',
+    async (page) => {
+      mocks.hullNames.mockResolvedValue({ hullNames: { hull: 'Resumed hull' } });
+      const releases: Array<() => void> = [];
+      if (page === 'misc-config') {
+        mocks.miscList.mockImplementation(
+          () =>
+            new Promise((resolve) => {
+              releases.push(() => resolve([{ ...stringsFile, state: 'missing', error: null }]));
+            }),
+        );
+      } else {
+        const kind = ({ variants: 'variant', skins: 'skin', factions: 'faction', mission: 'mission' } as const)[page];
+        mocks.list.mockImplementation(
+          () =>
+            new Promise((resolve) => {
+              releases.push(() => resolve(['a', 'b'].map((id) => jsonEntityFixture(kind, id, 'Resumed fixture'))));
+            }),
+        );
+      }
+      await mountPage(page);
+      const resume = pauseQueryReads();
+      onTestFinished(async () => {
+        await resume();
+        wrapper?.unmount();
+        releases.forEach((release) => release());
+        await flushPromises();
+      });
+      await flushPromises();
+      await resume();
+      await flushPromises();
+      expect(releases).toHaveLength(2);
+      releases.forEach((release) => release());
+      await flushPromises();
+      const list = wrapper!.getComponent(JsonDocumentList);
+      expect(list.props('loading')).toBe(false);
+      expect(list.props('selectedId')).toBe(page === 'misc-config' ? 'strings' : 'a');
+      expect(list.find('.json-entity-list-item.active').exists()).toBe(true);
+      if (page === 'misc-config') expect(wrapper!.get('.empty-state button').text()).toBe('创建文件');
+      else expect(useJsonEditorStore().active!.target.value!.id).toBe('a');
+      if (page === 'variants') expect(list.find('.json-entity-list-item.active').text()).toContain('Resumed hull');
+    },
+  );
+  it('shows the list loader replay after a cancelled window close', async () => {
+    const releases: Array<() => void> = [];
+    mocks.list.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          releases.push(() => resolve([]));
+        }),
+    );
+    await mountPage('variants');
+    const list = wrapper!.getComponent(JsonDocumentList),
+      resume = pauseQueryReads();
+    onTestFinished(async () => {
+      await resume();
+      wrapper?.unmount();
+      releases.forEach((release) => release());
+      await flushPromises();
+    });
+    await flushPromises();
+    expect(list.props('loading')).toBe(false);
+    await resume();
+    await flushPromises();
+    expect(list.props('loading')).toBe(true);
+    expect(releases).toHaveLength(2);
+    releases.forEach((release) => release());
+    await flushPromises();
+    expect(list.props('loading')).toBe(false);
+    expect(list.text()).toContain('未找到');
+  });
+  it.each(['variants', 'skins', 'factions', 'mission'] as const)(
+    '%s distinguishes initial reading, failure and an empty retry result',
+    async (page) => {
+      let fail!: (error: Error) => void;
+      mocks.list.mockImplementationOnce(
+        () =>
+          new Promise((_resolve, reject) => {
+            fail = reject;
+          }),
+      );
+      onTestFinished(async () => {
+        wrapper?.unmount();
+        fail(new Error('Released list'));
+        await flushPromises();
+      });
+      await mountPage(page);
+      const list = wrapper!.getComponent(JsonDocumentList);
+      expect(list.get('.json-entity-list-count').text()).toBe('正在读取…');
+      expect(list.text()).not.toContain('未找到');
+      fail(new Error('List fixture'));
+      await flushPromises();
+      expect(list.get('[role="alert"]').text()).toContain('List fixture');
+      expect(list.text()).not.toContain('未找到');
+      expect(list.props('loading')).toBe(false);
+      mocks.list.mockResolvedValueOnce([]);
+      await list.get('[role="alert"] button').trigger('click');
+      await flushPromises();
+      expect(list.find('[role="alert"]').exists()).toBe(false);
+      expect(list.text()).toContain('未找到');
+      expect(mocks.list).toHaveBeenCalledTimes(2);
+    },
+  );
+  it.each(['variants', 'skins', 'factions', 'mission'] as const)(
+    '%s retains list nodes, focus and raw input through a failed refresh and retry',
+    async (page) => {
+      await mountPage(page);
+      const list = wrapper!.getComponent(JsonDocumentList),
+        field = nameInput(),
+        row = list.get('[data-entity-id="a"]').element;
+      field.element.focus();
+      await field.setValue('Raw draft');
+      const document = useJsonEditorStore().active!,
+        commit = vi.spyOn(document.inputs, 'commit');
+      let fail!: (error: Error) => void;
+      mocks.list.mockImplementationOnce(
+        () =>
+          new Promise((_resolve, reject) => {
+            fail = reject;
+          }),
+      );
+      const work = projectChangeFixture('s1', {
+        ...savedWriteFixture().invalidation,
+        queryScopes: [
+          {
+            kind: 'entity-list',
+            entity: { kind: ({ variants: 'variant', skins: 'skin', factions: 'faction', mission: 'mission' } as const)[page], id: '' },
+            table: null,
+            source: null,
+            resource: null,
+          },
+        ],
+      });
+      const failed = expect(work).rejects.toThrow('Refresh fixture');
+      onTestFinished(async () => {
+        wrapper?.unmount();
+        fail(new Error('Refresh fixture'));
+        await failed;
+      });
+      await flushPromises();
+      expect(list.props('loading')).toBe(true);
+      expect(list.get('[data-entity-id="a"]').element).toBe(row);
+      expect(nameInput().element).toBe(field.element);
+      expect(field.element.disabled).toBe(false);
+      fail(new Error('Refresh fixture'));
+      await failed;
+      await flushPromises();
+      expect(list.get('[role="alert"]').text()).toContain('Refresh fixture');
+      await list.get('[role="alert"] button').trigger('click');
+      await flushPromises();
+      expect(list.find('[role="alert"]').exists()).toBe(false);
+      expect(list.get('[data-entity-id="a"]').element).toBe(row);
+      expect(useJsonEditorStore().active).toBe(document);
+      expect(field.element.value).toBe('Raw draft');
+      expect(globalThis.document.activeElement).toBe(field.element);
+      expect(commit).not.toHaveBeenCalled();
+      expect(mocks.list).toHaveBeenCalledTimes(3);
+    },
+  );
+  it('marks the requested list item while waiting for its current input to finish', async () => {
+    await mountPage('variants');
+    const list = wrapper!.getComponent(JsonDocumentList),
+      editor = wrapper!.getComponent(JsonDocumentEditor);
+    let finish!: (value: boolean) => void;
+    const wait = new Promise<boolean>((resolve) => {
+      finish = resolve;
+    });
+    onTestFinished(async () => {
+      finish(true);
+      await wait;
+      await flushPromises();
+    });
+    vi.spyOn(useJsonEditorStore().active!.inputs, 'commit').mockReturnValueOnce(wait);
+    await list.get('[data-entity-id="b"]').trigger('click');
+    expect(list.get('[data-entity-id="b"]').text()).toContain('正在交接');
+    expect(wrapper!.getComponent(JsonDocumentEditor).vm.$.uid).toBe(editor.vm.$.uid);
+    expect(list.props('selectedId')).toBe('a');
+    finish(true);
+    await flushPromises();
+    expect(list.text()).not.toContain('正在交接');
+    expect(list.props('selectedId')).toBe('b');
+  });
   it.each(pages)('%s retains editor, form, input, focus and scroll through ordinary edits', async (page) => {
     mocks.previews.mockResolvedValue({ logoSrc: 'logo-image', crestSrc: 'crest-image' });
     mocks.missionPreview.mockResolvedValue('mission-image');
