@@ -36,7 +36,9 @@ describe('Spec problem ownership', () => {
     const displayed = problems.mapSaveError(error);
     expect(formatError(displayed)).toBe('请先解决顶部错误后再保存');
     expect(errorDiagnosticOf(displayed).code).toBe('io.denied');
-    expect(problems.issues.value).toMatchObject([{ severity: 'error', code: 'io.denied', path: 'M:/sample.ship', message: '写入失败' }]);
+    expect(problems.issues.value).toMatchObject([
+      { severity: 'error', code: 'io.denied', path: 'M:/sample.ship', message: '写入失败 · M:/sample.ship' },
+    ]);
     problems.clearFailure();
     expect(problems.issues.value).toEqual([]);
   });

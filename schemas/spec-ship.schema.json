@@ -175,6 +175,17 @@
     }
   ],
   "definitions": {
+    "bounds": {
+      "key": "bounds",
+      "label": "碰撞边界",
+      "type": "array",
+      "item": {
+        "key": "coordinate",
+        "label": "坐标",
+        "type": "float",
+        "required": true
+      }
+    },
     "slot": {
       "key": "slot",
       "label": "武器槽",

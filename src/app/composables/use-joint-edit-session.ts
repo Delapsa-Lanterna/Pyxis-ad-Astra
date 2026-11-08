@@ -1,10 +1,12 @@
 import { beginSavedWrite } from '@/orchestrators/project-sync.orchestrator';
-import { computed, onScopeDispose } from 'vue';
+import { computed, onScopeDispose, watch } from 'vue';
+import { createEditorProblems } from '@/shared/runtime/editor-problems';
+import { AppError, errorDiagnosticOf } from '@/shared/lib/errors';
 import { useEditTargetDraftSession, type EditTargetDraftSession } from '@/app/composables/use-edit-target-draft-session';
 import { useJointEditActions } from '@/app/composables/use-joint-edit-actions';
 import { useSaveCommandStore } from '@/stores/save-command.store';
 import { observeSavedContent, sessionContentUpdate } from '@/orchestrators/project-sync.orchestrator';
-import { jointWriteTargets, rebaseJointDraft, type JointIdentitySnapshot } from '@/domain/joint-edit';
+import { jointWriteTargets, rebaseJointDraft, jointCsvProblems, type JointIdentitySnapshot } from '@/domain/joint-edit';
 import type { JointEditRoot, JointEditSnapshot, JointValue, JointEditWriteResult, WriteContent, DeepReadonly } from '@/shared/types';
 import { queryJointEdit } from '@/services/joint-edit.service';
 import { cloneQuerySnapshot } from '@/shared/lib/query-snapshot';
@@ -51,6 +53,24 @@ export function useJointEditSession(
         meta: { snapshot, receipt: null, previous: null },
       };
     },
+    mapSaveError: (error) => {
+      if (!(error instanceof AppError && ['commit-field-inputs', 'joint-validation'].includes(error.action ?? ''))) {
+        const location = errorDiagnosticOf(error).location;
+        const record = session.baselineSnapshot.value!.meta.snapshot.records.find(
+          (record) =>
+            record.target.kind === 'csv' &&
+            record.target.rowKey === location?.rowKey &&
+            normalizeFsPath(record.target.write.path) === normalizeFsPath(location?.path ?? ''),
+        );
+        problems.recordFailure(error, record && location?.field ? JSON.stringify([record.key, location.field]) : undefined);
+      }
+      return error;
+    },
+    confirmSave: (_root, submitted) => {
+      if (jointCsvProblems(session.baselineSnapshot.value!.meta.snapshot, submitted).length)
+        throw new AppError('请先解决联合记录中的字段错误', { action: 'joint-validation' });
+      return true;
+    },
     save: async (_root, values, _versions, _original, request) => {
       const baseline = session.baselineSnapshot.value!;
       const result = await actions.save(
@@ -89,6 +109,10 @@ export function useJointEditSession(
         await options.afterBaseline?.(snapshot.meta.snapshot, snapshot.meta.receipt, snapshot.meta.previous);
     },
   });
+  const problems = createEditorProblems(session.inputs, () =>
+    session.baselineSnapshot.value ? jointCsvProblems(session.baselineSnapshot.value.meta.snapshot, session.draftValue.value) : [],
+  );
+  watch([session.context, session.draftValue], problems.clearFailure);
   const unregister = commands.registerSaveParticipant({
     targetKey: session.currentTargetKey,
     modRoot: computed(() => session.currentTarget.value?.modRoot ?? null),
@@ -177,5 +201,5 @@ export function useJointEditSession(
       overrideValues = undefined;
     });
   }
-  return { ...session, open, createOverrides, handoffLocked: computed(() => false) };
+  return { ...session, problems, open, createOverrides, handoffLocked: computed(() => false) };
 }

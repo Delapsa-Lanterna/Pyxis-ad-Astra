@@ -12,7 +12,7 @@
       <ul class="editor-problem-list ui-content-scroll ui-text-reset">
         <li
           v-for="issue in items(level)"
-          :key="`${issue.code}:${issue.path}`"
+          :key="`${issue.code}:${issue.location?.rowKey ?? ''}:${issue.path}`"
           role="button"
           tabindex="0"
           title="点击定位到对应位置"

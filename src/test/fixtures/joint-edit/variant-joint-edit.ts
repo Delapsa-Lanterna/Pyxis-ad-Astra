@@ -27,6 +27,7 @@ export function variantJointFixture(): JointEditSnapshot {
         'tech/manufacturer': 'High Tech',
         'ordnance points': '165',
         hitpoints: '8000',
+        mass: '1000',
         'armor rating': '800',
         'max speed': '80',
         'max flux': '11000',

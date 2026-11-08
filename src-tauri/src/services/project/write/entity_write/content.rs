@@ -10,64 +10,104 @@ use crate::errors::{AppError, AppResult};
 use crate::io::{FileChangeSetBuilder, FsRootBoundary, JsonWriteBatch, read_json_file};
 use crate::models::{
     EntityEditTarget, EntityIdentityChange, EntityKind, EntityLinkedRecord, EntityTargetState,
-    JsonWriteOptions, SaveEdit, SpecSave, WriteContentTarget, WriteResult,
+    JsonComposition, JsonWriteOptions, SaveEdit, SpecSave, WriteContentTarget, WriteResult,
 };
 use crate::services::project::model::ProjectSession;
 use crate::services::project::sources::json_documents;
 use crate::services::project::write::entity_write::descriptions::DescriptionRename;
 use crate::services::project::write::entity_write::{
-    descriptions, faction_index, variant_references,
+    descriptions, faction_index, single_files, variant_references,
 };
-use crate::services::query_json_composition;
 use crate::services::save_entity_spec as save_spec_via_service;
 use crate::services::{query_entity, require_entity_version_scope};
 use crate::{io, models, parsers};
 use serde_json::Value;
 use std::path::Path;
 
-pub fn save_entity_spec(
+fn content_schema(kind: EntityKind) -> Option<&'static Value> {
+    Some(parsers::bundled_schema(match kind {
+        EntityKind::Faction => "faction",
+        EntityKind::Skin => "skin",
+        EntityKind::Variant => "variant",
+        EntityKind::Ship => "spec-ship",
+        EntityKind::Weapon => "spec-weapon",
+        EntityKind::Projectile => "spec-projectile",
+        EntityKind::System => "spec-system",
+        _ => return None,
+    }))
+}
+
+pub fn validate_entity_content(
     session_id: &str,
-    target: &EntityEditTarget,
-    data: Value,
-    options: JsonWriteOptions,
-    ordered_json: Option<&str>,
-) -> AppResult<WriteResult<Value>> {
-    let mut composition = query_json_composition(session_id, &target.write.rel_path)?;
-    composition.replace |= options.replaces(&target.write.rel_path);
-    let effective = json_composition::compose_game_json(&composition, &data)?;
-    if let Some(schema_id) = match target.kind {
-        EntityKind::Faction => Some("faction"),
-        EntityKind::Skin => Some("skin"),
-        EntityKind::Variant => Some("variant"),
-        _ => None,
-    } {
-        let field = entity_spec_definition(target.kind)
-            .expect("JSON entity format")
-            .id_field;
-        if data
-            .get(field)
-            .and_then(Value::as_str)
-            .is_some_and(|id| !id.is_empty())
-        {
-            schema::validate_document(parsers::bundled_schema(schema_id), &effective)?;
-        }
+    kind: EntityKind,
+    relative: &str,
+    data: &Value,
+    options: &JsonWriteOptions,
+) -> AppResult<()> {
+    let handle = session_handle(session_id)?;
+    let session = lock_session(&handle)?;
+    let composition = source_layers::json_composition(&session, relative)?;
+    validate_entity_content_in(
+        &session,
+        kind,
+        relative,
+        data,
+        options.replaces(relative),
+        Some(&composition),
+    )
+}
+
+fn validate_entity_content_in(
+    session: &ProjectSession,
+    kind: EntityKind,
+    relative: &str,
+    data: &Value,
+    replacing: bool,
+    composition: Option<&JsonComposition>,
+) -> AppResult<()> {
+    let Some(schema) = content_schema(kind) else {
+        return Ok(());
+    };
+    let mut composition = composition.cloned().unwrap_or_default();
+    composition.replace |= replacing;
+    let effective = json_composition::compose_game_json(&composition, data)?;
+    let id_field = entity_spec_definition(kind).expect("spec format").id_field;
+    if data
+        .get(id_field)
+        .and_then(Value::as_str)
+        .is_none_or(str::is_empty)
+    {
+        schema::validate_partial_document(schema, data)?;
+    } else if matches!(
+        kind,
+        EntityKind::Faction | EntityKind::Skin | EntityKind::Variant
+    ) {
+        schema::validate_document(schema, &effective)?;
     }
-    if target.kind == EntityKind::Weapon
+    if kind == EntityKind::Weapon
         && data
-            .get("id")
+            .get(id_field)
             .and_then(Value::as_str)
             .is_some_and(|id| !id.is_empty())
         && effective.get("specClass").is_some()
     {
         entity_construction::validate_weapon_editor_spec(
             &effective,
-            Path::new(&target.write.path),
-            parsers::bundled_schema("spec-weapon"),
+            &Path::new(&session.manifest.mod_root).join(relative),
+            schema,
         )?;
     }
-    save_entity_content(session_id, target, data, options, ordered_json)
+    if kind == EntityKind::Skin && effective.get("baseHullId").is_some() {
+        single_files::validate_skin_engine_changes_in(session, &effective)?;
+    }
+    if kind == EntityKind::Ship
+        && let Some(bounds) = effective.get("bounds").filter(|value| !value.is_null())
+    {
+        schema::validate_field(&schema["definitions"]["bounds"], bounds, "bounds", true)?;
+    }
+    Ok(())
 }
-fn save_entity_content(
+pub fn save_entity_spec(
     session_id: &str,
     target: &EntityEditTarget,
     data: Value,
@@ -88,6 +128,7 @@ fn save_entity_content(
     }
     let mut json = JsonWriteBatch::new(options);
     let mut builder = FileChangeSetBuilder::new(Path::new(&root))?;
+    let composition = source_layers::json_composition(&session, &target.write.rel_path)?;
     let staged = stage_entity_content(
         &mut session,
         &mut builder,
@@ -95,6 +136,7 @@ fn save_entity_content(
         target,
         data,
         ordered_json,
+        Some(&composition),
     )?;
     let description = descriptions::prepare_description_renames(
         &session,
@@ -143,27 +185,19 @@ pub(in crate::services::project) fn stage_entity_content(
     target: &EntityEditTarget,
     mut data: Value,
     ordered_json: Option<&str>,
+    composition: Option<&JsonComposition>,
 ) -> AppResult<StagedEntityWrite> {
     let definition = entity_spec_definition(target.kind)
         .ok_or_else(|| AppError::message("spec.kind_unknown", "实体规格格式不存在"))?;
-    let schema_id = match target.kind {
-        EntityKind::Faction => Some("faction"),
-        EntityKind::Skin => Some("skin"),
-        EntityKind::Variant => Some("variant"),
-        EntityKind::Ship => Some("spec-ship"),
-        EntityKind::Weapon => Some("spec-weapon"),
-        EntityKind::Projectile => Some("spec-projectile"),
-        EntityKind::System => Some("spec-system"),
-        _ => None,
-    };
-    if data
-        .get(definition.id_field)
-        .and_then(Value::as_str)
-        .is_none_or(str::is_empty)
-        && let Some(schema_id) = schema_id
-    {
-        schema::validate_partial_document(parsers::bundled_schema(schema_id), &data)?;
-    }
+    let schema = content_schema(target.kind);
+    validate_entity_content_in(
+        session,
+        target.kind,
+        &target.write.rel_path,
+        &data,
+        json.replaces(&target.write.rel_path),
+        composition,
+    )?;
     let next_id =
         models::file_content_id(&data, definition.id_field, Path::new(&target.write.path));
     let next_id = validate_entity_id(&next_id, definition.invalid_id_message)?.to_string();
@@ -222,7 +256,7 @@ pub(in crate::services::project) fn stage_entity_content(
         target.write.rel_path.clone()
     };
     if next_rel != target.write.rel_path
-        && let Some(schema_id) = schema_id
+        && let Some(schema) = schema
     {
         let previous = source_layers::json_composition(session, &target.write.rel_path)?;
         if !previous.replace && !previous.layers.is_empty() {
@@ -230,21 +264,7 @@ pub(in crate::services::project) fn stage_entity_content(
                 &source_layers::json_composition(session, &next_rel)?,
                 &data,
             )?;
-            let schema = parsers::bundled_schema(schema_id);
             schema::validate_document(schema, &effective)?;
-            // A renamed override must satisfy the destination's own required fields.
-            for field in schema["sections"]
-                .as_array()
-                .expect("bundled sections")
-                .iter()
-                .flat_map(|section| section["fields"].as_array().expect("bundled fields"))
-            {
-                let key = field["key"].as_str().expect("bundled field key");
-                let key = key.strip_prefix("file.").unwrap_or(key);
-                if field["required"] == true && effective.get(key).is_none() {
-                    schema::validate_field(field, &Value::Null, key, true)?;
-                }
-            }
         }
     }
     let destination = boundary.resolve_relative_target(&next_rel, "entity target")?;
@@ -373,4 +393,104 @@ pub fn write_spec_request(payload: SpecSave) -> Result<WriteResult<Value>, AppEr
         payload.ordered_json.as_deref(),
     )?;
     Ok(result)
+}
+
+#[cfg(test)]
+mod phase42_tests {
+    use super::*;
+    use crate::services::project::query::entity_targets;
+    use crate::services::project::test_support::project_workspace;
+    use crate::services::project::{PerformanceTrace, open_project_session_traced};
+    use crate::services::project_sync::release_project_session;
+    use serde_json::json;
+    use std::fs;
+
+    #[test]
+    fn phase42_single_and_joint_staging_share_field_and_engine_checks() {
+        for (kind, relative, valid, invalid, code) in [
+            (
+                EntityKind::Weapon,
+                "data/weapons/entry.wpn",
+                json!({"id":"entry","specClass":"beam","turretOffsets":[0,0],"hardpointOffsets":[0,0]}),
+                json!({"id":"entry","specClass":"beam","turretOffsets":[],"hardpointOffsets":[0,0]}),
+                "spec.weapon_turret_barrel_required",
+            ),
+            (
+                EntityKind::Ship,
+                "data/hulls/entry.ship",
+                json!({"hullId":"entry","bounds":[0,0,1,2]}),
+                json!({"hullId":"entry","bounds":[0,0,"invalid",2]}),
+                "config.shape_invalid",
+            ),
+            (
+                EntityKind::Skin,
+                "data/hulls/skins/entry.skin",
+                json!({"skinHullId":"entry","baseHullId":"base"}),
+                json!({"skinHullId":"entry","baseHullId":"base","engineSlotChanges":{"4":{"length":2}}}),
+                "config.shape_invalid",
+            ),
+        ] {
+            let root = project_workspace("phase42_shared_validation");
+            let path = root.join(relative);
+            fs::create_dir_all(path.parent().unwrap()).unwrap();
+            fs::create_dir_all(root.join("data/hulls")).unwrap();
+            fs::write(
+                root.join("data/hulls/base.ship"),
+                "{hullId:'base',engineSlots:[]}",
+            )
+            .unwrap();
+            fs::write(&path, valid.to_string()).unwrap();
+            let before = fs::read(&path).unwrap();
+            let manifest = open_project_session_traced(
+                &root,
+                None,
+                &mut PerformanceTrace::new("phase42.validation"),
+            )
+            .unwrap();
+            let target =
+                entity_targets::query_entity_edit_target(&manifest.session_id, kind, "entry")
+                    .unwrap()
+                    .target;
+            let options = JsonWriteOptions::default();
+            validate_entity_content(&manifest.session_id, kind, relative, &valid, &options)
+                .unwrap();
+            assert_eq!(
+                validate_entity_content(&manifest.session_id, kind, relative, &invalid, &options)
+                    .unwrap_err()
+                    .code(),
+                code
+            );
+            assert_eq!(
+                save_entity_spec(
+                    &manifest.session_id,
+                    &target,
+                    invalid.clone(),
+                    options.clone(),
+                    None
+                )
+                .unwrap_err()
+                .code(),
+                code
+            );
+            let handle = session_handle(&manifest.session_id).unwrap();
+            {
+                let mut session = lock_session(&handle).unwrap();
+                let mut builder = FileChangeSetBuilder::new(&root).unwrap();
+                let mut json = JsonWriteBatch::new(options);
+                let result = stage_entity_content(
+                    &mut session,
+                    &mut builder,
+                    &mut json,
+                    &target,
+                    invalid,
+                    None,
+                    None,
+                );
+                assert_eq!(result.err().unwrap().code(), code);
+            }
+            assert_eq!(fs::read(&path).unwrap(), before);
+            release_project_session(manifest.session_id).unwrap();
+            root.close().unwrap();
+        }
+    }
 }

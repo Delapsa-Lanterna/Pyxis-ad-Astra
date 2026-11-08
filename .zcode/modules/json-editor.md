@@ -47,6 +47,7 @@ JSON 文档编辑模块提供 Mod 信息、势力、战役、装配、舰船皮�
 - `src/domain/project/entity-definitions.ts`：实体内容 ID、通用 ID 规则与重命名身份投影。
 - `src/domain/project/entity-versions.ts`：目标版本凭据与改名目标凭据交接。
 - `src/domain/schema/config-schema-registry.ts`：装配与皮肤 schema。
+- `src/domain/schema/schema-validation.ts`：当前有效文档及捕获保存内容的共同字段问题。
 - `src/orchestrators/entity-write.orchestrator.ts`：实体保存的文件名选择。
 - `src/orchestrators/immersive-editor.orchestrator.ts`：装配沉浸式编辑器打开动作。
 - `src/orchestrators/json-write-confirmation.orchestrator.ts`：保存提交所属的 JSON 原文保留和逐源重排确认。
@@ -119,6 +120,7 @@ JSON 文档编辑模块提供 Mod 信息、势力、战役、装配、舰船皮�
 
 ## 规范
 
+- 文档问题必须复用所属输入集合与共同字段规则，按有效内容汇总全部字段，保存确认检查独立提交快照；问题定位展开所属分组并聚焦当前文档的既有控件，草稿与历史沿原会话交接。
 - 列表读取等待必须绑定所属加载任务并保留已有条目，失败在列表区域交付同一读取动作的重试；列表选择交接呈现实际等待目标并消费现有导航顺序与页面寿命。
 - 删除确认必须按正式索引关联区分移除登记与删除文件，删除来源通过下拉选择并同步更新正文和单个确认按钮；来源重建说明采用最后保存内容并保留草稿与输入。
 - 来源完整性必须按正式目标的本地索引关联判定；索引版本参与保存复核，目录来源只允许恢复其实际缺失的本地文件。

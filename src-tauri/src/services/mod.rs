@@ -62,6 +62,7 @@ pub(crate) use project::write::csv_patch::save_csv_patch_snapshot;
 pub(crate) use project::write::csv_patch::{prepare_csv_save, write_csv_request};
 pub(crate) use project::write::entity_write::associated_spec_preparation::prepare_csv_associated_specs;
 pub(crate) use project::write::entity_write::content::save_entity_spec;
+pub(crate) use project::write::entity_write::content::validate_entity_content;
 pub(crate) use project::write::entity_write::content::{prepare_spec_save, write_spec_request};
 pub(crate) use project::write::entity_write::faction_index::delete_faction_entity;
 pub(crate) use project::write::entity_write::single_files::{

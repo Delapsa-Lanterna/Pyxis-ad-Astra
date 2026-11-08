@@ -20,6 +20,7 @@
         <ImmersiveSquareToggle
           v-for="(group, index) in groups"
           :key="index"
+          :data-group-autofire="index"
           role="checkbox"
           :checked="Boolean(group.autofire)"
           :label="'第' + (index + 1) + '组自动开火'"
@@ -130,6 +131,7 @@
               v-for="(group, index) in groups"
               :key="index"
               class="variant-group-summary-row ui-button ui-layout-grid ui-layout-center ui-control-pointer ui-layout-stretch ui-control-reset"
+              :data-group-index="index"
               :class="{ empty: !members(group).length }"
               :style="{ backgroundColor: members(group).length ? groupColor(members(group)) + '40' : '#000000' }"
               :aria-label="'第' + (index + 1) + '组开火模式'"
@@ -219,11 +221,23 @@ import { useResourceMediaRegistry } from '@/app/composables/use-resource-media-r
 import ImmersiveText from '../ImmersiveText.vue';
 import ImmersiveSquareToggle from '../ImmersiveSquareToggle.vue';
 import ImmersiveGameFrame from '../ImmersiveGameFrame.vue';
-const props = defineProps<{ recordKey: string; variant: VariantPanelEntry; vm: ReturnType<typeof useImmersiveVariantEditor> }>();
+const props = defineProps<{
+  recordKey: string;
+  variant: VariantPanelEntry;
+  vm: ReturnType<typeof useImmersiveVariantEditor>;
+  problemPath?: string[];
+}>();
 const emit = defineEmits<{ close: [] }>();
 const feedback = useAppFeedback(),
   inputs = useFieldInputs()!;
 const surface = ref<HTMLElement | null>(null);
+function locate(path: string[]) {
+  const selector = path[1] === 'autofire' ? '[data-group-autofire]' : '[data-group-index]';
+  const target = [...surface.value!.querySelectorAll<HTMLElement>(selector)][Number(path[0])];
+  const focus = target ?? surface.value!;
+  focus.scrollIntoView({ block: 'nearest' });
+  focus.focus();
+}
 let baseline = sevenWeaponGroups(jointEffectiveObject(props.vm.snapshot.value!, props.vm.joint.draftValue.value, props.recordKey));
 const groups = ref<RowData[]>(deepClone(baseline));
 const dirty = computed(() => !stableDeepEqual(groups.value, baseline));
@@ -374,5 +388,5 @@ async function confirm() {
     feedback.error(error);
   }
 }
-onMounted(() => surface.value!.focus({ preventScroll: true }));
+onMounted(() => (props.problemPath ? locate(props.problemPath) : surface.value!.focus({ preventScroll: true })));
 </script>

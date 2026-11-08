@@ -4,13 +4,20 @@ import { shipSpecIssues } from './ship/spec-ship-fields';
 import { weaponSpecIssues } from './weapon/spec-weapon-fields';
 import { projectileSpecIssues } from './projectile/spec-projectile-fields';
 import { systemSpecIssues } from './system/spec-system-fields';
-import { specFieldIssues } from './spec-validation';
+import { schemaFieldIssues } from '@/domain/schema/schema-validation';
 import { createShipSpec, createSystemSpec, createSpecObject } from '@/domain/entity-write/spec-construction';
 import { createWeaponSpec } from '@/domain/entity-write/spec-construction';
 import { createProjectileSpec } from '@/domain/entity-write/spec-construction';
 import type { JsonValue } from '@/shared/types';
 
 describe('Spec schema validation', () => {
+  it('checks raw bounds items with their declared numeric rule', () => {
+    const ship = { ...createShipSpec('bounds-fixture'), spriteName: 'graphics/fixture.png' };
+    for (const bounds of [[], [0, 0], [0, 0, 2.625], [0, 0, '7e1', -2]])
+      expect(shipSpecIssues({ ...ship, bounds }).filter((issue) => issue.path.startsWith('bounds'))).toEqual([]);
+    for (const bounds of ['invalid', [0, 0, 'invalid', 2], [null, 0]])
+      expect(shipSpecIssues({ ...ship, bounds }).some((issue) => issue.path.startsWith('bounds'))).toBe(true);
+  });
   it.each([
     ['requiresZeroFluxBoost', true, 'STAT_MOD', 'NONE'],
     ['minFractionToReload', 0.4, 'FAST_RELOAD', 'FAST_RELOAD'],
@@ -208,16 +215,16 @@ describe('Spec schema validation', () => {
     const field = specSchema('spec-system')
       .sections!.find((section) => section.id === 'basic')!
       .fields.find((field) => field.key === 'type')!;
-    expect(specFieldIssues(field, 'UNKNOWN')).toHaveLength(1);
-    expect(specFieldIssues(field, 'STAT_MOD')).toEqual([]);
+    expect(schemaFieldIssues(field, 'UNKNOWN')).toHaveLength(1);
+    expect(schemaFieldIssues(field, 'STAT_MOD')).toEqual([]);
     const color = specSchema('spec-system')
       .sections!.find((section) => section.id === 'engine')!
       .fields.find((field) => field.key === 'engineGlowColor')!;
-    expect(specFieldIssues(color, [0, 0, 0, 300])).toHaveLength(1);
+    expect(schemaFieldIssues(color, [0, 0, 0, 300])).toHaveLength(1);
     const texture = specSchema('spec-weapon')
       .sections!.find((section) => section.id === 'beam')!
       .fields.find((field) => field.key === 'textureType')!;
-    expect(specFieldIssues(texture, 7)).toHaveLength(1);
-    expect(specFieldIssues(texture, ['outer', 'core'])).toEqual([]);
+    expect(schemaFieldIssues(texture, 7)).toHaveLength(1);
+    expect(schemaFieldIssues(texture, ['outer', 'core'])).toEqual([]);
   });
 });

@@ -1,7 +1,8 @@
 import type { RowData } from '@/shared/types';
 import { isRowData } from '@/shared/lib/row-data';
 import { specSections, specSchema } from '@/domain/spec-editor/spec-schemas';
-import { specFieldsIssues, specFieldIssues } from '@/domain/spec-editor/spec-validation';
+import { specFieldsIssues } from '@/domain/spec-editor/spec-validation';
+import { schemaFieldIssues } from '@/domain/schema/schema-validation';
 const schema = specSchema('spec-ship');
 export const SHIP_SECTIONS = specSections('spec-ship', {});
 export const SHIP_SLOT_FIELDS = schema.definitions!.slot!.nested!;
@@ -20,9 +21,10 @@ export function shipSpecIssues(ship: RowData) {
   const slots = Array.isArray(ship.weaponSlots) ? ship.weaponSlots : [];
   const engines = Array.isArray(ship.engineSlots) ? ship.engineSlots : [];
   return [
+    ...schemaFieldIssues(schema.definitions!.bounds!, ship.bounds),
     ...specFieldsIssues([...SHIP_SECTIONS.flatMap((section) => section.fields), ...SHIP_BUILTIN_FIELDS], ship),
-    ...['weaponSlots', 'engineSlots'].flatMap((key) => specFieldIssues(schema.definitions![key]!, ship[key])),
-    ...specFieldIssues(shipBuiltInWeaponsSchema(slots.filter(isRowData)), ship.builtInWeapons),
+    ...['weaponSlots', 'engineSlots'].flatMap((key) => schemaFieldIssues(schema.definitions![key]!, ship[key])),
+    ...schemaFieldIssues(shipBuiltInWeaponsSchema(slots.filter(isRowData)), ship.builtInWeapons),
     ...slots.flatMap((slot, index) =>
       isRowData(slot)
         ? [

@@ -1,7 +1,7 @@
 import { readdir } from 'node:fs/promises';
 import { join, relative } from 'node:path';
 
-const ignoredDirs = new Set(['.git', 'dist', 'node_modules', 'release', 'target']);
+const ignoredDirs = new Set(['.cache', '.git', 'dist', 'node_modules', 'release', 'target']);
 const ignoredPathParts = ['src-tauri/gen', 'src-tauri/target'];
 
 /** @typedef {{ path: string, rel: string }} RepoPath */

@@ -3,6 +3,10 @@ import { beginSavedWrite } from '@/orchestrators/project-sync.orchestrator';
 import { releaseNativeWindowTargets } from '@/services/window.service';
 import { stableDeepEqual } from '@/shared/lib/stable-compare';
 import { requireRowData } from '@/shared/lib/row-data';
+import { createEditorProblems } from '@/shared/runtime/editor-problems';
+import { schemaDocumentIssues } from '@/domain/schema/schema-validation';
+import { composeJson } from '@/domain/json-composition';
+import { AppError } from '@/shared/lib/errors';
 import { miscConfigDocumentValue } from '@/domain/json-editor/json-document-definitions';
 import { observeSavedContent, sessionContentUpdate } from '@/orchestrators/project-sync.orchestrator';
 import { computed, effectScope, onScopeDispose, ref, watch } from 'vue';
@@ -79,6 +83,18 @@ function createJsonDocumentSession(definition: JsonDocumentDefinition, record: J
     },
     targetKey: configDocumentKey,
     load: loadJsonDocument,
+    confirmSave: (_target, submitted) => {
+      problems.clearFailure();
+      if (readProblems(submitted).some((issue) => issue.severity === 'error')) {
+        throw new AppError('请先解决文档中的字段错误', { action: 'json-validation' });
+      }
+      return true;
+    },
+    mapSaveError: (error) => {
+      if (!(error instanceof AppError && ['json-validation', 'commit-field-inputs'].includes(error.action ?? '')))
+        problems.recordFailure(error);
+      return error;
+    },
     save: (target, draft, versions, original, request) =>
       saveJsonDocument(definition, schema.value, feedback, target, draft, versions, original, request, composition.value),
     acceptSaved: async (snapshot) => {
@@ -96,6 +112,20 @@ function createJsonDocumentSession(definition: JsonDocumentDefinition, record: J
     },
   });
   session.loadBaseForTarget({ ...record, meta: { receipt: null, resources: record.resources, composition: record.composition } });
+  function readProblems(value: RowData) {
+    const sources = definition.kind === 'misc-config' ? undefined : composition.value;
+    const wrapped = definition.kind === 'faction' || definition.kind === 'mod-info' || definition.kind === 'misc-config';
+    const effective = wrapped
+      ? { ...value, file: composeJson(value.file as RowData, sources) }
+      : definition.kind === 'mission'
+        ? { ...value, descriptor: composeJson(value.descriptor as RowData, sources) }
+        : composeJson(value, sources);
+    const partial =
+      definition.kind === 'misc-config' || Boolean(sources && definition.kind !== 'variant' && !jsonDocumentId(definition, value));
+    return schemaDocumentIssues(schema.value, effective, partial);
+  }
+  const problems = createEditorProblems(session.inputs, () => readProblems(session.draftValue.value));
+  watch([session.draftValue, session.context, composition], problems.clearFailure);
   watch(
     () => session.baselineSnapshot.value?.meta.composition,
     (next) => {
@@ -309,6 +339,7 @@ function createJsonDocumentSession(definition: JsonDocumentDefinition, record: J
   });
   return {
     viewId: configDocumentKey(record.target),
+    problems,
     ...actions,
     active,
     setActive,

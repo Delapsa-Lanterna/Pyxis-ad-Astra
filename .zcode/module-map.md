@@ -71,7 +71,7 @@
 - `src/app/components/editors/common/`：编辑与预览共同的标题、页脚、检查器和保留输入的分组展示。
 - `src/app/composables/use-query-read-owner.ts`：Vue 读取票据的作用域交接。
 - `src/domain/cache-limits.ts`：缓存预算的前端校验。
-- `src/domain/project/entity-definitions.ts`：实体内容 ID、可用 ID 规则与目标身份纯投影。
+- `src/domain/project/entity-definitions.ts`：实体内容 ID 与目标身份纯投影。
 - `src/env.d.ts`：前端构建环境提供的公共常量声明。
 - `src/shared/`：前端公共协议、原语、工具、控件及编辑问题汇总与红黄展示。
 - `src/styles/`：按业务及关联组件组织的展示规则与样式入口。

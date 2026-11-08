@@ -184,7 +184,8 @@ pub fn verify_versions(root: &str, versions: &[FileVersion]) -> AppResult<()> {
             return Err(AppError::message(
                 "write.version_conflict",
                 format!("文件已被修改，请载入外部版本后重新保存: {}", path.display()),
-            ));
+            )
+            .at_path(&path));
         }
     }
     Ok(())
@@ -217,11 +218,11 @@ mod tests {
         .unwrap();
         assert_eq!(version.path, path.canonicalize().unwrap().to_string_lossy());
         fs::write(&path, "external").unwrap();
+        let conflict = verify_versions(&root.to_string_lossy(), &[version]).unwrap_err();
+        assert_eq!(conflict.code(), "write.version_conflict");
         assert_eq!(
-            verify_versions(&root.to_string_lossy(), &[version])
-                .unwrap_err()
-                .code(),
-            "write.version_conflict"
+            conflict.location().unwrap().path.as_deref(),
+            path.canonicalize().unwrap().to_str()
         );
         let missing = test_support::short_path(&root).join("nested/new.txt");
         let version = file_version(&missing).unwrap();

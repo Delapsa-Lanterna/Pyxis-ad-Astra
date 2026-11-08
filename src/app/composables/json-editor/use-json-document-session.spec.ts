@@ -17,6 +17,7 @@ import { useProjectStore } from '@/stores/project.store';
 import { initializeSettingsStore } from '@/stores/settings.store';
 import { createSettingsFixture } from '@/test/fixtures/settings';
 import { jsonEntityFixture } from '@/test/fixtures/json-editor';
+import { createDefaultFaction } from '@/domain/json-editor/json-config-entities';
 import { savedWriteFixture, sessionUpdateFixture } from '@/test/fixtures/write-result';
 import {
   JSON_DOCUMENT_DEFINITIONS,
@@ -103,11 +104,27 @@ function record(definition: JsonDocumentDefinition, id = 'a', sessionId = 's1', 
   if (definition.kind === 'mod-info')
     return {
       target: { sessionId, modRoot, kind: definition.kind, id: 'mod-info', entity: null },
-      value: { file: { id: 'mod', name: 'Saved' } },
+      value: { file: { id: 'mod', name: 'Saved', version: '1.0', gameVersion: '0.98a' } },
       baseVersions: [{ path: modRoot + '/mod_info.json', fingerprint: 'v1' }],
       resources: {},
     };
   const entity = jsonEntityFixture(definition.kind, id, 'Saved', modRoot);
+  if (definition.kind === 'faction')
+    entity.data = {
+      ...createDefaultFaction(id),
+      crest: 'graphics/factions/neutral_traders.png',
+      factionDoctrine: {
+        warships: 5,
+        carriers: 2,
+        phaseShips: 0,
+        officerQuality: 3,
+        shipQuality: 3,
+        numShips: 3,
+        shipSize: 3,
+        aggression: 3,
+      },
+      ...(entity.data as RowData),
+    };
   entities.set(sessionId + ':' + definition.kind + ':' + id, entity);
   return jsonDocumentRecord(sessionId, modRoot, entity);
 }
@@ -177,7 +194,7 @@ beforeEach(() => {
     ['s2', 'M:/two'],
   ]) {
     const manifest = sessionUpdateFixture(session!, root!).content.manifest;
-    manifest.modInfo = { id: 'mod', name: 'Saved' };
+    manifest.modInfo = { id: 'mod', name: 'Saved', version: '1.0', gameVersion: '0.98a' };
     useProjectStore().registerProjectManifest(manifest);
   }
   feedback = {
@@ -247,6 +264,50 @@ afterEach(() => {
   useJsonEditorStore().releaseSession('s2');
 });
 describe('complete JSON document runtime', () => {
+  it('aggregates unmounted field errors, rejects the captured draft and preserves undo through correction', async () => {
+    const doc = document();
+    const original = deepClone(doc.draftValue.value);
+    doc.draftValue.value = { ...original, hullId: [], weaponGroups: [{ mode: 'LINKED', autofire: 'invalid', weapons: {} }] };
+    expect(doc.problems.issues.value.map((issue) => issue.path)).toEqual(['hullId', 'weaponGroups[0]["autofire"]']);
+    await expect(doc.save()).rejects.toMatchObject({ action: 'json-validation' });
+    expect(mocks.saveFile).not.toHaveBeenCalled();
+    expect(doc.dirty.value).toBe(true);
+    expect(doc.problems.issues.value).toHaveLength(2);
+    expect(await doc.undo()).toBe(true);
+    expect(doc.draftValue.value).toEqual(original);
+    expect(doc.problems.issues.value).toEqual([]);
+    expect(await doc.redo()).toBe(true);
+    doc.draftValue.value = { ...original, displayName: 'Corrected' };
+    expect((await doc.save()).status).toBe('saved');
+    expect(mocks.saveFile).toHaveBeenCalledOnce();
+    expect(doc.problems.issues.value).toEqual([]);
+  });
+  it('checks inherited effective fields and keeps a sparse local faction draft unchanged', () => {
+    const initial = record(JSON_DOCUMENT_DEFINITIONS.factions);
+    const file = initial.value.file as RowData;
+    initial.value = { file: { displayName: 'Local' } };
+    initial.composition = {
+      replace: false,
+      excluded: [],
+      layers: [
+        {
+          data: { ...file, color: [0, 0, 0, 300] },
+          replace: false,
+          version: { path: 'C:/game/data/world/factions/a.faction', fingerprint: 'core-v1' },
+          source: {
+            source: 'core',
+            root: 'C:/game',
+            path: 'C:/game/data/world/factions/a.faction',
+            relPath: 'data/world/factions/a.faction',
+          },
+        },
+      ],
+    };
+    const doc = useJsonDocumentSession(JSON_DOCUMENT_DEFINITIONS.factions, initial, feedback);
+    expect(doc.problems.issues.value.map((issue) => issue.path)).toEqual(['file.color']);
+    expect(doc.draftValue.value).toEqual({ file: { displayName: 'Local' } });
+    expect(doc.dirty.value).toBe(false);
+  });
   it('adds a slot only after selection and transfers the weapon with one undo', async () => {
     const doc = document();
     doc.draftValue.value = { ...doc.draftValue.value, weaponGroups: [{ weapons: { A: 'gun' } }, { weapons: { B: 'other' } }] };

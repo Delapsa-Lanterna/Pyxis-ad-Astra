@@ -40,6 +40,8 @@
 - `src/app/WindowRuntime.vue`：显式交付窗口反馈并挂载目标交接。
 - `src/domain/edit-session.ts`：保存准备与跨窗口请求消费的目标重叠比较。
 - `src/domain/project/entity-definitions.ts`：实体内容 ID 字段及字符串 ID 提取。
+- `src/domain/schema/csv-schema-registry.ts`：CSV 记录消费的正式列声明。
+- `src/domain/schema/csv-value-validation.ts`：联合 CSV 草稿与保存内容消费的共同值规则。
 - `src/orchestrators/entity-write.orchestrator.ts`：实体本地 ID 状态变化的统一确认。
 - `src/orchestrators/json-write-confirmation.orchestrator.ts`：保存提交所属的原文保留、逐源确认和写入重试。
 - `src/shared/lib/starsector/variant-modules.ts`：前端装配模块格式及身份映射。
@@ -100,6 +102,8 @@
 
 ## 规范
 
+- 联合保存必须按冲突选择后的实际修改记录消费实体写入校验，失败保留原始码、实际文件、CSV 行键与字段路径；问题聚合消费所属输入集合，修正及基线交接清理所属保存失败。
+- 联合 CSV 记录必须按正式列声明消费共同值规则，问题汇总、捕获保存内容及冲突选择后的实际内容共同检查；字段原文与所属草稿历史保持原有归属。
 - 冲突必须逐字段通过下拉选择并展示所选完整内容，三份完整来源支持展开查看；身份、覆盖、共享影响与武器分支共同审阅，取消保持原草稿。
 - 联合保存必须在冲突选择完成后，按实际物理文件汇总本地 ID 有无变化，并消费实体写入的统一确认能力。
 - 联合规格的局部覆盖校验必须消费各文件的本地身份；确认与事务共同消费准备后的内容和版本。

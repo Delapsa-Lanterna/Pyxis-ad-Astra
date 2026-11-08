@@ -1,5 +1,5 @@
 <template>
-  <label class="immersive-field-input ui-layout-grid ui-layout-shrink">
+  <label class="immersive-field-input ui-layout-grid ui-layout-shrink" :data-field-id="field.id">
     <span><ImmersiveText :text="field.schema.label" /></span>
     <n-select
       :virtual-scroll="false"
@@ -60,6 +60,7 @@ watch(input, (control) => {
 });
 const { raw, invalid, update } = useRawFieldInput<unknown>({
   key: props.inputKey,
+  path: JSON.stringify([props.field.recordKey, props.field.schema.key]),
   label: props.field.schema.label,
   text: () => (jsonShape.value ? formatJsonInput(props.value, jsonShape.value) : schemaStringValue(props.value)),
   convert: (text) => {

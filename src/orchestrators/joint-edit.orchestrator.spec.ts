@@ -45,6 +45,42 @@ beforeEach(async () => {
   };
 });
 describe('joint declared editing scope confirmation', () => {
+  it.each(['disk', 'draft'] as const)('checks the final CSV content selected from a conflict: %s', async (choice) => {
+    const snapshot = shipJointFixture();
+    const record = snapshot.records.find((record) => record.key === 'csv')!;
+    if (record.value.state !== 'present') throw new Error('CSV fixture');
+    const data = record.value.value as Record<string, string>;
+    const values = { csv: { state: 'present' as const, value: { ...data, hitpoints: 'bad-value' } } };
+    mocks.prepare.mockResolvedValueOnce({
+      snapshot,
+      values,
+      conflicts: [
+        {
+          recordKey: 'csv',
+          path: ['hitpoints'],
+          baseline: { state: 'present', value: '1750' },
+          disk: { state: 'present', value: 'bad-value' },
+          draft: { state: 'present', value: '2400' },
+        },
+      ],
+    });
+    mocks.save.mockResolvedValueOnce({
+      ...savedWriteFixture(),
+      content: { target: { kind: 'joint', root: snapshot.root }, value: snapshot },
+    });
+    const saving = submitJointEdit(
+      { baseline: snapshot, values: { csv: { state: 'present', value: { ...data, hitpoints: '2400' } } } },
+      feedback,
+      async () => [{ recordKey: 'csv', path: ['hitpoints'], choice }],
+    );
+    if (choice === 'disk') {
+      await expect(saving).rejects.toMatchObject({ code: 'csv.value_invalid', location: { field: 'hitpoints', rowKey: 'csv' } });
+      expect(mocks.save).not.toHaveBeenCalled();
+    } else {
+      await saving;
+      expect(mocks.save.mock.lastCall![0].values.csv).toMatchObject({ value: { hitpoints: '2400' } });
+    }
+  });
   it('opens the authoritative graph once while other document drafts remain independently owned', async () => {
     const snapshot = shipJointFixture();
     mocks.query.mockResolvedValue(snapshot);

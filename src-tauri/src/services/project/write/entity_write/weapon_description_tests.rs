@@ -215,6 +215,13 @@ fn weapon_description_collision() {
         let before = fs::read(&path).unwrap();
         let error = rename(&root, &manifest, mode).unwrap_err();
         assert_eq!(error.code(), "weapon.description_target_exists");
+        let location = error.location().unwrap();
+        assert_eq!(location.field.as_deref(), Some("id"));
+        assert!(location.row_key.is_some());
+        assert_eq!(
+            Path::new(location.path.as_ref().unwrap()),
+            fs::canonicalize(&path).unwrap()
+        );
         assert!(root.join("data/weapons/old.wpn").exists());
         assert!(!root.join("data/weapons/new.wpn").exists());
         assert_eq!(fs::read(&path).unwrap(), before);

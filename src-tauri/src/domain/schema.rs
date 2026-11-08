@@ -14,7 +14,7 @@ fn validate_document_fields(schema: &Value, data: &Value, complete: bool) -> App
         return validate_field(
             root,
             data,
-            schema["id"].as_str().expect("bundled schema ID"),
+            root["key"].as_str().expect("bundled root key"),
             complete,
         );
     }
@@ -22,12 +22,48 @@ fn validate_document_fields(schema: &Value, data: &Value, complete: bool) -> App
         for field in section["fields"].as_array().expect("bundled fields") {
             let key = field["key"].as_str().expect("bundled field key");
             let key = key.strip_prefix("file.").unwrap_or(key);
-            if let Some(value) = data.get(key) {
-                validate_field(field, value, key, complete)?;
+            let pointer = format!("/{}", key.replace(['.', '['], "/").replace(']', ""));
+            let value = data.get(key).or_else(|| data.pointer(&pointer));
+            let required = complete
+                && field["required"] == true
+                && visible(&section["visibleWhen"], data)
+                && visible(&field["visibleWhen"], data);
+            if value.is_some() || required {
+                validate_field(field, value.unwrap_or(&Value::Null), key, complete)?;
             }
         }
     }
     Ok(())
+}
+
+fn visible(condition: &Value, data: &Value) -> bool {
+    let matches = |branch: &Value| {
+        branch
+            .as_object()
+            .expect("bundled visibility")
+            .iter()
+            .all(|(key, expected)| {
+                let value = &data[key];
+                if let Some(values) = expected.as_array() {
+                    values.contains(value)
+                } else {
+                    value
+                        .as_f64()
+                        .or_else(|| value.as_str()?.parse::<f64>().ok())
+                        .is_some_and(|value| {
+                            value
+                                > expected["gt"]
+                                    .as_f64()
+                                    .expect("bundled visibility threshold")
+                        })
+                }
+            })
+    };
+    match condition {
+        Value::Null => true,
+        Value::Array(branches) => branches.iter().any(matches),
+        _ => matches(condition),
+    }
 }
 
 fn matches_type(field: &Value, data: &Value) -> bool {
@@ -47,7 +83,9 @@ fn matches_type(field: &Value, data: &Value) -> bool {
 }
 
 pub fn validate_field(field: &Value, data: &Value, path: &str, complete: bool) -> AppResult<()> {
-    let invalid = || AppError::message("config.shape_invalid", format!("字段内容无效：{path}"));
+    let invalid = || {
+        AppError::message("config.shape_invalid", format!("字段内容无效：{path}")).at_field(path)
+    };
     if complete
         && field["required"] == true
         && (data.is_null() || data.as_str().is_some_and(|s| s.trim().is_empty()))
@@ -124,12 +162,14 @@ pub fn validate_field(field: &Value, data: &Value, path: &str, complete: bool) -
                             return Err(AppError::message(
                                 "config.shape_invalid",
                                 format!("缺少必填字段：{path}/{key}"),
-                            ));
+                            )
+                            .at_field(format!("{path}[{}]", Value::String(key.into()))));
                         }
                     }
                 }
             }
             for (key, value) in object {
+                let child_path = format!("{path}[{}]", Value::String(key.clone()));
                 let fixed = field["nested"]
                     .as_array()
                     .and_then(|fields| fields.iter().find(|child| child["key"] == *key));
@@ -149,14 +189,9 @@ pub fn validate_field(field: &Value, data: &Value, path: &str, complete: bool) -
                         if keys["type"] == "integer" && key.parse::<usize>().is_err() {
                             return Err(invalid());
                         }
-                        validate_field(
-                            keys,
-                            &Value::String(key.clone()),
-                            &format!("{path}/{key}"),
-                            complete,
-                        )?;
+                        validate_field(keys, &Value::String(key.clone()), &child_path, complete)?;
                     }
-                    validate_field(schema, value, &format!("{path}/{key}"), complete)?;
+                    validate_field(schema, value, &child_path, complete)?;
                 }
             }
         }
@@ -173,7 +208,7 @@ pub fn validate_field(field: &Value, data: &Value, path: &str, complete: bool) -
             }
             if let Some(schema) = field.get("item") {
                 for (index, value) in data.as_array().expect("validated array").iter().enumerate() {
-                    validate_field(schema, value, &format!("{path}/{index}"), complete)?;
+                    validate_field(schema, value, &format!("{path}[{index}]"), complete)?;
                 }
             }
         }
@@ -226,4 +261,70 @@ pub fn validate_field(field: &Value, data: &Value, path: &str, complete: bool) -
         _ => {}
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::parsers;
+    use serde_json::json;
+
+    #[test]
+    fn document_checks_declared_required_paths_and_visibility() {
+        let schema = json!({"sections":[{"fields":[
+            {"key":"width","type":"float","required":true},
+            {"key":"center[0]","type":"float","required":true},
+            {"key":"textureType","type":"string","required":true,"visibleWhen":{"specClass":["beam"]}}
+        ]}]});
+        let mut data = json!({"width":2,"center":[1,2],"specClass":"projectile"});
+        validate_document(&schema, &data).unwrap();
+        data.as_object_mut().unwrap().remove("width");
+        assert!(
+            validate_document(&schema, &data)
+                .unwrap_err()
+                .to_string()
+                .contains("width")
+        );
+        validate_partial_document(&schema, &json!({})).unwrap();
+        assert!(validate_partial_document(&schema, &json!({"width":"invalid"})).is_err());
+        data["width"] = json!(2);
+        data["center"] = json!([]);
+        assert!(
+            validate_document(&schema, &data)
+                .unwrap_err()
+                .to_string()
+                .contains("center[0]")
+        );
+        data["center"] = json!([1, 2]);
+        data["specClass"] = json!("beam");
+        assert!(
+            validate_document(&schema, &data)
+                .unwrap_err()
+                .to_string()
+                .contains("textureType")
+        );
+        data["textureType"] = json!("SMOOTH");
+        validate_document(&schema, &data).unwrap();
+    }
+
+    #[test]
+    fn bounds_schema_consumes_the_shared_numeric_item_rule() {
+        let schema = parsers::bundled_schema("spec-ship");
+        let bounds = &schema["definitions"]["bounds"];
+        for value in [
+            json!([]),
+            json!([0, 0]),
+            json!([0, 0, 2.625]),
+            json!([0, 0, "7e1", -2]),
+        ] {
+            validate_field(bounds, &value, "bounds", true).unwrap();
+        }
+        for value in [
+            json!("invalid"),
+            json!([0, 0, "invalid", 2]),
+            json!([null, 0]),
+        ] {
+            assert!(validate_field(bounds, &value, "bounds", true).is_err());
+        }
+    }
 }

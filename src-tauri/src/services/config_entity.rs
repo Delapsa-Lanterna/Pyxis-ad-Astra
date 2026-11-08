@@ -704,14 +704,20 @@ mod tests {
             "demo",
             IndexedSaveInput {
                 index_row: Map::new(),
-                entity_data: serde_json::json!({"file":{"displayName":"New","id":"demo"}}),
+                entity_data: serde_json::json!({"file":{
+                    "displayName":"New","id":"demo","displayNameWithArticle":"a Demo",
+                    "logo":"logo.png","crest":"crest.png","color":[255,255,255,255],
+                    "knownShips":{},"knownFighters":{},"knownWeapons":{},
+                    "factionDoctrine":{"warships":1,"carriers":1,"phaseShips":1,"officerQuality":1,
+                        "shipQuality":1,"numShips":1,"shipSize":1,"aggression":1}
+                }}),
                 json_write: JsonWriteOptions {
                     replace_paths: Vec::new(),
                     keep_filename: false,
                     preserve_original_json: true,
                     confirmed_sources: Vec::new(),
                 },
-                ordered_json: Some(r#"{"displayName":"New","id":"demo"}"#),
+                ordered_json: None,
             },
         )
         .unwrap();
@@ -745,7 +751,13 @@ mod tests {
             Some("old"),
             "new",
             index_row,
-            serde_json::json!({"file": {"id": "new", "displayName": "New"}}),
+            serde_json::json!({"file": {
+                "id":"new","displayName":"New","displayNameWithArticle":"a New",
+                "logo":"logo.png","crest":"crest.png","color":[255,255,255,255],
+                "knownShips":{},"knownFighters":{},"knownWeapons":{},
+                "factionDoctrine":{"warships":1,"carriers":1,"phaseShips":1,"officerQuality":1,
+                    "shipQuality":1,"numShips":1,"shipSize":1,"aggression":1}
+            }}),
             true,
         )
         .unwrap();
@@ -799,7 +811,13 @@ mod tests {
             Some("demo"),
             "demo",
             index_row,
-            serde_json::json!({"file": {"id": "demo", "displayName": "Demo"}}),
+            serde_json::json!({"file": {
+                "id":"demo","displayName":"Demo","displayNameWithArticle":"a Demo",
+                "logo":"logo.png","crest":"crest.png","color":[255,255,255,255],
+                "knownShips":{},"knownFighters":{},"knownWeapons":{},
+                "factionDoctrine":{"warships":1,"carriers":1,"phaseShips":1,"officerQuality":1,
+                    "shipQuality":1,"numShips":1,"shipSize":1,"aggression":1}
+            }}),
             false,
         )
         .unwrap();
@@ -930,35 +948,33 @@ mod tests {
     fn mod_info_save_keeps_source_when_semantics_are_unchanged() {
         let root = project_workspace("save_mod_info_preserve");
         let path = root.join("mod_info.json");
-        write_utf8_no_bom(&path, "{\n  # note\n  id: 'demo'\n}\n").unwrap();
+        let before = "{\n  # note\n  id: 'demo', name: 'Demo', version: '1', gameVersion: '1'\n}\n";
+        write_utf8_no_bom(&path, before).unwrap();
         let result = save_mod_info(
             &root.to_string_lossy(),
-            serde_json::json!({"id":"demo"}),
+            serde_json::json!({"id":"demo","name":"Demo","version":"1","gameVersion":"1"}),
             JsonWriteOptions {
                 replace_paths: Vec::new(),
                 keep_filename: false,
                 preserve_original_json: true,
                 confirmed_sources: Vec::new(),
             },
-            Some(r#"{"id":"demo"}"#),
+            None,
         )
         .unwrap();
         assert!(result.changes.is_empty());
         assert_eq!(
             result.content.map(|content| content.value),
-            Some(serde_json::json!({"id":"demo"}))
+            Some(serde_json::json!({"id":"demo","name":"Demo","version":"1","gameVersion":"1"}))
         );
-        assert_eq!(
-            read_utf8_no_bom(&path).unwrap(),
-            "{\n  # note\n  id: 'demo'\n}\n"
-        );
+        assert_eq!(read_utf8_no_bom(&path).unwrap(), before);
         root.close().unwrap();
     }
 
     #[test]
     fn mod_info_receipt_matches_persisted_content() {
         let root = project_workspace("mod_info_receipt");
-        let data = serde_json::json!({"id":"demo", "name":"Saved", "dependencies":[{"id":"dep"}]});
+        let data = serde_json::json!({"id":"demo", "name":"Saved", "version":"1", "gameVersion":"1", "dependencies":[{"id":"dep"}]});
         let result = save_mod_info(
             &root.to_string_lossy(),
             data,

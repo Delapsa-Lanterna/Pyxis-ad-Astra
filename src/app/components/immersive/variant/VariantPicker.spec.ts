@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest';
+import { afterEach, beforeEach, describe, it, expect, onTestFinished, vi } from 'vitest';
 import { mount, flushPromises } from '@vue/test-utils';
 import { h, provide, ref, shallowRef, shallowReactive } from 'vue';
 import { immersiveBlockedKey } from '../immersive-render-context';
@@ -139,9 +139,10 @@ function harness(
   const cancelVariantAction = vi.fn();
   const pan = vi.fn();
   const vm = {
+    snapshot: displaySnapshot,
     displaySnapshot,
     displayValues,
-    joint: { currentTarget: ref(snapshot.root), saving: ref(false) },
+    joint: { currentTarget: ref(snapshot.root), saving: ref(false), draftValue: displayValues },
     referenceChanging: ref(false),
     variantActionPending: ref(false),
     dismissStat: vi.fn(),
@@ -151,6 +152,7 @@ function harness(
     installVariantWeapon: vi.fn(async () => true),
     installVariantModule: vi.fn(async () => true),
     updateVariant: vi.fn(async () => true),
+    applyVariantAction: vi.fn(),
   } as unknown as ReturnType<typeof useImmersiveVariantEditor>;
   vi.stubGlobal(
     'ResizeObserver',
@@ -229,6 +231,27 @@ function harness(
   };
 }
 describe('variant candidate picker', () => {
+  it.each(['autofire', 'weapons'])('selects the requested module and reveals its existing weapon group control: %s', async (field) => {
+    const previous = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'scrollIntoView');
+    Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', { configurable: true, value: vi.fn() });
+    const own = harness('weapons', 2, false, [], '', true, false, false, true);
+    try {
+      const panel = own.wrapper.findComponent(VariantImmersivePanel);
+      const before = JSON.stringify(own.displayValues.value);
+      expect(await panel.vm.locate('module', ['weaponGroups', '2', field], () => true)).toBe(true);
+      await flushPromises();
+      const target = own.wrapper.get(field === 'autofire' ? '[data-group-autofire="2"]' : '[data-group-index="2"]');
+      expect(document.activeElement).toBe(target.element);
+      expect(own.vm.commitVariantInputs).toHaveBeenCalledOnce();
+      expect(JSON.stringify(own.displayValues.value)).toBe(before);
+      expect(own.inputs.dirty.value).toBe(false);
+      expect(appFeedback.error).not.toHaveBeenCalled();
+    } finally {
+      own.wrapper.unmount();
+      if (previous) Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', previous);
+      else Reflect.deleteProperty(HTMLElement.prototype, 'scrollIntoView');
+    }
+  });
   it('repeats the chosen weapon across modules while Enter still opens its picker', async () => {
     const own = harness('weapons', 2, false, [], '', true, false, false, true);
     await own.wrapper.get('.test-slot').trigger('click');
@@ -373,8 +396,9 @@ describe('variant candidate picker', () => {
     expect(next.vm.updateVariant).toHaveBeenCalledOnce();
     next.wrapper.unmount();
   });
-  it('pans from information controls and across overlays until right-button release', async () => {
+  it.each(['blur', 'pointercancel'])('pans across overlays and ends on %s', async (boundary) => {
     const own = harness('weapons', 2, false, [], '', true);
+    onTestFinished(() => own.wrapper.unmount());
     const information = own.wrapper.findComponent({ name: 'VariantRefitStats' });
     await information.trigger('mousedown', { button: 2, clientX: 600, clientY: 100 });
     await own.wrapper.get('.test-slot').trigger('mousemove', { buttons: 2, clientX: 580, clientY: 120 });
@@ -389,10 +413,16 @@ describe('variant candidate picker', () => {
     await information.trigger('contextmenu');
     expect(own.vm.installVariantWeapon).not.toHaveBeenCalled();
     await information.trigger('mousedown', { button: 2, clientX: 600, clientY: 100 });
-    window.dispatchEvent(new Event('blur'));
-    await information.trigger('mousemove', { buttons: 2, clientX: 620, clientY: 100 });
+    window.dispatchEvent(new Event(boundary));
+    await information.trigger('mousemove', { buttons: 0, clientX: 620, clientY: 100 });
     expect(own.pan).toHaveBeenCalledTimes(2);
+    await information.trigger('mousedown', { button: 2, clientX: 620, clientY: 100 });
+    await information.trigger('mousemove', { buttons: 2, clientX: 630, clientY: 110 });
+    expect(own.pan).toHaveBeenLastCalledWith(10, 10);
+    expect(own.pan).toHaveBeenCalledTimes(3);
     own.wrapper.unmount();
+    window.dispatchEvent(new MouseEvent('mousemove', { buttons: 0, clientX: 640, clientY: 120 }));
+    expect(own.pan).toHaveBeenCalledTimes(3);
   });
   it.each(['weapons', 'wings'] as const)('keeps built-in %s on a right click', async (kind) => {
     const own = harness(kind, 2, false, [], '', true);

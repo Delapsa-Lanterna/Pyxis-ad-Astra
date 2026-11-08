@@ -62,7 +62,8 @@ pub fn save_joint_edit(payload: &JointEditSubmission) -> AppResult<WriteResult<J
             return Err(AppError::message(
                 "write.version_scope_missing",
                 format!("联合保存缺少版本凭据: {}", required.path),
-            ));
+            )
+            .at_path(&required.path));
         }
     }
     let mut values = payload.values.clone();
@@ -130,10 +131,10 @@ pub fn save_joint_edit(payload: &JointEditSubmission) -> AppResult<WriteResult<J
                 .as_ref()
                 .is_none_or(|source| source.source == ResourceSource::Mod)
         {
-            return Err(AppError::message(
-                "joint.override_changed",
-                "覆盖创建来源已变化",
-            ));
+            return Err(
+                AppError::message("joint.override_changed", "覆盖创建来源已变化")
+                    .at_path(&record.target.write().path),
+            );
         }
         if value == &record.value
             && !create_override
@@ -199,7 +200,8 @@ pub fn save_joint_edit(payload: &JointEditSubmission) -> AppResult<WriteResult<J
                         return Err(AppError::message(
                             "write.version_scope_missing",
                             "联合改名缺少目标版本凭据",
-                        ));
+                        )
+                        .at_path(&path));
                     }
                 }
                 let staged = stage_entity_content(
@@ -209,7 +211,9 @@ pub fn save_joint_edit(payload: &JointEditSubmission) -> AppResult<WriteResult<J
                     target,
                     data.clone(),
                     None,
-                )?;
+                    record.composition.as_ref(),
+                )
+                .map_err(|error| error.at_path(&target.write.path))?;
                 if let Some(rename) = staged.description_rename {
                     description_renames.push(rename);
                 }
@@ -362,7 +366,9 @@ pub fn save_joint_edit(payload: &JointEditSubmission) -> AppResult<WriteResult<J
                         return Err(AppError::message(
                             "joint.csv_shape",
                             "联合 CSV 记录必须为对象",
-                        ));
+                        )
+                        .at_row(row_key)
+                        .at_path(&record.target.write().path));
                     }
                 }
                 if current.root.kind == JointEditKind::Wing
@@ -373,7 +379,12 @@ pub fn save_joint_edit(payload: &JointEditSubmission) -> AppResult<WriteResult<J
                     saved.root.id = data
                         .get("id")
                         .and_then(Value::as_str)
-                        .ok_or_else(|| AppError::message("joint.id_missing", "战机联队缺少 ID"))?
+                        .ok_or_else(|| {
+                            AppError::message("joint.id_missing", "战机联队缺少 ID")
+                                .at_field("id")
+                                .at_row(row_key)
+                                .at_path(&record.target.write().path)
+                        })?
                         .into();
                 }
             }
@@ -384,10 +395,10 @@ pub fn save_joint_edit(payload: &JointEditSubmission) -> AppResult<WriteResult<J
                 builder.text_file(&write.rel_path, None)?;
             }
             _ => {
-                return Err(AppError::message(
-                    "joint.value_shape",
-                    "联合编辑内容形状无效",
-                ));
+                return Err(
+                    AppError::message("joint.value_shape", "联合编辑内容形状无效")
+                        .at_path(&record.target.write().path),
+                );
             }
         }
         if !matches!(record.target, JointRecordTarget::Spec { .. }) {

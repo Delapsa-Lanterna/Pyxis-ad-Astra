@@ -7,6 +7,45 @@ import { AppError } from '@/shared/lib/errors';
 import EditorProblems from '@/shared/ui/EditorProblems.vue';
 
 describe('shared editor problems', () => {
+  it('keeps the raw field error ahead of a retained failure for that same CSV cell', () => {
+    const fields = createFieldInputs();
+    const raw = ref(false),
+      path = JSON.stringify(['source-record', 'hitpoints']);
+    fields.register({
+      key: 'stable-cell',
+      path,
+      label: 'Hull',
+      dirty: raw,
+      validate: () => (raw.value ? 'Raw invalid' : null),
+      commit: () => null,
+      cancel: () => {},
+      focus: () => {},
+    });
+    const problems = createEditorProblems(fields);
+    problems.recordFailure(
+      new AppError('Invalid field', {
+        code: 'csv.value_invalid',
+        location: { path: 'M:/mod/data/hulls/ship_data.csv', rowKey: 'ships:row:4', field: 'hitpoints', line: null, column: null },
+      }),
+      path,
+    );
+    expect(problems.issues.value).toHaveLength(1);
+    raw.value = true;
+    expect(problems.issues.value).toMatchObject([{ code: 'field.input_invalid', path }]);
+    expect(problems.issues.value).toHaveLength(1);
+    fields.release();
+  });
+  it('keeps the source file and exact field location when recording a save failure', () => {
+    const fields = createFieldInputs();
+    const problems = createEditorProblems(fields);
+    expect(fields.hasDocumentValidation.value).toBe(false);
+    const location = { path: 'M:/mod/data/variants/demo.variant', field: 'weaponGroups[0]["weapons"]', line: null, column: null };
+    problems.recordFailure(new AppError('Save denied', { cause: { code: 'config.shape_invalid', message: 'Invalid field', location } }));
+    expect(problems.issues.value).toMatchObject([{ code: 'config.shape_invalid', path: location.field, location }]);
+    expect(problems.issues.value[0]!.message).toContain(location.path);
+    expect(problems.issues.value[0]!.message).toContain(location.field);
+    fields.release();
+  });
   it('prioritizes raw input, deduplicates issues and retains recoverable failures', () => {
     const raw = ref('invalid');
     const fields = createFieldInputs();

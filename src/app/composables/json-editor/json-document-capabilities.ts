@@ -11,7 +11,8 @@ import { takeReplaceBase } from '@/domain/json-composition';
 import type { FileSchema } from '@/domain/schema/schema.types';
 import { useProjectStore } from '@/stores/project.store';
 import { querySessionEntity } from '@/services/entity-query.service';
-import { entityIdInvalidMessage, isEntityId, entityRenameContext } from '@/domain/project/entity-definitions';
+import { entityRenameContext } from '@/domain/project/entity-definitions';
+import { entityIdInvalidMessage, isEntityId } from '@/domain/schema/schema-identity';
 import { AppError } from '@/shared/lib/errors';
 import {
   jsonDocumentRecord,

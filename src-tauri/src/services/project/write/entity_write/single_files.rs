@@ -12,6 +12,7 @@ use crate::models::{
     JsonWriteOptions, ResourceSource, WriteContentTarget, WriteResult,
 };
 use crate::services::project;
+use crate::services::project::model::ProjectSession;
 use crate::services::project::query::entity_targets;
 use crate::services::project::sources::{core, json_documents};
 use crate::{io, models, parsers};
@@ -20,6 +21,15 @@ use std::collections::BTreeSet;
 use std::path::Path;
 
 pub fn validate_skin_engine_changes(session_id: &str, data: &Value) -> AppResult<()> {
+    let handle = session_handle(session_id)?;
+    let session = lock_session(&handle)?;
+    validate_skin_engine_changes_in(&session, data)
+}
+
+pub(in crate::services::project) fn validate_skin_engine_changes_in(
+    session: &ProjectSession,
+    data: &Value,
+) -> AppResult<()> {
     if data
         .get("engineSlotChanges")
         .and_then(Value::as_object)
@@ -27,8 +37,6 @@ pub fn validate_skin_engine_changes(session_id: &str, data: &Value) -> AppResult
     {
         return Ok(());
     }
-    let handle = session_handle(session_id)?;
-    let session = lock_session(&handle)?;
     let core_ships = session
         .manifest
         .starsector_root
@@ -41,14 +49,16 @@ pub fn validate_skin_engine_changes(session_id: &str, data: &Value) -> AppResult
         .as_deref()
         .map(core::load_core_skin_files)
         .transpose()?;
-    let mut id = data["baseHullId"]
-        .as_str()
-        .ok_or_else(|| AppError::message("config.missing_field", "缺少 baseHullId"))?;
+    let mut id = data["baseHullId"].as_str().ok_or_else(|| {
+        AppError::message("config.missing_field", "缺少 baseHullId").at_field("baseHullId")
+    })?;
     let mut layers = vec![data];
     let mut seen = BTreeSet::new();
     loop {
         if !seen.insert(id) {
-            return Err(AppError::message("skin.base_cycle", "循环船体皮肤引用"));
+            return Err(
+                AppError::message("skin.base_cycle", "循环船体皮肤引用").at_field("baseHullId")
+            );
         }
         let skin = session
             .skin_files
@@ -71,6 +81,7 @@ pub fn validate_skin_engine_changes(session_id: &str, data: &Value) -> AppResult
         .or_else(|| core_ships.as_ref().and_then(|ships| ships.get(id)))
         .ok_or_else(|| {
             AppError::message("config.reference_missing", format!("找不到基础船体：{id}"))
+                .at_field("baseHullId")
         })?;
     let mut count = hull.data["engineSlots"].as_array().map_or(0, Vec::len);
     for layer in layers.into_iter().rev() {
@@ -93,7 +104,8 @@ pub fn validate_skin_engine_changes(session_id: &str, data: &Value) -> AppResult
                     return Err(AppError::message(
                         "config.shape_invalid",
                         format!("引擎槽索引超出当前船体范围：engineSlotChanges/{key}"),
-                    ));
+                    )
+                    .at_field(format!("engineSlotChanges[{key:?}]")));
                 }
             }
         }

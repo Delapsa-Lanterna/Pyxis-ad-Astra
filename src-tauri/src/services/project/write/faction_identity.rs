@@ -132,7 +132,13 @@ mod tests {
                 previous_id: Some("loaded".into()),
                 next_id: "next".into(),
                 index_row: Default::default(),
-                entity_data: json!({"file":{"id":"next","displayName":"Saved"}}),
+                entity_data: json!({"file":{
+                    "id":"next","displayName":"Saved","displayNameWithArticle":"a Saved",
+                    "logo":"logo.png","crest":"crest.png","color":[255,255,255,255],
+                    "knownShips":{},"knownFighters":{},"knownWeapons":{},
+                    "factionDoctrine":{"warships":1,"carriers":1,"phaseShips":1,"officerQuality":1,
+                        "shipQuality":1,"numShips":1,"shipSize":1,"aggression":1}
+                }}),
                 json_write: Default::default(),
                 ordered_json: None,
             },

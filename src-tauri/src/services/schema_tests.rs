@@ -72,7 +72,7 @@ fn bundled_assets_parse_and_build_once_across_concurrent_consumers() {
 #[test]
 fn variant_weapon_group_limit() {
     for count in [0, 6, 7, 8] {
-        let data = json!({"weaponGroups":vec![json!({"mode":"LINKED","weapons":{}}); count]});
+        let data = json!({"variantId":"fixture","hullId":"base","weaponGroups":vec![json!({"mode":"LINKED","weapons":{}}); count]});
         let result = validate_document("variant", &data);
         if count <= 7 {
             result.unwrap();
@@ -129,7 +129,7 @@ fn asset_discovery_and_version_types() {
         }
     }
     for version in [json!("2.4a"), json!({"major":2,"minor":"4a","patch":1})] {
-        let value = json!({"version":version,"gameVersion":version,"dependencies":[{"id":"sample-library","version":version}],"utility":"true","totalConversion":"false"});
+        let value = json!({"id":"fixture","name":"Fixture","version":version,"gameVersion":version,"dependencies":[{"id":"sample-library","version":version}],"utility":"true","totalConversion":"false"});
         let before = value.clone();
         validate_document("mod-info", &value).unwrap();
         assert_eq!(value, before);
@@ -152,6 +152,7 @@ fn object_shapes_and_open_content() {
             json!({"shipRoles":{"sample":{"fallback2":{"first":1,"second":1}}}}),
         ),
     ] {
+        let value = complete_fixture(id, value);
         assert_eq!(
             validate_document(id, &value).unwrap_err().code(),
             "config.shape_invalid",
@@ -186,8 +187,29 @@ fn object_shapes_and_open_content() {
             json!({"sounds":{},"DEFAULT":{},"FIGHTER":{},"FRIGATE":{},"DESTROYER":{},"CRUISER":{},"CAPITAL_SHIP":{}}),
         ),
     ] {
+        let value = complete_fixture(id, value);
         validate_document(id, &value).unwrap();
     }
+}
+
+fn complete_fixture(id: &str, value: Value) -> Value {
+    let mut base = match id {
+        "mod-info" => json!({"id":"fixture","name":"Fixture","version":"1","gameVersion":"1"}),
+        "variant" => json!({"variantId":"fixture","hullId":"base"}),
+        "skin" => json!({"skinHullId":"fixture","baseHullId":"base"}),
+        "faction" => json!({
+            "id":"fixture","displayName":"Fixture","displayNameWithArticle":"a Fixture",
+            "logo":"graphics/logo.png","crest":"graphics/crest.png","color":[255,255,255,255],
+            "knownShips":{},"knownFighters":{},"knownWeapons":{},
+            "factionDoctrine":{"warships":1,"carriers":1,"phaseShips":1,"officerQuality":1,
+                "shipQuality":1,"numShips":1,"shipSize":1,"aggression":1}
+        }),
+        _ => json!({}),
+    };
+    base.as_object_mut()
+        .unwrap()
+        .extend(value.as_object().unwrap().clone());
+    base
 }
 
 #[test]

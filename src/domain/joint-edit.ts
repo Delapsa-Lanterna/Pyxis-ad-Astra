@@ -10,8 +10,9 @@ import type {
   EntityIdentityChange,
   CsvRowKeyMapping,
   JointEditRecord,
+  FieldProblem,
 } from '@/shared/types';
-import { deepClone } from '@/shared/lib/starsector';
+import { deepClone, cell } from '@/shared/lib/starsector';
 import { AppError } from '@/shared/lib/errors';
 import { formatJsonInput } from '@/shared/lib/json-input';
 import { entityContentIdField } from '@/domain/project/entity-definitions';
@@ -19,6 +20,31 @@ import { isRowData } from '@/shared/lib/row-data';
 import { stableDeepEqual } from '@/shared/lib/stable-compare';
 import { renameVariantModules } from '@/shared/lib/starsector/variant-modules';
 import { composeJson, editComposedJson, takeReplaceBase } from '@/domain/json-composition';
+import { getCsvColumnSchemas } from '@/domain/schema/csv-schema-registry';
+import { csvValueError } from '@/domain/schema/csv-value-validation';
+
+export function jointCsvProblems(snapshot: JointEditSnapshot, values: Record<string, JointValue>): FieldProblem[] {
+  return snapshot.records.flatMap((record) => {
+    const value = values[record.key],
+      target = record.target;
+    if (target.kind !== 'csv' || value?.state !== 'present') return [];
+    const data = jointObject(value);
+    return getCsvColumnSchemas(target.table).flatMap((column): FieldProblem[] => {
+      const message = csvValueError(column, cell(data[column.key]));
+      return message
+        ? [
+            {
+              severity: 'error',
+              code: 'csv.value_invalid',
+              path: JSON.stringify([record.key, column.key]),
+              message: `${target.table} / ${Object.values(target.identity).join(' / ')} / ${column.key}：${message}`,
+              location: { rowKey: target.rowKey, field: column.key, path: target.write.path, line: null, column: null },
+            },
+          ]
+        : [];
+    });
+  });
+}
 
 export function jointObject(value: DeepReadonly<JointValue> | undefined): Readonly<RowData> {
   return value?.state === 'present' && isRowData(value.value) ? value.value : {};

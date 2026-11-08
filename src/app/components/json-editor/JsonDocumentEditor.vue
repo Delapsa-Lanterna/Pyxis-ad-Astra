@@ -34,6 +34,7 @@
         ></template
       >
     </EditorHeader>
+    <EditorProblems :issues="document.problems.issues.value" @locate="locateProblem" />
     <div class="editor-fields ui-content-scroll">
       <p v-if="schemaRuntimeContext.composition" class="ui-text-muted ui-text-small ui-text-reset">
         {{ schemaRuntimeContext.partial ? '待组合文件' : '完整定义文件' }}
@@ -55,13 +56,15 @@
           />
         </div>
       </div>
-      <SchemaFormRenderer :schema="document.schema.value" v-model="draft" :runtime-context="schemaRuntimeContext" />
+      <SchemaFormRenderer ref="form" :schema="document.schema.value" v-model="draft" :runtime-context="schemaRuntimeContext" />
     </div>
   </section>
 </template>
 <script setup lang="ts">
 import { dialogBody, dialogFiles } from '@/shared/ui/dialog-content';
-import { computed, h, ref } from 'vue';
+import { computed, h, ref, useTemplateRef } from 'vue';
+import EditorProblems from '@/shared/ui/EditorProblems.vue';
+import type { FieldProblem } from '@/shared/types';
 import { miscConfigDefinition } from '@/domain/misc-config';
 import { provideFieldInputs } from '@/shared/runtime/field-inputs';
 import { useProjectSyncStore } from '@/stores/project-sync.store';
@@ -93,6 +96,23 @@ const { canNavigateBaseHull, navigateToBaseHull, previews, schemaRuntimeContext,
   props.locateBaseHull,
 );
 const draft = props.document.draftValue;
+const form = useTemplateRef('form');
+async function locateProblem(issue: FieldProblem) {
+  const view = form.value!;
+  const target = props.document.targetKey.value,
+    admitted = props.document.inputs.captureContext();
+  const current = () => form.value === view && admitted() && target === props.document.targetKey.value;
+  try {
+    if (issue.code === 'field.input_invalid') return await props.document.inputs.focus(issue.path);
+    if ((await props.document.inputs.commit()) === false) return;
+    if (!current()) return;
+    const path = issue.location?.field;
+    const wrapped = !props.document.schema.value.root && ['faction', 'mod-info', 'misc-config'].includes(props.definition.kind);
+    await view.locate(path ? { ...issue, path: wrapped ? `file.${path}` : path } : issue, view.$el.parentElement, current);
+  } catch (error) {
+    feedback.error(error, '定位 JSON 字段失败');
+  }
+}
 const title = computed(() => {
   if (props.definition.kind === 'misc-config') return miscConfigDefinition(props.document.target.value!.id).label;
   const data = jsonDocumentContent(props.definition.kind, draft.value);

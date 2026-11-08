@@ -2,6 +2,7 @@
   <SchemaValueInput
     v-if="schema.root"
     :field="schema.root"
+    :data-field-path="schema.root.key"
     :value="getNestedValue(modelValue, schema.root.key)"
     :runtime-context="runtimeContext"
     @update="onFieldUpdate(schema.root!.key, $event)"
@@ -35,7 +36,10 @@
   </EditorCollapse>
 </template>
 <script setup lang="ts">
-import { computed, reactive, watch } from 'vue';
+import { computed, reactive, watch, nextTick } from 'vue';
+import { compositionPath } from '@/domain/json-composition';
+import { waitForEditorCollapse } from '@/app/components/editors/common/editor-collapse';
+import type { FieldProblem } from '@/shared/types';
 import { composeJson, editComposedJson } from '@/domain/json-composition';
 import EditorCollapse from '@/app/components/editors/common/EditorCollapse.vue';
 import NCollapseItem from '@/app/components/editors/common/EditorCollapseItem.vue';
@@ -126,6 +130,39 @@ function updateExpandedNames(names: (string | number)[]) {
   collapsedSections.clear();
   for (const id of [...sections.value.map((section) => section.id), '__extra']) if (!names.includes(id)) collapsedSections.add(id);
 }
+
+defineExpose({
+  async locate(issue: FieldProblem, root: HTMLElement, current: () => boolean) {
+    const path = compositionPath(issue.path);
+    for (const section of sections.value)
+      if (section.fields.some((field) => compositionPath(field.key).every((part, i) => path[i] === part)))
+        collapsedSections.delete(section.id);
+    await nextTick();
+    for (;;) {
+      if (!current()) return;
+      const group = [...root.querySelectorAll<HTMLElement>('.n-collapse-item:not(.n-collapse-item--active)[data-field-path]')].find(
+        (element) => compositionPath(element.dataset.fieldPath!).every((part, i) => path[i] === part),
+      );
+      if (!group) break;
+      group.querySelector<HTMLElement>('.n-collapse-item__header-main')!.click();
+      await nextTick();
+    }
+    await waitForEditorCollapse(root);
+    if (!current()) return;
+    const targets = [...root.querySelectorAll<HTMLElement>('[data-field-path]')];
+    const target = targets
+      .filter((element) => {
+        const parts = compositionPath(element.dataset.fieldPath!);
+        return parts.length <= path.length && parts.every((part, i) => path[i] === part);
+      })
+      .sort((left, right) => compositionPath(right.dataset.fieldPath!).length - compositionPath(left.dataset.fieldPath!).length)[0];
+    target?.scrollIntoView({ block: 'nearest' });
+    (target?.matches('input,textarea,button,[tabindex]')
+      ? target
+      : target?.querySelector<HTMLElement>('input,textarea,button,[tabindex]')
+    )?.focus();
+  },
+});
 
 function onFieldUpdate(key: string, update: SchemaFieldUpdate) {
   const updated = applySchemaFieldUpdate(modelValue.value, key, update);

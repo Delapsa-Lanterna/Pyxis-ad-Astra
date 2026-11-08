@@ -8,6 +8,8 @@ export function useCanvasNavigation(viewport: CanvasViewport, draw: () => void, 
     last.y = event.offsetY;
     if (event.button === 2) {
       panning.value = true;
+      window.addEventListener('blur', finish);
+      window.addEventListener('pointercancel', finish);
       return true;
     }
     return false;
@@ -26,6 +28,8 @@ export function useCanvasNavigation(viewport: CanvasViewport, draw: () => void, 
   }
   function finish() {
     panning.value = false;
+    window.removeEventListener('blur', finish);
+    window.removeEventListener('pointercancel', finish);
   }
   function wheel(event: WheelEvent) {
     const center = viewport.center(),

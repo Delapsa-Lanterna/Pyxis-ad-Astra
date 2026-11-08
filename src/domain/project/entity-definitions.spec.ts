@@ -1,12 +1,11 @@
+import { entityIdInvalidMessage, isEntityId } from '@/domain/schema/schema-identity';
 import { describe, expect, it } from 'vitest';
 import type { EntityKind } from '@/shared/types';
 import {
   entityContentId,
   entityContentIdField,
-  entityIdInvalidMessage,
   entityRenameContext,
   hasEntityIdConflict,
-  isEntityId,
   trimmedEntityStringField,
 } from './entity-definitions';
 

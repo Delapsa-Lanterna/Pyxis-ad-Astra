@@ -5,6 +5,8 @@ import { createPinia, setActivePinia } from 'pinia';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { savedWriteFixture, sessionUpdateFixture } from '@/test/fixtures/write-result';
 import type { JointEditSnapshot, JointEditWriteResult } from '@/shared/types';
+import { AppError } from '@/shared/lib/errors';
+import { shipJointFixture } from '@/test/fixtures/joint-edit/ship-joint-edit';
 
 const mocks = vi.hoisted(() => ({ open: vi.fn(), save: vi.fn(), complete: vi.fn<() => Promise<void>>(), error: vi.fn() }));
 vi.mock('@/orchestrators/project-sync.orchestrator', async () => ({
@@ -47,6 +49,68 @@ beforeEach(() => {
   mocks.complete.mockResolvedValue(undefined);
 });
 describe('joint snapshot session acceptance', () => {
+  it('reports an untouched malformed CSV value and blocks its captured save until correction', async () => {
+    const graph = shipJointFixture();
+    const record = graph.records.find((record) => record.key === 'csv')!;
+    if (record.value.state !== 'present') throw new Error('CSV fixture');
+    const csv = record.value.value as Record<string, string>;
+    csv.hitpoints = 'bad-value';
+    mocks.open.mockResolvedValueOnce(graph);
+    let session!: ReturnType<typeof useJointEditSession>;
+    const wrapper = mount({
+      setup() {
+        session = useJointEditSession({ editableRecords: () => ['spec', 'csv', 'description'] });
+        return () => null;
+      },
+    });
+    try {
+      await session.loadTarget(graph.root);
+      expect(session.problems.issues.value).toMatchObject([{ code: 'csv.value_invalid', location: { field: 'hitpoints' } }]);
+      const before = structuredClone(session.draftValue.value);
+      await expect(session.saveDraft()).rejects.toMatchObject({ action: 'joint-validation' });
+      expect(mocks.save).not.toHaveBeenCalled();
+      expect(session.draftValue.value).toEqual(before);
+      session.setDraft({ ...before, csv: { state: 'present', value: { ...csv, hitpoints: '320' } } });
+      const actual = structuredClone(graph);
+      actual.records.find((record) => record.key === 'csv')!.value = session.draftValue.value.csv!;
+      mocks.save.mockResolvedValueOnce({ ...savedWriteFixture(), content: { target: { kind: 'joint', root: graph.root }, value: actual } });
+      await session.saveDraft();
+      expect(session.problems.issues.value).toEqual([]);
+      expect(mocks.save).toHaveBeenCalledOnce();
+    } finally {
+      wrapper.unmount();
+    }
+  });
+  it('retains the failed record location and draft until correction and successful retry', async () => {
+    let session!: ReturnType<typeof useJointEditSession>;
+    const wrapper = mount({
+      setup() {
+        session = useJointEditSession();
+        return () => null;
+      },
+    });
+    try {
+      await session.loadTarget(root);
+      session.setDraft({ ship: { state: 'present', value: 'invalid' } });
+      const location = { path: 'M:/mod/a.txt', field: 'settings["power"]', line: null, column: null };
+      const failure = new AppError('Invalid content', { code: 'config.shape_invalid', location });
+      mocks.save.mockRejectedValueOnce(failure);
+      await expect(session.saveDraft()).rejects.toBe(failure);
+      expect(session.problems.issues.value).toMatchObject([{ location, path: location.field, code: 'config.shape_invalid' }]);
+      expect(session.draftValue.value.ship).toEqual({ state: 'present', value: 'invalid' });
+      expect(session.dirty.value).toBe(true);
+      expect(session.baselineSnapshot.value!.value.ship).toEqual({ state: 'present', value: 'before' });
+      session.setDraft({ ship: { state: 'present', value: 'before' } });
+      await flushPromises();
+      expect(session.problems.issues.value).toEqual([]);
+      mocks.save.mockResolvedValueOnce({ ...savedWriteFixture(), content: { target: { kind: 'joint', root }, value: snapshot } });
+      await session.saveDraft();
+      expect(session.dirty.value).toBe(false);
+      expect(mocks.save).toHaveBeenCalledTimes(2);
+    } finally {
+      wrapper.unmount();
+    }
+  });
   it('passes corrected override content once and accepts it as the actual baseline', async () => {
     let session!: ReturnType<typeof useJointEditSession>;
     const wrapper = mount({

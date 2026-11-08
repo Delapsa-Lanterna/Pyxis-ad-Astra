@@ -1,4 +1,6 @@
 export interface ErrorLocation {
+  rowKey?: string;
+  field?: string;
   path: string | null;
   line: number | null;
   column: number | null;
@@ -36,4 +38,5 @@ export interface FieldProblem {
   code: string;
   path: string;
   message: string;
+  location?: ErrorLocation | null;
 }

@@ -6,6 +6,7 @@ use crate::models::{CsvTableKey, EntityKind};
 use crate::services::project::model;
 use crate::services::project::sources::core;
 use serde_json::{Map, Value};
+use std::path::Path;
 
 #[derive(Clone)]
 pub(in crate::services::project) struct DescriptionRename {
@@ -101,14 +102,22 @@ pub(in crate::services::project) fn rename_description_row(
         .any(|row| matches(&row.data, row.is_comment, next))
         || core_collision
     {
-        return Err(AppError::message(
+        let error = AppError::message(
             if typ == "SHIP" {
                 "ship.description_target_exists"
             } else {
                 "weapon.description_target_exists"
             },
             format!("描述 ID 已存在: {next} / {typ}"),
-        ));
+        )
+        .at_field("id")
+        .at_path(
+            Path::new(&session.manifest.mod_root).join(&session.csv_tables["descriptions"].path),
+        );
+        return Err(match source {
+            Some(index) => error.at_row(&rows[index].row_key),
+            None => error,
+        });
     }
     if let Some(index) = source {
         rows[index]

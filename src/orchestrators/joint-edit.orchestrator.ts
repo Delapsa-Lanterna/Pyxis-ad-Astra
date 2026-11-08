@@ -16,7 +16,7 @@ import type {
 import { queryJointEdit, queryJointEditRow, prepareJointEdit, saveJointEdit } from '@/services/joint-edit.service';
 import { confirmEntityIdChanges, entityChangeContent, entityIdPresenceChanged } from '@/orchestrators/entity-write.orchestrator';
 import { runConfirmedJsonWrite } from '@/orchestrators/json-write-confirmation.orchestrator';
-import { jointObject, applyJointConflictChoices, takeJointReplaceBase } from '@/domain/joint-edit';
+import { jointObject, applyJointConflictChoices, takeJointReplaceBase, jointCsvProblems } from '@/domain/joint-edit';
 import { cloneQuerySnapshot } from '@/shared/lib/query-snapshot';
 import { infoLog } from '@/shared/runtime/app-log-queue';
 import { logIdentity } from '@/shared/lib/log-fields';
@@ -91,6 +91,8 @@ export async function submitJointEdit(
     }));
   if (choices === null) return null;
   const values = applyJointConflictChoices(prepared, choices);
+  const problem = jointCsvProblems(prepared.snapshot, values)[0];
+  if (problem) throw new AppError(problem.message, { code: problem.code, location: problem.location });
   const identityChanges = prepared.snapshot.records
     .flatMap((record) => {
       const next = values[record.key];

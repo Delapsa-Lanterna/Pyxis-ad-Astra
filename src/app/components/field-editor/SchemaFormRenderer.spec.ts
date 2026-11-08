@@ -12,6 +12,7 @@ import { createPinia, setActivePinia } from 'pinia';
 import { vi } from 'vitest';
 import { initializeSettingsStore } from '@/stores/settings.store';
 import { createSettingsFixture } from '@/test/fixtures/settings';
+import { editorUiStubs } from '@/test/unit/ui-stubs';
 
 vi.mock('@/app/composables/use-app-feedback', () => ({ useAppFeedback: () => ({ choose: vi.fn<AppFeedback['choose']>() }) }));
 
@@ -52,6 +53,65 @@ function mountForm(modelValue: RowData, allowExtraFields?: boolean) {
 enableAutoUnmount(afterEach);
 
 describe('SchemaFormRenderer', () => {
+  it('reveals nested unmounted groups, focuses their field and preserves raw input on repeated navigation', async () => {
+    setActivePinia(createPinia());
+    initializeSettingsStore(createSettingsFixture());
+    const scroll = vi.fn();
+    const previousScroll = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'scrollIntoView');
+    Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', { configurable: true, value: scroll });
+    const form = mount(SchemaFormRenderer, {
+      attachTo: document.body,
+      props: {
+        schema: {
+          ...schema,
+          sections: [
+            {
+              id: 'groups',
+              label: 'Groups',
+              collapsed: true,
+              fields: [
+                {
+                  key: 'groups',
+                  label: 'Groups',
+                  type: 'array',
+                  presentation: 'groups',
+                  item: {
+                    key: 'group',
+                    label: 'Group',
+                    type: 'object',
+                    nested: [{ key: 'name', label: 'Name', type: 'string' }],
+                  },
+                },
+              ],
+            },
+          ],
+        },
+        modelValue: { groups: [{ name: 'kept' }] },
+      },
+      global: { components: editorUiStubs },
+    });
+    try {
+      expect(form.find('input').exists()).toBe(false);
+      const issue = { code: 'fixture.invalid', severity: 'error' as const, path: 'groups[0]["name"]', message: 'Invalid' };
+      await form.vm.locate(issue, form.element as HTMLElement, () => true);
+      const input = form.get('input');
+      expect(document.activeElement).toBe(input.element);
+      input.element.value = 'raw text';
+      await input.trigger('input');
+      await form.vm.locate(issue, form.element as HTMLElement, () => true);
+      expect(form.get('input').element).toBe(input.element);
+      expect(input.element.value).toBe('raw text');
+      expect(form.emitted('update:modelValue')).toBeUndefined();
+      expect(scroll).toHaveBeenCalledTimes(2);
+      input.element.blur();
+      await form.vm.locate(issue, form.element as HTMLElement, () => false);
+      expect(document.activeElement).not.toBe(input.element);
+    } finally {
+      form.unmount();
+      if (previousScroll) Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', previousScroll);
+      else Reflect.deleteProperty(HTMLElement.prototype, 'scrollIntoView');
+    }
+  });
   it.each([undefined, false, true])('uses only the declaration %s to show an empty or populated extra section', async (allowed) => {
     const form = mountForm({}, allowed);
     expect(form.find('.json-stub').exists()).toBe(allowed === true);

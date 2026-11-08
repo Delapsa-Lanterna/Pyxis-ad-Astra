@@ -334,6 +334,18 @@ fn directory_sources_preserve_registration_and_sparse_identity() {
                     if let Some(id) = id {
                         data[field] = json!(id);
                     }
+                    if kind == EntityKind::Faction && id.is_some_and(|id| !id.is_empty()) {
+                        data.as_object_mut().unwrap().extend(json!({
+                            "displayName":"Overlay","displayNameWithArticle":"an Overlay",
+                            "logo":"logo.png","crest":"crest.png","color":[255,255,255,255],
+                            "knownFighters":{},"knownWeapons":{},
+                            "factionDoctrine":{"warships":1,"carriers":1,"phaseShips":1,"officerQuality":1,
+                                "shipQuality":1,"numShips":1,"shipSize":1,"aggression":1}
+                        }).as_object().unwrap().clone());
+                    }
+                    if kind == EntityKind::Skin && id.is_some_and(|id| !id.is_empty()) {
+                        data["baseHullId"] = json!("hull");
+                    }
                     fs::write(&file, data.to_string()).unwrap();
                     let index_path = root.join("data/world/factions/factions.csv");
                     if index_present {

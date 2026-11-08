@@ -26,7 +26,6 @@ export interface CanvasGesture {
 }
 type PointerPhase =
   | { kind: 'idle' }
-  | { kind: 'panning' }
   | { kind: 'waiting'; input: CanvasInput; latest: CanvasInput; ended: boolean }
   | { kind: 'gesture'; gesture: CanvasGesture };
 export function useCanvasEditor<TPreview>(options: {
@@ -84,7 +83,7 @@ export function useCanvasEditor<TPreview>(options: {
   }
   function onDown(event: MouseEvent) {
     if (navigation.start(event)) {
-      phase.value = { kind: 'panning' };
+      phase.value = { kind: 'idle' };
       return;
     }
     if (event.button !== 0) return;
@@ -131,8 +130,7 @@ export function useCanvasEditor<TPreview>(options: {
   function finishPointer() {
     if (phase.value.kind === 'waiting') phase.value.ended = true;
     else if (phase.value.kind === 'gesture') document.finish();
-    if (phase.value.kind === 'panning') idle();
-    else navigation.finish();
+    navigation.finish();
     state.setPreview(null);
   }
   function onUp() {

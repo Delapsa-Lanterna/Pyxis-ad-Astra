@@ -21,7 +21,7 @@ Spec 编辑器基础模块提供规格窗口宿主、共同输入契约和业务
 - `src/domain/spec-editor/spec-editor-definitions.ts`：窗口名称和尺寸的纯定义。
 - `src/domain/spec-editor/spec-fields.ts`：字段声明、嵌套路径定位及字段更新。
 - `src/domain/spec-editor/spec-schemas.ts`：Spec 资产引用解析及当前分支装配。
-- `src/domain/spec-editor/spec-validation.ts`：字段类型、必填与声明约束的共同问题投影。
+- `src/domain/spec-editor/spec-validation.ts`：规格字段路径及条件必填到共同字段规则的装配。
 - `src/orchestrators/spec-editor-identity.orchestrator.ts`：规格身份意图、冲突聚焦及规格窗口身份交接。
 - `src/services/spec-editor.service.ts`：规格保存、导入及身份意图交接。
 - `src/windows/spec-editor.window.ts`：四类规格的身份、尺寸与结构化窗口请求。
@@ -41,6 +41,7 @@ Spec 编辑器基础模块提供规格窗口宿主、共同输入契约和业务
 - `src/domain/project/entity-definitions.ts`：实体内容 ID 字段及字符串 ID 提取。
 - `src/domain/project/entity-versions.ts`：保存目标版本捕获与关联表凭据交接。
 - `src/domain/schema/config-schema-registry.ts`：规格内联引擎样式消费的正式对象定义。
+- `src/domain/schema/schema-validation.ts`：字段类型、结构及声明约束的共同问题投影。
 - `src/domain/schema/schema.types.ts`：对象字段与扩展权限的共同声明。
 - `src/orchestrators/entity-write.orchestrator.ts`：实体保存的文件名选择。
 - `src/orchestrators/json-write-confirmation.orchestrator.ts`：保存提交所属的 JSON 原文保留和逐源重排确认。

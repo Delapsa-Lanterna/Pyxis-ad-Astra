@@ -10,7 +10,7 @@ const TEST_PATH = /(?:^|\/)(?:test|tests|testdata|__tests__)(?:\/|$)|(?:^|\/)tes
 
 /** @param {string} rel @param {string} extension */
 export function isTextGuidelineFile(rel, extension) {
-  return TEXT_EXTENSIONS.has(extension) && !rel.startsWith('scripts/') && !TEST_PATH.test(rel);
+  return TEXT_EXTENSIONS.has(extension) && !rel.startsWith('scripts/') && !rel.startsWith('.zcode/plans/') && !TEST_PATH.test(rel);
 }
 
 /** @param {TextFile[]} files @returns {string[]} */

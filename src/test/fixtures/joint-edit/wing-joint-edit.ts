@@ -25,6 +25,7 @@ export function wingJointFixture(): JointEditSnapshot {
         'system id': 'canister_flak',
         'min crew': '3',
         hitpoints: '750',
+        mass: '100',
         'armor rating': '200',
         'max speed': '140',
         'shield type': 'NONE',

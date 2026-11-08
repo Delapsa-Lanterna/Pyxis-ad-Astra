@@ -44,6 +44,8 @@ pub(in crate::services::project) fn load_variant_files_from(
             warnings.push(GameScanWarning {
                 code: "scan.variant_id_duplicate".to_string(),
                 location: Some(ErrorLocation {
+                    row_key: None,
+                    field: None,
                     path: Some(path.to_string_lossy().to_string()),
                     line: None,
                     column: None,
@@ -93,6 +95,8 @@ pub(in crate::services::project) fn load_skin_files_from(
             warnings.push(GameScanWarning {
                 code: "scan.skin_id_duplicate".to_string(),
                 location: Some(ErrorLocation {
+                    row_key: None,
+                    field: None,
                     path: Some(path.to_string_lossy().to_string()),
                     line: None,
                     column: None,

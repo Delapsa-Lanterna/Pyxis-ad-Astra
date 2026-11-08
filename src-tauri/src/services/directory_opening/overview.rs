@@ -173,6 +173,8 @@ fn append_duplicate_id_warnings(mods: &[GameModSummary], warnings: &mut Vec<Game
             warnings.push(GameScanWarning {
                 code: "scan.mod_id_duplicate".to_string(),
                 location: summary.has_mod_info.then(|| ErrorLocation {
+                    row_key: None,
+                    field: None,
                     path: Some(
                         Path::new(&summary.mod_root)
                             .join("mod_info.json")

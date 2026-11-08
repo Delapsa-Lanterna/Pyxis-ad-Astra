@@ -123,6 +123,26 @@ describe('CSV declared types and complete row rules', () => {
     for (const type of ['TOGGLE', 'DURATION', 'custom'])
       expect(check('abilities', { type }).filter((i) => i.severity === 'error')).toEqual([]);
   });
+  it.each(['beam', 'projectile', null])('uses the declared burst size type with associated spec %s', (specClass) => {
+    expect(getCsvColumnSchemas('weapons').find((column) => column.key === 'burst size')!.valueType).toBe('float');
+    for (const [value, count] of [
+      ['2.625', 0],
+      ['7e1', 0],
+      ['invalid', 1],
+    ] as const) {
+      const row = sample('weapons', { 'burst size': value });
+      const ctx = specClass ? context('weapons', row.data) : null;
+      if (ctx) ctx.entities['weapon:entry'] = { specClass };
+      const issues = csvRowProblems(
+        'weapons',
+        [row],
+        getCsvColumnSchemas('weapons').map((column) => column.key),
+        ctx,
+      );
+      expect(issues.filter((issue) => issue.code === 'csv.value_invalid' && issue.path === 'entry/burst size')).toHaveLength(count);
+      expect(row.data['burst size']).toBe(value);
+    }
+  });
   it('requires actual columns and skips comments and completely empty records', () => {
     expect(csvRowProblems('ships', [sample('ships')], ['id'], null)).toEqual(
       expect.arrayContaining([

@@ -1,7 +1,8 @@
 import type { RowData } from '@/shared/types';
 import { isRowData } from '@/shared/lib/row-data';
 import { specSchema, specSections } from '@/domain/spec-editor/spec-schemas';
-import { specFieldsIssues, specFieldIssues } from '@/domain/spec-editor/spec-validation';
+import { specFieldsIssues } from '@/domain/spec-editor/spec-validation';
+import { schemaFieldIssues } from '@/domain/schema/schema-validation';
 const schema = specSchema('spec-projectile');
 export const EXPLOSION_FIELDS = schema.definitions!.explosion!.nested!;
 export const MISSILE_ENGINE_FIELDS = schema.definitions!.engine!.nested!;
@@ -18,8 +19,8 @@ export function projectileSpecIssues(projectile: RowData) {
     ),
     ...(isRowData(projectile.explosionSpec)
       ? specFieldsIssues(EXPLOSION_FIELDS, projectile.explosionSpec, 'explosionSpec.')
-      : specFieldIssues({ ...schema.definitions!.explosion!, nested: undefined }, projectile.explosionSpec)),
-    ...specFieldIssues(schema.definitions!.engineSlots!, projectile.engineSlots),
+      : schemaFieldIssues({ ...schema.definitions!.explosion!, nested: undefined }, projectile.explosionSpec)),
+    ...schemaFieldIssues(schema.definitions!.engineSlots!, projectile.engineSlots),
     ...engines.flatMap((engine, index) =>
       isRowData(engine)
         ? [

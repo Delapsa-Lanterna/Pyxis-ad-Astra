@@ -192,10 +192,6 @@ export function csvRowProblems(
             ]
           : ['damage/second', 'beam speed'];
         for (const key of ignored) if (text(key)) problem(key, `当前 ${beam ? '光束' : '实弹'} 读取分支使用另一组字段，请确认该值的用途。`);
-        if (!beam && text('burst size')) {
-          const error = csvValueError({ key: 'burst size', control: 'number', valueType: 'integer' }, text('burst size'));
-          if (error) problem('burst size', error, 'error', 'value_invalid');
-        }
         if (!beam && spec.projectileSpecId && context && !context.entities[`projectile:${cell(spec.projectileSpecId)}`])
           problem('id', '武器引用的弹体规格未找到。', context.complete ? 'error' : 'warning', 'projectile_missing');
       }

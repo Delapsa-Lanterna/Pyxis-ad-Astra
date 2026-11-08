@@ -35,6 +35,10 @@ pub struct JsonWriteBatch {
 }
 
 impl JsonWriteBatch {
+    pub fn replaces(&self, relative: &str) -> bool {
+        self.options.replaces(relative)
+    }
+
     pub fn keep_filename(&self) -> bool {
         self.options.keep_filename
     }

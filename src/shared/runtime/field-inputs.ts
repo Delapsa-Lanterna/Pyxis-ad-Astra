@@ -141,6 +141,7 @@ export function createFieldInputs(targetKey: Readonly<Ref<string | null>> = ref(
     register,
     registerFinalizer,
     captureContext,
+    focus: (path: string) => [...fields].find((field) => (field.path ?? field.key) === path)?.focus(),
     commit,
     cancel,
     release,

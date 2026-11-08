@@ -1459,6 +1459,7 @@ describe('composed JSON detail adoption', () => {
     assertLocal(data);
     expect(await doc.redo()).toBe(true);
     await flushPromises();
+    expect(wrapper!.getComponent(JsonDocumentEditor).props('document').problems.issues.value).toEqual([]);
     expect((await doc.save()).status).toBe('saved');
     expect(mocks.miscSave.mock.lastCall![0].data).toEqual(updated);
     expect(doc.dirty.value).toBe(false);

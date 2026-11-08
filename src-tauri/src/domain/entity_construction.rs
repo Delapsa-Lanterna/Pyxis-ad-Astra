@@ -59,6 +59,7 @@ fn validate_weapon_rule(content: &Value, path: &Path, rule: &'static Value) -> A
                         .expect("bundled weapon issue message")
                 ),
             )
+            .at_field(key)
             .at_path(path)
         },
     )

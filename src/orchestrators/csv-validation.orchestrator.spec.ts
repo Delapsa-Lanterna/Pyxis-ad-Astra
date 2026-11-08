@@ -60,9 +60,26 @@ function fixture() {
     classes: {},
     stationData: {},
   };
-  return { tables, target, document, edit, save, context, choose };
+  return { tables, manifest, target, document, edit, save, context, choose };
 }
 describe('CSV schema checks in the actual save entry', () => {
+  it.each(['beam', 'projectile'])('saves burst size through its declared float type with %s associated content', async (specClass) => {
+    const f = fixture();
+    const target = { ...f.target, table: 'weapons' as const };
+    const document = f.tables.getCsvModState(target.modRoot)!.documents.weapons;
+    document.header = ['id', 'name', 'burst size'];
+    replaceCsvTableDraft(document, [csvDraftRow({ id: 'sample', name: 'Sample', 'burst size': '2' }, 'weapon-row')]);
+    f.tables.updateCellValue({ ...target, rowKey: 'weapon-row', column: 'burst size' }, '2.625');
+    mocks.read.mockResolvedValueOnce({ ...f.context, entities: { 'weapon:sample': { specClass } } });
+    mocks.write.mockResolvedValueOnce(savedWriteFixture());
+    await expect(saveCsvChanges({ table: 'weapons', manifest: f.manifest, selectAssociatedSpecs: async () => [] })).resolves.toMatchObject({
+      status: 'saved',
+    });
+    await savedContentWorks.at(-1)!.content;
+    expect(mocks.write).toHaveBeenCalledTimes(1);
+    expect(mocks.write.mock.calls[0]![3][0].row['burst size']).toBe('2.625');
+    expect(document.baselineRows['weapon-row']!.data['burst size']).toBe('2.625');
+  });
   it('saves annotation content through the formal save entry', async () => {
     const f = fixture();
     replaceCsvTableDraft(f.document, [csvDraftRow({ id: '', name: '', mass: '', 'shield type': '', hints: '' }, 'row')]);

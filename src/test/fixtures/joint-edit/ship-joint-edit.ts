@@ -30,6 +30,7 @@ export function shipJointFixture(): JointEditSnapshot {
         'system id': 'ammofeed',
         'fleet pts': '5',
         hitpoints: '1750',
+        mass: '100',
         'armor rating': '300',
         'max flux': '2100',
         'flux dissipation': '140',

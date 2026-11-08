@@ -35,7 +35,7 @@
         ref="groupsButton"
         class="variant-cut-button ui-button variant-refit-actions-button ui-layout-inline ui-layout-center ui-control-pointer ui-content-surface-muted ui-control-reset"
         :disabled="!current.editable || vm.joint.saving.value || vm.referenceChanging.value"
-        @click="openGroups"
+        @click="openGroups()"
       >
         <ImmersiveText text="调整武器组" font="picker-title" ink-aligned />
       </button>
@@ -140,9 +140,16 @@
       :auto-focus="false"
       :close-on-esc="false"
       class="variant-groups-modal"
-      @update:show="groupsOpen = $event"
+      @update:show="!$event && (groupsOpen = false)"
     >
-      <VariantWeaponGroups :record-key="current.key" :variant="current" :vm="vm" :render="render" @close="closeGroups" />
+      <VariantWeaponGroups
+        :problem-path="groupsOpen.problemPath"
+        :record-key="current.key"
+        :variant="current"
+        :vm="vm"
+        :render="render"
+        @close="closeGroups"
+      />
     </n-modal>
   </div>
   <div v-else class="immersive-status">
@@ -199,7 +206,7 @@ const selectedKey = ref(''),
   scene = ref<InstanceType<typeof ImmersiveHullScene> | null>(null),
   candidatePicker = ref<InstanceType<typeof VariantPicker> | null>(null),
   picker = ref<{ kind: JointVariantCatalogKind; index: number; key: string; anchor: { x: number; y: number } } | null>(null),
-  groupsOpen = ref(false);
+  groupsOpen = ref<false | { problemPath?: string[] }>(false);
 const current = computed(
   () => props.panel.variants.find((variant) => variant.key === selectedKey.value) ?? props.panel.variants[0] ?? null,
 );
@@ -311,6 +318,7 @@ function startRightDrag(event: MouseEvent) {
   window.addEventListener('mousemove', trackRightDrag, true);
   window.addEventListener('mouseup', endRightDrag, true);
   window.addEventListener('blur', endRightDrag);
+  window.addEventListener('pointercancel', endRightDrag);
 }
 function finishPointerGesture() {
   pointerGesture = null;
@@ -327,6 +335,7 @@ function endRightDrag() {
   window.removeEventListener('mousemove', trackRightDrag, true);
   window.removeEventListener('mouseup', endRightDrag, true);
   window.removeEventListener('blur', endRightDrag);
+  window.removeEventListener('pointercancel', endRightDrag);
 }
 onScopeDispose(endRightDrag);
 function finishRightClick(event: MouseEvent) {
@@ -493,16 +502,28 @@ async function step(field: string, delta: number): Promise<boolean> {
   return props.vm.updateVariant(key, (data) => ({ ...data, [field]: Number(data[field] ?? 0) + delta }));
 }
 async function selectModule(key: string) {
-  if (!(await props.vm.commitVariantInputs())) return;
+  if (!(await props.vm.commitVariantInputs())) return false;
   props.vm.dismissStat();
   closePicker();
   groupsOpen.value = false;
   selectedKey.value = key;
+  return true;
 }
-async function openGroups() {
+defineExpose({
+  async locate(recordKey: string, path: string[], accepts: () => boolean) {
+    if (!props.panel.variants.some((variant) => variant.key === recordKey)) return false;
+    if (!(await selectModule(recordKey))) return true;
+    await nextTick();
+    if (!accepts()) return true;
+    if (path[0] !== 'weaponGroups') return false;
+    groupsOpen.value = { problemPath: path.slice(1) };
+    return true;
+  },
+});
+async function openGroups(problemPath?: string[]) {
   if (await props.vm.commitVariantInputs()) {
     props.vm.dismissStat();
-    groupsOpen.value = true;
+    groupsOpen.value = { problemPath };
   }
 }
 function closeGroups() {

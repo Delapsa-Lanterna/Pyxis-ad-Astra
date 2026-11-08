@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 import { shallowRef } from 'vue';
 import { useCanvasViewport } from './use-canvas-viewport';
 import { useCanvasNavigation } from './use-canvas-navigation';
@@ -32,6 +32,22 @@ describe('useCanvasViewport', () => {
     navigation.wheel(new WheelEvent('wheel', { deltaY: -1 }));
     expect(viewport.fitted.value).toBe(true);
     expect(viewport.pan.value).toEqual({ x: 0, y: 0 });
+  });
+  it.each(['blur', 'pointercancel'])('ends panning on %s and accepts a fresh right-button gesture', (boundary) => {
+    const viewport = useCanvasViewport(shallowRef(fakeCanvas()), 1, 10);
+    const navigation = useCanvasNavigation(viewport, vi.fn(), 'pointer');
+    onTestFinished(navigation.finish);
+    navigation.start(new MouseEvent('mousedown', { button: 2, clientX: 10, clientY: 20 }));
+    navigation.move(new MouseEvent('mousemove', { buttons: 2, clientX: 15, clientY: 25 }));
+    expect(viewport.pan.value).toEqual({ x: 5, y: 5 });
+    window.dispatchEvent(new Event(boundary));
+    expect(navigation.panning.value).toBe(false);
+    expect(navigation.move(new MouseEvent('mousemove', { buttons: 0, clientX: 30, clientY: 40 }))).toBe(false);
+    expect(viewport.pan.value).toEqual({ x: 5, y: 5 });
+    navigation.start(new MouseEvent('mousedown', { button: 2, clientX: 30, clientY: 40 }));
+    navigation.move(new MouseEvent('mousemove', { buttons: 2, clientX: 35, clientY: 45 }));
+    expect(viewport.pan.value).toEqual({ x: 10, y: 10 });
+    navigation.finish();
   });
   it.each([1, 1.25, 1.5, 2])('keeps the pointer world position fixed after pan and clamped zoom at DPR %s', (ratio) => {
     vi.stubGlobal('devicePixelRatio', ratio);

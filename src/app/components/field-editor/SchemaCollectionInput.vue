@@ -193,7 +193,9 @@ interface Row {
   validateName: (value: unknown) => string | null;
 }
 function rowBindings(row: Row) {
-  const bindings = row.group ? { name: row.id, title: row.field.label, class: 'schema-section' } : { field: row.field, path: row.path };
+  const bindings = row.group
+    ? { name: row.id, title: row.field.label, class: 'schema-section', 'data-field-path': row.path }
+    : { field: row.field, path: row.path };
   return row.visible === false ? { ...bindings, class: [bindings.class, 'ui-retained-hidden'] } : bindings;
 }
 const identity = useFieldRowIdentities(

@@ -3,7 +3,7 @@ import { deepClone } from '@/shared/lib/starsector';
 import { createPinia, setActivePinia } from 'pinia';
 import { mount, flushPromises } from '@vue/test-utils';
 import { defineComponent, h, nextTick, ref, shallowRef, type Ref } from 'vue';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 import { useCanvasEditor } from './use-canvas-editor';
 import { createCanvasRuntime } from './use-canvas-runtime';
 import { useEditorDocument } from '@/app/composables/editors/use-editor-document';
@@ -277,6 +277,54 @@ describe('canvas pointer completion', () => {
     await canvas.trigger('mouseleave');
     expect(onDraftMutated).toHaveBeenCalledTimes(1);
     wrapper.unmount();
+  });
+
+  it.each(['blur', 'pointercancel'])('resumes pointer previews after %s without publishing a draft', async (boundary) => {
+    const { wrapper, viewport, hooks, onDraftMutated } = mountCanvas();
+    onTestFinished(() => wrapper.unmount());
+    const preview = vi.spyOn(hooks, 'preview');
+    const canvas = wrapper.get('canvas');
+    await canvas.trigger('mousedown', { button: 2, clientX: 10, clientY: 20 });
+    await canvas.trigger('mousemove', { buttons: 2, clientX: 15, clientY: 25 });
+    expect(viewport.pan.value).toEqual({ x: 5, y: 5 });
+    window.dispatchEvent(new Event(boundary));
+    await canvas.trigger('mousemove', { buttons: 0, clientX: 30, clientY: 40 });
+    expect(viewport.pan.value).toEqual({ x: 5, y: 5 });
+    preview.mockClear();
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Shift', shiftKey: true }));
+    expect(preview).toHaveBeenCalledOnce();
+    expect(onDraftMutated).not.toHaveBeenCalled();
+  });
+
+  it('releases active navigation listeners when its canvas unmounts', async () => {
+    const { wrapper } = mountCanvas();
+    onTestFinished(() => wrapper.unmount());
+    const remove = vi.spyOn(window, 'removeEventListener');
+    onTestFinished(() => remove.mockRestore());
+    await wrapper.get('canvas').trigger('mousedown', { button: 2 });
+    wrapper.unmount();
+    expect(remove.mock.calls.filter(([type]) => type === 'blur' || type === 'pointercancel')).toHaveLength(2);
+  });
+
+  it('replaces a pending left-button action with right-button navigation', async () => {
+    const { wrapper, inputs, editor, hooks } = mountCanvas();
+    onTestFinished(() => wrapper.unmount());
+    let finish!: () => void;
+    const pending = new Promise<void>((resolve) => {
+      finish = resolve;
+    });
+    onTestFinished(async () => {
+      finish();
+      await flushPromises();
+    });
+    inputs.registerFinalizer(() => pending);
+    const begin = vi.spyOn(hooks, 'begin');
+    editor.onDown(new MouseEvent('mousedown', { button: 0 }));
+    editor.onDown(new MouseEvent('mousedown', { button: 2 }));
+    finish();
+    await flushPromises();
+    expect(begin).not.toHaveBeenCalled();
+    editor.onUp();
   });
 
   it('keeps view-only panning outside the draft history', async () => {

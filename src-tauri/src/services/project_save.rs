@@ -429,7 +429,7 @@ mod tests {
                         session_id: manifest.session_id.clone(),
                         mod_root: manifest.mod_root.clone(),
                         base_versions: manifest.base_versions.clone(),
-                        data: serde_json::json!({"id":"example","name":"Captured"}),
+                        data: serde_json::json!({"id":"example","name":"Captured","version":"1","gameVersion":"1"}),
                         json_write: Default::default(),
                         ordered_json: None,
                     }),
@@ -464,7 +464,13 @@ mod tests {
                             )
                             .unwrap(),
                             entity_data: if kind == "faction" {
-                                serde_json::json!({"file":{"id":"a","displayName":"Captured"}})
+                                serde_json::json!({"file":{
+                                    "id":"a","displayName":"Captured","displayNameWithArticle":"a Captured",
+                                    "logo":"logo.png","crest":"crest.png","color":[255,255,255,255],
+                                    "knownShips":{},"knownFighters":{},"knownWeapons":{},
+                                    "factionDoctrine":{"warships":1,"carriers":1,"phaseShips":1,"officerQuality":1,
+                                        "shipQuality":1,"numShips":1,"shipSize":1,"aggression":1}
+                                }})
                             } else {
                                 serde_json::json!({"descriptor":{"title":"Captured"},"text":"Captured text"})
                             },

@@ -1,10 +1,38 @@
 import { describe, expect, it } from 'vitest';
-import { applyJointConflictChoices, conflictValueText, jointWriteTargets, rebaseJointDraft } from './joint-edit';
+import { applyJointConflictChoices, conflictValueText, jointWriteTargets, rebaseJointDraft, jointCsvProblems } from './joint-edit';
 import { shipJointFixture } from '@/test/fixtures/joint-edit/ship-joint-edit';
 import { jointFixtureValues } from '@/test/fixtures/joint-edit/joint-record';
 import type { JointEditPrepared, JointValue, JointEditSnapshot, JsonValue } from '@/shared/types';
 const present = (value: JsonValue): JointValue => ({ state: 'present', value });
 describe('joint edit field and physical target projection', () => {
+  it('checks every submitted CSV record with its declared rule and keeps same-file rows distinct', () => {
+    const snapshot = shipJointFixture();
+    const first = snapshot.records.find((record) => record.key === 'csv')!;
+    if (first.target.kind !== 'csv') throw new Error('CSV fixture');
+    const second = { ...structuredClone(first), key: 'second-csv', target: { ...first.target, rowKey: 'second-row' } };
+    snapshot.records.push(second);
+    const values = jointFixtureValues(snapshot);
+    values['second-csv'] = structuredClone(first.value);
+    for (const key of ['csv', 'second-csv']) {
+      const value = values[key]!;
+      if (value.state !== 'present' || typeof value.value !== 'object' || Array.isArray(value.value) || value.value === null)
+        throw new Error('CSV object');
+      value.value.hitpoints = 'bad-value';
+    }
+    const before = JSON.stringify(values);
+    const issues = jointCsvProblems(snapshot, values);
+    expect(issues).toHaveLength(2);
+    expect(issues.map((issue) => issue.location?.rowKey)).toEqual([first.target.rowKey, 'second-row']);
+    expect(issues.every((issue) => issue.location?.field === 'hitpoints')).toBe(true);
+    expect(new Set(issues.map((issue) => issue.path)).size).toBe(2);
+    expect(JSON.stringify(values)).toBe(before);
+    values.csv = {
+      state: 'present',
+      value: { ...(first.value.state === 'present' ? (first.value.value as Record<string, JsonValue>) : {}), hitpoints: '3e2' },
+    };
+    delete values['second-csv'];
+    expect(jointCsvProblems(snapshot, values)).toEqual([]);
+  });
   it('uses the authoritative root binding when a row read has advanced beyond the identity event', () => {
     const before = shipJointFixture();
     const after = structuredClone(before);

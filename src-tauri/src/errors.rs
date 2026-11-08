@@ -8,9 +8,13 @@ use std::io::Error;
 use std::path::Path;
 use tauri::Error as TauriError;
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct ErrorLocation {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub row_key: Option<Box<str>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub field: Option<Box<str>>,
     pub path: Option<String>,
     pub line: Option<usize>,
     pub column: Option<usize>,
@@ -21,7 +25,7 @@ pub struct ErrorLocation {
 pub struct ErrorDiagnostic {
     pub code: String,
     pub message: String,
-    pub location: Option<ErrorLocation>,
+    pub location: Option<Box<ErrorLocation>>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -108,11 +112,7 @@ impl AppError {
     }
 
     pub fn at_path(self, path: impl AsRef<Path>) -> Self {
-        let mut location = self.location().cloned().unwrap_or(ErrorLocation {
-            path: None,
-            line: None,
-            column: None,
-        });
+        let mut location = self.location().cloned().unwrap_or_default();
         location.path = Some(path.as_ref().to_string_lossy().into_owned());
         Self::Located {
             location,
@@ -122,6 +122,10 @@ impl AppError {
 
     pub fn at_position(self, line: usize, column: Option<usize>) -> Self {
         let location = ErrorLocation {
+            row_key: self
+                .location()
+                .and_then(|location| location.row_key.clone()),
+            field: self.location().and_then(|location| location.field.clone()),
             path: self.location().and_then(|location| location.path.clone()),
             line: Some(line),
             column,
@@ -136,7 +140,24 @@ impl AppError {
         ErrorDiagnostic {
             code: self.code().to_string(),
             message: self.to_string(),
-            location: self.location().cloned(),
+            location: self.location().cloned().map(Box::new),
+        }
+    }
+
+    pub fn at_field(self, field: impl Into<String>) -> Self {
+        let mut location = self.location().cloned().unwrap_or_default();
+        location.field = Some(field.into().into_boxed_str());
+        Self::Located {
+            location,
+            source: Box::new(self),
+        }
+    }
+    pub fn at_row(self, key: &str) -> Self {
+        let mut location = self.location().cloned().unwrap_or_default();
+        location.row_key = Some(key.into());
+        Self::Located {
+            location,
+            source: Box::new(self),
         }
     }
 
@@ -229,6 +250,24 @@ mod tests {
         assert_eq!(value["message"], "outer: inner detail");
         assert!(value["location"].is_null());
     }
+    #[test]
+    fn field_location_survives_file_position_and_context_wrapping() {
+        let error = AppError::context(
+            "save",
+            AppError::message("config.shape_invalid", "invalid field")
+                .at_field("groups[2][\"power\"]")
+                .at_row("descriptions:row:2"),
+        )
+        .at_path("demo.variant")
+        .at_position(4, Some(9));
+        let wire = serde_json::to_value(error).unwrap();
+        assert_eq!(wire["code"], "config.shape_invalid");
+        assert_eq!(wire["location"]["field"], "groups[2][\"power\"]");
+        assert_eq!(wire["location"]["path"], "demo.variant");
+        assert_eq!(wire["location"]["line"], 4);
+        assert_eq!(wire["location"]["column"], 9);
+        assert_eq!(wire["location"]["rowKey"], "descriptions:row:2");
+    }
 
     #[test]
     fn wrapped_identity_conflicts_keep_the_authoritative_target_payload() {
@@ -263,11 +302,13 @@ mod tests {
         assert_eq!(diagnostic.message, "save: raw");
         assert_eq!(
             diagnostic.location,
-            Some(ErrorLocation {
+            Some(Box::new(ErrorLocation {
+                row_key: None,
+                field: None,
                 path: Some("demo.skin".into()),
                 line: Some(3),
                 column: Some(8)
-            })
+            }))
         );
         let rewrite = AppError::context(
             "save",

@@ -22,6 +22,7 @@
     @slow="vm.logSlowPreparation"
     @load-external="vm.loadExternal"
   >
+    <EditorProblems :issues="joint.problems.issues.value" @locate="locateProblem" />
     <ShipImmersivePanel v-if="panel?.kind === 'ship'" :panel="panel" :render="render" />
     <WeaponImmersivePanel
       v-else-if="panel?.kind === 'weapon'"
@@ -37,7 +38,7 @@
       @create-source="vm.wing!.createMissingSource"
       @open-editor="vm.wing!.openRelatedEditor"
     />
-    <VariantImmersivePanel v-else-if="panel?.kind === 'variant'" :panel="panel" :vm="vm.variant!" :render="render">
+    <VariantImmersivePanel v-else-if="panel?.kind === 'variant'" ref="variantPanel" :panel="panel" :vm="vm.variant!" :render="render">
       <template #meta>
         <ImmersiveEditorActions
           :dirty="dirty"
@@ -60,8 +61,13 @@
 <script setup lang="ts">
 import { provideFieldInputs } from '@/shared/runtime/field-inputs';
 import { useProjectSyncStore } from '@/stores/project-sync.store';
-import { computed, onMounted } from 'vue';
-import type { JointEditRoot, JointEditKind } from '@/shared/types';
+import { computed, onMounted, nextTick, useTemplateRef } from 'vue';
+import type { JointEditRoot, JointEditKind, FieldProblem } from '@/shared/types';
+import EditorProblems from '@/shared/ui/EditorProblems.vue';
+import { normalizeFsPath } from '@/shared/lib/paths';
+import { extractFileReferenceFromError } from '@/shared/lib/errors';
+import { compositionPath } from '@/domain/json-composition';
+import type { ImmersiveField } from '@/domain/immersive/fields';
 import { useWindowContext } from '@/windows/window-context.window';
 import { useManagedWindowRequests } from '@/app/composables/use-managed-window-requests';
 import { useImmersiveEditorViewModel, editableRenderContext } from '@/app/composables/immersive-editor-assembly';
@@ -98,6 +104,43 @@ useManagedWindowRequests(async (request) => {
 const label = vm.label;
 const render = editableRenderContext(vm);
 const { joint, panel, errorText, history } = vm;
+const variantPanel = useTemplateRef('variantPanel');
+async function locateProblem(issue: FieldProblem) {
+  const key = joint.currentTargetKey.value;
+  const admitted = joint.inputs.captureContext();
+  const current = () => vm.isActive() && admitted() && joint.currentTargetKey.value === key;
+  try {
+    if (issue.code === 'field.input_invalid') return await joint.inputs.focus(issue.path);
+    const record = vm.snapshot.value!.records.find((item) => {
+      const write = item.target.kind === 'spec' ? item.target.target.write : item.target.write;
+      return (
+        normalizeFsPath(write.path) === normalizeFsPath(issue.location?.path ?? '') &&
+        (item.target.kind !== 'csv' || item.target.rowKey === issue.location?.rowKey)
+      );
+    });
+    const parts = compositionPath(issue.location?.field ?? issue.path);
+    if (record && variantPanel.value && (await variantPanel.value.locate(record.key, parts, current))) return;
+    if (!current()) return;
+    const matches = (field: ImmersiveField) =>
+      field.recordKey === record?.key && compositionPath(field.schema.key).every((part, i) => parts[i] === part);
+    const stat = panel.value?.allStats.find((item) => item.fields.some(matches));
+    if (!stat) {
+      const reference = extractFileReferenceFromError({ code: issue.code, message: issue.message, location: issue.location ?? null });
+      if (reference) await feedback.fileActions(reference, 'error', issue.code)[0]?.run();
+      return;
+    }
+    await vm.toggleStat(stat.id, true);
+    await nextTick();
+    if (!current() || vm.selectedStatId.value !== stat.id) return;
+    const field = stat.fields.find(matches)!;
+    const target = document.querySelector<HTMLElement>(`[data-field-id="${CSS.escape(field.id)}"]`);
+    const input = target?.querySelector<HTMLElement>('input,textarea');
+    input?.scrollIntoView({ block: 'nearest' });
+    input?.focus();
+  } catch (error) {
+    feedback.error(error, '定位联合字段失败');
+  }
+}
 const { saving, loading, ready, handoffLocked, externalUpdateNotice } = joint;
 const fileWaiting = computed(() => useProjectSyncStore().isWaiting(modRoot));
 const dirty = computed(() => joint.dirty.value || vm.variantActionPending.value);

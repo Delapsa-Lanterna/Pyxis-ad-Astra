@@ -70,7 +70,7 @@ fn fixture() -> (TestWorkspace, JointEditRoot) {
     write_utf8_no_bom(&dir.join("data/hulls/a.ship"),r#"{"hullId":"a","hullName":"Ship","spriteName":"graphics/a.png","builtInWeapons":{"slot":"weapon"},"custom":{"a":1,"b":2}}"#).unwrap();
     write_utf8_no_bom(
         &dir.join("data/weapons/weapon.wpn"),
-        r#"{"id":"weapon","specClass":"beam","size":"SMALL"}"#,
+        r#"{"id":"weapon","specClass":"beam","size":"SMALL","turretOffsets":[0,0],"hardpointOffsets":[0,0]}"#,
     )
     .unwrap();
     write_utf8_no_bom(
@@ -165,6 +165,98 @@ fn queued_joint_save_graph_builds() {
             panic!("saved record exists")
         };
         assert_eq!(data[field], value, "{kind:?}");
+        cleanup(dir, &root);
+    }
+}
+
+#[test]
+fn invalid_joint_record_reports_file_and_field_without_writing() {
+    let (dir, mut root) = fixture();
+    root.kind = JointEditKind::Variant;
+    root.id = "var".into();
+    let before = fs::read(dir.join("data/variants/var.variant")).unwrap();
+    let history = query_file_history(&root.session_id, &root.mod_root).unwrap();
+    let mut input = payload(query_joint_edit(&root).unwrap());
+    let key = input.snapshot.bindings["variant"].clone();
+    let JointValue::Present(data) = input.values.get_mut(&key).unwrap() else {
+        unreachable!()
+    };
+    data["weaponGroups"] = json!([{"mode":"LINKED","autofire": true}]);
+    let error = submit(&input).unwrap_err();
+    assert_eq!(error.code(), "config.shape_invalid");
+    let diagnostic = error.diagnostic();
+    let location = diagnostic.location.unwrap();
+    assert_eq!(
+        location.field.as_deref(),
+        Some("weaponGroups[0][\"weapons\"]")
+    );
+    assert_eq!(
+        location.path.as_deref(),
+        fs::canonicalize(dir.join("data/variants/var.variant"))
+            .unwrap()
+            .to_str()
+    );
+    assert_eq!(
+        fs::read(dir.join("data/variants/var.variant")).unwrap(),
+        before
+    );
+    assert_eq!(
+        query_file_history(&root.session_id, &root.mod_root)
+            .unwrap()
+            .revision,
+        history.revision
+    );
+    cleanup(dir, &root);
+}
+
+#[test]
+fn resolved_joint_conflict_checks_the_selected_content() {
+    for select_draft in [false, true] {
+        let (dir, mut root) = fixture();
+        root.kind = JointEditKind::Variant;
+        root.id = "var".into();
+        let baseline = query_joint_edit(&root).unwrap();
+        let key = baseline.bindings["variant"].clone();
+        let JointValue::Present(mut draft) = baseline
+            .records
+            .iter()
+            .find(|record| record.key == key)
+            .unwrap()
+            .value
+            .clone()
+        else {
+            unreachable!()
+        };
+        let mut disk = draft.clone();
+        disk["weaponGroups"] = json!([{"mode":"LINKED","autofire":true,"weapons":{}}]);
+        let path = dir.join("data/variants/var.variant");
+        write_utf8_no_bom(&path, &disk.to_string()).unwrap();
+        draft["weaponGroups"] = json!([{"mode":"LINKED","autofire":true}]);
+        let prepared = prepare_joint_edit(&JointEditDraft {
+            baseline,
+            values: BTreeMap::from([(key.clone(), JointValue::Present(draft.clone()))]),
+        })
+        .unwrap();
+        assert_eq!(prepared.conflicts.len(), 1);
+        assert_eq!(prepared.conflicts[0].path, ["weaponGroups"]);
+        let mut input = payload(prepared.snapshot);
+        input.values = prepared.values;
+        if select_draft {
+            input.values.insert(key, JointValue::Present(draft));
+        }
+        let before = fs::read(&path).unwrap();
+        let result = submit(&input);
+        if select_draft {
+            let error = result.unwrap_err();
+            assert_eq!(error.code(), "config.shape_invalid");
+            assert_eq!(
+                error.diagnostic().location.unwrap().field.as_deref(),
+                Some("weaponGroups[0][\"weapons\"]")
+            );
+        } else {
+            assert!(result.unwrap().changes.is_empty());
+        }
+        assert_eq!(fs::read(&path).unwrap(), before);
         cleanup(dir, &root);
     }
 }
@@ -824,7 +916,7 @@ fn wing_fixture() -> (TestWorkspace, JointEditRoot) {
         r#"{"hullId":"b","hullSize":"FIGHTER","weaponSlots":[],"spriteName":"graphics/b.png"}"#,
     )
     .unwrap();
-    write_utf8_no_bom(&dir.join("data/variants/var.variant"),r#"{"variantId":"var","hullId":"a","displayName":"Support Fighter","weaponGroups":[{"weapons":{"one":"weapon","two":"weapon"}}],"custom":"keep"}"#).unwrap();
+    write_utf8_no_bom(&dir.join("data/variants/var.variant"),r#"{"variantId":"var","hullId":"a","displayName":"Support Fighter","weaponGroups":[{"mode":"LINKED","weapons":{"one":"weapon","two":"weapon"}}],"custom":"keep"}"#).unwrap();
     write_utf8_no_bom(&dir.join("data/hulls/wing_data.csv"),"id,variant,num,op cost,range,refit,role,custom\nwing,var,3,12,0,10,SUPPORT,007\nother_wing,var,2,10,100,8,FIGHTER,008\n").unwrap();
     let mut trace = PerformanceTrace::new("wing.test");
     let manifest = project::open_project_session_traced(&dir, None, &mut trace).unwrap();
@@ -880,7 +972,7 @@ fn wing_skin_sources_and_slots() {
     release_project_session(root.session_id).unwrap();
     fs::create_dir_all(dir.join("data/hulls/skins")).unwrap();
     write_utf8_no_bom(&dir.join("data/hulls/skins/skin.skin"),r#"{"skinHullId":"skin","baseHullId":"a","hullName":"Skin Name","maxSpeed":190,"tech":"Midline","descriptionId":"a","removeWeaponSlots":["one"],"builtInWeapons":{"two":"special"},"spriteName":"graphics/skin.png"}"#).unwrap();
-    write_utf8_no_bom(&dir.join("data/variants/var.variant"),r#"{"variantId":"var","hullId":"skin","weaponGroups":[{"weapons":{"one":"weapon","two":"weapon"}}]}"#).unwrap();
+    write_utf8_no_bom(&dir.join("data/variants/var.variant"),r#"{"variantId":"var","hullId":"skin","weaponGroups":[{"mode":"LINKED","weapons":{"one":"weapon","two":"weapon"}}]}"#).unwrap();
     let mut trace = PerformanceTrace::new("wing.skin");
     root.session_id = project::open_project_session_traced(&dir, None, &mut trace)
         .unwrap()

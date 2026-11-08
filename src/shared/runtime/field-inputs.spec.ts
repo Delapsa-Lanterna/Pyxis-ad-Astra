@@ -9,6 +9,25 @@ function field(key: string, commit: FieldInput['commit']): FieldInput {
 }
 
 describe('target field input lifecycle', () => {
+  it('focuses the registered path without committing raw input and stops locating released fields', async () => {
+    const inputs = createFieldInputs();
+    const registered = {
+      ...field(
+        'stable-key',
+        vi.fn(() => null),
+      ),
+      path: 'groups[1].name',
+    };
+    const remove = inputs.register(registered);
+    await inputs.focus(registered.path);
+    expect(registered.focus).toHaveBeenCalledOnce();
+    expect(registered.commit).not.toHaveBeenCalled();
+    expect(registered.dirty.value).toBe(true);
+    remove();
+    await inputs.focus(registered.path);
+    expect(registered.focus).toHaveBeenCalledOnce();
+    inputs.release();
+  });
   it('records commit, rejection, cancellation and release without field values', async () => {
     const records: AppLogEntry[] = [];
     appLogQueue.install(async (entries) => {
