@@ -507,6 +507,9 @@ impl SourceReader {
                 entries.entry(path.clone()).or_insert(None);
             }
             for (path, stamp) in &self.stamps {
+                if stamp.is_some() {
+                    continue;
+                }
                 if io::relative_path_contains(directory, path)
                     && Path::new(path)
                         .extension()
@@ -579,7 +582,6 @@ impl SourceReader {
                 .iter()
                 .map(String::as_str)
                 .collect::<Vec<_>>();
-            self.scopes.remove(&directory);
             let current = self.discover(&directory, &extensions, scope.content)?;
             if scope.content {
                 paths.extend(current.iter().map(|path| self.key(path)));

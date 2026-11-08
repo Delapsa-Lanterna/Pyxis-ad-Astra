@@ -609,7 +609,7 @@ mod tests {
         valid["editHistoryLimit"] = serde_json::json!(321);
         valid["cacheLimits"]["mediaData"]["entries"] = serde_json::json!(17);
         let paths = setting_paths(&defaults, "");
-        assert_eq!(paths.len(), 49);
+        assert_eq!(paths.len(), 54);
         for pointer in paths.into_iter().skip(1) {
             for missing in [false, true] {
                 let mut source = valid.clone();

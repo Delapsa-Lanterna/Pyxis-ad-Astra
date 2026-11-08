@@ -58,12 +58,42 @@ function feedbackHarness(accepting = () => true) {
       messages as unknown as MessageApiInjection,
       dialogs as unknown as DialogApiInjection,
       () => useSettingsStore().toastDurations,
+      () => useSettingsStore().ignoredCoreFeedback,
+      () => useSettingsStore().savedStarsectorRoot,
       accepting,
     ),
   };
 }
 
 describe('feedback diagnostics, file authorization and actions', () => {
+  it.each(['success', 'info', 'warning', 'error'] as const)(
+    'hides selected Core %s toasts while preserving Mod toasts and diagnostics',
+    (level) => {
+      const settings = useSettingsStore();
+      const next = createSettingsFixture({
+        starsectorRoot: 'G:/game',
+        ignoredCoreFeedback: { ...settings.ignoredCoreFeedback, [level]: true },
+      });
+      settings.replaceSettings(next);
+      settings.confirmSavedSettings(next);
+      const { feedback, messages } = feedbackHarness();
+      const show = (path: string) => {
+        if (level === 'warning')
+          feedback.warning({
+            userMessage: 'fixture',
+            diagnostic: { code: 'scan.warning', message: 'raw warning', location: { path, line: null, column: null } },
+          });
+        else if (level === 'error')
+          feedback.error({ code: 'scan.error', message: 'raw error', location: { path, line: null, column: null } });
+        else feedback[level]('fixture', path);
+      };
+      show('\\\\?\\G:\\game\\starsector-core\\data\\variants\\fixture.variant');
+      expect(messages[level]).not.toHaveBeenCalled();
+      expect(mocks.log).toHaveBeenCalledTimes(level === 'warning' || level === 'error' ? 1 : 0);
+      show('G:/game/mods/example/data/variants/fixture.variant');
+      expect(messages[level]).toHaveBeenCalledOnce();
+    },
+  );
   it.each(['failure', 'scan', 'loaded'] as const)('shares %s file actions between lists and toasts', async (kind) => {
     const { feedback, messages } = feedbackHarness();
     const diagnostic = { code: 'text.invalid_utf8', message: 'fixture bytes', location: { path: 'M:/mod/source.csv', line: 4, column: 2 } };

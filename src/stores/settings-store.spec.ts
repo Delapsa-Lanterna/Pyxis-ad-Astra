@@ -30,6 +30,20 @@ describe('settings integer limits', () => {
       expect(settings.toastDurations[level]).toBe(3600);
     }
   });
+  it.each(['success', 'info', 'warning', 'error'] as const)('persists and mirrors ignored Core %s feedback', (level) => {
+    const settings = useSettingsStore();
+    expect(settings.ignoredCoreFeedback).toEqual({ success: false, info: false, warning: false, error: false });
+    settings.setIgnoredCoreFeedback(level, true);
+    const saved = settings.settingsSnapshot();
+    expect(saved.ignoredCoreFeedback[level]).toBe(true);
+    settings.replaceSettings(saved);
+    expect(settings.ignoredCoreFeedback[level]).toBe(true);
+    const invalid = createSettingsFixture({
+      ignoredCoreFeedback: { ...snapshot.ignoredCoreFeedback, [level]: 'true' as unknown as boolean },
+    });
+    expect(() => settings.replaceSettings(invalid)).toThrow();
+    expect(settings.ignoredCoreFeedback[level]).toBe(true);
+  });
   it('publishes, mirrors and clears the immersive font directory', () => {
     const settings = useSettingsStore();
     expect(settings.immersiveFontDirectory).toBeNull();

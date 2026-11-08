@@ -648,8 +648,8 @@ mod tests {
     use crate::services::project::test_support::{project_workspace, release_workspace};
     #[cfg(test)]
     use crate::services::{file_editor, file_history, project, project_save, write_transactions};
-    use crate::test_support;
     use crate::test_support::work_counts;
+    use crate::test_support::{self, SOURCE_WATCH_TEST_QUEUE as TEST_QUEUE};
     #[cfg(test)]
     use crate::{io, services};
     use serde_json::Value;
@@ -666,8 +666,6 @@ mod tests {
     use std::{slice, thread};
     use tauri::Error;
     use tauri::ipc::InvokeResponseBody;
-
-    static TEST_QUEUE: Mutex<()> = Mutex::new(());
 
     #[test]
     fn source_watch_status_publishes_changes_and_replays_the_current_snapshot() {
@@ -769,8 +767,8 @@ mod tests {
         if test_support::isolated_test() {
             return;
         }
-        configure_source_watch(true).unwrap();
         let serial = TEST_QUEUE.lock().unwrap();
+        configure_source_watch(true).unwrap();
         let root = project_workspace("review_core_status_replay");
         let core = root.join("starsector-core");
         fs::create_dir_all(&core).unwrap();
@@ -983,8 +981,8 @@ mod tests {
         if test_support::isolated_test() {
             return;
         }
-        configure_source_watch(true).unwrap();
         let _serial = TEST_QUEUE.lock().unwrap();
+        configure_source_watch(true).unwrap();
         let work = project_workspace("core_mod_fanout").with_cleanup(release_watched_workspace);
         let game = work.join("game");
         let core = game.join("starsector-core");
@@ -1205,8 +1203,8 @@ mod tests {
         if test_support::isolated_test() {
             return;
         }
-        configure_source_watch(true).unwrap();
         let _serial = TEST_QUEUE.lock().unwrap();
+        configure_source_watch(true).unwrap();
         let root = project_workspace("core_windows").with_cleanup(release_watched_workspace);
         let graphics = root.join("starsector-core/graphics");
         fs::create_dir_all(&graphics).unwrap();
@@ -1275,8 +1273,8 @@ mod tests {
         if test_support::isolated_test() {
             return;
         }
-        configure_source_watch(true).unwrap();
         let _serial = TEST_QUEUE.lock().unwrap();
+        configure_source_watch(true).unwrap();
         let root = project_workspace("source_watch_settings_catchup")
             .with_cleanup(release_watched_workspace);
         let path = root.join("data/hulls/ship_data.csv");
@@ -1371,8 +1369,8 @@ mod tests {
         if test_support::isolated_test() {
             return;
         }
-        configure_source_watch(true).unwrap();
         let _serial = TEST_QUEUE.lock().unwrap();
+        configure_source_watch(true).unwrap();
         let root = project_workspace("source_retry_status").with_cleanup(release_watched_workspace);
         let path = root.join("mod_info.json");
         fs::write(&path, r#"{"id":"sample","name":"Sample"}"#).unwrap();
@@ -1431,8 +1429,8 @@ mod tests {
         if test_support::isolated_test() {
             return;
         }
-        configure_source_watch(true).unwrap();
         let _serial = TEST_QUEUE.lock().unwrap();
+        configure_source_watch(true).unwrap();
         let root = project_workspace("watched_sessions").with_cleanup(release_watched_workspace);
         fs::create_dir_all(root.join("data/hulls")).unwrap();
         let path = root.join("data/hulls/ship_data.csv");

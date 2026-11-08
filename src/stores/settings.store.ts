@@ -26,6 +26,7 @@ import {
   readTheme,
   readToastDuration,
   readToastDurations,
+  readIgnoredCoreFeedback,
   normalizeHex,
 } from '@/domain/settings/rules';
 
@@ -46,6 +47,7 @@ export const useSettingsStore = defineStore('settings', () => {
   }
   const cacheLimits = ref(structuredClone(initialSettings.cacheLimits));
   const toastDurations = ref(structuredClone(initialSettings.toastDurations));
+  const ignoredCoreFeedback = ref(structuredClone(readIgnoredCoreFeedback(initialSettings.ignoredCoreFeedback)));
   const systemTheme = ref<AppTheme>('light');
   const theme = computed(() => themePreference.value ?? systemTheme.value);
   const accent = ref<AccentPreset>(readAccent(initialSettings.accent));
@@ -118,6 +120,10 @@ export const useSettingsStore = defineStore('settings', () => {
     toastDurations.value = { ...toastDurations.value, [level]: readToastDuration(seconds) };
   }
 
+  function setIgnoredCoreFeedback(level: FeedbackLevel, ignored: boolean) {
+    ignoredCoreFeedback.value = { ...ignoredCoreFeedback.value, [level]: ignored };
+  }
+
   function setEditHistoryLimit(limit: number) {
     editHistoryLimit.value = readHistoryLimit(limit);
   }
@@ -179,6 +185,7 @@ export const useSettingsStore = defineStore('settings', () => {
       performanceMonitorEnabled: performanceMonitorEnabled.value,
       cacheLimits: deepClone(cacheLimits.value),
       toastDurations: deepClone(toastDurations.value),
+      ignoredCoreFeedback: deepClone(ignoredCoreFeedback.value),
       theme: themePreference.value,
       accent: accent.value,
       customAccent: customAccent.value,
@@ -204,6 +211,7 @@ export const useSettingsStore = defineStore('settings', () => {
     performanceMonitorEnabled.value = settings.performanceMonitorEnabled;
     const nextCacheLimits = readCacheLimits(settings.cacheLimits);
     const nextToastDurations = readToastDurations(settings.toastDurations);
+    const nextIgnoredCoreFeedback = readIgnoredCoreFeedback(settings.ignoredCoreFeedback);
     const nextGeneralFont = readGeneralFont(settings.generalFont);
     const nextExpandFieldDescriptions = readExpandFieldDescriptions(settings.expandFieldDescriptions);
     const nextImmersiveGameFont = readImmersiveGameFont(settings.immersiveGameFont);
@@ -218,6 +226,7 @@ export const useSettingsStore = defineStore('settings', () => {
     generalFont.value = nextGeneralFont;
     cacheLimits.value = structuredClone(nextCacheLimits);
     toastDurations.value = structuredClone(nextToastDurations);
+    ignoredCoreFeedback.value = structuredClone(nextIgnoredCoreFeedback);
     fileHistoryLimit.value = nextFileHistoryLimit;
     editHistoryLimit.value = nextEditHistoryLimit;
     logRotationSizeMiB.value = nextLogRotationSizeMiB;
@@ -246,6 +255,8 @@ export const useSettingsStore = defineStore('settings', () => {
     cacheLimits,
     toastDurations,
     setToastDuration,
+    ignoredCoreFeedback,
+    setIgnoredCoreFeedback,
     setCacheLimit,
     accent,
     activeAccentHex,

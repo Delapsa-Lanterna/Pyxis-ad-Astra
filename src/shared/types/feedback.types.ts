@@ -37,8 +37,8 @@ export interface WindowFeedback extends AppFeedback {
 }
 
 export interface AppFeedback {
-  success(message: string): void;
-  info(message: string): void;
+  success(message: string, sourcePath?: string): void;
+  info(message: string, sourcePath?: string): void;
   warning(notice: FeedbackNotice): void;
   error(error: unknown, contextMessage?: string): void;
   confirmDanger(options: ConfirmOptions): void;

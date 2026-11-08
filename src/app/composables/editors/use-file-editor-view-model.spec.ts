@@ -276,7 +276,7 @@ describe('useFileEditorViewModel editing', () => {
       { id: 'fixture-save' },
     );
     expect(mocks.publishCommittedWrite).toHaveBeenCalledTimes(1);
-    expect(mocks.feedback.success).toHaveBeenCalledWith('文件已保存');
+    expect(mocks.feedback.success).toHaveBeenCalledWith('文件已保存', 'C:/mods/alpha/data/hulls/test.file');
     expect(viewModel.dirty.value).toBe(false);
     viewModel.dispose();
   });

@@ -4,10 +4,10 @@ import { useSaveCommandStore } from '@/stores/save-command.store';
 import type { DialogApiInjection } from 'naive-ui/es/dialog/src/DialogProvider';
 import type { MessageApiInjection } from 'naive-ui/es/message/src/MessageProvider';
 import { createAppFeedback, type FeedbackFileAction } from '@/app/app-feedback';
-import type { AppFeedback, ToastDurations } from '@/shared/types';
+import type { AppFeedback, IgnoredCoreFeedback, ToastDurations } from '@/shared/types';
 import { errorCodeOf, type FileReference } from '@/shared/lib/errors';
 import type { FeedbackFileTarget, WindowFeedback } from '@/shared/types';
-import { closestRootForPath, pathBelongsToRoot } from '@/shared/lib/paths';
+import { closestRootForPath, gameCoreDirectoryPath, pathBelongsToRoot } from '@/shared/lib/paths';
 import { useProjectStore } from '@/stores/project.store';
 import { managedWindowContext } from '@/windows/window-context.window';
 import { openFileEditorWindow } from '@/windows/file-editor.window';
@@ -17,6 +17,8 @@ export function createWindowFeedback(
   message: MessageApiInjection,
   dialog: DialogApiInjection,
   toastDurations: () => ToastDurations,
+  ignoredCoreFeedback: () => IgnoredCoreFeedback,
+  starsectorRoot: () => string | null,
   accepting = () => true,
 ): WindowFeedback {
   const feedback = createAppFeedback(
@@ -57,6 +59,10 @@ export function createWindowFeedback(
       return actions;
     },
     toastDurations,
+    (level, sourcePath) => {
+      const root = starsectorRoot();
+      return !sourcePath || !root || !ignoredCoreFeedback()[level] || !pathBelongsToRoot(sourcePath, gameCoreDirectoryPath(root));
+    },
   );
   return feedback;
 }
@@ -102,11 +108,11 @@ async function transcodeReference(
     await transcodeFileToUtf8(session.sessionId, session.modRoot, reference.path, encoding.value);
   } catch (error) {
     if (errorCodeOf(error) === 'text.transcode_not_needed') {
-      feedback.info('文件已经是 UTF-8，可以直接打开。');
+      feedback.info('文件已经是 UTF-8，可以直接打开。', reference.path);
       return;
     }
     feedback.error(error, '转换文件编码失败');
     return;
   }
-  feedback.success('已转码为 UTF-8：' + reference.path);
+  feedback.success('已转码为 UTF-8：' + reference.path, reference.path);
 }

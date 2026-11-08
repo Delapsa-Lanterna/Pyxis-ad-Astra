@@ -60,7 +60,7 @@ export function useCsvSaveParticipants(
                   selectAssociatedSpecs,
                   feedback,
                 });
-                if (result.status === 'saved') feedback.success('当前 CSV 表已保存');
+                if (result.status === 'saved') feedback.success('当前 CSV 表已保存', writeTarget.path);
                 return result;
               },
             },

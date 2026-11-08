@@ -89,7 +89,10 @@ function createJsonDocumentSession(definition: JsonDocumentDefinition, record: J
     },
 
     afterSaved: (snapshot) => {
-      feedback.success(snapshot.meta.recovery ? 'JSON 来源已重新创建' : '当前 JSON 文档已保存');
+      feedback.success(
+        snapshot.meta.recovery ? 'JSON 来源已重新创建' : '当前 JSON 文档已保存',
+        snapshot.target.entity?.write.path ?? snapshot.baseVersions[0]?.path,
+      );
     },
   });
   session.loadBaseForTarget({ ...record, meta: { receipt: null, resources: record.resources, composition: record.composition } });

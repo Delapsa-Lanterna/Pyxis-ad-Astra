@@ -164,7 +164,10 @@ export function useJsonDocumentView(
           ready: (snapshot) => {
             if (!current() || String(document.draftValue.value.baseHullId ?? '').trim() !== id) return;
             if (isExternalSource(snapshot.target.source?.source)) {
-              feedback.info('船体「' + id + '」来自' + (snapshot.target.source?.source === 'core' ? '原版' : '其他 Mod') + '。');
+              feedback.info(
+                '船体「' + id + '」来自' + (snapshot.target.source?.source === 'core' ? '原版' : '其他 Mod') + '。',
+                snapshot.target.source?.path,
+              );
               return;
             }
             if (snapshot.target.source?.source !== 'mod')

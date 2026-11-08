@@ -98,6 +98,7 @@ export type {
   AppSettings,
   AppTheme,
   EditMode,
+  IgnoredCoreFeedback,
   LogLevel,
   SaveAppSettingsPayload,
   SettingsSnapshot,

@@ -382,7 +382,7 @@ impl Drop for SourceSubscription {
 mod tests {
     use super::*;
     use crate::io;
-    use crate::test_support::{self, TestWorkspace};
+    use crate::test_support::{self, SOURCE_WATCH_TEST_QUEUE, TestWorkspace};
     use notify::Error as NotifyError;
     use std::fs;
     use std::sync::mpsc::{self, Receiver, Sender};
@@ -430,6 +430,7 @@ mod tests {
         if test_support::isolated_test() {
             return;
         }
+        let _serial = SOURCE_WATCH_TEST_QUEUE.lock().unwrap();
         let (root, events) = workspace("source_watch_preference");
         let mut first = subscribe(&root, receive).unwrap();
         let mut second = subscribe(&root, receive).unwrap();
@@ -481,6 +482,7 @@ mod tests {
         if test_support::isolated_test() {
             return;
         }
+        let _serial = SOURCE_WATCH_TEST_QUEUE.lock().unwrap();
         configure(true).unwrap();
         let (root, events) = workspace("source_watch_root_recovery");
         let mut subscription = subscribe(&root, receive).unwrap();
@@ -510,6 +512,7 @@ mod tests {
         if test_support::isolated_test() {
             return;
         }
+        let _serial = SOURCE_WATCH_TEST_QUEUE.lock().unwrap();
         configure(true).unwrap();
         let (root, events) = workspace("source_watch_reopen");
         let mut previous = subscribe(&root, receive).unwrap();
@@ -534,6 +537,7 @@ mod tests {
         if test_support::isolated_test() {
             return;
         }
+        let _serial = SOURCE_WATCH_TEST_QUEUE.lock().unwrap();
         configure(true).unwrap();
         let (root, events) = workspace("source_watch_shared");
         let mut first = subscribe(&root, receive).unwrap();
@@ -564,6 +568,7 @@ mod tests {
         if test_support::isolated_test() {
             return;
         }
+        let _serial = SOURCE_WATCH_TEST_QUEUE.lock().unwrap();
         configure(true).unwrap();
         let (root, events) = workspace("source_watch_rename");
         let before = root.join("before.txt");
@@ -596,6 +601,7 @@ mod tests {
         if test_support::isolated_test() {
             return;
         }
+        let _serial = SOURCE_WATCH_TEST_QUEUE.lock().unwrap();
         configure(true).unwrap();
         let (root, events) = workspace("source_watch_continuous");
         let path = root.join("stream.txt");

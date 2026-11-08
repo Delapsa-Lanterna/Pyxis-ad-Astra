@@ -328,6 +328,7 @@ export function useSpecEditorWindowViewModel(
   async function saveEditorData(data?: RowData): Promise<void> {
     const target = editorWindowTarget();
     if (!target) return;
+    const sourcePath = editorData.value?.target.write.path;
     if (draftSession.saving.value) {
       await draftSession.waitForSave();
       return;
@@ -337,7 +338,7 @@ export function useSpecEditorWindowViewModel(
     try {
       const saved = await draftSession.saveDraft();
       if (saved) {
-        feedback.success(`${target.id} 已保存`);
+        feedback.success(`${target.id} 已保存`, sourcePath);
       }
     } catch (error) {
       feedback.error(error);

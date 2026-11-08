@@ -211,7 +211,8 @@ export function useFileEditorViewModel(params: FileEditorViewModelParams) {
 
   async function saveFile() {
     if (useProjectSyncStore().isWaiting(params.modRoot)) return;
-    if (!fileEditorTarget()) return;
+    const target = fileEditorTarget();
+    if (!target) return;
     if (draftSession.saving.value) {
       await draftSession.waitForSave();
       return;
@@ -227,7 +228,7 @@ export function useFileEditorViewModel(params: FileEditorViewModelParams) {
       }
       const saved = await draftSession.saveDraft();
       if (!saved || disposed) return;
-      feedback.success('文件已保存');
+      feedback.success('文件已保存', target.filePath);
     } catch (error) {
       const location = errorDiagnosticOf(error).location;
       if (location?.line) {

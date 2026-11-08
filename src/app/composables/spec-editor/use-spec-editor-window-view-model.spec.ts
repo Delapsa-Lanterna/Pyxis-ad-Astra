@@ -607,7 +607,7 @@ describe('useSpecEditorWindowViewModel saving', () => {
       { id: 'fixture-save' },
     );
     expect(mocks.publishCommittedWrite).toHaveBeenCalledWith('M:/mod', result, 's1');
-    expect(mocks.feedback.success).toHaveBeenCalledWith('XY 已保存');
+    expect(mocks.feedback.success).toHaveBeenCalledWith('XY 已保存', 'M:/mod/data/hulls/XY.ship');
     expect(viewModel.draftDirty.value).toBe(false);
     expect(viewModel.canSaveSpec.value).toBe(true);
   });

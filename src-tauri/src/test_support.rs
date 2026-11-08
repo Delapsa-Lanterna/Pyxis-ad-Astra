@@ -12,14 +12,15 @@ use std::os::windows::fs as windows_fs;
 use std::os::windows::fs::MetadataExt;
 use std::path::{MAIN_SEPARATOR, MAIN_SEPARATOR_STR, Path, PathBuf};
 use std::process::Command;
-use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::{Arc, Mutex};
 use std::{env, fs, process, thread};
 #[cfg(windows)]
 use windows_sys::Win32;
 
 pub(crate) mod work_counts;
 
+pub(crate) static SOURCE_WATCH_TEST_QUEUE: Mutex<()> = Mutex::new(());
 static WORKSPACE_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 type WorkspaceCleanup = fn(&Path) -> Vec<String>;
 

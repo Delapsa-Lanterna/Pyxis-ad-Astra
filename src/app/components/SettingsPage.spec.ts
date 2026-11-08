@@ -4,7 +4,7 @@ import { createPinia, setActivePinia } from 'pinia';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { initializeSettingsStore, useSettingsStore } from '@/stores/settings.store';
 import { createSettingsFixture } from '@/test/fixtures/settings';
-import { editorUiStubs, nInputNumber } from '@/test/unit/ui-stubs';
+import { editorUiStubs, nButton, nInputNumber } from '@/test/unit/ui-stubs';
 import SettingsPage from './SettingsPage.vue';
 import ColorPicker from '@/shared/ui/ColorPicker.vue';
 import { useSettingsViewModel } from '@/app/composables/settings/use-settings-view-model';
@@ -92,7 +92,7 @@ describe('settings limit controls', () => {
       index = sections.findIndex((section) => section.get('h3').text() === '提示时长'),
       section = sections[index]!;
     expect(sections[index - 1]!.get('h3').text()).toBe('缓存限制');
-    expect(section.findAll('.field-label').map((label) => label.text())).toEqual(['成功', '信息', '警告', '错误']);
+    expect(section.findAll('.field-label').map((label) => label.text())).toEqual(['成功', '信息', '警告', '错误', '忽略原版提示']);
     const controls = wrapper.findAllComponents(nInputNumber).filter((control) => section.element.contains(control.get('input').element));
     expect(controls.map((control) => control.get<HTMLInputElement>('input').element.value)).toEqual(['5', '7', '7', '0']);
     expect(section.text()).toContain('0 表示持续显示');
@@ -103,6 +103,20 @@ describe('settings limit controls', () => {
       expect(control.get<HTMLInputElement>('input').element.value).toBe('3600');
     }
     expect(Object.values(useSettingsStore().settingsSnapshot().toastDurations)).toEqual([3600, 3600, 3600, 3600]);
+    const buttons = wrapper.findAllComponents(nButton).filter((button) => section.element.contains(button.element));
+    expect(
+      buttons.map((button) => [button.text(), button.props('type'), button.props('secondary'), button.attributes('aria-pressed')]),
+    ).toEqual([
+      ['成功', 'success', true, 'false'],
+      ['信息', 'info', true, 'false'],
+      ['警告', 'warning', true, 'false'],
+      ['错误', 'error', true, 'false'],
+    ]);
+    await buttons[2]!.trigger('click');
+    expect(useSettingsStore().settingsSnapshot().ignoredCoreFeedback.warning).toBe(true);
+    expect(buttons[2]!.props('secondary')).toBe(false);
+    expect(buttons[2]!.attributes('aria-pressed')).toBe('true');
+    expect(section.text()).toContain('隐藏来自当前 starsector-core 文件的新提示；警告和错误仍写入日志。');
     wrapper.unmount();
   });
   it('keeps the color draft at its declared string output', async () => {

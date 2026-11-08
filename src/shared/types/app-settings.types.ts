@@ -14,11 +14,13 @@ export const LOG_LEVELS = ['debug', 'info', 'warning', 'error'] as const;
 export type LogLevel = (typeof LOG_LEVELS)[number];
 
 export type ToastDurations = Record<FeedbackLevel, number>;
+export type IgnoredCoreFeedback = Record<FeedbackLevel, boolean>;
 
 export interface AppSettings {
   performanceMonitorEnabled: boolean;
   watchFileChanges: boolean;
   toastDurations: ToastDurations;
+  ignoredCoreFeedback: IgnoredCoreFeedback;
   cacheLimits: CacheLimits;
   theme: AppTheme | null;
   accent: AccentPreset;

@@ -24,9 +24,11 @@ export function createAppFeedback(
   dialog: DialogApiInjection,
   fileActions: FeedbackFileActions,
   toastDurations: () => ToastDurations,
+  toastVisible: (level: FeedbackLevel, sourcePath: string | null) => boolean = () => true,
 ): WindowFeedback {
   const reportedMedia = new WeakSet<MediaReadError>();
-  function showToast(level: FeedbackLevel, text: string, reference: FileReference | null = null, code = '') {
+  function showToast(level: FeedbackLevel, text: string, reference: FileReference | null = null, code = '', sourcePath?: string) {
+    if (!toastVisible(level, sourcePath ?? reference?.path ?? null)) return;
     const actions = reference === null ? [] : fileActions(reference, level, code);
     const seconds = toastDurations()[level];
     // The countdown animation owns expiry so hover pauses the same clock shown by the bar.
@@ -55,8 +57,8 @@ export function createAppFeedback(
   }
   const feedback: WindowFeedback = {
     fileActions,
-    success: (text) => showToast('success', text),
-    info: (text) => showToast('info', text),
+    success: (text, sourcePath) => showToast('success', text, null, '', sourcePath),
+    info: (text, sourcePath) => showToast('info', text, null, '', sourcePath),
     warning: (notice) => {
       const reference = extractFileReferenceFromError(notice.diagnostic);
       showToast('warning', notice.userMessage, reference, notice.diagnostic.code);

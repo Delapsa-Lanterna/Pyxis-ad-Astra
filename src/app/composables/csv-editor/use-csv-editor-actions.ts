@@ -121,7 +121,7 @@ export function useCsvEditorActions(model: CsvEditorModel, host: CsvEditorHost, 
             const { kind } = target;
             const label = { ship: '船体', skin: '舰船皮肤', variant: '装配' }[kind];
             if (target.source === 'core') {
-              feedback.info(label + '「' + target.id + '」来自原版。');
+              feedback.info(label + '「' + target.id + '」来自原版。', target.sourcePath ?? undefined);
               return;
             }
             if (!target.source)

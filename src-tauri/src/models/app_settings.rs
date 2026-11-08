@@ -50,6 +50,15 @@ impl Default for ToastDurations {
     }
 }
 
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(default, rename_all = "camelCase")]
+pub struct IgnoredCoreFeedback {
+    pub success: bool,
+    pub info: bool,
+    pub warning: bool,
+    pub error: bool,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct AppSettings {
@@ -61,6 +70,8 @@ pub struct AppSettings {
     pub cache_limits: CacheLimits,
     #[serde(default)]
     pub toast_durations: ToastDurations,
+    #[serde(default)]
+    pub ignored_core_feedback: IgnoredCoreFeedback,
     #[serde(default)]
     pub theme: Option<AppTheme>,
     #[serde(default = "default_accent")]
@@ -107,6 +118,7 @@ impl Default for AppSettings {
             watch_file_changes: default_watch_file_changes(),
             cache_limits: CacheLimits::default(),
             toast_durations: ToastDurations::default(),
+            ignored_core_feedback: IgnoredCoreFeedback::default(),
             theme: None,
             accent: default_accent(),
             custom_accent: default_custom_accent(),
@@ -220,6 +232,24 @@ mod tests {
             serde_json::from_value::<AppSettings>(wire).unwrap(),
             settings
         );
+    }
+
+    #[test]
+    fn ignored_core_feedback_defaults_closed_and_roundtrips_each_level() {
+        let defaults = serde_json::to_value(AppSettings::default()).unwrap();
+        assert_eq!(
+            defaults["ignoredCoreFeedback"],
+            json!({"success":false,"info":false,"warning":false,"error":false})
+        );
+        for level in ["success", "info", "warning", "error"] {
+            let mut wire = defaults.clone();
+            wire["ignoredCoreFeedback"][level] = json!(true);
+            let settings: AppSettings = serde_json::from_value(wire).unwrap();
+            assert_eq!(
+                serde_json::to_value(settings).unwrap()["ignoredCoreFeedback"][level],
+                true
+            );
+        }
     }
 
     #[test]

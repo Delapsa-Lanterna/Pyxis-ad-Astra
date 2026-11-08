@@ -36,6 +36,7 @@ export async function resolveWingReference(root: JointEditRoot, destination: 'hu
     kind,
     id: target.id,
     source: source.source?.source ?? null,
+    sourcePath: source.source?.path ?? null,
     rowKey: source.target.kind === 'csv' ? source.target.rowKey : undefined,
   };
 }

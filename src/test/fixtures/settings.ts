@@ -5,6 +5,7 @@ export function createSettingsFixture(overrides: Partial<AppSettings> = {}): App
     performanceMonitorEnabled: false,
     watchFileChanges: true,
     toastDurations: { success: 5, info: 7, warning: 7, error: 0 },
+    ignoredCoreFeedback: { success: false, info: false, warning: false, error: false },
     cacheLimits: {
       mediaData: { entries: 2048, MiB: 64 },
       decodedImages: { entries: 1024, MiB: 96 },

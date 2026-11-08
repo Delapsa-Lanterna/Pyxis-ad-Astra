@@ -222,6 +222,21 @@
           />秒
         </label>
       </FieldRow>
+      <FieldRow label="忽略原版提示">
+        <div class="action-group" role="group" aria-label="忽略原版提示级别">
+          <n-button
+            v-for="(label, level) in TOAST_LEVELS"
+            :key="level"
+            size="small"
+            :type="level"
+            :secondary="!settings.ignoredCoreFeedback[level]"
+            :aria-pressed="settings.ignoredCoreFeedback[level]"
+            @click="settings.setIgnoredCoreFeedback(level, !settings.ignoredCoreFeedback[level])"
+            >{{ label }}</n-button
+          >
+        </div>
+        <template #hint><FieldHints description="隐藏来自当前 starsector-core 文件的新提示；警告和错误仍写入日志。" /></template>
+      </FieldRow>
     </section>
     <section class="panel-card ui-layout-shrink ui-control-border ui-content-surface ui-layout-grid ui-layout-stretch">
       <h3 class="panel-section-title">配置文件</h3>
