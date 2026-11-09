@@ -1,7 +1,6 @@
 use crate::dependencies;
-use crate::{Engine, Package, Result, invalid};
+use crate::{AnalysisRequest, AnalysisResponse, Engine, Package, Result, invalid};
 use serde::Serialize;
-use serde_json::Value;
 use std::collections::BTreeMap;
 use std::fs;
 use std::mem;
@@ -179,7 +178,7 @@ impl AnalysisRuntime {
         }
     }
 
-    pub fn request(&self, instance: &str, request: &Value) -> Result<Value> {
+    pub fn request(&self, instance: &str, request: &AnalysisRequest) -> Result<AnalysisResponse> {
         let mut state = self.state()?;
         let engine = &mut state
             .instances
@@ -188,13 +187,9 @@ impl AnalysisRuntime {
             .engine;
         let result = engine.request(request);
         if let Ok(response) = &result
-            && let Some(error) = response.get("error")
+            && let Some(error) = &response.error
         {
-            let failure = Err(invalid(
-                error["message"]
-                    .as_str()
-                    .unwrap_or("Java analysis request failed"),
-            ));
+            let failure = Err(invalid(format!("{}: {}", error.code, error.message)));
             self.record::<()>("java_analysis.request", Some(instance), &failure);
         } else {
             self.record("java_analysis.request", Some(instance), &result);

@@ -42,12 +42,13 @@ export function useCsvEditorActions(model: CsvEditorModel, host: CsvEditorHost, 
     { flush: 'sync' },
   );
   async function save() {
+    const context = { paths: model.state.value!.documents[view.currentTab].baseVersions.map((version) => version.path) };
     try {
       const result = await model.document.value!.save();
-      if (result.status === 'noop') feedback.info('没有需要保存的修改');
+      if (result.status === 'noop') feedback.info('没有需要保存的修改', context);
       return result;
     } catch (error) {
-      feedback.error(error, '保存 CSV 失败');
+      feedback.error(error, '保存 CSV 失败', context);
     }
     return undefined;
   }
@@ -121,7 +122,9 @@ export function useCsvEditorActions(model: CsvEditorModel, host: CsvEditorHost, 
             const { kind } = target;
             const label = { ship: '船体', skin: '舰船皮肤', variant: '装配' }[kind];
             if (target.source === 'core') {
-              feedback.info(label + '「' + target.id + '」来自原版。', target.sourcePath ?? undefined);
+              feedback.info(label + '「' + target.id + '」来自原版。', {
+                paths: [action.modRoot, ...(target.sourcePath ? [target.sourcePath] : [])],
+              });
               return;
             }
             if (!target.source)

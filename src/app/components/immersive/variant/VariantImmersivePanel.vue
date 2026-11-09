@@ -213,7 +213,10 @@ const current = computed(
 const feedback = useAppFeedback();
 let fluxLimitAuthorized = false,
   fluxLimitPromptPending = false;
-const deckMedia = useResourceMediaRegistry({ onError: feedback.error, onFailures: () => undefined });
+const deckMedia = useResourceMediaRegistry({
+  onError: (error, context) => feedback.error(error, undefined, context),
+  onFailures: () => undefined,
+});
 const deckRef = computed(() => props.vm.displaySnapshot.value?.referenceSettings.resources.fighterButtonBlank);
 const deckIcon = computed(() =>
   deckRef.value ? (deckMedia.dataUrl(props.vm.joint.currentTarget.value!.sessionId, deckRef.value) ?? '') : '',

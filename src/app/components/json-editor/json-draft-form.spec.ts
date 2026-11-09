@@ -870,10 +870,9 @@ describe('JSON common workspace and form', () => {
     await flushPromises();
     expect(useWorkspaceStore().currentView).toBe('json-editor');
     expect(useWorkspaceStore().entityLocation).toBeNull();
-    expect(mocks.feedback.info).toHaveBeenCalledExactlyOnceWith(
-      '船体「hull」来自' + (source === 'core' ? '原版' : '其他 Mod') + '。',
-      'M:/game/data/hulls/ship_data.csv',
-    );
+    expect(mocks.feedback.info).toHaveBeenCalledExactlyOnceWith('船体「hull」来自' + (source === 'core' ? '原版' : '其他 Mod') + '。', {
+      paths: ['M:/one', 'M:/game/data/hulls/ship_data.csv'],
+    });
   });
   it.each(['variants', 'skins'] as const)('%s locates and scrolls to an exact entity while retaining another draft', async (page) => {
     const kind = page === 'skins' ? 'skin' : 'variant';

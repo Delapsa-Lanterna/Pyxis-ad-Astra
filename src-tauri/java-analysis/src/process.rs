@@ -1,9 +1,10 @@
 use crate::dependencies::{compatible, inspect, matches_file};
-use crate::model::Builtin;
+use crate::model::{AnalysisRequest, AnalysisResponse, Builtin};
 use crate::paths::{java_path, relative};
+use crate::protocol::AnalysisResult;
 use crate::{Result, invalid};
 use reqwest::Url;
-use serde_json::{Value, json};
+use serde_json::json;
 use std::env::join_paths;
 use std::fs::{self, File};
 use std::io::Result as IoResult;
@@ -21,6 +22,7 @@ pub struct Engine {
     output: Receiver<IoResult<String>>,
     reader: Option<JoinHandle<()>>,
     closed: bool,
+    shutdown_requested: bool,
 }
 
 impl Engine {
@@ -133,12 +135,15 @@ impl Engine {
             output,
             reader: Some(reader),
             closed: false,
+            shutdown_requested: false,
         };
-        let hello = engine.request(&json!({"id":"host-handshake", "op":"hello"}))?;
-        if hello["result"]["protocol"] != manifest.protocol
-            || hello["result"]["java"] != 17
-            || hello["result"]["engine"] != host.version
-        {
+        let hello = engine.request(&AnalysisRequest::Hello {
+            id: json!("host-handshake"),
+        })?;
+        let Some(AnalysisResult::Hello(hello)) = hello.result else {
+            return Err(invalid("Engine handshake result is invalid"));
+        };
+        if hello.protocol != manifest.protocol || hello.java != 17 || hello.engine != host.version {
             return Err(invalid(
                 "Engine handshake does not match package requirements",
             ));
@@ -151,32 +156,54 @@ impl Engine {
     }
 
     /// Executes a request and preserves its request identity and structured engine errors.
-    pub fn request(&mut self, request: &Value) -> Result<Value> {
+    pub fn request(&mut self, request: &AnalysisRequest) -> Result<AnalysisResponse> {
+        let request = serde_json::to_value(request)?;
         let input = self
             .input
             .as_mut()
             .ok_or_else(|| invalid("Engine is closed"))?;
-        serde_json::to_writer(&mut *input, request)?;
+        serde_json::to_writer(&mut *input, &request)?;
         input.write_all(b"\n")?;
         input.flush()?;
         let line = self
             .output
             .recv_timeout(Duration::from_secs(180))
             .map_err(|error| invalid(format!("Engine response failed: {error}")))??;
-        let response: Value = serde_json::from_str(&line)?;
-        if response.get("id") != request.get("id") {
+        let response: AnalysisResponse = serde_json::from_str(&line)?;
+        if Some(&response.id) != request.get("id") {
             return Err(invalid(format!(
                 "Engine response identity mismatch: {line}"
             )));
+        }
+        if response.result.is_some() == response.error.is_some() {
+            return Err(invalid("Engine response must contain one result or error"));
+        }
+        if let Some(result) = &response.result
+            && !result.accepts(
+                request["op"]
+                    .as_str()
+                    .expect("typed request has an operation"),
+            )
+        {
+            return Err(invalid(
+                "Engine result does not match the requested operation",
+            ));
+        }
+        if request["op"] == "shutdown" && response.error.is_none() {
+            self.shutdown_requested = true;
         }
         Ok(response)
     }
 
     /// Performs protocol shutdown, closes stdin, waits for JVM exit and joins the reader.
     pub fn close(mut self) -> Result<()> {
-        let response = self.request(&json!({"id":"host-shutdown", "op":"shutdown"}))?;
-        if response.get("error").is_some() {
-            return Err(invalid(response.to_string()));
+        if !self.shutdown_requested {
+            let response = self.request(&AnalysisRequest::Shutdown {
+                id: json!("host-shutdown"),
+            })?;
+            if let Some(error) = response.error {
+                return Err(invalid(format!("{}: {}", error.code, error.message)));
+            }
         }
         self.input.take();
         let status = self.child.wait()?;

@@ -123,7 +123,7 @@ describe('settings limit controls', () => {
       expect(button.props('tertiary')).toBe(false);
       expect(button.attributes('aria-pressed')).toBe('true');
     }
-    expect(section.text()).toContain('按级别显示当前 starsector-core 文件的新提示；警告和错误仍写入日志。');
+    expect(section.text()).toContain('操作涉及非原版文件时显示全部提示，全部文件属于原版时按所选级别显示；警告和错误仍写入日志。');
     wrapper.unmount();
   });
   it('keeps the color draft at its declared string output', async () => {

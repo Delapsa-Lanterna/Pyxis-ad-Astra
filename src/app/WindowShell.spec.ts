@@ -1,8 +1,10 @@
 import { mount, flushPromises, type VueWrapper } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 import { nextTick } from 'vue';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 import WindowShell from './WindowShell.vue';
+import WindowRuntime from './WindowRuntime.vue';
+import { createWindowFeedback } from './app-feedback-assembly';
 import WindowTooltip from '@/app/components/WindowTooltip.vue';
 import { initializeSettingsStore, useSettingsStore } from '@/stores/settings.store';
 import { useWorkspaceStore } from '@/stores/workspace.store';
@@ -21,7 +23,7 @@ vi.mock('@/services/core-assets.service', () => ({
   setWindowCoreSubscription: vi.fn(async () => {}),
 }));
 vi.mock('@/services/app-log.service', () => ({ recordLogBestEffort: mocks.log }));
-vi.mock('./WindowRuntime.vue', () => ({ default: { template: '<div><slot /></div>' } }));
+vi.mock('./WindowRuntime.vue', () => ({ default: { props: ['whenRootReady'], template: '<div><slot /></div>' } }));
 vi.mock('@/app/components/ContextMenu.vue', () => ({ default: { template: '<div><slot /></div>' } }));
 vi.mock('@/app/composables/use-window-image-runtime', () => ({ useWindowImageRuntimeLifetime: vi.fn() }));
 vi.mock('@/app/composables/use-app-lifecycle-assembly', async (original) => ({
@@ -59,6 +61,49 @@ function mountWindow(mode: 'main' | 'child') {
 }
 
 describe('window Core root assembly', () => {
+  it.each(['main', 'child'] as const)('shares the initial %s source with assets and three warning toasts', async (mode) => {
+    const settings = useSettingsStore();
+    settings.setShowCoreFeedback('warning', false);
+    register('fixture-session', 'M:/fixture-mod', 'G:/inferred-game');
+    useWorkspaceStore().activateModOverview('M:/fixture-mod');
+    let finish!: (root: string | null) => void;
+    mocks.root.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+    onTestFinished(() => finish(null));
+    mountWindow(mode);
+    const messages = { warning: vi.fn(), error: vi.fn(), success: vi.fn(), info: vi.fn() };
+    const feedback = createWindowFeedback(
+      messages as unknown as Parameters<typeof createWindowFeedback>[0],
+      {} as Parameters<typeof createWindowFeedback>[1],
+      () => settings.toastDurations,
+      () => settings.showCoreFeedback,
+      wrapper.getComponent(WindowRuntime).props('whenRootReady'),
+    );
+    for (let index = 0; index < 3; index++)
+      feedback.warning({
+        userMessage: 'fixture',
+        diagnostic: {
+          code: 'scan.warning',
+          message: 'fixture ' + index,
+          location: { path: 'G:/inferred-game/starsector-core/data/variants/sample.variant', line: null, column: null },
+        },
+      });
+    await flushPromises();
+    expect(settings.savedStarsectorRoot).toBeNull();
+    expect(mocks.root).toHaveBeenCalledExactlyOnceWith({ sessionId: 'fixture-session', starsectorRoot: null });
+    expect(mocks.log).toHaveBeenCalledTimes(3);
+    expect(messages.warning).not.toHaveBeenCalled();
+    finish('G:/inferred-game');
+    await flushPromises();
+    expect(messages.warning).not.toHaveBeenCalled();
+    expect(mocks.fields).toHaveBeenCalledExactlyOnceWith('G:/inferred-game');
+    expect(mocks.graphics).toHaveBeenCalledExactlyOnceWith('G:/inferred-game');
+    expect(mocks.root).toHaveBeenCalledOnce();
+  });
   it('retains its popover for leaving and restores the previous anchor before opening the next', async () => {
     vi.useFakeTimers();
     mountWindow('main');

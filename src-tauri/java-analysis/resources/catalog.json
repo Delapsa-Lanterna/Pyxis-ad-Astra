@@ -1,9 +1,9 @@
 {
   "version": "jdt-3.47.0-91d5d1aa09042b56",
-  "protocol": 1,
+  "protocol": 2,
   "java": 17,
   "bytes": 15334234,
-  "sha256": "82ba786b3cca1ea112f9470e5b9dbdec65125e170d1b697c401f67e0af400e83",
+  "sha256": "39ebb16829646746c5a98aad2d21d915627f83e97e706d821c67d115772fe5ba",
   "artifacts": [
     {
       "path": "lib/animal-sniffer-annotations-1.9.jar",

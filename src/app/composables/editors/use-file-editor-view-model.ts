@@ -228,7 +228,7 @@ export function useFileEditorViewModel(params: FileEditorViewModelParams) {
       }
       const saved = await draftSession.saveDraft();
       if (!saved || disposed) return;
-      feedback.success('文件已保存', target.filePath);
+      feedback.success('文件已保存', { paths: [target.filePath] });
     } catch (error) {
       const location = errorDiagnosticOf(error).location;
       if (location?.line) {

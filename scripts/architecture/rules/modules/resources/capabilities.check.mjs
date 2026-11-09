@@ -32,6 +32,8 @@ const cases = [
   ],
   ['resource-observe', 'src/app/composables/use-sample.ts', 'src/services/resource-media.service.ts', 'hasResourceInvalidation'],
   ['resource-key', 'src/app/composables/use-sample.ts', 'src/services/resource-media.service.ts', 'mediaResourceKey'],
+  ['resource-error', 'src/app/composables/use-sample.ts', 'src/services/resource-media.service.ts', 'resourceMediaError'],
+  ['resource-context', 'src/app/composables/use-sample.ts', 'src/services/resource-media.service.ts', 'resourceMediaContext'],
   ['resource-read', 'src/services/spec-ship-editor.service.ts', 'src/services/resource-media.service.ts', 'queryResourceDataUrls'],
   [
     'draft-resource-query',

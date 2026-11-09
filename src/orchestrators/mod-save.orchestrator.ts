@@ -139,6 +139,7 @@ export function createModSaveCoordinator(feedback: AppFeedback, closing: () => b
       const saved = reply.items.filter((item) => item.status === 'saved').length;
       const cancelled = reply.items.filter((item) => item.status === 'cancelled').length;
       const failures = reply.items.filter((item) => item.status === 'failed').length;
+      const context = { paths: [target.modRoot, ...reply.items.flatMap((item) => item.paths)] };
       if (cancelled + failures)
         await feedback.choose({
           title: 'Mod 保存结果',
@@ -159,10 +160,10 @@ export function createModSaveCoordinator(feedback: AppFeedback, closing: () => b
           choices: [],
           cancelText: '关闭',
         });
-      else if (saved) feedback.success('已保存 ' + saved + ' 项。');
-      else feedback.info('当前 Mod 没有需要保存的修改。');
+      else if (saved) feedback.success('已保存 ' + saved + ' 项。', context);
+      else feedback.info('当前 Mod 没有需要保存的修改。', context);
     } catch (error) {
-      if (!disposed) feedback.error(error, '保存当前 Mod 失败');
+      if (!disposed) feedback.error(error, '保存当前 Mod 失败', { paths: [target.modRoot] });
     }
   }
   function saveCurrentMod(): Promise<void> {

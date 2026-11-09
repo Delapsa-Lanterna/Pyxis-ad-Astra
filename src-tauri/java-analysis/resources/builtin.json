@@ -1,13 +1,13 @@
 {
   "version": "1.0.0",
-  "protocol": 1,
+  "protocol": 2,
   "java": 17,
   "launcher": "launcher.jar",
   "bundle": "engine.jar",
   "framework": "lib/org.eclipse.osgi-3.24.300.jar",
   "dependencies": {
     "version": "jdt-3.47.0-91d5d1aa09042b56",
-    "protocol": 1,
+    "protocol": 2,
     "java": 17,
     "bundles": [
       "lib/ecj-3.46.100.jar",
@@ -178,8 +178,8 @@
   "files": [
     {
       "path": "engine.jar",
-      "bytes": 25983,
-      "sha256": "845efe649374421f286ffbfd04de75537cc7af2695308c31e965695e0fecc38d"
+      "bytes": 57604,
+      "sha256": "55dca43a49ce3a5d8131e90e352912b7ea92014ab183a3e82a90dc3afe291f0d"
     },
     {
       "path": "launcher.jar",

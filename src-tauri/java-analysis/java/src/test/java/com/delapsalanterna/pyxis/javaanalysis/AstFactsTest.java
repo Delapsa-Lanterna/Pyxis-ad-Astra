@@ -2,10 +2,42 @@ package com.delapsalanterna.pyxis.javaanalysis;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import org.junit.jupiter.api.Test;
 
 class AstFactsTest {
+  @Test
+  void typedProtocolPreservesIdentityAndExclusiveResponseFields() {
+    Gson gson = new Gson();
+    Protocol.Request request =
+        gson.fromJson(
+            "{\"id\":41,\"op\":\"update\",\"project\":\"orbit\",\"expectedRevision\":2,\"files\":[{\"action\":\"delete\",\"file\":\"Orbit.java\",\"version\":3}]}",
+            Protocol.Request.class);
+    assertEquals(2, request.expectedRevision());
+    assertEquals("delete", request.files().get(0).action());
+    JsonObject success =
+        Protocol.encode(
+            new Protocol.Response(
+                request.id(), new Protocol.ProjectSnapshot("orbit", 3, 0, 1), null));
+    assertEquals(41, success.get("id").getAsInt());
+    assertFalse(success.has("error"));
+    JsonObject failure =
+        Protocol.encode(
+            new Protocol.Response(
+                request.id(),
+                null,
+                new Protocol.Error(
+                    "engine.stale_document",
+                    "java.lang.IllegalArgumentException",
+                    "Document version must increase",
+                    "orbit",
+                    "Orbit.java",
+                    7)));
+    assertFalse(failure.has("result"));
+    assertEquals("Orbit.java", failure.getAsJsonObject("error").get("file").getAsString());
+  }
+
   @Test
   void preservesUtf16OffsetsAndCommentsAcrossLineEndings() {
     for (String newline : new String[] {"\n", "\r\n"}) {

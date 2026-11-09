@@ -58,6 +58,8 @@ const ERROR_MESSAGES: Record<string, string> = {
   'path.outside_root': '路径越出了允许的根目录',
   'path.relative_failed': '路径无法关联到已有父目录',
   'resource.core_root_required': '该资源需要先设置原版游戏根目录',
+  'resource.decode_failed': '图片解码失败',
+  'resource.not_found': '找不到图片',
   'resource.outside_mod': '所选文件位于 Mod 目录之外',
   'resource.outside_root': '资源路径越出了资源根目录',
   'schema.field_source_not_object': '原版字段源文件必须是 JSON 对象',

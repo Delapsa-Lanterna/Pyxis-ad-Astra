@@ -94,9 +94,9 @@ async function replayWorkspaceFileHistory(
         result.sessionUpdates.some((update) => update.modRoot === plan.modRoot)
       )
         tables.selectRowByKey(tableTarget, null);
-      feedback.success(`文件历史已${plan.actionText}`);
+      feedback.success(`文件历史已${plan.actionText}`, { paths: plan.entry.paths });
     } catch (error) {
-      feedback.error(error, `${plan.actionText}文件历史失败`);
+      feedback.error(error, `${plan.actionText}文件历史失败`, { paths: plan.entry.paths });
     }
   });
   return true;

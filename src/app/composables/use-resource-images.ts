@@ -1,5 +1,6 @@
 import { onScopeDispose, ref, watch } from 'vue';
-import type { ResourceRef } from '@/shared/types';
+import type { ResourceRef, FeedbackContext } from '@/shared/types';
+import { resourceMediaContext } from '@/services/resource-media.service';
 import { windowImageRuntime } from './use-window-image-runtime';
 import { isReadInvalidated } from '@/shared/runtime/read-request';
 
@@ -11,7 +12,7 @@ export function useResourceImages(
   session: () => string,
   source: () => readonly ResourceImageSource[],
   changed: () => void,
-  failed: (error: unknown) => void,
+  failed: (error: unknown, context: FeedbackContext) => void,
   enabled: () => boolean = () => true,
 ) {
   const cache = windowImageRuntime();
@@ -48,7 +49,14 @@ export function useResourceImages(
             if (!disposed && active.get(key) === entry) {
               entry.release();
               active.delete(key);
-              if (!isReadInvalidated(error)) failed(error);
+              if (!isReadInvalidated(error))
+                failed(
+                  error,
+                  resourceMediaContext(
+                    session(),
+                    items.map((item) => item.resource),
+                  ),
+                );
             }
           });
     }

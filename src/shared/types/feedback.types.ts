@@ -2,6 +2,9 @@ import type { VNodeChild } from 'vue';
 import type { FeedbackNotice, FileReference } from './error.types.js';
 
 export type FeedbackLevel = 'success' | 'info' | 'warning' | 'error';
+export interface FeedbackContext {
+  readonly paths: readonly string[];
+}
 export interface FeedbackFileAction {
   label: string;
   type: 'default' | 'success' | 'warning' | 'error';
@@ -37,10 +40,10 @@ export interface WindowFeedback extends AppFeedback {
 }
 
 export interface AppFeedback {
-  success(message: string, sourcePath?: string): void;
-  info(message: string, sourcePath?: string): void;
-  warning(notice: FeedbackNotice): void;
-  error(error: unknown, contextMessage?: string): void;
+  success(message: string, context?: FeedbackContext): void;
+  info(message: string, context?: FeedbackContext): void;
+  warning(notice: FeedbackNotice, context?: FeedbackContext): void;
+  error(error: unknown, contextMessage?: string, context?: FeedbackContext): void;
   confirmDanger(options: ConfirmOptions): void;
   confirmWarning(options: ConfirmOptions): void;
   choose(options: ChooseOptions): Promise<string | null>;

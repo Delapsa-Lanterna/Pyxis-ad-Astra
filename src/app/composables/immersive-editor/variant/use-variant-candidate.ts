@@ -47,11 +47,11 @@ export function useVariantCandidate(root: () => JointEditRoot, kind: () => 'weap
         : (panel.value?.combat ?? []),
   );
   const media = useResourceMediaRegistry({
-    onError: (error) => feedback.error(error),
-    onFailures: (items) => {
+    onError: (error, context) => feedback.error(error, undefined, context),
+    onFailures: (items, context) => {
       const missing = items.filter((resource) => resource.ownerId !== 'damage-type');
       if (missing.length)
-        feedback.warning(warningNotice('候选资源缺失：' + missing.length, 'resource.read_failed', 'Variant detail media'));
+        feedback.warning(warningNotice('候选资源缺失：' + missing.length, 'resource.not_found', JSON.stringify(missing)), context);
     },
   });
   const mediaUrl = (resource: ResourceRef | null | undefined) => media.dataUrl(root().sessionId, resource) ?? '';

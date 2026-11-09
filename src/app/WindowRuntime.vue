@@ -16,13 +16,14 @@ import { useEditTargetHandoff } from '@/app/composables/use-edit-target-handoff'
 import { watch } from 'vue';
 import { applicationLogError } from '@/shared/runtime/app-log-queue';
 import { useSettingsStore } from '@/stores/settings.store';
+const props = defineProps<{ whenRootReady: () => Promise<string | null> }>();
 const settings = useSettingsStore();
 const feedback = createWindowFeedback(
   useMessage(),
   useDialog(),
   () => settings.toastDurations,
   () => settings.showCoreFeedback,
-  () => settings.savedStarsectorRoot,
+  () => props.whenRootReady(),
   () => !closing.value,
 );
 provideAppFeedback(feedback);

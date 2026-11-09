@@ -18,6 +18,7 @@ export interface ResourceDataUrlBatchEntry {
   ownerKind: ResourceOwnerKind;
   ownerId: string;
   dataUrl: string | null;
+  resolvedPath?: string;
   error?: ErrorDiagnostic;
 }
 

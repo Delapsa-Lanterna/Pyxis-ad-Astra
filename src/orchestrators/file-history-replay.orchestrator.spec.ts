@@ -173,7 +173,7 @@ describe('authoritative file history replay', () => {
     expect(mocks.loadFileHistory).toHaveBeenCalledWith('s1', root);
     expect(mocks.replayFileChangeSet).not.toHaveBeenCalled();
     await (messages.confirmWarning as ReturnType<typeof vi.fn>).mock.calls[0]![0].onConfirm();
-    expect(messages.success).toHaveBeenCalledWith('文件历史已撤销');
+    expect(messages.success).toHaveBeenCalledWith('文件历史已撤销', { paths: ['C:/mods/alpha/notes.txt'] });
   });
   it('keeps the requested Mod when navigation changes during the history read', async () => {
     const projects = useProjectStore();
@@ -204,7 +204,7 @@ describe('authoritative file history replay', () => {
     const messages = feedback();
     await replayWorkspaceFileRedo(project(), tables(), messages);
     await (messages.confirmWarning as ReturnType<typeof vi.fn>).mock.calls[0]![0].onConfirm();
-    expect(messages.error).toHaveBeenCalledWith(expect.anything(), '重做文件历史失败');
+    expect(messages.error).toHaveBeenCalledWith(expect.anything(), '重做文件历史失败', { paths: ['C:/mods/alpha/notes.txt'] });
   });
 
   it('finishes the captured replay after switching to a different Mod during confirmation', async () => {
@@ -231,7 +231,7 @@ describe('authoritative file history replay', () => {
     expect(mocks.acceptContent).toHaveBeenCalledWith(root, result, 's1', 'undo');
     expect(table.selectRowByKey).not.toHaveBeenCalled();
     expect(workspace.activeSessionId).toBe('s2');
-    expect(messages.success).toHaveBeenCalledExactlyOnceWith('文件历史已撤销');
+    expect(messages.success).toHaveBeenCalledExactlyOnceWith('文件历史已撤销', { paths: ['C:/mods/alpha/notes.txt'] });
   });
 
   it('uses the backend snapshot to reject a stale empty projection', async () => {

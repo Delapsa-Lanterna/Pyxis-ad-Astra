@@ -14,6 +14,7 @@ const mock = vi.hoisted(() => ({
 vi.mock('./use-app-feedback', () => ({ useAppFeedback: () => ({ error: mock.error, warning: vi.fn() }) }));
 vi.mock('@/services/resource-media.service', () => ({
   resourceMediaDataUrl: () => '',
+  resourceMediaContext: () => ({ paths: [] }),
   subscribeResourceInvalidations: (listener: typeof mock.listener) => {
     mock.listener = listener;
     return () => {

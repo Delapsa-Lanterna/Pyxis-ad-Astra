@@ -1,6 +1,6 @@
 use crate::{Result, invalid};
 use std::path::{Component, Path, PathBuf};
-pub(crate) fn java_path(path: &Path) -> PathBuf {
+pub fn java_path(path: &Path) -> PathBuf {
     #[cfg(windows)]
     {
         let value = path.to_string_lossy();

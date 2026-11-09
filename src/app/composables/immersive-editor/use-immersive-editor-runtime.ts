@@ -48,7 +48,9 @@ export function useImmersiveEditorRuntime<TPanel extends ImmersivePanel>(
   definition: ImmersiveEditorDefinition<TPanel>,
   hooks: Pick<NonNullable<Parameters<typeof useJointEditSession>[0]>, 'readSnapshot' | 'onContentUpdate' | 'validate'>,
 ) {
-  const feedback = useAppFeedback();
+  const feedback = useAppFeedback(() => ({
+    paths: [root.modRoot, ...(snapshot.value?.baseVersions.map((version) => version.path) ?? [])],
+  }));
   const settings = useSettingsStore();
   const reads = useQueryReadOwner();
   let active = true;
@@ -147,16 +149,17 @@ export function useImmersiveEditorRuntime<TPanel extends ImmersivePanel>(
       ),
   }));
   const media = useResourceMediaRegistry({
-    onError: (error) => feedback.error(error),
-    onFailures: (resources) => {
+    onError: (error, context) => feedback.error(error, undefined, context),
+    onFailures: (resources, context) => {
       const missing = resources.filter((resource) => resource.ownerId !== 'damage-type');
       if (missing.length)
         feedback.warning(
           warningNotice(
             `贴图读取失败：${missing.map((resource) => resource.relPath).join('、')}`,
-            'resource.read_failed',
-            `Resource read failed: count=${missing.length}; surface=immersive`,
+            'resource.not_found',
+            JSON.stringify(missing),
           ),
+          context,
         );
     },
   });

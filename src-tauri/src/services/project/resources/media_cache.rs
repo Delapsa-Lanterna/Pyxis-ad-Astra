@@ -94,12 +94,12 @@ pub(crate) fn configure_media_cache(limits: &CacheSize) -> AppResult<()> {
     Ok(())
 }
 
-/// Returns the cached data URL only while the underlying file is unchanged;
+/// Returns the cached data URL and actual path while the underlying file is unchanged;
 /// any stat or modification mismatch is a miss so edits show up immediately.
 pub(in crate::services::project) fn lookup_data_url(
     session_id: &str,
     resource_key: &str,
-) -> Option<String> {
+) -> Option<(String, String)> {
     let mut cache = match sprite_media_cache().lock() {
         Ok(cache) => cache,
         Err(_) => {
@@ -123,8 +123,9 @@ pub(in crate::services::project) fn lookup_data_url(
         return None;
     }
     let data_url = entry.data_url.clone();
+    let resolved_path = entry.resolved_path.to_string_lossy().into_owned();
     cache.touch(&cache_key);
-    Some(data_url)
+    Some((data_url, resolved_path))
 }
 
 pub(in crate::services::project) fn insert_entry(

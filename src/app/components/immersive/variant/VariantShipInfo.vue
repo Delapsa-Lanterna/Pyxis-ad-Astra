@@ -55,11 +55,11 @@ const hover = useImmersiveHover<string>(
 const panel = computed(() => (hover.selected.value ? projectShipPanel(props.snapshot, props.values, props.snapshot, props.variant) : null));
 const feedback = useAppFeedback();
 const media = useResourceMediaRegistry({
-  onError: feedback.error,
-  onFailures: (items) => {
+  onError: (error, context) => feedback.error(error, undefined, context),
+  onFailures: (items, context) => {
     const missing = items.filter((resource) => resource.key !== 'icon_more_info');
     if (missing.length)
-      feedback.warning(warningNotice('舰船详情图片读取失败：' + missing.length, 'resource.read_failed', 'Variant ship information'));
+      feedback.warning(warningNotice('舰船详情图片读取失败：' + missing.length, 'resource.not_found', JSON.stringify(missing)), context);
   },
 });
 const infoRef = computed(() => props.snapshot.referenceSettings.resources.icon_more_info);

@@ -177,7 +177,7 @@ describe('config list selection and action boundaries', () => {
     expect(await selection.discardMissing('a')).toBe(true);
     expect(selection.selectedId.value).toBe('b');
     expect(mocks.feedback.confirmWarning).not.toHaveBeenCalled();
-    expect(mocks.feedback.success).toHaveBeenCalledExactlyOnceWith('战役 "a" 已移除，源文件已不存在');
+    expect(mocks.feedback.success).toHaveBeenCalledExactlyOnceWith('战役 "a" 已移除，源文件已不存在', { paths: ['M:/mod'] });
   });
 
   it.each(['discard', 'delete'] as const)('reports a failed save wait during %s', async (action) => {

@@ -37,7 +37,7 @@ pub(crate) fn matches_file(path: &Path, bytes: u64, hash: &str) -> Result<()> {
 }
 
 pub(crate) fn compatible(version: &str, protocol: u32, java: u32) -> Result<()> {
-    if relative(version)?.components().count() != 1 || protocol != 1 || java != 17 {
+    if relative(version)?.components().count() != 1 || protocol != 2 || java != 17 {
         return Err(invalid(
             "Unsupported engine version, protocol or Java requirement",
         ));
@@ -112,7 +112,7 @@ pub fn inspect(directory: &Path) -> Result<Manifest> {
 
 /// Returns a verified installed manifest for an explicitly selected version.
 pub fn status(root: &Path, version: &str) -> Result<Option<Manifest>> {
-    compatible(version, 1, 17)?;
+    compatible(version, 2, 17)?;
     let directory = root.join(version);
     if directory.join("engine.json").exists() {
         inspect(&directory).map(Some)
@@ -299,7 +299,7 @@ pub fn install(root: &Path, package: &Package) -> Result<PathBuf> {
 
 /// Removes an explicitly selected, complete installed version.
 pub fn remove(root: &Path, version: &str) -> Result<()> {
-    compatible(version, 1, 17)?;
+    compatible(version, 2, 17)?;
     let directory = root.canonicalize()?.join(version);
     inspect(&directory)?;
     fs::remove_dir_all(directory)?;

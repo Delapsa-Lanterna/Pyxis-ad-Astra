@@ -2,7 +2,9 @@ use crate::app_data_dir;
 use crate::diagnostics;
 use crate::errors::{AppError, AppResult};
 use crate::io::{FsRootBoundary, canonical_path};
-use pyxis_java_analysis::{AnalysisEvent, AnalysisPaths, AnalysisRuntime};
+use pyxis_java_analysis::{
+    AnalysisEvent, AnalysisPaths, AnalysisRequest, AnalysisResponse, AnalysisRuntime, java_path,
+};
 use serde_json::{Value, json};
 use std::path::Path;
 use std::sync::Arc;
@@ -58,48 +60,129 @@ pub fn start<R: Runtime>(app: &AppHandle<R>, java: &Path) -> AppResult<String> {
         .map_err(Into::into)
 }
 
-pub fn request<R: Runtime>(
+fn request_value<R: Runtime>(
     app: &AppHandle<R>,
     instance: &str,
     payload: &Value,
-) -> AppResult<Value> {
+) -> AppResult<AnalysisResponse> {
+    let mut payload = payload.clone();
     if payload["op"] == "open" {
-        for path in payload["sources"].as_array().ok_or_else(|| {
-            AppError::message(
-                "java_analysis.sources_required",
-                "Source roots are required",
-            )
-        })? {
-            FsRootBoundary::new(
-                Path::new(path.as_str().ok_or_else(|| {
-                    AppError::message("java_analysis.source_path", "Source root must be a path")
-                })?),
-                "Java source root",
-            )?;
-        }
-        for path in payload["classpath"].as_array().ok_or_else(|| {
-            AppError::message("java_analysis.classpath_required", "Classpath is required")
-        })? {
-            canonical_path(
-                Path::new(path.as_str().ok_or_else(|| {
-                    AppError::message(
-                        "java_analysis.classpath_path",
-                        "Classpath entry must be a path",
-                    )
-                })?),
-                "Java classpath",
-            )?;
-        }
-        canonical_path(
+        let sources = payload["sources"]
+            .as_array()
+            .ok_or_else(|| {
+                AppError::message(
+                    "java_analysis.sources_required",
+                    "Source roots are required",
+                )
+            })?
+            .iter()
+            .map(|path| {
+                FsRootBoundary::new(
+                    Path::new(path.as_str().ok_or_else(|| {
+                        AppError::message("java_analysis.source_path", "Source root must be a path")
+                    })?),
+                    "Java source root",
+                )
+                .map(|boundary| json!(java_path(boundary.root()).to_string_lossy()))
+            })
+            .collect::<AppResult<Vec<_>>>()?;
+        payload["sources"] = json!(sources);
+        let classpath = payload["classpath"]
+            .as_array()
+            .ok_or_else(|| {
+                AppError::message("java_analysis.classpath_required", "Classpath is required")
+            })?
+            .iter()
+            .map(|path| {
+                canonical_path(
+                    Path::new(path.as_str().ok_or_else(|| {
+                        AppError::message(
+                            "java_analysis.classpath_path",
+                            "Classpath entry must be a path",
+                        )
+                    })?),
+                    "Java classpath",
+                )
+                .map(|resolved| json!(java_path(&resolved).to_string_lossy()))
+            })
+            .collect::<AppResult<Vec<_>>>()?;
+        payload["classpath"] = json!(classpath);
+        let java_home = canonical_path(
             Path::new(payload["javaHome"].as_str().ok_or_else(|| {
                 AppError::message("java_analysis.java_home", "Java home is required")
             })?),
             "Java home",
         )?;
+        payload["javaHome"] = json!(java_path(&java_home).to_string_lossy());
+    }
+    if payload["op"] == "configure" {
+        let classpath = payload["classpath"]
+            .as_array()
+            .ok_or_else(|| {
+                AppError::message("java_analysis.classpath_required", "Classpath is required")
+            })?
+            .iter()
+            .map(|path| {
+                canonical_path(
+                    Path::new(path.as_str().ok_or_else(|| {
+                        AppError::message(
+                            "java_analysis.classpath_path",
+                            "Classpath entry must be a path",
+                        )
+                    })?),
+                    "Java classpath",
+                )
+                .map(|resolved| json!(java_path(&resolved).to_string_lossy()))
+            })
+            .collect::<AppResult<Vec<_>>>()?;
+        payload["classpath"] = json!(classpath);
+        let resolved = canonical_path(
+            Path::new(payload["javaHome"].as_str().ok_or_else(|| {
+                AppError::message("java_analysis.java_home", "Java home is required")
+            })?),
+            "Java home",
+        )?;
+        payload["javaHome"] = json!(java_path(&resolved).to_string_lossy());
+    }
+    if payload["op"] == "update" {
+        let files = payload["files"]
+            .as_array()
+            .ok_or_else(|| {
+                AppError::message("java_analysis.files_required", "File changes are required")
+            })?
+            .iter()
+            .map(|file| {
+                let mut file = file.clone();
+                for key in ["file", "target"] {
+                    if let Some(path) = file[key].as_str() {
+                        let resolved = canonical_path(Path::new(path), "Java source file")?;
+                        file[key] = json!(java_path(&resolved).to_string_lossy());
+                    }
+                }
+                Ok(file)
+            })
+            .collect::<AppResult<Vec<_>>>()?;
+        payload["files"] = json!(files);
+    }
+    if payload["op"] == "query" {
+        let path = payload["file"].as_str().ok_or_else(|| {
+            AppError::message("java_analysis.file_path", "Java source file is required")
+        })?;
+        let resolved = canonical_path(Path::new(path), "Java source file")?;
+        payload["file"] = json!(java_path(&resolved).to_string_lossy());
     }
     app.state::<AnalysisRuntime>()
-        .request(instance, payload)
+        .request(instance, &serde_json::from_value(payload)?)
         .map_err(Into::into)
+}
+
+pub fn request<R: Runtime>(
+    app: &AppHandle<R>,
+    instance: &str,
+    request: &AnalysisRequest,
+) -> AppResult<AnalysisResponse> {
+    let payload = serde_json::to_value(request)?;
+    request_value(app, instance, &payload)
 }
 
 pub fn close<R: Runtime>(app: &AppHandle<R>, instance: &str) -> AppResult<()> {
@@ -117,11 +200,13 @@ pub fn shutdown<R: Runtime>(app: &AppHandle<R>) -> AppResult<()> {
 
 #[cfg(test)]
 mod tests {
-    use super::{close, initialize_at, paths, register, request, shutdown, start};
+    use super::{close, initialize_at, paths, register, request as request_typed, shutdown, start};
     use crate::diagnostics;
+    use crate::errors::AppResult;
     use crate::test_support::TestWorkspace;
-    use pyxis_java_analysis::AnalysisRuntime;
-    use serde_json::json;
+    use pyxis_java_analysis::protocol::AnalysisResult;
+    use pyxis_java_analysis::{AnalysisRequest, AnalysisRuntime};
+    use serde_json::{Value, json};
     use std::env;
     use std::fs;
     use std::path::Path;
@@ -129,6 +214,12 @@ mod tests {
     use tauri::Manager;
     use tauri::test::{mock_builder, mock_context, noop_assets};
     use tauri::utils::config::AppDirectoriesOverride;
+    use tauri::{AppHandle, Runtime};
+
+    fn request<R: Runtime>(app: &AppHandle<R>, instance: &str, value: &Value) -> AppResult<Value> {
+        let response = request_typed(app, instance, &serde_json::from_value(value.clone())?)?;
+        Ok(serde_json::to_value(response)?)
+    }
 
     #[test]
     fn initialization_describes_config_paths_without_io_or_java() {
@@ -151,6 +242,7 @@ mod tests {
     #[ignore = "run in a dedicated test process with JAVA_ANALYSIS_TEST_JAVA and prepared archive"]
     fn live_adapter_routes_configuration_diagnostics_and_shutdown() {
         let java = env::var_os("JAVA_ANALYSIS_TEST_JAVA").expect("explicit Java test executable");
+        let java = Path::new(&java);
         let work = TestWorkspace::new("java_analysis_adapter");
         let config_root = work.join("configuration");
         let mut context = mock_context(noop_assets());
@@ -169,15 +261,53 @@ mod tests {
         let archive =
             Path::new(env!("CARGO_MANIFEST_DIR")).join("target/java-analysis/jdt-dependencies.zip");
         handle.state::<AnalysisRuntime>().import(&archive).unwrap();
-        let first = start(handle, Path::new(&java)).unwrap();
-        let second = start(handle, Path::new(&java)).unwrap();
-        let result = request(
+        let first = start(handle, java).unwrap();
+        let second = start(handle, java).unwrap();
+        let result = request_typed(
             handle,
             &first,
-            &json!({"id":1,"op":"parse","source":"class Orbit {}","version":1}),
+            &AnalysisRequest::Parse {
+                id: json!(1),
+                source: "class Orbit {}".into(),
+                version: 1,
+                language: Some("17".into()),
+            },
         )
         .unwrap();
-        assert_eq!(result["result"]["errors"], 0);
+        let Some(AnalysisResult::Syntax(result)) = result.result else {
+            panic!("syntax result");
+        };
+        assert_eq!(result.errors, 0);
+        let source = work.join("source");
+        fs::create_dir_all(&source).unwrap();
+        request(
+            handle,
+            &first,
+            &json!({"id":3,"op":"open","project":"overlay","sources":[source],"classpath":[],"javaHome":java.parent().unwrap().parent().unwrap().to_string_lossy(),"language":"17"}),
+        )
+        .unwrap();
+        let added = source.join("New.java");
+        let update = request(
+            handle,
+            &first,
+            &json!({"id":4,"op":"update","project":"overlay","expectedRevision":1,"files":[{"action":"add","file":added,"source":"class New {}","version":1}]}),
+        )
+        .unwrap();
+        assert!(update.get("error").is_none_or(Value::is_null), "{update}");
+        let analysis = request(
+            handle,
+            &first,
+            &json!({"id":5,"op":"analyze","project":"overlay"}),
+        )
+        .unwrap();
+        assert_eq!(analysis["result"]["files"], 1);
+        assert!(!added.exists());
+        request(
+            handle,
+            &first,
+            &json!({"id":6,"op":"close","project":"overlay"}),
+        )
+        .unwrap();
         let failure = request(
             handle,
             &first,

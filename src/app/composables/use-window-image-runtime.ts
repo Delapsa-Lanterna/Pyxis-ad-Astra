@@ -1,6 +1,6 @@
 import { onScopeDispose, ref } from 'vue';
 import type { ResourceRef } from '@/shared/types';
-import { mediaResourceKey } from '@/services/resource-media.service';
+import { mediaResourceKey, resourceMediaError } from '@/services/resource-media.service';
 import { subscribeResourceInvalidations } from '@/services/resource-media.service';
 import { acquireResourceMedia, disposeResourceMedia } from '@/services/resource-media.service';
 import { createResidentCache } from '@/shared/runtime/resident-cache';
@@ -160,7 +160,7 @@ export function createWindowImageRuntime() {
               debugLog('media.decode_failed', () => ({ sessionId, ...logIdentity(resource) }));
               image.onload = null;
               image.onerror = null;
-              reject(new Error('图片解码失败'));
+              reject(resourceMediaError(sessionId, resource, 'resource.decode_failed', '图片解码失败'));
             };
             image.src = url;
           }),

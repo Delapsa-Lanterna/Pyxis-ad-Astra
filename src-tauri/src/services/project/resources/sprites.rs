@@ -55,7 +55,7 @@ pub(in crate::services::project) struct SpriteReadBatch {
     mod_root: SpriteRoot,
     core_root: Option<SpriteRoot>,
     references: Vec<(ReferenceSource, SpriteRoot)>,
-    loaded: BTreeMap<String, Option<String>>,
+    loaded: BTreeMap<String, Option<(String, String)>>,
 }
 
 impl SpriteReadBatch {
@@ -88,7 +88,7 @@ impl SpriteReadBatch {
     pub(in crate::services::project) fn data_url(
         &mut self,
         resource: &ResourceRef,
-    ) -> AppResult<Option<String>> {
+    ) -> AppResult<Option<(String, String)>> {
         let resource_key = media_resource_key(resource);
         if self.revision != reference_revision() {
             return Err(AppError::message(
@@ -127,6 +127,7 @@ impl SpriteReadBatch {
                 self.load(resource.source, rel_path.trim().trim_end_matches('/'))?
             };
             if let Some(loaded) = loaded {
+                let resolved_path = loaded.resolved_path.to_string_lossy().into_owned();
                 let registry = lock_registry()?;
                 if registry.contains_key(&self.session_id) {
                     media::insert_entry(
@@ -138,7 +139,7 @@ impl SpriteReadBatch {
                         loaded.data_url.clone(),
                     );
                 }
-                Some(loaded.data_url)
+                Some((loaded.data_url, resolved_path))
             } else {
                 None
             }
@@ -240,6 +241,7 @@ fn read_sprite_media(path: &Path) -> AppResult<Option<LoadedSpriteMedia>> {
             format!("读取贴图文件失败 ({})", path.display()),
             error.into(),
         )
+        .at_path(path)
     })?;
     #[cfg(test)]
     record_sprite_read(path);
@@ -248,6 +250,7 @@ fn read_sprite_media(path: &Path) -> AppResult<Option<LoadedSpriteMedia>> {
             format!("读取贴图文件失败 ({})", path.display()),
             error.into(),
         )
+        .at_path(path)
     })?;
     let mime = path
         .extension()
@@ -320,6 +323,18 @@ mod tests {
     use crate::services::project::{PerformanceTrace, open_project_session_traced, session};
     use crate::test_support::TestWorkspace;
     use std::fs;
+
+    #[test]
+    fn read_failure_retains_the_image_path() {
+        let root = project_workspace("sprite_failure_location");
+        let path = root.join("missing.png");
+        let error = read_sprite_media(&path).err().unwrap();
+        assert_eq!(
+            error.location().unwrap().path.as_deref(),
+            Some(path.to_str().unwrap())
+        );
+        root.close().unwrap();
+    }
 
     pub(super) fn batch_at(mod_root: &Path, core: Option<&Path>) -> SpriteReadBatch {
         SpriteReadBatch {
@@ -448,6 +463,13 @@ mod tests {
         );
         let mut first = SpriteReadBatch::new(&manifest.session_id).unwrap();
         let expected = first.data_url(&resource).unwrap();
+        assert_eq!(
+            expected.as_ref().unwrap().1,
+            root.join("cached.png")
+                .canonicalize()
+                .unwrap()
+                .to_string_lossy()
+        );
         let mut cached = SpriteReadBatch::new(&manifest.session_id).unwrap();
         assert_eq!(cached.data_url(&resource).unwrap(), expected);
         assert!(cached.mod_root.boundary.is_none());

@@ -1,11 +1,11 @@
 import { onScopeDispose } from 'vue';
 import { windowImageRuntime, type ThumbnailRequest } from './use-window-image-runtime';
-import { resourceMediaDataUrl, subscribeResourceInvalidations } from '@/services/resource-media.service';
-import type { ResourceRef } from '@/shared/types';
+import { resourceMediaDataUrl, resourceMediaContext, subscribeResourceInvalidations } from '@/services/resource-media.service';
+import type { ResourceRef, FeedbackContext } from '@/shared/types';
 import { useAppFeedback } from './use-app-feedback';
 import { createReadTicket, isReadInvalidated, type ReadTicket } from '@/shared/runtime/read-request';
 import { warningNotice } from '@/shared/lib/errors';
-export function useThumbnailPreload(surface: string, onFailures?: (resources: readonly ResourceRef[]) => void) {
+export function useThumbnailPreload(surface: string, onFailures?: (resources: readonly ResourceRef[], context: FeedbackContext) => void) {
   const runtime = windowImageRuntime(),
     feedback = useAppFeedback();
   const held = new Map<string, ReturnType<typeof runtime.acquireThumbnail>>();
@@ -45,8 +45,9 @@ export function useThumbnailPreload(surface: string, onFailures?: (resources: re
             return true;
           });
           if (missing.length) {
-            if (onFailures) onFailures(missing);
-            else feedback.warning(warningNotice('图片读取失败：' + missing.length, 'resource.read_failed', surface));
+            const context = resourceMediaContext(request.sessionId, request.resources);
+            if (onFailures) onFailures(missing, context);
+            else feedback.warning(warningNotice('图片读取失败：' + missing.length, 'resource.not_found', JSON.stringify(missing)), context);
           }
         })
         .catch((error) => {
@@ -54,7 +55,7 @@ export function useThumbnailPreload(surface: string, onFailures?: (resources: re
           lease.release();
           held.delete(request.key);
           previous = '';
-          if (!isReadInvalidated(error)) feedback.error(error, surface);
+          if (!isReadInvalidated(error)) feedback.error(error, surface, resourceMediaContext(request.sessionId, request.resources));
         });
       return lease;
     }

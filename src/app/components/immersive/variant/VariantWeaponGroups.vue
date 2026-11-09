@@ -267,7 +267,7 @@ const budget = computed(() => [
 const sessionId = props.vm.joint.currentTarget.value!.sessionId;
 const resources = computed(() => props.vm.snapshot.value?.referenceSettings.resources ?? {});
 const media = useResourceMediaRegistry({
-  onError: feedback.error,
+  onError: (error, context) => feedback.error(error, undefined, context),
   onFailures: () => undefined,
 });
 const resourceKeys = [

@@ -138,16 +138,17 @@ const navigation = useCanvasNavigation(
 const media = props.resourceUrl
   ? null
   : useResourceMediaRegistry({
-      onError: (error) => feedback.error(error),
-      onFailures: (resources) => {
+      onError: (error, context) => feedback.error(error, undefined, context),
+      onFailures: (resources, context) => {
         const missing = resources.filter((resource) => !resource.key.startsWith('engine'));
         if (missing.length)
           feedback.warning(
             warningNotice(
               '装配贴图读取失败：' + missing.map((resource) => resource.relPath).join('、'),
-              'resource.read_failed',
-              'Variant scene resource decode',
+              'resource.not_found',
+              JSON.stringify(missing),
             ),
+            context,
           );
       },
     });
@@ -177,7 +178,7 @@ const decoded = useResourceImages(
   () => props.sessionId,
   () => resources().map((resource) => ({ resource, url: url(resource) })),
   paint,
-  (error) => feedback.error(error, '读取装配预览失败'),
+  (error, context) => feedback.error(error, '读取装配预览失败', context),
 );
 const imageCache = windowImageRuntime();
 let releaseThumbnail: (() => void) | null = null;

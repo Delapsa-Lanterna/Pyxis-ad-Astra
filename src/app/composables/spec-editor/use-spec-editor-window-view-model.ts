@@ -53,7 +53,12 @@ export function useSpecEditorWindowViewModel(
   },
   definition: SpecEditorDefinition<SpecEditorData>,
 ) {
-  const feedback = useAppFeedback();
+  const feedback = useAppFeedback(() => ({
+    paths: [
+      ...(params.modRoot ? [params.modRoot] : []),
+      ...(draftSession.baselineSnapshot.value?.baseVersions.map((version) => version.path) ?? []),
+    ],
+  }));
   let missingSpecIntent: object | null = null;
   const draftSession: EditTargetDraftSession<RowData, SpecEditorTarget, { data: SpecEditorData; receipt: WriteResult<unknown> | null }> =
     useEditTargetDraftSession<RowData, SpecEditorTarget, { data: SpecEditorData; receipt: WriteResult<unknown> | null }>({
@@ -327,7 +332,7 @@ export function useSpecEditorWindowViewModel(
   async function saveEditorData(data?: RowData): Promise<void> {
     const target = editorWindowTarget();
     if (!target) return;
-    const sourcePath = editorData.value?.target.write.path;
+    const context = { paths: [editorData.value!.target.write.path, ...editorData.value!.baseVersions.map((version) => version.path)] };
     if (draftSession.saving.value) {
       await draftSession.waitForSave();
       return;
@@ -337,7 +342,7 @@ export function useSpecEditorWindowViewModel(
     try {
       const saved = await draftSession.saveDraft();
       if (saved) {
-        feedback.success(`${target.id} 已保存`, sourcePath);
+        feedback.success(`${target.id} 已保存`, context);
       }
     } catch (error) {
       feedback.error(error);

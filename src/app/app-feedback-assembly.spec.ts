@@ -3,19 +3,19 @@ import type * as FilesServiceModule from '@/services/files.service';
 import { selectDialogOption } from '@/test/unit/dialog-text';
 import { mount, flushPromises, type VueWrapper } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 import type { MessageApiInjection } from 'naive-ui/es/message/src/MessageProvider';
 import type { DialogApiInjection } from 'naive-ui/es/dialog/src/DialogProvider';
 import { createWindowFeedback } from './app-feedback-assembly';
 import type { ManagedWindowContext, WriteResult } from '@/shared/types';
-import { AppError, withCause } from '@/shared/lib/errors';
+import { AppError, withCause, MediaReadError } from '@/shared/lib/errors';
 import { useProjectStore } from '@/stores/project.store';
 import { initializeSettingsStore, useSettingsStore } from '@/stores/settings.store';
 import { createSettingsFixture } from '@/test/fixtures/settings';
 import { savedWriteFixture, sessionUpdateFixture } from '@/test/fixtures/write-result';
 import { buildModOpeningFailure, modOpeningFailureNotice, scanWarningNotice, formatLoadWarnings } from '@/domain/project/load-diagnostics';
 import FeedbackFileActions from '@/app/components/FeedbackFileActions.vue';
-import { provideAppFeedback } from '@/app/composables/use-app-feedback';
+import { provideAppFeedback, useAppFeedback } from '@/app/composables/use-app-feedback';
 import { h } from 'vue';
 import { nButton } from '@/test/unit/ui-stubs';
 import type { FileEditorRequest } from '@/windows/file-editor.window';
@@ -48,7 +48,10 @@ afterEach(() => {
   wrapper = null;
 });
 
-function feedbackHarness(accepting = () => true) {
+function feedbackHarness(
+  accepting = () => true,
+  whenRootReady: Parameters<typeof createWindowFeedback>[4] = () => useSettingsStore().savedStarsectorRoot,
+) {
   const messages = { error: vi.fn(), warning: vi.fn(), success: vi.fn(), info: vi.fn() };
   const dialogs = { warning: vi.fn(), error: vi.fn(), create: vi.fn() };
   return {
@@ -59,13 +62,204 @@ function feedbackHarness(accepting = () => true) {
       dialogs as unknown as DialogApiInjection,
       () => useSettingsStore().toastDurations,
       () => useSettingsStore().showCoreFeedback,
-      () => useSettingsStore().savedStarsectorRoot,
+      whenRootReady,
       accepting,
     ),
   };
 }
 
 describe('feedback diagnostics, file authorization and actions', () => {
+  it.each(['success', 'info', 'warning', 'error'] as const)('filters %s using every operation file', (level) => {
+    const settings = useSettingsStore();
+    const { feedback, messages } = feedbackHarness(
+      () => true,
+      () => 'G:/fixture',
+    );
+    const path = 'G:/fixture/starsector-core/a.png';
+    let shown = 0;
+    for (const enabled of [false, true])
+      for (const mixed of [false, true]) {
+        settings.setShowCoreFeedback(level, enabled);
+        const context = { paths: [path, mixed ? 'M:/successful-mod/a.ship' : 'G:/fixture/starsector-core/b.ship'] };
+        const diagnostic = { code: 'fixture', message: 'fixture', location: { path, line: null, column: null } };
+        if (level === 'warning') feedback.warning({ userMessage: 'fixture', diagnostic }, context);
+        else if (level === 'error') feedback.error(diagnostic, undefined, context);
+        else feedback[level]('fixture', context);
+        shown += Number(enabled || mixed);
+        expect(messages[level]).toHaveBeenCalledTimes(shown);
+      }
+    expect(mocks.log).toHaveBeenCalledTimes(level === 'warning' || level === 'error' ? 4 : 0);
+  });
+  it('captures operation files before waiting for the window source', async () => {
+    useSettingsStore().setShowCoreFeedback('warning', false);
+    let finish!: (root: string) => void;
+    const ready = new Promise<string>((resolve) => {
+      finish = resolve;
+    });
+    onTestFinished(() => finish('G:/fixture'));
+    const { feedback, messages } = feedbackHarness(
+      () => true,
+      () => ready,
+    );
+    const context = { paths: ['G:/fixture/starsector-core/a.ship'] };
+    feedback.warning({ userMessage: 'fixture', diagnostic: { code: 'fixture', message: 'fixture', location: null } }, context);
+    context.paths.push('M:/later-mod/a.ship');
+    finish('G:/fixture');
+    await flushPromises();
+    expect(messages.warning).not.toHaveBeenCalled();
+    expect(mocks.log).toHaveBeenCalledOnce();
+  });
+  it('shows a shared media error after a hidden consumer and logs each failure once', () => {
+    useSettingsStore().setShowCoreFeedback('error', false);
+    const { feedback, messages } = feedbackHarness(
+      () => true,
+      () => 'G:/fixture',
+    );
+    const paths = ['G:/fixture/starsector-core/a.png', 'G:/fixture/starsector-core/b.png'];
+    const error = new MediaReadError(
+      paths.map((path) => ({ code: 'fixture', message: path, location: { path, line: null, column: null } })),
+    );
+    feedback.error(error, 'fixture', { paths });
+    expect(messages.error).not.toHaveBeenCalled();
+    expect(mocks.log).toHaveBeenCalledTimes(2);
+    feedback.error(error, 'fixture', { paths: [...paths, 'M:/successful-mod/a.ship'] });
+    feedback.error(error, 'fixture', { paths });
+    expect(messages.error).toHaveBeenCalledOnce();
+    expect(mocks.log).toHaveBeenCalledTimes(2);
+  });
+  it('delivers an editing context to descendant media feedback', () => {
+    useSettingsStore().setShowCoreFeedback('warning', false);
+    const { feedback, messages } = feedbackHarness(
+      () => true,
+      () => 'G:/fixture',
+    );
+    const consumer = {
+      setup() {
+        useAppFeedback().warning({
+          userMessage: 'fixture',
+          diagnostic: {
+            code: 'fixture',
+            message: 'fixture',
+            location: { path: 'G:/fixture/starsector-core/a.png', line: null, column: null },
+          },
+        });
+        return () => null;
+      },
+    };
+    const editor = {
+      setup() {
+        useAppFeedback(() => ({ paths: ['M:/successful-mod/a.ship', 'G:/fixture/starsector-core/a.png'] }));
+        return () => h(consumer);
+      },
+    };
+    wrapper = mount({
+      setup() {
+        provideAppFeedback(feedback);
+        return () => h(editor);
+      },
+    });
+    expect(messages.warning).toHaveBeenCalledOnce();
+    expect(mocks.log).toHaveBeenCalledWith(expect.objectContaining({ path: 'G:/fixture/starsector-core/a.png' }));
+  });
+  it.each(['query.invalidated', 'fixture.failed'])('settles a rejected source filter with %s', async (code) => {
+    const { feedback, messages } = feedbackHarness(
+      () => true,
+      () => Promise.reject(new AppError('fixture failure', { code })),
+    );
+    feedback.warning({
+      userMessage: 'fixture',
+      diagnostic: {
+        code: 'scan.warning',
+        message: 'fixture',
+        location: { path: 'M:/mod/sample.variant', line: null, column: null },
+      },
+    });
+    await flushPromises();
+    expect(messages.warning).not.toHaveBeenCalled();
+    expect(mocks.log).toHaveBeenCalledTimes(code === 'query.invalidated' ? 1 : 2);
+    if (code !== 'query.invalidated')
+      expect(mocks.log).toHaveBeenLastCalledWith(expect.objectContaining({ code, fields: { action: 'toast-visibility' } }));
+  });
+  it.each(['success', 'info', 'warning', 'error'] as const)('waits for the window source before filtering %s', async (level) => {
+    const settings = useSettingsStore();
+    settings.setShowCoreFeedback(level, false);
+    let finish!: (root: string | null) => void;
+    const ready = new Promise<string | null>((resolve) => {
+      finish = resolve;
+    });
+    onTestFinished(() => finish(null));
+    const { feedback, messages } = feedbackHarness(
+      () => true,
+      () => ready,
+    );
+    const show = (path: string) => {
+      const diagnostic = { code: 'scan.warning', message: 'fixture', location: { path, line: null, column: null } };
+      if (level === 'warning') feedback.warning({ userMessage: 'fixture', diagnostic });
+      else if (level === 'error') feedback.error(diagnostic);
+      else feedback[level]('fixture', { paths: [path] });
+    };
+    const path = 'G:/fixture-game/starsector-core/data/variants/sample.variant';
+    for (let index = 0; index < 3; index++) show(path);
+    show('G:/fixture-game/mods/sample/data/variants/sample.variant');
+    expect(settings.savedStarsectorRoot).toBeNull();
+    expect(messages[level]).not.toHaveBeenCalled();
+    expect(mocks.log).toHaveBeenCalledTimes(level === 'warning' || level === 'error' ? 4 : 0);
+    finish('G:/fixture-game');
+    await flushPromises();
+    expect(messages[level]).toHaveBeenCalledOnce();
+    settings.setShowCoreFeedback(level, true);
+    show(path);
+    await flushPromises();
+    expect(messages[level]).toHaveBeenCalledTimes(2);
+  });
+  it.each([false, true])('settles pending warnings with a closing window=%s', async (closing) => {
+    useSettingsStore().setShowCoreFeedback('warning', false);
+    let finish!: (root: string | null) => void;
+    const ready = new Promise<string | null>((resolve) => {
+      finish = resolve;
+    });
+    onTestFinished(() => finish(null));
+    let accepting = true;
+    const { feedback, messages } = feedbackHarness(
+      () => accepting,
+      () => ready,
+    );
+    feedback.warning({
+      userMessage: 'fixture',
+      diagnostic: {
+        code: 'scan.warning',
+        message: 'fixture',
+        location: { path: 'G:/fixture-game/starsector-core/sample.variant', line: null, column: null },
+      },
+    });
+    accepting = !closing;
+    finish(null);
+    await flushPromises();
+    expect(messages.warning).toHaveBeenCalledTimes(closing ? 0 : 1);
+    expect(mocks.log).toHaveBeenCalledOnce();
+  });
+  it('captures file actions and duration before waiting for the source', async () => {
+    let finish!: (root: string | null) => void;
+    const ready = new Promise<string | null>((resolve) => {
+      finish = resolve;
+    });
+    onTestFinished(() => finish(null));
+    const { feedback, messages } = feedbackHarness(
+      () => true,
+      () => ready,
+    );
+    const seconds = useSettingsStore().toastDurations.error;
+    feedback.error({ code: 'parse.json', message: 'fixture', location: { path: 'M:/mod/sample.json', line: null, column: null } });
+    useProjectStore().removeProjectManifest('M:/mod');
+    useProjectStore().registerProjectManifest(sessionUpdateFixture('s2', 'M:/mod').content.manifest);
+    useSettingsStore().setToastDuration('error', 9);
+    finish(null);
+    await flushPromises();
+    wrapper = mount({ render: messages.error.mock.lastCall![0] });
+    expect(wrapper.findAll('.app-toast-countdown')).toHaveLength(seconds > 0 ? 1 : 0);
+    await wrapper.get('button').trigger('click');
+    expect(mocks.open).toHaveBeenCalledWith(expect.objectContaining({ sessionId: 's1' }));
+  });
   it.each(['success', 'info', 'warning', 'error'] as const)(
     'hides selected Core %s toasts while preserving Mod toasts and diagnostics',
     (level) => {
@@ -85,7 +279,7 @@ describe('feedback diagnostics, file authorization and actions', () => {
           });
         else if (level === 'error')
           feedback.error({ code: 'scan.error', message: 'raw error', location: { path, line: null, column: null } });
-        else feedback[level]('fixture', path);
+        else feedback[level]('fixture', { paths: [path] });
       };
       show('\\\\?\\G:\\game\\starsector-core\\data\\variants\\fixture.variant');
       expect(messages[level]).not.toHaveBeenCalled();

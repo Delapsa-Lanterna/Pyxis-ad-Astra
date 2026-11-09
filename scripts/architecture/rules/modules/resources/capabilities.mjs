@@ -15,6 +15,8 @@ export const resourcesCapabilities = [
       names: [
         'acquireResourceMedia',
         'resourceMediaDataUrl',
+        'resourceMediaError',
+        'resourceMediaContext',
         'mediaIdleByteLimit',
         'resourceMediaStats',
         'disposeResourceMedia',

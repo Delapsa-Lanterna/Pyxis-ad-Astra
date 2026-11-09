@@ -132,7 +132,7 @@ describe('Mod save coordination', () => {
     await coordinator.saveCurrentMod();
     expect(own.save).toHaveBeenCalledOnce();
     expect(other.save).not.toHaveBeenCalled();
-    expect(output.success).toHaveBeenCalledWith('已保存 1 项。');
+    expect(output.success).toHaveBeenCalledWith('已保存 1 项。', { paths: ['M:/a', 'M:/a/csv'] });
   });
   it('continues after cancellation and failure and reports concrete outcomes', async () => {
     const cancelled = editor('a'),
@@ -235,7 +235,7 @@ describe('Mod save coordination', () => {
     expect(wire.replies.size).toBe(0);
     await coordinator.saveCurrentMod();
     expect(own.save).toHaveBeenCalledOnce();
-    expect(output.success).toHaveBeenCalledWith('已保存 1 项。');
+    expect(output.success).toHaveBeenCalledWith('已保存 1 项。', { paths: ['M:/a', 'M:/a/csv'] });
     expect(wire.replies.size).toBe(0);
   });
 });

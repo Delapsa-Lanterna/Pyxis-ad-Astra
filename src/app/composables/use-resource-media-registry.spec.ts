@@ -3,9 +3,9 @@ import { enableAutoUnmount, mount } from '@vue/test-utils';
 import { beforeEach, afterEach, expect, it, vi } from 'vitest';
 import { useResourceMediaRegistry } from './use-resource-media-registry';
 import { invalidateResourceMediaForSession, invalidateResourceMediaByProject, resourceMediaStats } from '@/services/resource-media.service';
-import type { ResourceRef, ProjectInvalidation } from '@/shared/types';
+import type { ResourceRef, ProjectInvalidation, ResourceDataUrlBatchResult } from '@/shared/types';
 const mock = vi.hoisted(() => ({
-  load: vi.fn(async (resources: ResourceRef[]) => ({
+  load: vi.fn(async (resources: ResourceRef[]): Promise<ResourceDataUrlBatchResult> => ({
     entries: resources.map((resource) => ({ ...resource, dataUrl: 'data:' + resource.relPath })),
   })),
   error: vi.fn(),
@@ -39,6 +39,33 @@ async function settle(task: Promise<void>) {
 }
 enableAutoUnmount(afterEach);
 beforeEach(() => vi.useFakeTimers());
+it('includes a successful Mod image when reporting an original image failure', async () => {
+  const { registry, wrapper } = harness();
+  const core = { ...resource(1), source: 'core' as const },
+    local = resource(2);
+  mock.load.mockResolvedValueOnce({
+    entries: [
+      {
+        ...core,
+        dataUrl: null,
+        error: {
+          code: 'io.unexpected',
+          message: 'fixture failure',
+          location: { path: 'G:/fixture/starsector-core/1.png', line: null, column: null },
+        },
+      },
+      { ...local, dataUrl: 'data:fixture', resolvedPath: 'M:/successful-mod/2.png' },
+    ],
+  });
+  await settle(registry.replaceCollection('registry', 'fixture', [core, local]));
+  expect(mock.error).toHaveBeenCalledExactlyOnceWith(
+    expect.objectContaining({ failures: [expect.objectContaining({ message: 'fixture failure' })] }),
+    { paths: ['M:/successful-mod/2.png'] },
+  );
+  expect(registry.dataUrl('registry', local)).toBe('data:fixture');
+  expect(mock.load).toHaveBeenCalledOnce();
+  wrapper.unmount();
+});
 afterEach(() => {
   invalidateResourceMediaForSession('registry');
   vi.useRealTimers();

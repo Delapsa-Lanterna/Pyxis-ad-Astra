@@ -125,7 +125,9 @@ const host = props.host;
 const model = useCsvEditorModel(computed(() => props.target));
 const view = model.view;
 const problems = useCsvEditorStore().getTableProblems(props.target);
-const feedback = useAppFeedback();
+const feedback = useAppFeedback(() => ({
+  paths: [props.target.modRoot, ...(model.state.value?.documents[props.target.table].baseVersions.map((version) => version.path) ?? [])],
+}));
 const actions = useCsvEditorActions(model, host, feedback);
 const detailPaneExpanded = defineModel<boolean>('detailPaneExpanded', { default: true });
 watch(problems.revealRevision, () => {

@@ -50,7 +50,21 @@ java-analysis <status|install|import|remove|run> input.json
 
 输入包含 `configRoot`；`run` 追加 `java`，`import` 追加 `archive`。`run` 按行读取 JSON 请求并返回相同请求编号，标准输入 EOF 触发实例关闭。诊断原文保存在配置目录的所属实例日志。
 
-协议操作包括 `hello`、`parse`、`open`、`analyze`、`update`、`query`、`close` 和 `shutdown`。源码位置采用 UTF-16 半开区间，查询绑定当前 `revision`，内存更新要求每文件版本递增。源码和依赖目录通过显式项目输入交付，已打开文件的修改由 WorkingCopy 承载。
+协议版本为 2，操作包括 `hello`、`parse`、`open`、`analyze`、`update`、`configure`、`query`、`close` 和 `shutdown`。Rust `AnalysisRequest`、`AnalysisResponse`、`FileChange` 与 Java `Protocol.Request`、`Protocol.Response` 提供两端类型化接口。源码位置采用 UTF-16 半开区间，项目更新须匹配 `expectedRevision`，文档版本须递增。
+
+`open` 建立私有源码快照及 WorkingCopy。`update` 支持 `add`、`replace`、`delete` 和 `move`，单批多个文件先核验后共同接纳；来源目录保持不变。`configure` 接纳完整依赖 JAR 列表、Java 路径和语言级别，并推进项目版本。每个分析版本的 AST 与声明引用索引由查询复用。
+
+Rust 结果通过 `protocol::AnalysisResult` 区分握手、语法、项目、查询与释放；`QueryResult` 交付绑定、类型、常量、参数及声明引用位置。每个位置包含文件版本，查询结果同时保留项目和分析版本。错误保留稳定码、Java 原因、项目、文件和位置。应用服务的 `request` 接收 `AnalysisRequest`，返回 `AnalysisResponse`。
+
+```json
+{"id":1,"op":"open","project":"orbit","sources":["D:/example/src"],"classpath":[],"javaHome":"D:/Starsector/jre","language":"17"}
+{"id":2,"op":"update","project":"orbit","expectedRevision":1,"files":[{"action":"add","file":"D:/example/src/Orbit.java","source":"class Orbit {}","version":1}]}
+{"id":3,"op":"query","project":"orbit","revision":2,"file":"D:/example/src/Orbit.java","offset":6}
+{"id":4,"op":"configure","project":"orbit","expectedRevision":2,"classpath":[],"javaHome":"D:/Starsector/jre","language":"17"}
+{"id":5,"op":"close","project":"orbit"}
+```
+
+`move` 同时提交 `file`、`target`、移动后的完整 `source` 和递增 `version`；`delete` 提交 `file` 与递增 `version`。同批每个源文件出现一次，新增和移动目标各自唯一。`configure` 刷新外部 JAR，支持同一路径内容替换。验收对照测量使用 Git 提交 `1ea5fe7b70693f9976b5b02fdcd45477a4f7d1ce` 中的固定宿主资源。
 
 ## 下载与资源
 

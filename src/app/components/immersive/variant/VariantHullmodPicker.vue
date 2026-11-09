@@ -234,7 +234,7 @@ const feedback = useAppFeedback(),
   inputs = useFieldInputs()!,
   prefix = 'variant-hullmod/manual';
 const media = useResourceMediaRegistry({
-  onError: feedback.error,
+  onError: (error, context) => feedback.error(error, undefined, context),
   onFailures: () => undefined,
 });
 const uiKeys = computed(() => [

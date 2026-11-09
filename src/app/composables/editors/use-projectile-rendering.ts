@@ -5,6 +5,8 @@ import { useResourceImages } from '@/app/composables/use-resource-images';
 import { windowImageRuntime } from '@/app/composables/use-window-image-runtime';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
 import { useQueryReadOwner } from '@/app/composables/use-query-read-owner';
+import { resourceMediaError } from '@/services/resource-media.service';
+import { MediaReadError } from '@/shared/lib/errors';
 import type { ProjectileImages, ProjectileTexture, TextureShape } from '@/app/renderers/editors/projectile-renderer';
 
 export function useProjectileRendering(
@@ -24,8 +26,13 @@ export function useProjectileRendering(
     reads.schedule('paint', changed);
   };
   const media = useResourceMediaRegistry({
-    onError: (error) => feedback.error(error, '读取发射图片失败'),
-    onFailures: (resources) => feedback.error(new Error(resources.map((resource) => resource.relPath).join('\n')), '找不到发射图片'),
+    onError: (error, context) => feedback.error(error, '读取发射图片失败', context),
+    onFailures: (resources, context) =>
+      feedback.error(
+        new MediaReadError(resources.map((resource) => resourceMediaError(session(), resource, 'resource.not_found', '找不到发射图片'))),
+        '找不到发射图片',
+        context,
+      ),
   });
   watch(
     () => [session(), source()],
@@ -52,9 +59,9 @@ export function useProjectileRendering(
     session,
     () => source().map((resource) => ({ resource, url: url(resource) })),
     notify,
-    (error) => {
+    (error, context) => {
       failed?.();
-      feedback.error(error, '解码发射图片失败');
+      feedback.error(error, '解码发射图片失败', context);
     },
   );
   const products = new Map<string, { canvas: HTMLCanvasElement; release(): void }>(),

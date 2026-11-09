@@ -27,7 +27,11 @@ export function useVisibleResourceMedia(args: {
   const preload = useThumbnailPreload(
     args.surface,
     args.onFailures ??
-      ((resources) => feedback.warning(warningNotice(args.failureLabel + '：' + resources.length, 'resource.read_failed', args.surface))),
+      ((resources, context) =>
+        feedback.warning(
+          warningNotice(args.failureLabel + '：' + resources.length, 'resource.not_found', JSON.stringify(resources)),
+          context,
+        )),
   );
   const elementEntries = new Map<Element, RegisteredMedia>();
   const callbacks = new Map<string, (element: Element | ComponentPublicInstance | null) => void>();

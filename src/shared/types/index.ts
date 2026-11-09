@@ -229,6 +229,7 @@ export type {
   AppFeedback,
   WindowFeedback,
   FeedbackLevel,
+  FeedbackContext,
   FeedbackFileAction,
   FeedbackFileActions,
   ChooseOptions,

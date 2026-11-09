@@ -54,6 +54,7 @@
 - `src/domain/settings/theme.ts`：主题令牌与色彩数学，拥有 accent 预设、light/dark 中性色、`createThemeColors` 纯函数及 `THEME_TOKEN_MAP` 的 ThemeColorTokens 与主题属性映射。
 - `src/orchestrators/project-sync.orchestrator.ts`：窗口内保存消费过程和内容维护者交接。
 - `src/services/engine-assets.service.ts`：通过正式资源查询交付合并引擎样式、来源版本及授权图片引用。
+- `src/services/resource-media.service.ts`：图片错误及操作涉及的资源来源。
 - `src/shared/lib/entry-keys.ts`：稳定条目键，为列表渲染提供结构化稳定 key。
 - `src/shared/lib/next-formatted-id.ts`：舰船及弹体消费的编号分配纯原语。
 - `src/shared/lib/starsector/colors.ts`：挂载类型颜色、槽位半径与 RGBA 样式投影。

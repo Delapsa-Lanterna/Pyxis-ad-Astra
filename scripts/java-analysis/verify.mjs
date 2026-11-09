@@ -1,11 +1,13 @@
 import assert from 'node:assert/strict';
 import { spawn, execFileSync } from 'node:child_process';
 import { createInterface } from 'node:readline';
-import { mkdir, readFile, writeFile, stat, readdir } from 'node:fs/promises';
+import { mkdir, readFile, stat, readdir } from 'node:fs/promises';
 import { join, delimiter, relative } from 'node:path';
 import { parseArgs } from 'node:util';
 import { root, output, reports, resources, executable, readJson, writeJson, files, sha256, run, javaTool } from './runtime.mjs';
 import { TestWorkspace } from '../shared/test-workspace.mjs';
+import { lifecycle, dependencies } from './lifecycle.mjs';
+import { performanceComparison } from './performance.mjs';
 
 const { values } = parseArgs({ options: { game: { type: 'string' }, download: { type: 'boolean' }, 'dry-run': { type: 'boolean' } } });
 const game = values.game ?? process.env.AST_GAME;
@@ -22,7 +24,7 @@ async function command(config, operation, extra = {}) {
   return JSON.parse(result.stdout);
 }
 
-class Session {
+export class Session {
   /** @param {import('node:child_process').ChildProcessWithoutNullStreams} child */
   constructor(child) {
     this.child = child;
@@ -56,6 +58,11 @@ class Session {
     await writeJson(path, { configRoot: config, java });
     return new Session(spawn(executable, ['run', path], { cwd: root, windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] }));
   }
+  async hello() {
+    const sample = await this.request('hello');
+    this.pid = sample.value.pid;
+    return sample;
+  }
   /** @param {string} op @param {Record<string, unknown>} [params] @param {boolean} [error] */
   async request(op, params = {}, error = false) {
     const id = ++this.sequence;
@@ -79,9 +86,12 @@ class Session {
     return { value: result.result ?? result.error, milliseconds: performance.now() - started };
   }
   async close() {
+    if (!this.pid) await this.hello();
+    await this.request('shutdown');
     this.child.stdin.end();
     assert.equal(await this.exit, 0, this.errors);
     this.reader.close();
+    assert.throws(() => process.kill(this.pid, 0));
   }
 }
 
@@ -98,47 +108,6 @@ async function snapshot(source) {
       ),
     ),
   };
-}
-
-/** @param {Session} session @param {string} directory */
-async function workcopies(session, directory) {
-  const source = join(directory, 'probe');
-  await mkdir(source, { recursive: true });
-  const a = 'package probe; public class A { Object run(){ return B.value(); } int scale=B.SCALE; }';
-  const b = 'package probe; public class B { public static final int SCALE=6; public static int value(){ return 1; } }';
-  const pathA = join(source, 'A.java'),
-    pathB = join(source, 'B.java');
-  await writeFile(pathA, a);
-  await writeFile(pathB, b);
-  const before = await snapshot(directory);
-  for (const project of ['alpha', 'beta']) await session.request('open', { project, sources: [directory], classpath: [], javaHome });
-  /** @param {string} project @param {number} revision */
-  const query = async (project, revision) =>
-    (await session.request('query', { project, revision, file: pathA, offset: a.indexOf('value') })).value;
-  assert.equal((await query('alpha', 1)).call.binding.type, 'int');
-  await session.request('update', {
-    project: 'alpha',
-    files: [
-      { file: pathA, source: a, version: 2 },
-      { file: pathB, version: 2, source: b.replace('int value()', 'String value()').replace('return 1;', 'return "orbit";') },
-    ],
-  });
-  const changed = await query('alpha', 2);
-  assert.equal(changed.call.binding.type, 'java.lang.String');
-  assert.ok(changed.declarations.length && changed.references.length);
-  assert.equal((await query('beta', 1)).call.binding.type, 'int');
-  await session.request('query', { project: 'alpha', revision: 1, file: pathA, offset: 0 }, true);
-  await session.request('update', { project: 'alpha', files: [{ file: pathB, source: b, version: 2 }] }, true);
-  await session.request('update', { project: 'alpha', files: [{ file: pathB, source: b, version: 3 }] });
-  assert.equal((await query('alpha', 3)).call.binding.type, 'int');
-  const constant = (await session.request('query', { project: 'alpha', revision: 3, file: pathA, offset: a.indexOf('SCALE') })).value;
-  assert.equal(constant.node.binding.constant, 6);
-  const first = (await session.request('analyze', { project: 'alpha' })).value;
-  const second = (await session.request('analyze', { project: 'alpha' })).value;
-  assert.equal(first.parseBatches, second.parseBatches);
-  for (const project of ['alpha', 'beta']) await session.request('close', { project });
-  assert.equal(before.hash, (await snapshot(directory)).hash);
-  return { projects: 2, files: 2, returnTypes: ['int', 'java.lang.String', 'int'], constant: 6, diskUnchanged: true };
 }
 
 if (values['dry-run']) console.log(JSON.stringify({ java, output, reports, resources, game, download: values.download }));
@@ -158,6 +127,9 @@ else {
     java,
     package: await readJson(join(resources, 'catalog.json')),
     workcopies: {},
+    dependencies: {},
+    performance: /** @type {unknown[]} */ ([]),
+    libraryInventory: /** @type {{path:string,sha256:string}[]} */ ([]),
     paths: /** @type {unknown[]} */ ([]),
     mods: /** @type {unknown[]} */ ([]),
   };
@@ -190,9 +162,12 @@ else {
         if (/** @type {NodeJS.ErrnoException} */ (error).code !== 'ENOENT') throw error;
       }
     }
+    const libraryInventory = await Promise.all(libraries.map(async (path) => ({ path, sha256: sha256(await readFile(path)) })));
     const session = await Session.start(config);
+    const corpora = [];
     try {
-      report.workcopies = await workcopies(session, work.path('fixture'));
+      report.workcopies = await lifecycle(session, work.path('fixture'), javaHome);
+      report.dependencies = await dependencies(session, work.path('dependency-fixture'), javaHome);
       for (const newline of ['\n', '\r\n']) {
         const source = '// 🪐' + newline + 'record Orbit(int radius) {}';
         const parsed = (await session.request('parse', { source, version: 1 })).value;
@@ -227,14 +202,27 @@ else {
           sha256: before.hash,
           milliseconds: analyzed.milliseconds,
           jdt: analyzed.value,
+          memory: { heapUsedBytes: analyzed.value.heapUsedBytes, heapCommittedBytes: analyzed.value.heapCommittedBytes },
           javac: baseline,
         });
+        corpora.push({ name, root: source, files: before.entries, hash: before.hash });
         console.log(JSON.stringify({ name, files: before.entries.length, errors: 0 }));
       }
     } finally {
       await session.close();
     }
     const paths = (await command(config, 'status')).paths;
+    report.performance = await performanceComparison(
+      Session,
+      work.path('performance'),
+      java,
+      join(paths.dependencies, report.package.version),
+      corpora,
+      libraries,
+    );
+    for (const corpus of corpora) assert.equal((await snapshot(corpus.root)).hash, corpus.hash);
+    for (const entry of libraryInventory) assert.equal(sha256(await readFile(entry.path)), entry.sha256);
+    report.libraryInventory = libraryInventory;
     assert.deepEqual(await readdir(paths.workspaces), []);
     assert.ok((await readdir(paths.logs)).length > 0);
     const alias = 'AST' + Date.now().toString(16).slice(-3) + '~1';
@@ -246,11 +234,33 @@ else {
       const short = await Session.start(selected);
       try {
         assert.equal((await short.request('parse', { source: 'class Orbit {}', version: 1 })).value.errors, 0);
+        const source = join(selected, 'source 中文 spaces');
+        const probe = join(source, 'probe/Orbit.java');
+        await mkdir(join(source, 'probe'), { recursive: true });
+        await short.request('open', { project: 'path', sources: [source], classpath: [], javaHome });
+        const text = '// 🪐\r\npackage probe; class Orbit { int run(){ return value(); } int value(){ return 4; } }';
+        await short.request('update', {
+          project: 'path',
+          expectedRevision: 1,
+          files: [{ action: 'add', file: probe, source: text, version: 1 }],
+        });
+        const query = (await short.request('query', { project: 'path', revision: 2, file: probe, offset: text.indexOf('value') })).value;
+        assert.equal(query.call.binding.type, 'int');
+        assert.equal(query.call.start, text.indexOf('value'));
+        assert.equal(query.declarations[0].version, 1);
+        await short.request('close', { project: 'path' });
+        await assert.rejects(stat(probe));
       } finally {
         await short.close();
       }
       assert.deepEqual(await readdir(join(selected, 'java-analysis/workspaces')), []);
-      report.paths.push({ path: selected, characters: selected.length, workspaceReleased: true });
+      report.paths.push({
+        path: selected,
+        characters: selected.length,
+        sourceCharacters: join(selected, 'source 中文 spaces/probe/Orbit.java').length,
+        unsavedQuery: true,
+        workspaceReleased: true,
+      });
     }
     const offline = await Session.start(config);
     try {

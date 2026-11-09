@@ -2,7 +2,7 @@
   <n-config-provider :theme="naiveTheme" :theme-overrides="themeOverrides">
     <n-message-provider :duration="0" closable container-class="app-toast-container">
       <n-dialog-provider>
-        <WindowRuntime
+        <WindowRuntime :when-root-ready="coreSource.whenRootReady"
           ><WindowTooltip />
           <div v-if="title" class="app-frame app-frame-child ui-content-grid ui-content-contained">
             <TitleBar :title="title" :subtitle="windowModName" /><slot />
@@ -75,7 +75,7 @@ const coreContext = computed(() => {
   };
 });
 useWindowImageRuntimeLifetime();
-useCoreAssetsLifecycle(coreContext, () => settings.savedStarsectorRoot);
+const coreSource = useCoreAssetsLifecycle(coreContext, () => settings.savedStarsectorRoot);
 useAppSettings(props.mode);
 const colors = computed(() => (props.appearance === 'immersive' ? IMMERSIVE_COLORS : settings.themeColors));
 const theme = computed(() => (props.appearance === 'immersive' ? ('dark' as const) : settings.theme));

@@ -65,6 +65,62 @@ afterEach(() => {
 });
 
 describe('Core asset ownership and acceptance', () => {
+  it('shares the queued source result with concurrent window consumers', async () => {
+    stop();
+    const context = ref<CoreRootPayload>({ sessionId: 'sample', starsectorRoot: null });
+    let finish!: (value: string | null) => void;
+    mocks.root.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+    onTestFinished(() => finish(null));
+    const source = scope.run(() => useCoreAssetsLifecycle(context, () => null))!;
+    const pending = Promise.all([source.whenRootReady(), source.whenRootReady(), source.whenRootReady()]);
+    await flushPromises();
+    expect(mocks.root).toHaveBeenCalledExactlyOnceWith(context.value);
+    expect(mocks.fields).not.toHaveBeenCalled();
+    finish('G:/inferred-game');
+    expect(await pending).toEqual(['G:/inferred-game', 'G:/inferred-game', 'G:/inferred-game']);
+    await flushPromises();
+    expect(source.root.value).toBe('G:/inferred-game');
+    expect(mocks.fields).toHaveBeenCalledExactlyOnceWith('G:/inferred-game');
+    expect(mocks.graphics).toHaveBeenCalledExactlyOnceWith('G:/inferred-game');
+    expect(await source.whenRootReady()).toBe('G:/inferred-game');
+    expect(mocks.root).toHaveBeenCalledOnce();
+  });
+  it.each(['replace', 'dispose'] as const)('ends queued source consumers on %s', async (action) => {
+    stop();
+    const context = ref<CoreRootPayload>({ sessionId: null, starsectorRoot: 'G:/first-game' });
+    let finish!: (value: string | null) => void;
+    mocks.root.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+    onTestFinished(() => finish(null));
+    const source = scope.run(() => useCoreAssetsLifecycle(context, () => null))!;
+    const ended = expect(source.whenRootReady()).rejects.toMatchObject({ code: 'query.invalidated' });
+    await flushPromises();
+    if (action === 'replace') context.value = { sessionId: null, starsectorRoot: 'G:/second-game' };
+    else scope.stop();
+    await ended;
+    finish('G:/first-game');
+    await flushPromises();
+    if (action === 'replace') expect(await source.whenRootReady()).toBe('G:/second-game');
+    expect(mocks.fields.mock.calls.map(([value]) => value)).toEqual(action === 'replace' ? ['G:/second-game'] : []);
+  });
+  it('delivers an empty source to waiting consumers after recording a root failure', async () => {
+    stop();
+    mocks.root.mockRejectedValueOnce(new Error('fixture root failure'));
+    const context = ref<CoreRootPayload>({ sessionId: null, starsectorRoot: 'G:/fixture-game' });
+    const source = scope.run(() => useCoreAssetsLifecycle(context, () => null))!;
+    expect(await source.whenRootReady()).toBeNull();
+    expect(source.root.value).toBeNull();
+    expect(mocks.log).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ message: 'fixture root failure' }));
+  });
   it.each([false, true])('retains same-root products with a pending graphics load=%s', async (pending) => {
     stop();
     await flushPromises();

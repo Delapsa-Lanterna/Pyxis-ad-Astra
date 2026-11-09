@@ -29,7 +29,7 @@ export function useWeaponFirePreviewWindowViewModel() {
     errorText = ref('');
   const resourceRefs = computed(() => (data.value ? Object.values(data.value.resources).flatMap((group) => Object.values(group)) : []));
   const reads = useQueryReadOwner(),
-    feedback = useAppFeedback();
+    feedback = useAppFeedback(() => ({ paths: [target.value.modRoot] }));
   const stops: Array<() => void> = [];
   let disposed = false,
     identityPending = false;

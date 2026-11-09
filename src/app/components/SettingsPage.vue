@@ -239,7 +239,9 @@
             >{{ label }}</n-button
           >
         </div>
-        <template #hint><FieldHints description="按级别显示当前 starsector-core 文件的新提示；警告和错误仍写入日志。" /></template>
+        <template #hint
+          ><FieldHints description="操作涉及非原版文件时显示全部提示，全部文件属于原版时按所选级别显示；警告和错误仍写入日志。"
+        /></template>
       </FieldRow>
     </section>
     <section class="panel-card ui-layout-shrink ui-control-border ui-content-surface ui-layout-grid ui-layout-stretch">

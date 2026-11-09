@@ -5,6 +5,7 @@ import {
   mediaResourceKey,
   resourceMediaStats,
   resourceMediaDataUrl,
+  resourceMediaError,
   invalidateResourceMediaForSession,
   invalidateResourceMediaByProject,
   hasResourceInvalidation,
@@ -23,6 +24,25 @@ vi.mock('@/shared/runtime/command.runtime', () => ({
 }));
 const resource = (relPath = 'one.png'): ResourceRef => ({ source: 'mod', relPath, ownerKind: 'ship', ownerId: relPath, key: 'sprite' });
 const session = 'media-lease';
+it('retains the resolved image path through active and retained cache hits', async () => {
+  const image = resource();
+  mock.load.mockResolvedValueOnce({ entries: [{ ...image, dataUrl: 'data:fixture', resolvedPath: 'G:/fixture/starsector-core/one.png' }] });
+  const first = acquireResourceMedia(session, image);
+  await vi.advanceTimersByTimeAsync(25);
+  await first.ready;
+  const failure = () => resourceMediaError(session, image, 'resource.decode_failed', 'fixture decode failure');
+  expect(failure()).toMatchObject({
+    code: 'resource.decode_failed',
+    location: { path: 'G:/fixture/starsector-core/one.png' },
+    logContext: { sessionId: session, relPath: 'one.png' },
+  });
+  first.release();
+  const second = acquireResourceMedia(session, image);
+  expect(await second.ready).toBe('data:fixture');
+  expect(failure().location?.path).toBe('G:/fixture/starsector-core/one.png');
+  expect(mock.load).toHaveBeenCalledOnce();
+  second.release();
+});
 beforeEach(() => {
   vi.useFakeTimers();
   initializeCacheLimits(createSettingsFixture().cacheLimits);

@@ -61,7 +61,7 @@ export function withCause(message: string, cause: unknown, action?: string): App
 }
 
 export class MediaReadError extends AppError {
-  constructor(readonly failures: ErrorDiagnostic[]) {
+  constructor(readonly failures: readonly (ErrorDiagnostic | AppError)[]) {
     super(`图片读取失败：${failures.length} 项`, { code: 'resource.read_failed', command: 'query_resource_data_urls' });
   }
 }

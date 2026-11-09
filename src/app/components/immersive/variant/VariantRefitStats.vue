@@ -287,7 +287,11 @@ const { entries, snapshot: catalog } = useVariantCatalog(
   () => 'hullmods',
 );
 const selected = computed(() => entries.value.find((entry) => entry.id === hover.selected.value));
-const detailsMedia = useResourceMediaRegistry({ onError: useAppFeedback().error, onFailures: () => undefined });
+const feedback = useAppFeedback();
+const detailsMedia = useResourceMediaRegistry({
+  onError: (error, context) => feedback.error(error, undefined, context),
+  onFailures: () => undefined,
+});
 const detailResources = computed(() =>
   selected.value && catalog.value
     ? ['e', 'e_bot', 'e_top', 'w', 'w_bot', 'w_top'].flatMap((edge) => {

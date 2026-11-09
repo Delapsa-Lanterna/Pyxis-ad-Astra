@@ -5,6 +5,7 @@ import type {
   ResourceDataUrlBatchPayload,
   ResourceDataUrlBatchResult,
   ResourceRef,
+  FeedbackContext,
 } from '@/shared/types';
 import { invokeCommand } from '@/shared/runtime/command.runtime';
 import { requireSessionReady, currentReferenceRevision, waitForReferenceSources } from '@/services/project-readiness.service';
@@ -37,6 +38,7 @@ interface MediaEntry {
   resource: ResourceRef;
   key: string;
   value: ShallowRef<string | null | undefined>;
+  resolvedPath?: string;
   references: number;
   request: ReadTicket<string | null> | null;
 }
@@ -133,6 +135,7 @@ function dispatch(items: QueuedMedia[]) {
         const error = failures.length ? new MediaReadError(failures) : null;
         batch.forEach((item, index) => {
           const entry = result.entries[index]!;
+          item.entry.resolvedPath = entry.resolvedPath;
           if (entry.error) item.reject(error);
           else item.resolve(entry.dataUrl);
         });
@@ -224,6 +227,24 @@ export function resourceMediaDataUrl(sessionId: string | null | undefined, resou
   if (!sessionId || !resource) return undefined;
   const key = mediaResourceKey(sessionId, resource);
   return (working.get(key) ?? retained.get(key))?.value.value ?? undefined;
+}
+export function resourceMediaError(sessionId: string, resource: ResourceRef, code: string, message: string): AppError {
+  const key = mediaResourceKey(sessionId, resource);
+  const path = (working.get(key) ?? retained.get(key))?.resolvedPath;
+  return new AppError(message + ': ' + resource.relPath, {
+    code,
+    location: path ? { path, line: null, column: null } : null,
+    logContext: { sessionId, ...logIdentity(resource) },
+  });
+}
+export function resourceMediaContext(sessionId: string, resources: readonly ResourceRef[]): FeedbackContext {
+  return {
+    paths: resources.flatMap((resource) => {
+      const key = mediaResourceKey(sessionId, resource);
+      const path = (working.get(key) ?? retained.get(key))?.resolvedPath;
+      return [...(path ? [path] : []), ...(resource.reference ? [resource.reference.modRoot] : [])];
+    }),
+  };
 }
 export function subscribeResourceInvalidations(listener: (event: ResourceMediaInvalidationEvent) => void) {
   listeners.add(listener);

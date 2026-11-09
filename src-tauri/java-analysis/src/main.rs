@@ -1,4 +1,4 @@
-use pyxis_java_analysis::{AnalysisRuntime, Error, Result};
+use pyxis_java_analysis::{AnalysisRequest, AnalysisRuntime, Error, Result};
 use serde_json::{Value, json};
 use std::env;
 use std::fs::File;
@@ -42,8 +42,15 @@ fn run() -> Result<()> {
             let id = runtime.start(Path::new(field("java")?))?;
             for line in io::stdin().lock().lines() {
                 let request = serde_json::from_str(&line?)?;
-                println!("{}", runtime.request(&id, &request)?);
+                let shutdown = matches!(&request, AnalysisRequest::Shutdown { .. });
+                println!(
+                    "{}",
+                    serde_json::to_string(&runtime.request(&id, &request)?)?
+                );
                 io::stdout().flush()?;
+                if shutdown {
+                    break;
+                }
             }
             runtime.close(&id)?;
             runtime.shutdown()?;

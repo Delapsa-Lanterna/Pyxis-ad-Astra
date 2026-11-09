@@ -5,10 +5,11 @@ import {
   resourceMediaDataUrl,
   subscribeResourceInvalidations,
   mediaResourceKey,
+  resourceMediaContext,
   type ResourceMediaLease,
 } from '@/services/resource-media.service';
 import { isReadInvalidated } from '@/shared/runtime/read-request';
-import type { ResourceRef } from '@/shared/types';
+import type { ResourceRef, FeedbackContext } from '@/shared/types';
 
 interface MediaReference {
   resource: ResourceRef;
@@ -22,8 +23,8 @@ export interface MediaCollectionChange {
 }
 
 export function useResourceMediaRegistry(options: {
-  onError: (error: unknown) => void;
-  onFailures: (resources: readonly ResourceRef[]) => void;
+  onError: (error: unknown, context: FeedbackContext) => void;
+  onFailures: (resources: readonly ResourceRef[], context: FeedbackContext) => void;
 }) {
   const collections = new Map<string, Map<string, ResourceRef>>();
   const references = shallowReactive(new Map<string, MediaReference>());
@@ -39,14 +40,17 @@ export function useResourceMediaRegistry(options: {
 
   async function read(keys: readonly string[]): Promise<void> {
     const capturedSession = sessionId!;
-    let reportedError = false;
+    const errors = new Set<unknown>();
+    const captured = new Map<string, MediaReference>();
     const failures: ResourceRef[] = [];
+    // Successful resources also determine whether this operation's feedback is visible.
     await Promise.all(
       keys.map(async (key) => {
         const previous = references.get(key)!;
         const lease = previous.lease ?? acquireResourceMedia(capturedSession, previous.resource);
         const entry = previous.lease ? previous : { ...previous, lease };
         if (entry !== previous) references.set(key, entry);
+        captured.set(key, entry);
         try {
           const value = await lease.ready;
           if (references.get(key) === entry && entry.lease === lease && value === null && !reportedFailures.has(key)) {
@@ -57,14 +61,16 @@ export function useResourceMediaRegistry(options: {
           if (references.get(key) !== entry || entry.lease !== lease) return;
           lease.release();
           entry.lease = null;
-          if (!isReadInvalidated(error) && !reportedError) {
-            reportedError = true;
-            options.onError(error);
-          }
+          if (!isReadInvalidated(error)) errors.add(error);
         }
       }),
     );
-    if (failures.length) options.onFailures(failures);
+    if ([...captured].some(([key, entry]) => references.get(key) !== entry)) return;
+    if (!errors.size && !failures.length) return;
+    const resources = [...references.values()].map((entry) => entry.resource);
+    const context = resourceMediaContext(capturedSession, resources);
+    for (const error of errors) options.onError(error, context);
+    if (failures.length) options.onFailures(failures, context);
   }
 
   function replaceCollections(

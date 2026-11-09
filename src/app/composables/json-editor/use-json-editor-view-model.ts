@@ -33,7 +33,9 @@ import type { DeepReadonly, JsonValue, MiscConfigEntry, JsonComposition } from '
 import { waitForRead } from '@/shared/runtime/read-request';
 
 export function useJsonEditorViewModel(definition: JsonDocumentDefinition, context: JsonEditorContext) {
-  const feedback = useAppFeedback();
+  const feedback = useAppFeedback(() => ({
+    paths: [context.modRoot.value!, ...(current.value?.record.value.baseVersions.map((version) => version.path) ?? [])],
+  }));
   const editors = useJsonEditorStore();
   const settings = useSettingsStore();
   const reads = useQueryReadOwner();

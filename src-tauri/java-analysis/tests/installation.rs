@@ -26,7 +26,7 @@ fn archive(path: &Path, entries: &[(&str, &[u8])]) -> Package {
     let bytes = fs::read(path).unwrap();
     Package {
         version: "1.0.0".into(),
-        protocol: 1,
+        protocol: 2,
         java: 17,
         artifacts: vec![Artifact {
             path: "dependency.jar".into(),
@@ -44,7 +44,7 @@ fn valid_archive(path: &Path) -> Package {
     let launcher = b"fixture-dependency";
     let manifest = Manifest {
         version: "1.0.0".into(),
-        protocol: 1,
+        protocol: 2,
         java: 17,
         bundles: vec!["dependency.jar".into()],
         files: vec![PackageFile {
@@ -166,7 +166,7 @@ fn pins_builtin_host_and_dependencies_before_starting_java() {
     fs::write(builtin.join("host.jar"), b"host").unwrap();
     let mut host = Builtin {
         version: "1.0.0".into(),
-        protocol: 1,
+        protocol: 2,
         java: 17,
         launcher: "host.jar".into(),
         bundle: "host.jar".into(),

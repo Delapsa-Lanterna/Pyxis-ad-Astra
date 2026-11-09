@@ -162,7 +162,7 @@ export function useJsonListSelection(options: {
         currentRequestId.value = save.id;
         await save.result;
         if (!current()) return false;
-        feedback.success(params.label);
+        feedback.success(params.label, { paths: [params.modRoot] });
         return true;
       } catch (error) {
         currentRequestId.value = null;
@@ -229,8 +229,9 @@ export function useJsonListSelection(options: {
       await discardTarget(selectedId.value!, true);
     },
     discardMissing: async (id: string) => {
+      const context = { paths: options.modRoot.value ? [options.modRoot.value] : [] };
       const discarded = await discardTarget(id, false);
-      if (discarded) feedback.success(`${options.label} "${id}" 已移除，源文件已不存在`);
+      if (discarded) feedback.success(`${options.label} "${id}" 已移除，源文件已不存在`, context);
       return discarded;
     },
   };

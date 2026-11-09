@@ -69,7 +69,7 @@ describe('CSV editor actions', () => {
       return useCsvEditorActions(useCsvEditorModel(host.target), host, feedback);
     });
     await actions.save();
-    expect(feedback.info).toHaveBeenCalledWith('没有需要保存的修改');
+    expect(feedback.info).toHaveBeenCalledWith('没有需要保存的修改', { paths: [] });
   });
   it.each(['undo', 'redo'] as const)('delegates %s to the current document actions and reports rejection', async (direction) => {
     const feedback = feedbackStub();

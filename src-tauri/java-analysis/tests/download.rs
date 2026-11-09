@@ -29,7 +29,7 @@ fn download_failures_cleanup_and_retry_share_one_local_fixture() {
     });
     let mut package = Package {
         version: "fixture".into(),
-        protocol: 1,
+        protocol: 2,
         java: 17,
         bytes: 0,
         sha256: String::new(),

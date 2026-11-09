@@ -18,7 +18,7 @@ export function createWindowFeedback(
   dialog: DialogApiInjection,
   toastDurations: () => ToastDurations,
   showCoreFeedback: () => ShowCoreFeedback,
-  starsectorRoot: () => string | null,
+  whenRootReady: () => string | null | Promise<string | null>,
   accepting = () => true,
 ): WindowFeedback {
   const feedback = createAppFeedback(
@@ -59,9 +59,12 @@ export function createWindowFeedback(
       return actions;
     },
     toastDurations,
-    (level, sourcePath) => {
-      const root = starsectorRoot();
-      return !sourcePath || !root || showCoreFeedback()[level] || !pathBelongsToRoot(sourcePath, gameCoreDirectoryPath(root));
+    (level, paths) => {
+      if (!paths.length) return true;
+      const visible = (root: string | null) =>
+        !root || showCoreFeedback()[level] || paths.some((path) => !pathBelongsToRoot(path, gameCoreDirectoryPath(root)));
+      const root = whenRootReady();
+      return root instanceof Promise ? root.then((value) => accepting() && visible(value)) : visible(root);
     },
   );
   return feedback;
@@ -108,11 +111,11 @@ async function transcodeReference(
     await transcodeFileToUtf8(session.sessionId, session.modRoot, reference.path, encoding.value);
   } catch (error) {
     if (errorCodeOf(error) === 'text.transcode_not_needed') {
-      feedback.info('文件已经是 UTF-8，可以直接打开。', reference.path);
+      feedback.info('文件已经是 UTF-8，可以直接打开。', { paths: [reference.path] });
       return;
     }
     feedback.error(error, '转换文件编码失败');
     return;
   }
-  feedback.success('已转码为 UTF-8：' + reference.path, reference.path);
+  feedback.success('已转码为 UTF-8：' + reference.path, { paths: [reference.path] });
 }

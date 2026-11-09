@@ -175,7 +175,7 @@ describe('useWorkspaceFileHistoryViewModel', () => {
     expect(mocks.feedback.confirmWarning).toHaveBeenCalledTimes(1);
     await mocks.feedback.confirmWarning.mock.calls[0]![0].onConfirm();
     expect(fileHistory.getHistoryStacks('C:/mods/alpha').undoStack).toHaveLength(0);
-    expect(mocks.feedback.success).toHaveBeenCalledWith('文件历史已清空');
+    expect(mocks.feedback.success).toHaveBeenCalledWith('文件历史已清空', { paths: ['a'] });
   });
 
   it('skips clearing when there is no active mod or nothing to clear', () => {

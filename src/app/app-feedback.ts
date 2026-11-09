@@ -13,7 +13,8 @@ import {
   MediaReadError,
   type FileReference,
 } from '@/shared/lib/errors';
-import type { ChooseOptions, ConfirmOptions, ToastDurations } from '@/shared/types';
+import { isReadInvalidated } from '@/shared/runtime/read-request';
+import type { ChooseOptions, ConfirmOptions, ToastDurations, FeedbackContext } from '@/shared/types';
 import { recordLogBestEffort } from '@/services/app-log.service';
 import { logFields, logIdentity } from '@/shared/lib/log-fields';
 import type { FeedbackLevel, FeedbackFileAction, FeedbackFileActions, WindowFeedback } from '@/shared/types';
@@ -24,29 +25,60 @@ export function createAppFeedback(
   dialog: DialogApiInjection,
   fileActions: FeedbackFileActions,
   toastDurations: () => ToastDurations,
-  toastVisible: (level: FeedbackLevel, sourcePath: string | null) => boolean = () => true,
+  toastVisible: (level: FeedbackLevel, paths: readonly string[]) => boolean | Promise<boolean> = () => true,
 ): WindowFeedback {
-  const reportedMedia = new WeakSet<MediaReadError>();
-  function showToast(level: FeedbackLevel, text: string, reference: FileReference | null = null, code = '', sourcePath?: string) {
-    if (!toastVisible(level, sourcePath ?? reference?.path ?? null)) return;
+  const loggedMedia = new WeakSet<MediaReadError>();
+  const displayedMedia = new WeakSet<MediaReadError>();
+  function showToast(
+    level: FeedbackLevel,
+    text: string,
+    reference: FileReference | null = null,
+    code = '',
+    context?: FeedbackContext,
+    media?: MediaReadError,
+  ) {
+    const paths = [
+      ...(context?.paths ?? []),
+      ...(media?.failures.flatMap((failure) => (failure.location?.path ? [failure.location.path] : [])) ?? []),
+      ...(reference ? [reference.path] : []),
+    ];
+    const visible = toastVisible(level, paths);
     const actions = reference === null ? [] : fileActions(reference, level, code);
     const seconds = toastDurations()[level];
-    // The countdown animation owns expiry so hover pauses the same clock shown by the bar.
-    const instance = message[level](
-      () =>
-        h('div', { class: 'app-toast-content' }, [
-          renderToastContent(text, reference, actions, runFileAction),
-          seconds > 0
-            ? h('span', {
-                class: 'app-toast-countdown',
-                'aria-hidden': true,
-                style: { '--app-toast-duration': seconds + 's', '--app-toast-color': `var(--n-icon-color-${level})` },
-                onAnimationend: () => instance.destroy(),
-              })
-            : null,
-        ]),
-      { duration: 0 },
-    );
+    const present = (show: boolean) => {
+      if (!show || (media && displayedMedia.has(media))) return;
+      if (media) displayedMedia.add(media);
+      // The countdown animation owns expiry so hover pauses the same clock shown by the bar.
+      const instance = message[level](
+        () =>
+          h('div', { class: 'app-toast-content' }, [
+            renderToastContent(text, reference, actions, runFileAction),
+            seconds > 0
+              ? h('span', {
+                  class: 'app-toast-countdown',
+                  'aria-hidden': true,
+                  style: { '--app-toast-duration': seconds + 's', '--app-toast-color': `var(--n-icon-color-${level})` },
+                  onAnimationend: () => instance.destroy(),
+                })
+              : null,
+          ]),
+        { duration: 0 },
+      );
+    };
+    if (visible instanceof Promise)
+      void visible.then(present).catch((error: unknown) => {
+        if (isReadInvalidated(error)) return;
+        const diagnostic = errorDiagnosticOf(error);
+        recordLogBestEffort({
+          level: 'error',
+          code: diagnostic.code,
+          message: diagnostic.message,
+          path: diagnostic.location?.path ?? null,
+          line: diagnostic.location?.line ?? null,
+          fields: logFields({ action: 'toast-visibility', column: diagnostic.location?.column }),
+        });
+      });
+    else present(visible);
   }
   async function runFileAction(action: FeedbackFileAction) {
     try {
@@ -57,11 +89,11 @@ export function createAppFeedback(
   }
   const feedback: WindowFeedback = {
     fileActions,
-    success: (text, sourcePath) => showToast('success', text, null, '', sourcePath),
-    info: (text, sourcePath) => showToast('info', text, null, '', sourcePath),
-    warning: (notice) => {
+    success: (text, context) => showToast('success', text, null, '', context),
+    info: (text, context) => showToast('info', text, null, '', context),
+    warning: (notice, context) => {
       const reference = extractFileReferenceFromError(notice.diagnostic);
-      showToast('warning', notice.userMessage, reference, notice.diagnostic.code);
+      showToast('warning', notice.userMessage, reference, notice.diagnostic.code, context);
       recordLogBestEffort({
         level: 'warning',
         code: notice.diagnostic.code,
@@ -71,16 +103,17 @@ export function createAppFeedback(
         fields: logFields({ ...logIdentity(notice.diagnostic.fileTarget), column: notice.diagnostic.location?.column }),
       });
     },
-    error: (error, contextMessage) => {
-      if (error instanceof MediaReadError) {
-        if (reportedMedia.has(error)) return;
-        reportedMedia.add(error);
-      }
+    error: (error, contextMessage, context) => {
       const text = contextMessage ? contextMessage + '：' + formatError(error) : formatError(error);
       const diagnostic = errorDiagnosticOf(error);
       const reference = extractFileReferenceFromError(error);
-      showToast('error', text, reference, diagnostic.code);
-      for (const diagnostic of error instanceof MediaReadError ? error.failures : [errorDiagnosticOf(error)])
+      showToast('error', text, reference, diagnostic.code, context, error instanceof MediaReadError ? error : undefined);
+      if (error instanceof MediaReadError) {
+        if (loggedMedia.has(error)) return;
+        loggedMedia.add(error);
+      }
+      for (const failure of error instanceof MediaReadError ? error.failures : [error]) {
+        const diagnostic = errorDiagnosticOf(failure);
         recordLogBestEffort({
           level: 'error',
           code: diagnostic.code,
@@ -89,11 +122,13 @@ export function createAppFeedback(
           line: diagnostic.location?.line ?? null,
           fields: logFields({
             ...errorContextOf(error),
+            ...errorContextOf(failure),
             ...logIdentity(diagnostic.fileTarget),
             action: errorContextOf(error).action ?? contextMessage,
             column: diagnostic.location?.column,
           }),
         });
+      }
     },
     confirmDanger: (options) => showConfirm(dialog, 'error', options),
     confirmWarning: (options) => showConfirm(dialog, 'warning', options),

@@ -1,4 +1,5 @@
-use pyxis_java_analysis::{AnalysisRuntime, dependencies};
+use pyxis_java_analysis::protocol::AnalysisResult;
+use pyxis_java_analysis::{AnalysisRequest, AnalysisRuntime, dependencies};
 use serde_json::json;
 use std::env;
 use std::fs;
@@ -42,11 +43,21 @@ fn live_runtime_releases_instances_workspaces_and_preserves_logs() {
     let result = runtime
         .request(
             &id,
-            &json!({"id":1,"op":"parse","source":"record Orbit(int radius) {}","version":1}),
+            &serde_json::from_value(
+                json!({"id":1,"op":"parse","source":"record Orbit(int radius) {}","version":1}),
+            )
+            .unwrap(),
         )
         .unwrap();
-    assert_eq!(result["result"]["errors"], 0);
-    assert!(runtime.request("unknown", &json!({})).is_err());
+    let Some(AnalysisResult::Syntax(result)) = result.result else {
+        panic!("syntax result");
+    };
+    assert_eq!(result.errors, 0);
+    assert!(
+        runtime
+            .request("unknown", &AnalysisRequest::Hello { id: json!(2) })
+            .is_err()
+    );
     runtime.close(&id).unwrap();
     assert!(!runtime.paths().workspaces.join(&id).exists());
     assert!(runtime.paths().workspaces.join(&second).exists());

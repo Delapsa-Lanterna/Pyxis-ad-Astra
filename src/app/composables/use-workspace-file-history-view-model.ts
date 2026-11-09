@@ -70,6 +70,7 @@ export function useWorkspaceFileHistoryViewModel() {
   function confirmClear() {
     const modData = activeMod.value;
     if (!modData || historyCount.value === 0) return;
+    const context = { paths: [...undoStack.value, ...redoStack.value].flatMap((entry) => entry.paths) };
     feedback.confirmWarning({
       title: '清空文件历史？',
       content: `清空 ${String(modData.modInfo?.name ?? modData.modRoot)} 的 ${[undoStack.value.length ? undoStack.value.length + ' 条撤销记录' : '', redoStack.value.length ? redoStack.value.length + ' 条重做记录' : ''].filter(Boolean).join('和')}。磁盘文件保留当前内容。\n\n${modData.modRoot}`,
@@ -78,9 +79,9 @@ export function useWorkspaceFileHistoryViewModel() {
         try {
           const snapshot = await clearSavedFileHistory(modData.sessionId, modData.modRoot);
           if (project.getSessionId(modData.modRoot) === modData.sessionId) fileHistory.applySnapshot(modData.modRoot, snapshot);
-          feedback.success('文件历史已清空');
+          feedback.success('文件历史已清空', context);
         } catch (error) {
-          feedback.error(error, '清空文件历史失败');
+          feedback.error(error, '清空文件历史失败', context);
         }
       },
       cancelText: '取消',

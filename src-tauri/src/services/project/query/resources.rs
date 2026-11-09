@@ -89,11 +89,12 @@ pub fn query_resource_data_urls(
     let mut outcomes = BTreeMap::new();
     for resource in resources {
         let key = resources::media_resource_key(&resource);
-        let (data_url, error) = outcomes
+        let (data_url, resolved_path, error) = outcomes
             .entry(key)
             .or_insert_with(|| match batch.data_url(&resource) {
-                Ok(value) => (value, None),
-                Err(error) => (None, Some(error.diagnostic())),
+                Ok(Some((url, path))) => (Some(url), Some(path), None),
+                Ok(None) => (None, None, None),
+                Err(error) => (None, None, Some(error.diagnostic())),
             })
             .clone();
         entries.push(ResourceDataUrlBatchEntry {
@@ -104,6 +105,7 @@ pub fn query_resource_data_urls(
             owner_kind: resource.owner_kind,
             owner_id: resource.owner_id,
             data_url,
+            resolved_path,
             error,
         });
     }
@@ -382,6 +384,19 @@ mod tests {
         assert_eq!(result.entries[1].owner_kind, ResourceOwnerKind::Weapon);
         assert!(result.entries[0].data_url.is_some());
         assert_eq!(result.entries[0].data_url, result.entries[1].data_url);
+        let expected_path = sprite
+            .canonicalize()
+            .unwrap()
+            .to_string_lossy()
+            .into_owned();
+        assert_eq!(
+            result.entries[0].resolved_path.as_ref(),
+            Some(&expected_path)
+        );
+        assert_eq!(
+            result.entries[1].resolved_path.as_ref(),
+            Some(&expected_path)
+        );
         let cached = query_resource_data_urls(
             &manifest.session_id,
             vec![ResourceRef {
@@ -395,6 +410,10 @@ mod tests {
         )
         .unwrap();
         assert_eq!(cached.entries[0].data_url, result.entries[0].data_url);
+        assert_eq!(
+            cached.entries[0].resolved_path.as_ref(),
+            Some(&expected_path)
+        );
         assert_eq!(sprite_read_count(&sprite) - before, 1);
 
         release_project_session(manifest.session_id).unwrap();

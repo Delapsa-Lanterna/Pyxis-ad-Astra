@@ -32,7 +32,7 @@ if (values['dry-run']) {
     'jdt-3.47.0-' + sha256(JSON.stringify(artifacts.map(({ path, bytes, sha256: hash }) => ({ path, bytes, sha256: hash })))).slice(0, 16);
   const dependencies = {
     version,
-    protocol: 1,
+    protocol: 2,
     java: 17,
     bundles,
     files: artifacts.map(({ path, bytes, sha256: hash }) => ({ path, bytes, sha256: hash })),
@@ -53,7 +53,7 @@ if (values['dry-run']) {
     'lib',
   ]);
   const archive = await readFile(offline);
-  const catalog = { version, protocol: 1, java: 17, bytes: archive.length, sha256: sha256(archive), artifacts, bundles };
+  const catalog = { version, protocol: 2, java: 17, bytes: archive.length, sha256: sha256(archive), artifacts, bundles };
   await mkdir(resources, { recursive: true });
   for (const entry of [
     { from: 'java-analysis-1.0.0.jar', to: 'engine.jar' },
@@ -69,7 +69,7 @@ if (values['dry-run']) {
   await writeJson(join(resources, 'catalog.json'), catalog);
   await writeJson(join(resources, 'builtin.json'), {
     version: '1.0.0',
-    protocol: 1,
+    protocol: 2,
     java: 17,
     launcher: 'launcher.jar',
     bundle: 'engine.jar',

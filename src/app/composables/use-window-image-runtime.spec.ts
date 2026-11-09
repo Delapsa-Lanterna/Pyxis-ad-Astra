@@ -6,11 +6,13 @@ import { createSettingsFixture } from '@/test/fixtures/settings';
 import type { ResourceRef, ProjectInvalidation } from '@/shared/types';
 import type { ResourceMediaInvalidationEvent } from '@/services/resource-media.service';
 import { watchEffect } from 'vue';
+import type * as MediaServiceModule from '@/services/resource-media.service';
 
 const mocks = vi.hoisted(() => ({
   listener: null as ((event: ResourceMediaInvalidationEvent) => void) | null,
 }));
-vi.mock('@/services/resource-media.service', () => ({
+vi.mock('@/services/resource-media.service', async (original) => ({
+  ...(await original<typeof MediaServiceModule>()),
   mediaResourceKey: (session: string, resource: ResourceRef) => JSON.stringify([session, resource.source, resource.relPath]),
   subscribeResourceInvalidations: (callback: typeof mocks.listener) => {
     mocks.listener = callback;

@@ -35,7 +35,9 @@ vi.mock('@/orchestrators/mod-save.orchestrator', () => ({
   createModSaveCoordinator: () => ({ ready: Promise.resolve(1), saveCurrentMod: vi.fn(), dispose: vi.fn() }),
 }));
 vi.mock('@/services/app-log.service', () => ({ recordLogBestEffort: mocks.log }));
-vi.mock('@/app/composables/use-core-assets', () => ({ useCoreAssetsLifecycle: vi.fn() }));
+vi.mock('@/app/composables/use-core-assets', () => ({
+  useCoreAssetsLifecycle: vi.fn(() => ({ root: ref(null), whenRootReady: async () => null })),
+}));
 vi.mock('@/app/composables/use-window-image-runtime', () => ({ useWindowImageRuntimeLifetime: vi.fn() }));
 vi.mock('@/app/composables/use-app-lifecycle-assembly', async (original) => {
   const module = await original<typeof UseAppLifecycleAssemblyModule>();

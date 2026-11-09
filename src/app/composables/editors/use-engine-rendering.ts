@@ -20,7 +20,7 @@ import {
 } from '@/app/renderers/editors/engine-renderer';
 import { createReadTicket, isReadInvalidated, type ReadTicket } from '@/shared/runtime/read-request';
 import { isRowData } from '@/shared/lib/row-data';
-import type { DeepReadonly, EngineRenderAssets, ResourceRef, EngineEffect, RowData } from '@/shared/types';
+import type { DeepReadonly, EngineRenderAssets, ResourceRef, EngineEffect, RowData, FeedbackContext } from '@/shared/types';
 
 export function useEngineRendering(
   session: () => string,
@@ -33,9 +33,9 @@ export function useEngineRendering(
     feedback = useAppFeedback();
   const notify = () => reads.schedule('paint', changed);
   const notices = shallowReactive(new Map<string, string>());
-  function report(error: unknown, action: string) {
+  function report(error: unknown, action: string, context?: FeedbackContext) {
     notices.set(action, formatError(error));
-    feedback.error(error, action);
+    feedback.error(error, action, context);
   }
   const inlineStyles = computed(() =>
     JSON.stringify([
@@ -51,7 +51,7 @@ export function useEngineRendering(
     return [...paths].flatMap((path) => (assets.value?.resources[path] ? [assets.value.resources[path]!] : []));
   });
   const media = useResourceMediaRegistry({
-    onError: (error) => report(error, '读取引擎图片失败'),
+    onError: (error, context) => report(error, '读取引擎图片失败', context),
     onFailures: (failures) => {
       if (!failures.length) notices.delete('读取引擎图片失败');
     },
@@ -67,7 +67,7 @@ export function useEngineRendering(
     session,
     () => resources.value.map((resource) => ({ resource, url: url ? url(resource) : (media.dataUrl(session(), resource) ?? '') })),
     notify,
-    (error) => report(error, '解码引擎图片失败'),
+    (error, context) => report(error, '解码引擎图片失败', context),
   );
   const cache = windowImageRuntime(),
     products = new Map<string, { product: EngineProduct; release: () => void }>(),

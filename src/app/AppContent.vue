@@ -139,11 +139,12 @@ const activeDocument = computed(() =>
 async function saveActiveDocument() {
   const document = activeDocument.value;
   if (!document) return;
+  const context = { paths: workspace.activeModRoot ? [workspace.activeModRoot] : [] };
   try {
     const result = await document.save();
-    if (result.status === 'noop') feedback.info('没有需要保存的修改');
+    if (result.status === 'noop') feedback.info('没有需要保存的修改', context);
   } catch (error) {
-    feedback.error(error, '保存文档失败');
+    feedback.error(error, '保存文档失败', context);
   }
 }
 const loadingModLabel = computed(() => {
