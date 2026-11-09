@@ -32,6 +32,7 @@ export interface AppSettings {
   logBackupCount: number;
   editMode: EditMode;
   expandFieldDescriptions: boolean;
+  ignoreEditorWarnings: boolean;
   immersiveGameFont: boolean;
   immersiveFontDirectory: string | null;
   preserveOriginalJson?: boolean;

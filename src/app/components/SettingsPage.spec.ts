@@ -243,6 +243,7 @@ describe('settings limit controls', () => {
       '引用式编辑',
       '展开字段解析',
       '允许编辑原版',
+      '忽略编辑警告',
       'JSON 原样保存',
     ]);
     expect(useSettingsStore().expandFieldDescriptions).toBe(false);
@@ -257,6 +258,13 @@ describe('settings limit controls', () => {
     expect(core.get('.field-warning').text()).toBe('注意：修改原版文件可能影响游戏运行，操作前请备份并谨慎修改。');
     await core.get('.n-switch-stub').trigger('click');
     expect(useSettingsStore().allowCoreEditing).toBe(true);
+    const warnings = editing.findAll('.schema-field')[3]!;
+    expect(warnings.text()).toContain('隐藏编辑警告，并跳过保存前的警告确认。');
+    expect(useSettingsStore().ignoreEditorWarnings).toBe(false);
+    await warnings.get('.n-switch-stub').trigger('click');
+    expect(useSettingsStore().settingsSnapshot().ignoreEditorWarnings).toBe(true);
+    await warnings.get('.n-switch-stub').trigger('click');
+    expect(useSettingsStore().ignoreEditorWarnings).toBe(false);
     useSettingsStore().setStarsectorRoot('D:/fixture');
     await wrapper.vm.$nextTick();
     expect(sections[0]!.get('.field-description').text()).toBe('已设置: D:/fixture');

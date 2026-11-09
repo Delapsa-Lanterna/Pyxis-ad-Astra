@@ -1,3 +1,4 @@
+import { useSettingsStore } from '@/stores/settings.store';
 import { ref } from 'vue';
 import { changeWeaponSpecClass } from '@/domain/entity-write/spec-construction';
 import { dialogBody, dialogFiles, dialogSelect } from '@/shared/ui/dialog-content';
@@ -213,6 +214,7 @@ export async function submitJointEdit(
     const warnings = relevant.filter((issue) => issue.severity === 'warning');
     if (
       warnings.length &&
+      !useSettingsStore().ignoreEditorWarnings &&
       (await feedback.choose({
         title: '仍要保存吗？',
         content: () =>

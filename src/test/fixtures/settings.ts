@@ -33,6 +33,7 @@ export function createSettingsFixture(overrides: Partial<AppSettings> = {}): App
     logBackupCount: 1,
     editMode: 'smart',
     expandFieldDescriptions: false,
+    ignoreEditorWarnings: false,
     immersiveGameFont: true,
     immersiveFontDirectory: null,
     preserveOriginalJson: true,

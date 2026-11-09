@@ -133,6 +133,10 @@
           <FieldHints description="允许写入 Starsector 原版内容。" warning="修改原版文件可能影响游戏运行，操作前请备份并谨慎修改。" />
         </template>
       </FieldRow>
+      <FieldRow label="忽略编辑警告">
+        <n-switch class="tool-switch" :value="settings.ignoreEditorWarnings" @update:value="settings.setIgnoreEditorWarnings" />
+        <template #hint><FieldHints description="隐藏编辑警告，并跳过保存前的警告确认。" /></template>
+      </FieldRow>
       <FieldRow label="JSON 原样保存"
         ><n-switch class="tool-switch" :value="settings.preserveOriginalJson" @update:value="settings.setPreserveOriginalJson" /><template
           #hint

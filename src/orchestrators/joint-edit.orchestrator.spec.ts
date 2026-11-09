@@ -1,5 +1,8 @@
 import type * as JointEditServiceModule from '@/services/joint-edit.service';
 import { h } from 'vue';
+import { createPinia, setActivePinia } from 'pinia';
+import { initializeSettingsStore, useSettingsStore } from '@/stores/settings.store';
+import { createSettingsFixture } from '@/test/fixtures/settings';
 import { mount } from '@vue/test-utils';
 import { editorUiStubs, nSelect } from '@/test/unit/ui-stubs';
 import { weaponJointFixture } from '@/test/fixtures/joint-edit/weapon-joint-edit';
@@ -32,6 +35,8 @@ let feedback: AppFeedback;
 beforeEach(async () => {
   await appLogQueue.flush();
   vi.clearAllMocks();
+  setActivePinia(createPinia());
+  initializeSettingsStore(createSettingsFixture());
   mocks.preview.mockImplementation(async ({ baseline }) => baseline);
   records.length = 0;
   appLogQueue.install(async (batch) => {
@@ -66,7 +71,8 @@ describe('joint declared editing scope confirmation', () => {
     expect(validate.mock.calls[0]).toBeDefined();
     expect(snapshot.records).not.toContainEqual(dependency);
   });
-  it('collects all final-file errors after conflict selection', async () => {
+  it.each([false, true])('collects all final-file errors after conflict selection: %s', async (ignore) => {
+    useSettingsStore().setIgnoreEditorWarnings(ignore);
     const snapshot = shipJointFixture(),
       values = jointFixtureValues(snapshot);
     mocks.prepare.mockResolvedValueOnce({ snapshot, values, conflicts: [] });
@@ -85,7 +91,8 @@ describe('joint declared editing scope confirmation', () => {
     expect(validate).toHaveBeenCalledTimes(1);
     expect(mocks.save).not.toHaveBeenCalled();
   });
-  it('confirms local warnings once and retains readonly-source errors without blocking', async () => {
+  it.each([false, true])('controls local warning confirmation while preserving readonly-source errors: %s', async (ignore) => {
+    useSettingsStore().setIgnoreEditorWarnings(ignore);
     const snapshot = shipJointFixture(),
       values = jointFixtureValues(snapshot);
     mocks.prepare.mockResolvedValueOnce({ snapshot, values, conflicts: [] });
@@ -110,7 +117,7 @@ describe('joint declared editing scope confirmation', () => {
       },
     ]);
     await submitJointEdit({ baseline: snapshot, values }, feedback, async () => [], [], undefined, validate);
-    expect(feedback.choose).toHaveBeenCalledTimes(1);
+    expect(feedback.choose).toHaveBeenCalledTimes(ignore ? 0 : 1);
     expect(mocks.save).toHaveBeenCalledTimes(1);
   });
   it.each(['disk', 'draft'] as const)('checks the final CSV content selected from a conflict: %s', async (choice) => {

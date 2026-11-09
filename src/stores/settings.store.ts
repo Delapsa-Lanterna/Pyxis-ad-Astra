@@ -15,6 +15,7 @@ import {
   readGeneralFont,
   readEditMode,
   readExpandFieldDescriptions,
+  readIgnoreEditorWarnings,
   readImmersiveGameFont,
   readHistoryLimit,
   readLogRotationSizeMiB,
@@ -60,6 +61,7 @@ export const useSettingsStore = defineStore('settings', () => {
   const logBackupCount = ref(initialSettings.logBackupCount);
   const editMode = ref<EditMode>(readEditMode(initialSettings.editMode));
   const expandFieldDescriptions = ref(initialSettings.expandFieldDescriptions);
+  const ignoreEditorWarnings = ref(initialSettings.ignoreEditorWarnings);
   const immersiveGameFont = ref(initialSettings.immersiveGameFont);
   const immersiveFontDirectory = ref(initialSettings.immersiveFontDirectory);
   const preserveOriginalJson = ref(readPreserveOriginalJson(initialSettings.preserveOriginalJson));
@@ -140,6 +142,10 @@ export const useSettingsStore = defineStore('settings', () => {
     editMode.value = mode;
   }
 
+  function setIgnoreEditorWarnings(value: boolean) {
+    ignoreEditorWarnings.value = readIgnoreEditorWarnings(value);
+  }
+
   function setExpandFieldDescriptions(value: boolean) {
     expandFieldDescriptions.value = readExpandFieldDescriptions(value);
   }
@@ -196,6 +202,7 @@ export const useSettingsStore = defineStore('settings', () => {
       logBackupCount: logBackupCount.value,
       editMode: editMode.value,
       expandFieldDescriptions: expandFieldDescriptions.value,
+      ignoreEditorWarnings: ignoreEditorWarnings.value,
       immersiveGameFont: immersiveGameFont.value,
       immersiveFontDirectory: immersiveFontDirectory.value,
       preserveOriginalJson: preserveOriginalJson.value,
@@ -214,6 +221,7 @@ export const useSettingsStore = defineStore('settings', () => {
     const nextShowCoreFeedback = readShowCoreFeedback(settings.showCoreFeedback);
     const nextGeneralFont = readGeneralFont(settings.generalFont);
     const nextExpandFieldDescriptions = readExpandFieldDescriptions(settings.expandFieldDescriptions);
+    const nextIgnoreEditorWarnings = readIgnoreEditorWarnings(settings.ignoreEditorWarnings);
     const nextImmersiveGameFont = readImmersiveGameFont(settings.immersiveGameFont);
     const nextImmersiveFontDirectory = readOptionalDirectory(settings.immersiveFontDirectory);
     const nextFileHistoryLimit = readHistoryLimit(settings.fileHistoryLimit);
@@ -233,6 +241,7 @@ export const useSettingsStore = defineStore('settings', () => {
     logBackupCount.value = nextLogBackupCount;
     editMode.value = readEditMode(settings.editMode);
     expandFieldDescriptions.value = nextExpandFieldDescriptions;
+    ignoreEditorWarnings.value = nextIgnoreEditorWarnings;
     immersiveGameFont.value = nextImmersiveGameFont;
     immersiveFontDirectory.value = nextImmersiveFontDirectory;
     preserveOriginalJson.value = readPreserveOriginalJson(settings.preserveOriginalJson);
@@ -265,6 +274,7 @@ export const useSettingsStore = defineStore('settings', () => {
     fontFamily,
     editMode,
     expandFieldDescriptions,
+    ignoreEditorWarnings,
     immersiveGameFont,
     immersiveFontDirectory,
     preserveOriginalJson,
@@ -291,6 +301,7 @@ export const useSettingsStore = defineStore('settings', () => {
     setGeneralFont,
     setEditMode,
     setExpandFieldDescriptions,
+    setIgnoreEditorWarnings,
     setImmersiveGameFont,
     setImmersiveFontDirectory,
     setPreserveOriginalJson,

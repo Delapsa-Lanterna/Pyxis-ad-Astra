@@ -20,7 +20,7 @@ import SpecSystemEditor from '@/app/components/spec-editor/system/SpecSystemEdit
 import { specSchemaContext } from './spec-schema-context';
 import { provideFieldInputs } from '@/shared/runtime/field-inputs';
 import { installCanvas2DStub } from '@/test/unit/canvas-stub';
-import { initializeSettingsStore } from '@/stores/settings.store';
+import { initializeSettingsStore, useSettingsStore } from '@/stores/settings.store';
 import { createSettingsFixture } from '@/test/fixtures/settings';
 import { editorUiStubs } from '@/test/unit/ui-stubs';
 
@@ -450,6 +450,7 @@ describe('Spec common save checks', () => {
   it.each(['ship', 'weapon', 'projectile', 'system'] as const)(
     'shares all content errors before %s saving and clears them after correction',
     async (kind) => {
+      useSettingsStore().setIgnoreEditorWarnings(true);
       const vm = await openChecked(kind);
       const original = vm.draftValue.value;
       const key = kind === 'ship' ? 'width' : kind === 'weapon' ? 'turretOffsets' : kind === 'projectile' ? 'width' : 'type';
@@ -464,19 +465,23 @@ describe('Spec common save checks', () => {
       expect(mocks.saveSpecEditorSpecByKind).toHaveBeenCalledTimes(1);
     },
   );
-  it('confirms warnings for every save including the coordinated participant', async () => {
+  it.each([false, true])('controls warnings for direct and coordinated saves: %s', async (ignore) => {
+    useSettingsStore().setIgnoreEditorWarnings(ignore);
     const vm = await openChecked('system');
     const stop = vm.problems.register(() => [{ severity: 'warning', code: 'fixture.warning', path: 'range', message: '请确认范围' }]);
-    await vm.saveEditorData();
-    expect(mocks.saveSpecEditorSpecByKind).not.toHaveBeenCalled();
-    mocks.feedback.choose.mockResolvedValue('save');
     const participant = useSaveCommandStore().participantsForTargets([
       { sessionId: 's1', modRoot: 'M:/mod', path: entityTargetFixture('system', 'XY').write.path },
     ])[0]!;
     await vm.saveEditorData();
+    expect(mocks.saveSpecEditorSpecByKind).toHaveBeenCalledTimes(ignore ? 1 : 0);
+    mocks.feedback.choose.mockResolvedValue('save');
+    await vm.saveEditorData();
     await participant.editing!.save();
-    expect(mocks.feedback.choose).toHaveBeenCalledTimes(3);
-    expect(mocks.saveSpecEditorSpecByKind).toHaveBeenCalledTimes(2);
+    expect(mocks.feedback.choose).toHaveBeenCalledTimes(ignore ? 0 : 3);
+    expect(mocks.saveSpecEditorSpecByKind).toHaveBeenCalledTimes(ignore ? 3 : 2);
+    useSettingsStore().setIgnoreEditorWarnings(false);
+    await participant.editing!.save();
+    expect(mocks.feedback.choose).toHaveBeenCalledTimes(ignore ? 1 : 4);
     expect(participant).toBeDefined();
     stop();
   });
@@ -494,6 +499,9 @@ describe('Spec common save checks', () => {
     );
     const saving = vm.saveEditorData();
     await flushPromises();
+    useSettingsStore().setIgnoreEditorWarnings(true);
+    await flushPromises();
+    expect(mocks.saveSpecEditorSpecByKind).not.toHaveBeenCalled();
     vm.updateEditorDraft({ ...vm.draftValue.value, range: 25 });
     mocks.feedback.choose.mockResolvedValue('save');
     confirm('save');

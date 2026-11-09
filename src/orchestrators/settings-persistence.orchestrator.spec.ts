@@ -97,22 +97,25 @@ describe('formal settings commits', () => {
     expect(api.save).toHaveBeenCalledTimes(0);
     expect(api.defaults).toHaveBeenCalledTimes(0);
   });
-  it('persists file watching, reloads the saved choice and restores its default', async () => {
+  it.each([
+    ['watchFileChanges', 'setWatchFileChanges', true],
+    ['ignoreEditorWarnings', 'setIgnoreEditorWarnings', false],
+  ] as const)('persists, mirrors and resets %s', async (key, setter, defaultValue) => {
     const { runtime, settings, stopPersistence } = await setup();
-    expect(settings.watchFileChanges).toBe(true);
-    settings.setWatchFileChanges(false);
+    expect(settings[key]).toBe(defaultValue);
+    settings[setter](!defaultValue);
     await runtime.flushSettings();
-    expect(api.save.mock.lastCall![0].watchFileChanges).toBe(false);
+    expect(api.save.mock.lastCall![0][key]).toBe(!defaultValue);
     stopPersistence();
     settings.replaceSettings(createSettingsFixture());
     const stop = runtime.startSettingsMirror();
     onTestFinished(stop);
-    expect(settings.watchFileChanges).toBe(false);
+    expect(settings[key]).toBe(!defaultValue);
     stop();
     onTestFinished(runtime.startSettingsPersistence(api.history));
     await runtime.resetSettings(vi.fn());
-    expect(settings.watchFileChanges).toBe(true);
-    expect(api.save.mock.lastCall![0].watchFileChanges).toBe(true);
+    expect(settings[key]).toBe(defaultValue);
+    expect(api.save.mock.lastCall![0][key]).toBe(defaultValue);
   });
   it('saves toast durations and restores their defaults through reset', async () => {
     const { runtime, settings } = await setup();
@@ -424,6 +427,7 @@ describe('formal settings commits', () => {
     const receive = api.listen.mock.calls[0]![0];
     const next = createSettingsFixture({
       generalFont: 'Latest Font',
+      ignoreEditorWarnings: true,
       expandFieldDescriptions: true,
       immersiveFontDirectory: 'F:/fonts',
       watchFileChanges: true,
@@ -433,6 +437,7 @@ describe('formal settings commits', () => {
     await receive(settingsSnapshot(next, 4));
     await receive(settingsSnapshot(createSettingsFixture({ generalFont: 'Earlier Font' }), 3));
     expect(useSettingsStore().generalFont).toBe('Latest Font');
+    expect(useSettingsStore().ignoreEditorWarnings).toBe(true);
     expect(useSettingsStore().watchFileChanges).toBe(true);
     expect(useSettingsStore().toastDurations).toEqual(next.toastDurations);
     expect(useSettingsStore().expandFieldDescriptions).toBe(true);

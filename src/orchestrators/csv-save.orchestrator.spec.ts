@@ -7,7 +7,7 @@ import { csvRows, csvTableIndex } from '@/test/fixtures/csv-row';
 import { csvDraftRow } from '@/test/fixtures/csv-row';
 import { entityTargetFixture } from '@/test/fixtures/entity-target';
 import { flushPromises } from '@vue/test-utils';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
 
 const writeCsvPatch = vi.hoisted(() => vi.fn());
@@ -73,9 +73,11 @@ import { useCsvEditorStore } from '@/stores/csv-editor.store';
 import { useWorkspaceStore } from '@/stores/workspace.store';
 import { saveCsvChanges } from '@/orchestrators/csv-save.orchestrator';
 import { prepareCsvAssociatedSpecs } from '@/services/csv-table.service';
-import { ref } from 'vue';
+import { ref, effectScope } from 'vue';
+import { useSaveCommandStore } from '@/stores/save-command.store';
+import { useCsvSaveParticipants } from '@/app/composables/csv-editor/use-csv-save-participants';
 import { AppError } from '@/shared/lib/errors';
-import { initializeSettingsStore } from '@/stores/settings.store';
+import { initializeSettingsStore, useSettingsStore } from '@/stores/settings.store';
 import { createSettingsFixture } from '@/test/fixtures/settings';
 import type { AssociatedSpecCandidate } from '@/domain/csv-editor/associated-spec-candidates';
 
@@ -171,7 +173,8 @@ describe('table-save orchestrator', () => {
     expect(readCsvIndex).toHaveBeenCalledTimes(2);
     expect(tables.getTableProblems(target).issues.value).toEqual([]);
   });
-  it('blocks duplicates and preserves the failure until a successful retry', async () => {
+  it.each([false, true])('blocks duplicates and preserves the failure until a successful retry: %s', async (ignore) => {
+    initializeSettingsStore(createSettingsFixture({ ignoreEditorWarnings: ignore }));
     const manifest = buildManifest();
     useProjectStore().manifests.set(MOD_ROOT, manifest);
     const state = hydrateActiveTable();
@@ -192,43 +195,57 @@ describe('table-save orchestrator', () => {
     await expect(save()).resolves.toMatchObject({ status: 'saved' });
     expect(problems.issues.value).toEqual([]);
   });
-  it.each(['cancel', 'save', 'change'] as const)('handles wing warnings with %s and asks again for subsequent saves', async (choice) => {
-    initializeSettingsStore(createSettingsFixture());
-    const manifest = buildManifest();
-    useProjectStore().manifests.set(MOD_ROOT, manifest);
-    const state = hydrateActiveTable();
-    const tables = useCsvEditorStore();
-    const target = { sessionId: SESSION_ID, modRoot: MOD_ROOT, table: 'wings' as const };
-    replaceCsvTableDraft(state.documents.wings, [csvDraftRow({ id: 'sample', name: 'Base' }, 'wing')]);
-    tables.updateCellValue({ ...target, rowKey: 'wing', column: 'name' }, 'Edited');
-    const choose = vi.fn<AppFeedback['choose']>().mockResolvedValue(choice === 'cancel' ? null : 'save');
-    if (choice === 'change')
-      choose.mockImplementationOnce(async () => {
-        tables.updateCellValue({ ...target, rowKey: 'wing', column: 'id' }, 'changed');
-        return 'save';
-      });
-    const feedback: AppFeedback = {
-      choose,
-      success: vi.fn(),
-      info: vi.fn(),
-      warning: vi.fn(),
-      error: vi.fn(),
-      confirmDanger: vi.fn(),
-      confirmWarning: vi.fn(),
-    };
-    const save = () => saveCsvChanges({ table: 'wings', manifest, feedback, selectAssociatedSpecs: async () => [] });
-    writeCsvPatch.mockResolvedValue(writeResult());
-    expect((await save()).status).toBe(choice === 'cancel' ? 'cancelled' : 'saved');
-    expect(writeCsvPatch).toHaveBeenCalledTimes(choice === 'cancel' ? 0 : 1);
-    expect(choose).toHaveBeenCalledTimes(choice === 'change' ? 2 : 1);
-    if (choice !== 'cancel') {
-      tables.updateCellValue({ ...target, rowKey: 'wing', column: 'name' }, 'Again');
-      await save();
-      expect(choose).toHaveBeenCalledTimes(choice === 'change' ? 3 : 2);
-      expect(writeCsvPatch.mock.lastCall![3][0].row.id).toBe(choice === 'change' ? 'changed' : 'sample');
-    }
-    writeCsvPatch.mockReset();
-  });
+  it.each(['cancel', 'save', 'change', 'ignore'] as const)(
+    'handles wing warnings with %s and asks again for subsequent saves',
+    async (choice) => {
+      initializeSettingsStore(createSettingsFixture({ ignoreEditorWarnings: choice === 'ignore' }));
+      const manifest = buildManifest();
+      useProjectStore().manifests.set(MOD_ROOT, manifest);
+      const state = hydrateActiveTable();
+      const tables = useCsvEditorStore();
+      const target = { sessionId: SESSION_ID, modRoot: MOD_ROOT, table: 'wings' as const };
+      replaceCsvTableDraft(state.documents.wings, [csvDraftRow({ id: 'sample', name: 'Base' }, 'wing')]);
+      tables.updateCellValue({ ...target, rowKey: 'wing', column: 'name' }, 'Edited');
+      const choose = vi.fn<AppFeedback['choose']>().mockResolvedValue(choice === 'cancel' ? null : 'save');
+      if (choice === 'change')
+        choose.mockImplementationOnce(async () => {
+          tables.updateCellValue({ ...target, rowKey: 'wing', column: 'id' }, 'changed');
+          return 'save';
+        });
+      const feedback: AppFeedback = {
+        choose,
+        success: vi.fn(),
+        info: vi.fn(),
+        warning: vi.fn(),
+        error: vi.fn(),
+        confirmDanger: vi.fn(),
+        confirmWarning: vi.fn(),
+      };
+      const scope = effectScope();
+      onTestFinished(() => scope.stop());
+      scope.run(() => useCsvSaveParticipants(feedback, async () => []));
+      const commands = useSaveCommandStore();
+      const participant = commands.participantsForTargets([
+        { sessionId: SESSION_ID, modRoot: MOD_ROOT, path: MOD_ROOT + '/wings.csv' },
+      ])[0]!;
+      const save = () =>
+        choice === 'ignore'
+          ? participant.editing!.save()
+          : saveCsvChanges({ table: 'wings', manifest, feedback, selectAssociatedSpecs: async () => [] });
+      writeCsvPatch.mockResolvedValue(writeResult());
+      expect((await save()).status).toBe(choice === 'cancel' ? 'cancelled' : 'saved');
+      expect(writeCsvPatch).toHaveBeenCalledTimes(choice === 'cancel' ? 0 : 1);
+      expect(choose).toHaveBeenCalledTimes(choice === 'ignore' ? 0 : choice === 'change' ? 2 : 1);
+      if (choice !== 'cancel') {
+        useSettingsStore().setIgnoreEditorWarnings(false);
+        tables.updateCellValue({ ...target, rowKey: 'wing', column: 'name' }, 'Again');
+        await save();
+        expect(choose).toHaveBeenCalledTimes(choice === 'ignore' ? 1 : choice === 'change' ? 3 : 2);
+        expect(writeCsvPatch.mock.lastCall![3][0].row.id).toBe(choice === 'change' ? 'changed' : 'sample');
+      }
+      writeCsvPatch.mockReset();
+    },
+  );
   it('ends a late preparation when its captured session is removed', async () => {
     const manifest = buildManifest({ associatedSpecTables: ['ships'] });
     useProjectStore().manifests.set(MOD_ROOT, manifest);

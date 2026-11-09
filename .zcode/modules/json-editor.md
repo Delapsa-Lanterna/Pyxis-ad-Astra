@@ -97,7 +97,7 @@ JSON 文档编辑模块提供 Mod 信息、势力、战役、装配、舰船皮�
 - `src/stores/project-sync.store.ts`：当前待办、错误和项目等待状态。
 - `src/stores/project.store.ts`：指定 Mod 的正式清单与 session 查询，异步动作消费捕获目标。
 - `src/stores/save-command.store.ts`：保存等待、活动保存动作和目标交接状态。
-- `src/stores/settings.store.ts`：JSON 写入方式与编辑历史容量设置。
+- `src/stores/settings.store.ts`：JSON 写入方式、编辑警告展示与编辑历史容量设置。
 
 ### 装配
 

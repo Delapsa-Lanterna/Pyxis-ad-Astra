@@ -49,6 +49,7 @@ export function assertValidSettings(settings: AppSettings): void {
   readLogBackupCount(settings.logBackupCount);
   readEditMode(settings.editMode);
   readExpandFieldDescriptions(settings.expandFieldDescriptions);
+  readIgnoreEditorWarnings(settings.ignoreEditorWarnings);
   readImmersiveGameFont(settings.immersiveGameFont);
   readOptionalDirectory(settings.immersiveFontDirectory);
   readPreserveOriginalJson(settings.preserveOriginalJson);
@@ -120,6 +121,11 @@ export function readEditMode(value: EditMode): EditMode {
 
 export function readImmersiveGameFont(value: boolean): boolean {
   if (typeof value !== 'boolean') throw new Error(`Invalid original fonts setting: ${value}`);
+  return value;
+}
+
+export function readIgnoreEditorWarnings(value: boolean): boolean {
+  if (typeof value !== 'boolean') throw new Error('Invalid ignore editor warnings setting');
   return value;
 }
 

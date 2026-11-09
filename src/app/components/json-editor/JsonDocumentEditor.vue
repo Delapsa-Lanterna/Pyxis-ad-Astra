@@ -34,7 +34,7 @@
         ></template
       >
     </EditorHeader>
-    <EditorProblems :issues="document.problems.issues.value" @locate="locateProblem" />
+    <EditorProblems :ignore-warnings="settings.ignoreEditorWarnings" :issues="document.problems.issues.value" @locate="locateProblem" />
     <div class="editor-fields ui-content-scroll">
       <p v-if="schemaRuntimeContext.composition" class="ui-text-muted ui-text-small ui-text-reset">
         {{ schemaRuntimeContext.partial ? '待组合文件' : '完整定义文件' }}
@@ -64,6 +64,7 @@
 import { dialogBody, dialogFiles } from '@/shared/ui/dialog-content';
 import { computed, h, ref, useTemplateRef } from 'vue';
 import EditorProblems from '@/shared/ui/EditorProblems.vue';
+import { useSettingsStore } from '@/stores/settings.store';
 import type { FieldProblem } from '@/shared/types';
 import { miscConfigDefinition } from '@/domain/misc-config';
 import { provideFieldInputs } from '@/shared/runtime/field-inputs';
@@ -78,6 +79,7 @@ import EditorHeader from '@/app/components/editors/common/EditorHeader.vue';
 import SchemaFormRenderer from '@/app/components/field-editor/SchemaFormRenderer.vue';
 import JsonTargetNotice from './JsonTargetNotice.vue';
 import JsonDeleteSourceDialog from './JsonDeleteSourceDialog.vue';
+const settings = useSettingsStore();
 const props = defineProps<{
   definition: JsonDocumentDefinition;
   locateBaseHull: JsonEditorHost['locateBaseHull'];

@@ -433,9 +433,10 @@ mod tests {
         dir.close().unwrap();
     }
     #[test]
-    fn file_watching_roundtrips_through_saved_settings() {
+    fn editing_preferences_roundtrip_through_saved_settings() {
         let root = TestWorkspace::new("file_watch_setting");
         assert!(AppSettings::default().watch_file_changes);
+        assert!(!AppSettings::default().ignore_editor_warnings);
         let mut missing = serde_json::to_value(AppSettings::default()).unwrap();
         missing.as_object_mut().unwrap().remove("watchFileChanges");
         assert!(
@@ -446,10 +447,13 @@ mod tests {
         for enabled in [false, true] {
             let settings = AppSettings {
                 watch_file_changes: enabled,
+                ignore_editor_warnings: enabled,
                 ..Default::default()
             };
             save_settings(&root, &settings).unwrap();
-            assert_eq!(load_settings(&root).unwrap().watch_file_changes, enabled);
+            let restored = load_settings(&root).unwrap();
+            assert_eq!(restored.watch_file_changes, enabled);
+            assert_eq!(restored.ignore_editor_warnings, enabled);
         }
         root.close().unwrap();
     }
@@ -609,7 +613,7 @@ mod tests {
         valid["editHistoryLimit"] = serde_json::json!(321);
         valid["cacheLimits"]["mediaData"]["entries"] = serde_json::json!(17);
         let paths = setting_paths(&defaults, "");
-        assert_eq!(paths.len(), 54);
+        assert_eq!(paths.len(), 55);
         for pointer in paths.into_iter().skip(1) {
             for missing in [false, true] {
                 let mut source = valid.clone();

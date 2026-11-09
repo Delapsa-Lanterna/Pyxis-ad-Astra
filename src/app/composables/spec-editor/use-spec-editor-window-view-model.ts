@@ -1,3 +1,4 @@
+import { useSettingsStore } from '@/stores/settings.store';
 import { dialogBody, dialogFiles, dialogGroup, dialogSelect } from '@/shared/ui/dialog-content';
 import { releaseNativeWindowTargets } from '@/services/window.service';
 import { useProjectSyncStore } from '@/stores/project-sync.store';
@@ -74,7 +75,7 @@ export function useSpecEditorWindowViewModel(
         const issues = [...problems.issues.value];
         if (issues.some((issue) => issue.severity === 'error')) throw new AppError('规格内容无效', { action: 'spec-validation' });
         const warnings = issues.filter((issue) => issue.severity === 'warning');
-        if (!warnings.length) return true;
+        if (!warnings.length || useSettingsStore().ignoreEditorWarnings) return true;
         const choice = await feedback.choose({
           title: '仍要保存吗？',
           content: () =>

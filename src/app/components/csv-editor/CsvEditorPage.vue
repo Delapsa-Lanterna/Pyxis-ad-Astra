@@ -89,7 +89,7 @@
           v-show="detailPaneExpanded"
           class="csv-detail-panel ui-content-column ui-content-contained ui-content-surface-muted"
         >
-          <EditorProblems :issues="problems.issues.value" @locate="locateProblem" />
+          <EditorProblems :ignore-warnings="settings.ignoreEditorWarnings" :issues="problems.issues.value" @locate="locateProblem" />
           <CsvRowDetails
             :model="model"
             :starsector-root="host.starsectorRoot.value"
@@ -107,6 +107,7 @@ import { computed, h, useTemplateRef, watch } from 'vue';
 import { NDropdown } from 'naive-ui/es/dropdown';
 import CsvTableEditor from '@/app/components/csv-editor/CsvTableEditor.vue';
 import EditorProblems from '@/shared/ui/EditorProblems.vue';
+import { useSettingsStore } from '@/stores/settings.store';
 import { useCsvEditorStore } from '@/stores/csv-editor.store';
 import CsvRowDetails from '@/app/components/csv-editor/CsvRowDetails.vue';
 import { useCsvTableViewModel } from '@/app/composables/csv-editor/use-csv-table-view-model';
@@ -118,6 +119,7 @@ import type { FieldProblem, CsvTableTarget } from '@/shared/types';
 import { MODULE_LABELS } from '@/shared/lib/starsector';
 import { csvSearchOptions, csvSearchPlaceholder } from '@/domain/csv-editor/csv-search';
 
+const settings = useSettingsStore();
 const props = defineProps<{ target: CsvTableTarget; host: CsvEditorHost }>();
 const host = props.host;
 const model = useCsvEditorModel(computed(() => props.target));

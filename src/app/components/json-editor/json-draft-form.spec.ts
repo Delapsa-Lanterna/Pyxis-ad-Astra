@@ -26,7 +26,7 @@ import { useProjectStore } from '@/stores/project.store';
 import { useWorkspaceStore } from '@/stores/workspace.store';
 import { useSaveCommandStore } from '@/stores/save-command.store';
 import { useWorkspaceNavigationActions } from '@/app/composables/use-workspace-navigation-actions';
-import { initializeSettingsStore } from '@/stores/settings.store';
+import { initializeSettingsStore, useSettingsStore } from '@/stores/settings.store';
 import { createSettingsFixture } from '@/test/fixtures/settings';
 import { jsonEntityFixture } from '@/test/fixtures/json-editor';
 import { sessionUpdateFixture, savedWriteFixture } from '@/test/fixtures/write-result';
@@ -324,6 +324,25 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 describe('JSON common workspace and form', () => {
+  it('updates warning visibility in an open document while retaining its problems', async () => {
+    await mountPage('mod-info');
+    const document = wrapper!.getComponent(JsonDocumentEditor).props('document');
+    const release = document.inputs.registerDocumentValidation(() => [
+      { severity: 'warning', code: 'fixture.warning', path: 'file.name', message: 'Fixture warning' },
+    ]);
+    onTestFinished(() => {
+      release();
+    });
+    await flushPromises();
+    expect(wrapper!.get('.editor-problem.warning').isVisible()).toBe(true);
+    useSettingsStore().setIgnoreEditorWarnings(true);
+    await flushPromises();
+    expect(wrapper!.find('.editor-problems').exists()).toBe(false);
+    expect(document.problems.issues.value).toMatchObject([{ severity: 'warning' }]);
+    useSettingsStore().setIgnoreEditorWarnings(false);
+    await flushPromises();
+    expect(wrapper!.get('.editor-problem.warning').isVisible()).toBe(true);
+  });
   it.each(['variants', 'skins', 'factions', 'mission', 'misc-config'] as const)(
     '%s selects and opens its first record after a paused initial list is replayed',
     async (page) => {

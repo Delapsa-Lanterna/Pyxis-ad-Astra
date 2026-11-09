@@ -1,5 +1,5 @@
 <template>
-  <div v-if="issues.length" class="editor-problems ui-content-column ui-content-contained ui-text-small">
+  <div v-if="visibleIssues.length" class="editor-problems ui-content-column ui-content-contained ui-text-small">
     <section
       v-for="level in levels"
       :key="level"
@@ -30,10 +30,12 @@
   </div>
 </template>
 <script setup lang="ts">
+import { computed } from 'vue';
 import type { FieldProblem } from '@/shared/types';
 import { fieldProblemKey } from '@/shared/runtime/editor-problems';
-const props = defineProps<{ issues: readonly FieldProblem[]; isBlocking?: (issue: FieldProblem) => boolean }>();
+const props = defineProps<{ issues: readonly FieldProblem[]; ignoreWarnings?: boolean; isBlocking?: (issue: FieldProblem) => boolean }>();
 defineEmits<{ locate: [issue: FieldProblem] }>();
+const visibleIssues = computed(() => (props.ignoreWarnings ? props.issues.filter((issue) => issue.severity === 'error') : props.issues));
 const levels = ['error', 'warning'] as const;
-const items = (level: (typeof levels)[number]) => props.issues.filter((item) => item.severity === level);
+const items = (level: (typeof levels)[number]) => visibleIssues.value.filter((item) => item.severity === level);
 </script>

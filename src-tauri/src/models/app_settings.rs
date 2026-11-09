@@ -106,6 +106,8 @@ pub struct AppSettings {
     pub edit_mode: EditMode,
     #[serde(default)]
     pub expand_field_descriptions: bool,
+    #[serde(default)]
+    pub ignore_editor_warnings: bool,
     #[serde(default = "default_immersive_game_font")]
     pub immersive_game_font: bool,
     #[serde(default, deserialize_with = "deserialize_non_empty_string")]
@@ -140,6 +142,7 @@ impl Default for AppSettings {
             log_backup_count: default_log_backup_count(),
             edit_mode: default_edit_mode(),
             expand_field_descriptions: false,
+            ignore_editor_warnings: false,
             immersive_game_font: default_immersive_game_font(),
             immersive_font_directory: None,
             preserve_original_json: default_preserve_original_json(),

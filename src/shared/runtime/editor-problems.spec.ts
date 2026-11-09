@@ -119,6 +119,21 @@ describe('shared editor problems', () => {
     expect(problems.issues.value).toEqual([issue]);
     fields.release();
   });
+  it.each(['warning', 'error', 'mixed'] as const)('reactively filters %s problems while preserving their input', async (kind) => {
+    const issues = [
+      { severity: 'warning' as const, code: 'w', path: 'one', message: 'Warning' },
+      { severity: 'error' as const, code: 'e', path: 'two', message: 'Error' },
+    ].filter((issue) => kind === 'mixed' || issue.severity === kind);
+    const wrapper = mount(EditorProblems, { props: { issues } });
+    const before = wrapper.text();
+    await wrapper.setProps({ ignoreWarnings: true });
+    expect(wrapper.findAll('li').map((item) => item.text())).toEqual(kind === 'warning' ? [] : ['Error']);
+    expect(wrapper.find('.editor-problems').exists()).toBe(kind !== 'warning');
+    expect(issues).toHaveLength(kind === 'mixed' ? 2 : 1);
+    await wrapper.setProps({ ignoreWarnings: false });
+    expect(wrapper.text()).toBe(before);
+    wrapper.unmount();
+  });
   it('presents complete error and warning counts in severity order', async () => {
     const issues = [
       { severity: 'warning' as const, code: 'w', path: 'one', message: 'Warning' },

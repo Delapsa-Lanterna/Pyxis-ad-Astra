@@ -22,7 +22,12 @@
     @slow="vm.logSlowPreparation"
     @load-external="vm.loadExternal"
   >
-    <EditorProblems :issues="joint.problems.issues.value" :is-blocking="joint.isBlocking" @locate="locateProblem" />
+    <EditorProblems
+      :ignore-warnings="settings.ignoreEditorWarnings"
+      :issues="joint.problems.issues.value"
+      :is-blocking="joint.isBlocking"
+      @locate="locateProblem"
+    />
     <ShipImmersivePanel v-if="panel?.kind === 'ship'" :panel="panel" :render="render" />
     <WeaponImmersivePanel
       v-else-if="panel?.kind === 'weapon'"
@@ -64,6 +69,7 @@ import { useProjectSyncStore } from '@/stores/project-sync.store';
 import { computed, onMounted, nextTick, useTemplateRef } from 'vue';
 import type { JointEditRoot, JointEditKind, FieldProblem } from '@/shared/types';
 import EditorProblems from '@/shared/ui/EditorProblems.vue';
+import { useSettingsStore } from '@/stores/settings.store';
 import { normalizeFsPath } from '@/shared/lib/paths';
 import { extractFileReferenceFromError } from '@/shared/lib/errors';
 import { compositionPath } from '@/domain/json-composition';
@@ -84,6 +90,7 @@ import VariantImmersivePanel from '@/app/components/immersive/variant/VariantImm
 import ImmersiveEditorActions from '@/app/components/immersive/ImmersiveEditorActions.vue';
 import { provideOriginalFonts } from '@/app/composables/use-original-fonts';
 const context = useWindowContext('immersive-editor').value;
+const settings = useSettingsStore();
 const { sessionId, modRoot, id, kind } = context.identity;
 provideOriginalFonts(() => sessionId);
 const rowKey = context.input.rowKey;

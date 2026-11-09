@@ -44,6 +44,18 @@ describe('settings integer limits', () => {
     expect(() => settings.replaceSettings(invalid)).toThrow();
     expect(settings.showCoreFeedback[level]).toBe(false);
   });
+  it('validates and mirrors the editor warning preference', () => {
+    const settings = useSettingsStore();
+    expect(settings.ignoreEditorWarnings).toBe(false);
+    settings.setIgnoreEditorWarnings(true);
+    expect(settings.settingsSnapshot().ignoreEditorWarnings).toBe(true);
+    settings.replaceSettings(createSettingsFixture());
+    expect(settings.ignoreEditorWarnings).toBe(false);
+    const invalid = 'true' as unknown as boolean;
+    expect(() => settings.setIgnoreEditorWarnings(invalid)).toThrow();
+    expect(() => settings.replaceSettings(createSettingsFixture({ ignoreEditorWarnings: invalid }))).toThrow();
+    expect(() => initializeSettingsStore(createSettingsFixture({ ignoreEditorWarnings: invalid }))).toThrow();
+  });
   it('publishes, mirrors and clears the immersive font directory', () => {
     const settings = useSettingsStore();
     expect(settings.immersiveFontDirectory).toBeNull();

@@ -1,3 +1,4 @@
+import { useSettingsStore } from '@/stores/settings.store';
 import type {
   AppFeedback,
   CsvRowPatch,
@@ -140,7 +141,7 @@ async function saveTarget(target: CapturedTableSaveTarget, options: TableSaveOpt
     );
   };
   const warnings = issues.filter((issue) => issue.severity === 'warning');
-  if (warnings.length) {
+  if (warnings.length && !useSettingsStore().ignoreEditorWarnings) {
     const choice = await options.feedback!.choose({
       title: '仍要保存吗？',
       content: () =>
