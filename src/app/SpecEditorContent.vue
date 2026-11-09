@@ -233,6 +233,7 @@ function openPreview(weapon: RowData) {
 
 useWindowShortcuts({
   commands: {
+    close: closeWindow,
     save: () => void saveEditorData(),
   },
 });

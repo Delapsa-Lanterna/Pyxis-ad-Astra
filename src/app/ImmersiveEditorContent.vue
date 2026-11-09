@@ -164,6 +164,7 @@ function closeWindow() {
 }
 useWindowShortcuts({
   commands: {
+    close: closeWindow,
     save: () => {
       void vm.save();
     },
@@ -174,7 +175,6 @@ useWindowShortcuts({
       void vm.redo();
     },
   },
-  keys: { escape: closeWindow },
 });
 onMounted(async () => {
   await closeParticipant.install();

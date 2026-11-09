@@ -1,4 +1,5 @@
 import { onMounted, onUnmounted } from 'vue';
+import { eventEffectNotPerformed } from 'naive-ui/es/_utils/event';
 import { useWindowCloseState } from './use-window-close-state';
 import { isEditableKeyTarget, shortcutCommandFromKeyEvent, type ShortcutCommand } from '@/shared/lib/keyboard-shortcuts';
 
@@ -16,13 +17,14 @@ export function useWindowShortcuts(handlers: WindowShortcutHandlers) {
   const closing = useWindowCloseState();
   function onKeyDown(event: KeyboardEvent) {
     if (closing?.value) return;
-    if (event.defaultPrevented) return;
+    if (event.defaultPrevented || !eventEffectNotPerformed(event)) return;
     if (handlers.priority?.(event)) {
       event.preventDefault();
       return;
     }
     const command = shortcutCommandFromKeyEvent(event, { undoRedoInEditable: handlers.undoRedoInEditable });
     if (command) {
+      if (command === 'close' && (event.isComposing || document.querySelector('[aria-modal="true"]:not([style*="display: none"])'))) return;
       if (command === 'saveMod' && event.repeat) return;
       const commandHandler = handlers.commands?.[command];
       if (commandHandler) {

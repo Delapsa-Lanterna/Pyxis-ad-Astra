@@ -1,7 +1,9 @@
-import { mount, type VueWrapper } from '@vue/test-utils';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { flushPromises, mount, type VueWrapper } from '@vue/test-utils';
+import { afterEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 import { useWindowShortcuts } from './use-window-shortcuts';
-import { h } from 'vue';
+import { h, ref } from 'vue';
+import { NModal } from 'naive-ui/es/modal';
+import { NSelect } from 'naive-ui/es/select';
 import { provideWindowCloseState } from './use-window-close-state';
 
 const wrappers: VueWrapper[] = [];
@@ -129,6 +131,88 @@ describe('useWindowShortcuts commands', () => {
     const event = press('Escape');
     expect(close).toHaveBeenCalledTimes(1);
     expect(event.defaultPrevented).toBe(true);
+  });
+
+  it('leaves Escape to the input method during composition', () => {
+    const close = vi.fn();
+    mountDispatch({ commands: { close } });
+    const input = document.createElement('input');
+    document.body.append(input);
+    expect(press('Escape', { isComposing: true }, input).defaultPrevented).toBe(false);
+    expect(close).not.toHaveBeenCalled();
+    expect(press('Escape', {}, input).defaultPrevented).toBe(true);
+    expect(close).toHaveBeenCalledOnce();
+  });
+
+  it.each([false, true])('lets a real dialog with autofocus=%s handle Escape before the window', async (autoFocus) => {
+    const close = vi.fn();
+    const show = ref(true);
+    wrappers.push(
+      mount(
+        {
+          setup() {
+            useWindowShortcuts({ commands: { close } });
+            return () =>
+              h(NModal, {
+                show: show.value,
+                preset: 'dialog',
+                autoFocus,
+                title: 'Escape fixture',
+                'onUpdate:show': (value: boolean) => {
+                  show.value = value;
+                },
+              });
+          },
+        },
+        { attachTo: document.body },
+      ),
+    );
+    await flushPromises();
+    const modal = document.querySelector<HTMLElement>('.n-dialog')!;
+    modal.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', bubbles: true, cancelable: true }));
+    await flushPromises();
+    expect(show.value).toBe(false);
+    expect(close).not.toHaveBeenCalled();
+    await vi.waitFor(() => expect(modal.style.display).toBe('none'));
+    press('Escape');
+    expect(close).toHaveBeenCalledOnce();
+  });
+
+  it('closes a real select menu before allowing Escape to close the window', async () => {
+    const previous = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'scrollTo');
+    Object.defineProperty(HTMLElement.prototype, 'scrollTo', { configurable: true, value: vi.fn() });
+    onTestFinished(() => {
+      if (previous) Object.defineProperty(HTMLElement.prototype, 'scrollTo', previous);
+      else Reflect.deleteProperty(HTMLElement.prototype, 'scrollTo');
+    });
+    const close = vi.fn();
+    const show = ref(true);
+    const wrapper = mount(
+      {
+        setup() {
+          useWindowShortcuts({ commands: { close } });
+          return () =>
+            h(NSelect, {
+              virtualScroll: false,
+              show: show.value,
+              options: [{ label: 'First', value: 'first' }],
+              'onUpdate:show': (value: boolean) => {
+                show.value = value;
+              },
+            });
+        },
+      },
+      { attachTo: document.body },
+    );
+    wrappers.push(wrapper);
+    await flushPromises();
+    const selection = wrapper.get('.n-base-selection');
+    await selection.trigger('keydown', { key: 'Escape', code: 'Escape' });
+    await flushPromises();
+    expect(show.value).toBe(false);
+    expect(close).not.toHaveBeenCalled();
+    await selection.trigger('keydown', { key: 'Escape', code: 'Escape' });
+    expect(close).toHaveBeenCalledOnce();
   });
 
   it('routes ctrl+s to save even inside editable targets', () => {

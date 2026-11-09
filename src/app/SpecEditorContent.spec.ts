@@ -1,6 +1,10 @@
 import { installCanvas2DStub } from '@/test/unit/canvas-stub';
 import { mount, flushPromises } from '@vue/test-utils';
-import { computed, ref } from 'vue';
+import { computed, defineComponent, h, ref } from 'vue';
+import { NDropdown } from 'naive-ui/es/dropdown';
+import ContextMenu from './components/ContextMenu.vue';
+import { useWindowShortcuts } from './composables/use-window-shortcuts';
+import { closeCurrentWindow } from '@/windows/current.window';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
 import { createFieldInputs, provideFieldInputs } from '@/shared/runtime/field-inputs';
@@ -12,11 +16,11 @@ import { normalizeShipSpec } from '@/domain/spec-editor/ship/spec-ship-editing';
 
 import { entityTargetFixture } from '@/test/fixtures/entity-target';
 const fileTarget = entityTargetFixture('ship', 'XY');
-import type { RowData } from '@/shared/types/index';
+import type { RowData, SpecEditorKind } from '@/shared/types/index';
 import SpecEditorContent from './SpecEditorContent.vue';
 import { createSpecProblems } from '@/app/composables/spec-editor/use-spec-problems';
 
-const mocks = vi.hoisted(() => ({ createWindow: vi.fn() }));
+const mocks = vi.hoisted(() => ({ createWindow: vi.fn(), kind: 'ship' as SpecEditorKind }));
 vi.mock('@/app/composables/spec-editor/use-spec-editor-window-view-model', () => ({
   useSpecEditorWindowViewModel: () => mocks.createWindow(),
 }));
@@ -26,7 +30,7 @@ vi.mock('@/app/composables/use-window-close-state', () => ({
 }));
 vi.mock('@/app/composables/use-app-feedback', () => ({ useAppFeedback: () => ({ error: vi.fn(), warning: vi.fn() }) }));
 vi.mock('@/app/composables/spec-editor/use-spec-editor-draft-images', () => ({
-  useSpecEditorDraftImages: () => ({ value: ref(null), loading: ref(false), errorText: ref('') }),
+  useSpecEditorDraftImages: () => ({ value: ref(null), loading: ref(false), errorText: ref(''), dispose: vi.fn() }),
 }));
 vi.mock('@/services/spec-ship-editor.service', () => ({ querySpecShipEditorImages: vi.fn(), querySpecShipEditorData: vi.fn() }));
 vi.mock('@/services/spec-system-editor.service', () => ({ querySpecSystemEditorData: vi.fn() }));
@@ -36,11 +40,13 @@ vi.mock('@/windows/spec-editor.window', () => ({
 }));
 vi.mock('@/windows/window-context.window', () => ({
   useWindowContext: () =>
-    computed(() => ({ identity: { sessionId: 's1', modRoot: 'M:/mod', id: 'XY', kind: 'ship' }, input: { starsectorRoot: null } })),
+    computed(() => ({ identity: { sessionId: 's1', modRoot: 'M:/mod', id: 'XY', kind: mocks.kind }, input: { starsectorRoot: null } })),
 }));
 vi.mock('@/app/composables/use-managed-window-requests', () => ({ useManagedWindowRequests: vi.fn() }));
 let wrapper: ReturnType<typeof mount> | null = null;
 beforeEach(() => {
+  vi.clearAllMocks();
+  mocks.kind = 'ship';
   installCanvas2DStub();
   setActivePinia(createPinia());
   initializeSettingsStore(createSettingsFixture());
@@ -50,7 +56,7 @@ afterEach(() => {
   wrapper = null;
   vi.restoreAllMocks();
 });
-function setupWindow(initial = true) {
+function setupWindow(initial = true, withMenu = false) {
   const source = normalizeShipSpec({ hullId: 'XY', hullName: 'Initial', center: [0, 0], shieldCenter: [0, 0] });
   const data = ref<{ kind: 'ship'; spec: RowData; target: typeof fileTarget } | null>(
       initial ? { kind: 'ship', target: fileTarget, spec: source } : null,
@@ -92,7 +98,20 @@ function setupWindow(initial = true) {
   });
   const recording = createCanvasRecorder();
   vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(recording.ctx);
-  wrapper = mount(SpecEditorContent, { global: { stubs: editorUiStubs }, attachTo: document.body });
+  const content = withMenu
+    ? defineComponent({
+        setup() {
+          const host = {
+            closing: ref(false),
+            waitForSaves: () => undefined,
+            bindPriorityKeys: (priority: (event: KeyboardEvent) => boolean) => useWindowShortcuts({ priority }),
+            feedback: { error: vi.fn() },
+          };
+          return () => h(ContextMenu, { host }, { default: () => h(SpecEditorContent) });
+        },
+      })
+    : SpecEditorContent;
+  wrapper = mount(content, { global: { stubs: editorUiStubs }, attachTo: document.body });
   return { vm, inputs, recording, source, wrapper };
 }
 describe('editor window refresh lifetime', () => {
@@ -143,5 +162,46 @@ describe('editor window refresh lifetime', () => {
     vm.loading.value = false;
     await flushPromises();
     expect(wrapper.get('canvas').element).toBe(canvas);
+  });
+});
+
+describe('Spec window Escape', () => {
+  it.each(['ship', 'weapon', 'projectile', 'system'] as const)('closes a %s window through its existing close action', async (kind) => {
+    mocks.kind = kind;
+    const { wrapper } = setupWindow(false);
+    await flushPromises();
+    await wrapper.get('.editor-window-app').trigger('keydown', { key: 'Escape' });
+    expect(closeCurrentWindow).toHaveBeenCalledOnce();
+  });
+
+  it('cancels the active field before allowing Escape to close the window', async () => {
+    const { wrapper } = setupWindow();
+    await flushPromises();
+    const input = wrapper.findAll('input').find((field) => field.element.value === 'Initial')!;
+    input.element.focus();
+    input.element.value = 'Pending';
+    await input.trigger('input');
+    await input.trigger('keydown', { key: 'Escape' });
+    expect(input.element.value).toBe('Initial');
+    expect(closeCurrentWindow).not.toHaveBeenCalled();
+    await wrapper.get('canvas').trigger('keydown', { key: 'Escape', isComposing: true });
+    expect(closeCurrentWindow).not.toHaveBeenCalled();
+    await wrapper.get('canvas').trigger('keydown', { key: 'Escape' });
+    expect(closeCurrentWindow).toHaveBeenCalledOnce();
+  });
+
+  it('dismisses the window menu before closing the Spec window', async () => {
+    const { wrapper } = setupWindow(true, true);
+    await flushPromises();
+    const surface = wrapper.get('.editor-window-app');
+    await surface.trigger('contextmenu', { button: 2 });
+    await flushPromises();
+    expect(wrapper.findComponent(NDropdown).exists()).toBe(true);
+    await surface.trigger('keydown', { key: 'Escape' });
+    await flushPromises();
+    expect(wrapper.findComponent(NDropdown).exists()).toBe(false);
+    expect(closeCurrentWindow).not.toHaveBeenCalled();
+    await surface.trigger('keydown', { key: 'Escape' });
+    expect(closeCurrentWindow).toHaveBeenCalledOnce();
   });
 });

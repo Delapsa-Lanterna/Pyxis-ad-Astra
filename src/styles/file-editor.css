@@ -1,9 +1,5 @@
 .file-editor-heading {
-  gap: 2px;
   flex: 1;
-}
-.file-editor-header {
-  flex: 0 0 auto;
 }
 .file-editor-meta .file-editor-meta-label {
   max-width: 240px;
@@ -22,7 +18,7 @@
 .file-editor-body {
   flex: 1;
   position: relative;
-  grid-template-columns: 64px minmax(0, 1fr);
+  grid-template-columns: max-content minmax(0, 1fr);
   border-radius: var(--radius-md);
 }
 .file-editor-gutter {
@@ -44,8 +40,9 @@
 }
 .file-editor-line-highlight {
   position: absolute;
+  grid-column: 2;
   right: 0;
-  left: 64px;
+  left: 0;
   z-index: 0;
   height: 20px;
   pointer-events: none;
@@ -60,7 +57,7 @@
   height: 100%;
   background: var(--color-bg);
   gap: 8px;
-  padding: 12px;
+  padding: 0 12px 12px;
 }
 .file-editor-meta {
   flex-wrap: wrap;
@@ -78,6 +75,7 @@
   border: 0;
   outline: none;
   white-space: pre;
+  tab-size: 4;
   font-family: var(--font-mono);
 }
 .file-editor-message.info {

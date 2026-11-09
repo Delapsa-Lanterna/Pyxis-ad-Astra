@@ -11,8 +11,15 @@ import { jointFixtureValues } from '@/test/fixtures/joint-edit/joint-record';
 import { projectShipPanel } from '@/domain/immersive/ship/ship-panel';
 import { AppError } from '@/shared/lib/errors';
 import ImmersiveEditorContent from './ImmersiveEditorContent.vue';
+import ImmersiveEditorShell from './components/immersive/ImmersiveEditorShell.vue';
 
-const mocks = vi.hoisted(() => ({ runtime: vi.fn(), error: vi.fn(), fileActions: vi.fn(), openFile: vi.fn() }));
+const mocks = vi.hoisted(() => ({
+  runtime: vi.fn(),
+  error: vi.fn(),
+  fileActions: vi.fn(),
+  openFile: vi.fn(),
+  close: vi.fn(async () => {}),
+}));
 vi.mock('@/app/composables/immersive-editor-assembly', () => ({
   useImmersiveEditorViewModel: mocks.runtime,
   editableRenderContext: () => ({}),
@@ -22,8 +29,11 @@ vi.mock('@/windows/window-context.window', () => ({
 }));
 vi.mock('@/app/composables/use-original-fonts', () => ({ provideOriginalFonts: vi.fn() }));
 vi.mock('@/app/composables/use-managed-window-requests', () => ({ useManagedWindowRequests: vi.fn() }));
-vi.mock('@/app/composables/use-window-close-state', () => ({ useWindowCloseParticipant: () => ({ install: async () => {} }) }));
-vi.mock('@/app/composables/use-window-shortcuts', () => ({ useWindowShortcuts: vi.fn() }));
+vi.mock('@/app/composables/use-window-close-state', () => ({
+  useWindowCloseParticipant: () => ({ install: async () => {} }),
+  useWindowCloseState: () => null,
+}));
+vi.mock('@/windows/current.window', () => ({ closeCurrentWindow: mocks.close }));
 vi.mock('@/app/composables/use-app-feedback', () => ({ useAppFeedback: () => ({ error: mocks.error, fileActions: mocks.fileActions }) }));
 
 let previousScroll: PropertyDescriptor | undefined;
@@ -221,5 +231,29 @@ describe('joint problem navigation', () => {
     } finally {
       own.wrapper.unmount();
     }
+  });
+});
+
+describe('immersive window Escape', () => {
+  it('uses the existing close action and preserves composition and handled events', async () => {
+    const own = fixture();
+    try {
+      const surface = own.wrapper.get('div');
+      await surface.trigger('keydown', { key: 'Escape', isComposing: true });
+      expect(mocks.close).not.toHaveBeenCalled();
+      const handled = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true });
+      handled.preventDefault();
+      surface.element.dispatchEvent(handled);
+      expect(mocks.close).not.toHaveBeenCalled();
+      await surface.trigger('keydown', { key: 'Escape' });
+      expect(mocks.close).toHaveBeenCalledOnce();
+      own.wrapper.getComponent(ImmersiveEditorShell).vm.$emit('close');
+      await flushPromises();
+      expect(mocks.close).toHaveBeenCalledTimes(2);
+    } finally {
+      own.wrapper.unmount();
+    }
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    expect(mocks.close).toHaveBeenCalledTimes(2);
   });
 });
