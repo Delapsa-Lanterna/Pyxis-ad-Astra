@@ -21,7 +21,7 @@ const feedback = createWindowFeedback(
   useMessage(),
   useDialog(),
   () => settings.toastDurations,
-  () => settings.ignoredCoreFeedback,
+  () => settings.showCoreFeedback,
   () => settings.savedStarsectorRoot,
   () => !closing.value,
 );

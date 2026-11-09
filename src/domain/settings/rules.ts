@@ -8,7 +8,7 @@ import {
   type AppSettings,
   type AppTheme,
   type EditMode,
-  type IgnoredCoreFeedback,
+  type ShowCoreFeedback,
   type LogLevel,
   type ToastDurations,
 } from '@/shared/types';
@@ -39,7 +39,7 @@ export function assertValidSettings(settings: AppSettings): void {
   readTheme(settings.theme);
   readCacheLimits(settings.cacheLimits);
   readToastDurations(settings.toastDurations);
-  readIgnoredCoreFeedback(settings.ignoredCoreFeedback);
+  readShowCoreFeedback(settings.showCoreFeedback);
   readAccent(settings.accent);
   readCustomAccent(settings.customAccent);
   readGeneralFont(settings.generalFont);
@@ -90,9 +90,9 @@ export function readToastDurations(value: ToastDurations): ToastDurations {
   return value;
 }
 
-export function readIgnoredCoreFeedback(value: IgnoredCoreFeedback): IgnoredCoreFeedback {
+export function readShowCoreFeedback(value: ShowCoreFeedback): ShowCoreFeedback {
   for (const level of ['success', 'info', 'warning', 'error'] as const)
-    if (typeof value[level] !== 'boolean') throw new Error(`Invalid ignored core feedback setting: ${level}`);
+    if (typeof value[level] !== 'boolean') throw new Error(`Invalid show core feedback setting: ${level}`);
   return value;
 }
 

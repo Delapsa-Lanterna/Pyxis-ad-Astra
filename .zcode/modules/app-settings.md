@@ -56,7 +56,7 @@
 - Rust 设置服务拥有正式 revision 与 snapshot，主窗口拥有编辑值和唯一保存队列。
 - `appearance` 提供沉浸式固定颜色；设计类型与槽位语义颜色归所属领域投影。
 - settings 持久化目标是工具 app-data，私有根由 Tauri 标识 `com.delapsa-lanterna.pyxis-ad-astra` 解析。
-- `toastDurations` 随完整快照保存、重置和镜像，成功、信息、警告、错误的默认时长分别为 5、7、7、0 秒，范围为 0–3600 整数秒，0 表示持续显示；`ignoredCoreFeedback` 的四个级别默认关闭并沿同一快照交付。
+- `toastDurations` 随完整快照保存、重置和镜像，成功、信息、警告、错误的默认时长分别为 5、7、7、0 秒，范围为 0–3600 整数秒，0 表示持续显示；`showCoreFeedback` 的四个级别默认开启并沿同一快照交付。
 - 唯一主题 effect 拥有 DOM 写入，窗口壳与 Naive provider 消费同一具体颜色。
 - 日志目录动作经设置 ViewModel 与持久化编排接纳后端规范化快照。
 - 设置持久化拥有正式根判断、完整默认值和提交失败回退；设置页消费主窗口交付的来源切换动作。

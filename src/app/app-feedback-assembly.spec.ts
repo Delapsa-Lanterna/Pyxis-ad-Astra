@@ -58,7 +58,7 @@ function feedbackHarness(accepting = () => true) {
       messages as unknown as MessageApiInjection,
       dialogs as unknown as DialogApiInjection,
       () => useSettingsStore().toastDurations,
-      () => useSettingsStore().ignoredCoreFeedback,
+      () => useSettingsStore().showCoreFeedback,
       () => useSettingsStore().savedStarsectorRoot,
       accepting,
     ),
@@ -72,7 +72,7 @@ describe('feedback diagnostics, file authorization and actions', () => {
       const settings = useSettingsStore();
       const next = createSettingsFixture({
         starsectorRoot: 'G:/game',
-        ignoredCoreFeedback: { ...settings.ignoredCoreFeedback, [level]: true },
+        showCoreFeedback: { ...settings.showCoreFeedback, [level]: false },
       });
       settings.replaceSettings(next);
       settings.confirmSavedSettings(next);
@@ -92,6 +92,9 @@ describe('feedback diagnostics, file authorization and actions', () => {
       expect(mocks.log).toHaveBeenCalledTimes(level === 'warning' || level === 'error' ? 1 : 0);
       show('G:/game/mods/example/data/variants/fixture.variant');
       expect(messages[level]).toHaveBeenCalledOnce();
+      settings.setShowCoreFeedback(level, true);
+      show('G:/game/starsector-core/data/variants/fixture.variant');
+      expect(messages[level]).toHaveBeenCalledTimes(2);
     },
   );
   it.each(['failure', 'scan', 'loaded'] as const)('shares %s file actions between lists and toasts', async (kind) => {

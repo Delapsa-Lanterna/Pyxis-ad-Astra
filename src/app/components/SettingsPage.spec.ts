@@ -92,7 +92,7 @@ describe('settings limit controls', () => {
       index = sections.findIndex((section) => section.get('h3').text() === '提示时长'),
       section = sections[index]!;
     expect(sections[index - 1]!.get('h3').text()).toBe('缓存限制');
-    expect(section.findAll('.field-label').map((label) => label.text())).toEqual(['成功', '信息', '警告', '错误', '忽略原版提示']);
+    expect(section.findAll('.field-label').map((label) => label.text())).toEqual(['成功', '信息', '警告', '错误', '显示原版提示']);
     const controls = wrapper.findAllComponents(nInputNumber).filter((control) => section.element.contains(control.get('input').element));
     expect(controls.map((control) => control.get<HTMLInputElement>('input').element.value)).toEqual(['5', '7', '7', '0']);
     expect(section.text()).toContain('0 表示持续显示');
@@ -105,18 +105,25 @@ describe('settings limit controls', () => {
     expect(Object.values(useSettingsStore().settingsSnapshot().toastDurations)).toEqual([3600, 3600, 3600, 3600]);
     const buttons = wrapper.findAllComponents(nButton).filter((button) => section.element.contains(button.element));
     expect(
-      buttons.map((button) => [button.text(), button.props('type'), button.props('secondary'), button.attributes('aria-pressed')]),
+      buttons.map((button) => [button.text(), button.props('type'), button.props('tertiary'), button.attributes('aria-pressed')]),
     ).toEqual([
-      ['成功', 'success', true, 'false'],
-      ['信息', 'info', true, 'false'],
-      ['警告', 'warning', true, 'false'],
-      ['错误', 'error', true, 'false'],
+      ['成功', 'success', false, 'true'],
+      ['信息', 'info', false, 'true'],
+      ['警告', 'warning', false, 'true'],
+      ['错误', 'error', false, 'true'],
     ]);
-    await buttons[2]!.trigger('click');
-    expect(useSettingsStore().settingsSnapshot().ignoredCoreFeedback.warning).toBe(true);
-    expect(buttons[2]!.props('secondary')).toBe(false);
-    expect(buttons[2]!.attributes('aria-pressed')).toBe('true');
-    expect(section.text()).toContain('隐藏来自当前 starsector-core 文件的新提示；警告和错误仍写入日志。');
+    for (const [index, level] of (['success', 'info', 'warning', 'error'] as const).entries()) {
+      const button = buttons[index]!;
+      await button.trigger('click');
+      expect(useSettingsStore().settingsSnapshot().showCoreFeedback[level]).toBe(false);
+      expect(button.props('tertiary')).toBe(true);
+      expect(button.attributes('aria-pressed')).toBe('false');
+      await button.trigger('click');
+      expect(useSettingsStore().settingsSnapshot().showCoreFeedback[level]).toBe(true);
+      expect(button.props('tertiary')).toBe(false);
+      expect(button.attributes('aria-pressed')).toBe('true');
+    }
+    expect(section.text()).toContain('按级别显示当前 starsector-core 文件的新提示；警告和错误仍写入日志。');
     wrapper.unmount();
   });
   it('keeps the color draft at its declared string output', async () => {

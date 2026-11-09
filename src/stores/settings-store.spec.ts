@@ -30,19 +30,19 @@ describe('settings integer limits', () => {
       expect(settings.toastDurations[level]).toBe(3600);
     }
   });
-  it.each(['success', 'info', 'warning', 'error'] as const)('persists and mirrors ignored Core %s feedback', (level) => {
+  it.each(['success', 'info', 'warning', 'error'] as const)('persists and mirrors displayed Core %s feedback', (level) => {
     const settings = useSettingsStore();
-    expect(settings.ignoredCoreFeedback).toEqual({ success: false, info: false, warning: false, error: false });
-    settings.setIgnoredCoreFeedback(level, true);
+    expect(settings.showCoreFeedback).toEqual({ success: true, info: true, warning: true, error: true });
+    settings.setShowCoreFeedback(level, false);
     const saved = settings.settingsSnapshot();
-    expect(saved.ignoredCoreFeedback[level]).toBe(true);
+    expect(saved.showCoreFeedback[level]).toBe(false);
     settings.replaceSettings(saved);
-    expect(settings.ignoredCoreFeedback[level]).toBe(true);
+    expect(settings.showCoreFeedback[level]).toBe(false);
     const invalid = createSettingsFixture({
-      ignoredCoreFeedback: { ...snapshot.ignoredCoreFeedback, [level]: 'true' as unknown as boolean },
+      showCoreFeedback: { ...snapshot.showCoreFeedback, [level]: 'true' as unknown as boolean },
     });
     expect(() => settings.replaceSettings(invalid)).toThrow();
-    expect(settings.ignoredCoreFeedback[level]).toBe(true);
+    expect(settings.showCoreFeedback[level]).toBe(false);
   });
   it('publishes, mirrors and clears the immersive font directory', () => {
     const settings = useSettingsStore();

@@ -4,7 +4,7 @@ import { useSaveCommandStore } from '@/stores/save-command.store';
 import type { DialogApiInjection } from 'naive-ui/es/dialog/src/DialogProvider';
 import type { MessageApiInjection } from 'naive-ui/es/message/src/MessageProvider';
 import { createAppFeedback, type FeedbackFileAction } from '@/app/app-feedback';
-import type { AppFeedback, IgnoredCoreFeedback, ToastDurations } from '@/shared/types';
+import type { AppFeedback, ShowCoreFeedback, ToastDurations } from '@/shared/types';
 import { errorCodeOf, type FileReference } from '@/shared/lib/errors';
 import type { FeedbackFileTarget, WindowFeedback } from '@/shared/types';
 import { closestRootForPath, gameCoreDirectoryPath, pathBelongsToRoot } from '@/shared/lib/paths';
@@ -17,7 +17,7 @@ export function createWindowFeedback(
   message: MessageApiInjection,
   dialog: DialogApiInjection,
   toastDurations: () => ToastDurations,
-  ignoredCoreFeedback: () => IgnoredCoreFeedback,
+  showCoreFeedback: () => ShowCoreFeedback,
   starsectorRoot: () => string | null,
   accepting = () => true,
 ): WindowFeedback {
@@ -61,7 +61,7 @@ export function createWindowFeedback(
     toastDurations,
     (level, sourcePath) => {
       const root = starsectorRoot();
-      return !sourcePath || !root || !ignoredCoreFeedback()[level] || !pathBelongsToRoot(sourcePath, gameCoreDirectoryPath(root));
+      return !sourcePath || !root || showCoreFeedback()[level] || !pathBelongsToRoot(sourcePath, gameCoreDirectoryPath(root));
     },
   );
   return feedback;
