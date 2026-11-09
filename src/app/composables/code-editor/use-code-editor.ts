@@ -6,7 +6,7 @@ import { useSaveCommandStore } from '@/stores/save-command.store';
 import { finishCodeEditorOpen, subscribeCodeEditor } from '@/services/code-editor.service';
 import { committedFileText } from '@/domain/project-sync/committed-text';
 import { listenSavedContent, sessionContentUpdate } from '@/orchestrators/project-sync.orchestrator';
-import { loadEditableFileData } from '@/services/files.service';
+import { loadTextFile } from '@/services/text-editor.service';
 import { errorDiagnosticOf } from '@/shared/lib/errors';
 import { isAbsoluteFsPath, joinRootRelativePath, normalizeFsPath, pathBelongsToRoot, relativePathFromRoot } from '@/shared/lib/paths';
 import { readTextContent } from '@/shared/runtime/text-document';
@@ -144,7 +144,7 @@ export function useCodeEditor(owner: Pick<CodeEditorOpen, 'sessionId' | 'modRoot
             });
             if (choice !== 'follow') continue;
           }
-          const loaded = await loadEditableFileData(owner.sessionId, owner.modRoot, path);
+          const loaded = await loadTextFile(owner.sessionId, owner.modRoot, path);
           if (!disposed && documents.includes(document))
             document.session.adoptIdentity(
               target,

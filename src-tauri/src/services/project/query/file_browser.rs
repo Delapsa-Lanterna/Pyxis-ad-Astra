@@ -201,12 +201,12 @@ mod tests {
 
     use super::*;
     #[cfg(test)]
-    use crate::services::file_editor;
-    #[cfg(test)]
     use crate::services::project::performance::PerformanceTrace;
     #[cfg(test)]
     use crate::services::project::session;
     use crate::services::project::test_support::project_workspace;
+    #[cfg(test)]
+    use crate::services::text_editor;
     use crate::test_support::TestWorkspace;
     #[cfg(test)]
     use encoding_rs::GB18030;
@@ -337,7 +337,7 @@ mod tests {
             target.mod_root,
             forward_slash_path(FsRootBoundary::new(&root, "mod root").unwrap().root())
         );
-        let loaded = file_editor::load_project_editable_file(
+        let loaded = text_editor::load_project_text_file(
             Some(&target.session_id),
             &target.mod_root,
             target.path.clone(),

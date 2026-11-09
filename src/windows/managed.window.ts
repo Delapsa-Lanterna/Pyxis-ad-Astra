@@ -14,7 +14,7 @@ export async function requestWindow(request: ManagedWindowRequest): Promise<Wind
   const receipt = await requestNativeWindow({ ...input, ...size });
   recordQueuedLog({
     level: 'info',
-    code: input.input.kind === 'file-editor' ? 'editor.file_opened' : 'editor.window_opened',
+    code: input.input.kind === 'text-editor' ? 'editor.text_opened' : 'editor.window_opened',
     message: 'window request ' + receipt.status,
     path: 'path' in input.identity ? input.identity.path : null,
     line: null,

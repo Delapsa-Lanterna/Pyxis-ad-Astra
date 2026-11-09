@@ -69,7 +69,7 @@ export const windowsCapabilities = [
         { layer: 'app', role: 'composable', domain: 'json-document-session' },
         { layer: 'app', role: 'composable', domain: 'json-list-selection' },
         { layer: 'app', role: 'composable', domain: 'spec-editor-window-view-model' },
-        { layer: 'app', role: 'composable', domain: 'file-editor-view-model' },
+        { layer: 'app', role: 'composable', domain: 'text-editor-view-model' },
       ],
     },
     {

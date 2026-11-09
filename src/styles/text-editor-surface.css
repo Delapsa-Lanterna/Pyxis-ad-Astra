@@ -1,0 +1,35 @@
+.text-editor-surface {
+  min-width: 0;
+  min-height: 0;
+}
+.text-editor-surface .cm-editor {
+  height: 100%;
+  color: var(--color-text);
+  background: var(--color-panel);
+}
+.text-editor-surface .cm-scroller {
+  overflow: auto;
+  font: 400 12px/20px var(--font-mono);
+}
+.text-editor-surface .cm-content {
+  padding: 8px 0;
+  caret-color: var(--color-text);
+}
+.text-editor-surface .cm-line {
+  padding: 0 12px;
+}
+.text-editor-surface .cm-gutters {
+  color: var(--color-text-soft);
+  background: var(--color-panel-muted);
+  border-color: var(--color-border);
+}
+.text-editor-surface .cm-focused {
+  outline: none;
+}
+.text-editor-surface .cm-line.text-editor-error-line {
+  background: var(--color-danger-highlight);
+}
+.text-editor-surface .text-editor-error-gutter {
+  color: var(--color-danger);
+  background: var(--color-danger-highlight-soft);
+}

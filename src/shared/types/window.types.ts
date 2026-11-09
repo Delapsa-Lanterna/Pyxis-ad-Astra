@@ -8,9 +8,9 @@ export type WindowIdentity =
   | { type: 'immersive'; sessionId: string; kind: JointEditKind; modRoot: string; id: string }
   | { type: 'spec'; sessionId: string; kind: SpecEditorKind; modRoot: string; id: string }
   | { type: 'weapon-fire-preview'; sessionId: string; modRoot: string; id: string }
-  | { type: 'file'; sessionId: string; modRoot: string; path: string }
+  | { type: 'text-editor'; sessionId: string; modRoot: string; path: string }
   | { type: 'recovery'; modRoot: string | null; path: string };
-export interface FileWindowLocation {
+export interface TextWindowLocation {
   contextLabel: string | null;
   contextSeverity: 'error' | 'warning' | 'info' | null;
   message: string | null;
@@ -20,7 +20,7 @@ export interface FileWindowLocation {
 export type ManagedWindowInput =
   | { kind: 'code-editor' }
   | { kind: 'editor'; starsectorRoot: string | null }
-  | { kind: 'file-editor'; location: FileWindowLocation }
+  | { kind: 'text-editor'; location: TextWindowLocation }
   | { kind: 'immersive-editor'; rowKey: string | null }
   | { kind: 'weapon-fire-preview'; source: WeaponFirePreviewSource };
 export interface NativeWindowRequest {
@@ -48,9 +48,9 @@ export type ManagedWindowContext = WindowContextMeta &
       }
     | { kind: 'editor'; identity: Extract<WindowIdentity, { type: 'spec' }>; input: Extract<ManagedWindowInput, { kind: 'editor' }> }
     | {
-        kind: 'file-editor';
-        identity: Extract<WindowIdentity, { type: 'file' | 'recovery' }>;
-        input: Extract<ManagedWindowInput, { kind: 'file-editor' }>;
+        kind: 'text-editor';
+        identity: Extract<WindowIdentity, { type: 'text-editor' | 'recovery' }>;
+        input: Extract<ManagedWindowInput, { kind: 'text-editor' }>;
       }
     | {
         kind: 'immersive-editor';

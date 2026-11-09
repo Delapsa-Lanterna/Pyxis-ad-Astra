@@ -90,7 +90,7 @@ test('settings consumers keep unrelated project capabilities at their owner', ()
 });
 
 test('project save dispatch consumes transactions and editing services from its owner', () => {
-  for (const target of ['project_sync', 'file_editor', 'config_entity', 'json_file', 'misc_config']) {
+  for (const target of ['project_sync', 'text_editor', 'config_entity', 'json_file', 'misc_config']) {
     const allowed = architectureFixtures({
       'src-tauri/src/services/project_save.rs': 'fn save() { crate::services::' + target + '::run(); }',
     });

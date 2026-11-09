@@ -4,7 +4,7 @@ import * as configEntity from '@/services/json-entity.service';
 import * as jsonFileService from '@/services/json-file.service';
 import * as editor from '@/services/spec-editor.service';
 import * as fileHistory from '@/services/file-history.service';
-import * as fileService from '@/services/files.service';
+import * as textEditorService from '@/services/text-editor.service';
 import { entityTargetFixture } from '@/test/fixtures/entity-target';
 import { appLogQueue } from '@/shared/runtime/app-log-queue';
 import type { AppLogEntry, IndexedConfigDelete, JsonFileDelete, IndexedConfigSave, JsonFileSave, SaveEdit } from '@/shared/types';
@@ -46,7 +46,7 @@ const deleteJsonEntity: JsonFileDelete = {
   entityId: id,
 };
 const readCommands = new Set([
-  'load_editable_file',
+  'load_text_file',
   'load_imported_editor_spec_file',
   'follow_text_identity',
   'query_file_history',
@@ -60,9 +60,9 @@ const edits: Record<string, SaveEdit[]> = {
   save_skin_entity: [{ kind: 'set', path: [], value: data }],
 };
 const cases: Array<[string, () => Promise<unknown>, object]> = [
-  ['load_editable_file', () => fileService.loadEditableFileData(null, modRoot, path), { sessionId: null, modRoot, path }],
+  ['load_text_file', () => textEditorService.loadTextFile(null, modRoot, path), { sessionId: null, modRoot, path }],
   ['load_imported_editor_spec_file', () => editor.loadSpecEditorImport('ship', path), { kind: 'ship', path }],
-  ['follow_text_identity', () => fileService.followFileTextIdentity('ship', '{}', id), { kind: 'ship', text: '{}', nextId: id }],
+  ['follow_text_identity', () => textEditorService.followTextIdentity('ship', '{}', id), { kind: 'ship', text: '{}', nextId: id }],
   [
     'save_csv_patch',
     () => csvTable.saveCsvPatch(sessionId, modRoot, 'ships', [], [], jsonWrite),
@@ -70,12 +70,12 @@ const cases: Array<[string, () => Promise<unknown>, object]> = [
   ],
   [
     'save_text_file',
-    () => fileService.writeEditableFileText(null, modRoot, path, '0012', []),
+    () => textEditorService.saveTextFile(null, modRoot, path, '0012', []),
     { sessionId: null, modRoot, path, text: '0012', baseVersions: [] },
   ],
   [
     'transcode_file_to_utf8',
-    () => fileService.transcodeFileToUtf8(null, modRoot, path, 'gb18030'),
+    () => textEditorService.transcodeFileToUtf8(null, modRoot, path, 'gb18030'),
     { sessionId: null, modRoot, path, encoding: 'gb18030', baseVersions: [] },
   ],
   [
@@ -192,7 +192,7 @@ describe('query and persistence transport protocols', () => {
 
   it.each([null, sessionId])('text commands preserve session %s and loaded versions', async (session) => {
     const baseVersions = [{ path, fingerprint: 'loaded' }];
-    await fileService.writeEditableFileText(session, modRoot, path, '{}', baseVersions);
+    await textEditorService.saveTextFile(session, modRoot, path, '{}', baseVersions);
     expect(invoke).toHaveBeenLastCalledWith('save_project', {
       request: {
         id: expect.any(String),
@@ -200,7 +200,7 @@ describe('query and persistence transport protocols', () => {
         action: { kind: 'save_text_file', input: { baseVersions, sessionId: session, modRoot, path, text: '{}' } },
       },
     });
-    await fileService.transcodeFileToUtf8(session, modRoot, path, 'windows-1252', baseVersions);
+    await textEditorService.transcodeFileToUtf8(session, modRoot, path, 'windows-1252', baseVersions);
     expect(invoke).toHaveBeenLastCalledWith('save_project', {
       request: {
         id: expect.any(String),
@@ -211,7 +211,7 @@ describe('query and persistence transport protocols', () => {
         },
       },
     });
-    await fileService.loadEditableFileData(session, modRoot, path);
-    expect(invoke).toHaveBeenLastCalledWith('load_editable_file', { payload: { sessionId: session, modRoot, path } });
+    await textEditorService.loadTextFile(session, modRoot, path);
+    expect(invoke).toHaveBeenLastCalledWith('load_text_file', { payload: { sessionId: session, modRoot, path } });
   });
 });

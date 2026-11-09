@@ -1,5 +1,5 @@
 import type { EntityTargetSnapshot, FileVersion, EntityKind } from '@/shared/types/project-identity.types';
-export interface EditableFileData {
+export interface TextFileData {
   entity: EntityTargetSnapshot | null;
   path: string;
   text: string;
@@ -22,7 +22,7 @@ export interface TextTranscode {
   encoding: string;
 }
 
-export interface LoadEditableFilePayload {
+export interface LoadTextFilePayload {
   sessionId: string | null;
   modRoot: string;
   path: string;

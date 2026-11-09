@@ -5,7 +5,7 @@ use crate::io::{
     read_text_bytes_no_bom, read_utf8_no_bom,
 };
 use crate::models::{
-    EditableFileData, EntityIdentityChange, EntityKind, FileChangeReplayDirection, TextSave,
+    EntityIdentityChange, EntityKind, FileChangeReplayDirection, TextFileData, TextSave,
     WriteContentTarget, WriteResult,
 };
 use crate::services::project;
@@ -20,15 +20,15 @@ pub fn save_text_file(mod_root: &str, path: &str, text: String) -> AppResult<Wri
     save_text_file_with_lock(mod_root, path, text, write_lock)
 }
 
-pub fn load_project_editable_file(
+pub fn load_project_text_file(
     session_id: Option<&str>,
     mod_root: &str,
     path: String,
-) -> AppResult<EditableFileData> {
+) -> AppResult<TextFileData> {
     if let Some(session_id) = session_id {
         project::ensure_project_session_mod_root(session_id, mod_root)?;
     }
-    let mut loaded = load_editable_file(mod_root, path)?;
+    let mut loaded = load_text_file(mod_root, path)?;
     if let Some(session_id) = session_id {
         loaded.entity = services::query_file_entity_target(session_id, &loaded.path)?;
         if let Some(entity) = &loaded.entity {
@@ -75,7 +75,7 @@ pub fn prepare_text_save(
     if io::source_recreation_allowed(mod_root, path) && !Path::new(path).exists() {
         return Ok(());
     }
-    let current = load_project_editable_file(session_id.as_deref(), mod_root, path.clone())?;
+    let current = load_project_text_file(session_id.as_deref(), mod_root, path.clone())?;
     *versions = current.base_versions;
     Ok(())
 }
@@ -100,13 +100,13 @@ fn save_text_file_with_lock(
     Ok(WriteResult::from_changes(changes))
 }
 
-pub fn load_editable_file(mod_root: &str, path: String) -> AppResult<EditableFileData> {
+pub fn load_text_file(mod_root: &str, path: String) -> AppResult<TextFileData> {
     let _lease = acquire_root_write_lock(Path::new(mod_root))?;
     let target = Path::new(&path);
     let boundary = FsRootBoundary::new(Path::new(mod_root), "mod root")?;
     let target = boundary.resolve_absolute(target, "file path")?;
     let base_versions = vec![io::file_version(&target)?];
-    read_utf8_no_bom(&target).map(|text| EditableFileData {
+    read_utf8_no_bom(&target).map(|text| TextFileData {
         entity: None,
         path: target.display().to_string(),
         text,
@@ -170,7 +170,7 @@ mod tests {
         let target = root.join("mod_info.json");
         write_utf8_no_bom(&target, "{\"id\":\"demo\"}").unwrap();
 
-        let loaded = load_editable_file(
+        let loaded = load_text_file(
             &root.to_string_lossy(),
             target.to_string_lossy().to_string(),
         )
@@ -231,13 +231,13 @@ mod tests {
     }
 
     #[test]
-    fn load_editable_file_rejects_path_outside_mod_root() {
-        let root = project_workspace("load_editable_file_rejects_external_root");
-        let outside = project_workspace("load_editable_file_rejects_external_outside");
+    fn load_text_file_rejects_path_outside_mod_root() {
+        let root = project_workspace("load_text_file_rejects_external_root");
+        let outside = project_workspace("load_text_file_rejects_external_outside");
         let outside_file = outside.join("outside.txt");
         write_utf8_no_bom(&outside_file, "bad").unwrap();
 
-        let result = load_editable_file(
+        let result = load_text_file(
             &root.to_string_lossy(),
             outside_file.to_string_lossy().to_string(),
         );
@@ -248,11 +248,11 @@ mod tests {
     }
 
     #[test]
-    fn load_editable_file_rejects_parent_dir_escape() {
-        let root = project_workspace("load_editable_file_rejects_parent_dir_escape");
+    fn load_text_file_rejects_parent_dir_escape() {
+        let root = project_workspace("load_text_file_rejects_parent_dir_escape");
         let escaped = root.join("..").join("outside.txt");
 
-        let result = load_editable_file(
+        let result = load_text_file(
             &root.to_string_lossy(),
             escaped.to_string_lossy().to_string(),
         );
@@ -277,12 +277,12 @@ mod tests {
     }
 
     #[test]
-    fn load_editable_file_rejects_link_parent_escape() {
+    fn load_text_file_rejects_link_parent_escape() {
         let (root, outside, linked) =
             TestWorkspace::directory_link("load_text_link_escape", "linked").unwrap();
         write_utf8_no_bom(&outside.join("outside.txt"), "bad").unwrap();
 
-        let result = load_editable_file(
+        let result = load_text_file(
             &root.to_string_lossy(),
             linked.join("outside.txt").to_string_lossy().to_string(),
         );

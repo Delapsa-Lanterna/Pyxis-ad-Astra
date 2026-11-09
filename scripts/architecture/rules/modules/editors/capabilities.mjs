@@ -146,10 +146,10 @@ export const editorsCapabilities = [
       owners: readOwners,
     },
   ]),
-  ...capabilities({ role: 'service', domain: 'files' }, [
+  ...capabilities({ role: 'service', domain: 'text-editor' }, [
     {
       capability: 'text-write',
-      names: ['writeEditableFileText', 'transcodeFileToUtf8'],
+      names: ['saveTextFile', 'transcodeFileToUtf8'],
       owners: [
         { layer: 'services' },
         { layer: 'orchestrators' },
@@ -159,7 +159,7 @@ export const editorsCapabilities = [
     },
     {
       capability: 'text-read',
-      names: ['loadEditableFileData', 'followFileTextIdentity'],
+      names: ['loadTextFile', 'followTextIdentity'],
       owners: readOwners,
     },
   ]),

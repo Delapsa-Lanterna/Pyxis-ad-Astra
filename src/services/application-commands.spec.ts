@@ -41,10 +41,10 @@ const create: CreateModRequest = {
   destination: { kind: 'directory', parentDirectory: 'M:/' },
   template: { id: 'demo', name: 'Demo', version: '1', gameVersion: '0.98a' },
 };
-const identity: WindowIdentity = { type: 'file', sessionId: 's1', modRoot: 'M:/mod', path: 'M:/mod/demo.json' };
+const identity: WindowIdentity = { type: 'text-editor', sessionId: 's1', modRoot: 'M:/mod', path: 'M:/mod/demo.json' };
 const request: NativeWindowRequest = {
   identity,
-  input: { kind: 'file-editor', location: { contextLabel: null, contextSeverity: null, message: null, line: null, column: null } },
+  input: { kind: 'text-editor', location: { contextLabel: null, contextSeverity: null, message: null, line: null, column: null } },
   title: 'Demo',
   width: 860,
   height: 600,

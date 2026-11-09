@@ -61,7 +61,7 @@ onScopeDispose(
     ...logIdentity(managedWindowContext.value?.identity, 'window'),
     windowLabel: managedWindowContext.value?.label ?? null,
     windowTarget: managedWindowContext.value
-      ? managedWindowContext.value.identity.type === 'file' || managedWindowContext.value.identity.type === 'recovery'
+      ? managedWindowContext.value.identity.type === 'text-editor' || managedWindowContext.value.identity.type === 'recovery'
         ? managedWindowContext.value.identity.path
         : 'id' in managedWindowContext.value.identity
           ? managedWindowContext.value.identity.id

@@ -9,7 +9,7 @@ import { useProjectStore } from '@/stores/project.store';
 
 import { useCsvEditorStore } from '@/stores/csv-editor.store';
 import type { TableDetailAction } from '@/domain/csv-editor/table-detail-actions';
-import { openFileEditorWindow, type FileEditorRequest } from '@/windows/file-editor.window';
+import { openTextEditorWindow, type TextEditorRequest } from '@/windows/text-editor.window';
 
 import { querySessionEntityEditTarget } from '@/services/entity-query.service';
 import { resolveWingReference } from '@/orchestrators/joint-edit.orchestrator';
@@ -165,10 +165,10 @@ export function useCsvEditorActions(model: CsvEditorModel, host: CsvEditorHost, 
         id: action.id,
         source: { kind: 'saved' },
       }).catch((error) => feedback.error(error, '打开开火预览失败'));
-    } else if (action.type === 'file-editor') {
+    } else if (action.type === 'text-editor') {
       void querySessionEntityEditTarget(action.sessionId, action.kind, action.id)
         .then((info) =>
-          openRequestedFileEditor({
+          openRequestedTextEditor({
             modRoot: action.modRoot,
             sessionId: action.sessionId,
             title: action.title,
@@ -181,8 +181,8 @@ export function useCsvEditorActions(model: CsvEditorModel, host: CsvEditorHost, 
     }
   }
 
-  function openRequestedFileEditor(request: FileEditorRequest) {
-    openFileEditorWindow({ ...request }).catch((error) => feedback.error(error, '打开文件编辑器失败'));
+  function openRequestedTextEditor(request: TextEditorRequest) {
+    openTextEditorWindow({ ...request }).catch((error) => feedback.error(error, '打开文本编辑器失败'));
   }
 
   function openRequestedEditorWindow(action: Extract<TableDetailAction, { type: 'editor-window' }>) {

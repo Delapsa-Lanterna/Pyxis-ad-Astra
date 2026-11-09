@@ -126,7 +126,7 @@ describe('window-owned feedback', () => {
       remove.mock.calls.filter(([type, listener, phase]) => type === 'keydown' && listener === handler && phase === capture),
     ).toHaveLength(1);
   });
-  it.each(['沉浸式编辑器', '文件编辑器', 'Spec 编辑器', '开火预览'])(
+  it.each(['沉浸式编辑器', '文本编辑器', 'Spec 编辑器', '开火预览'])(
     'assembles the shared %s titlebar inside the owning close boundary',
     async (title) => {
       const { wrapper } = windowHarness('child', title);

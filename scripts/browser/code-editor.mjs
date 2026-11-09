@@ -78,7 +78,7 @@ export async function verifyCodeEditor(page, output) {
     return { top: element.scrollTop, left: element.scrollLeft };
   });
   await editor.getByRole('tab').first().click();
-  await editor.getByRole('tab', { name: 'Third.java', exact: true }).click();
+  await editor.getByRole('tab').filter({ hasText: 'Third.java' }).click();
   assert.equal(await surface.evaluate((element) => element.ownerDocument.getSelection()?.toString()), selection);
   await page.waitForTimeout(32);
   assert.deepEqual(await scrolling.evaluate((element) => ({ top: element.scrollTop, left: element.scrollLeft })), savedScroll);
@@ -87,12 +87,12 @@ export async function verifyCodeEditor(page, output) {
   checks.push({ name: 'selection and horizontal/vertical scroll survive a document switch', pass: true });
   await closeDocuments(editor);
   checks.push({ name: 'all documents released', pass: true });
-  checks.push(...(await verifyFileEditor(page, output)));
+  checks.push(...(await verifyTextEditor(page, output)));
   return checks;
 }
 
 /** @param {import('playwright').Page} page @param {string} output */
-async function verifyFileEditor(page, output) {
+async function verifyTextEditor(page, output) {
   const opened = await page.evaluate(async () => {
     const workspace = Reflect.get(globalThis, 'browserWorkspace'),
       project = workspace.projects.find((/** @type {{manifest:{modRoot:string}}} */ entry) =>
@@ -102,8 +102,8 @@ async function verifyFileEditor(page, output) {
     project.textFiles.set(path, 'first\r\nsecond\nthird\rfinal');
     const result = await workspace.invoke('main', 'request_window', {
       payload: {
-        identity: { type: 'file', sessionId: project.manifest.sessionId, modRoot: project.manifest.modRoot, path },
-        input: { kind: 'file-editor', location: { line: 2, column: 1, message: null, contextLabel: null, contextSeverity: null } },
+        identity: { type: 'text-editor', sessionId: project.manifest.sessionId, modRoot: project.manifest.modRoot, path },
+        input: { kind: 'text-editor', location: { line: 2, column: 1, message: null, contextLabel: null, contextSeverity: null } },
         title: 'Sample text',
         width: 1000,
         height: 700,
@@ -118,7 +118,7 @@ async function verifyFileEditor(page, output) {
   await input.waitFor();
   await input.pressSequentially('中文 ');
   await frame.getByRole('button', { name: '保存', exact: true }).click();
-  await frame.locator('.file-editor-status').filter({ hasText: '已保存' }).waitFor();
+  await frame.locator('.text-editor-status').filter({ hasText: '已保存' }).waitFor();
   const saved = () =>
     page.evaluate((path) => {
       const workspace = Reflect.get(globalThis, 'browserWorkspace');
@@ -134,7 +134,7 @@ async function verifyFileEditor(page, output) {
   assert.equal((await input.locator('.cm-line').allTextContents()).join('\n'), 'first\nsecond\nthird\nfinal');
   await input.press('Control+y');
   assert.equal(await frame.getByRole('button', { name: '保存', exact: true }).isDisabled(), true);
-  await frame.locator('.file-editor-status').filter({ hasText: '已保存' }).waitFor();
+  await frame.locator('.text-editor-status').filter({ hasText: '已保存' }).waitFor();
   assert.equal(await saved(), 'first\r\n中文 second\nthird\rfinal');
   await frame.locator('.n-message').last().waitFor({ state: 'hidden' });
   await input.press('Control+End');
@@ -152,11 +152,11 @@ async function verifyFileEditor(page, output) {
     for (const width of [1280, 800]) {
       await page.setViewportSize({ width, height: 900 });
       await page.evaluate((theme) => Reflect.get(globalThis, 'browserWorkspace').setAppearance({ theme }), theme);
-      await frame.locator('.file-editor-page').screenshot({ path: join(output, 'file-editor-' + theme + '-' + width + '.png') });
+      await frame.locator('.text-editor-page').screenshot({ path: join(output, 'text-editor-' + theme + '-' + width + '.png') });
     }
   await frame.getByTitle('关闭', { exact: true }).click();
   await frame.owner().waitFor({ state: 'detached' });
-  return [{ name: 'file editor mixed newlines, save boundary, native undo/redo and release', pass: true }];
+  return [{ name: 'text editor mixed newlines, save boundary, native undo/redo and release', pass: true }];
 }
 
 /** @typedef {{page:import('playwright').Page,label:string,environment:Record<string,unknown>}} MeasurementEntry */

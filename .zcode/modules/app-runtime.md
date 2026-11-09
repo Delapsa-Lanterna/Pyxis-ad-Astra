@@ -34,12 +34,12 @@
 - `src/app/App.vue`：主窗口根，以 main 模式包装唯一窗口壳并装配主窗口内容。
 - `src/app/AppContent.vue`：主窗口装配、设置来源切换接线、明确文档保存与快捷键登记、窗口级 CSV 关联确认，以及完整目标绑定的 CSV 和 JSON 页面懒挂载。
 - `src/app/CodeEditorApp.vue`：代码编辑器独立窗口的主题壳与内容装配。
-- `src/app/FileEditorApp.vue`：文件编辑器子窗口根，以 child 模式包装文件编辑器窗口内容。
 - `src/app/ImmersiveEditorApp.vue`：沉浸式子窗口根与统一窗口壳挂载。
 - `src/app/ImmersiveEditorContent.vue`：四类沉浸式组件、共同会话及业务事件装配。
 - `src/app/SpecEditorApp.vue`：编辑器子窗口根，以 child 模式包装编辑器窗口内容。
 - `src/app/SpecEditorContent.vue`：四类规格组件、窗口会话、依赖与跨窗口动作装配。
 - `src/app/StartupFailure.vue`：独立承载启动失败说明、诊断复制、重试及原生窗口动作。
+- `src/app/TextEditorApp.vue`：文本编辑器子窗口根，以 child 模式包装文本编辑器窗口内容。
 - `src/app/TitleBar.vue`：标题栏菜单登记及导航与窗口动作交接。
 - `src/app/WeaponFirePreviewApp.vue`：独立开火预览窗口根，消费唯一 child 窗口壳。
 - `src/app/WindowRuntime.vue`：窗口唯一反馈、关闭操作锁、菜单宿主的建立与提供，以及菜单和目标交接挂载。
@@ -83,7 +83,7 @@
 - `src-tauri/src/services/project_sync/source_changes.rs`：根订阅角色与寿命、来源状态、合并批次、后台排队及 Core 分发。
 - `src-tauri/src/services/windows.rs`：原生窗口能力，拥有身份登记、创建复用、目标占用、实例交接与关闭等待。
 - `src-tauri/src/services/workspace_persistence.rs`：单次目录操作捕获的已持久化工作区物理根。
-- `src/app/FileEditorContent.vue`：窗口内容，拥有行号槽、文本域、快捷键与外部文本呈现。
+- `src/app/TextEditorContent.vue`：窗口内容，拥有行号槽、文本域、快捷键与外部文本呈现。
 - `src/app/WeaponFirePreviewContent.vue`：加载状态、稳定预览实例与关闭动作的装配入口。
 - `src/app/app-feedback.ts`：提示、确认、诊断日志及文件动作展示。
 - `src/app/application-log.ts`：窗口停写监听和 Pinia 动作记录装配。
@@ -91,7 +91,7 @@
 - `src/app/components/ModNavigation.vue`：当前 Mod 的页面与业务导航。
 - `src/app/components/ModTabsBar.vue`：Mod 页签选择与移除动作展示。
 - `src/app/components/ProjectSyncNotice.vue`：所属未完成交接的显示。
-- `src/app/components/code-editor/CodeEditorContent.vue`：多文件编辑器窗口内容。
+- `src/app/components/code-editor/CodeEditorContent.vue`：代码编辑器的多文件窗口内容。
 - `src/app/components/immersive/ImmersiveEditorActions.vue`：共同保存、撤销及外部载入动作展示。
 - `src/app/components/immersive/ImmersiveEditorShell.vue`：共同标题、来源、状态与业务插槽。
 - `src/app/components/immersive/immersive-render-context.ts`：只读与编辑展示契约。
@@ -166,12 +166,12 @@
 - `src/orchestrators/workspace-lifecycle.orchestrator.ts`：生命周期，拥有关闭目标捕获、所属模块清理用例与工作区关闭。
 - `src/services/app-settings.service.ts`：启动消费的主窗口 settings 读取能力。
 - `src/services/csv-table.service.ts`：窗口、行预览、资源装配和关联实际目标准备。
-- `src/services/files.service.ts`：文本读取、身份交接、保存与转码的 IPC 参数装配。
 - `src/services/joint-edit.service.ts`：三个 command 的类型化协议装配。
 - `src/services/spec-projectile-editor.service.ts`：弹体编辑数据与草稿图像的独立查询。
 - `src/services/spec-ship-editor.service.ts`：舰船规格、草稿贴图及内置武器来源的查询入口。
 - `src/services/spec-system-editor.service.ts`：战术系统规格与实际目标的查询入口。
 - `src/services/spec-weapon-editor.service.ts`：武器编辑数据、贴图和弹体选项目录的查询入口。
+- `src/services/text-editor.service.ts`：文本读取、身份交接、保存与转码的 IPC 参数装配。
 - `src/services/window.service.ts`：窗口 command 的类型化签名与参数装配。
 - `src/stores/csv-editor.store.ts`：窗口装配消费的历史容量正式输入入口。
 - `src/stores/draft-sessions.store.ts`：未保存工作注册表，按 `modRoot` 聚合会话登记与判定源。
@@ -183,8 +183,8 @@
 - `src/stores/workspace.store.ts`：当前 Mod、正式清单与 session 的工作区派生投影。
 - `src/test/unit/ui-stubs.ts`：应用测试的 Naive UI 控件装配。
 - `src/windows/current.window.ts`：当前窗口生命周期，提供关闭请求、关闭监听、最小化、最大化、拖拽、重载与显示。
-- `src/windows/file-editor.window.ts`：消费完整文件请求并交付常规与恢复模式窗口身份。
 - `src/windows/spec-editor.window.ts`：四类规格的身份、尺寸与结构化窗口请求。
+- `src/windows/text-editor.window.ts`：消费完整文件请求并交付常规与恢复模式窗口身份。
 - `src/windows/weapon-fire-preview.window.ts`：完整预览身份、来源、标题与尺寸的请求入口。
 - `src/windows/window-context.window.ts`：启动消费的原生 bootstrap、上下文与正式设置交接入口。
 - `src/windows/window.events.ts`：窗口关闭、请求可用与实例释放的协议事件名。
@@ -231,7 +231,7 @@
 ### 子窗口启动
 
 1. main.ts 经 IPC 取得调用窗口的上下文及接收代次，独立读取设置服务正式快照。
-2. 按 editor、file-editor、immersive-editor 或 weapon-fire-preview 种类异步加载对应根。
+2. 按 editor、text-editor、immersive-editor 或 weapon-fire-preview 种类异步加载对应根。
 3. initializeSettingsStore 接纳完整快照，创建 Vue 应用与 Pinia。
 4. 根组件挂载唯一 child 窗口壳，设置镜像监听后读取最新版本。
 5. 内容挂载所属请求接纳运行态并完成业务输入交接。

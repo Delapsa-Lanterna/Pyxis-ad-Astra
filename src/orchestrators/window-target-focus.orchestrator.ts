@@ -13,7 +13,7 @@ export async function focusEntityWindowTarget(sessionId: string, modRoot: string
     const focused = await focusNativeManagedWindow({ type: 'spec', sessionId, modRoot, kind: target.kind, id: target.id });
     if (focused) return true;
   }
-  return focusNativeManagedWindow({ type: 'file', sessionId, modRoot, path: target.write.path });
+  return focusNativeManagedWindow({ type: 'text-editor', sessionId, modRoot, path: target.write.path });
 }
 
 export async function focusEntityIdentityConflict(sessionId: string, modRoot: string, error: unknown): Promise<void> {

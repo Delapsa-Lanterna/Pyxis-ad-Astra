@@ -19,7 +19,7 @@ const cases = [
   ],
   [
     'content-close-registration',
-    'src/app/FileEditorContent.vue',
+    'src/app/TextEditorContent.vue',
     'src/app/composables/use-window-close-state.ts',
     'useWindowCloseParticipant',
   ],

@@ -560,7 +560,7 @@ impl WindowRegistry {
                 .filter(|owner| owner.as_str() != label)
                 .cloned()
                 .or_else(|| {
-                    let WindowIdentity::File {
+                    let WindowIdentity::TextEditor {
                         session_id,
                         mod_root,
                         path,
@@ -1077,7 +1077,7 @@ pub fn project_source_paths(session_id: &str) -> AppResult<Vec<String>> {
             .instances
             .values()
             .filter_map(|instance| match &instance.identity {
-                WindowIdentity::File {
+                WindowIdentity::TextEditor {
                     session_id: owner,
                     path,
                     ..
@@ -1111,7 +1111,7 @@ pub fn reserve_edit_targets(
     }
     let identities = targets
         .iter()
-        .map(|target| WindowIdentity::File {
+        .map(|target| WindowIdentity::TextEditor {
             session_id: target.session_id.clone(),
             mod_root: target.mod_root.clone(),
             path: target.path.clone(),
@@ -1333,7 +1333,7 @@ mod tests {
     #[cfg(test)]
     use crate::io::FsRootBoundary;
     #[cfg(test)]
-    use crate::models::{EditWriteTarget, FileWindowLocation, JointEditKind, ModSaveTarget};
+    use crate::models::{EditWriteTarget, JointEditKind, ModSaveTarget, TextWindowLocation};
     use crate::models::{SpecEditorKind, WeaponFirePreviewSource};
     #[cfg(test)]
     use crate::services::project;
@@ -1370,7 +1370,7 @@ mod tests {
                 path: "M:/sample/A.java".into(),
             }],
         );
-        let identity = WindowIdentity::File {
+        let identity = WindowIdentity::TextEditor {
             session_id: "sample".into(),
             mod_root: "M:/sample".into(),
             path: "M:/sample/a.java".into(),
@@ -1409,13 +1409,13 @@ mod tests {
                 ManagedWindowInput::ImmersiveEditor { row_key: None },
             ),
             (
-                WindowIdentity::File {
+                WindowIdentity::TextEditor {
                     session_id: manifest.session_id.clone(),
                     mod_root: manifest.mod_root.clone(),
                     path: root.join("mod_info.json").to_string_lossy().into(),
                 },
-                ManagedWindowInput::FileEditor {
-                    location: FileWindowLocation {
+                ManagedWindowInput::TextEditor {
+                    location: TextWindowLocation {
                         context_label: None,
                         context_severity: None,
                         message: None,
@@ -1448,7 +1448,7 @@ mod tests {
         fs::write(&path, "{}").unwrap();
         let identity = |root: &Path, path: &Path| {
             let boundary = FsRootBoundary::new(root, "window fixture").unwrap();
-            WindowIdentity::File {
+            WindowIdentity::TextEditor {
                 session_id: "s".into(),
                 mod_root: boundary.root().to_string_lossy().into(),
                 path: boundary
@@ -1464,7 +1464,7 @@ mod tests {
             &test_support::short_path(&path),
         );
         assert_eq!(original, alias);
-        let WindowIdentity::File {
+        let WindowIdentity::TextEditor {
             session_id,
             mod_root,
             path,
@@ -1676,12 +1676,12 @@ mod tests {
     #[cfg(windows)]
     fn windows_unicode_file_windows_keep_independent_owners() {
         let mut state = WindowRegistry::default();
-        let first = WindowIdentity::File {
+        let first = WindowIdentity::TextEditor {
             session_id: "s".into(),
             mod_root: "D:/Mod".into(),
             path: "D:/Mod/İ.variant".into(),
         };
-        let second = WindowIdentity::File {
+        let second = WindowIdentity::TextEditor {
             session_id: "s".into(),
             mod_root: "D:/Mod".into(),
             path: "D:/Mod/i\u{307}.variant".into(),
@@ -1851,14 +1851,14 @@ mod tests {
                 ["weapon"]["description"],
             text
         );
-        let location = FileWindowLocation {
+        let location = TextWindowLocation {
             context_label: Some("诊断".into()),
             context_severity: Some("error".into()),
             message: Some(text.clone()),
             line: Some(42),
             column: Some(13),
         };
-        let input = ManagedWindowInput::FileEditor { location };
+        let input = ManagedWindowInput::TextEditor { location };
         let wire = serde_json::to_value(&input).unwrap();
         assert_eq!(wire["location"]["message"], text);
         assert_eq!(wire["location"]["line"], 42);

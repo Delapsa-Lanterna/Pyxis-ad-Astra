@@ -81,7 +81,7 @@ export type {
   ManagedWindowInput,
   ManagedWindowContext,
   WindowContextFor,
-  FileWindowLocation,
+  TextWindowLocation,
   WindowBootstrap,
   WindowsPathCaseMap,
   WindowRequestReceipt,
@@ -204,12 +204,12 @@ export type {
 export type { SourceOption, SourceOptionGroup, SourceCatalogPayload, ImageSourceOptionsPayload } from '@/shared/types/source-catalog.types';
 
 export type {
-  EditableFileData,
+  TextFileData,
   TextSave,
   TextTranscode,
-  LoadEditableFilePayload,
+  LoadTextFilePayload,
   FollowTextIdentityPayload,
-} from '@/shared/types/file-editor.types';
+} from '@/shared/types/text-editor.types';
 export { SPEC_EDITOR_KINDS } from '@/shared/types/spec-editor.types';
 export type {
   JsonEditorPageId,

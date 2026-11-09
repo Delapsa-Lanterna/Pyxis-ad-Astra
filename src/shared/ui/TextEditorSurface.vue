@@ -1,4 +1,4 @@
-<template><div ref="host" class="text-editor ui-content-contained" /></template>
+<template><div ref="host" class="text-editor-surface ui-content-contained" /></template>
 <script setup lang="ts">
 import { onMounted, onBeforeUnmount, useTemplateRef, watch } from 'vue';
 import { EditorState, RangeSet, type Extension } from '@codemirror/state';

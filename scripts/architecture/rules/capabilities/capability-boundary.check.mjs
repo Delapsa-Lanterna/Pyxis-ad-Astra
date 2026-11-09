@@ -4,9 +4,9 @@ import assert from 'node:assert/strict';
 import { capabilityBoundaryRule } from './capability-boundary.mjs';
 
 test('file commands use the service capability boundary', () => {
-  for (const owner of ['src/services/files.service.ts', 'src/shared/wire.ts']) {
+  for (const owner of ['src/services/text-editor.service.ts', 'src/shared/wire.ts']) {
     const files = architectureFixtures({
-      [owner]: "import { invokeCommand } from '@/shared/runtime/command.runtime'; invokeCommand('load_editable_file');",
+      [owner]: "import { invokeCommand } from '@/shared/runtime/command.runtime'; invokeCommand('load_text_file');",
       'src/shared/runtime/command.runtime.ts': 'export function invokeCommand() {}',
     });
     assert.equal(messages(capabilityBoundaryRule.check(files)).length, Number(owner.startsWith('src/shared/')));

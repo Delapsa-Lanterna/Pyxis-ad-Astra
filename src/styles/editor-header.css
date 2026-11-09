@@ -4,14 +4,14 @@
   font: 400 10px/14px var(--font-mono);
 }
 .editor-title-row,
-.file-editor-title-row,
+.text-editor-title-row,
 .mod-opening-failure-item,
 .game-warning-item {
   gap: 8px;
 }
 .page-title,
 .view-title,
-.file-editor-title,
+.text-editor-title,
 .editor-title > .editor-title-value {
   font: 650 18px/24px var(--font-sans);
 }

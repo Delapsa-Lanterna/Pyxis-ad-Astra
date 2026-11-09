@@ -1,13 +1,13 @@
 <template>
-  <main class="file-editor-page ui-content-grid ui-text-normal" :data-theme="settings.theme" :inert="handoffLocked">
-    <header class="file-editor-header page-header ui-layout-grid">
-      <div class="file-editor-heading page-identity">
-        <div class="file-editor-title-row ui-control-row">
-          <h1 class="file-editor-title page-title ui-text-truncate" :title="fileName">
+  <main class="text-editor-page ui-content-grid ui-text-normal" :data-theme="settings.theme" :inert="handoffLocked">
+    <header class="text-editor-header page-header ui-layout-grid">
+      <div class="text-editor-heading page-identity">
+        <div class="text-editor-title-row ui-control-row">
+          <h1 class="text-editor-title page-title ui-text-truncate" :title="fileName">
             {{ fileName }}
           </h1>
           <div
-            class="file-editor-status ui-text-path"
+            class="text-editor-status ui-text-path"
             :class="{
               dirty,
               saving,
@@ -20,24 +20,24 @@
           </div>
         </div>
         <div
-          class="file-editor-path page-path ui-text-truncate ui-text-muted ui-text-reset ui-layout-shrink ui-text-path ui-text-small"
+          class="text-editor-path page-path ui-text-truncate ui-text-muted ui-text-reset ui-layout-shrink ui-text-path ui-text-small"
           :title="filePathText"
         >
           {{ displayPath }}
         </div>
-        <div class="file-editor-meta ui-layout-row ui-layout-shrink" aria-label="文件信息">
-          <span class="file-editor-meta-label ui-text-truncate ui-text-muted ui-control-border ui-content-surface-muted">{{
+        <div class="text-editor-meta ui-layout-row ui-layout-shrink" aria-label="文件信息">
+          <span class="text-editor-meta-label ui-text-truncate ui-text-muted ui-control-border ui-content-surface-muted">{{
             fileTypeText
           }}</span>
-          <span class="file-editor-meta-label ui-text-truncate ui-text-muted ui-control-border ui-content-surface-muted"
+          <span class="text-editor-meta-label ui-text-truncate ui-text-muted ui-control-border ui-content-surface-muted"
             >{{ lineCount }} 行</span
           >
-          <span class="file-editor-meta-label ui-text-truncate ui-text-muted ui-control-border ui-content-surface-muted">{{
+          <span class="text-editor-meta-label ui-text-truncate ui-text-muted ui-control-border ui-content-surface-muted">{{
             modRootName
           }}</span>
         </div>
       </div>
-      <div class="file-editor-actions action-group">
+      <div class="text-editor-actions action-group">
         <n-button v-if="hasPendingExternalText" secondary type="warning" @click="loadExternalText">载入外部文本</n-button>
         <n-button v-if="isErrorContext && !contentReady" @click="reloadCurrentWindow">重试</n-button>
         <n-button :disabled="!dirty || saving" @click="cancelFileChanges">取消</n-button>
@@ -47,22 +47,22 @@
 
     <section
       v-if="externalTextNotice"
-      class="file-editor-message warning ui-layout-grid ui-text-normal ui-control-border ui-content-surface-muted"
+      class="text-editor-message warning ui-layout-grid ui-text-normal ui-control-border ui-content-surface-muted"
     >
-      <span class="file-editor-message-label ui-text-small">外部更新</span>
-      <p class="file-editor-message-description ui-text-note ui-text-wrap ui-text-reset ui-text-small">{{ externalTextNotice }}</p>
+      <span class="text-editor-message-label ui-text-small">外部更新</span>
+      <p class="text-editor-message-description ui-text-note ui-text-wrap ui-text-reset ui-text-small">{{ externalTextNotice }}</p>
     </section>
 
     <section
       class="ui-layout-grid ui-text-normal ui-control-border ui-content-surface-muted"
       v-if="showContextMessage"
-      :class="['file-editor-message', { danger: isErrorContext, warning: isWarningContext, info: !isErrorContext && !isWarningContext }]"
+      :class="['text-editor-message', { danger: isErrorContext, warning: isWarningContext, info: !isErrorContext && !isWarningContext }]"
     >
-      <span class="file-editor-message-label ui-text-small">{{ contextLabel }}</span>
-      <p class="file-editor-message-description ui-text-note ui-text-wrap ui-text-reset ui-text-small">{{ contextMessage }}</p>
+      <span class="text-editor-message-label ui-text-small">{{ contextLabel }}</span>
+      <p class="text-editor-message-description ui-text-note ui-text-wrap ui-text-reset ui-text-small">{{ contextMessage }}</p>
     </section>
 
-    <section class="file-editor-body ui-content-contained ui-layout-grid ui-control-border ui-content-surface" :aria-busy="loading">
+    <section class="text-editor-body ui-content-contained ui-layout-grid ui-control-border ui-content-surface" :aria-busy="loading">
       <TextEditorSurface ref="surface" :document="document" :disabled="loading" :line="targetLine" line-numbers />
     </section>
   </main>
@@ -73,7 +73,7 @@ import TextEditorSurface from '@/shared/ui/TextEditorSurface.vue';
 import { provideFieldInputs } from '@/shared/runtime/field-inputs';
 import { computed, nextTick, onMounted, onUnmounted, useTemplateRef, watch } from 'vue';
 import { useWindowCloseParticipant } from '@/app/composables/use-window-close-state';
-import { useFileEditorViewModel } from '@/app/composables/editors/use-file-editor-view-model';
+import { useTextEditorViewModel } from '@/app/composables/editors/use-text-editor-view-model';
 import { useWindowShortcuts } from '@/app/composables/use-window-shortcuts';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
 import { useSettingsStore } from '@/stores/settings.store';
@@ -82,12 +82,12 @@ import { useWindowContext } from '@/windows/window-context.window';
 import { useManagedWindowRequests } from '@/app/composables/use-managed-window-requests';
 import { pathBasename, pathBelongsToRoot, relativePathFromRoot } from '@/shared/lib/paths';
 
-const context = useWindowContext('file-editor').value;
+const context = useWindowContext('text-editor').value;
 const settings = useSettingsStore();
 const feedback = useAppFeedback();
 const initialFilePath = context.identity.path;
 const modRoot = context.identity.modRoot;
-const sessionId = context.identity.type === 'file' ? context.identity.sessionId : null;
+const sessionId = context.identity.type === 'text-editor' ? context.identity.sessionId : null;
 const filePathText = computed(() => filePath.value ?? '缺少文件路径');
 const fileName = computed(() => (filePath.value ? pathBasename(filePath.value) : '缺少文件路径'));
 const displayPath = computed(() => {
@@ -129,7 +129,7 @@ const {
   applyLocation,
   undoEdit,
   redoEdit,
-} = useFileEditorViewModel({
+} = useTextEditorViewModel({
   filePath: initialFilePath,
   mode: context.identity.type === 'recovery' ? 'recovery' : 'session',
   modRoot,
@@ -140,7 +140,7 @@ const {
 });
 provideFieldInputs(inputs);
 useManagedWindowRequests(async (request) => {
-  if (request.kind === 'file-editor') applyLocation(request.input.location);
+  if (request.kind === 'text-editor') applyLocation(request.input.location);
   await initialize();
   await nextTick();
   scrollToTargetLine();

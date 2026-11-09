@@ -216,7 +216,7 @@ for (const module of [
   'spec_editor',
   'config_entity',
   'json_file',
-  'file_editor',
+  'text_editor',
   'file_history',
   'table_save',
   'write_commit',

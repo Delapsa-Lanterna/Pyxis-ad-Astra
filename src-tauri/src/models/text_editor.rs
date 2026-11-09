@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct EditableFileData {
+pub struct TextFileData {
     pub entity: Option<EntityTargetSnapshot>,
     pub path: String,
     pub text: String,
@@ -36,7 +36,7 @@ pub struct TextTranscode {
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct LoadEditableFilePayload {
+pub struct LoadTextFilePayload {
     #[serde(deserialize_with = "deserialize_nullable")]
     pub session_id: Option<ProjectSessionId>,
     pub mod_root: String,
@@ -51,11 +51,7 @@ pub struct FollowTextIdentityPayload {
     pub next_id: String,
 }
 
-project_identity::impl_session_mod_scope_optional!(
-    TextSave,
-    LoadEditableFilePayload,
-    TextTranscode
-);
+project_identity::impl_session_mod_scope_optional!(TextSave, LoadTextFilePayload, TextTranscode);
 
 #[cfg(test)]
 mod tests {
@@ -100,8 +96,8 @@ mod tests {
     }
 
     #[test]
-    fn load_editable_file_payload_requires_mod_root() {
-        let result = serde_json::from_value::<LoadEditableFilePayload>(json!({
+    fn load_text_file_payload_requires_mod_root() {
+        let result = serde_json::from_value::<LoadTextFilePayload>(json!({
             "baseVersions": [],
             "sessionId": "session-1",
             "path": "D:/mods/demo/mod_info.json"
@@ -111,8 +107,8 @@ mod tests {
     }
 
     #[test]
-    fn load_editable_file_payload_requires_session_id_field() {
-        let result = serde_json::from_value::<LoadEditableFilePayload>(json!({
+    fn load_text_file_payload_requires_session_id_field() {
+        let result = serde_json::from_value::<LoadTextFilePayload>(json!({
             "modRoot": "D:/mods/demo",
             "path": "D:/mods/demo/mod_info.json"
         }));
@@ -121,8 +117,8 @@ mod tests {
     }
 
     #[test]
-    fn load_editable_file_payload_accepts_explicit_null_session_id() {
-        let payload = serde_json::from_value::<LoadEditableFilePayload>(json!({
+    fn load_text_file_payload_accepts_explicit_null_session_id() {
+        let payload = serde_json::from_value::<LoadTextFilePayload>(json!({
             "baseVersions": [],
             "sessionId": null,
             "modRoot": "D:/mods/demo",

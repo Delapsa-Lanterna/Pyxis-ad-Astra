@@ -66,7 +66,7 @@ if (!query.has('scene') && !query.has('window')) {
     const kinds = {
       'code-window': 'code-editor',
       'spec-window': 'editor',
-      'file-window': 'file-editor',
+      'text-window': 'text-editor',
       'immersive-window': 'immersive-editor',
       'preview-window': 'weapon-fire-preview',
     } as const;
@@ -143,8 +143,8 @@ async function loadRoot(bootstrap: Awaited<ReturnType<typeof initializeWindowCon
       return (await import('@/app/CodeEditorApp.vue')).default;
     case 'editor':
       return (await import('@/app/SpecEditorApp.vue')).default;
-    case 'file-editor':
-      return (await import('@/app/FileEditorApp.vue')).default;
+    case 'text-editor':
+      return (await import('@/app/TextEditorApp.vue')).default;
     case 'immersive-editor':
       return (await import('@/app/ImmersiveEditorApp.vue')).default;
     case 'weapon-fire-preview':

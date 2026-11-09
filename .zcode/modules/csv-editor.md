@@ -96,8 +96,8 @@ CSV 文档编辑模块管理整表文件的领域规则、运行态、展示、�
 - `src/test/fixtures/csv-row.ts`：CSV 草稿行的测试构造。
 - `src/test/unit/csv-input-host.ts`：CSV 输入提交的组件测试宿主。
 - `src/windows/current.window.ts`：保存来源消费的当前原生窗口身份。
-- `src/windows/file-editor.window.ts`：消费完整文件请求并交付常规与恢复模式窗口身份。
 - `src/windows/spec-editor.window.ts`：四类规格的身份、尺寸与结构化窗口请求。
+- `src/windows/text-editor.window.ts`：消费完整文件请求并交付常规与恢复模式窗口身份。
 - `src/windows/weapon-fire-preview.window.ts`：完整预览身份、来源、标题与尺寸的请求入口。
 
 ### 装配

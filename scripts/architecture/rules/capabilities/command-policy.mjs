@@ -78,7 +78,7 @@ export const commandOwners = {
     'query_csv_row_resources',
     'prepare_csv_associated_specs',
   ],
-  'src/services/files.service.ts': ['load_editable_file', 'follow_text_identity'],
+  'src/services/text-editor.service.ts': ['load_text_file', 'follow_text_identity'],
   'src/services/spec-editor.service.ts': ['load_imported_editor_spec_file'],
   'src/services/json-recovery.service.ts': ['prepare_json_source_recovery'],
   'src/services/file-history.service.ts': ['query_file_history', 'clear_file_history'],
@@ -89,7 +89,7 @@ export const saveActionOwners = {
   'src/services/project-sync.service.ts': ['refresh_project_sources'],
   'src/services/joint-edit.service.ts': ['save_joint_edit'],
   'src/services/csv-table.service.ts': ['save_csv_patch'],
-  'src/services/files.service.ts': ['save_text_file', 'transcode_file_to_utf8'],
+  'src/services/text-editor.service.ts': ['save_text_file', 'transcode_file_to_utf8'],
   'src/services/spec-editor.service.ts': ['save_editor_spec'],
   'src/services/json-entity.service.ts': [
     'save_mod_info',

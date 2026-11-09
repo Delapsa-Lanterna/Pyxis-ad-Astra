@@ -67,7 +67,7 @@ try {
   await page.keyboard.press('Escape');
   await main.locator('.detail-thumbnail img').waitFor();
   checks.push('样本图片');
-  for (const name of ['舰船编辑器', '沉浸式编辑器', '文件编辑器']) {
+  for (const name of ['舰船编辑器', '沉浸式编辑器', '文本编辑器']) {
     await main.locator('.detail-actions').getByRole('button', { name, exact: true }).click();
     const frame = page.locator('iframe[data-window^="window-"]').last();
     await frame.contentFrame().locator('.titlebar-button.close').click();

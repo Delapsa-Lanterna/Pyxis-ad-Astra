@@ -32,8 +32,8 @@
 - `src/shared/lib/keyboard-shortcuts.ts`：四种键盘命令及可编辑目标的公共纯规则。
 - `src/shared/runtime/event.runtime.ts`：公共事件注册、载荷和错误交接，解除由窗口运行态持有。
 - `src/shared/types/window.types.ts`：前端窗口输入、上下文与交付结果模型。
-- `src/windows/file-editor.window.ts`：文件编辑器窗口请求，承载常规与错误恢复两种请求形状。
 - `src/windows/spec-editor.window.ts`：四类规格的身份、尺寸与结构化窗口请求。
+- `src/windows/text-editor.window.ts`：文本编辑器窗口请求，承载常规与错误恢复两种请求形状。
 
 ### 关联
 

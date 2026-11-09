@@ -46,8 +46,8 @@ async function loadWindowRoot(kind: string | null): Promise<Component> {
   switch (kind) {
     case 'code-editor':
       return (await import('@/app/CodeEditorApp.vue')).default;
-    case 'file-editor':
-      return (await import('@/app/FileEditorApp.vue')).default;
+    case 'text-editor':
+      return (await import('@/app/TextEditorApp.vue')).default;
     case 'editor':
       return (await import('@/app/SpecEditorApp.vue')).default;
     case 'weapon-fire-preview':

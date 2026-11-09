@@ -1,30 +1,30 @@
 import { requestWindow } from '@/windows/managed.window';
-import type { FileWindowLocation } from '@/shared/types';
+import type { TextWindowLocation } from '@/shared/types';
 
-export interface FileEditorRequest {
+export interface TextEditorRequest {
   mode?: 'session' | 'recovery';
   modRoot: string | null;
   path: string;
   sessionId: string | null;
   title?: string;
   contextLabel?: string;
-  contextSeverity?: FileWindowLocation['contextSeverity'];
+  contextSeverity?: TextWindowLocation['contextSeverity'];
   message?: string;
   line?: number;
   column?: number;
 }
 
-export type OpenFileEditorWindowRequest = FileEditorRequest;
+export type OpenTextEditorWindowRequest = TextEditorRequest;
 
-export function openFileEditorWindow(request: OpenFileEditorWindowRequest) {
+export function openTextEditorWindow(request: OpenTextEditorWindowRequest) {
   return requestWindow({
     identity:
       request.mode === 'recovery'
         ? { type: 'recovery', modRoot: request.modRoot, path: request.path }
-        : { type: 'file', sessionId: request.sessionId!, modRoot: request.modRoot!, path: request.path },
-    title: request.title ?? '文件编辑器',
+        : { type: 'text-editor', sessionId: request.sessionId!, modRoot: request.modRoot!, path: request.path },
+    title: request.title ?? '文本编辑器',
     input: {
-      kind: 'file-editor',
+      kind: 'text-editor',
       location: {
         contextLabel: request.contextLabel ?? null,
         contextSeverity: request.contextSeverity ?? null,

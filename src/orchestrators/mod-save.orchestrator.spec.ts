@@ -154,7 +154,7 @@ describe('Mod save coordination', () => {
     coordinatorFixture(feedback(), () => false);
     setActivePinia(createPinia());
     wire.label = 'child';
-    wire.context.value = { identity: { type: 'file', sessionId: 'b', modRoot: 'M:/b', path: 'M:/b/file' } } as ManagedWindowContext;
+    wire.context.value = { identity: { type: 'text-editor', sessionId: 'b', modRoot: 'M:/b', path: 'M:/b/file' } } as ManagedWindowContext;
     const child = editor('child-b', 'b'),
       coordinator = coordinatorFixture(feedback(), () => false);
     wire.owners = ['main', 'child'];

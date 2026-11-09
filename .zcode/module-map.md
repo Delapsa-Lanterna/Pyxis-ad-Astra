@@ -123,7 +123,7 @@
 - [Spec 编辑器基础](modules/spec-editor.md)：说明规格宿主、基础契约、文档交接与四类实现装配。
 - [画布编辑器骨架](modules/editor-canvas.md)：说明画布交互、选区、镜像、动作提交及唯一共享引擎绘制与运行态。
 - [文件浏览器](modules/file-browser.md)：说明按 session 隔离的目录树、内容判定、读取接纳与文本窗口交付。
-- [文件编辑器](modules/file-editor.md)：说明独立文本窗口、`sessionId + modRoot + path`、文本 Draft Session、保存和外部文本同步。
+- [文本编辑器](modules/text-editor.md)：说明独立文本窗口、`sessionId + modRoot + path`、文本 Draft Session、保存和外部文本同步。
 - [字段定义与校验](modules/schema.md)：说明字段与列资产、唯一列序、来源声明、值规则及保存校验。
 - [字段编辑与输入交互](modules/field-editor.md)：说明表单控件、原文提交、输入模式、稳定行身份、来源候选与选项媒体寿命。
 - [JSON 来源组合与覆盖](modules/json-composition.md)：说明前后端游戏 JSON 合并、来源定位、稀疏本地修改、整体覆盖和撤销。

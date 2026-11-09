@@ -20,7 +20,7 @@ describe('detailActionsForRow', () => {
     expect(detailActionsForRow(context, 'ships', { rowKey: 'ships:row:0', data: { name: 'orphan' }, isComment: false })).toEqual([]);
   });
 
-  it('returns the ship editor and the spec file editor for ship rows', () => {
+  it('returns the ship editor and the spec text editor for ship rows', () => {
     const actions = detailActionsForRow(context, 'ships', { rowKey: 'ships:row:0', data: { id: 'XY', name: '#quoted' }, isComment: false });
     expect(actions).toHaveLength(3);
     expect(actions[0]).toMatchObject({
@@ -31,24 +31,24 @@ describe('detailActionsForRow', () => {
       sessionId: context.sessionId,
     });
     expect(actions[1]).toMatchObject({ type: 'immersive-editor', kind: 'ship', id: 'XY', rowKey: 'ships:row:0' });
-    expect(actions[2]).toMatchObject({ type: 'file-editor', kind: 'ship', id: 'XY' });
+    expect(actions[2]).toMatchObject({ type: 'text-editor', kind: 'ship', id: 'XY' });
   });
 
-  it('returns both weapon editors plus the file editor for weapon rows', () => {
+  it('returns both weapon editors plus the text editor for weapon rows', () => {
     const actions = detailActionsForRow(context, 'weapons', { rowKey: 'weapons:row:0', data: { id: 'railgun' }, isComment: false });
     expect(actions.map((action) => (action.type === 'editor-window' ? action.kind : action.type))).toEqual([
       'weapon',
       'weapon-fire-preview',
       'immersive-editor',
-      'file-editor',
+      'text-editor',
     ]);
     expect(actions[2]).toMatchObject({ kind: 'weapon', id: 'railgun', rowKey: 'weapons:row:0' });
   });
 
-  it('returns only the file editor for skills rows without editor windows', () => {
+  it('returns only the text editor for skills rows without editor windows', () => {
     const actions = detailActionsForRow(context, 'skills', { rowKey: 'skills:row:0', data: { id: 'helmanship' }, isComment: false });
     expect(actions).toHaveLength(1);
-    expect(actions[0]).toMatchObject({ type: 'file-editor', kind: 'skill', id: 'helmanship' });
+    expect(actions[0]).toMatchObject({ type: 'text-editor', kind: 'skill', id: 'helmanship' });
   });
 
   it('opens a wing through its own row and complete window identity', () => {
@@ -76,7 +76,7 @@ describe('detail action labels and keys', () => {
   it('labels editor windows with their editor window label', () => {
     expect(detailActionLabel(actions[0]!)).toBe('舰船编辑器');
     expect(detailActionLabel(actions[1]!)).toBe('沉浸式编辑器');
-    expect(detailActionLabel(actions[2]!)).toBe('文件编辑器');
+    expect(detailActionLabel(actions[2]!)).toBe('文本编辑器');
   });
 
   it('builds distinct stable keys from the action identity', () => {

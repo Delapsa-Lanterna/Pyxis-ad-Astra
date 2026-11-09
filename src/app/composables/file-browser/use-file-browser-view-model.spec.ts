@@ -1,5 +1,5 @@
 import type * as FileBrowserServiceModule from '@/services/file-browser.service';
-import type * as FileEditorWindowModule from '@/windows/file-editor.window';
+import type * as TextEditorWindowModule from '@/windows/text-editor.window';
 import type * as ProjectSyncOrchestratorModule from '@/orchestrators/project-sync.orchestrator';
 import { observeSavedContentFixture, committedChangeFixture, dispatchProjectChangeFixture } from '@/test/unit/project-changes';
 import { projectChangeFixture } from '@/test/unit/project-changes';
@@ -18,7 +18,7 @@ const mocks = vi.hoisted(() => ({
   directory: vi.fn<typeof FileBrowserServiceModule.queryFileDirectory>(),
   search: vi.fn<typeof FileBrowserServiceModule.queryFileSearch>(),
   file: vi.fn<typeof FileBrowserServiceModule.queryFileTextTarget>(),
-  open: vi.fn<typeof FileEditorWindowModule.openFileEditorWindow>(),
+  open: vi.fn<typeof TextEditorWindowModule.openTextEditorWindow>(),
   error: vi.fn(),
   listen: vi.fn<typeof ProjectSyncOrchestratorModule.listenSavedContent>(),
 }));
@@ -27,7 +27,7 @@ vi.mock('@/services/file-browser.service', () => ({
   queryFileSearch: mocks.search,
   queryFileTextTarget: mocks.file,
 }));
-vi.mock('@/windows/file-editor.window', () => ({ openFileEditorWindow: mocks.open }));
+vi.mock('@/windows/text-editor.window', () => ({ openTextEditorWindow: mocks.open }));
 vi.mock('@/app/composables/use-app-feedback', () => ({ useAppFeedback: () => ({ error: mocks.error }) }));
 vi.mock('@/orchestrators/project-sync.orchestrator', async () => ({
   ...(await import('@/test/unit/project-changes')),
@@ -191,7 +191,7 @@ describe('mod file browser actions and read lifetime', () => {
     wrapper.unmount();
     fail(new Error('window startup failed'));
     await flushPromises();
-    expect(mocks.error).toHaveBeenCalledExactlyOnceWith(expect.any(Error), '打开文件编辑器失败');
+    expect(mocks.error).toHaveBeenCalledExactlyOnceWith(expect.any(Error), '打开文本编辑器失败');
   });
   it('keeps accepted content through failure and recovers via refresh', async () => {
     const { vm } = await open();

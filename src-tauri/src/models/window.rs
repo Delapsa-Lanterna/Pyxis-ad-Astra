@@ -96,7 +96,8 @@ pub enum WindowIdentity {
         mod_root: String,
         id: String,
     },
-    File {
+    #[serde(rename = "text-editor")]
+    TextEditor {
         session_id: String,
         mod_root: String,
         path: String,
@@ -115,7 +116,7 @@ impl WindowIdentity {
     pub fn comparison_key(&self) -> Self {
         let mut key = self.clone();
         match &mut key {
-            Self::File { mod_root, path, .. } => {
+            Self::TextEditor { mod_root, path, .. } => {
                 *mod_root = windows_path_key(mod_root);
                 *path = windows_path_key(path);
             }
@@ -136,7 +137,7 @@ impl WindowIdentity {
             | Self::CodeEditor { mod_root, .. }
             | Self::Immersive { mod_root, .. }
             | Self::WeaponFirePreview { mod_root, .. }
-            | Self::File { mod_root, .. } => Some(mod_root),
+            | Self::TextEditor { mod_root, .. } => Some(mod_root),
             Self::Recovery { mod_root, .. } => mod_root.as_deref(),
         }
     }
@@ -146,7 +147,7 @@ impl WindowIdentity {
             | Self::CodeEditor { session_id, .. }
             | Self::Immersive { session_id, .. }
             | Self::WeaponFirePreview { session_id, .. }
-            | Self::File { session_id, .. } => Some(session_id),
+            | Self::TextEditor { session_id, .. } => Some(session_id),
             Self::Recovery { .. } => None,
         }
     }
@@ -322,7 +323,7 @@ pub enum WeaponFirePreviewSource {
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct FileWindowLocation {
+pub struct TextWindowLocation {
     pub context_label: Option<String>,
     pub context_severity: Option<String>,
     pub message: Option<String>,
@@ -338,7 +339,7 @@ pub struct FileWindowLocation {
 pub enum ManagedWindowInput {
     CodeEditor,
     Editor { starsector_root: Option<String> },
-    FileEditor { location: FileWindowLocation },
+    TextEditor { location: TextWindowLocation },
     ImmersiveEditor { row_key: Option<String> },
     WeaponFirePreview { source: WeaponFirePreviewSource },
 }
@@ -347,7 +348,7 @@ impl ManagedWindowInput {
         match self {
             Self::CodeEditor => "code-editor",
             Self::Editor { .. } => "editor",
-            Self::FileEditor { .. } => "file-editor",
+            Self::TextEditor { .. } => "text-editor",
             Self::ImmersiveEditor { .. } => "immersive-editor",
             Self::WeaponFirePreview { .. } => "weapon-fire-preview",
         }
@@ -379,8 +380,8 @@ impl ManagedWindowInput {
             (Self::Editor { .. }, WindowIdentity::Spec { .. })
                 | (Self::CodeEditor, WindowIdentity::CodeEditor { .. })
                 | (
-                    Self::FileEditor { .. },
-                    WindowIdentity::File { .. } | WindowIdentity::Recovery { .. }
+                    Self::TextEditor { .. },
+                    WindowIdentity::TextEditor { .. } | WindowIdentity::Recovery { .. }
                 )
                 | (
                     Self::ImmersiveEditor { .. },

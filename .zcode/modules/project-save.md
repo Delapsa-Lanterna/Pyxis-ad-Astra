@@ -16,7 +16,6 @@
 
 - `src-tauri/src/models/save_action.rs`：保存请求及封闭业务动作。
 - `src-tauri/src/services/config_entity.rs`：JSON 实体正式内容准备与实际写入。
-- `src-tauri/src/services/file_editor.rs`：文本内容准备与实际写入。
 - `src-tauri/src/services/json_file.rs`：Variant 与 Skin 文件保存及身份操作。
 - `src-tauri/src/services/misc_config.rs`：已登记配置文件的实际保存与删除。
 - `src-tauri/src/services/project/session.rs`：会话打开、关闭、内容更新与内部登记及就绪访问能力交付。
@@ -27,6 +26,7 @@
 - `src-tauri/src/services/project/write/joint_edit.rs`：联合当前来源图准备、身份与修改接纳及实际保存。
 - `src-tauri/src/services/project/write/json_recovery.rs`：缺失基线渲染、必要索引修复和实际 changeset。
 - `src-tauri/src/services/project_sync.rs`：项目队列、来源确认、恢复等待和结果发布。
+- `src-tauri/src/services/text_editor.rs`：文本内容准备与实际写入。
 - `src-tauri/src/services/write_transactions.rs`：根租约、版本核对、实际提交及文件回放。
 - `src/services/window.service.ts`：保存接收登记、目标拥有窗口查询、请求与代次绑定回执。
 - `src/stores/project.store.ts`：捕获 Mod 的正式 session 与清单复核。

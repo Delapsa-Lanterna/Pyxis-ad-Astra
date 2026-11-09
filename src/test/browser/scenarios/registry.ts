@@ -100,7 +100,7 @@ export const workspaceEntries = [
   ...[
     ['code', '代码编辑窗口'],
     ['spec', '规格编辑窗口'],
-    ['file', '文件编辑窗口'],
+    ['text', '文本编辑窗口'],
     ['immersive', '沉浸式编辑窗口'],
     ['preview', '开火预览窗口'],
   ].map(([id, label]) => ({ id: id + '-window', label: label!, href: import.meta.env.BASE_URL + '?sampleWindow=' + id + '-window' })),

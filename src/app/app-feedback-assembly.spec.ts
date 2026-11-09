@@ -1,5 +1,5 @@
 import type * as AppLogServiceModule from '@/services/app-log.service';
-import type * as FilesServiceModule from '@/services/files.service';
+import type * as FilesServiceModule from '@/services/text-editor.service';
 import { selectDialogOption } from '@/test/unit/dialog-text';
 import { mount, flushPromises, type VueWrapper } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
@@ -18,20 +18,20 @@ import FeedbackFileActions from '@/app/components/FeedbackFileActions.vue';
 import { provideAppFeedback, useAppFeedback } from '@/app/composables/use-app-feedback';
 import { h } from 'vue';
 import { nButton } from '@/test/unit/ui-stubs';
-import type { FileEditorRequest } from '@/windows/file-editor.window';
+import type { TextEditorRequest } from '@/windows/text-editor.window';
 
 const mocks = vi.hoisted(() => ({
   log: vi.fn<typeof AppLogServiceModule.recordLogBestEffort>(),
-  open: vi.fn<(request: FileEditorRequest) => Promise<void>>(async () => {}),
+  open: vi.fn<(request: TextEditorRequest) => Promise<void>>(async () => {}),
   transcode: vi.fn<typeof FilesServiceModule.transcodeFileToUtf8>(),
   sync: vi.fn(),
   context: { value: null as ManagedWindowContext | null },
 }));
 vi.mock('@/services/app-log.service', () => ({ recordLogBestEffort: mocks.log }));
-vi.mock('@/windows/file-editor.window', () => ({ openFileEditorWindow: mocks.open }));
+vi.mock('@/windows/text-editor.window', () => ({ openTextEditorWindow: mocks.open }));
 vi.mock('@/windows/window-context.window', () => ({ managedWindowContext: mocks.context }));
 vi.mock('@/windows/current.window', () => ({ currentWindowLabel: () => 'feedback-test' }));
-vi.mock('@/services/files.service', () => ({ transcodeFileToUtf8: mocks.transcode }));
+vi.mock('@/services/text-editor.service', () => ({ transcodeFileToUtf8: mocks.transcode }));
 let wrapper: VueWrapper | null = null;
 beforeEach(() => {
   vi.clearAllMocks();
@@ -552,7 +552,7 @@ describe('window recovery completion', () => {
       if (mode === 'missing-manifest-session') vi.spyOn(project, 'getSessionId').mockReturnValue(null);
       if (mode !== 'no-session')
         mocks.context.value = {
-          identity: { type: 'file', modRoot: 'M:/mod', sessionId: 'child-session', path: 'M:/mod/notes.txt' },
+          identity: { type: 'text-editor', modRoot: 'M:/mod', sessionId: 'child-session', path: 'M:/mod/notes.txt' },
         } as ManagedWindowContext;
       const path = mode === 'outside-child' ? 'M:/other/notes.txt' : 'M:/mod/notes.txt';
       const { feedback, messages } = feedbackHarness();

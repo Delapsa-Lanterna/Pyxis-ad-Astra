@@ -421,7 +421,7 @@ describe('complete browser workspace fixtures', () => {
 
   it('routes fixture appearance requests to the main settings owner', async () => {
     const workspace = createBrowserWorkspace();
-    const child = (await workspace.openSampleWindow('file-editor')) as { label: string };
+    const child = (await workspace.openSampleWindow('text-editor')) as { label: string };
     const mainRequests: unknown[] = [];
     const childRequests: unknown[] = [];
     workspace.listen('main', 'browser-appearance-request', ({ payload }) => {
@@ -438,7 +438,7 @@ describe('complete browser workspace fixtures', () => {
   it('captures close handshakes and restores a clean fixed workspace', async () => {
     const workspace = createBrowserWorkspace();
     workspace.state.mods[0]!.referenceable = true;
-    const window = (await workspace.openSampleWindow('file-editor')) as { label: string };
+    const window = (await workspace.openSampleWindow('text-editor')) as { label: string };
     expect(workspace.windows.has(window.label)).toBe(true);
     workspace.restoreSample();
     expect([...workspace.windows.keys()]).toEqual(['main']);
@@ -447,7 +447,7 @@ describe('complete browser workspace fixtures', () => {
 
   it('waits for each close reply and resumes a cancelled window', async () => {
     const workspace = createBrowserWorkspace();
-    const child = (await workspace.openSampleWindow('file-editor')) as { label: string };
+    const child = (await workspace.openSampleWindow('text-editor')) as { label: string };
     const phases: string[] = [];
     workspace.listen(child.label, 'window-lifecycle-close-requested', async ({ payload }) => {
       const intent = payload as { operationId: number; phase: string };

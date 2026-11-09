@@ -253,7 +253,7 @@ mod tests {
     use crate::services::project::PerformanceTrace;
     use crate::services::project::test_support::project_workspace;
     #[cfg(test)]
-    use crate::services::{app_settings, file_editor};
+    use crate::services::{app_settings, text_editor};
     use crate::services::{project, project_save};
     use crate::{io, services};
     use std::fs;
@@ -567,7 +567,7 @@ mod tests {
         };
         let transaction = begin(&payload, &payload.base_versions).unwrap();
         let result =
-            file_editor::save_text_file(&payload.mod_root, &payload.path, payload.text.clone())
+            text_editor::save_text_file(&payload.mod_root, &payload.path, payload.text.clone())
                 .unwrap();
         let saved = transaction.commit(result, "save notes").unwrap();
         assert_eq!(saved.history.undo_stack.len(), 1);
@@ -633,7 +633,7 @@ mod tests {
         );
         let transaction = begin(&payload, &payload.base_versions).unwrap();
         let result =
-            file_editor::save_text_file(&payload.mod_root, &payload.path, payload.text.clone())
+            text_editor::save_text_file(&payload.mod_root, &payload.path, payload.text.clone())
                 .unwrap();
         assert_eq!(
             transaction

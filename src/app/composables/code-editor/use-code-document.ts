@@ -3,7 +3,7 @@ import { useEditTargetDraftSession, type EditTargetDraftSession } from '@/app/co
 import { createTextDocument, readTextContent, sameTextContent, writeTextContent, type TextContent } from '@/shared/runtime/text-document';
 import { useSaveCommandStore } from '@/stores/save-command.store';
 import { useSettingsStore } from '@/stores/settings.store';
-import { loadEditableFileData, writeEditableFileText } from '@/services/files.service';
+import { loadTextFile, saveTextFile } from '@/services/text-editor.service';
 import { beginSavedWrite } from '@/orchestrators/project-sync.orchestrator';
 import { normalizeFsPath } from '@/shared/lib/paths';
 import type { CodeEditorOpen, EntityTargetSnapshot, ErrorDiagnostic, WriteResult } from '@/shared/types';
@@ -27,7 +27,7 @@ export function createCodeDocument(owner: Pick<CodeEditorOpen, 'sessionId' | 'mo
       beginSave: beginSavedWrite,
       savedContent: (snapshot) => ({ ...snapshot, meta: { ...snapshot.meta, receipt: null } }),
       load: async (target, signal) => {
-        const loaded = await waitForRead(loadEditableFileData(target.sessionId, target.modRoot, target.path), target, signal);
+        const loaded = await waitForRead(loadTextFile(target.sessionId, target.modRoot, target.path), target, signal);
         signal!.throwIfAborted();
         return {
           target: { ...target, path: loaded.path },
@@ -38,7 +38,7 @@ export function createCodeDocument(owner: Pick<CodeEditorOpen, 'sessionId' | 'mo
       },
       save: async (target, draft, versions, _original, request) => {
         const text = writeTextContent(draft);
-        const result = await writeEditableFileText(target.sessionId, target.modRoot, target.path, text, versions, request);
+        const result = await saveTextFile(target.sessionId, target.modRoot, target.path, text, versions, request);
         return {
           target,
           value:

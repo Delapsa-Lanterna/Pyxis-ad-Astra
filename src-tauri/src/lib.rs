@@ -223,7 +223,7 @@ pub fn run() {
                     commands::query_core_root,
                     commands::scan_core_graphics,
                     commands::query_original_font,
-                    commands::load_editable_file,
+                    commands::load_text_file,
                     commands::follow_text_identity,
                     commands::load_imported_editor_spec_file,
                 ]);

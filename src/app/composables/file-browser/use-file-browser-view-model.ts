@@ -5,7 +5,7 @@ import { queryFileDirectory, queryFileSearch, queryFileTextTarget } from '@/serv
 import { createReadOwner } from '@/shared/runtime/read-request';
 import { createFileTreeCache, fileSearchTree, visibleFiles, affectedFileDirectories } from '@/domain/file-browser/file-tree';
 import { listenSavedContent, sessionContentUpdate } from '@/orchestrators/project-sync.orchestrator';
-import { openFileEditorWindow } from '@/windows/file-editor.window';
+import { openTextEditorWindow } from '@/windows/text-editor.window';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
 import { formatError } from '@/shared/lib/errors';
 import { relativePathFromRoot, normalizeFsPath, isAbsoluteFsPath } from '@/shared/lib/paths';
@@ -232,8 +232,8 @@ export function useFileBrowserViewModel(getTarget: () => FileBrowserTarget | nul
     await reads.consume('open', { sessionId: captured.sessionId, path }, () => queryFileTextTarget(captured.sessionId, path), {
       ready: (result) => {
         if (result)
-          void openFileEditorWindow({ ...result }).catch((error) => {
-            feedback.error(error, '打开文件编辑器失败');
+          void openTextEditorWindow({ ...result }).catch((error) => {
+            feedback.error(error, '打开文本编辑器失败');
           });
       },
       error: (error) => feedback.error(error, '打开文件失败'),

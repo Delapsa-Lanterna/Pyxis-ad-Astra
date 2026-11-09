@@ -4,23 +4,23 @@ const requestWindow = vi.hoisted(() => vi.fn(() => Promise.resolve()));
 
 vi.mock('@/windows/managed.window', () => ({ requestWindow }));
 
-import { openFileEditorWindow } from '@/windows/file-editor.window';
+import { openTextEditorWindow } from '@/windows/text-editor.window';
 import { scanWarningNotice, modOpeningFailureNotice } from '@/domain/project/load-diagnostics';
 import { extractFileReferenceFromError } from '@/shared/lib/errors';
 import type { GameScanWarning, ModOpeningFailure } from '@/shared/types';
 
-describe('workspace warning file editor window', () => {
+describe('workspace warning text editor window', () => {
   it('opens recovery mode with the structured target and parsed position', async () => {
     const warning = editableWarning();
 
     const reference = extractFileReferenceFromError(scanWarningNotice(warning).diagnostic)!;
-    await openFileEditorWindow({ ...reference.target!, ...reference, contextLabel: '错误', contextSeverity: 'error' });
+    await openTextEditorWindow({ ...reference.target!, ...reference, contextLabel: '错误', contextSeverity: 'error' });
 
     expect(requestWindow).toHaveBeenCalledWith(
       expect.objectContaining({
         identity: { type: 'recovery', modRoot: warning.editTarget?.modRoot, path: warning.editTarget?.path },
         input: {
-          kind: 'file-editor',
+          kind: 'text-editor',
           location: { contextLabel: '错误', contextSeverity: 'error', message: 'JSON 语法错误', line: 5, column: 44 },
         },
       }),
@@ -49,13 +49,13 @@ describe('workspace warning file editor window', () => {
     };
 
     const reference = extractFileReferenceFromError(modOpeningFailureNotice(failure).diagnostic)!;
-    await openFileEditorWindow({ ...reference.target!, ...reference, contextLabel: '错误', contextSeverity: 'error' });
+    await openTextEditorWindow({ ...reference.target!, ...reference, contextLabel: '错误', contextSeverity: 'error' });
 
     expect(requestWindow).toHaveBeenCalledWith(
       expect.objectContaining({
         identity: { type: 'recovery', modRoot: failure.modRoot, path: failure.file?.path },
         input: {
-          kind: 'file-editor',
+          kind: 'text-editor',
           location: { contextLabel: '错误', contextSeverity: 'error', message: 'CSV 解析失败', line: 7, column: null },
         },
       }),

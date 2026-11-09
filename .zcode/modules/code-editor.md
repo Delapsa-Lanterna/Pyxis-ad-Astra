@@ -30,7 +30,7 @@
 - `src/app/composables/use-window-shortcuts.ts`：保存和历史快捷键。
 - `src/domain/project-sync/committed-text.ts`：正式回执中的所属文件文本。
 - `src/orchestrators/project-sync.orchestrator.ts`：保存接纳与外部更新。
-- `src/services/files.service.ts`：正式文本读取与保存。
+- `src/services/text-editor.service.ts`：正式文本读取与保存。
 - `src/shared/lib/errors.ts`：原始错误和位置转换。
 - `src/shared/lib/paths.ts`：文件路径比较及范围。
 - `src/shared/runtime/read-request.ts`：读取寿命等待。

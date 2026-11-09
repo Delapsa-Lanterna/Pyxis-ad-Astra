@@ -9,8 +9,8 @@ import { useSaveCommandStore } from '@/stores/save-command.store';
 import { createSettingsFixture } from '@/test/fixtures/settings';
 import { savedWriteFixture } from '@/test/fixtures/write-result';
 import { projectChangeFixture, projectChangeListeners } from '@/test/unit/project-changes';
-import type { loadEditableFileData, writeEditableFileText } from '@/services/files.service';
-import type { AppFeedback, CodeEditorDelivery, CodeEditorFileResult, EditableFileData } from '@/shared/types';
+import type { loadTextFile, saveTextFile } from '@/services/text-editor.service';
+import type { AppFeedback, CodeEditorDelivery, CodeEditorFileResult, TextFileData } from '@/shared/types';
 import TextEditorSurface from '@/shared/ui/TextEditorSurface.vue';
 import { textEditorSurface } from '@/test/unit/text-editor-surface';
 import { writeTextContent } from '@/shared/runtime/text-document';
@@ -18,8 +18,8 @@ import * as textDocument from '@/shared/runtime/text-document';
 import { useCodeEditor } from './use-code-editor';
 
 const mocks = vi.hoisted(() => ({
-  load: vi.fn<typeof loadEditableFileData>(),
-  write: vi.fn<typeof writeEditableFileText>(),
+  load: vi.fn<typeof loadTextFile>(),
+  write: vi.fn<typeof saveTextFile>(),
   receive: null as ((delivery: CodeEditorDelivery) => void) | null,
   receipts: vi.fn<(key: string, results: CodeEditorFileResult[]) => Promise<void>>(async () => {}),
   feedback: {
@@ -29,7 +29,7 @@ const mocks = vi.hoisted(() => ({
     confirmWarning: vi.fn<AppFeedback['confirmWarning']>(),
   },
 }));
-vi.mock('@/services/files.service', () => ({ loadEditableFileData: mocks.load, writeEditableFileText: mocks.write }));
+vi.mock('@/services/text-editor.service', () => ({ loadTextFile: mocks.load, saveTextFile: mocks.write }));
 vi.mock('@/app/composables/use-app-feedback', () => ({ useAppFeedback: () => mocks.feedback }));
 vi.mock('@/services/code-editor.service', () => ({
   subscribeCodeEditor: async (receive: (delivery: CodeEditorDelivery) => void) => {
@@ -44,7 +44,7 @@ vi.mock('@/app/composables/code-editor/use-code-editor-window', () => ({
 vi.mock('@/app/composables/use-window-shortcuts', () => ({ useWindowShortcuts: () => {} }));
 enableAutoUnmount(afterEach);
 const owner = { sessionId: 'sample-session', modRoot: 'M:/sample' };
-function loaded(path: string, text = 'class Sample {}\r\n'): EditableFileData {
+function loaded(path: string, text = 'class Sample {}\r\n'): TextFileData {
   return { path, text, entity: null, baseVersions: [{ path, fingerprint: 'sample-version' }] };
 }
 beforeEach(() => {
@@ -121,7 +121,7 @@ describe('code editor document host', () => {
   it('releases an in-flight document read when the window is destroyed', async () => {
     const { value: host, wrapper } = mountSetup(() => useCodeEditor(owner));
     await host.ready;
-    let complete!: (value: EditableFileData) => void;
+    let complete!: (value: TextFileData) => void;
     mocks.load.mockImplementationOnce(
       () =>
         new Promise((resolve) => {
@@ -180,7 +180,7 @@ describe('code editor document host', () => {
     const first = host.documents[0]!;
     first.setText('submitted');
     const submitted = first.session.draftValue.value;
-    let complete!: (value: Awaited<ReturnType<typeof writeEditableFileText>>) => void;
+    let complete!: (value: Awaited<ReturnType<typeof saveTextFile>>) => void;
     mocks.write.mockImplementationOnce(
       () =>
         new Promise((resolve) => {

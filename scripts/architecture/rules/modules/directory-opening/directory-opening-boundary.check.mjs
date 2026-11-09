@@ -11,7 +11,7 @@ for (const command of ['detect_directory', 'scan_game_overview'])
     });
     assert.deepEqual(directoryOpeningBoundaryRule.check(valid), []);
     const invalid = architectureFixtures({
-      'src-tauri/src/commands/sample.rs': 'use crate::services::file_editor as files;\npub fn ' + command + '() { files::run(); }',
+      'src-tauri/src/commands/sample.rs': 'use crate::services::text_editor as files;\npub fn ' + command + '() { files::run(); }',
     });
     const diagnostics = directoryOpeningBoundaryRule.check(invalid);
     assert.equal(diagnostics.length, 1);

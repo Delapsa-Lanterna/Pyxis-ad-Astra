@@ -122,9 +122,9 @@ export async function sourceSync(app, fixture, check, artifacts) {
   });
   await active.evaluate(
     api +
-      '("request_window",{payload:{identity:{type:"file",sessionId:window.__desktopTarget.sessionId,modRoot:window.__desktopTarget.modRoot,path:' +
+      '("request_window",{payload:{identity:{type:"text-editor",sessionId:window.__desktopTarget.sessionId,modRoot:window.__desktopTarget.modRoot,path:' +
       JSON.stringify(notes) +
-      '},title:"Source test text",input:{kind:"file-editor",location:{contextLabel:null,contextSeverity:null,message:null,line:null,column:null}},width:1040,height:760,minWidth:780,minHeight:520}})',
+      '},title:"Source test text",input:{kind:"text-editor",location:{contextLabel:null,contextSeverity:null,message:null,line:null,column:null}},width:1040,height:760,minWidth:780,minHeight:520}})',
   );
   let textPage;
   for (let attempt = 0; attempt < 100; attempt++) {
@@ -137,7 +137,7 @@ export async function sourceSync(app, fixture, check, artifacts) {
   await check('Native foreground and background transitions retain the live text editor', async () => {
     await active.evaluate(api + '("plugin:window|set_focus",{label:"main"})');
     await textPage.getByRole('textbox', { name: '文件内容' }).fill('Memory policy input');
-    const identity = { type: 'file', sessionId: manifest.sessionId, modRoot: manifest.modRoot, path: notes };
+    const identity = { type: 'text-editor', sessionId: manifest.sessionId, modRoot: manifest.modRoot, path: notes };
     await active.evaluate(api + '("focus_managed_window",{identity:' + JSON.stringify(identity) + '})');
     await textPage.getByRole('textbox', { name: '文件内容' }).press('End');
     await textPage.getByRole('textbox', { name: '文件内容' }).press('!');
@@ -149,7 +149,7 @@ export async function sourceSync(app, fixture, check, artifacts) {
     await until(async () => (await readFile(notes, 'utf8')) === 'Initial text', 'text baseline restoration');
   });
   await check('Managed window focus reuses the isolated text window', async () => {
-    const identity = { type: 'file', sessionId: manifest.sessionId, modRoot: manifest.modRoot, path: notes };
+    const identity = { type: 'text-editor', sessionId: manifest.sessionId, modRoot: manifest.modRoot, path: notes };
     assert.equal(await active.evaluate(api + '("focus_managed_window",{identity:' + JSON.stringify(identity) + '})'), true);
     assert.equal(context.pages().length, 2);
   });
@@ -161,7 +161,7 @@ export async function sourceSync(app, fixture, check, artifacts) {
     await rename(notes, join(mod, 'renamed.txt'));
     await textPage.getByRole('button', { name: '保留文本并跟随', exact: true }).click();
     await until(
-      async () => (await textPage.locator('.file-editor-path').getAttribute('title'))?.endsWith('renamed.txt'),
+      async () => (await textPage.locator('.text-editor-path').getAttribute('title'))?.endsWith('renamed.txt'),
       'native rename target handoff',
     );
     assert.equal(await textPage.getByRole('textbox', { name: '文件内容' }).innerText(), 'Local text draft');

@@ -278,7 +278,7 @@ export function createBrowserWorkspace(systemTheme: T.AppTheme = 'light') {
           return { label: existing[0], requestId: existing[1].context!.requestId, status: 'accepted' };
         }
         const key = 'window-' + ++nextId;
-        const kind = input.input.kind === 'editor' ? 'editor' : input.input.kind === 'file-editor' ? 'file-editor' : input.input.kind;
+        const kind = input.input.kind === 'editor' ? 'editor' : input.input.kind === 'text-editor' ? 'text-editor' : input.input.kind;
         addWindow(key, {
           label: key,
           revision: 1,
@@ -648,7 +648,7 @@ export function createBrowserWorkspace(systemTheme: T.AppTheme = 'light') {
         return receiver.textFiles.has(receiver.manifest.modRoot + '/' + payload.relPath)
           ? { sessionId, modRoot: receiver.manifest.modRoot, path: receiver.manifest.modRoot + '/' + payload.relPath }
           : null;
-      case 'load_editable_file': {
+      case 'load_text_file': {
         const path = [...receiver.textFiles.keys()].find((path) => normalizeFsPath(path) === normalizeFsPath(String(payload.path)))!;
         return {
           path,
@@ -769,7 +769,7 @@ export function createBrowserWorkspace(systemTheme: T.AppTheme = 'light') {
       return () => listeners.delete(id);
     },
     openSampleWindow(
-      kind: 'editor' | 'file-editor' | 'immersive-editor' | 'weapon-fire-preview' | 'code-editor',
+      kind: 'editor' | 'text-editor' | 'immersive-editor' | 'weapon-fire-preview' | 'code-editor',
       targetKind: T.SpecEditorKind | T.JointEditKind = kind === 'immersive-editor' ? 'variant' : 'ship',
     ) {
       if (kind === 'code-editor') {
@@ -813,9 +813,9 @@ export function createBrowserWorkspace(systemTheme: T.AppTheme = 'light') {
               kind: targetKind as T.SpecEditorKind,
               id: targetId,
             }
-          : kind === 'file-editor'
+          : kind === 'text-editor'
             ? {
-                type: 'file',
+                type: 'text-editor',
                 sessionId: receiver.manifest.sessionId,
                 modRoot: receiver.manifest.modRoot,
                 path: receiver.manifest.modRoot + '/mod_info.json',
@@ -832,8 +832,8 @@ export function createBrowserWorkspace(systemTheme: T.AppTheme = 'light') {
       const input: T.ManagedWindowInput =
         kind === 'editor'
           ? { kind: 'editor', starsectorRoot: gameRoot }
-          : kind === 'file-editor'
-            ? { kind: 'file-editor', location: { contextLabel: null, contextSeverity: null, message: null, line: null, column: null } }
+          : kind === 'text-editor'
+            ? { kind: 'text-editor', location: { contextLabel: null, contextSeverity: null, message: null, line: null, column: null } }
             : kind === 'immersive-editor'
               ? { kind: 'immersive-editor', rowKey: null }
               : { kind: 'weapon-fire-preview', source: { kind: 'saved' } };

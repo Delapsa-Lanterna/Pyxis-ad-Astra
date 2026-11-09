@@ -13,7 +13,6 @@ pub mod spec_editor;
 #[cfg(test)]
 mod schema_tests;
 
-pub mod file_editor;
 pub mod file_history;
 pub mod mod_creation;
 pub mod project;
@@ -22,6 +21,7 @@ pub mod project_session;
 pub mod project_sync;
 pub mod source_watch;
 pub mod system_open;
+pub mod text_editor;
 pub mod windows;
 pub mod workspace_persistence;
 pub mod write_transactions;

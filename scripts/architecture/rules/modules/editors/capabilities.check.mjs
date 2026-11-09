@@ -17,8 +17,8 @@ const cases = [
     'prepareCsvAssociatedSpecs',
   ],
   ['spec-write', 'src/services/spec-editor.service.ts', 'src/services/spec-editor.service.ts', 'saveSpecEditorSpec'],
-  ['text-write', 'src/app/composables/use-file-editor-view-model.ts', 'src/services/files.service.ts', 'writeEditableFileText'],
-  ['text-transcode', 'src/app/app-feedback-assembly.ts', 'src/services/files.service.ts', 'transcodeFileToUtf8'],
+  ['text-write', 'src/app/composables/use-text-editor-view-model.ts', 'src/services/text-editor.service.ts', 'saveTextFile'],
+  ['text-transcode', 'src/app/app-feedback-assembly.ts', 'src/services/text-editor.service.ts', 'transcodeFileToUtf8'],
   [
     'history-replay',
     'src/orchestrators/file-history-replay.orchestrator.ts',

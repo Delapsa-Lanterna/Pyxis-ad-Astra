@@ -113,7 +113,7 @@ for (const source of [
     const valid = architectureFixtures({
       'src-tauri/src/services/mod.rs': serviceAssembly,
       'src-tauri/src/commands/example.rs': 'pub fn query() { ' + source + ' }',
-      'src-tauri/src/services/file_editor.rs': 'fn load() { ' + source + ' }',
+      'src-tauri/src/services/text_editor.rs': 'fn load() { ' + source + ' }',
     });
     assert.deepEqual(messages(checkedRule('rust-project-layer-boundary', valid)), []);
     assert.deepEqual(messages(checkedRule('rust-service-edge-boundary', valid)), []);
@@ -215,12 +215,12 @@ test('Rust module and layer restrictions report each dependency fact once', () =
 
 test('Rust public query names retain their facade ownership and internal query modules retain their layer', () => {
   const facade = architectureFixtures({
-    'src-tauri/src/services/file_editor.rs': 'fn run() { crate::services::project::query_entity_identity_intent(); }',
+    'src-tauri/src/services/text_editor.rs': 'fn run() { crate::services::project::query_entity_identity_intent(); }',
   });
   assert.deepEqual(messages(checkedRule('rust-project-layer-boundary', facade)), []);
   assert.deepEqual(messages(checkedRule('rust-service-edge-boundary', facade)), []);
   const internal = architectureFixtures({
-    'src-tauri/src/services/file_editor.rs': 'fn run() { crate::services::project::query::identity(); }',
+    'src-tauri/src/services/text_editor.rs': 'fn run() { crate::services::project::query::identity(); }',
   });
   assert.equal(messages(checkedRule('rust-project-layer-boundary', internal)).length, 1);
 });
@@ -241,7 +241,7 @@ test('history scope authorization belongs to its facade while records remain ind
     });
     assert.deepEqual(checkedRule('rust-project-layer-boundary', allowed), []);
     const denied = architectureFixtures({
-      'src-tauri/src/services/file_editor.rs': 'fn release() { crate::services::project::' + target + '(id); }',
+      'src-tauri/src/services/text_editor.rs': 'fn release() { crate::services::project::' + target + '(id); }',
     });
     assert.equal(checkedRule('rust-project-layer-boundary', denied).length, 1);
   }

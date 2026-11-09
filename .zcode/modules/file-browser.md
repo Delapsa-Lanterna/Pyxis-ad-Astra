@@ -30,7 +30,7 @@
 - `src/app/composables/use-window-shortcuts.ts`：统一窗口按键监听、菜单优先、关闭屏蔽及卸载释放。
 - `src/orchestrators/project-sync.orchestrator.ts`：窗口内保存消费过程和内容维护者交接。
 - `src/shared/types/file-browser.types.ts`：前端条目与浏览状态交接模型。
-- `src/windows/file-editor.window.ts`：浏览动作消费的文本窗口创建与复用入口。
+- `src/windows/text-editor.window.ts`：浏览动作消费的文本窗口创建与复用入口。
 
 ### 装配
 

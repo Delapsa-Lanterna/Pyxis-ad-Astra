@@ -34,7 +34,7 @@ describe('conflicting window focus', () => {
     target.write.path = 'M:/mod/data/hulls/nested/custom.ship';
     mocks.focus.mockResolvedValueOnce(false).mockResolvedValueOnce(true);
     await expect(focusEntityWindowTarget('s1', 'M:/mod', target)).resolves.toBe(true);
-    expect(mocks.focus).toHaveBeenLastCalledWith({ type: 'file', sessionId: 's1', modRoot: 'M:/mod', path: target.write.path });
+    expect(mocks.focus).toHaveBeenLastCalledWith({ type: 'text-editor', sessionId: 's1', modRoot: 'M:/mod', path: target.write.path });
   });
 
   it.each(['variant', 'skin', 'faction', 'mission'] as EntityKind[])('focuses the loaded %s text target', async (kind) => {
@@ -42,6 +42,11 @@ describe('conflicting window focus', () => {
     mocks.query.mockResolvedValueOnce({ target, baseVersions: [] });
     await focusExistingEntityWindow('s1', 'M:/mod', kind, 'Alpha');
     expect(mocks.query).toHaveBeenCalledExactlyOnceWith('s1', kind, 'Alpha');
-    expect(mocks.focus).toHaveBeenCalledExactlyOnceWith({ type: 'file', sessionId: 's1', modRoot: 'M:/mod', path: target.write.path });
+    expect(mocks.focus).toHaveBeenCalledExactlyOnceWith({
+      type: 'text-editor',
+      sessionId: 's1',
+      modRoot: 'M:/mod',
+      path: target.write.path,
+    });
   });
 });

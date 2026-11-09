@@ -650,7 +650,7 @@ mod tests {
     use crate::services::project::PerformanceTrace;
     use crate::services::project::test_support::{project_workspace, release_workspace};
     #[cfg(test)]
-    use crate::services::{file_editor, file_history, project, project_save, write_transactions};
+    use crate::services::{file_history, project, project_save, text_editor, write_transactions};
     use crate::test_support::work_counts;
     use crate::test_support::{self, SOURCE_WATCH_TEST_QUEUE as TEST_QUEUE};
     #[cfg(test)]
@@ -1538,7 +1538,7 @@ mod tests {
                 &[],
             )
             .unwrap();
-            let result = file_editor::save_text_file(
+            let result = text_editor::save_text_file(
                 &manifest.mod_root,
                 &root.join("notes.txt").to_string_lossy(),
                 "after".into(),

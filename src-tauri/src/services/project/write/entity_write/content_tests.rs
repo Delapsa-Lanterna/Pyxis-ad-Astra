@@ -23,7 +23,7 @@ use crate::services::project::model::csv_table_spec;
 use crate::services::project::query::{csv_window, entities, entity_targets};
 use crate::services::project::test_support::project_workspace;
 #[cfg(test)]
-use crate::services::{file_editor, project_save, write_transactions};
+use crate::services::{project_save, text_editor, write_transactions};
 use serde_json::json;
 #[cfg(test)]
 use std::fs;
@@ -264,7 +264,7 @@ fn text_save_writes_submitted_text_without_identity_changes() {
     .unwrap();
     let mut trace = PerformanceTrace::new("project.openSession");
     let manifest = project::open_project_session_traced(&root, None, &mut trace).unwrap();
-    let loaded = file_editor::load_project_editable_file(
+    let loaded = text_editor::load_project_text_file(
         Some(&manifest.session_id),
         &manifest.mod_root,
         old.to_string_lossy().to_string(),

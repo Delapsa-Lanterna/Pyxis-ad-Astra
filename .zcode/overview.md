@@ -1,6 +1,6 @@
 # Overview
 
-星界罗盘 [Pyxis ad Astra] 是一个 Windows 桌面 Starsector Mod 配置工具，统一管理 Mod 表格、规格、配置实体和文件编辑，并提供受控的保存、历史、资源和窗口能力。
+星界罗盘 [Pyxis ad Astra] 是一个 Windows 桌面 Starsector Mod 配置工具，统一管理 Mod 表格、规格、配置实体和文本编辑，并提供受控的保存、历史、资源和窗口能力。
 
 ## 项目目标
 
@@ -77,7 +77,7 @@
 - Spec 字段与画布编辑：规格窗口定义 → 正式目标、规格与依赖 → 舰船、武器、弹体或战术系统 ViewModel → schema 字段或画布手势 → 领域投影与工作值 → Draft Session、历史及保存动作
 - 联合与沉浸式编辑：ship、weapon、wing 或 variant 的 `JointEditRoot` → `query_joint_edit` → 规格、CSV、描述、Skin 与模块来源图 → `JointEditSnapshot` → 所属字段、装备、场景与关联编辑器动作 → 联合草稿
 - 文件浏览与文本打开：宿主交付 session 与正式项目根 → 文件概览页 → 目录查询或全目录搜索 → 按 session 接纳条目 → `query_file_text_target` 核对路径与内容 → 完整文件窗口请求 → 文本加载与行列定位
-- 文本编辑：`EditableFileData` 与版本 → 文本 Draft Session → 原文、dirty 及文本撤销栈 → 保存时捕获文本与目标 → 实际写盘文本接纳基线 → 保留后续输入；外部差异进入待载入版本
+- 文本编辑：`TextFileData` 与版本 → 文本 Draft Session → 原文、dirty 及文本撤销栈 → 保存时捕获文本与目标 → 实际写盘文本接纳基线 → 保留后续输入；外部差异进入待载入版本
 - Mod 整体保存：`Ctrl+Shift+S` 捕获 `sessionId + modRoot` → 主窗口捕获各窗口文档参与者 → 所属输入提交与文档保存 → 串行批次汇总实际结果 → 发起窗口反馈与请求释放
 - 项目保存：编辑面提交输入并捕获 `SaveRequest` → `save_project` → 项目同步 FIFO → 所属业务准备 → `write_transactions::begin` 与版本复核 → 业务 changeset → 历史及正式内容登记 → 发布 `WriteResult` 并释放项目工作
 - 联合冲突与提交：联合基线、磁盘与提交草稿 → `submitJointEdit` 请求后端三方比较 → 独立修改合并与冲突选择 → 共享影响、Mod 覆盖和目标协调 → 确认版本复核 → 同根 changeset 与一次历史登记 → 实际联合快照

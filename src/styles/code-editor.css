@@ -21,7 +21,7 @@
   min-width: 0;
   flex: 1;
 }
-.code-editor > .text-editor {
+.code-editor > .text-editor-surface {
   grid-row: 4;
 }
 .code-editor-status {

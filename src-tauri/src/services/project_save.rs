@@ -4,7 +4,7 @@ use crate::models::{
     SaveEdit, SaveRequest, WriteContent, WriteResult,
 };
 use crate::services::{
-    config_entity, file_editor, json_file, misc_config, project, project_sync, write_transactions,
+    config_entity, json_file, misc_config, project, project_sync, text_editor, write_transactions,
 };
 use crate::{diagnostics, services};
 use serde::Serialize;
@@ -92,7 +92,7 @@ fn prepare_save_action(
 ) -> AppResult<()> {
     match action {
         SaveAction::SaveEditorSpec(input) => services::prepare_spec_save(input, edits, identities),
-        SaveAction::SaveTextFile(input) => file_editor::prepare_text_save(input, identities),
+        SaveAction::SaveTextFile(input) => text_editor::prepare_text_save(input, identities),
         SaveAction::SaveCsvPatch(input) => services::prepare_csv_save(input, edits),
         SaveAction::SaveJointEdit(input) => services::prepare_joint_save(input, edits, identities),
         SaveAction::SaveModInfo(input) => config_entity::prepare_mod_save(input, edits),
@@ -128,11 +128,11 @@ pub(crate) fn execute_save_action(mut action: SaveAction) -> AppResult<WriteResu
             (services::write_spec_request(input)?, "保存编辑器规格")
         }
         SaveAction::SaveTextFile(input) => (
-            file_editor::save_project_text_file(&input.mod_root, &input.path, input.text)?,
+            text_editor::save_project_text_file(&input.mod_root, &input.path, input.text)?,
             "保存文本",
         ),
         SaveAction::TranscodeFileToUtf8(input) => (
-            json_result(file_editor::transcode_file_to_utf8(
+            json_result(text_editor::transcode_file_to_utf8(
                 &input.mod_root,
                 &input.path,
                 &input.encoding,

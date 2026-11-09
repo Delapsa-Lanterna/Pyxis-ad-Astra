@@ -1,12 +1,12 @@
-import type { LoadEditableFilePayload, TextSave, TextTranscode, FollowTextIdentityPayload, EntityKind } from '@/shared/types';
+import type { LoadTextFilePayload, TextSave, TextTranscode, FollowTextIdentityPayload, EntityKind } from '@/shared/types';
 import { invokeCommand, invokeSaveCommand, type SaveCommandRequest } from '@/shared/runtime/command.runtime';
-import type { EditableFileData, FileVersion, WriteResult } from '@/shared/types';
+import type { TextFileData, FileVersion, WriteResult } from '@/shared/types';
 
-export function loadEditableFileData(sessionId: string | null, modRoot: string, path: string): Promise<EditableFileData> {
-  return invokeCommand('load_editable_file', { payload: { sessionId, modRoot, path } satisfies LoadEditableFilePayload });
+export function loadTextFile(sessionId: string | null, modRoot: string, path: string): Promise<TextFileData> {
+  return invokeCommand('load_text_file', { payload: { sessionId, modRoot, path } satisfies LoadTextFilePayload });
 }
 
-export function writeEditableFileText(
+export function saveTextFile(
   sessionId: string | null,
   modRoot: string,
   path: string,
@@ -29,6 +29,6 @@ export function transcodeFileToUtf8(
   });
 }
 
-export function followFileTextIdentity(kind: EntityKind, text: string, nextId: string): Promise<string> {
+export function followTextIdentity(kind: EntityKind, text: string, nextId: string): Promise<string> {
   return invokeCommand('follow_text_identity', { payload: { kind, text, nextId } satisfies FollowTextIdentityPayload });
 }

@@ -16,7 +16,7 @@ export type TableDetailAction =
     }
   | { type: 'weapon-fire-preview'; modRoot: string; sessionId: string; id: string }
   | { type: 'immersive-editor'; kind: 'ship' | 'weapon' | 'wing'; modRoot: string; sessionId: string; id: string; rowKey: string }
-  | { type: 'file-editor'; modRoot: string; kind: EntityKind; id: string; sessionId: string; title: string }
+  | { type: 'text-editor'; modRoot: string; kind: EntityKind; id: string; sessionId: string; title: string }
   | {
       type: 'editor-window';
       kind: SpecEditorKind;
@@ -77,13 +77,13 @@ export function detailActionsForRow(
           },
         ]
       : [];
-  return specKind ? [...editorActions, ...immersive, specFileAction(context, specKind, id)] : [...editorActions, ...immersive];
+  return specKind ? [...editorActions, ...immersive, specTextEditorAction(context, specKind, id)] : [...editorActions, ...immersive];
 }
 
 export function detailActionLabel(action: TableDetailAction): string {
   if (action.type === 'wing-navigation') return action.destination === 'hull' ? '跳转到船体' : '跳转到装配';
   if (action.type === 'weapon-fire-preview') return '开火预览';
-  if (action.type === 'file-editor') return '文件编辑器';
+  if (action.type === 'text-editor') return '文本编辑器';
   if (action.type === 'immersive-editor') return '沉浸式编辑器';
   return specEditorWindowLabel(action.kind);
 }
@@ -92,18 +92,18 @@ export function detailActionKey(action: TableDetailAction): string {
   if (action.type === 'wing-navigation')
     return JSON.stringify([action.type, action.destination, action.modRoot, action.sessionId, action.rowKey]);
   if (action.type === 'weapon-fire-preview') return JSON.stringify([action.type, action.modRoot, action.sessionId, action.id]);
-  return action.type === 'file-editor'
+  return action.type === 'text-editor'
     ? JSON.stringify([action.type, action.kind, action.modRoot, action.sessionId, action.id])
     : JSON.stringify([action.type, action.kind, action.modRoot, action.sessionId, action.id]);
 }
 
-function specFileAction(context: TableDetailActionContext, kind: EntityKind, id: string): TableDetailAction {
+function specTextEditorAction(context: TableDetailActionContext, kind: EntityKind, id: string): TableDetailAction {
   return {
-    type: 'file-editor',
+    type: 'text-editor',
     modRoot: context.modRoot,
     kind,
     id,
     sessionId: context.sessionId,
-    title: '文件编辑器',
+    title: '文本编辑器',
   };
 }

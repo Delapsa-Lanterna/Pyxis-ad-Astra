@@ -1,35 +1,43 @@
-.text-editor {
-  min-width: 0;
-  min-height: 0;
+.text-editor-heading {
+  flex: 1;
 }
-.text-editor .cm-editor {
+.text-editor-meta .text-editor-meta-label {
+  max-width: 240px;
+  padding: 2px var(--space-2);
+  border-radius: var(--radius-sm);
+}
+.text-editor-message {
+  gap: var(--space-1);
+}
+.text-editor-message .text-editor-message-label {
+  font-weight: 600;
+}
+.text-editor-message .text-editor-message-description {
+  font-family: var(--font-mono);
+}
+.text-editor-body {
+  flex: 1;
+  position: relative;
+  grid-template-columns: minmax(0, 1fr);
+  border-radius: var(--radius-md);
+}
+.text-editor-page {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
   height: 100%;
-  color: var(--color-text);
-  background: var(--color-panel);
+  background: var(--color-bg);
+  gap: 8px;
+  padding: 0 12px 12px;
 }
-.text-editor .cm-scroller {
-  overflow: auto;
-  font: 400 12px/20px var(--font-mono);
+.text-editor-meta {
+  flex-wrap: wrap;
+  gap: 8px;
+  font: 400 10px/12px var(--font-sans);
 }
-.text-editor .cm-content {
-  padding: 8px 0;
-  caret-color: var(--color-text);
-}
-.text-editor .cm-line {
-  padding: 0 12px;
-}
-.text-editor .cm-gutters {
-  color: var(--color-text-soft);
+
+.text-editor-message.info {
+  border: 1px solid var(--color-border);
   background: var(--color-panel-muted);
-  border-color: var(--color-border);
-}
-.text-editor .cm-focused {
-  outline: none;
-}
-.text-editor .cm-line.text-editor-error-line {
-  background: var(--color-danger-highlight);
-}
-.text-editor .text-editor-error-gutter {
-  color: var(--color-danger);
-  background: var(--color-danger-highlight-soft);
+  color: var(--color-text-soft);
 }

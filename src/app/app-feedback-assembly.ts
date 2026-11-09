@@ -10,8 +10,8 @@ import type { FeedbackFileTarget, WindowFeedback } from '@/shared/types';
 import { closestRootForPath, gameCoreDirectoryPath, pathBelongsToRoot } from '@/shared/lib/paths';
 import { useProjectStore } from '@/stores/project.store';
 import { managedWindowContext } from '@/windows/window-context.window';
-import { openFileEditorWindow } from '@/windows/file-editor.window';
-import { transcodeFileToUtf8 } from '@/services/files.service';
+import { openTextEditorWindow } from '@/windows/text-editor.window';
+import { transcodeFileToUtf8 } from '@/services/text-editor.service';
 
 export function createWindowFeedback(
   message: MessageApiInjection,
@@ -34,12 +34,12 @@ export function createWindowFeedback(
           run: async () => {
             if (!accepting()) return;
             try {
-              await openFileEditorWindow({
+              await openTextEditorWindow({
                 ...session,
                 path: reference.path,
                 line: reference.line,
                 column: reference.column,
-                title: '文件编辑器',
+                title: '文本编辑器',
               });
             } catch (error) {
               feedback.error(error, '打开文件失败');

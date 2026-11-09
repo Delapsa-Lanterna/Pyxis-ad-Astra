@@ -39,7 +39,7 @@ export async function reserveEntityIntent(
   const kind = source.kind as SpecEditorKind;
   const identities: WindowIdentity[] = [
     { type: 'spec', sessionId, modRoot, kind, id: intent.nextId },
-    { type: 'file', sessionId, modRoot, path: intent.nextWrite.path },
+    { type: 'text-editor', sessionId, modRoot, path: intent.nextWrite.path },
   ];
   if (source.state === 'create' || source.id !== intent.nextId || source.write.path !== intent.nextWrite.path)
     await reserveNativeWindowTargets(identities);

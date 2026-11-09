@@ -202,9 +202,9 @@ async function saveTarget(target: CapturedTableSaveTarget, options: TableSaveOpt
     const next = write.resolution!.destination.location;
     const identitiesToRemove =
       write.change.action === 'rename' && write.resolution!.original?.location.source === 'mod'
-        ? [{ type: 'file' as const, sessionId: manifest.sessionId, modRoot, path: write.resolution!.original.location.path }]
+        ? [{ type: 'text-editor' as const, sessionId: manifest.sessionId, modRoot, path: write.resolution!.original.location.path }]
         : [];
-    const identities: WindowIdentity[] = [{ type: 'file', sessionId: manifest.sessionId, modRoot, path: next.path }];
+    const identities: WindowIdentity[] = [{ type: 'text-editor', sessionId: manifest.sessionId, modRoot, path: next.path }];
     if (write.target.kind === 'ship' || write.target.kind === 'weapon' || write.target.kind === 'system')
       identities.push({ type: 'spec', sessionId: manifest.sessionId, modRoot, kind: write.target.kind, id: write.change.create.id });
     if (

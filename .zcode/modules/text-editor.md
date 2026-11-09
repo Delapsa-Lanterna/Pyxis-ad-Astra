@@ -1,24 +1,24 @@
-# 文件编辑器
+# 文本编辑器
 
 ## 定义
 
-文件编辑器模块在独立窗口提供已授权文本文件的编辑与错误恢复。
+文本编辑器模块在独立窗口提供已授权文本文件的编辑与错误恢复。
 
 ## 参考
 
 ### 拥有
 
-- `src-tauri/src/commands/file_editor.rs`：文件编辑 command 边界。
-- `src-tauri/src/services/file_editor.rs`：后端编辑 service，消费 IO 路径授权并交付文本读写。
-- `src/app/FileEditorContent.vue`：窗口内容，装配文本视图、行号、快捷键与外部文本呈现。
-- `src/app/composables/editors/use-file-editor-view-model.ts`：编辑 ViewModel，拥有文本 Draft Session、加载、保存、undo/redo 与行列聚焦。
-- `src/services/files.service.ts`：文本读取、身份交接、保存与转码的 IPC 参数装配。
-- `src/windows/file-editor.window.ts`：消费完整文件请求并交付常规与恢复模式窗口身份。
+- `src-tauri/src/commands/text_editor.rs`：文本编辑 command 边界。
+- `src-tauri/src/services/text_editor.rs`：后端编辑 service，消费 IO 路径授权并交付文本读写。
+- `src/app/TextEditorContent.vue`：窗口内容，装配文本视图、行号、快捷键与外部文本呈现。
+- `src/app/composables/editors/use-text-editor-view-model.ts`：编辑 ViewModel，拥有文本 Draft Session、加载、保存、undo/redo 与行列聚焦。
+- `src/services/text-editor.service.ts`：文本读取、身份交接、保存与转码的 IPC 参数装配。
+- `src/windows/text-editor.window.ts`：消费完整文件请求并交付常规与恢复模式窗口身份。
 
 ### 消费
 
 - `src-tauri/src/domain/entity_definitions.rs`：八种实体的目录、后缀、ID 字段及规格、表格关联登记。
-- `src-tauri/src/models/file_editor.rs`：文本读取、保存、转码与身份请求协议。
+- `src-tauri/src/models/text_editor.rs`：文本读取、保存、转码与身份请求协议。
 - `src-tauri/src/parsers/preserve_json.rs`：文本 ID 字段范围定位与替换。
 - `src-tauri/src/services/project/query/entity_targets.rs`：实际编辑目标、身份意图及正式版本范围。
 - `src-tauri/src/services/project/session.rs`：会话打开、关闭、内容更新与内部登记及就绪访问能力交付。
@@ -36,7 +36,7 @@
 - `src/orchestrators/window-identity.orchestrator.ts`：正式文件身份预约及窗口交接。
 - `src/services/window.service.ts`：窗口 command 的类型化签名与参数装配。
 - `src/shared/runtime/text-document.ts`：不可变文本、原始换行、选区及原生历史。
-- `src/shared/types/file-editor.types.ts`：文本读取、保存、转码与身份请求协议。
+- `src/shared/types/text-editor.types.ts`：文本读取、保存、转码与身份请求协议。
 - `src/shared/types/write-commit.types.ts`：公共保存回执、提交同步、行键映射与正式内容交付。
 - `src/shared/ui/TextEditorSurface.vue`：文本输入、可视行号、错误行和滚动定位。
 - `src/stores/project-sync.store.ts`：当前待办、错误和项目等待状态。
@@ -48,7 +48,7 @@
 
 ### 装配
 
-- `src/app/FileEditorApp.vue`：窗口根，装配唯一窗口壳与文件编辑器内容。
+- `src/app/TextEditorApp.vue`：窗口根，装配唯一窗口壳与文本编辑器内容。
 - `src/app/app-feedback-assembly.ts`：授权错误位置的文件打开、转码和保存回执交接。
 
 ## 边界

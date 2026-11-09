@@ -79,13 +79,13 @@ import BrowserHeader from './BrowserHeader.vue';
 import { browserThemeStyle } from './appearance';
 import type { SpecEditorKind, JointEditKind } from '@/shared/types';
 import './browser.css';
-const windowKinds = ['editor', 'file-editor', 'immersive-editor', 'weapon-fire-preview', 'code-editor'] as const;
+const windowKinds = ['editor', 'text-editor', 'immersive-editor', 'weapon-fire-preview', 'code-editor'] as const;
 const demo = import.meta.env.VITE_BROWSER_DEMO === true;
 const base = import.meta.env.BASE_URL;
 const windowLabels = {
   'code-editor': '代码编辑器',
   editor: '规格编辑器',
-  'file-editor': '文件编辑器',
+  'text-editor': '文本编辑器',
   'immersive-editor': '沉浸式编辑器',
   'weapon-fire-preview': '武器开火预览',
 };

@@ -42,10 +42,10 @@ test('aliased log type imports retain the actual settings type origin', () => {
 
 for (const source of ['src/app/app-feedback.ts', 'src/app/composables/use-app-feedback.ts']) {
   for (const target of [
-    'src/services/files.service.ts',
+    'src/services/text-editor.service.ts',
     'src/stores/project.store.ts',
-    'src/windows/file-editor.window.ts',
-    'src/orchestrators/file-editor-window.orchestrator.ts',
+    'src/windows/text-editor.window.ts',
+    'src/orchestrators/text-editor-window.orchestrator.ts',
     'src/app/app-feedback-assembly.ts',
   ])
     for (const typeOnly of [false, true])
