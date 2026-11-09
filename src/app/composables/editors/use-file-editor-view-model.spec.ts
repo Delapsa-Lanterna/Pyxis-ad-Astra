@@ -10,6 +10,9 @@ import { initializeSettingsStore, useSettingsStore } from '@/stores/settings.sto
 import { createSettingsFixture } from '@/test/fixtures/settings';
 import { mountSetup } from '@/test/unit/mount-setup';
 import FileEditorContent from '@/app/FileEditorContent.vue';
+import TextEditorSurface from '@/shared/ui/TextEditorSurface.vue';
+import { textEditorSurface } from '@/test/unit/text-editor-surface';
+import * as textDocument from '@/shared/runtime/text-document';
 import { nButton } from '@/test/unit/ui-stubs';
 import type { AppFeedback, ManagedWindowContext, WindowContextFor, CommittedWriteEvent } from '@/shared/types';
 
@@ -134,6 +137,23 @@ function textApplied(event: { sessionId: string; modRoot: string; path: string; 
   void dispatchProjectChangeFixture(committedChangeFixture(result, event.sessionId, event.modRoot));
 }
 describe('useFileEditorViewModel loading', () => {
+  it('keeps native input and close capture immutable and serializes once when saving', async () => {
+    mocks.loadEditableFileData.mockResolvedValue(editableFileFixture('x'.repeat(10485760)));
+    const vm = await initializeViewModel(paramsFixture());
+    const serialized = vi.spyOn(textDocument, 'writeTextContent');
+    try {
+      vm.document.dispatch(vm.document.state.value.update({ changes: { from: 0, insert: '中' } }));
+      const accepts = vm.document.captureContent();
+      expect(accepts()).toBe(true);
+      expect(serialized).toHaveBeenCalledTimes(0);
+      mocks.writeEditableFileText.mockResolvedValueOnce(savedWriteFixture());
+      await vm.saveFile();
+      expect(serialized).toHaveBeenCalledTimes(1);
+    } finally {
+      serialized.mockRestore();
+      vm.dispose();
+    }
+  });
   it('edits a large text with scalar comparison and preserves the existing undo history', async () => {
     const original = 'x'.repeat(10 * 1024 * 1024);
     mocks.loadEditableFileData.mockResolvedValue(editableFileFixture(original));
@@ -271,9 +291,9 @@ describe('useFileEditorViewModel editing', () => {
     vm.undoEdit();
     expect(vm.text.value).toBe('one');
     vm.undoEdit();
-    expect(vm.text.value).toBe('one');
+    expect(vm.text.value).toBe('base');
     vm.redoEdit();
-    expect(vm.text.value).toBe('two');
+    expect(vm.text.value).toBe('one');
     vm.dispose();
     expect(vm.canUndo.value).toBe(false);
     useSettingsStore().setEditHistoryLimit(2);
@@ -528,7 +548,7 @@ describe('useFileEditorViewModel external text', () => {
 it('renders reading, encoding failure, and a successful retry with line navigation', async () => {
   const pending = pendingRead();
   mocks.loadEditableFileData.mockReturnValueOnce(pending.promise);
-  const wrapper = mount(FileEditorContent, { global: { stubs: { 'n-button': nButton } } });
+  const wrapper = mount(FileEditorContent, { global: { stubs: { 'n-button': nButton, TextEditorSurface: textEditorSurface } } });
   const request = windowFixture();
   const opening = mocks.request!(request);
   await flushPromises();
@@ -547,7 +567,7 @@ it('renders reading, encoding failure, and a successful retry with line navigati
   mocks.loadEditableFileData.mockResolvedValueOnce(editableFileFixture('first\nsecond'));
   await mocks.request!(request);
   expect(wrapper.find('.file-editor-message').exists()).toBe(false);
-  expect(wrapper.get('textarea').element.value).toBe('first\nsecond');
-  expect(wrapper.get('textarea').element.selectionStart).toBe(6);
-  expect(wrapper.get('.file-editor-line-number.active').text()).toBe('2');
+  expect(wrapper.getComponent(TextEditorSurface).props('document').state.value.doc.toString()).toBe('first\nsecond');
+  expect(wrapper.getComponent(TextEditorSurface).props('document').state.value.selection.main.head).toBe(6);
+  expect(wrapper.getComponent(TextEditorSurface).props('line')).toBe(2);
 });

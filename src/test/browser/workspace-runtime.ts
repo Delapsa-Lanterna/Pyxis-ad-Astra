@@ -205,6 +205,8 @@ export function createBrowserWorkspace(systemTheme: T.AppTheme = 'light') {
         codeEditor.release(key);
         windows.delete(key);
         channels.delete(key);
+        saveReceivers.delete(key);
+        editTargets.delete(key);
         for (const [id, listener] of listeners) if (listener.label === key) listeners.delete(id);
       });
       onWindows();

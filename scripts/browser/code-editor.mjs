@@ -33,12 +33,12 @@ export async function verifyCodeEditor(page, output) {
   await surface.fill('modified first\n');
   await page.evaluate(() => Reflect.get(globalThis, 'browserWorkspace').openSampleWindow('code-editor'));
   assert.equal(await editor.getByRole('tab').count(), 3);
-  assert.equal(await surface.inputValue(), 'modified third\n');
+  assert.equal((await surface.locator('.cm-line').allTextContents()).join('\n'), 'modified third\n');
   await editor.getByRole('button', { name: '保存全部', exact: true }).click();
   await editor.locator('footer').filter({ hasText: '已保存' }).waitFor();
   assert.equal(await page.evaluate(() => Reflect.get(globalThis, 'browserWorkspace').codeEditor.pending), 0);
   const checks = [{ name: 'open, reuse, independent drafts and save all', pass: true }];
-  const beforeComposition = await surface.inputValue();
+  const beforeComposition = (await surface.locator('.cm-line').allTextContents()).join('\n');
   await surface.focus();
   await surface.press('End');
   const inputSession = await page.context().newCDPSession(page);
@@ -48,11 +48,11 @@ export async function verifyCodeEditor(page, output) {
   } finally {
     await inputSession.detach();
   }
-  assert.equal(await surface.inputValue(), beforeComposition + '中文');
+  assert.equal((await surface.locator('.cm-line').allTextContents()).join('\n'), beforeComposition + '中文');
   await surface.press('Control+z');
-  assert.equal(await surface.inputValue(), beforeComposition);
+  assert.equal((await surface.locator('.cm-line').allTextContents()).join('\n'), beforeComposition);
   await surface.press('Control+y');
-  assert.equal(await surface.inputValue(), beforeComposition + '中文');
+  assert.equal((await surface.locator('.cm-line').allTextContents()).join('\n'), beforeComposition + '中文');
   await editor.getByRole('button', { name: '保存', exact: true }).click();
   await editor.locator('footer').filter({ hasText: '已保存' }).waitFor();
   checks.push({ name: 'native IME commits one undo step and redo restores it', pass: true });
@@ -67,9 +67,96 @@ export async function verifyCodeEditor(page, output) {
       await editor.locator('.code-editor').screenshot({ path: join(output, 'code-editor-' + theme + '-' + width + '.png') });
       checks.push({ name: theme + '-' + width, pass: true });
     }
+  await surface.fill(Array.from({ length: 100 }, (_, index) => String(index) + ' ' + 'x'.repeat(1000)).join('\n'));
+  await surface.press('Control+Home');
+  await surface.press('Shift+End');
+  const selection = await surface.evaluate((element) => element.ownerDocument.getSelection()?.toString());
+  const scrolling = editor.locator('.cm-scroller');
+  const savedScroll = await scrolling.evaluate((element) => {
+    element.scrollTop = 400;
+    element.scrollLeft = 200;
+    return { top: element.scrollTop, left: element.scrollLeft };
+  });
+  await editor.getByRole('tab').first().click();
+  await editor.getByRole('tab', { name: 'Third.java', exact: true }).click();
+  assert.equal(await surface.evaluate((element) => element.ownerDocument.getSelection()?.toString()), selection);
+  await page.waitForTimeout(32);
+  assert.deepEqual(await scrolling.evaluate((element) => ({ top: element.scrollTop, left: element.scrollLeft })), savedScroll);
+  await editor.getByRole('button', { name: '保存', exact: true }).click();
+  await editor.locator('footer').filter({ hasText: '已保存' }).waitFor();
+  checks.push({ name: 'selection and horizontal/vertical scroll survive a document switch', pass: true });
   await closeDocuments(editor);
   checks.push({ name: 'all documents released', pass: true });
+  checks.push(...(await verifyFileEditor(page, output)));
   return checks;
+}
+
+/** @param {import('playwright').Page} page @param {string} output */
+async function verifyFileEditor(page, output) {
+  const opened = await page.evaluate(async () => {
+    const workspace = Reflect.get(globalThis, 'browserWorkspace'),
+      project = workspace.projects.find((/** @type {{manifest:{modRoot:string}}} */ entry) =>
+        entry.manifest.modRoot.endsWith('/code_sample'),
+      );
+    const path = project.manifest.modRoot + '/sample-text.txt';
+    project.textFiles.set(path, 'first\r\nsecond\nthird\rfinal');
+    const result = await workspace.invoke('main', 'request_window', {
+      payload: {
+        identity: { type: 'file', sessionId: project.manifest.sessionId, modRoot: project.manifest.modRoot, path },
+        input: { kind: 'file-editor', location: { line: 2, column: 1, message: null, contextLabel: null, contextSeverity: null } },
+        title: 'Sample text',
+        width: 1000,
+        height: 700,
+        minWidth: 500,
+        minHeight: 400,
+      },
+    });
+    return { path, label: result.label };
+  });
+  const frame = page.frameLocator('iframe[data-window="' + opened.label + '"]');
+  const input = frame.getByRole('textbox', { name: '文件内容' });
+  await input.waitFor();
+  await input.pressSequentially('中文 ');
+  await frame.getByRole('button', { name: '保存', exact: true }).click();
+  await frame.locator('.file-editor-status').filter({ hasText: '已保存' }).waitFor();
+  const saved = () =>
+    page.evaluate((path) => {
+      const workspace = Reflect.get(globalThis, 'browserWorkspace');
+      return workspace.projects
+        .find((/** @type {{textFiles:Map<string,string>}} */ project) => project.textFiles.has(path))
+        .textFiles.get(path);
+    }, opened.path);
+  assert.equal(await saved(), 'first\r\n中文 second\nthird\rfinal');
+  await input.pressSequentially('world');
+  await input.press('Control+z');
+  assert.equal((await input.locator('.cm-line').allTextContents()).join('\n'), 'first\n中文 second\nthird\nfinal');
+  await input.press('Control+z');
+  assert.equal((await input.locator('.cm-line').allTextContents()).join('\n'), 'first\nsecond\nthird\nfinal');
+  await input.press('Control+y');
+  assert.equal(await frame.getByRole('button', { name: '保存', exact: true }).isDisabled(), true);
+  await frame.locator('.file-editor-status').filter({ hasText: '已保存' }).waitFor();
+  assert.equal(await saved(), 'first\r\n中文 second\nthird\rfinal');
+  await frame.locator('.n-message').last().waitFor({ state: 'hidden' });
+  await input.press('Control+End');
+  const composition = await page.context().newCDPSession(page);
+  try {
+    await composition.send('Input.imeSetComposition', { text: '中', selectionStart: 1, selectionEnd: 1 });
+    await composition.send('Input.insertText', { text: '中文' });
+  } finally {
+    await composition.detach();
+  }
+  assert.equal((await input.locator('.cm-line').allTextContents()).join('\n'), 'first\n中文 second\nthird\nfinal中文');
+  await input.press('Control+z');
+  assert.equal((await input.locator('.cm-line').allTextContents()).join('\n'), 'first\n中文 second\nthird\nfinal');
+  for (const theme of ['light', 'dark'])
+    for (const width of [1280, 800]) {
+      await page.setViewportSize({ width, height: 900 });
+      await page.evaluate((theme) => Reflect.get(globalThis, 'browserWorkspace').setAppearance({ theme }), theme);
+      await frame.locator('.file-editor-page').screenshot({ path: join(output, 'file-editor-' + theme + '-' + width + '.png') });
+    }
+  await frame.getByTitle('关闭', { exact: true }).click();
+  await frame.owner().waitFor({ state: 'detached' });
+  return [{ name: 'file editor mixed newlines, save boundary, native undo/redo and release', pass: true }];
 }
 
 /** @typedef {{page:import('playwright').Page,label:string,environment:Record<string,unknown>}} MeasurementEntry */

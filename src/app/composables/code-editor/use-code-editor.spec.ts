@@ -11,6 +11,10 @@ import { savedWriteFixture } from '@/test/fixtures/write-result';
 import { projectChangeFixture, projectChangeListeners } from '@/test/unit/project-changes';
 import type { loadEditableFileData, writeEditableFileText } from '@/services/files.service';
 import type { AppFeedback, CodeEditorDelivery, CodeEditorFileResult, EditableFileData } from '@/shared/types';
+import TextEditorSurface from '@/shared/ui/TextEditorSurface.vue';
+import { textEditorSurface } from '@/test/unit/text-editor-surface';
+import { writeTextContent } from '@/shared/runtime/text-document';
+import * as textDocument from '@/shared/runtime/text-document';
 import { useCodeEditor } from './use-code-editor';
 
 const mocks = vi.hoisted(() => ({
@@ -55,6 +59,30 @@ beforeEach(() => {
   mocks.feedback.choose.mockResolvedValue(null);
 });
 describe('code editor document host', () => {
+  it('generates full text only on save, including large edits, switches and close capture', async () => {
+    const { value: host } = mountSetup(() => useCodeEditor(owner));
+    await host.ready;
+    mocks.load.mockImplementation(async (_s, _r, path) => loaded(path, 'x'.repeat(path.endsWith('0.java') ? 10485760 : 102400)));
+    await host.openFiles(Array.from({ length: 50 }, (_, index) => ({ path: `M:/sample/${index}.java` })));
+    const serialized = vi.spyOn(textDocument, 'writeTextContent');
+    try {
+      for (const file of host.documents) {
+        file.document.dispatch(file.document.state.value.update({ changes: { from: 0, insert: '中' } }));
+        host.active.value = file;
+      }
+      const accepts = useSaveCommandStore().captureCloseState();
+      expect(accepts()).toBe(true);
+      expect(serialized).toHaveBeenCalledTimes(0);
+      const first = host.documents[0]!;
+      await host.save(first);
+      expect(serialized).toHaveBeenCalledTimes(1);
+      first.document.dispatch(first.document.state.value.update({ changes: { from: 0, insert: '后' } }));
+      expect(accepts()).toBe(false);
+      expect(serialized).toHaveBeenCalledTimes(1);
+    } finally {
+      serialized.mockRestore();
+    }
+  });
   it('selects once after a multi-file batch and clears the view before releasing its documents', async () => {
     const { value: host, wrapper } = mountSetup(() => useCodeEditor(owner));
     await host.ready;
@@ -70,38 +98,25 @@ describe('code editor document host', () => {
       stop();
     }
   });
-  it('writes the native text once per switch and retains the native selection during input', async () => {
+  it('binds independent document states to one input surface across tab switches', async () => {
     const wrapper = mount(CodeEditorContent, {
-      attachTo: document.body,
-      global: { stubs: { NButton: { template: '<button><slot /></button>' } } },
+      global: { stubs: { NButton: { template: '<button><slot /></button>' }, TextEditorSurface: textEditorSurface } },
     });
     await flushPromises();
-    mocks.load.mockImplementation(async (_s, _r, path) => loaded(path, path.endsWith('A.java') ? 'alpha\r\nbeta' : 'other'));
     mocks.receive!({ key: 'view', files: [{ path: 'M:/sample/A.java' }, { path: 'M:/sample/B.java' }] });
     await flushPromises();
-    const textarea = wrapper.get('textarea').element;
-    const writes = vi.spyOn(HTMLTextAreaElement.prototype, 'value', 'set');
-    try {
-      await wrapper.findAll('[role="tab"]')[0]!.trigger('click');
-      await flushPromises();
-      expect(writes).toHaveBeenCalledTimes(1);
-      expect(textarea.value).toBe('alpha\nbeta');
-      textarea.setSelectionRange(6, 6);
-      await wrapper.get('textarea').trigger('beforeinput', { inputType: 'insertText' });
-      textarea.setRangeText('中', 6, 6, 'end');
-      await wrapper.get('textarea').trigger('input');
-      await flushPromises();
-      expect(textarea.value).toBe('alpha\n中beta');
-      expect(textarea.selectionStart).toBe(7);
-      expect(writes).toHaveBeenCalledTimes(1);
-      await wrapper.findAll('[role="tab"]')[1]!.trigger('click');
-      await wrapper.findAll('[role="tab"]')[0]!.trigger('click');
-      await flushPromises();
-      expect(textarea.value).toBe('alpha\n中beta');
-      expect(textarea.selectionStart).toBe(7);
-    } finally {
-      writes.mockRestore();
-    }
+    const surface = wrapper.getComponent(TextEditorSurface);
+    const second = surface.props('document');
+    await wrapper.findAll('[role="tab"]')[0]!.trigger('click');
+    const first = surface.props('document');
+    first.dispatch(first.state.value.update({ changes: { from: 0, insert: '中' }, selection: { anchor: 1 } }));
+    const state = first.state.value;
+    await wrapper.findAll('[role="tab"]')[1]!.trigger('click');
+    expect(surface.props('document')).toBe(second);
+    await wrapper.findAll('[role="tab"]')[0]!.trigger('click');
+    expect(surface.props('document').state.value).toBe(state);
+    expect(state.selection.main.head).toBe(1);
+    expect(mocks.load).toHaveBeenCalledTimes(2);
   });
   it('releases an in-flight document read when the window is destroyed', async () => {
     const { value: host, wrapper } = mountSetup(() => useCodeEditor(owner));
@@ -130,15 +145,15 @@ describe('code editor document host', () => {
     const [first, second] = host.documents;
     first!.setText('first');
     second!.setText('second');
-    first!.view.start = 3;
+    first!.document.locate(1, 4);
     for (let index = 0; index < 100; index++) host.active.value = index % 2 ? first! : second!;
     await host.openFiles([{ path: first!.path.value, line: 1, column: 3 }]);
     expect(mocks.load).toHaveBeenCalledTimes(2);
     expect(host.documents).toHaveLength(2);
     expect(host.label(first!)).toBe('a/Entry.java');
     first!.undo();
-    expect(first!.session.draftValue.value).toBe('class Sample {}\r\n');
-    expect(second!.session.draftValue.value).toBe('second');
+    expect(writeTextContent(first!.session.draftValue.value)).toBe('class Sample {}\r\n');
+    expect(writeTextContent(second!.session.draftValue.value)).toBe('second');
     wrapper.unmount();
     expect(useSaveCommandStore().editTargets).toHaveLength(0);
     expect(projectChangeListeners.size).toBe(0);
@@ -164,6 +179,7 @@ describe('code editor document host', () => {
     await host.openFiles([{ path: 'M:/sample/A.java' }, { path: 'M:/sample/B.java' }]);
     const first = host.documents[0]!;
     first.setText('submitted');
+    const submitted = first.session.draftValue.value;
     let complete!: (value: Awaited<ReturnType<typeof writeEditableFileText>>) => void;
     mocks.write.mockImplementationOnce(
       () =>
@@ -182,8 +198,9 @@ describe('code editor document host', () => {
     });
     await Promise.all([saving, repeated]);
     expect(mocks.write).toHaveBeenCalledTimes(1);
-    expect(first.session.draftValue.value).toBe('later');
-    expect(first.session.baselineSnapshot.value!.value).toBe('submitted');
+    expect(writeTextContent(first.session.draftValue.value)).toBe('later');
+    expect(writeTextContent(first.session.baselineSnapshot.value!.value)).toBe('submitted');
+    expect(first.session.baselineSnapshot.value!.value).toBe(submitted);
     expect(first.session.dirty.value).toBe(true);
   });
   it('accepts background external updates, retains dirty drafts and follows a moved file', async () => {
@@ -205,7 +222,7 @@ describe('code editor document host', () => {
       { paths: ['A.java'], tables: [], entities: [], resources: [], queryScopes: [], session: false },
       owner.modRoot,
     );
-    expect(first.session.draftValue.value).toBe('draft');
+    expect(writeTextContent(first.session.draftValue.value)).toBe('draft');
     expect(first.session.hasPendingExternalValue.value).toBe(true);
     mocks.feedback.choose.mockResolvedValueOnce('follow');
     await projectChangeFixture(
@@ -222,7 +239,7 @@ describe('code editor document host', () => {
       owner.modRoot,
     );
     expect(first.path.value).toBe('M:/sample/sub/C.java');
-    expect(first.session.draftValue.value).toBe('draft');
+    expect(writeTextContent(first.session.draftValue.value)).toBe('draft');
     expect(first.problem.value).toBeNull();
   });
   it('closes adjacent tabs, preserves canceled or failed saves and ends at an empty view', async () => {

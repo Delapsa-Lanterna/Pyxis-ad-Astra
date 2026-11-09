@@ -14,7 +14,7 @@ import { loadEditableFileData, writeEditableFileText, followFileTextIdentity } f
 import { committedFileText } from '@/domain/project-sync/committed-text';
 import { isAbsoluteFsPath, joinRootRelativePath, normalizeFsPath, pathBelongsToRoot, relativePathFromRoot } from '@/shared/lib/paths';
 import { useEditTargetDraftSession, type EditTargetDraftSession } from '@/app/composables/use-edit-target-draft-session';
-import { useSnapshotHistory } from '@/app/composables/use-snapshot-history';
+import { createTextDocument, readTextContent, sameTextContent, writeTextContent, type TextContent } from '@/shared/runtime/text-document';
 import { useSettingsStore } from '@/stores/settings.store';
 import { useFieldInputActions } from '@/app/composables/use-field-input-actions';
 import { useSaveCommandStore } from '@/stores/save-command.store';
@@ -63,14 +63,16 @@ export function useFileEditorViewModel(params: FileEditorViewModelParams) {
   const contextMessage = ref('');
   const targetLine = ref(normalizeEventLine(params.line));
   const targetColumn = ref(normalizeEventLine(params.column));
-  const draftSession: EditTargetDraftSession<string, FileEditorTarget, TextMeta> = useEditTargetDraftSession<
-    string,
+  const draftSession: EditTargetDraftSession<TextContent, FileEditorTarget, TextMeta> = useEditTargetDraftSession<
+    TextContent,
     FileEditorTarget,
     TextMeta
   >({
-    emptyValue: '',
+    emptyValue: readTextContent(''),
     clone: (text) => text,
-    equals: (left, right) => left === right,
+    equals: sameTextContent,
+    mapSavedDraft: (draft) => draft,
+    captureSave: () => document.separateHistory(),
     beginSave: beginSavedWrite,
     savedContent: (snapshot) => ({ ...snapshot, meta: { ...snapshot.meta, receipt: null } }),
     load: async (target, signal) => {
@@ -78,7 +80,12 @@ export function useFileEditorViewModel(params: FileEditorViewModelParams) {
         const loaded = await waitForRead(loadEditableFileData(target.sessionId, target.modRoot, target.filePath), target, signal);
         signal!.throwIfAborted();
         contextMessage.value = '';
-        return { target, value: loaded.text, baseVersions: loaded.baseVersions, meta: { entity: loaded.entity, receipt: null } };
+        return {
+          target,
+          value: readTextContent(loaded.text),
+          baseVersions: loaded.baseVersions,
+          meta: { entity: loaded.entity, receipt: null },
+        };
       } catch (error) {
         if (!signal!.aborted) {
           contextMessage.value =
@@ -92,10 +99,14 @@ export function useFileEditorViewModel(params: FileEditorViewModelParams) {
     },
     // Text saves write the file in place; entity identity is re-read like an external modification.
     save: async (target, draft, baseVersions, _original, request) => {
-      const result = await writeEditableFileText(target.sessionId, target.modRoot, target.filePath, draft, baseVersions, request);
+      const text = writeTextContent(draft);
+      const result = await writeEditableFileText(target.sessionId, target.modRoot, target.filePath, text, baseVersions, request);
       return {
         target,
-        value: typeof result.content?.value?.text === 'string' ? result.content?.value.text : draft,
+        value:
+          typeof result.content?.value?.text === 'string' && result.content.value.text !== text
+            ? readTextContent(result.content.value.text)
+            : draft,
         baseVersions: result.baseVersions,
         meta: { entity: draftSession.baselineSnapshot.value!.meta.entity, receipt: result },
         requestId: result.requestId,
@@ -122,11 +133,13 @@ export function useFileEditorViewModel(params: FileEditorViewModelParams) {
     },
     { flush: 'sync' },
   );
-  const textHistory = useSnapshotHistory<string>(
+  const document = createTextDocument(
+    draftSession.draftValue,
     draftSession.context,
     computed(() => settings.editHistoryLimit),
-    (text) => text,
-    (left, right) => left === right,
+    () => {
+      if (pendingIdentity) void followPendingIdentity();
+    },
   );
   const unregisterSave = useSaveCommandStore().registerSaveParticipant({
     targetKey: draftSession.currentTargetKey,
@@ -147,6 +160,7 @@ export function useFileEditorViewModel(params: FileEditorViewModelParams) {
       label: '文件编辑器',
       dirty: draftSession.dirty,
       draftSession: draftSession,
+      captureContent: document.captureContent,
       save: async () => {
         const snapshot = await draftSession.saveDraft();
         return snapshot ? { status: 'saved', receipt: snapshot.meta.receipt! } : { status: 'cancelled' };
@@ -158,11 +172,11 @@ export function useFileEditorViewModel(params: FileEditorViewModelParams) {
   let unlistenIdentity: Awaited<ReturnType<typeof listenSavedIdentity>> | null = null;
   let disposed = false;
 
-  const text = draftSession.draftValue;
+  const text = computed(() => writeTextContent(draftSession.draftValue.value));
   const dirty = draftSession.dirty;
-  const lineCount = computed(() => Math.max(1, text.value.split(/\r\n|\r|\n/).length));
-  const canUndo = textHistory.canUndo;
-  const canRedo = textHistory.canRedo;
+  const lineCount = computed(() => draftSession.draftValue.value.text.lines);
+  const canUndo = document.canUndo;
+  const canRedo = document.canRedo;
   const isErrorContext = computed(() => contextSeverity.value === 'error' && contextMessage.value !== '');
   const isWarningContext = computed(() => contextSeverity.value === 'warning');
   const hasPendingExternalText = computed(() => draftSession.hasPendingExternalValue.value || identityNotice.value !== '');
@@ -194,7 +208,7 @@ export function useFileEditorViewModel(params: FileEditorViewModelParams) {
 
   function dispose() {
     disposed = true;
-    textHistory.dispose();
+    document.dispose();
     unregisterSave();
     unlistenIdentity?.();
     identitySequence++;
@@ -284,12 +298,7 @@ export function useFileEditorViewModel(params: FileEditorViewModelParams) {
     else adopt();
   }
 
-  function updateText(nextText: string) {
-    if (nextText === text.value) return;
-    textHistory.push(text.value, nextText);
-    draftSession.setDraft(nextText);
-    if (pendingIdentity) void followPendingIdentity();
-  }
+  const updateText = document.replaceSource;
 
   async function handleIdentityApplied(event: CommittedWriteEvent) {
     const target = fileEditorTarget();
@@ -347,11 +356,11 @@ export function useFileEditorViewModel(params: FileEditorViewModelParams) {
         pending.target,
         {
           target,
-          value: loaded.text,
+          value: readTextContent(loaded.text),
           baseVersions: loaded.baseVersions,
           meta: { entity: loaded.entity, receipt: null },
         },
-        () => followed ?? loaded.text,
+        () => readTextContent(followed ?? loaded.text),
         pending.change ? 'external' : 'identity',
       );
       pendingIdentity = null;
@@ -370,15 +379,8 @@ export function useFileEditorViewModel(params: FileEditorViewModelParams) {
     }
   }
 
-  function undoEdit() {
-    if (!canUndo.value) return;
-    draftSession.setDraft(textHistory.undo()!);
-  }
-
-  function redoEdit() {
-    if (!canRedo.value) return;
-    draftSession.setDraft(textHistory.redo()!);
-  }
+  const undoEdit = document.undo;
+  const redoEdit = document.redo;
 
   function handleCommittedWriteEvent(change: CommittedWriteEvent) {
     const target = draftSession.currentTarget.value;
@@ -433,7 +435,7 @@ export function useFileEditorViewModel(params: FileEditorViewModelParams) {
       draftSession.applyExternalForTarget(
         {
           target,
-          value: content,
+          value: readTextContent(content),
           baseVersions: receipt!.baseVersions,
           requestId: receipt!.requestId,
           meta: { entity: identity ? { target: identity.after, baseVersions: receipt!.baseVersions } : null, receipt: null },
@@ -454,6 +456,7 @@ export function useFileEditorViewModel(params: FileEditorViewModelParams) {
     targetColumn.value = normalizeEventLine(location.column);
   }
   return {
+    document,
     inputs: draftSession.inputs,
     contentReady: draftSession.ready,
     filePath: currentPath,

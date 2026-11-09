@@ -9,7 +9,8 @@ import { listenSavedContent, sessionContentUpdate } from '@/orchestrators/projec
 import { loadEditableFileData } from '@/services/files.service';
 import { errorDiagnosticOf } from '@/shared/lib/errors';
 import { isAbsoluteFsPath, joinRootRelativePath, normalizeFsPath, pathBelongsToRoot, relativePathFromRoot } from '@/shared/lib/paths';
-import { tabLabel, textOffset } from '@/domain/code-editor/documents';
+import { readTextContent } from '@/shared/runtime/text-document';
+import { tabLabel } from '@/domain/code-editor/documents';
 import type { CodeEditorDelivery, CodeEditorFile, CodeEditorFileResult, CodeEditorOpen, CommittedWriteEvent } from '@/shared/types';
 
 export function useCodeEditor(owner: Pick<CodeEditorOpen, 'sessionId' | 'modRoot'>) {
@@ -32,11 +33,7 @@ export function useCodeEditor(owner: Pick<CodeEditorOpen, 'sessionId' | 'modRoot
     return pending;
   }
   function locate(document: CodeDocument, file: CodeEditorFile) {
-    if (file.line !== undefined) {
-      document.view.start = textOffset(document.session.draftValue.value, file.line, file.column);
-      document.view.end = document.view.start;
-      document.view.top = Math.max(0, (file.line - 4) * 20);
-    }
+    if (file.line !== undefined) document.document.locate(file.line, file.column);
   }
   async function openFiles(files: CodeEditorFile[]) {
     const results: CodeEditorFileResult[] = [];
@@ -153,11 +150,11 @@ export function useCodeEditor(owner: Pick<CodeEditorOpen, 'sessionId' | 'modRoot
               target,
               {
                 target: { ...target, path: loaded.path },
-                value: loaded.text,
+                value: readTextContent(loaded.text),
                 baseVersions: loaded.baseVersions,
                 meta: { entity: loaded.entity, receipt: null },
               },
-              (draft) => (document.session.dirty.value ? draft : loaded.text),
+              (draft) => (document.session.dirty.value ? draft : readTextContent(loaded.text)),
               'identity',
             );
           document.problem.value = null;
@@ -172,7 +169,7 @@ export function useCodeEditor(owner: Pick<CodeEditorOpen, 'sessionId' | 'modRoot
           document.session.applyExternalForTarget(
             {
               target,
-              value: text,
+              value: readTextContent(text),
               baseVersions: event.result.baseVersions,
               requestId: event.result.requestId,
               meta: { entity: document.session.baselineSnapshot.value!.meta.entity, receipt: null },

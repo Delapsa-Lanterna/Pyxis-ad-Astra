@@ -47,6 +47,7 @@ export interface EditTargetDraftSessionOptions<TValue, TTarget, TMeta = unknown>
   confirmSave?: (target: TTarget, value: TValue) => MaybePromise<boolean>;
   afterSaved?: (snapshot: EditTargetSnapshot<TValue, TTarget, TMeta>) => void;
   mapSaveError?: (error: unknown) => unknown;
+  captureSave?: () => void;
 }
 
 export interface EditTargetDraftSession<TValue, TTarget, TMeta = unknown> {
@@ -199,7 +200,7 @@ export function useEditTargetDraftSession<TValue, TTarget, TMeta = unknown>(
       baseline !== null && equals(baseline.value, snapshot.value) && stableDeepEqual(baseline.baseVersions, snapshot.baseVersions);
     revokeReads();
     if (sameBaseline) {
-      session.commitSavedBaseline(snapshot, true);
+      session.commitSavedBaseline({ ...snapshot, value: baseline.value }, true);
       return 'baseline';
     }
     if (dirty.value) {
@@ -258,6 +259,7 @@ export function useEditTargetDraftSession<TValue, TTarget, TMeta = unknown>(
   function saveDraft(write = options.save, preserveDraft = false): Promise<Snapshot | null> {
     if (pendingSave) return pendingSave;
     if (!write || !ready.value || disposed) return Promise.resolve(null);
+    options.captureSave?.();
     saving.value = true;
     const life = lifetime;
     let submitted = clone(draftValue.value);

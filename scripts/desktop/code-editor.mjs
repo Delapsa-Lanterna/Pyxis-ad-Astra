@@ -63,7 +63,10 @@ export async function codeEditor(app, fixture, check, artifacts) {
     assert.equal(app.context.pages().filter((page) => page === editor).length, 1);
     assert.equal(await editor.getByRole('tab').count(), 2);
     const text = editor.getByRole('textbox', { name: '文件内容' });
-    await text.fill('first\n中文 second\nthird\nfinal');
+    await text.press('Control+Home');
+    await text.press('ArrowDown');
+    await text.press('Home');
+    await text.pressSequentially('中文 ');
     await editor.getByRole('button', { name: '保存', exact: true }).click();
     await until(async () => (await readFile(first, 'utf8')) === original.replace('second', '中文 second'), 'exact submitted text');
     await editor.locator('footer').filter({ hasText: '已保存' }).waitFor();
@@ -81,7 +84,7 @@ export async function codeEditor(app, fixture, check, artifacts) {
         }),
       manifest,
     );
-    await until(async () => (await text.inputValue()) === 'external update\n', 'external text loaded');
+    await until(async () => (await text.locator('.cm-line').allTextContents()).join('\n') === 'external update\n', 'external text loaded');
     steps.push({ name: 'external change and renamed identity', pass: true });
     await editor.getByRole('tab', { name: 'Second.java', exact: true }).click();
     const relocated = join(fixture.mod, 'archive');
@@ -97,7 +100,7 @@ export async function codeEditor(app, fixture, check, artifacts) {
     const dialog = editor.getByRole('dialog');
     await dialog.getByRole('button', { name: '继续编辑', exact: true }).click();
     await dialog.waitFor({ state: 'hidden' });
-    assert.equal(await text.inputValue(), 'unsaved');
+    assert.equal(await text.innerText(), 'unsaved');
     await editor.screenshot({ path: join(artifacts, 'native-dirty.png') });
     await editor.getByRole('button', { name: '关闭 Moved.java', exact: true }).click();
     await dialog.getByRole('button', { name: '保存并关闭', exact: true }).click();

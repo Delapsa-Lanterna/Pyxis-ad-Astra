@@ -10,7 +10,7 @@
 
 - `src-tauri/src/commands/file_editor.rs`：文件编辑 command 边界。
 - `src-tauri/src/services/file_editor.rs`：后端编辑 service，消费 IO 路径授权并交付文本读写。
-- `src/app/FileEditorContent.vue`：窗口内容，拥有行号槽、文本域、快捷键与外部文本呈现。
+- `src/app/FileEditorContent.vue`：窗口内容，装配文本视图、行号、快捷键与外部文本呈现。
 - `src/app/composables/editors/use-file-editor-view-model.ts`：编辑 ViewModel，拥有文本 Draft Session、加载、保存、undo/redo 与行列聚焦。
 - `src/services/files.service.ts`：文本读取、身份交接、保存与转码的 IPC 参数装配。
 - `src/windows/file-editor.window.ts`：消费完整文件请求并交付常规与恢复模式窗口身份。
@@ -28,7 +28,6 @@
 - `src/app/composables/use-edit-target-draft-session.ts`：完整目标快照、读取票据、保存 Promise 与接纳上下文。
 - `src/app/composables/use-field-input-actions.ts`：所属输入集合登记、活动输入提交与释放。
 - `src/app/composables/use-managed-window-requests.ts`：组件作用域内请求接纳及释放适配。
-- `src/app/composables/use-snapshot-history.ts`：目标与基线代次绑定的文本和画布快照历史。
 - `src/app/composables/use-window-close-state.ts`：窗口内容关闭登记及操作锁。
 - `src/app/composables/use-window-shortcuts.ts`：统一窗口按键监听、菜单优先、关闭屏蔽及卸载释放。
 - `src/domain/project-sync/committed-text.ts`：从正式回执及变更集提取所属路径的完整文本。
@@ -36,8 +35,10 @@
 - `src/orchestrators/project-sync.orchestrator.ts`：窗口内保存消费过程和内容维护者交接。
 - `src/orchestrators/window-identity.orchestrator.ts`：正式文件身份预约及窗口交接。
 - `src/services/window.service.ts`：窗口 command 的类型化签名与参数装配。
+- `src/shared/runtime/text-document.ts`：不可变文本、原始换行、选区及原生历史。
 - `src/shared/types/file-editor.types.ts`：文本读取、保存、转码与身份请求协议。
 - `src/shared/types/write-commit.types.ts`：公共保存回执、提交同步、行键映射与正式内容交付。
+- `src/shared/ui/TextEditorSurface.vue`：文本输入、可视行号、错误行和滚动定位。
 - `src/stores/project-sync.store.ts`：当前待办、错误和项目等待状态。
 - `src/stores/save-command.store.ts`：文档保存句柄、进行中动作、等待与关闭交接登记。
 - `src/stores/settings.store.ts`：settings 运行态，只持状态、setter 与派生值；初始快照经统一初始化入口注入。
@@ -58,7 +59,7 @@
 - 恢复保存消费无 session 能力并更新实际受影响会话正式内容，其工具历史保持恢复模式语义。
 - 文件浏览器交付内容判定后的正式打开目标，文本窗口拥有所属草稿、历史与保存。
 - 文本 ViewModel 拥有 Draft Session、读取、保存、外部文本暂存和行列定位。
-- 文本撤销栈归编辑会话原语，组件承载文本输入与快捷键。
+- 文本与历史由公共文档适配维护，窗口组件装配所属视图与快捷键。
 - 普通文本保存作用于当前文件，已识别规格交由正式实体身份事务协调关联文件。
 - 转码能力按用户选择的源编码解码，receipt 经正式提交接纳。
 
@@ -104,7 +105,7 @@
 
 - 跟随身份必须区分原新路径变化与同路径 ID 变化，确认说明文本保留及身份映射；外部载入交付当前文件的实际路径。
 - 局部文件身份必须在内容缺省 ID 时从实际文件名推断，原始文本保存保留局部内容；文本保存按原路径写入提交文本，严禁改名或联动关联记录，保存后的身份变化按外部修改接纳。
-- 保存期间文本域必须保持可编辑，后续文本按实际写盘基线计算 dirty；本地保存保留文本快照历史。
+- 保存期间文本域必须保持可编辑，后续文本按实际写盘基线计算 dirty；保存捕获分隔前后输入并保留较早历史。
 - 保存解析失败必须保留原文并定位行列；未完成文本跟随改名时保持待交接身份，文本可解析后接纳新路径、ID 与基线。
 - 外部文本载入必须在 dirty 时确认放弃，确认绑定发起时的完整目标；接纳后清理文本历史。
 - 可靠的纯文本路径改名必须交接完整窗口目标，确认跟随保留文本草稿及所属历史，当前读取成功接纳已修复的初载来源。

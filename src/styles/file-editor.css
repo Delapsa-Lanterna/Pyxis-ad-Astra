@@ -18,37 +18,8 @@
 .file-editor-body {
   flex: 1;
   position: relative;
-  grid-template-columns: max-content minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
   border-radius: var(--radius-md);
-}
-.file-editor-gutter {
-  position: relative;
-  z-index: 2;
-  font-family: var(--font-mono);
-  line-height: 20px;
-  text-align: right;
-  border-right: 1px solid var(--color-border);
-}
-.file-editor-line-number {
-  height: 20px;
-  padding: 0 var(--space-2);
-}
-.file-editor-line-number.active {
-  color: var(--color-danger);
-  font-weight: 500;
-  background: var(--color-danger-highlight-soft);
-}
-.file-editor-line-highlight {
-  position: absolute;
-  grid-column: 2;
-  right: 0;
-  left: 0;
-  z-index: 0;
-  height: 20px;
-  pointer-events: none;
-  background: var(--color-danger-highlight);
-  border-top: 1px solid var(--color-danger-highlight-border);
-  border-bottom: 1px solid var(--color-danger-highlight-border);
 }
 .file-editor-page {
   display: flex;
@@ -64,20 +35,7 @@
   gap: 8px;
   font: 400 10px/12px var(--font-sans);
 }
-.file-editor-textarea {
-  position: relative;
-  z-index: 1;
-  height: 100%;
-  padding: 0 var(--space-3);
-  line-height: 20px;
-  resize: none;
-  background: transparent;
-  border: 0;
-  outline: none;
-  white-space: pre;
-  tab-size: 4;
-  font-family: var(--font-mono);
-}
+
 .file-editor-message.info {
   border: 1px solid var(--color-border);
   background: var(--color-panel-muted);

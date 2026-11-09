@@ -63,32 +63,15 @@
     </section>
 
     <section class="file-editor-body ui-content-contained ui-layout-grid ui-control-border ui-content-surface" :aria-busy="loading">
-      <div
-        ref="lineGutterRef"
-        class="file-editor-gutter ui-text-muted ui-text-small ui-layout-clip ui-content-surface-muted"
-        aria-hidden="true"
-      >
-        <div v-for="lineNumber in lineCount" :key="lineNumber" :class="['file-editor-line-number', { active: lineNumber === targetLine }]">
-          {{ lineNumber }}
-        </div>
-      </div>
-      <textarea
-        ref="textareaRef"
-        :value="text"
-        class="file-editor-textarea ui-textarea ui-content-scroll ui-text-normal ui-text-small ui-layout-stretch"
-        spellcheck="false"
-        :disabled="loading"
-        @input="handleTextInput"
-        @scroll="syncScroll"
-      />
-      <div v-if="targetLine" class="file-editor-line-highlight" :style="{ top: `${(targetLine - 1) * lineHeight - scrollTop}px` }" />
+      <TextEditorSurface ref="surface" :document="document" :disabled="loading" :line="targetLine" line-numbers />
     </section>
   </main>
 </template>
 
 <script setup lang="ts">
+import TextEditorSurface from '@/shared/ui/TextEditorSurface.vue';
 import { provideFieldInputs } from '@/shared/runtime/field-inputs';
-import { computed, nextTick, onMounted, onUnmounted, ref, useTemplateRef, watch } from 'vue';
+import { computed, nextTick, onMounted, onUnmounted, useTemplateRef, watch } from 'vue';
 import { useWindowCloseParticipant } from '@/app/composables/use-window-close-state';
 import { useFileEditorViewModel } from '@/app/composables/editors/use-file-editor-view-model';
 import { useWindowShortcuts } from '@/app/composables/use-window-shortcuts';
@@ -118,11 +101,9 @@ const fileTypeText = computed(() => {
   return extension ? `${extension} 文本` : '文本文件';
 });
 const modRootName = computed(() => (modRoot ? pathBasename(modRoot) : '未知 Mod'));
-const scrollTop = ref(0);
-const lineHeight = 20;
-const textareaRef = useTemplateRef<HTMLTextAreaElement>('textareaRef');
-const lineGutterRef = useTemplateRef<HTMLElement>('lineGutterRef');
+const surface = useTemplateRef<InstanceType<typeof TextEditorSurface>>('surface');
 const {
+  document,
   inputs,
   filePath,
   contentReady,
@@ -130,7 +111,6 @@ const {
   contextMessage,
   targetLine,
   targetColumn,
-  text,
   loading,
   saving,
   handoffLocked,
@@ -146,7 +126,6 @@ const {
   saveFile,
   cancelChanges,
   loadPendingExternalText,
-  updateText,
   applyLocation,
   undoEdit,
   redoEdit,
@@ -180,27 +159,12 @@ const fileStatusText = computed(() => {
   return dirty.value ? '未保存' : '已保存';
 });
 
-function syncScroll() {
-  scrollTop.value = textareaRef.value?.scrollTop ?? 0;
-  if (lineGutterRef.value) lineGutterRef.value.scrollTop = scrollTop.value;
-}
-
 function scrollToTargetLine() {
-  if (!targetLine.value || !textareaRef.value) return;
-  textareaRef.value.scrollTop = Math.max(0, (targetLine.value - 4) * lineHeight);
-  const offset = textOffsetAt(text.value, targetLine.value, targetColumn.value ?? 1);
-  textareaRef.value.focus({ preventScroll: true });
-  textareaRef.value.setSelectionRange(offset, offset);
-  syncScroll();
-}
-
-function handleTextInput(event: Event) {
-  const nextText = (event.target as HTMLTextAreaElement).value;
-  updateText(nextText);
+  if (targetLine.value) surface.value?.locate(targetLine.value, targetColumn.value ?? 1);
 }
 
 function restoreEditorFocus() {
-  textareaRef.value?.focus({ preventScroll: true });
+  surface.value?.focus();
 }
 
 function undoTextEdit() {
@@ -231,7 +195,6 @@ async function closeEditorWindow() {
   }
 }
 
-// Text surface: undo/redo must work inside the textarea, so this surface opts in.
 useWindowShortcuts({
   undoRedoInEditable: true,
   commands: {
@@ -251,19 +214,4 @@ watch([targetLine, targetColumn], () => void nextTick(scrollToTargetLine));
 onUnmounted(() => {
   dispose();
 });
-
-function textOffsetAt(value: string, line: number, column: number): number {
-  const lines = value.split(/\r\n|\r|\n/);
-  const targetLineIndex = Math.min(Math.max(line - 1, 0), Math.max(lines.length - 1, 0));
-  let offset = 0;
-  let currentLine = 0;
-  const lineBreakPattern = /\r\n|\r|\n/g;
-  while (currentLine < targetLineIndex) {
-    const match = lineBreakPattern.exec(value);
-    if (!match) return value.length;
-    offset = match.index + match[0].length;
-    currentLine += 1;
-  }
-  return offset + Math.min(Math.max(column - 1, 0), lines[targetLineIndex]?.length ?? 0);
-}
 </script>

@@ -27,6 +27,7 @@ export interface EditParticipant {
   draftSession: { draftValue: Readonly<Ref<unknown>>; inputs: FieldInputs; prepareClose?: () => () => Promise<void> };
   save: () => Promise<DocumentSaveResult>;
   hold?: (requestId: string) => () => void;
+  captureContent?: () => () => boolean;
 }
 
 export const useSaveCommandStore = defineStore('save-command', () => {
@@ -147,7 +148,7 @@ export const useSaveCommandStore = defineStore('save-command', () => {
   }
   function captureCloseState() {
     const capture = (participant: SaveParticipant) => {
-      const value = participant.editing?.draftSession.draftValue.value;
+      const value = participant.editing?.captureContent ? undefined : participant.editing?.draftSession.draftValue.value;
       return [
         participant.targetKey.value,
         typeof value,
@@ -155,15 +156,21 @@ export const useSaveCommandStore = defineStore('save-command', () => {
         participant.editing?.dirty.value,
       ];
     };
-    const capturedParticipants = [...participants].map((participant) => ({ participant, snapshot: capture(participant) }));
+    const capturedParticipants = [...participants].map((participant) => ({
+      participant,
+      snapshot: capture(participant),
+      content: participant.editing?.captureContent?.(),
+    }));
     const accepts = [...participants].flatMap((participant) =>
       participant.editing ? [participant.editing.draftSession.inputs.captureContext()] : [],
     );
     return () =>
       capturedParticipants.length === participants.size &&
       capturedParticipants.every(
-        ({ participant, snapshot }) =>
-          participants.has(participant) && capture(participant).every((value, index) => value === snapshot[index]),
+        ({ participant, snapshot, content }) =>
+          participants.has(participant) &&
+          capture(participant).every((value, index) => value === snapshot[index]) &&
+          (!content || content()),
       ) &&
       accepts.every((accept) => accept());
   }

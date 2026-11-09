@@ -12,7 +12,7 @@
 - `src-tauri/src/services/code_editor.rs`：按窗口持有的文件 FIFO 请求和完成回执。
 - `src/app/components/code-editor/`：文件标签、文本输入和状态区域。
 - `src/app/composables/code-editor/`：文档集合、保存参与者、同步和关闭。
-- `src/domain/code-editor/`：文本换行映射、位置和标签投影。
+- `src/domain/code-editor/`：文件标签名称投影。
 - `src/services/code-editor.service.ts`：文件请求和接收的类型化传输。
 
 ### 消费
@@ -26,7 +26,6 @@
 - `src/app/composables/use-edit-target-draft-session.ts`：独立文件草稿和基线。
 - `src/app/composables/use-field-input-actions.ts`：绑定文档身份的外部文本载入确认。
 - `src/app/composables/use-managed-window-requests.ts`：窗口就绪交接。
-- `src/app/composables/use-snapshot-history.ts`：独立文件历史。
 - `src/app/composables/use-window-close-state.ts`：窗口关闭保护。
 - `src/app/composables/use-window-shortcuts.ts`：保存和历史快捷键。
 - `src/domain/project-sync/committed-text.ts`：正式回执中的所属文件文本。
@@ -35,7 +34,9 @@
 - `src/shared/lib/errors.ts`：原始错误和位置转换。
 - `src/shared/lib/paths.ts`：文件路径比较及范围。
 - `src/shared/runtime/read-request.ts`：读取寿命等待。
+- `src/shared/runtime/text-document.ts`：不可变文本、原始换行、选区及原生历史。
 - `src/shared/types/code-editor.types.ts`：多文件请求和单文件结果。
+- `src/shared/ui/TextEditorSurface.vue`：共享活动文本视图与滚动交接。
 - `src/stores/save-command.store.ts`：多文档保存与编辑目标登记。
 - `src/stores/settings.store.ts`：正式历史容量。
 - `src/windows/current.window.ts`：窗口关闭能力。
@@ -82,5 +83,6 @@
 - 文件保存必须捕获原目标，保存期间的新输入必须继续保留。
 - 改名接纳必须更新标签、文档和编辑目标，窗口身份必须保持所属 Mod。
 - 文本输入必须保留未修改范围的原始换行和空白，输入法组词只登记一次提交历史。
+- 保存捕获必须分隔前后输入历史，保留较早历史与保存期间的新文本。
 - 标签关闭必须等待所属保存，dirty 选择必须绑定所属文档。
 - 文档释放必须结束历史、读取与保存登记，窗口释放必须结束全部待交付回执。

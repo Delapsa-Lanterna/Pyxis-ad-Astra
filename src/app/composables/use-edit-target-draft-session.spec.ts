@@ -164,6 +164,13 @@ describe('target snapshots', () => {
     expect(session.context.value).toBe(context);
     expect(session.draftValue.value).toEqual({ a: 2 });
   });
+  it('retains the immutable content root when only equal-baseline metadata refreshes', () => {
+    const session = createSession({ clone: (value) => value });
+    const content = session.baselineSnapshot.value!.value;
+    session.applyExternalForTarget(snapshot(1, 'v1', 'refreshed'));
+    expect(session.baselineSnapshot.value!.value).toBe(content);
+    expect(session.baselineSnapshot.value!.meta.label).toBe('refreshed');
+  });
   it('rejects other targets and releases pending inputs on reset', () => {
     const session = createSession();
     expect(session.applyExternalForTarget(snapshot(9, 'v9', '', 'other'))).toBe('obsolete');

@@ -133,18 +133,18 @@ export async function sourceSync(app, fixture, check, artifacts) {
     await new Promise((done) => setTimeout(done, 100));
   }
   assert.ok(textPage, 'Text editor window is available');
-  await textPage.locator('textarea').waitFor();
+  await textPage.getByRole('textbox', { name: '文件内容' }).waitFor();
   await check('Native foreground and background transitions retain the live text editor', async () => {
     await active.evaluate(api + '("plugin:window|set_focus",{label:"main"})');
-    await textPage.locator('textarea').fill('Memory policy input');
+    await textPage.getByRole('textbox', { name: '文件内容' }).fill('Memory policy input');
     const identity = { type: 'file', sessionId: manifest.sessionId, modRoot: manifest.modRoot, path: notes };
     await active.evaluate(api + '("focus_managed_window",{identity:' + JSON.stringify(identity) + '})');
-    await textPage.locator('textarea').press('End');
-    await textPage.locator('textarea').press('!');
-    assert.equal(await textPage.locator('textarea').inputValue(), 'Memory policy input!');
+    await textPage.getByRole('textbox', { name: '文件内容' }).press('End');
+    await textPage.getByRole('textbox', { name: '文件内容' }).press('!');
+    assert.equal(await textPage.getByRole('textbox', { name: '文件内容' }).innerText(), 'Memory policy input!');
     await textPage.getByRole('button', { name: '保存', exact: true }).click();
     await until(async () => (await readFile(notes, 'utf8')) === 'Memory policy input!', 'text save after native focus transition');
-    await textPage.locator('textarea').fill('Initial text');
+    await textPage.getByRole('textbox', { name: '文件内容' }).fill('Initial text');
     await textPage.getByRole('button', { name: '保存', exact: true }).click();
     await until(async () => (await readFile(notes, 'utf8')) === 'Initial text', 'text baseline restoration');
   });
@@ -154,17 +154,17 @@ export async function sourceSync(app, fixture, check, artifacts) {
     assert.equal(context.pages().length, 2);
   });
   await check('Text window follows a reliable native rename and retains its draft', async () => {
-    await textPage.locator('textarea').fill('Local text draft');
+    await textPage.getByRole('textbox', { name: '文件内容' }).fill('Local text draft');
     await writeFile(notes, 'External text', 'utf8');
     await textPage.getByText('外部文本已更新，当前未保存草稿已保留。', { exact: true }).waitFor();
-    assert.equal(await textPage.locator('textarea').inputValue(), 'Local text draft');
+    assert.equal(await textPage.getByRole('textbox', { name: '文件内容' }).innerText(), 'Local text draft');
     await rename(notes, join(mod, 'renamed.txt'));
     await textPage.getByRole('button', { name: '保留文本并跟随', exact: true }).click();
     await until(
       async () => (await textPage.locator('.file-editor-path').getAttribute('title'))?.endsWith('renamed.txt'),
       'native rename target handoff',
     );
-    assert.equal(await textPage.locator('textarea').inputValue(), 'Local text draft');
+    assert.equal(await textPage.getByRole('textbox', { name: '文件内容' }).innerText(), 'Local text draft');
   });
   for (const theme of ['light', 'dark'])
     for (const width of [1280, 900]) {
