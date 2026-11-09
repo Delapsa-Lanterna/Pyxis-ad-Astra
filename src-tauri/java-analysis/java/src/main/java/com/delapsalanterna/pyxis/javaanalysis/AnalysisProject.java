@@ -1,5 +1,6 @@
 package com.delapsalanterna.pyxis.javaanalysis;
 
+import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import java.io.ByteArrayInputStream;
@@ -11,6 +12,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.eclipse.core.resources.*;
 import org.eclipse.jdt.core.*;
 import org.eclipse.jdt.core.dom.*;
@@ -23,8 +25,13 @@ final class AnalysisProject implements AutoCloseable {
   final Map<String, ICompilationUnit> copies = new LinkedHashMap<>();
   final Map<String, Long> versions = new HashMap<>();
   final Map<String, IFile> resources = new HashMap<>();
+  final Map<String, String> shadowedSources = new HashMap<>();
   final List<Path> roots = new ArrayList<>();
+  final List<Integer> activeRoots = new ArrayList<>();
   final Map<String, CompilationUnit> asts = new LinkedHashMap<>();
+  final Map<String, Map<ASTNode, Protocol.SemanticNode>> semanticNodes = new HashMap<>();
+  final Map<String, JsonObject> summaries = new HashMap<>();
+  final ImpactIndex impact = new ImpactIndex();
   String language;
   Path javaHome;
   long revision = 1;
@@ -55,6 +62,7 @@ final class AnalysisProject implements AutoCloseable {
       IFolder sourceFolder = resource.getFolder("source" + roots.size());
       sourceFolder.create(true, true, null);
       roots.add(source);
+      activeRoots.add(roots.size() - 1);
       classpath.add(JavaCore.newSourceEntry(sourceFolder.getFullPath()));
     }
     for (String jar : input.classpath())
@@ -72,23 +80,32 @@ final class AnalysisProject implements AutoCloseable {
             null));
     javaProject.setRawClasspath(
         classpath.toArray(IClasspathEntry[]::new), resource.getFullPath().append("bin"), null);
-    for (int index = 0; index < roots.size(); index++) {
-      Path source = roots.get(index);
-      List<Path> files;
-      try (var entries = Files.walk(source)) {
-        files = entries.filter(p -> p.toString().endsWith(".java")).sorted().toList();
+    impact.classpath(input.classpath());
+    for (int index : activeRoots) loadRoot(index);
+  }
+
+  private void loadRoot(int index) throws Exception {
+    Path source = roots.get(index);
+    List<Path> files;
+    try (var entries = Files.walk(source)) {
+      files =
+          entries
+              .filter(p -> Files.isRegularFile(p) && p.toString().endsWith(".java"))
+              .sorted()
+              .toList();
+    }
+    for (Path file : files) {
+      Path relative = source.relativize(file);
+      String key = file.toRealPath().toString();
+      if (copies.containsKey(key)) continue;
+      IFile privateFile = resourceFile(index, relative.toString().replace('\\', '/'));
+      createParents(privateFile);
+      byte[] bytes = Files.readAllBytes(file);
+      try (var contents = new ByteArrayInputStream(bytes)) {
+        privateFile.create(contents, IResource.FORCE, null);
       }
-      for (Path file : files) {
-        Path relative = source.relativize(file);
-        String key = file.toRealPath().toString();
-        IFile privateFile = resourceFile(index, relative.toString().replace('\\', '/'));
-        createParents(privateFile);
-        byte[] bytes = Files.readAllBytes(file);
-        try (var contents = new ByteArrayInputStream(bytes)) {
-          privateFile.create(contents, IResource.FORCE, null);
-        }
-        register(key, privateFile, new String(bytes, StandardCharsets.UTF_8), 1L);
-      }
+      register(key, privateFile, new String(bytes, StandardCharsets.UTF_8), 1L);
+      impact.changed(key, new String(bytes, StandardCharsets.UTF_8), language);
     }
   }
 
@@ -125,7 +142,7 @@ final class AnalysisProject implements AutoCloseable {
       if (!action.equals("delete") && file.source() == null)
         throw new Protocol.Failure("engine.source_required", "Source text is required", from, null);
       if (action.equals("delete") || action.equals("move")) {
-        if (!copies.containsKey(from))
+        if (!resources.containsKey(from))
           throw new IllegalArgumentException("Unknown source file: " + from);
         long next = file.version();
         if (next <= versions.get(from))
@@ -135,16 +152,16 @@ final class AnalysisProject implements AutoCloseable {
       }
       if (action.equals("add") || action.equals("move")) {
         rootIndex(target);
-        if (copies.containsKey(target) && !target.equals(from))
+        if (resources.containsKey(target) && !target.equals(from))
           throw new IllegalArgumentException("Target file already exists: " + target);
         if (targets.put(target, true) != null)
           throw new IllegalArgumentException("Duplicate target file: " + target);
         if (file.source() == null)
           throw new IllegalArgumentException("Source text is required: " + target);
       }
-      if (action.equals("add") && copies.containsKey(from))
+      if (action.equals("add") && resources.containsKey(from))
         throw new IllegalArgumentException("File already exists: " + from);
-      if (action.equals("replace") && !copies.containsKey(from))
+      if (action.equals("replace") && !resources.containsKey(from))
         throw new IllegalArgumentException("Unknown source file: " + from);
       if (action.equals("replace") && file.version() <= versions.get(from))
         throw new Protocol.Failure(
@@ -186,6 +203,12 @@ final class AnalysisProject implements AutoCloseable {
               destination,
               null);
     for (Change change : changes) {
+      if (change.action().equals("delete") || change.action().equals("move"))
+        impact.changed(change.file(), null, language);
+      if (change.action().equals("add")
+          || change.action().equals("move")
+          || change.action().equals("replace"))
+        impact.changed(change.target(), change.source(), language);
       if (change.action().equals("delete") || change.action().equals("move")) remove(change.file());
       if (change.action().equals("add") || change.action().equals("move")) {
         IFile target =
@@ -198,24 +221,21 @@ final class AnalysisProject implements AutoCloseable {
             null);
         register(change.target(), target, change.source(), change.version());
       } else if (change.action().equals("replace")) {
-        copies.get(change.file()).getBuffer().setContents(change.source());
+        if (shadowedSources.containsKey(change.file()))
+          shadowedSources.put(change.file(), change.source());
+        else copies.get(change.file()).getBuffer().setContents(change.source());
         versions.put(change.file(), change.version());
       } else if (!change.action().equals("delete"))
         throw new IllegalArgumentException("Unknown file change: " + change.action());
     }
     nextVersions.forEach(
         (file, version) -> {
-          if (copies.containsKey(file)) versions.put(file, version);
+          if (resources.containsKey(file)) versions.put(file, version);
         });
     revision++;
-    asts.clear();
-    referenceIndex.clear();
+    analyzedRevision = 0;
     return identity();
   }
-
-  final Map<String, List<JsonObject>> referenceIndex = new HashMap<>();
-  int indexBuilds;
-  long indexedRevision;
 
   private void register(String key, IFile file, String source, long version) throws Exception {
     ICompilationUnit unit =
@@ -231,15 +251,20 @@ final class AnalysisProject implements AutoCloseable {
   }
 
   private void remove(String key) throws Exception {
-    copies.remove(key).discardWorkingCopy();
+    ICompilationUnit unit = copies.remove(key);
+    if (unit != null) unit.discardWorkingCopy();
+    shadowedSources.remove(key);
     versions.remove(key);
     resources.remove(key).delete(true, null);
+    impact.remove(key);
+    asts.remove(key);
+    semanticNodes.remove(key);
+    summaries.remove(key);
   }
 
   private int rootIndex(String key) {
     Path path = Path.of(key);
-    for (int index = 0; index < roots.size(); index++)
-      if (path.startsWith(roots.get(index))) return index;
+    for (int index : activeRoots) if (path.startsWith(roots.get(index))) return index;
     throw new IllegalArgumentException("File is outside project source roots: " + key);
   }
 
@@ -275,11 +300,39 @@ final class AnalysisProject implements AutoCloseable {
     return Integer.parseInt(file.getProjectRelativePath().segment(0).substring("source".length()));
   }
 
-  void analyze() {
+  void analyze() throws Exception {
     if (analyzedRevision == revision) return;
+    long started = System.nanoTime();
+    Set<String> chosen = new java.util.HashSet<>();
+    for (int index : activeRoots)
+      for (var entry : new ArrayList<>(resources.entrySet())) {
+        Path file = Path.of(entry.getKey());
+        if (!file.startsWith(roots.get(index))) continue;
+        String relative = roots.get(index).relativize(file).toString();
+        if (chosen.add(relative)) {
+          if (shadowedSources.containsKey(entry.getKey())) {
+            String source = shadowedSources.remove(entry.getKey());
+            register(entry.getKey(), entry.getValue(), source, versions.get(entry.getKey()));
+            impact.changed(entry.getKey(), source, language);
+          }
+        } else if (copies.containsKey(entry.getKey())) {
+          ICompilationUnit unit = copies.remove(entry.getKey());
+          shadowedSources.put(entry.getKey(), unit.getSource());
+          unit.discardWorkingCopy();
+          asts.remove(entry.getKey());
+          semanticNodes.remove(entry.getKey());
+          summaries.remove(entry.getKey());
+          impact.remove(entry.getKey());
+        }
+      }
+    Set<String> targets = impact.affected(copies.keySet());
+    int invalidated = targets.size();
+    targets.retainAll(copies.keySet());
+    asts.keySet().removeIf(file -> !copies.containsKey(file));
     Map<ICompilationUnit, String> names = new HashMap<>();
     copies.forEach((name, unit) -> names.put(unit, name));
     Map<String, CompilationUnit> result = new LinkedHashMap<>();
+    SemanticSnapshot snapshot = new SemanticSnapshot();
     ASTParser parser = ASTParser.newParser(AST.getJLSLatest());
     parser.setProject(javaProject);
     parser.setWorkingCopyOwner(owner);
@@ -287,19 +340,48 @@ final class AnalysisProject implements AutoCloseable {
     parser.setBindingsRecovery(true);
     parser.setStatementsRecovery(true);
     parser.createASTs(
-        copies.values().toArray(ICompilationUnit[]::new),
+        targets.stream().map(copies::get).toArray(ICompilationUnit[]::new),
         new String[0],
         new ASTRequestor() {
           @Override
           public void acceptAST(ICompilationUnit source, CompilationUnit ast) {
-            result.put(names.get(source), ast);
+            String file = names.get(source);
+            result.put(file, ast);
+            impact.index(file, versions.get(file), ast);
+            // Materialize JDT's lazy bindings before its compiler disposes class scopes.
+            Map<ASTNode, Protocol.SemanticNode> nodes = new java.util.IdentityHashMap<>();
+            String text;
+            try {
+              text = source.getSource();
+            } catch (JavaModelException error) {
+              throw new IllegalStateException(error);
+            }
+            ast.accept(
+                new ASTVisitor() {
+                  @Override
+                  public void preVisit(ASTNode node) {
+                    if (node.getStartPosition() >= 0
+                        && node.getStartPosition() + node.getLength() <= text.length()
+                        && (node instanceof Name
+                            || node instanceof Expression
+                            || node instanceof Type
+                            || node instanceof MethodDeclaration
+                            || node instanceof AbstractTypeDeclaration
+                            || node instanceof VariableDeclaration
+                            || AstFacts.callGroup(node) != null)) {
+                      nodes.put(node, snapshot.node(node, text));
+                    }
+                  }
+                });
+            semanticNodes.put(file, nodes);
+            summaries.put(file, AstFacts.summarize(Map.of(file, ast)));
           }
         },
         null);
-    asts.clear();
     asts.putAll(result);
     analyzedRevision = revision;
     parseBatches++;
+    impact.completed(targets.size(), invalidated, started);
   }
 
   JsonObject identity() {
@@ -313,14 +395,36 @@ final class AnalysisProject implements AutoCloseable {
     String nextLanguage = input.language();
     Path nextJavaHome = Path.of(input.javaHome()).toRealPath();
     List<IClasspathEntry> classpath = new ArrayList<>();
+    List<Integer> additions = new ArrayList<>();
+    List<Integer> previousRoots = new ArrayList<>(activeRoots);
+    if (input.sources() != null) {
+      activeRoots.clear();
+      for (String raw : input.sources()) {
+        Path path = Path.of(raw).toRealPath();
+        int index = roots.indexOf(path);
+        if (index < 0) {
+          index = roots.size();
+          roots.add(path);
+          resource.getFolder("source" + index).create(true, true, null);
+          additions.add(index);
+        } else if (!copies.keySet().stream().anyMatch(file -> Path.of(file).startsWith(path)))
+          additions.add(index);
+        activeRoots.add(index);
+      }
+      if (previousRoots.size() == activeRoots.size() && !previousRoots.equals(activeRoots))
+        impact
+            .files
+            .values()
+            .forEach(facts -> impact.changedSymbols.addAll(facts.shape().declarations()));
+    }
+    for (int index : activeRoots)
+      classpath.add(JavaCore.newSourceEntry(resource.getFolder("source" + index).getFullPath()));
     for (String jar : input.classpath())
       classpath.add(
           JavaCore.newLibraryEntry(
               org.eclipse.core.runtime.Path.fromOSString(Path.of(jar).toRealPath().toString()),
               null,
               null));
-    for (int index = 0; index < roots.size(); index++)
-      classpath.add(JavaCore.newSourceEntry(resource.getFolder("source" + index).getFullPath()));
     classpath.add(
         JavaCore.newLibraryEntry(
             org.eclipse.core.runtime.Path.fromOSString(
@@ -333,29 +437,57 @@ final class AnalysisProject implements AutoCloseable {
     for (IPackageFragmentRoot root : javaProject.getPackageFragmentRoots())
       if (root.isArchive()) root.close();
     javaProject.getJavaModel().refreshExternalArchives(new IJavaElement[] {javaProject}, null);
+    for (String file : new ArrayList<>(resources.keySet()))
+      if (activeRoots.stream().noneMatch(index -> Path.of(file).startsWith(roots.get(index)))) {
+        impact.changed(file, null, language);
+        remove(file);
+      }
+    for (int index : additions) loadRoot(index);
+    if (!language.equals(nextLanguage) || !javaHome.equals(nextJavaHome))
+      impact.fallback = "language_or_standard_library_changed";
     language = nextLanguage;
     javaHome = nextJavaHome;
+    impact.classpath(input.classpath());
+    if (impact.fallback != null) impact.dirty.addAll(copies.keySet());
     revision++;
     analyzedRevision = 0;
-    asts.clear();
-    referenceIndex.clear();
     return identity();
   }
 
-  JsonObject summary() {
+  JsonObject summary() throws Exception {
     analyze();
-    JsonObject result = AstFacts.summarize(asts);
+    JsonObject result = new JsonObject();
+    JsonArray diagnostics = new JsonArray();
+    JsonArray failures = new JsonArray();
+    for (String file : copies.keySet()) {
+      JsonObject part = summaries.get(file);
+      if (part == null) continue;
+      for (var entry : part.entrySet()) {
+        if (entry.getValue().isJsonPrimitive())
+          result.addProperty(
+              entry.getKey(),
+              (result.has(entry.getKey()) ? result.get(entry.getKey()).getAsInt() : 0)
+                  + entry.getValue().getAsInt());
+      }
+      for (var diagnostic : part.getAsJsonArray("diagnostics"))
+        diagnostics.add(diagnostic.deepCopy());
+      for (var failure : part.getAsJsonArray("bindingFailures")) failures.add(failure.deepCopy());
+    }
+    result.addProperty("files", copies.size());
+    if (!result.has("errors")) result.addProperty("errors", 0);
+    result.add("diagnostics", diagnostics);
+    result.add("bindingFailures", failures);
     for (var raw : result.getAsJsonArray("diagnostics")) {
       JsonObject diagnostic = raw.getAsJsonObject();
       diagnostic.addProperty("version", versions.get(diagnostic.get("file").getAsString()));
     }
     result.addProperty("revision", revision);
     result.addProperty("parseBatches", parseBatches);
-    result.addProperty("referenceIndexBuilds", indexBuilds);
+    result.addProperty("referenceIndexBuilds", impact.indexBuilds);
     Runtime memory = Runtime.getRuntime();
     result.addProperty("heapUsedBytes", memory.totalMemory() - memory.freeMemory());
     result.addProperty("heapCommittedBytes", memory.totalMemory());
-    return result;
+    return impact.statistics(result);
   }
 
   JsonObject query(Protocol.Request input) throws Exception {
@@ -367,73 +499,48 @@ final class AnalysisProject implements AutoCloseable {
     String file = key(input.file());
     int offset = input.offset();
     CompilationUnit unit = asts.get(file);
-    if (unit == null) throw new IllegalArgumentException("File is outside project");
+    if (unit == null)
+      throw new Protocol.Failure(
+          "engine.source_unavailable",
+          "File is outside the active Java source selection",
+          file,
+          input.offset());
     String source = copies.get(file).getSource();
     if (offset < 0 || offset >= source.length())
       throw new IllegalArgumentException("Offset is outside source");
     ASTNode selected = NodeFinder.perform(unit, offset, 0);
     ASTNode call = selected;
     while (call != null && AstFacts.callGroup(call) == null) call = call.getParent();
-    IBinding binding = AstFacts.binding(selected);
-    String target = binding == null ? null : AstFacts.declaration(binding).getKey();
+    Protocol.SemanticNode selectedFacts = semanticNodes.get(file).get(selected);
+    if (selectedFacts == null) selectedFacts = new SemanticSnapshot().node(selected, source);
+    var binding = selectedFacts.binding();
+    String target = binding == null ? null : binding.key();
     JsonArray declarations = new JsonArray();
     JsonArray references = new JsonArray();
     if (target != null) {
-      if (indexedRevision != revision) buildReferenceIndex();
-      for (var location : referenceIndex.getOrDefault(target, List.of())) {
+      for (var location : impact.locations(target)) {
         JsonObject copy = location.deepCopy();
         if (copy.get("declaration").getAsBoolean()) declarations.add(copy);
         else references.add(copy);
       }
     }
-    return AstFacts.object(
-        "revision",
-        revision,
-        "version",
-        versions.get(file),
-        "file",
-        file,
-        "node",
-        AstFacts.node(selected, source),
-        "call",
-        call == null ? null : AstFacts.node(call, source),
-        "declarations",
-        declarations,
-        "references",
-        references);
-  }
-
-  private void buildReferenceIndex() {
-    referenceIndex.clear();
-    for (var entry : asts.entrySet())
-      entry
-          .getValue()
-          .accept(
-              new ASTVisitor() {
-                @Override
-                public boolean visit(SimpleName name) {
-                  IBinding found = name.resolveBinding();
-                  if (found != null) {
-                    String key = AstFacts.declaration(found).getKey();
-                    if (key != null)
-                      referenceIndex
-                          .computeIfAbsent(key, ignored -> new ArrayList<>())
-                          .add(
-                              AstFacts.object(
-                                  "file",
-                                  entry.getKey(),
-                                  "version",
-                                  versions.get(entry.getKey()),
-                                  "range",
-                                  AstFacts.range(name),
-                                  "declaration",
-                                  name.isDeclaration()));
-                  }
-                  return true;
-                }
-              });
-    indexBuilds++;
-    indexedRevision = revision;
+    JsonObject result =
+        AstFacts.object(
+            "revision",
+            revision,
+            "version",
+            versions.get(file),
+            "file",
+            file,
+            "node",
+            new Gson().toJsonTree(selectedFacts),
+            "call",
+            call == null ? null : new Gson().toJsonTree(semanticNodes.get(file).get(call)),
+            "declarations",
+            declarations,
+            "references",
+            references);
+    return impact.statistics(result);
   }
 
   @Override
@@ -441,7 +548,11 @@ final class AnalysisProject implements AutoCloseable {
     for (ICompilationUnit unit : copies.values()) unit.discardWorkingCopy();
     copies.clear();
     asts.clear();
-    referenceIndex.clear();
+    semanticNodes.clear();
+    summaries.clear();
+    impact.files.clear();
+    impact.references.clear();
+    impact.archives.clear();
     resources.clear();
     versions.clear();
     resource.delete(true, true, null);

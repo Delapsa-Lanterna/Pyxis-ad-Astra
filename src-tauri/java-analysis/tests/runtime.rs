@@ -4,9 +4,99 @@ use serde_json::json;
 use std::env;
 use std::fs;
 use std::path::Path;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Barrier, Mutex};
+use std::thread;
+use std::time::Instant;
 mod support;
 use support::TestWorkspace;
+
+#[test]
+#[ignore = "requires JAVA_ANALYSIS_TEST_JAVA and the prepared dependency archive"]
+fn live_requests_measure_same_instance_queue_and_independent_instances() {
+    let java = env::var_os("JAVA_ANALYSIS_TEST_JAVA").expect("explicit Java 17");
+    let work = TestWorkspace::new();
+    let runtime = Arc::new(AnalysisRuntime::new(&work.0, Arc::new(|_| {})).unwrap());
+    runtime
+        .import(
+            &Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("../target/java-analysis/jdt-dependencies.zip"),
+        )
+        .unwrap();
+    let first = runtime.start(Path::new(&java)).unwrap();
+    let second = runtime.start(Path::new(&java)).unwrap();
+    let source = "class Fixture {".to_string()
+        + &(0..8000)
+            .map(|index| format!("int field{index}={index};"))
+            .collect::<String>()
+        + "}";
+    let mut measurements = Vec::new();
+    for same_instance in [true, false] {
+        let barrier = Arc::new(Barrier::new(3));
+        let started = Instant::now();
+        let workers: Vec<_> = [
+            first.clone(),
+            if same_instance {
+                first.clone()
+            } else {
+                second.clone()
+            },
+        ]
+        .into_iter()
+        .enumerate()
+        .map(|(index, instance)| {
+            let runtime = Arc::clone(&runtime);
+            let barrier = Arc::clone(&barrier);
+            let source = source.clone();
+            thread::spawn(move || {
+                barrier.wait();
+                let response = runtime
+                    .request(
+                        &instance,
+                        &AnalysisRequest::Parse {
+                            id: json!(index),
+                            source,
+                            version: 1,
+                            language: Some("17".into()),
+                        },
+                    )
+                    .unwrap();
+                assert!(response.error.is_none());
+                assert!(response.response_bytes > 0);
+                (
+                    response.queue_wait_milliseconds,
+                    response.request_milliseconds,
+                    response.response_bytes,
+                )
+            })
+        })
+        .collect();
+        barrier.wait();
+        let results: Vec<_> = workers
+            .into_iter()
+            .map(|worker| worker.join().unwrap())
+            .collect();
+        if same_instance {
+            assert!(results.iter().any(|(wait, _, _)| *wait > 0.0));
+        }
+        let elapsed = started.elapsed().as_secs_f64() * 1000.0;
+        if !same_instance {
+            assert!(
+                elapsed < results.iter().map(|(_, request, _)| request).sum::<f64>(),
+                "Independent JVM work must overlap"
+            );
+        }
+        measurements
+            .push(json!({"sameInstance":same_instance,"milliseconds":elapsed,"responses":results}));
+    }
+    println!("{}", json!({"concurrency":measurements}));
+    runtime.shutdown().unwrap();
+    assert_eq!(
+        fs::read_dir(&runtime.paths().workspaces).unwrap().count(),
+        0
+    );
+    drop(runtime);
+    work.close();
+}
 
 #[test]
 fn initialization_and_shutdown_are_lazy() {

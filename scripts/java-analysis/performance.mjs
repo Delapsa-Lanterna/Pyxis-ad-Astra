@@ -3,7 +3,7 @@ import { spawn, execFileSync } from 'node:child_process';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join, relative } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { resources, readJson, sha256 } from './runtime.mjs';
+import { resources, reports, readJson, sha256 } from './runtime.mjs';
 import { timing } from './lifecycle.mjs';
 
 /** @param {typeof import('./verify.mjs').Session} Session @param {string} directory @param {string} java @param {string} installed @param {{name:string,root:string,files:string[],hash:string}[]} corpora @param {string[]} libraries */
@@ -61,6 +61,7 @@ export async function performanceComparison(Session, directory, java, installed,
       try {
         if (iteration !== 0) continue;
         for (const corpus of corpora) {
+          console.log(JSON.stringify({ performanceVersion: version, mod: corpus.name }));
           const opened = await session.request('open', {
             project: corpus.name,
             sources: [corpus.root],
@@ -78,6 +79,7 @@ export async function performanceComparison(Session, directory, java, installed,
             const match = /^\s*(?:public\s+)?(?:abstract\s+)?class\s+(\w+)/mu.exec(content);
             if (match) {
               assert.ok(match[1]);
+              if (!/\b(?:void|boolean|int|float|double|String)\s+\w+\s*\([^)]*\)\s*\{/u.test(content)) continue;
               selected = file;
               text = content;
               offset = match.index + match[0].lastIndexOf(match[1]);
@@ -90,13 +92,38 @@ export async function performanceComparison(Session, directory, java, installed,
           assert.ok(first.value.node.binding);
           const hot = [];
           for (let index = 0; index < 30; index++) hot.push((await session.request('query', queryInput)).milliseconds);
+          const parsed = (await session.request('parse', { source: text, version: 1, language: '17' })).value;
+          const body = parsed.nodes.find(
+            /** @param {{kind:string,start:number,end:number}} node */ (node) =>
+              node.kind === 'MethodDeclaration' &&
+              /\b(?:void|boolean|int|float|double|String)\s+\w+\s*\(/u.test(text.slice(node.start, node.end)) &&
+              text.slice(node.start, node.end).includes('{'),
+          );
+          const bodyStart = body ? text.indexOf('{', body.start) + 1 : -1;
+          const changed = bodyStart > 0 ? text.slice(0, bodyStart) + ';' + text.slice(bodyStart) : text + '\n';
           const update = await session.request('update', {
             project: corpus.name,
             expectedRevision: 1,
-            files: [{ action: 'replace', file: selected, source: text + '\n', version: 2 }],
+            files: [{ action: 'replace', file: selected, source: changed, version: 2 }],
           });
           const updatedQuery = await session.request('query', { ...queryInput, revision: 2 });
           assert.ok(updatedQuery.value.node.binding);
+          let incremental;
+          if (version === 'current') {
+            assert.equal(updatedQuery.value.reparsedFiles, 1);
+            const summary = (await session.request('analyze', { project: corpus.name })).value;
+            const full = await session.request('analyze', { project: corpus.name, forceFull: true });
+            assert.deepEqual(summary.diagnostics, full.value.diagnostics);
+            for (const field of ['files', 'method', 'constructor', 'enumConstructor', 'methodReference'])
+              assert.equal(summary[field], full.value[field]);
+            incremental = {
+              reparsedFiles: updatedQuery.value.reparsedFiles,
+              fullFiles: full.value.reparsedFiles,
+              analysisMilliseconds: updatedQuery.value.analysisMilliseconds,
+              fullMilliseconds: full.milliseconds,
+              actualBodyChange: bodyStart > 0,
+            };
+          }
           const memory = JSON.parse(
             execFileSync(
               'powershell',
@@ -120,12 +147,14 @@ export async function performanceComparison(Session, directory, java, installed,
             hotQueryMilliseconds: timing(hot),
             updateMilliseconds: update.milliseconds,
             updatedQueryMilliseconds: updatedQuery.milliseconds,
+            incremental,
             memory,
           });
           await session.request('close', { project: corpus.name });
         }
       } finally {
         await session.close();
+        await writeFile(join(reports, 'performance-' + version + '-stderr.log'), session.errors, 'utf8');
       }
     }
     report.push({ version, engineSha256: sha256(bytes), coldStartMilliseconds: timing(cold), projects, exitedJvms: 3 });

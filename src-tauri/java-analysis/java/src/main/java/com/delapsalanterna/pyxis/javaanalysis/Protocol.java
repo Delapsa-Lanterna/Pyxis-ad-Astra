@@ -21,7 +21,8 @@ final class Protocol {
       List<FileChange> files,
       Long revision,
       String file,
-      Integer offset) {}
+      Integer offset,
+      Boolean forceFull) {}
 
   record FileChange(String action, String file, String target, String source, Long version) {}
 
@@ -89,7 +90,12 @@ final class Protocol {
       SemanticNode node,
       SemanticNode call,
       List<SourceLocation> declarations,
-      List<SourceLocation> references) {}
+      List<SourceLocation> references,
+      double analysisMilliseconds,
+      int reparsedFiles,
+      int invalidatedFiles,
+      boolean incremental,
+      String fullFallbackReason) {}
 
   record ProjectSnapshot(String project, long revision, int files, int parseBatches) {}
 
@@ -115,7 +121,12 @@ final class Protocol {
       int methodReference,
       int methodReferenceResolved,
       int unresolved,
-      int recovered) {}
+      int recovered,
+      double analysisMilliseconds,
+      int reparsedFiles,
+      int invalidatedFiles,
+      boolean incremental,
+      String fullFallbackReason) {}
 
   record ProjectRelease(String project, boolean released) {}
 

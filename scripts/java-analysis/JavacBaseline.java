@@ -10,11 +10,11 @@ import javax.tools.*;
 /** Supplies independent compiler binding counts for the same frozen source inputs. */
 public class JavacBaseline {
   public static void main(String[] args) throws Exception {
-    Path root = Path.of(args[0]);
-    List<Path> files;
-    try (var entries = Files.walk(root)) {
-      files = entries.filter(path -> path.toString().endsWith(".java")).sorted().toList();
-    }
+    List<Path> files = new ArrayList<>();
+    for (String raw : args[0].split(java.io.File.pathSeparator))
+      try (var entries = Files.walk(Path.of(raw))) {
+        files.addAll(entries.filter(path -> path.toString().endsWith(".java")).sorted().toList());
+      }
     var compiler = ToolProvider.getSystemJavaCompiler();
     var diagnostics = new DiagnosticCollector<JavaFileObject>();
     Map<String, Integer> counts = new TreeMap<>();

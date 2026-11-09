@@ -20,6 +20,22 @@ Java 分析模块提供 Java 17 语法与项目语义分析、固定依赖安装
 
 每个实例独占工作区；正常关闭等待 Java 和读取线程结束，随后删除工作区并保留依赖和日志。应用确认关闭后调用 `shutdown`，等待全部已创建实例结束。操作事件进入正式诊断链，源码和请求正文由分析协议直接交付。
 
+## Mod 会话与引用
+
+应用服务 `start_for_session(app, session_id, java, extras)` 显式建立分析项目，`AnalysisExtras::default()` 消费当前正式来源；`inputs_for_session` 可读取实际输入、缺失依赖和缺失 JAR。该输入按当前 Mod、已发布可引用 Mod、游戏 Core 和补充来源装配。手动或自动标记为可引用的全部就绪 Mod 按标签顺序参与，标签前后均可提供类。
+
+已启动 Mod 会话共用一个 JVM，各自保留源码和分析版本。`request_for_session` 核对所属项目并维护版本，`close_for_session` 释放单个分析项目；最后项目关闭后 JVM 退出。项目同步在注销 Mod 前释放其分析项目，在引用发布后增量刷新存活项目，当前内存文档继续保留。
+
+补充路径属于某个 Mod 时，该 Mod 同样必须是当前 Mod 或已发布的可引用来源；普通独立库通过显式补充路径交付。
+
+## 增量与测量
+
+文件变化按声明签名、使用名称及依赖闭包确定重解析范围；正文变化保持外部签名时只重解析所属文件，声明增删、继承和导入变化传播至相关文件。JAR 按 SHA-256 和有效 class 条目比较，配置刷新只失效使用变化类型的文件；源码根调整更新相应工作副本，源码重名按根顺序选择。
+
+JDT 在 AST 回调内固化紧凑的语义事实、诊断和引用位置，查询使用所属版本事实。`analyze` 的 `forceFull` 用于验收对照；语言或标准库变化记录完整重建原因。结果包含 `analysisMilliseconds`、`reparsedFiles`、`invalidatedFiles`、`incremental` 和 `fullFallbackReason`，响应另记录 `queueWaitMilliseconds`、`requestMilliseconds` 和 `responseBytes`。
+
+运行态锁只保护实例登记，管道请求由实例锁顺序执行。共享 JVM 内请求顺序执行，独立 JVM 可以并行。完整验收在自建脱敏夹具上逐项对照增量与完整结果，并在外部真实 Mod 上记录实际正文修改、内存和首次查询延迟。
+
 ## 构建与验收
 
 普通主程序构建通过 Cargo 路径依赖使用已准备的自有资源。完整 JDK 17 和 Maven 用于独立重建；`AST_JDK` 或 `JAVA_HOME` 指定开发 JDK，`AST_GAME` 或 `--game` 指定真实验收游戏根。
@@ -34,6 +50,9 @@ npm run test:java-analysis -- --game D:/Starsector
 npm run test:java-analysis -- --game D:/Starsector --download
 $env:JAVA_ANALYSIS_TEST_JAVA = 'D:/Starsector/jre/bin/java.exe'
 cargo test --manifest-path src-tauri/Cargo.toml -p pyxis-java-analysis --test runtime -- --include-ignored
+$env:AST_GAME = '<游戏根>'
+cargo test --manifest-path src-tauri/Cargo.toml -p pyxis-ad-astra live_sessions_share_jvm_and_refresh_only_affected_sources -- --ignored --nocapture
+cargo test --manifest-path src-tauri/Cargo.toml -p pyxis-ad-astra live_correct_mods_use_the_published_reference_inputs -- --ignored --nocapture
 ```
 
 构建输出位于 `src-tauri/target/java-analysis/`。Java 源码使用 google-java-format 1.24.0，Rust 和 Node.js 代码沿用主项目格式及检查入口。Java 构建重新核对第三方 JAR 哈希，依赖集合由锁文件决定。

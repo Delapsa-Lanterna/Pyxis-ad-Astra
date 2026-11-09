@@ -161,6 +161,8 @@ export async function dependencies(session, directory, javaHome) {
   const client = join(sourceRoot, 'Consumer.java');
   const source = 'class Consumer { Object run(){ return sample.Library.value("x"); } }';
   await writeFile(client, source);
+  for (let index = 0; index < 16; index++)
+    await writeFile(join(sourceRoot, 'Independent' + index + '.java'), 'class Independent' + index + ' { int value(){return 1;} }');
   /** @param {string} name @param {string} type */
   const build = async (name, type) => {
     const folder = join(directory, name);
@@ -206,11 +208,17 @@ export async function dependencies(session, directory, javaHome) {
   await configure([fixed]);
   const replacement = await query();
   assert.equal(replacement.call.binding.type, 'java.lang.String');
+  assert.equal(replacement.reparsedFiles, 1);
+  await session.request('analyze', { project: 'dependencies', forceFull: true });
+  assert.equal((await query()).call.binding.type, replacement.call.binding.type);
   assert.equal(replacement.version, 1);
   await configure([]);
   assert.ok((await session.request('analyze', { project: 'dependencies' })).value.errors > 0);
   await configure([string]);
   assert.equal((await session.request('analyze', { project: 'dependencies' })).value.errors, 0);
+  await configure([string]);
+  const unchanged = (await session.request('analyze', { project: 'dependencies' })).value;
+  assert.equal(unchanged.reparsedFiles, 0);
   assert.equal(await readFile(client, 'utf8'), source);
   await session.request('close', { project: 'dependencies' });
   return {
@@ -219,7 +227,10 @@ export async function dependencies(session, directory, javaHome) {
     overloadParameters: initial.call.binding.parameters,
     samePathJar: { beforeBytes: old.size, beforeSha256: oldHash, afterSha256: currentHash },
     documentVersion: replacement.version,
+    samePathReparsedFiles: replacement.reparsedFiles,
+    projectFiles: 17,
     removedDependencyDiagnosed: true,
     restoredDependencyResolved: true,
+    unchangedConfigurationReparsedFiles: unchanged.reparsedFiles,
   };
 }

@@ -7,7 +7,7 @@ use std::mem;
 use std::path::{Path, PathBuf};
 use std::process;
 use std::sync::{Arc, Mutex, MutexGuard};
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 const CATALOG: &str = include_str!("../resources/catalog.json");
 const BUILTIN: &[u8] = include_bytes!("../resources/builtin.json");
@@ -43,13 +43,13 @@ pub struct AnalysisEvent {
 pub type EventSink = Arc<dyn Fn(AnalysisEvent) + Send + Sync>;
 
 struct Instance {
-    engine: Engine,
+    engine: Option<Engine>,
     workspace: PathBuf,
 }
 
 #[derive(Default)]
 struct State {
-    instances: BTreeMap<String, Instance>,
+    instances: BTreeMap<String, Arc<Mutex<Instance>>>,
     sequence: u64,
     closed: bool,
 }
@@ -100,21 +100,21 @@ impl AnalysisRuntime {
     }
 
     pub fn install(&self) -> Result<PathBuf> {
-        let _state = self.state()?;
+        drop(self.state()?);
         let result = dependencies::install(&self.paths.dependencies, &self.package);
         self.record("java_analysis.install", None, &result);
         result
     }
 
     pub fn import(&self, archive: &Path) -> Result<PathBuf> {
-        let _state = self.state()?;
+        drop(self.state()?);
         let result = dependencies::import(&self.paths.dependencies, archive, &self.package);
         self.record("java_analysis.import", None, &result);
         result
     }
 
     pub fn installed(&self) -> Result<bool> {
-        let _state = self.state()?;
+        drop(self.state()?);
         Ok(dependencies::status(&self.paths.dependencies, &self.package.version)?.is_some())
     }
 
@@ -141,11 +141,20 @@ impl AnalysisRuntime {
             .map_err(|error| invalid(error.to_string()))?
             .as_nanos();
         let id = format!("instance-{}-{timestamp}-{}", process::id(), state.sequence);
-        fs::create_dir_all(&self.paths.workspaces)?;
-        fs::create_dir_all(&self.paths.logs)?;
         let workspace = self.paths.workspaces.join(&id);
-        fs::create_dir(&workspace)?;
+        let instance = Arc::new(Mutex::new(Instance {
+            engine: None,
+            workspace: workspace.clone(),
+        }));
+        let mut instance_state = instance
+            .lock()
+            .map_err(|_| invalid("Java instance lock poisoned"))?;
+        state.instances.insert(id.clone(), Arc::clone(&instance));
+        drop(state);
         let result = (|| {
+            fs::create_dir_all(&self.paths.workspaces)?;
+            fs::create_dir_all(&self.paths.logs)?;
+            fs::create_dir(&workspace)?;
             let builtin = workspace.join("builtin");
             fs::create_dir(&builtin)?;
             for (name, bytes) in [
@@ -166,26 +175,41 @@ impl AnalysisRuntime {
         self.record("java_analysis.start", Some(&id), &result);
         match result {
             Ok(engine) => {
-                state
-                    .instances
-                    .insert(id.clone(), Instance { engine, workspace });
+                instance_state.engine = Some(engine);
                 Ok(id)
             }
             Err(error) => {
-                fs::remove_dir_all(workspace)?;
+                if let Ok(mut state) = self.state() {
+                    state.instances.remove(&id);
+                }
+                if workspace.exists() {
+                    fs::remove_dir_all(workspace)?;
+                }
                 Err(error)
             }
         }
     }
 
     pub fn request(&self, instance: &str, request: &AnalysisRequest) -> Result<AnalysisResponse> {
-        let mut state = self.state()?;
-        let engine = &mut state
+        let instance_state = self
+            .state()?
             .instances
-            .get_mut(instance)
-            .ok_or_else(|| invalid("Unknown Java analysis instance"))?
-            .engine;
-        let result = engine.request(request);
+            .get(instance)
+            .cloned()
+            .ok_or_else(|| invalid("Unknown Java analysis instance"))?;
+        let queued = Instant::now();
+        let mut state = instance_state
+            .lock()
+            .map_err(|_| invalid("Java instance lock poisoned"))?;
+        let queue_wait = queued.elapsed().as_secs_f64() * 1000.0;
+        let mut result = state
+            .engine
+            .as_mut()
+            .ok_or_else(|| invalid("Java instance is closed"))?
+            .request(request);
+        if let Ok(response) = &mut result {
+            response.queue_wait_milliseconds = queue_wait;
+        }
         if let Ok(response) = &result
             && let Some(error) = &response.error
         {
@@ -197,9 +221,12 @@ impl AnalysisRuntime {
         result
     }
 
-    fn release(&self, id: &str, instance: Instance) -> Result<()> {
-        let result = instance.engine.close();
-        let cleanup = fs::remove_dir_all(instance.workspace).map_err(Into::into);
+    fn release(&self, id: &str, instance: Arc<Mutex<Instance>>) -> Result<()> {
+        let mut instance = instance
+            .lock()
+            .map_err(|_| invalid("Java instance lock poisoned"))?;
+        let result = instance.engine.take().map_or(Ok(()), Engine::close);
+        let cleanup = fs::remove_dir_all(&instance.workspace).map_err(Into::into);
         let result = result.and(cleanup);
         self.record("java_analysis.release", Some(id), &result);
         result
@@ -211,6 +238,7 @@ impl AnalysisRuntime {
             .instances
             .remove(id)
             .ok_or_else(|| invalid("Unknown Java analysis instance"))?;
+        drop(state);
         self.release(id, instance)
     }
 
@@ -221,8 +249,10 @@ impl AnalysisRuntime {
             .lock()
             .map_err(|_| invalid("Java analysis runtime lock poisoned"))?;
         state.closed = true;
+        let instances = mem::take(&mut state.instances);
+        drop(state);
         let mut failures = Vec::new();
-        for (id, instance) in mem::take(&mut state.instances) {
+        for (id, instance) in instances {
             if let Err(error) = self.release(&id, instance) {
                 failures.push(error.to_string());
             }

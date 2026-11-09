@@ -19,6 +19,8 @@ const allowedServiceEdges = new Set([
   'project_sync -> project_session',
   'project_sync -> source_watch',
   'project_sync -> file_history',
+  'project_sync -> java_analysis',
+  'java_analysis -> project',
   'file_editor -> project',
   'config_entity -> project',
   'json_file -> project',

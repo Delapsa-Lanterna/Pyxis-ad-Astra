@@ -15,7 +15,7 @@ use std::path::Path;
 use std::process::{Child, ChildStdin, Command, Stdio};
 use std::sync::mpsc::{self, Receiver};
 use std::thread::{self, JoinHandle};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 pub struct Engine {
     child: Child,
     input: Option<ChildStdin>,
@@ -157,6 +157,7 @@ impl Engine {
 
     /// Executes a request and preserves its request identity and structured engine errors.
     pub fn request(&mut self, request: &AnalysisRequest) -> Result<AnalysisResponse> {
+        let started = Instant::now();
         let request = serde_json::to_value(request)?;
         let input = self
             .input
@@ -169,7 +170,9 @@ impl Engine {
             .output
             .recv_timeout(Duration::from_secs(180))
             .map_err(|error| invalid(format!("Engine response failed: {error}")))??;
-        let response: AnalysisResponse = serde_json::from_str(&line)?;
+        let mut response: AnalysisResponse = serde_json::from_str(&line)?;
+        response.request_milliseconds = started.elapsed().as_secs_f64() * 1000.0;
+        response.response_bytes = line.len() as u64;
         if Some(&response.id) != request.get("id") {
             return Err(invalid(format!(
                 "Engine response identity mismatch: {line}"

@@ -4,10 +4,12 @@ import { createInterface } from 'node:readline';
 import { mkdir, readFile, stat, readdir } from 'node:fs/promises';
 import { join, delimiter, relative } from 'node:path';
 import { parseArgs } from 'node:util';
+import { pathToFileURL } from 'node:url';
 import { root, output, reports, resources, executable, readJson, writeJson, files, sha256, run, javaTool } from './runtime.mjs';
 import { TestWorkspace } from '../shared/test-workspace.mjs';
 import { lifecycle, dependencies } from './lifecycle.mjs';
 import { performanceComparison } from './performance.mjs';
+import { incremental } from './incremental.mjs';
 
 const { values } = parseArgs({ options: { game: { type: 'string' }, download: { type: 'boolean' }, 'dry-run': { type: 'boolean' } } });
 const game = values.game ?? process.env.AST_GAME;
@@ -32,6 +34,7 @@ export class Session {
     /** @type {Map<number,{done:(value:object)=>void,fail:(error:Error)=>void}>} */
     this.pending = new Map();
     this.errors = '';
+    this.exited = false;
     child.stderr.on('data', (data) => {
       this.errors += data;
     });
@@ -46,6 +49,7 @@ export class Session {
     });
     this.exit = new Promise((resolve) =>
       child.once('close', (code) => {
+        this.exited = true;
         for (const pending of this.pending.values()) pending.fail(new Error(this.errors || 'Host exited'));
         this.pending.clear();
         resolve(code);
@@ -65,6 +69,7 @@ export class Session {
   }
   /** @param {string} op @param {Record<string, unknown>} [params] @param {boolean} [error] */
   async request(op, params = {}, error = false) {
+    assert.equal(this.exited, false, 'Analysis process exited: ' + this.errors);
     const id = ++this.sequence;
     const started = performance.now();
     /** @type {{error?: object, result?: ReturnType<typeof JSON.parse>}} */
@@ -82,10 +87,14 @@ export class Session {
       });
       this.child.stdin.write(JSON.stringify({ id, op, ...params }) + '\n');
     });
-    assert.equal(Boolean(result.error), error, JSON.stringify(result));
+    assert.equal(Boolean(result.error), error, JSON.stringify(result) + '\n' + this.errors);
     return { value: result.result ?? result.error, milliseconds: performance.now() - started };
   }
   async close() {
+    if (this.exited) {
+      this.reader.close();
+      return;
+    }
     if (!this.pid) await this.hello();
     await this.request('shutdown');
     this.child.stdin.end();
@@ -111,7 +120,7 @@ async function snapshot(source) {
 }
 
 if (values['dry-run']) console.log(JSON.stringify({ java, output, reports, resources, game, download: values.download }));
-else {
+else if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   await run('host-build', 'cargo', ['build', '--manifest-path', 'src-tauri/Cargo.toml', '-p', 'pyxis-java-analysis', '--locked']);
   await run('javac-baseline-build', javaTool('javac'), [
     '--release',
@@ -128,6 +137,7 @@ else {
     package: await readJson(join(resources, 'catalog.json')),
     workcopies: {},
     dependencies: {},
+    incremental: {},
     performance: /** @type {unknown[]} */ ([]),
     libraryInventory: /** @type {{path:string,sha256:string}[]} */ ([]),
     paths: /** @type {unknown[]} */ ([]),
@@ -168,6 +178,7 @@ else {
     try {
       report.workcopies = await lifecycle(session, work.path('fixture'), javaHome);
       report.dependencies = await dependencies(session, work.path('dependency-fixture'), javaHome);
+      report.incremental = await incremental(session, work.path('incremental'), javaHome);
       for (const newline of ['\n', '\r\n']) {
         const source = '// 🪐' + newline + 'record Orbit(int radius) {}';
         const parsed = (await session.request('parse', { source, version: 1 })).value;

@@ -106,7 +106,13 @@ public final class AnalysisApplication implements IApplication {
     if (project == null) throw new IllegalArgumentException("Unknown project: " + id);
     JsonObject result =
         switch (operation) {
-          case "analyze" -> project.summary();
+          case "analyze" -> {
+            if (Boolean.TRUE.equals(typed.forceFull())) {
+              project.impact.fallback = "forced_full";
+              project.analyzedRevision = 0;
+            }
+            yield project.summary();
+          }
           case "update" -> project.update(typed);
           case "configure" -> project.configure(typed);
           case "query" -> project.query(typed);

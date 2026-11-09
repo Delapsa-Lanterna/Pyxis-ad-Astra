@@ -7,7 +7,7 @@ use crate::models::{
 use crate::services::clear_session_media;
 #[cfg(test)]
 use crate::services::source_watch::SourceChangeBatch;
-use crate::services::{file_history, project, windows};
+use crate::services::{file_history, java_analysis, project, windows};
 #[cfg(test)]
 use crate::test_support::TestWorkspace;
 use crate::{diagnostics, io};
@@ -411,6 +411,8 @@ pub fn publish_references(
             );
         }
     }
+    drop(saves);
+    java_analysis::refresh_registered_references()?;
     Ok(())
 }
 
@@ -610,6 +612,7 @@ fn execute<T: Serialize>(
 }
 
 pub fn release_project_session(session_id: String) -> AppResult<()> {
+    java_analysis::close_registered_session(&session_id)?;
     release_source_watch(&format!("core:{session_id}"))?;
     release_source_watch(&session_id)?;
     let revision = project::reference_revision();

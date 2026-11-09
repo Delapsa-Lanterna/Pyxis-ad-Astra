@@ -17,6 +17,14 @@ test('application lifecycle releases the Java analysis infrastructure', () => {
   assert.equal(rustServiceEdgeBoundaryRule.check(rejected).length, 1);
 });
 
+test('Java analysis consumes project inputs and project sync refreshes its owned sessions', () => {
+  const context = architectureFixtures({
+    'src-tauri/src/services/java_analysis/inputs.rs': 'fn inputs(){crate::services::project::current_project_manifest(id);}',
+    'src-tauri/src/services/project_sync.rs': 'fn close(){crate::services::java_analysis::close_registered_session(id);}',
+  });
+  assert.deepEqual(rustServiceEdgeBoundaryRule.check(context), []);
+});
+
 test('project synchronization assembles authorized roots and source watches', () => {
   const context = architectureFixtures({
     'src-tauri/src/services/project_sync.rs':

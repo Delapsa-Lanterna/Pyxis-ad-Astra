@@ -56,10 +56,14 @@ pub enum AnalysisRequest {
         classpath: Vec<String>,
         java_home: String,
         language: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        sources: Option<Vec<String>>,
     },
     Analyze {
         id: Value,
         project: String,
+        #[serde(default)]
+        force_full: bool,
     },
     Query {
         id: Value,
@@ -107,6 +111,12 @@ pub struct AnalysisResponse {
     pub result: Option<AnalysisResult>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<AnalysisError>,
+    #[serde(default)]
+    pub queue_wait_milliseconds: f64,
+    #[serde(default)]
+    pub request_milliseconds: f64,
+    #[serde(default)]
+    pub response_bytes: u64,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]

@@ -11,19 +11,26 @@ Java 分析模块管理 Java 17 语法与语义分析、固定第三方依赖、
 - `scripts/java-analysis/`：模块的 Java 构建、资源核验、下载和正确性验收入口。
 - `src-tauri/java-analysis/`：独立 Rust 库、Java 宿主、自有内置资源、固定依赖清单与模块测试。
 - `src-tauri/src/services/java_analysis.rs`：应用适配、配置根、路径核验、诊断与错误交接。
+- `src-tauri/src/services/java_analysis/`：正式会话输入、补充来源及共享 JVM 的行为验收。
 
 ### 消费
 
 - `src-tauri/src/app_data_dir.rs`：配置根的正式解析能力。
 - `src-tauri/src/diagnostics.rs`：应用诊断的正式交付入口。
 - `src-tauri/src/errors.rs`：应用错误及源码位置的公共数据。
+- `src-tauri/src/io/mod.rs`：Java 输入的正式文件指纹交付。
 - `src-tauri/src/io/paths.rs`：实际 Java、源码根和类路径的路径边界能力。
+- `src-tauri/src/models/project_session.rs`：Mod 正式清单及实际游戏来源。
+- `src-tauri/src/services/project/mod.rs`：当前就绪 Mod 清单及已发布可引用来源。
+- `src-tauri/src/services/project/session.rs`：正式就绪会话清单。
+- `src-tauri/src/services/project/session/references.rs`：当前已发布可引用 Mod 身份。
 
 ### 装配
 
 - `src-tauri/Cargo.toml`：独立 workspace 成员及应用依赖装配。
 - `src-tauri/src/lib.rs`：运行态初始化及退出资源交接。
 - `src-tauri/src/services/app_lifecycle.rs`：应用确认关闭后的实例等待与释放。
+- `src-tauri/src/services/project_sync.rs`：引用集合发布后刷新及 Mod 注销前释放 Java 项目。
 
 ## 边界
 
@@ -35,6 +42,8 @@ Java 分析模块管理 Java 17 语法与语义分析、固定第三方依赖、
 - 语法、类型和引用查询按项目分析快照交付，实例之间独立持有私有 JDT 源码资源。
 - 项目文件集合由调用方按版本提交新增、替换、删除和移动，分析模块不写入来源目录。
 - 应用日志消费操作身份和状态，Java 原始诊断留在所属实例日志。
+- 显式分析按 Mod 会话创建项目，已启动会话共用一个 JVM，最后项目关闭后释放 JVM。
+- 全部已发布可引用 Mod 按工作区顺序参与 Java 输入，引用自动刷新保留当前内存文档。
 
 ## 链路
 
@@ -60,6 +69,8 @@ Java 分析模块管理 Java 17 语法与语义分析、固定第三方依赖、
 - 自有宿主、依赖清单和实际文件必须在启动前核对匹配关系。
 - 源码范围必须采用 UTF-16 半开区间，节点与绑定结果必须绑定所属项目及分析版本。
 - 同一分析版本必须复用已建立的 AST，更新必须推进版本并失效所属结果。
+- 文件和 JAR 变化必须按声明、使用及反向影响范围失效，无法确定范围时交付完整重建原因。
+- 同版本引用位置复用按文件维护的绑定索引，变更只替换受影响文件的索引条目。
 - Rust 请求与结果必须消费模块协议类型，进程边界必须核对请求编号、操作和结果类型。
 - 项目释放必须共同丢弃工作副本、AST、引用索引和实例内源码资源。
 - 文件变化批次必须先核对项目版本、文件版本及路径归属，再共同更新项目文件集合和工作副本。

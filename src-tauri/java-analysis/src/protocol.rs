@@ -138,6 +138,18 @@ pub struct QueryResult {
     pub call: Option<SemanticNode>,
     pub declarations: Vec<SourceLocation>,
     pub references: Vec<SourceLocation>,
+    #[serde(flatten)]
+    pub statistics: AnalysisStatistics,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct AnalysisStatistics {
+    pub analysis_milliseconds: f64,
+    pub reparsed_files: u32,
+    pub invalidated_files: u32,
+    pub incremental: bool,
+    pub full_fallback_reason: Option<String>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -159,6 +171,8 @@ pub struct BindingFailure {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AnalysisSummary {
+    #[serde(flatten)]
+    pub statistics: AnalysisStatistics,
     pub project: String,
     pub revision: u64,
     pub files: u32,
