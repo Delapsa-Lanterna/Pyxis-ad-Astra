@@ -2,6 +2,7 @@ import { computed, onScopeDispose } from 'vue';
 import { useWorkspaceStore } from '@/stores/workspace.store';
 import { useCsvEditorStore } from '@/stores/csv-editor.store';
 import { navigateToModTable, navigateToModJson } from '@/orchestrators/workspace-navigation.orchestrator';
+import { dispatchWorkspaceHistoryCommand } from '@/orchestrators/workspace-history.orchestrator';
 import type { CsvEditorHost } from './csv-editor/csv-editor-context';
 import type { CsvTableTarget } from '@/shared/types';
 export function useWorkspaceCsvEditorHost(getConfiguredGameRoot: () => string | null): CsvEditorHost {
@@ -55,6 +56,7 @@ export function useWorkspaceCsvEditorHost(getConfiguredGameRoot: () => string | 
     starsectorRoot,
     columnWidths,
     entityLocation,
+    dispatchHistoryCommand: dispatchWorkspaceHistoryCommand,
     setColumnWidth,
     completeEntityLocation,
     cancelEntityLocation,

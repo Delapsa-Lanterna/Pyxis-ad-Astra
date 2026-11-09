@@ -21,7 +21,8 @@ import type { CsvTableIndex } from '@/shared/types';
 
 enableAutoUnmount(afterEach);
 
-const mocks = vi.hoisted(() => ({ query: vi.fn(), error: vi.fn() }));
+const mocks = vi.hoisted(() => ({ query: vi.fn(), error: vi.fn(), history: vi.fn(), confirm: vi.fn() }));
+vi.mock('@/services/file-history.service', () => ({ loadFileHistory: mocks.history }));
 vi.mock('@/services/csv-table.service', () => ({
   queryTableIndex: mocks.query,
   queryCsvValidation: async (_session: string, request: CsvValidationRequest) => ({
@@ -36,7 +37,9 @@ vi.mock('@/services/csv-table.service', () => ({
   queryTableRowPreviewDataUrl: async () => '',
 }));
 vi.mock('@/services/source-catalog.service', () => ({ querySourceOptionCatalog: async () => [] }));
-vi.mock('@/app/composables/use-app-feedback', () => ({ useAppFeedback: () => ({ error: mocks.error }) }));
+vi.mock('@/app/composables/use-app-feedback', () => ({
+  useAppFeedback: () => ({ error: mocks.error, confirmWarning: mocks.confirm }),
+}));
 vi.mock('@/app/composables/use-workspace-shell-actions', () => ({ useWorkspaceShellActions: () => ({}) }));
 
 let wrapper: VueWrapper;
@@ -79,6 +82,36 @@ async function mountWorkspace(transitions = false, details: Component | boolean 
   await flushPromises();
 }
 describe('table workspace search controls', () => {
+  it.each(['undo', 'redo'] as const)(
+    'continues selection %s into file history only after draft history is exhausted',
+    async (direction) => {
+      await mountWorkspace();
+      const replay = vi.spyOn(useCsvEditorStore().getTableEditor(target), direction).mockResolvedValue(true);
+      const table = wrapper.getComponent({ name: 'CsvTableEditor' });
+      table.vm.$emit(direction);
+      await flushPromises();
+      expect(replay).toHaveBeenCalledOnce();
+      expect(mocks.history).not.toHaveBeenCalled();
+      expect(mocks.confirm).not.toHaveBeenCalled();
+
+      replay.mockResolvedValueOnce(null);
+      const entry = { id: 1, timestamp: 1, label: 'Save table', paths: [target.modRoot + '/data/hulls/ship_data.csv'] };
+      mocks.history.mockResolvedValue({
+        revision: 1,
+        undoStack: direction === 'undo' ? [entry] : [],
+        redoStack: direction === 'redo' ? [entry] : [],
+      });
+      table.vm.$emit(direction);
+      await flushPromises();
+      expect(replay).toHaveBeenCalledTimes(2);
+      expect(mocks.history).toHaveBeenCalledExactlyOnceWith(target.sessionId, target.modRoot);
+      expect(mocks.confirm).toHaveBeenCalledExactlyOnceWith(
+        expect.objectContaining({ title: direction === 'undo' ? '撤销这次文件操作？' : '重做这次文件操作？' }),
+      );
+      expect(mocks.error).not.toHaveBeenCalled();
+    },
+  );
+
   it('retains registered raw input, selection and scroll when a detail transition is reversed', async () => {
     const commit = vi.fn(() => null),
       cancel = vi.fn();

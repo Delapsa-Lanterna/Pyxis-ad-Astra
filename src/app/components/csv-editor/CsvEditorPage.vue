@@ -70,8 +70,8 @@
           ref="tableEditor"
           :key="csvTable.targetKey.value"
           :csv-table="csvTable"
-          @undo="actions.undoCurrentTableEdit"
-          @redo="actions.redoCurrentTableEdit"
+          @undo="host.dispatchHistoryCommand('undo', feedback)"
+          @redo="host.dispatchHistoryCommand('redo', feedback)"
         />
       </div>
       <button
@@ -123,7 +123,8 @@ const host = props.host;
 const model = useCsvEditorModel(computed(() => props.target));
 const view = model.view;
 const problems = useCsvEditorStore().getTableProblems(props.target);
-const actions = useCsvEditorActions(model, host, useAppFeedback());
+const feedback = useAppFeedback();
+const actions = useCsvEditorActions(model, host, feedback);
 const detailPaneExpanded = defineModel<boolean>('detailPaneExpanded', { default: true });
 watch(problems.revealRevision, () => {
   detailPaneExpanded.value = true;
