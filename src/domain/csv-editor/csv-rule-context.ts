@@ -38,6 +38,11 @@ export function hasCsvValidationInvalidation(
   if (
     request.classes.length &&
     (affects('mod_info.json') ||
+      request.classes.some((name) => {
+        const compiled = name.replaceAll('.', '/');
+        const source = compiled.split('$')[0]!;
+        return [source + '.java', 'src/' + source + '.java', compiled + '.class'].some(affects);
+      }) ||
       invalidation.resources.some(({ relPath }) => relPath.endsWith('.jar') || pathBelongsToRoot('jars', relPath)))
   )
     return true;

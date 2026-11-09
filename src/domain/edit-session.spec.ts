@@ -261,6 +261,11 @@ describe('createUndoStackState', () => {
 });
 
 describe('saved draft acceptance', () => {
+  it('retains later large text and accepts saved text using scalar comparison', () => {
+    const text = 'x'.repeat(10 * 1024 * 1024);
+    expect(retainLaterDraft(text + 'later', text, text + 'saved')).toBe(text + 'later');
+    expect(retainLaterDraft(text, text, text + 'saved')).toBe(text + 'saved');
+  });
   it('retains a later undo while accepting the other fields from the actual saved result', () => {
     expect(retainLaterDraft({ speed: 80, name: 'before' }, { speed: 100, name: 'before' }, { speed: 100, name: 'after' })).toEqual({
       speed: 80,

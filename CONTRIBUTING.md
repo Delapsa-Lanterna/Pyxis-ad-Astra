@@ -114,14 +114,17 @@ npm.cmd run test:browser -- --url http://127.0.0.1:端口A --variant A,http://12
 npm.cmd run test:browser -- --suite smoke
 npm.cmd run test:browser -- --suite ui
 npm.cmd run test:browser -- --suite browser-ui
+npm.cmd run test:browser -- --suite code-editor
+npm.cmd run test:browser -- --suite java-analysis
 ```
 
-列表基准、重复使用压力与资源压力：
+列表及代码编辑器基准、重复使用压力与资源压力：
 
 ```powershell
 npm.cmd run test:browser -- --suite lists
 npm.cmd run test:browser -- --suite stress
 npm.cmd run test:browser -- --suite resources
+npm.cmd run test:browser -- --suite code-editor-performance
 ```
 
 指定场景与对照测量：
@@ -138,7 +141,7 @@ npm.cmd run test:browser -- --suite lists --scene csv --count 50 --monitor-compa
 - `--warmup 2 --rounds 30`：指定预热 2 次、测量 30 次。
 - `--first-open`：为每次首次打开创建新浏览器上下文并单独记录。
 - `--output <report.json>`：指定报告位置，默认位于 `node_modules/.cache/browser/reports/`。
-- `--url <地址>`：指定已运行服务；默认 `browser-ui` 连接 1461，其余测试连接 1462。
+- `--url <地址>`：指定已运行服务；工作区界面、代码编辑器及 Java 卡片场景默认连接 1461，testbed 场景连接 1462。
 
 构建参数：
 
@@ -177,11 +180,12 @@ npm.cmd run build:desktop
 
 ### 自动执行
 
-来源同步验收与 CSV 显示性能测量：
+来源同步、代码编辑器验收与显示性能测量：
 
 ```powershell
 npm.cmd run test:desktop -- --suite sources
 npm.cmd run test:desktop -- --suite sources --isolated-desktop
+npm.cmd run test:desktop -- --suite code-editor
 npm.cmd run test:desktop -- --suite csv --rounds 30
 npm.cmd run test:desktop -- --suite source-performance --mod D:/game/mods/sample --game D:/game --rounds 30 --soak 600
 ```
@@ -212,3 +216,36 @@ JSON 与 Markdown 报告包含场景参数、可执行文件及脚本哈希、�
 来源性能的直接连接持有 1360×860、DPR 1.5 的视口设置，在驱动交接后和负载结束时核对页面尺寸及实际布局。
 
 桌面测试必须使用独立应用构建及所属工具目录；文件操作必须作用于本次样本，结束必须经正常关闭流程交还进程和目录。
+
+## Java 分析构建与验收
+
+### 模块入口
+
+`src-tauri/java-analysis/` 提供分析库、Java 宿主及内置资源；`scripts/java-analysis/` 提供构建和验收。环境及接口见 [组件说明](src-tauri/java-analysis/README.md)。
+
+### 构建与启动
+
+Java 宿主重建使用完整 JDK 17 和 Maven，`JAVA_HOME` 指定 JDK。
+
+```powershell
+npm.cmd run build:java-analysis
+```
+
+### 自动执行
+
+```powershell
+npm.cmd run check:java-analysis
+npm.cmd run test:java-analysis -- --game <游戏根>
+```
+
+### 执行参数
+
+- `--game <目录>`：指定包含 Java 17 和正确性基准的外部游戏根。
+- `--download`：从固定清单下载依赖，默认导入构建生成的离线包。
+- `--warmup 2 --rounds 30`：指定性能对照的预热及正式轮次。
+- `--output <report.json>`：排他预留报告及所属命令目录。
+- `--dry-run`：输出实际配置。
+
+### 报告与资源管理
+
+报告默认位于 `src-tauri/target/java-analysis/reports/` 的本次运行目录，包含源码及资源指纹、javac 对照、增量与完整分析采样、统计和资源释放结果。来源 Mod 按外部只读目录使用，样本与 JVM 工作区归本次运行持有。

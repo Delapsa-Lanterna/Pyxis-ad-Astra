@@ -178,13 +178,13 @@
   "files": [
     {
       "path": "engine.jar",
-      "bytes": 79563,
-      "sha256": "ff7396b07ca5fcaf8283b23e1caefc526e6e63ec51dddccc83aac586b0482677"
+      "bytes": 81027,
+      "sha256": "70490e646441da2cb301f5b3f63a5018ddcd79b3d688cacf9e75ff9457633d58"
     },
     {
       "path": "launcher.jar",
-      "bytes": 3589,
-      "sha256": "58fc66597c41b9667f4708fdb99cf8f110a207eba4b74564f6ce6c6c43ef6fb9"
+      "bytes": 3707,
+      "sha256": "0c4a1c089f4cf46a294afe4792fad2c5b2b3be24d4326945148e46c28cb53306"
     }
   ]
 }

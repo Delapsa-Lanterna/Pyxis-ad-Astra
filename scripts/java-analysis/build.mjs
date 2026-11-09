@@ -1,7 +1,7 @@
 import { mkdir, readFile, copyFile, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { parseArgs } from 'node:util';
-import { root, component, output, resources, readJson, writeJson, sha256, run, javaTool, mavenArguments } from './runtime.mjs';
+import { root, component, output, resources, writeJson, sha256, run, javaTool, mavenArguments, versions } from './runtime.mjs';
 
 const { values } = parseArgs({ options: { 'dry-run': { type: 'boolean' }, cache: { type: 'string' } } });
 const cache = values.cache ?? join(output, 'cache/maven');
@@ -12,11 +12,24 @@ if (values['dry-run']) {
   await run(
     'maven-package',
     javaTool('java'),
-    [...mavenArguments(), '-B', '-ntp', '-Dmaven.repo.local=' + cache, '-f', join(component, 'java/pom.xml'), 'package'],
+    [
+      ...mavenArguments(),
+      '-B',
+      '-ntp',
+      '-Dmaven.repo.local=' + cache,
+      '-Drevision=' + versions.engine,
+      '-Danalysis.protocol=' + versions.protocol,
+      '-Danalysis.java=' + versions.java,
+      '-Danalysis.language=' + versions.language,
+      '-Danalysis.jdt=' + versions.jdt,
+      '-f',
+      join(component, 'java/pom.xml'),
+      'package',
+    ],
     env,
   );
   /** @type {{artifacts:{path:string,url:string,bytes:number,sha256:string,bundle?:string}[]}} */
-  const lock = await readJson(join(resources, 'dependencies.lock.json'));
+  const lock = JSON.parse((await readFile(join(resources, 'dependencies.lock.json'), 'utf8')).replaceAll('${jdt}', versions.jdt));
   const thirdParty = join(output, 'dependencies');
   await mkdir(join(thirdParty, 'lib'), { recursive: true });
   const artifacts = [];
@@ -29,11 +42,14 @@ if (values['dry-run']) {
   }
   const bundles = lock.artifacts.filter((item) => item.bundle).map((item) => item.path);
   const version =
-    'jdt-3.47.0-' + sha256(JSON.stringify(artifacts.map(({ path, bytes, sha256: hash }) => ({ path, bytes, sha256: hash })))).slice(0, 16);
+    'jdt-' +
+    versions.jdt +
+    '-' +
+    sha256(JSON.stringify(artifacts.map(({ path, bytes, sha256: hash }) => ({ path, bytes, sha256: hash })))).slice(0, 16);
   const dependencies = {
     version,
-    protocol: 2,
-    java: 17,
+    protocol: versions.protocol,
+    java: versions.java,
     bundles,
     files: artifacts.map(({ path, bytes, sha256: hash }) => ({ path, bytes, sha256: hash })),
   };
@@ -53,11 +69,19 @@ if (values['dry-run']) {
     'lib',
   ]);
   const archive = await readFile(offline);
-  const catalog = { version, protocol: 2, java: 17, bytes: archive.length, sha256: sha256(archive), artifacts, bundles };
+  const catalog = {
+    version,
+    protocol: versions.protocol,
+    java: versions.java,
+    bytes: archive.length,
+    sha256: sha256(archive),
+    artifacts,
+    bundles,
+  };
   await mkdir(resources, { recursive: true });
   for (const entry of [
-    { from: 'java-analysis-1.0.0.jar', to: 'engine.jar' },
-    { from: 'java-analysis-1.0.0-launcher.jar', to: 'launcher.jar' },
+    { from: 'java-analysis-' + versions.engine + '.jar', to: 'engine.jar' },
+    { from: 'java-analysis-' + versions.engine + '-launcher.jar', to: 'launcher.jar' },
   ])
     await copyFile(join(output, 'java', entry.from), join(resources, entry.to));
   const ownFiles = await Promise.all(
@@ -68,9 +92,9 @@ if (values['dry-run']) {
   );
   await writeJson(join(resources, 'catalog.json'), catalog);
   await writeJson(join(resources, 'builtin.json'), {
-    version: '1.0.0',
-    protocol: 2,
-    java: 17,
+    version: versions.engine,
+    protocol: versions.protocol,
+    java: versions.java,
     launcher: 'launcher.jar',
     bundle: 'engine.jar',
     framework: 'lib/org.eclipse.osgi-3.24.300.jar',
@@ -79,6 +103,7 @@ if (values['dry-run']) {
   });
   await run('java-bytecode', javaTool('java'), [
     join(root, 'scripts/java-analysis/VerifyResources.java'),
+    String(versions.java),
     resources,
     join(thirdParty, 'lib'),
   ]);

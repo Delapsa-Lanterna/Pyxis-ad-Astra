@@ -3,6 +3,7 @@ use crate::errors::{AppError, AppResult};
 use crate::io::canonical_path;
 use pyxis_java_analysis::java_path;
 use pyxis_java_analysis::transfer::TransferControl;
+use pyxis_java_analysis::versions::REQUIRED_JAVA;
 use serde::Serialize;
 use serde_json::json;
 use std::io::Read;
@@ -88,10 +89,11 @@ pub fn probe_java(path: &Path, control: &TransferControl) -> AppResult<JavaEnvir
         .lines()
         .find_map(|line| line.trim().strip_prefix("java.specification.version = "))
         .map(str::trim);
-    if !status.success() || version != Some("17") {
+    let required_java = REQUIRED_JAVA.to_string();
+    if !status.success() || version != Some(required_java.as_str()) {
         return Err(AppError::message(
             "java_analysis.java_version",
-            format!("Java 17 is required: {text}"),
+            format!("Java {required_java} is required: {text}"),
         )
         .at_path(&path));
     }

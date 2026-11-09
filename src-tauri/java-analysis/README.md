@@ -4,7 +4,8 @@ Java 分析模块提供 Java 17 语法与项目语义分析、固定依赖安装
 
 ## 目录与运行态
 
-- `src/`：依赖、协议、进程、配置目录和分析运行态。
+- `src/`：安装模型、错误、协议、依赖、进程、配置目录和分析运行态。
+- `examples/`：显式构建的开发检查命令行。
 - `java/`：Java 17 Maven 工程、自有宿主及 JUnit。
 - `resources/`：随应用编译交付的两个自有 JAR、宿主清单和固定 Maven 依赖清单。
 - `tests/`：依赖安装、初始化和实际 Java 实例寿命测试。
@@ -59,12 +60,13 @@ cargo test --manifest-path src-tauri/Cargo.toml -p pyxis-ad-astra live_correct_m
 
 专用 CI 任务在 JDK 17 下重建和测试宿主；真实 Mod 校验接受外部游戏目录。Polaris_Prime、Kratogen_TA 和 Templars 用作合法 Java 正确性基准，同次源码交给 JDT 与 javac 比较四组绑定，并记录前后指纹。
 
-## Rust 和命令行接口
+## Rust 和开发检查接口
 
 `AnalysisRuntime::new` 接收配置根和事件接收者。`install`、`import` 和 `installed` 维护固定依赖集合，`start` 返回实例标识，`request` 按该标识交付分析请求，`close` 释放单实例，`shutdown` 等待所有实例结束。
 
 ```text
-java-analysis <status|install|import|remove|run> input.json
+cargo build --manifest-path src-tauri/Cargo.toml -p pyxis-java-analysis --example java-analysis
+src-tauri/target/debug/examples/java-analysis <status|install|import|remove|run> input.json
 ```
 
 输入包含 `configRoot`；`run` 追加 `java`，`import` 追加 `archive`。`run` 按行读取 JSON 请求并返回相同请求编号，标准输入 EOF 触发实例关闭。诊断原文保存在配置目录的所属实例日志。
@@ -83,11 +85,15 @@ Rust 结果通过 `protocol::AnalysisResult` 区分握手、语法、项目、�
 {"id":5,"op":"close","project":"orbit"}
 ```
 
-`move` 同时提交 `file`、`target`、移动后的完整 `source` 和递增 `version`；`delete` 提交 `file` 与递增 `version`。同批每个源文件出现一次，新增和移动目标各自唯一。`configure` 刷新外部 JAR，支持同一路径内容替换。验收对照测量使用 Git 提交 `1ea5fe7b70693f9976b5b02fdcd45477a4f7d1ce` 中的固定宿主资源。
+`move` 同时提交 `file`、`target`、移动后的完整 `source` 和递增 `version`；`delete` 提交 `file` 与递增 `version`。同批每个源文件出现一次，新增和移动目标各自唯一。`configure` 刷新外部 JAR，支持同一路径内容替换。
+
+验收通过 `--output <report.json>` 预留独占 JSON、Markdown 与命令目录，默认在构建输出的 reports 中分配本次运行目录。性能对照采用当前宿主、相同输入的增量与完整分析，默认预热 2 次、正式 30 次，`--warmup` 与 `--rounds` 交付实际采样数量。统计和轮换顺序消费共同工具，报告保存原始样本、指纹、中位数、P95、内存及释放结果。
 
 ## 下载与资源
 
-27 个第三方 JAR 从固定 Maven Central HTTPS 地址直接下载，逐文件校验大小和 SHA-256。`dependencies.lock.json` 保留 Maven 坐标、许可证条目和 Java 字节码信息；原始 JAR 保留发布许可证。
+`versions.json` 集中维护协议、自有宿主、Java 运行要求、默认语言和 JDT 版本。Rust 构建生成同模块常量，Java 构建将这些值交付 Maven、宿主配置及包清单。
+
+27 个第三方 JAR 从固定 Maven Central HTTPS 地址直接下载，逐文件校验大小和 SHA-256。`dependencies.lock.json` 保留 Maven 坐标、许可证条目和 Java 字节码信息；其中 JDT 版本占位符由构建入口消费 `versions.json` 解析；原始 JAR 保留发布许可证。
 
 自有宿主与第三方依赖保持独立交付，Rust 启动前核对完整匹配关系。依赖安装采用文件锁、暂存目录和最后写入的完成清单，支持中断后的重新安装；独立构建同时生成离线依赖 ZIP。
 
@@ -109,5 +115,5 @@ $env:JAVA_ANALYSIS_TEST_JAVA_OTHER = '<其它版本 JDK>/bin/java.exe'
 cargo test --manifest-path src-tauri/Cargo.toml -p pyxis-ad-astra management_subscriptions_refresh_failure_and_closed_state
 cargo test --manifest-path src-tauri/Cargo.toml -p pyxis-ad-astra queued_component_operations_run_fifo_and_cancel_uses_the_owned_operation
 cargo test --manifest-path src-tauri/Cargo.toml -p pyxis-ad-astra live_management_install_repair_selfcheck_stop_remove_and_release -- --ignored --nocapture
-node scripts/browser/java-analysis.mjs --url <已启动的浏览器验收地址>
+npm run test:browser -- --suite java-analysis --url <已启动的浏览器验收地址>
 ```

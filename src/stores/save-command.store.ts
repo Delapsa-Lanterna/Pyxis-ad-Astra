@@ -146,22 +146,25 @@ export const useSaveCommandStore = defineStore('save-command', () => {
     );
   }
   function captureCloseState() {
-    const capture = () =>
-      stableStringify(
-        [...participants].map((participant) => [
-          participant.targetKey.value,
-          participant.editing?.draftSession.draftValue.value,
-          participant.editing?.dirty.value,
-        ]),
-      );
-    const capturedParticipants = [...participants];
-    const snapshot = capture();
+    const capture = (participant: SaveParticipant) => {
+      const value = participant.editing?.draftSession.draftValue.value;
+      return [
+        participant.targetKey.value,
+        typeof value,
+        typeof value === 'string' ? value : stableStringify(value),
+        participant.editing?.dirty.value,
+      ];
+    };
+    const capturedParticipants = [...participants].map((participant) => ({ participant, snapshot: capture(participant) }));
     const accepts = [...participants].flatMap((participant) =>
       participant.editing ? [participant.editing.draftSession.inputs.captureContext()] : [],
     );
     return () =>
-      capturedParticipants.every((participant) => participants.has(participant)) &&
-      snapshot === capture() &&
+      capturedParticipants.length === participants.size &&
+      capturedParticipants.every(
+        ({ participant, snapshot }) =>
+          participants.has(participant) && capture(participant).every((value, index) => value === snapshot[index]),
+      ) &&
       accepts.every((accept) => accept());
   }
   function beginTransition() {

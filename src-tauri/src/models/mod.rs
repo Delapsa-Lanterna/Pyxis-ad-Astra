@@ -1,6 +1,7 @@
 pub mod app_log;
 pub mod app_settings;
 pub mod cache_limits;
+pub mod code_editor;
 mod collections;
 pub mod config_entity;
 pub mod core_assets;

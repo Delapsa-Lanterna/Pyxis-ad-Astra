@@ -255,3 +255,4 @@ export type * from '@/shared/types/misc-config.types';
 export type { PerformanceBatch, PerformanceMonitorStatus } from './performance-monitor.types';
 export type { JsonComposition, JsonSourceLayer } from './json-composition.types';
 export type { JavaManagementAction, JavaManagementSnapshot, JavaEnvironment } from './java-analysis.types';
+export type { CodeEditorFile, CodeEditorOpen, CodeEditorDelivery, CodeEditorFileResult } from './code-editor.types';

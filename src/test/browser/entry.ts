@@ -20,6 +20,7 @@ import { installNaiveUi } from '@/app/naive-ui.runtime';
 import { initializeSettings } from '@/orchestrators/settings-persistence.orchestrator';
 import { initializeSettingsStore } from '@/stores/settings.store';
 import { startApplicationLog } from '@/app/application-log';
+import { flushApplicationLogs } from '@/services/app-log.service';
 import { startPerformanceMonitor } from '@/app/performance-monitor';
 import { initializeWindowContext } from '@/windows/window-context.window';
 import { showCurrentWindow } from '@/windows/current.window';
@@ -63,6 +64,7 @@ if (!query.has('scene') && !query.has('window')) {
   if (query.has('page')) void navigateGlobal(query.get('page')!);
   if (query.has('sampleWindow')) {
     const kinds = {
+      'code-window': 'code-editor',
       'spec-window': 'editor',
       'file-window': 'file-editor',
       'immersive-window': 'immersive-editor',
@@ -120,6 +122,7 @@ async function workspaceWindows() {
     const app = createApp(Root).use(pinia);
     installNaiveUi(app);
     app.mount('#app');
+    await listenWindowEvent('browser-measurement-ready', () => flushApplicationLogs());
     if (windowLabel === 'main')
       await listenWindowEvent('browser-appearance-request', ({ payload }) => {
         const appearance = payload as Partial<Pick<AppSettings, 'theme' | 'accent' | 'customAccent'>>;
@@ -136,6 +139,8 @@ async function workspaceWindows() {
 async function loadRoot(bootstrap: Awaited<ReturnType<typeof initializeWindowContext>>): Promise<Component> {
   if (bootstrap.kind === 'main') return (await import('@/app/App.vue')).default;
   switch (bootstrap.context.kind) {
+    case 'code-editor':
+      return (await import('@/app/CodeEditorApp.vue')).default;
     case 'editor':
       return (await import('@/app/SpecEditorApp.vue')).default;
     case 'file-editor':

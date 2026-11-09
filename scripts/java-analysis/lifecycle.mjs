@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict';
 import { mkdir, readFile, writeFile, copyFile, readdir, stat } from 'node:fs/promises';
 import { join } from 'node:path';
-import { run, javaTool, sha256 } from './runtime.mjs';
+import { summarize } from '../shared/sample-statistics.mjs';
+import { run, javaTool, sha256, versions } from './runtime.mjs';
 
-/** @param {import('./verify.mjs').Session} session @param {string} directory @param {string} javaHome */
+/** @param {import('./session.mjs').Session} session @param {string} directory @param {string} javaHome */
 export async function lifecycle(session, directory, javaHome) {
   const roots = /** @type {[string, string]} */ ([join(directory, 'sources 中文 spaces'), join(directory, 'second')]);
   await Promise.all(roots.map((root) => mkdir(root, { recursive: true })));
@@ -137,8 +138,8 @@ export async function lifecycle(session, directory, javaHome) {
     returnTypes: ['int', 'java.lang.String', 'int'],
     constant: 6,
     repeatedQueries: 100,
-    queryMilliseconds: timing(hotSamples),
-    twentyUpdateAndFirstQueryMilliseconds: timing(updates),
+    queryMilliseconds: { samples: hotSamples, ...summarize(hotSamples) },
+    twentyUpdateAndFirstQueryMilliseconds: { samples: updates, ...summarize(updates) },
     invalidBatchPreserved: true,
     crossRootMove: true,
     deletedTypeHidden: true,
@@ -148,13 +149,7 @@ export async function lifecycle(session, directory, javaHome) {
   };
 }
 
-/** @param {number[]} values */
-export function timing(values) {
-  const sorted = [...values].sort((left, right) => left - right);
-  return { samples: values, median: sorted[Math.ceil(sorted.length * 0.5) - 1], p95: sorted[Math.ceil(sorted.length * 0.95) - 1] };
-}
-
-/** @param {import('./verify.mjs').Session} session @param {string} directory @param {string} javaHome */
+/** @param {import('./session.mjs').Session} session @param {string} directory @param {string} javaHome */
 export async function dependencies(session, directory, javaHome) {
   const sourceRoot = join(directory, 'src');
   await mkdir(sourceRoot, { recursive: true });
@@ -176,7 +171,7 @@ export async function dependencies(session, directory, javaHome) {
         (type === 'String' ? 's' : '1') +
         '; } public static Object value(Object s){ return s; } }',
     );
-    await run('fixture-javac-' + name, javaTool('javac'), ['--release', '17', '-d', folder, source]);
+    await run('fixture-javac-' + name, javaTool('javac'), ['--release', String(versions.java), '-d', folder, source]);
     const jar = join(directory, name + '.jar');
     await run('fixture-jar-' + name, javaTool('jar'), ['--create', '--file', jar, '-C', folder, 'sample']);
     return jar;

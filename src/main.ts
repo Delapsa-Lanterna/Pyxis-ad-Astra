@@ -44,6 +44,8 @@ async function bootstrap() {
 
 async function loadWindowRoot(kind: string | null): Promise<Component> {
   switch (kind) {
+    case 'code-editor':
+      return (await import('@/app/CodeEditorApp.vue')).default;
     case 'file-editor':
       return (await import('@/app/FileEditorApp.vue')).default;
     case 'editor':

@@ -9,10 +9,10 @@ Java 分析模块管理 Java 17 语法与语义分析、固定第三方依赖、
 ### 拥有
 
 - `scripts/java-analysis/`：模块的 Java 构建、资源核验、下载和正确性验收入口。
-- `src-tauri/java-analysis/`：独立 Rust 库、Java 宿主、自有内置资源、固定依赖清单与模块测试。
+- `src-tauri/java-analysis/`：分析库、Java 宿主、内置资源、依赖清单和开发检查 example。
 - `src-tauri/src/commands/java_analysis.rs`：组件状态、任务、取消与目录管理的命令边界。
-- `src-tauri/src/services/java_analysis.rs`：应用适配、配置根、路径核验、诊断与错误交接。
-- `src-tauri/src/services/java_analysis/`：正式会话输入、组件后台管理、Java 环境与共享 JVM 的行为验收。
+- `src-tauri/src/services/java_analysis.rs`：运行态装配、配置根、诊断与应用关闭交接。
+- `src-tauri/src/services/java_analysis/`：类型化请求路径、正式会话输入和寿命、组件后台队列及 Java 环境。
 - `src/app/components/java-analysis/`：设置中的 Java 分析组件管理卡片。
 - `src/app/composables/java-analysis/`：管理状态订阅、用户动作、自检与 Java 路径选择。
 - `src/services/java-analysis.service.ts`：Java 组件管理命令的类型化交接。
@@ -89,6 +89,8 @@ Java 分析模块管理 Java 17 语法与语义分析、固定第三方依赖、
 - 最低 Java 开发及运行基线必须为 17，自有资源构建与第三方字节码必须按该基线验收。
 - 配置根必须消费正式工具目录，依赖、工作区和日志必须归模块专属子目录。
 - 依赖集标识必须共同表达 JDT 版本与固定文件清单哈希。
+- 协议、自有宿主、Java 运行要求、默认语言与 JDT 版本必须由 `src-tauri/java-analysis/versions.json` 唯一维护；Rust 常量、Java 配置与打包清单共同消费该声明。
+- JDT 锁定记录中的版本占位符必须由构建入口解析，实际依赖继续按固定大小及 SHA-256 校验；格式化器版本与校验和归检查入口共同维护。
 - 自有宿主、依赖清单和实际文件必须在启动前核对匹配关系。
 - 源码范围必须采用 UTF-16 半开区间，节点与绑定结果必须绑定所属项目及分析版本。
 - 同一分析版本必须复用已建立的 AST，更新必须推进版本并失效所属结果。

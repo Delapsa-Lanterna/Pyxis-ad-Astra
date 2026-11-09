@@ -481,7 +481,7 @@ fn engine_source_preservation() {
     })
     .unwrap()
     .unwrap();
-    assert_eq!(read.data["SAMPLE"]["contrailMaxSpeedMult"], "0.5f");
+    assert_eq!(read.data["SAMPLE"]["contrailMaxSpeedMult"], json!(0.5));
     let mut content = read.data;
     content["SAMPLE"]["engineColor"] = json!([10, 20, 30, 255]);
     project_save::execute_save_action(SaveAction::SaveMiscConfig(MiscConfigWrite {

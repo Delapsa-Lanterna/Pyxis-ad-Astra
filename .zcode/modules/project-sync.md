@@ -14,6 +14,7 @@
 - `src-tauri/src/services/project_sync/source_changes.rs`：根订阅角色与寿命、来源状态、合并批次、后台排队及 Core 分发。
 - `src/app/components/ProjectSyncNotice.vue`：所属未完成交接的显示。
 - `src/app/composables/use-project-sync-view-model.ts`：失败交接重试与用户反馈。
+- `src/domain/project-sync/`：正式保存回执和变更集的文件文本投影。
 - `src/orchestrators/project-sync.orchestrator.ts`：窗口内保存消费过程和内容维护者交接。
 - `src/services/project-sync.service.ts`：所属同步命令与有序通道交付。
 - `src/stores/project-sync.store.ts`：当前待办、错误和项目等待状态。
@@ -26,6 +27,7 @@
 - `src-tauri/src/services/file_history.rs`：最后同根项目注销后的历史释放。
 - `src-tauri/src/services/file_history/records.rs`：按实际 Mod 根持有 changeset、双栈、revision、容量及回放交接。
 - `src-tauri/src/services/java_analysis.rs`：注销前释放所属 Java 项目，引用发布后刷新已启动分析项目。
+- `src-tauri/src/services/java_analysis/sessions.rs`：按正式 Mod 身份释放分析项目与刷新引用输入。
 - `src-tauri/src/services/project/mod.rs`：原子注销事实、会话内容清理及引用状态交接。
 - `src-tauri/src/services/project/performance.rs`：ProjectSession 阶段计时。
 - `src-tauri/src/services/project/query/entity_targets.rs`：可靠来源改名后的实际实体目标。
@@ -72,6 +74,7 @@
 - 自动来源刷新在后台执行，主动重试发布扫描状态；来源错误按根交付诊断，批次调试日志记录来源根、路径、改名、重扫标志、耗时与结果。
 - Core 变化使用独立根通知，内容失败与保存结果共用有序任务和重试。
 - Core 产品任务分别接纳完成结果，窗口通道分别接纳交付错误。
+- 来源改名按原生顺序映射到最终位置，已登记编辑文件优先交付精确路径映射，目录及连续改名共同参与。
 
 ## 链路
 

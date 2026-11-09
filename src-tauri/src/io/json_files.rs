@@ -269,6 +269,35 @@ mod tests {
     }
 
     #[test]
+    fn suffixed_numbers_survive_large_file_edit_and_disk_round_trip() {
+        let dir = TestWorkspace::new("suffix_large_round_trip");
+        let path = dir.join("sample.json");
+        let prefix = "{value:0.625f,zero:.0F,note:'";
+        let padding = "a".repeat(1048576 - prefix.len() - 1);
+        let source = format!("{prefix}{padding}\u{754c}',speed:1 # inline\n}} # tail\nEND");
+        io::write_utf8_no_bom(&path, &source).unwrap();
+        let mut value = read_json_file(&path).unwrap();
+        assert_eq!(value["value"].as_f64(), Some(0.625));
+        assert_eq!(value["zero"].as_f64(), Some(0.0));
+        assert_eq!(value["note"], format!("{padding}\u{754c}"));
+        value["zero"] = serde_json::json!(0);
+        value["speed"] = serde_json::json!(2);
+        let mut batch = JsonWriteBatch::new(JsonWriteOptions {
+            preserve_original_json: true,
+            ..Default::default()
+        });
+        let rendered = batch.render(&path, &value, None).unwrap();
+        batch.finish().unwrap();
+        assert!(rendered.contains("value:0.625f"));
+        assert!(rendered.contains("speed:2 # inline"));
+        assert!(rendered.ends_with("} # tail\nEND"));
+        io::write_utf8_no_bom(&path, &rendered).unwrap();
+        assert_eq!(read_json_file(&path).unwrap(), value);
+        assert_eq!(work_counts::count("read", &path), 3);
+        dir.close().unwrap();
+    }
+
+    #[test]
     fn confirmation_is_rejected_after_source_changes() {
         let dir = TestWorkspace::new("json_write_batch_changed_source");
         fs::create_dir_all(&dir).unwrap();

@@ -9,6 +9,8 @@ import { commodityText, sampleInfo } from './sample.mjs';
 export async function sourceSync(app, fixture, check, artifacts) {
   const { main: active, context } = app;
   const { game, mod, core, table, descriptor, notes } = fixture;
+  await mkdir(join(core, 'data/hulls'), { recursive: true });
+  await writeFile(join(core, 'data/hulls/wing_data.csv'), 'id,variant,role desc,formation,num,role,refit,tags\n', 'utf8');
   await active.evaluate(stores + '.get("settings").setWatchFileChanges(true)');
   await waitFor(active, '(async()=> (await ' + api + '("read_settings")).value.watchFileChanges)()');
   await mkdir(join(mod, 'graphics'), { recursive: true });
@@ -151,15 +153,17 @@ export async function sourceSync(app, fixture, check, artifacts) {
     assert.equal(await active.evaluate(api + '("focus_managed_window",{identity:' + JSON.stringify(identity) + '})'), true);
     assert.equal(context.pages().length, 2);
   });
-  await check('Text window keeps its draft and missing-source target after an unpaired native rename', async () => {
+  await check('Text window follows a reliable native rename and retains its draft', async () => {
     await textPage.locator('textarea').fill('Local text draft');
     await writeFile(notes, 'External text', 'utf8');
     await textPage.getByText('外部文本已更新，当前未保存草稿已保留。', { exact: true }).waitFor();
     assert.equal(await textPage.locator('textarea').inputValue(), 'Local text draft');
     await rename(notes, join(mod, 'renamed.txt'));
-    await textPage.locator('.file-editor-message.danger').waitFor();
-    assert.equal(await textPage.getByText('保留文本并跟随', { exact: true }).count(), 0);
-    assert.equal(await textPage.locator('.file-editor-path').getAttribute('title'), notes);
+    await textPage.getByRole('button', { name: '保留文本并跟随', exact: true }).click();
+    await until(
+      async () => (await textPage.locator('.file-editor-path').getAttribute('title'))?.endsWith('renamed.txt'),
+      'native rename target handoff',
+    );
     assert.equal(await textPage.locator('textarea').inputValue(), 'Local text draft');
   });
   for (const theme of ['light', 'dark'])
@@ -214,5 +218,166 @@ export async function sourceSync(app, fixture, check, artifacts) {
     await canvasPage.locator('.titlebar-button.close').click();
     await until(() => canvasPage.isClosed(), 'canvas window normal close');
   });
-  return { environment: app.environment, sample: { source: fixture.source, rows: 2 } };
+  const validationMod = join(game, 'mods/validation');
+  for (const directory of ['data/hulls', 'data/variants', 'data/campaign', 'src/probe'])
+    await mkdir(join(validationMod, directory), { recursive: true });
+  for (const directory of ['data/hulls', 'data/variants']) await mkdir(join(core, directory), { recursive: true });
+  await writeFile(join(validationMod, 'mod_info.json'), JSON.stringify({ ...sampleInfo, id: 'validation' }), 'utf8');
+  const defaults = JSON.parse(await readFile(join(mod, 'data/hulls/ship_0.ship'), 'utf8'));
+  await Promise.all(
+    Array.from({ length: 200 }, (_, index) =>
+      writeFile(
+        join(core, 'data/hulls/probe_' + index + '.ship'),
+        JSON.stringify({
+          ...defaults,
+          hullId: 'probe_' + index,
+          hullName: 'Probe',
+          hullSize: 'FIGHTER',
+          spriteName: 'graphics/first.png',
+          width: 1,
+          height: 1,
+        }),
+        'utf8',
+      ),
+    ),
+  );
+  await Promise.all(
+    Array.from({ length: 31 }, (_, index) =>
+      writeFile(
+        join(core, 'data/variants/probe_' + index + '.variant'),
+        JSON.stringify({
+          variantId: 'probe_' + index,
+          hullId: 'probe_' + index,
+          displayName: 'Probe',
+          weaponGroups: [],
+          hullMods: [],
+          wings: [],
+          fluxVents: 0,
+          fluxCapacitors: 0,
+        }),
+        'utf8',
+      ),
+    ),
+  );
+  await writeFile(
+    join(core, 'data/hulls/ship_data.csv'),
+    'id,name,mass,shield type\n' + Array.from({ length: 200 }, (_, index) => 'probe_' + index + ',Probe,1,NONE').join('\n') + '\n',
+    'utf8',
+  );
+  await writeFile(
+    join(core, 'data/hulls/wing_data.csv'),
+    'id,variant,role desc,formation,num,role,refit,tags\n' +
+      Array.from({ length: 31 }, (_, index) => 'probe_' + index + '_wing,probe_' + index + ',Probe,V,1,FIGHTER,10,').join('\n') +
+      '\n',
+    'utf8',
+  );
+  await writeFile(
+    join(validationMod, 'data/hulls/wing_data.csv'),
+    'id,variant,role desc,formation,num,role,refit,tags\nprobe_0_wing,probe_0,Probe,V,1,FIGHTER,10,\n',
+    'utf8',
+  );
+  await writeFile(
+    join(validationMod, 'data/campaign/market_conditions.csv'),
+    'name,id,script,icon\nProbe,probe,probe.Script,graphics/first.png\n',
+    'utf8',
+  );
+  const validation = await openMod(active, validationMod, game, 'wings');
+  await check('Complete Core hull and wing sources validate and save through the immersive editor', async () => {
+    const request = {
+      sessionId: validation.sessionId,
+      entities: [
+        ...Array.from({ length: 200 }, (_, index) => ({ kind: 'ship', id: 'probe_' + index })),
+        ...Array.from({ length: 31 }, (_, index) => ({ kind: 'variant', id: 'probe_' + index })),
+      ],
+      sources: [],
+      files: [],
+      classes: [],
+      stationData: [],
+    };
+    await waitFor(
+      active,
+      '(async()=>Object.keys((await ' +
+        api +
+        '("query_csv_validation",{payload:' +
+        JSON.stringify(request) +
+        '})).entities).length===231)()',
+    );
+    const document = stores + '.get("csv-editor").getCsvModState(window.__desktopTarget.modRoot).documents.wings';
+    await waitFor(active, document + '.rowOrder.length===1');
+    const rowKey = await active.evaluate(document + '.rowOrder[0]');
+    await active.evaluate(
+      api +
+        '("request_window",{payload:' +
+        JSON.stringify({
+          identity: { type: 'immersive', kind: 'wing', sessionId: validation.sessionId, modRoot: validation.modRoot, id: 'probe_0_wing' },
+          title: 'Validation wing',
+          input: { kind: 'immersive-editor', rowKey },
+          width: 600,
+          height: 900,
+          minWidth: 340,
+          minHeight: 480,
+        }) +
+        '})',
+    );
+    await until(() => context.pages().some((page) => ![active, textPage].includes(page)), 'validation wing window');
+    const page = context.pages().find((page) => ![active, textPage].includes(page));
+    assert.ok(page);
+    await page.locator('.wing-immersive-panel').waitFor();
+    await until(
+      () =>
+        page
+          .locator('.editor-problem.error:visible')
+          .count()
+          .then((count) => count === 0),
+      'zero Core source errors',
+    );
+    await page.screenshot({ path: join(artifacts, 'validation-wing-core.png') });
+    await page
+      .locator('.immersive-source-notice-content')
+      .filter({ hasText: 'ship_data.csv' })
+      .getByRole('button', { name: '建立此来源的 Mod 覆盖', exact: true })
+      .click();
+    await until(async () => {
+      const confirm = page.locator('[role="dialog"]').getByRole('button', { name: /^(保存|创建本地覆盖|仍然保存)$/ });
+      await confirm.evaluateAll((buttons) => {
+        const button = /** @type {HTMLButtonElement[]} */ (buttons).find((node) => !node.disabled && node.getClientRects().length);
+        button?.click();
+      });
+      return (await page.locator('.immersive-title-row button.immersive-stat-value').count()) === 1;
+    }, 'editable local hull CSV override');
+    await page.locator('.immersive-title-row .immersive-stat-value').click();
+    await page.locator('.immersive-field-popover input').first().fill('Validated name');
+    await page.getByRole('button', { name: '提交', exact: true }).click();
+    await page.getByRole('button', { name: '保存', exact: true }).click();
+    await until(async () => {
+      const confirm = page.locator('[role="dialog"]').getByRole('button', { name: /^(保存|创建本地覆盖|仍然保存)$/ });
+      await confirm.evaluateAll((buttons) => {
+        const button = /** @type {HTMLButtonElement[]} */ (buttons).find((node) => !node.disabled && node.getClientRects().length);
+        button?.click();
+      });
+      return (await page.locator('.immersive-actions [role="status"]').textContent()) === '已保存';
+    }, 'validated local override save');
+    assert.match(await readFile(join(validationMod, 'data/hulls/ship_data.csv'), 'utf8'), /Validated name/);
+    assert.equal(await page.locator('.editor-problem.error:visible').count(), 0);
+    await page.screenshot({ path: join(artifacts, 'validation-wing-saved.png') });
+    await page.locator('.immersive-actions').getByRole('button', { name: '关闭', exact: true }).click();
+    await until(() => page.isClosed(), 'validation wing normal close');
+  });
+  await check('Java source creation and deletion refresh the live script validation', async () => {
+    await active.evaluate(
+      stores +
+        '.get("csv-editor").switchTab(window.__desktopTarget.modRoot,"marketConditions");' +
+        stores +
+        '.get("workspace").activateModTable(window.__desktopTarget.modRoot)',
+    );
+    const document = stores + '.get("csv-editor").getCsvModState(window.__desktopTarget.modRoot).documents.marketConditions';
+    await waitFor(active, document + '.validationContext?.classes["probe.Script"]===false');
+    const script = join(validationMod, 'src/probe/Script.java');
+    await writeFile(script, 'package probe; public class Script {}', 'utf8');
+    await waitFor(active, document + '.validationContext?.classes["probe.Script"]===true');
+    await unlink(script);
+    await waitFor(active, document + '.validationContext?.classes["probe.Script"]===false');
+    await active.screenshot({ path: join(artifacts, 'validation-script-refresh.png') });
+  });
+  return { environment: app.environment, sample: { source: fixture.source, rows: 2 }, validation: { hulls: 200, wings: 31 } };
 }

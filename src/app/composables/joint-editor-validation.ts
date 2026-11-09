@@ -15,7 +15,8 @@ import { composeJson } from '@/domain/json-composition';
 import { entityContentIdField } from '@/domain/project/entity-definitions';
 import { jointObject } from '@/domain/joint-edit';
 import { csvTableProblems } from '@/domain/csv-editor/csv-validation';
-import { csvValidationRequest } from '@/domain/csv-editor/csv-rule-context';
+import { CSV_SPEC_KINDS, csvValidationRequest } from '@/domain/csv-editor/csv-rule-context';
+import { cell } from '@/shared/lib/starsector';
 import { queryCsvValidation, queryTableIndex } from '@/services/csv-table.service';
 import { shipSpecIssues } from '@/domain/spec-editor/ship/spec-ship-fields';
 import { weaponSpecIssues } from '@/domain/spec-editor/weapon/spec-weapon-fields';
@@ -124,6 +125,18 @@ export async function validateJointFiles(
     }
   }
   const groups = new Map<string, JointEditRecord[]>();
+  const specIds = new Map<string, string>(
+    snapshot.records.flatMap((record) =>
+      record.target.kind === 'spec' && current[record.key]?.state === 'present'
+        ? [
+            [
+              `${record.target.target.kind}:${record.target.target.id}`,
+              cell(data.get(record.key)![entityContentIdField(record.target.target.kind)]) || record.target.target.id,
+            ] as const,
+          ]
+        : [],
+    ),
+  );
   for (const record of snapshot.records) {
     if (record.target.kind !== 'csv') continue;
     const key = record.target.write.path;
@@ -144,13 +157,19 @@ export async function validateJointFiles(
       for (const record of records) {
         if (record.target.kind !== 'csv') continue;
         const rowKey = record.target.rowKey;
-        const value = values[record.key];
-        if (!value || (record.source?.source !== 'mod' && !changed(record) && !createOverrides.includes(record.key))) continue;
+        const nextId = specIds.get(`${CSV_SPEC_KINDS[target.table]}:${record.target.identity.id}`);
+        const renamed = nextId !== undefined && nextId !== record.target.identity.id;
+        const value = values[record.key] ?? (renamed ? current[record.key] : undefined);
+        if (!value || (record.source?.source !== 'mod' && !changed(record) && !createOverrides.includes(record.key) && !renamed)) continue;
         const found = rows.findIndex((row) => row.rowKey === rowKey);
         if (value.state === 'missing') {
           if (found >= 0) rows.splice(found, 1);
         } else {
-          const row = { rowKey: record.target.rowKey, isComment: false, data: jointObject(value) as RowData };
+          const row = {
+            rowKey: record.target.rowKey,
+            isComment: false,
+            data: { ...jointObject(value), ...(renamed ? { id: nextId } : {}) },
+          };
           if (found >= 0) rows[found] = row;
           else rows.push(row);
         }
@@ -180,9 +199,21 @@ export async function validateJointFiles(
         if (signal?.aborted) throw error;
         readFailure(path, error);
       }
-      for (const record of snapshot.records)
-        if (context && record.target.kind === 'spec' && current[record.key]?.state === 'present')
-          context.entities[`${record.target.target.kind}:${record.target.target.id}`] = data.get(record.key)!;
+      const candidate = context && { ...context, entities: { ...context.entities } };
+      for (const record of snapshot.records) {
+        if (!candidate || record.target.kind !== 'spec') continue;
+        const target = record.target.target;
+        const nextId = specIds.get(`${target.kind}:${target.id}`);
+        if (record.source?.source === 'mod' && nextId !== target.id) {
+          delete candidate.entities[`${target.kind}:${target.id}`];
+          if (record.composition?.layers.length) {
+            const base = composeJson({}, { ...record.composition, replace: false });
+            const id = cell(base[entityContentIdField(target.kind)]) || target.id;
+            candidate.entities[`${target.kind}:${id}`] = base;
+          }
+        }
+        if (nextId !== undefined) candidate.entities[`${target.kind}:${nextId}`] = data.get(record.key)!;
+      }
       const header = [
         ...new Set([
           ...index.header,
@@ -213,7 +244,7 @@ export async function validateJointFiles(
             },
           };
         });
-      issues.push(...mapProblems(csvTableProblems(target.table, rows, header, context), path, rows));
+      issues.push(...mapProblems(csvTableProblems(target.table, rows, header, candidate), path, rows));
       for (const external of externalTables) {
         issues.push(
           ...mapProblems(

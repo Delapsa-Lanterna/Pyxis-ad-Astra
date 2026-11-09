@@ -28,6 +28,7 @@ const allowedServiceEdges = new Set([
   'json_file -> project',
   'misc_config -> project',
   'windows -> project',
+  'code_editor -> windows',
   'directory_opening -> project',
   'mod_creation -> project',
   'write_transactions -> app_settings',

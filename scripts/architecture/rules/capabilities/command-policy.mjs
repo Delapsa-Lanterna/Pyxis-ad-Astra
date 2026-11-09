@@ -1,6 +1,7 @@
 export const COMMAND_TRANSPORT = 'src/shared/runtime/command.runtime.ts';
 
 export const commandOwners = {
+  'src/services/code-editor.service.ts': ['open_code_editor', 'subscribe_code_editor', 'finish_code_editor_open'],
   'src/services/java-analysis.service.ts': [
     'subscribe_java_analysis',
     'unsubscribe_java_analysis',

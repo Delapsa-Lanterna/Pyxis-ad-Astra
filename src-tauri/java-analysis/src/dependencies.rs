@@ -1,6 +1,7 @@
-use crate::model::{Artifact, Manifest, Package};
+use crate::package::{Artifact, Manifest, Package};
 use crate::paths::relative;
 use crate::transfer::{TransferControl, TransferProgress};
+use crate::versions::{PROTOCOL_VERSION, REQUIRED_JAVA};
 use crate::{Result, invalid};
 use reqwest::redirect::Policy;
 use reqwest::{Client, Url};
@@ -40,7 +41,10 @@ pub(crate) fn matches_file(path: &Path, bytes: u64, hash: &str) -> Result<()> {
 }
 
 pub(crate) fn compatible(version: &str, protocol: u32, java: u32) -> Result<()> {
-    if relative(version)?.components().count() != 1 || protocol != 2 || java != 17 {
+    if relative(version)?.components().count() != 1
+        || protocol != PROTOCOL_VERSION
+        || java != REQUIRED_JAVA
+    {
         return Err(invalid(
             "Unsupported engine version, protocol or Java requirement",
         ));
@@ -115,7 +119,7 @@ pub fn inspect(directory: &Path) -> Result<Manifest> {
 
 /// Returns a verified installed manifest for an explicitly selected version.
 pub fn status(root: &Path, version: &str) -> Result<Option<Manifest>> {
-    compatible(version, 2, 17)?;
+    compatible(version, PROTOCOL_VERSION, REQUIRED_JAVA)?;
     let directory = root.join(version);
     if directory.join("engine.json").exists() {
         inspect(&directory).map(Some)
@@ -126,9 +130,7 @@ pub fn status(root: &Path, version: &str) -> Result<Option<Manifest>> {
 
 /// Installs a pinned archive into a version directory after all checks complete.
 pub fn import(root: &Path, archive: &Path, package: &Package) -> Result<PathBuf> {
-    compatible(&package.version, package.protocol, package.java)?;
-    let (root, _lock) = installation_lock(root, &package.version)?;
-    import_locked(&root, archive, package)
+    import_with_control(root, archive, package, &TransferControl::default())
 }
 
 fn installation_lock(root: &Path, version: &str) -> Result<(PathBuf, File)> {
@@ -184,10 +186,6 @@ fn publish(staging: &Path, destination: &Path) -> Result<()> {
     marker.write_all(&manifest)?;
     marker.sync_all()?;
     Ok(())
-}
-
-fn import_locked(root: &Path, archive: &Path, package: &Package) -> Result<PathBuf> {
-    import_controlled(root, archive, package, &TransferControl::default())
 }
 
 /// Imports the pinned ZIP through the same verified staging and publication used by downloads.
@@ -476,7 +474,7 @@ pub fn install_with_control(
 
 /// Removes an explicitly selected, complete installed version.
 pub fn remove(root: &Path, version: &str) -> Result<()> {
-    compatible(version, 2, 17)?;
+    compatible(version, PROTOCOL_VERSION, REQUIRED_JAVA)?;
     let directory = root.canonicalize()?.join(version);
     inspect(&directory)?;
     fs::remove_dir_all(directory)?;

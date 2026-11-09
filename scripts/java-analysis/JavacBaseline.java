@@ -26,7 +26,7 @@ public class JavacBaseline {
                   null,
                   manager,
                   diagnostics,
-                  List.of("--release", "17", "-proc:none", "-classpath", args[1]),
+                  List.of("--release", args[2], "-proc:none", "-classpath", args[1]),
                   null,
                   manager.getJavaFileObjectsFromPaths(files));
       var units = task.parse();

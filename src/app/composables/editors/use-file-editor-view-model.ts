@@ -11,7 +11,7 @@ import {
 import { computed, ref, watch } from 'vue';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
 import { loadEditableFileData, writeEditableFileText, followFileTextIdentity } from '@/services/files.service';
-import { committedFileText } from '@/orchestrators/file-editor-window.orchestrator';
+import { committedFileText } from '@/domain/project-sync/committed-text';
 import { isAbsoluteFsPath, joinRootRelativePath, normalizeFsPath, pathBelongsToRoot, relativePathFromRoot } from '@/shared/lib/paths';
 import { useEditTargetDraftSession, type EditTargetDraftSession } from '@/app/composables/use-edit-target-draft-session';
 import { useSnapshotHistory } from '@/app/composables/use-snapshot-history';
@@ -69,6 +69,8 @@ export function useFileEditorViewModel(params: FileEditorViewModelParams) {
     TextMeta
   >({
     emptyValue: '',
+    clone: (text) => text,
+    equals: (left, right) => left === right,
     beginSave: beginSavedWrite,
     savedContent: (snapshot) => ({ ...snapshot, meta: { ...snapshot.meta, receipt: null } }),
     load: async (target, signal) => {

@@ -192,7 +192,7 @@ export function csvRowProblems(
             ]
           : ['damage/second', 'beam speed'];
         for (const key of ignored)
-          if (text(key))
+          if (num(key) > 0)
             problem(key, `当前 ${beam ? '光束' : '实弹'} 读取分支使用另一组字段，请确认该值的用途。`, 'warning', 'branch_field');
         if (!beam && spec.projectileSpecId && context && !context.entities[`projectile:${cell(spec.projectileSpecId)}`])
           problem('id', '武器引用的弹体规格未找到。', context.complete ? 'error' : 'warning', 'projectile_missing');
@@ -246,7 +246,8 @@ export function csvRowProblems(
     }
     if (table === 'skills' && spec && context?.sources[`aptitudeEffect:${cell(spec.governingAptitude)}`]?.includes(id))
       for (const key of ['name', 'description', 'tier', 'reqPoints', 'reqPointsPerExtraSkill'])
-        if (text(key)) problem(key, '类别效果技能由天赋类别定义接管此内容。', 'warning', 'aptitude_override');
+        if (['name', 'description'].includes(key) ? text(key) : num(key) > 0)
+          problem(key, '类别效果技能由天赋类别定义接管此内容。', 'warning', 'aptitude_override');
     if (table === 'specialItems' && context && text('plugin') === 'com.fs.starfarer.api.campaign.impl.items.GenericSpecialItemPlugin')
       for (const value of text('plugin params')
         .split(',')

@@ -39,6 +39,8 @@ struct CoreCache {
     pub skin_files: Option<Arc<Vec<SkinFile>>>,
     pub weapon_specs: Option<Arc<BTreeMap<String, LoadedSpecRecord>>>,
     pub projectile_specs: Option<Arc<BTreeMap<String, LoadedSpecRecord>>>,
+    pub system_files: Option<Arc<BTreeMap<String, LoadedSpecRecord>>>,
+    pub skill_files: Option<Arc<BTreeMap<String, LoadedSpecRecord>>>,
 }
 
 impl CoreCache {
@@ -53,6 +55,8 @@ impl CoreCache {
             skin_files: None,
             weapon_specs: None,
             projectile_specs: None,
+            system_files: None,
+            skill_files: None,
         }
     }
 }
@@ -594,6 +598,46 @@ pub(crate) fn load_core_projectile_specs(
     )
 }
 
+pub(crate) fn load_core_system_files(
+    starsector_root: &str,
+) -> AppResult<Arc<BTreeMap<String, LoadedSpecRecord>>> {
+    get_or_load_core(
+        starsector_root,
+        "systems",
+        |cache| cache.system_files.as_ref(),
+        |cache, files| cache.system_files = Some(files),
+        |sources| {
+            load_spec_records_from(
+                sources,
+                &["data/shipsystems"],
+                "system",
+                "id",
+                ResourceSource::Core,
+            )
+        },
+    )
+}
+
+pub(crate) fn load_core_skill_files(
+    starsector_root: &str,
+) -> AppResult<Arc<BTreeMap<String, LoadedSpecRecord>>> {
+    get_or_load_core(
+        starsector_root,
+        "skills",
+        |cache| cache.skill_files.as_ref(),
+        |cache, files| cache.skill_files = Some(files),
+        |sources| {
+            load_spec_records_from(
+                sources,
+                &["data/characters/skills"],
+                "skill",
+                "id",
+                ResourceSource::Core,
+            )
+        },
+    )
+}
+
 pub(crate) fn load_core_variant_files(starsector_root: &str) -> AppResult<Arc<Vec<VariantFile>>> {
     get_or_load_core(
         starsector_root,
@@ -694,6 +738,12 @@ pub(in crate::services::project) fn invalidate_core_sources(
         }
         if matches("data/variants") {
             data.variant_files = None;
+        }
+        if matches("data/shipsystems") {
+            data.system_files = None;
+        }
+        if matches("data/characters/skills") {
+            data.skill_files = None;
         }
         if matches("data/hulls/skins") {
             data.skin_files = None;
@@ -826,7 +876,7 @@ mod tests {
     use std::sync::mpsc;
     use std::sync::{Arc, Barrier};
     use std::time::Duration;
-    use std::{fs, thread};
+    use std::{fs, slice, thread};
 
     fn read_product(root: &str, product: &str) -> AppResult<()> {
         match product {
@@ -838,8 +888,56 @@ mod tests {
             "projectiles" => load_core_projectile_specs(root).map(|_| ()),
             "variants" => load_core_variant_files(root).map(|_| ()),
             "skins" => load_core_skin_files(root).map(|_| ()),
+            "systems" => load_core_system_files(root).map(|_| ()),
+            "skills" => load_core_skill_files(root).map(|_| ()),
             "csv" => load_core_csv_table(root, "data/hulls/ship_data.csv").map(|_| ()),
             _ => unreachable!(),
+        }
+    }
+
+    #[test]
+    fn system_and_skill_products_share_reads_refresh_and_retry() {
+        for (product, directory, extension) in [
+            ("systems", "data/shipsystems", "system"),
+            ("skills", "data/characters/skills", "skill"),
+        ] {
+            let work = project_workspace("core_validation_products");
+            let relative = format!("{directory}/probe.{extension}");
+            let path = work.join("starsector-core").join(&relative);
+            fs::create_dir_all(path.parent().unwrap()).unwrap();
+            io::write_utf8_no_bom(&path, r#"{"id":"probe","value":1}"#).unwrap();
+            let game = work.to_string_lossy();
+            thread::scope(|scope| {
+                let tasks = (0..4)
+                    .map(|_| scope.spawn(|| read_product(&game, product)))
+                    .collect::<Vec<_>>();
+                for task in tasks {
+                    task.join().unwrap().unwrap();
+                }
+            });
+            read_product(&game, product).unwrap();
+            assert_eq!(work_counts::count("read", &path), 1);
+            assert_eq!(work_counts::count("parse", &path), 1);
+            io::write_utf8_no_bom(&path, r#"{"id":"probe","value":2}"#).unwrap();
+            prepare_core_source_refresh(&game, slice::from_ref(&relative), false).unwrap();
+            read_product(&game, product).unwrap();
+            assert_eq!(work_counts::count("read", &path), 2);
+            assert_eq!(work_counts::count("parse", &path), 2);
+            io::write_utf8_no_bom(&path, "{").unwrap();
+            prepare_core_source_refresh(&game, &[relative], false).unwrap();
+            assert!(read_product(&game, product).is_err());
+            io::write_utf8_no_bom(&path, r#"{"id":"probe","value":3}"#).unwrap();
+            prepare_core_source_refresh(&game, &[directory.into()], true).unwrap();
+            read_product(&game, product).unwrap();
+            let records = if product == "systems" {
+                load_core_system_files(&game)
+            } else {
+                load_core_skill_files(&game)
+            }
+            .unwrap();
+            assert_eq!(records["probe"].data["value"], 3);
+            invalidate_core_cache(&game).unwrap();
+            work.close().unwrap();
         }
     }
 

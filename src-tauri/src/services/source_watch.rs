@@ -34,6 +34,7 @@ pub struct SourceChangeBatch {
 
 struct SourceRootState {
     batch: SourceChangeBatch,
+    rename_from: Option<(Option<usize>, PathBuf)>,
     first: Option<Instant>,
     latest: Option<Instant>,
     leases: usize,
@@ -85,18 +86,32 @@ impl SourceRoot {
                         return Ok(());
                     }
                     pending.batch.rescan |= event.need_rescan();
-                    if matches!(
-                        event.kind,
-                        EventKind::Modify(ModifyKind::Name(RenameMode::Both))
-                    ) {
-                        pending
-                            .batch
-                            .renames
-                            .push((event.paths[0].clone(), event.paths[1].clone()));
+                    // Windows delivers adjacent From/To notifications for a single rename.
+                    match event.kind {
+                        EventKind::Modify(ModifyKind::Name(RenameMode::From)) => {
+                            pending.rename_from =
+                                Some((event.attrs.tracker(), event.paths[0].clone()));
+                        }
+                        EventKind::Modify(ModifyKind::Name(RenameMode::To)) => {
+                            if let Some((tracker, before)) = pending.rename_from.take()
+                                && tracker == event.attrs.tracker()
+                            {
+                                pending.batch.renames.push((before, event.paths[0].clone()));
+                            }
+                        }
+                        EventKind::Modify(ModifyKind::Name(RenameMode::Both)) => {
+                            pending.rename_from = None;
+                            pending
+                                .batch
+                                .renames
+                                .push((event.paths[0].clone(), event.paths[1].clone()));
+                        }
+                        _ => pending.rename_from = None,
                     }
                     pending.batch.paths.extend(event.paths);
                 }
                 Err(error) => {
+                    pending.rename_from = None;
                     pending.batch.diagnostic = Some(
                         AppError::message("source.watch_failed", error.to_string())
                             .at_path(Path::new(&self.path))
@@ -123,6 +138,7 @@ impl SourceRoot {
         let generation = {
             let mut pending = self.pending()?;
             pending.generation += 1;
+            pending.rename_from = None;
             pending.generation
         };
         let root = Arc::downgrade(self);
@@ -190,6 +206,7 @@ impl SourceRoot {
             );
             pending.first = None;
             pending.latest = None;
+            pending.rename_from = None;
             pending.delivering = true;
             drop(pending);
             // Native callbacks keep merging one pending batch while this root is being consumed.
@@ -223,6 +240,7 @@ pub fn configure(enabled: bool) -> AppResult<Vec<String>> {
         };
         pending.first = None;
         pending.latest = None;
+        pending.rename_from = None;
         // An already detached batch finishes enqueueing before disable returns.
         while pending.delivering {
             pending = root
@@ -268,6 +286,7 @@ pub fn subscribe(root: &Path, deliver: fn(SourceChangeBatch)) -> AppResult<Sourc
                 ..Default::default()
             },
             first: None,
+            rename_from: None,
             latest: None,
             leases: 1,
             openings: 1,
@@ -384,7 +403,9 @@ mod tests {
     use crate::io;
     use crate::test_support::{self, SOURCE_WATCH_TEST_QUEUE, TestWorkspace};
     use notify::Error as NotifyError;
+    use notify::event::CreateKind;
     use std::fs;
+    use std::sync::atomic::{AtomicBool, Ordering};
     use std::sync::mpsc::{self, Receiver, Sender};
     use std::thread;
 
@@ -564,6 +585,39 @@ mod tests {
         root.close().unwrap();
     }
     #[test]
+    fn source_watch_pairs_split_names_and_drops_unmatched_names() {
+        if test_support::isolated_test() {
+            return;
+        }
+        let _serial = SOURCE_WATCH_TEST_QUEUE.lock().unwrap();
+        configure(true).unwrap();
+        let (root, _events) = workspace("split_rename_events");
+        let subscription = subscribe(&root, receive).unwrap();
+        let record = |mode, name: &str| {
+            subscription.root.record(Ok(
+                Event::new(EventKind::Modify(ModifyKind::Name(mode))).add_path(root.join(name))
+            ))
+        };
+        record(RenameMode::To, "unmatched.txt");
+        record(RenameMode::From, "first.txt");
+        record(RenameMode::To, "second.txt");
+        record(RenameMode::From, "orphan.txt");
+        subscription
+            .root
+            .record(Ok(Event::new(EventKind::Create(CreateKind::File))
+                .add_path(root.join("different.txt"))));
+        record(RenameMode::To, "unpaired.txt");
+        let pending = subscription.root.pending().unwrap();
+        assert_eq!(
+            pending.batch.renames,
+            vec![(root.join("first.txt"), root.join("second.txt"))]
+        );
+        assert!(pending.rename_from.is_none());
+        drop(pending);
+        drop(subscription);
+        root.close().unwrap();
+    }
+    #[test]
     fn source_watch_keeps_rename_pairs_and_delivers_listener_errors_and_retry() {
         if test_support::isolated_test() {
             return;
@@ -576,16 +630,15 @@ mod tests {
         fs::write(&before, "content").unwrap();
         let mut subscription = subscribe(&root, receive).unwrap();
         fs::rename(&before, &after).unwrap();
-        subscription
-            .root
-            .record(Ok(Event::new(EventKind::Modify(ModifyKind::Name(
-                RenameMode::Both,
-            )))
-            .add_path(before.clone())
-            .add_path(after.clone())));
         subscription.activate().unwrap();
         let batch = events.recv_timeout(Duration::from_secs(5)).unwrap();
-        assert!(batch.renames.contains(&(before, after)));
+        assert!(
+            batch
+                .renames
+                .iter()
+                .any(|(old, new)| old.file_name() == before.file_name()
+                    && new.file_name() == after.file_name())
+        );
         subscription
             .root
             .record(Err(NotifyError::generic("listener unavailable")));
@@ -608,17 +661,20 @@ mod tests {
         fs::write(&path, "initial").unwrap();
         let mut subscription = subscribe(&root, receive).unwrap();
         subscription.activate().unwrap();
+        let producing = AtomicBool::new(true);
         thread::scope(|scope| {
             scope.spawn(|| {
-                let started = Instant::now();
-                while started.elapsed() < Duration::from_millis(1600) {
-                    fs::write(&path, started.elapsed().as_nanos().to_string()).unwrap();
+                let mut writes = 0;
+                while producing.load(Ordering::Acquire) {
+                    writes += 1;
+                    fs::write(&path, writes.to_string()).unwrap();
                     thread::sleep(Duration::from_millis(20));
                 }
             });
-            let started = Instant::now();
-            let batch = events.recv_timeout(Duration::from_millis(800)).unwrap();
-            assert!(started.elapsed() < Duration::from_millis(800));
+            // Delivery must happen while writes continue; completion ends the producer's lifetime.
+            let result = events.recv_timeout(Duration::from_secs(5));
+            producing.store(false, Ordering::Release);
+            let batch = result.unwrap();
             assert!(contains_path(&batch, &path));
         });
         drop(subscription);

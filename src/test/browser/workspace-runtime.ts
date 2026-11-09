@@ -17,11 +17,16 @@ import { miscConfigDefinition } from '@/domain/misc-config';
 import { composeJson } from '@/domain/json-composition';
 import { isRowData } from '@/shared/lib/row-data';
 import { createJavaComponentPreview } from './java-analysis';
+import { createCodeEditorPreview } from './code-editor';
+import { gameFiles } from './game-files';
 
 type Handler = (event: { event: string; id: number; payload: unknown }) => void | Promise<void>;
 type DeliveryChannel = { onmessage: (delivery: T.ProjectSyncDelivery) => void };
 export function createBrowserWorkspace(systemTheme: T.AppTheme = 'light') {
   const javaAnalysis = createJavaComponentPreview();
+  const codeEditor = createCodeEditorPreview(
+    (owner, request) => invoke(owner, 'request_window', { payload: request }) as Promise<T.WindowRequestReceipt>,
+  );
   initializeWindowsPathCase(windowsPathCaseFixture);
   let references: T.ReferenceSource[] = [];
   const buildProjects = () => [coreRoot, ...workspaceRoots].map(createWorkspaceProject);
@@ -197,6 +202,7 @@ export function createBrowserWorkspace(systemTheme: T.AppTheme = 'light') {
       scope.kind === 'sessions' ? scope.sessionIds : scope.kind === 'application' ? projects.map((entry) => entry.manifest.sessionId) : [];
     setTimeout(() => {
       targets.forEach((key) => {
+        codeEditor.release(key);
         windows.delete(key);
         channels.delete(key);
         for (const [id, listener] of listeners) if (listener.label === key) listeners.delete(id);
@@ -208,6 +214,7 @@ export function createBrowserWorkspace(systemTheme: T.AppTheme = 'light') {
   async function invoke(label: string, command: string, args: Record<string, unknown> = {}): Promise<unknown> {
     calls.push({ window: label, command });
     if (javaAnalysis.commands.has(command)) return javaAnalysis.invoke(command, args);
+    if (codeEditor.commands.has(command)) return codeEditor.invoke(label, command, args);
     const request = command === 'save_project' ? (args.request as T.SaveRequest) : null;
     if (request) {
       command = request.action.kind;
@@ -730,6 +737,7 @@ export function createBrowserWorkspace(systemTheme: T.AppTheme = 'light') {
     },
     windows,
     javaAnalysis,
+    codeEditor,
     faults,
     diagnostics,
     calls,
@@ -759,9 +767,32 @@ export function createBrowserWorkspace(systemTheme: T.AppTheme = 'light') {
       return () => listeners.delete(id);
     },
     openSampleWindow(
-      kind: 'editor' | 'file-editor' | 'immersive-editor' | 'weapon-fire-preview',
+      kind: 'editor' | 'file-editor' | 'immersive-editor' | 'weapon-fire-preview' | 'code-editor',
       targetKind: T.SpecEditorKind | T.JointEditKind = kind === 'immersive-editor' ? 'variant' : 'ship',
     ) {
+      if (kind === 'code-editor') {
+        const root = gameRoot + '/mods/code_sample';
+        let sample = projects.find((project) => project.manifest.modRoot === root);
+        if (!sample) {
+          gameFiles.set(root + '/mod_info.json', JSON.stringify({ id: 'code_sample', name: 'Code sample', version: '1' }));
+          sample = createWorkspaceProject(root, projects.length);
+          sample.setSources(() => [sample!, projects[0]!]);
+          projects.push(sample);
+          for (const [index, path] of ['src/alpha/Entry.java', 'src/beta/Entry.java', 'src/Third.java'].entries())
+            sample.textFiles.set(root + '/' + path, 'class Sample' + index + ' {}\r\n');
+        }
+        return invoke('main', 'open_code_editor', {
+          key: crypto.randomUUID(),
+          input: {
+            sessionId: sample.manifest.sessionId,
+            modRoot: root,
+            files: [...sample.textFiles.keys()]
+              .filter((path) => path.endsWith('.java'))
+              .slice(0, 3)
+              .map((path) => ({ path })),
+          },
+        });
+      }
       const receiver =
         targetKind === 'wing'
           ? projects[1]!

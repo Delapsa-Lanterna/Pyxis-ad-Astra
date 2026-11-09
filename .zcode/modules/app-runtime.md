@@ -8,7 +8,7 @@
 
 ### 拥有
 
-- `.nvmrc`：Node 运行版本。
+- `.nvmrc`：本地与 CI 共用的 Node 运行版本。
 - `CONTRIBUTING.md`：项目开发环境与协作入口。
 - `LICENSE`：项目许可文本。
 - `README.md`：应用介绍、安装与使用入口。
@@ -33,6 +33,7 @@
 - `src-tauri/tauri.conf.json`：应用标识、窗口与构建配置。
 - `src/app/App.vue`：主窗口根，以 main 模式包装唯一窗口壳并装配主窗口内容。
 - `src/app/AppContent.vue`：主窗口装配、设置来源切换接线、明确文档保存与快捷键登记、窗口级 CSV 关联确认，以及完整目标绑定的 CSV 和 JSON 页面懒挂载。
+- `src/app/CodeEditorApp.vue`：代码编辑器独立窗口的主题壳与内容装配。
 - `src/app/FileEditorApp.vue`：文件编辑器子窗口根，以 child 模式包装文件编辑器窗口内容。
 - `src/app/ImmersiveEditorApp.vue`：沉浸式子窗口根与统一窗口壳挂载。
 - `src/app/ImmersiveEditorContent.vue`：四类沉浸式组件、共同会话及业务事件装配。
@@ -72,6 +73,7 @@
 - `src-tauri/src/services/app_log.rs`：日志运行参数及目录准备与已有目录解析能力。
 - `src-tauri/src/services/app_log/directory.rs`：日志目录创建、已有目录解析、规范路径与传入工作区根的保护规则。
 - `src-tauri/src/services/app_settings.rs`：正式快照、revision、串行写盘、目录回调结果接纳及装配传入的运行参数提交动作。
+- `src-tauri/src/services/code_editor.rs`：代码编辑窗口销毁后的队列与回执释放。
 - `src-tauri/src/services/file_history/records.rs`：按实际 Mod 根持有 changeset、双栈、revision、容量及回放交接。
 - `src-tauri/src/services/java_analysis.rs`：Java 分析运行态初始化及应用关闭后的实例释放。
 - `src-tauri/src/services/performance_monitor.rs`：命令计时、环形缓冲与报告导出。
@@ -89,6 +91,7 @@
 - `src/app/components/ModNavigation.vue`：当前 Mod 的页面与业务导航。
 - `src/app/components/ModTabsBar.vue`：Mod 页签选择与移除动作展示。
 - `src/app/components/ProjectSyncNotice.vue`：所属未完成交接的显示。
+- `src/app/components/code-editor/CodeEditorContent.vue`：多文件编辑器窗口内容。
 - `src/app/components/immersive/ImmersiveEditorActions.vue`：共同保存、撤销及外部载入动作展示。
 - `src/app/components/immersive/ImmersiveEditorShell.vue`：共同标题、来源、状态与业务插槽。
 - `src/app/components/immersive/immersive-render-context.ts`：只读与编辑展示契约。

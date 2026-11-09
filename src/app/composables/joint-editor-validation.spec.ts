@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CsvValidationContext, JointEditSnapshot } from '@/shared/types';
+import { createShipSpec, createWeaponSpec, createDefaultVariant, createDefaultSkin } from '@/domain/entity-write/spec-construction';
+import { getCsvColumnSchemas } from '@/domain/schema/csv-schema-registry';
 import { fixtureCsvRecord, fixtureJointSnapshot, fixtureSpecRecord } from '@/test/fixtures/joint-edit/joint-record';
 import { csvDraftRow, csvTableIndex } from '@/test/fixtures/csv-row';
 import { jointProblemBlocks } from '@/domain/joint-edit';
@@ -32,6 +34,143 @@ beforeEach(() => {
   );
 });
 describe('joint file validation', () => {
+  it.each([
+    ['ship', 'ships', 'hullId', 'id'],
+    ['weapon', 'weapons', 'id', 'id'],
+    ['variant', 'wings', 'variantId', 'variant'],
+    ['skin', 'descriptions', 'skinHullId', 'id'],
+  ] as const)('checks the submitted %s identity against its %s row', async (kind, table, idField, column) => {
+    const spec =
+      kind === 'ship'
+        ? createShipSpec('before')
+        : kind === 'weapon'
+          ? createWeaponSpec('before', 'beam')
+          : kind === 'variant'
+            ? createDefaultVariant('base', 'before')
+            : createDefaultSkin('base', 'before');
+    const row = { id: 'before', name: 'Probe', type: 'SHIP', text1: 'Probe', variant: 'before' };
+    const records = [fixtureCsvRecord('csv', table, { id: 'before' }, row), fixtureSpecRecord('spec', kind, spec)];
+    const snapshot = fixtureJointSnapshot(kind, 'before', records, { csv: 'csv', spec: 'spec' });
+    reads.index.mockResolvedValue(
+      csvTableIndex([csvDraftRow(row, 'csv')], { table, header: getCsvColumnSchemas(table).map((c) => c.key) }),
+    );
+    const values = {
+      csv: { state: 'present' as const, value: { ...row, [column]: 'after' } },
+      spec: { state: 'present' as const, value: { ...spec, [idField]: 'after' } },
+    };
+    const before = JSON.stringify([snapshot, values]);
+    const issues = await validateJointFiles(snapshot, values);
+    expect(issues.filter((issue) => ['csv.spec_missing', 'csv.variant_missing', 'csv.description_reference'].includes(issue.code))).toEqual(
+      [],
+    );
+    expect(JSON.stringify([snapshot, values])).toBe(before);
+  });
+  it.each([false, true])('resolves the old local identity from its remaining base when present=%s', async (fallback) => {
+    const spec = fixtureSpecRecord('spec', 'ship', createShipSpec('before'));
+    if (fallback)
+      spec.composition = {
+        replace: false,
+        excluded: [],
+        layers: [
+          {
+            source: { ...spec.source!, source: 'core' },
+            version: { path: spec.source!.path, fingerprint: 'base' },
+            replace: false,
+            data: createShipSpec('before'),
+          },
+        ],
+      };
+    const row = { id: 'before', type: 'SHIP', text1: 'Probe' };
+    const snapshot = fixtureJointSnapshot(
+      'ship',
+      'before',
+      [spec, fixtureCsvRecord('csv', 'descriptions', { id: 'before', type: 'SHIP' }, row)],
+      { spec: 'spec' },
+    );
+    reads.index.mockResolvedValue(csvTableIndex([csvDraftRow(row, 'csv')], { table: 'descriptions' }));
+    const ctx = context();
+    ctx.entities['ship:before'] = createShipSpec('before');
+    reads.context.mockResolvedValue(ctx);
+    const issues = await validateJointFiles(snapshot, { spec: { state: 'present', value: createShipSpec('after') } });
+    expect(issues.filter((issue) => issue.code === 'csv.description_reference')).toHaveLength(fallback ? 0 : 1);
+    expect(ctx.entities['ship:before']).toEqual(createShipSpec('before'));
+  });
+  it('checks an automatically renamed associated CSV row using its submitted spec identity', async () => {
+    const row = { id: 'before', name: 'Probe', mass: '1', 'shield type': 'NONE' };
+    const snapshot = fixtureJointSnapshot(
+      'ship',
+      'before',
+      [fixtureCsvRecord('csv', 'ships', { id: 'before' }, row), fixtureSpecRecord('spec', 'ship', createShipSpec('before'))],
+      { csv: 'csv', spec: 'spec' },
+    );
+    reads.index.mockResolvedValue(csvTableIndex([csvDraftRow(row, 'csv')], { table: 'ships' }));
+    const issues = await validateJointFiles(snapshot, { spec: { state: 'present', value: createShipSpec('after') } });
+    expect(issues.filter((issue) => issue.code === 'csv.spec_missing')).toEqual([]);
+  });
+  it.each([false, true])('checks a deleted local spec against its physical base when present=%s', async (fallback) => {
+    const spec = fixtureSpecRecord('spec', 'ship', createShipSpec('probe'));
+    if (fallback)
+      spec.composition = {
+        replace: true,
+        excluded: [],
+        layers: [
+          {
+            source: { ...spec.source!, source: 'core' },
+            version: { path: spec.source!.path, fingerprint: 'base' },
+            replace: false,
+            data: createShipSpec('probe'),
+          },
+        ],
+      };
+    const row = { id: 'probe', name: 'Probe', mass: '1', 'shield type': 'NONE' };
+    const snapshot = fixtureJointSnapshot('ship', 'probe', [fixtureCsvRecord('csv', 'ships', { id: 'probe' }, row), spec], {
+      csv: 'csv',
+      spec: 'spec',
+    });
+    reads.index.mockResolvedValue(csvTableIndex([csvDraftRow(row, 'csv')], { table: 'ships' }));
+    const ctx = context();
+    ctx.entities['ship:probe'] = createShipSpec('probe');
+    reads.context.mockResolvedValue(ctx);
+    const issues = await validateJointFiles(snapshot, { spec: { state: 'missing' } });
+    expect(issues.filter((issue) => issue.code === 'csv.spec_missing')).toHaveLength(fallback ? 0 : 1);
+  });
+  it('checks an external table using saved identities while local drafts introduce a new identity', async () => {
+    const row = { id: 'probe_wing', variant: 'after' },
+      csv = fixtureCsvRecord('csv', 'wings', { id: 'probe_wing' }, row);
+    csv.source = { ...csv.source!, source: 'core', path: 'G:/core/wing_data.csv' };
+    const spec = fixtureSpecRecord('spec', 'variant', createDefaultVariant('base', 'before'));
+    const snapshot = fixtureJointSnapshot('wing', 'probe_wing', [csv, spec], { csv: 'csv' });
+    reads.index.mockImplementation(async (...args: unknown[]) =>
+      csvTableIndex(args[6] ? [csvDraftRow(row, 'external')] : [], { table: 'wings' }),
+    );
+    const issues = await validateJointFiles(snapshot, { spec: { state: 'present', value: createDefaultVariant('base', 'after') } });
+    expect(issues.filter((issue) => issue.code === 'csv.variant_missing')).toMatchObject([{ location: { path: csv.source.path } }]);
+  });
+  it('resolves the full external hull and wing tables behind a 229-problem snapshot', async () => {
+    const ships = Array.from({ length: 200 }, (_, i) => csvDraftRow({ id: 'hull_' + i, name: 'Hull' }, 'hull:' + i));
+    const wings = Array.from({ length: 31 }, (_, i) => csvDraftRow({ id: 'wing_' + i + '_wing', variant: 'variant_' + i }, 'wing:' + i));
+    const ship = fixtureCsvRecord('shipCsv', 'ships', { id: 'hull_0' }, ships[0]!.data),
+      wing = fixtureCsvRecord('wingCsv', 'wings', { id: 'wing_0_wing' }, wings[0]!.data);
+    for (const record of [ship, wing]) record.source = { ...record.source!, source: 'core', path: 'G:/core/' + record.source!.relPath };
+    const snapshot = fixtureJointSnapshot('wing', 'wing_0_wing', [ship, wing], { csv: 'wingCsv' });
+    reads.index.mockImplementation(
+      async (_session: string, table: string, _count: number, _search: unknown, _field: unknown, _signal: unknown, source: unknown) =>
+        csvTableIndex(source ? (table === 'ships' ? ships : wings) : [], {
+          header: getCsvColumnSchemas(table === 'ships' ? 'ships' : 'wings').map((c) => c.key),
+        }),
+    );
+    const ctx = context();
+    ctx.entities = { 'ship:hull_0': {}, 'variant:variant_0': {} };
+    reads.context.mockResolvedValue(ctx);
+    const missing = (issues: Awaited<ReturnType<typeof validateJointFiles>>) =>
+      issues.filter((issue) => ['csv.spec_missing', 'csv.variant_missing'].includes(issue.code));
+    expect(missing(await validateJointFiles(snapshot, {}))).toHaveLength(229);
+    ctx.entities = Object.fromEntries([
+      ...ships.map((row) => ['ship:' + row.data.id, {}]),
+      ...wings.map((row) => ['variant:' + row.data.variant, {}]),
+    ]);
+    expect(missing(await validateJointFiles(snapshot, {}))).toEqual([]);
+  });
   it('checks another row in the same file and preserves the snapshot and draft', async () => {
     const snapshot = fixture(),
       values = { csv: { state: 'present' as const, value: { id: 'one', name: 'Edited', OPs: '2' } } };

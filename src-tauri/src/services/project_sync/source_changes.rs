@@ -10,13 +10,18 @@ use crate::services::source_watch::{self, SourceChangeBatch, SourceSubscription}
 use crate::services::{project, project_session, windows};
 use crate::{diagnostics, io, services};
 use serde_json::json;
-use std::collections::BTreeMap;
-use std::path::Path;
+use std::cmp::Reverse;
+use std::collections::{BTreeMap, BTreeSet};
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Condvar, LazyLock, Mutex};
 use std::thread;
 use std::time::Instant;
 use tauri::AppHandle;
+
+#[cfg(test)]
+#[path = "source_rename_tests.rs"]
+mod source_rename_tests;
 
 pub(super) struct RootSubscription {
     watch: SourceSubscription,
@@ -346,6 +351,49 @@ pub(super) fn publish_source_status(
 pub(super) fn consume_source_batch(batch: SourceChangeBatch) {
     consume_queued_source_batch(batch, None);
 }
+// Consumers receive final destinations, including files nested below renamed directories.
+fn resolved_renames(batch: &SourceChangeBatch, required: &[String]) -> Vec<(String, String)> {
+    let candidates = required
+        .iter()
+        .map(PathBuf::from)
+        .chain(batch.renames.iter().map(|(before, _)| before.clone()));
+    let mut seen = BTreeSet::new();
+    let mut results = Vec::new();
+    for original in candidates {
+        if !seen.insert(windows_path_key(&original.to_string_lossy())) {
+            continue;
+        }
+        let mut current = original.clone();
+        for (before, after) in &batch.renames {
+            let current_key = windows_path_key(&current.to_string_lossy());
+            let before_key = windows_path_key(&before.to_string_lossy());
+            let suffix = if current_key == before_key {
+                0
+            } else if let Some(suffix) = current_key.strip_prefix(&(before_key + "/")) {
+                suffix.split('/').count()
+            } else {
+                continue;
+            };
+            let remaining: PathBuf = current
+                .components()
+                .skip(current.components().count() - suffix)
+                .collect();
+            current = if suffix == 0 {
+                after.clone()
+            } else {
+                after.join(remaining)
+            };
+        }
+        if current != original {
+            results.push((
+                original.to_string_lossy().into_owned(),
+                current.to_string_lossy().into_owned(),
+            ));
+        }
+    }
+    results.sort_by_key(|(before, _)| Reverse(Path::new(before).components().count()));
+    results
+}
 fn consume_queued_source_batch(batch: SourceChangeBatch, queued: Option<Arc<SaveTask>>) {
     let root = batch.root.clone();
     let started = Instant::now();
@@ -402,6 +450,7 @@ fn consume_queued_source_batch(batch: SourceChangeBatch, queued: Option<Arc<Save
                 .iter()
                 .map(|manifest| manifest.session_id.clone())
                 .collect::<Vec<_>>();
+            required.extend(targets.iter().map(|(_, target)| target.write.path.clone()));
             let mut result = project::refresh_mod_root_batch(
                 &root,
                 &ids,
@@ -410,16 +459,7 @@ fn consume_queued_source_batch(batch: SourceChangeBatch, queued: Option<Arc<Save
                 &required,
                 &reads,
             )?;
-            let renames = batch
-                .renames
-                .iter()
-                .map(|(before, after)| {
-                    (
-                        before.to_string_lossy().into_owned(),
-                        after.to_string_lossy().into_owned(),
-                    )
-                })
-                .collect::<Vec<_>>();
+            let renames = resolved_renames(&batch, &required);
             if !renames.is_empty() {
                 for update in &mut result.session_updates {
                     Arc::make_mut(&mut update.content).invalidation.renames = Some(renames.clone());

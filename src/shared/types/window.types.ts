@@ -4,6 +4,7 @@ import type { WeaponFirePreviewSource } from './weapon-fire-preview.types';
 import type { ErrorDiagnostic } from './error.types';
 
 export type WindowIdentity =
+  | { type: 'code-editor'; sessionId: string; modRoot: string }
   | { type: 'immersive'; sessionId: string; kind: JointEditKind; modRoot: string; id: string }
   | { type: 'spec'; sessionId: string; kind: SpecEditorKind; modRoot: string; id: string }
   | { type: 'weapon-fire-preview'; sessionId: string; modRoot: string; id: string }
@@ -17,6 +18,7 @@ export interface FileWindowLocation {
   column: number | null;
 }
 export type ManagedWindowInput =
+  | { kind: 'code-editor' }
   | { kind: 'editor'; starsectorRoot: string | null }
   | { kind: 'file-editor'; location: FileWindowLocation }
   | { kind: 'immersive-editor'; rowKey: string | null }
@@ -39,6 +41,11 @@ interface WindowContextMeta {
 }
 export type ManagedWindowContext = WindowContextMeta &
   (
+    | {
+        kind: 'code-editor';
+        identity: Extract<WindowIdentity, { type: 'code-editor' }>;
+        input: Extract<ManagedWindowInput, { kind: 'code-editor' }>;
+      }
     | { kind: 'editor'; identity: Extract<WindowIdentity, { type: 'spec' }>; input: Extract<ManagedWindowInput, { kind: 'editor' }> }
     | {
         kind: 'file-editor';

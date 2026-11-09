@@ -4,9 +4,8 @@ version = "1.0.0"
 edition.workspace = true
 rust-version.workspace = true
 
-[[bin]]
-name = "java-analysis"
-path = "src/main.rs"
+[build-dependencies]
+serde_json.workspace = true
 
 [dependencies]
 serde = { workspace = true, features = ["derive"] }

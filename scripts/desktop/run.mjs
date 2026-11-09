@@ -8,6 +8,7 @@ import { fileHash, reserveReport } from './report.mjs';
 import { startDesktop } from './runtime.mjs';
 import { prepareSample } from './sample.mjs';
 import { sourceSync } from './source-sync.mjs';
+import { codeEditor } from './code-editor.mjs';
 import { csvPerformance } from './csv-performance.mjs';
 import { sourcePerformance } from './source-performance.mjs';
 
@@ -90,8 +91,9 @@ else {
     applications.delete(app);
   }
   try {
-    if (!['sources', 'csv', 'source-performance'].includes(options.suite)) throw Error('Unknown desktop suite: ' + options.suite);
-    if (options.suite === 'sources' && options.mod) throw Error('--mod applies to the CSV measurement suite');
+    if (!['sources', 'csv', 'source-performance', 'code-editor'].includes(options.suite))
+      throw Error('Unknown desktop suite: ' + options.suite);
+    if (['sources', 'code-editor'].includes(options.suite) && options.mod) throw Error('--mod applies to the CSV measurement suite');
     if (
       !['all', 'cold', 'warm'].includes(options.phase) ||
       !Number.isInteger(options.rounds) ||
@@ -111,6 +113,7 @@ else {
     work = await TestWorkspace.create(join(cacheDirectory, 'workspaces'), 'run');
     const fixture = await prepareSample(work, options.mod, options.count);
     if (options.suite === 'sources') result = await sourceSync(await launch(), fixture, check, output.artifacts);
+    else if (options.suite === 'code-editor') result = await codeEditor(await launch(), fixture, check, output.artifacts);
     else if (options.suite === 'source-performance') {
       if (!options.mod || !options.game || !Number.isFinite(options.soak) || options.soak < 0)
         throw Error('Source performance requires --mod, --game and a non-negative --soak');

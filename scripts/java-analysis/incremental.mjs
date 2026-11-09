@@ -3,7 +3,7 @@ import { mkdir, writeFile, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 
 /** @param {object} value @returns {object} */
-function semantic(value) {
+export function semantic(value) {
   return JSON.parse(
     JSON.stringify(value, (key, entry) =>
       [
@@ -24,7 +24,7 @@ function semantic(value) {
   );
 }
 
-/** @param {import('./verify.mjs').Session} session @param {string} directory @param {string} javaHome */
+/** @param {import('./session.mjs').Session} session @param {string} directory @param {string} javaHome */
 export async function incremental(session, directory, javaHome) {
   const first = join(directory, 'src');
   const second = join(directory, 'second');

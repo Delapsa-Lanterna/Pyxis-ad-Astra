@@ -46,7 +46,7 @@ final class AnalysisProject implements AutoCloseable {
   }
 
   AnalysisProject(String workspaceName, Protocol.Request input) throws Exception {
-    language = input.language() == null ? "17" : input.language();
+    language = input.language() == null ? Versions.LANGUAGE : input.language();
     resource = ResourcesPlugin.getWorkspace().getRoot().getProject(workspaceName);
     resource.create(null);
     resource.open(null);

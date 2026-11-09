@@ -41,6 +41,34 @@ describe('useSaveCommandStore', () => {
     const store = useSaveCommandStore();
     expect(store.dispatchSaveCommand()).toBe(false);
   });
+  it('captures large text without JSON serialization and rejects later input and added participants', () => {
+    const commands = useSaveCommandStore();
+    const text = ref('x'.repeat(10 * 1024 * 1024));
+    const item = participant('large-text', async () => ({ status: 'noop' }));
+    item.participant.editing!.draftSession.draftValue = text;
+    const stringify = vi.spyOn(JSON, 'stringify');
+    try {
+      const accepts = commands.captureCloseState();
+      expect(accepts()).toBe(true);
+      expect(stringify).not.toHaveBeenCalled();
+      text.value += '!';
+      expect(accepts()).toBe(false);
+      const next = commands.captureCloseState();
+      participant('added', async () => ({ status: 'noop' }));
+      expect(next()).toBe(false);
+    } finally {
+      stringify.mockRestore();
+    }
+  });
+  it('distinguishes a text draft from structured content with the same serialized text', () => {
+    const commands = useSaveCommandStore();
+    const item = participant('mixed', async () => ({ status: 'noop' }));
+    const value = ref<unknown>({});
+    item.participant.editing!.draftSession.draftValue = value;
+    const accepts = commands.captureCloseState();
+    value.value = '{}';
+    expect(accepts()).toBe(false);
+  });
 
   it('dispatches to the registered handler', () => {
     const store = useSaveCommandStore();

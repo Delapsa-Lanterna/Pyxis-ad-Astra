@@ -1,15 +1,17 @@
-use super::entities;
+use super::json_layers;
 use super::source_catalog::values;
 use crate::domain::json_composition;
 use crate::errors::{AppError, AppResult};
 use crate::io::{self, FsRootBoundary};
 use crate::models::{
     CsvStationData, CsvTableKey, CsvValidationContext, CsvValidationEntity, EntityKind,
+    ResourceSource,
 };
 use crate::parsers;
 use crate::services::project::model;
 use crate::services::project::session::{lock_ready_session, session_handle};
 use crate::services::project::sources::core;
+use crate::services::project::sources::documents::LoadedSpecRecord;
 use serde_json::Value;
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
@@ -88,7 +90,7 @@ pub fn query_csv_validation(
             }
         }
         for (kind, ids) in batches {
-            let records = entities::query_entity_batch(session_id, kind, &ids)?;
+            let records = validation_entities(session_id, kind, &ids)?;
             for (id, entity) in ids.into_iter().zip(records) {
                 let key = format!(
                     "{}:{id}",
@@ -96,14 +98,7 @@ pub fn query_csv_validation(
                         .as_str()
                         .expect("entity kind is a string")
                 );
-                if let Some(entity) = entity {
-                    let local = entity.data.get("spec").unwrap_or(&entity.data);
-                    let data = entity
-                        .composition
-                        .as_ref()
-                        .map(|composition| json_composition::compose_game_json(composition, local))
-                        .transpose()?
-                        .unwrap_or_else(|| local.clone());
+                if let Some(data) = entity {
                     if kind == EntityKind::Weapon
                         && let Some(projectile) =
                             data.get("projectileSpecId").and_then(Value::as_str)
@@ -273,6 +268,84 @@ pub fn query_csv_validation(
     Ok(result)
 }
 
+fn validation_entities(
+    session_id: &str,
+    kind: EntityKind,
+    ids: &[String],
+) -> AppResult<Vec<Option<Value>>> {
+    let handle = session_handle(session_id)?;
+    let session = lock_ready_session(&handle)?;
+    let paths = |records: &BTreeMap<String, LoadedSpecRecord>| {
+        records
+            .iter()
+            .map(|(id, record)| (id.clone(), record.location.rel_path.clone()))
+            .collect::<BTreeMap<_, _>>()
+    };
+    let core_paths = if let Some(root) = &session.manifest.starsector_root {
+        match kind {
+            EntityKind::Ship => paths(core::load_core_ship_files(root)?.as_ref()),
+            EntityKind::Weapon => paths(core::load_core_weapon_specs(root)?.as_ref()),
+            EntityKind::Projectile => paths(core::load_core_projectile_specs(root)?.as_ref()),
+            EntityKind::System => paths(core::load_core_system_files(root)?.as_ref()),
+            EntityKind::Skill => paths(core::load_core_skill_files(root)?.as_ref()),
+            EntityKind::Faction => paths(core::load_core_faction_files(root)?.as_ref()),
+            EntityKind::Variant => core::load_core_variant_files(root)?
+                .iter()
+                .map(|file| (file.variant_id.clone(), file.rel_path.clone()))
+                .collect(),
+            EntityKind::Skin => core::load_core_skin_files(root)?
+                .iter()
+                .map(|file| (file.skin_hull_id.clone(), file.rel_path.clone()))
+                .collect(),
+            EntityKind::Mission => BTreeMap::new(),
+        }
+    } else {
+        BTreeMap::new()
+    };
+    ids.iter()
+        .map(|id| {
+            let local = session
+                .spec_records(kind)
+                .and_then(|records| records.get(id))
+                .filter(|record| record.location.source == ResourceSource::Mod)
+                .map(|record| (record.location.rel_path.clone(), record.data.clone()))
+                .or_else(|| match kind {
+                    EntityKind::Variant => session
+                        .variant_files
+                        .iter()
+                        .find(|file| &file.variant_id == id)
+                        .map(|file| (file.rel_path.clone(), file.data.clone())),
+                    EntityKind::Skin => session
+                        .skin_files
+                        .iter()
+                        .find(|file| &file.skin_hull_id == id)
+                        .map(|file| (file.rel_path.clone(), file.data.clone())),
+                    _ => None,
+                });
+            // Only physical records establish existence; CSV registration supplies no spec content.
+            let owns_file = local.is_some();
+            let record = local
+                .or_else(|| {
+                    session
+                        .reference_spec(kind, id)
+                        .map(|record| (record.location.rel_path, Value::Object(Default::default())))
+                })
+                .or_else(|| {
+                    core_paths
+                        .get(id)
+                        .map(|relative| (relative.clone(), Value::Object(Default::default())))
+                });
+            record
+                .map(|(relative, local)| {
+                    let mut composition = json_layers::json_composition(&session, &relative)?;
+                    composition.replace &= owns_file;
+                    json_composition::compose_game_json(&composition, &local)
+                })
+                .transpose()
+        })
+        .collect()
+}
+
 fn archive_classes(bytes: &[u8]) -> AppResult<BTreeSet<Vec<u8>>> {
     let invalid =
         || AppError::message("csv.script_archive_invalid", "脚本 JAR 的 ZIP 目录无法解析");
@@ -310,11 +383,142 @@ fn archive_classes(bytes: &[u8]) -> AppResult<BTreeSet<Vec<u8>>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::domain::entity_definitions::ENTITY_SPEC_DEFINITIONS;
+    use crate::services::project;
     use crate::services::project::test_support::project_workspace;
     use crate::services::project::{PerformanceTrace, open_project_session_traced};
     use crate::services::project_sync::release_project_session;
-    use crate::test_support::work_counts;
+    use crate::test_support::{self, work_counts};
+    use serde_json::json;
     use std::fs;
+
+    #[test]
+    fn validation_uses_physical_specs_from_all_sources_and_composes_content() {
+        if test_support::isolated_test() {
+            return;
+        }
+        let work = project_workspace("validation_entities");
+        let core = work.join("starsector-core");
+        let reference = work.join("mods/reference");
+        let local = work.join("mods/local");
+        for (root, owner) in [
+            (&core, "core"),
+            (&reference, "reference"),
+            (&local, "local"),
+        ] {
+            fs::create_dir_all(root).unwrap();
+            let replace = match owner {
+                "local" => vec!["data/shipsystems/shared.system", "data/hulls/core.ship"],
+                "reference" => vec!["data/characters/skills/shared.skill"],
+                _ => vec![],
+            };
+            io::write_utf8_no_bom(
+                &root.join("mod_info.json"),
+                &json!({"id":owner,"replace":replace}).to_string(),
+            )
+            .unwrap();
+            for definition in ENTITY_SPEC_DEFINITIONS {
+                for id in [owner, "shared"] {
+                    let path = root.join(definition.default_rel_path(id));
+                    fs::create_dir_all(path.parent().unwrap()).unwrap();
+                    let mut data = json!({"hullId":"core","baseHullId":"core","projectileSpecId":"core","owner":owner,"items":[owner]});
+                    data[definition.id_field] = json!(id);
+                    if owner == "local"
+                        && id == "shared"
+                        && definition.entity_kind == EntityKind::Ship
+                    {
+                        data.as_object_mut().unwrap().remove("hullId");
+                    }
+                    io::write_utf8_no_bom(&path, &data.to_string()).unwrap();
+                }
+            }
+        }
+        for relative in [
+            "data/weapons/weapon_data.csv",
+            "data/characters/skills/skill_data.csv",
+        ] {
+            io::write_utf8_no_bom(&local.join(relative), "id,name\nregistered,Registered\n")
+                .unwrap();
+        }
+        let reference = open_project_session_traced(
+            &reference,
+            Some(&work),
+            &mut PerformanceTrace::new("validation.reference"),
+        )
+        .unwrap();
+        let local = open_project_session_traced(
+            &local,
+            Some(&work),
+            &mut PerformanceTrace::new("validation.local"),
+        )
+        .unwrap();
+        project::set_reference_order(vec![reference.session_id.clone(), local.session_id.clone()])
+            .unwrap();
+        project::set_reference_sources(vec![reference.session_id.clone()]).unwrap();
+        let requests = ENTITY_SPEC_DEFINITIONS
+            .iter()
+            .flat_map(|definition| {
+                ["core", "reference", "local", "shared", "registered"].map(|id| {
+                    CsvValidationEntity {
+                        kind: definition.entity_kind,
+                        id: id.into(),
+                    }
+                })
+            })
+            .collect::<Vec<_>>();
+        for _ in 0..2 {
+            let result = query_csv_validation(
+                &local.session_id,
+                requests
+                    .iter()
+                    .map(|request| CsvValidationEntity {
+                        kind: request.kind,
+                        id: request.id.clone(),
+                    })
+                    .collect(),
+                vec![],
+                vec![],
+                vec![],
+                vec![],
+            )
+            .unwrap();
+            for definition in ENTITY_SPEC_DEFINITIONS {
+                let kind = serde_json::to_value(definition.entity_kind).unwrap();
+                let kind = kind.as_str().unwrap();
+                for owner in ["core", "reference", "local"] {
+                    assert_eq!(result.entities[&format!("{kind}:{owner}")]["owner"], owner);
+                }
+                assert_eq!(
+                    result.entities[&format!("{kind}:shared")]["owner"],
+                    if definition.entity_kind == EntityKind::Skill {
+                        "reference"
+                    } else {
+                        "local"
+                    }
+                );
+                let expected = match definition.entity_kind {
+                    EntityKind::System => json!(["local"]),
+                    EntityKind::Skill => json!(["reference"]),
+                    _ => json!(["core", "reference", "local"]),
+                };
+                assert_eq!(
+                    result.entities[&format!("{kind}:shared")]["items"],
+                    expected
+                );
+                assert!(!result.entities.contains_key(&format!("{kind}:registered")));
+            }
+        }
+        for definition in ENTITY_SPEC_DEFINITIONS {
+            let path = core.join(definition.default_rel_path("core"));
+            assert_eq!(work_counts::count("read", &path), 1);
+            assert_eq!(work_counts::count("parse", &path), 1);
+        }
+        project::set_reference_sources(vec![]).unwrap();
+        project::set_reference_order(vec![]).unwrap();
+        release_project_session(local.session_id).unwrap();
+        release_project_session(reference.session_id).unwrap();
+        work.close().unwrap();
+    }
 
     #[test]
     fn csv_validation_resolves_specs_images_sources_and_script_entries() {

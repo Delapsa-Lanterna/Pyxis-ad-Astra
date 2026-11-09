@@ -2,11 +2,13 @@ use crate::errors::{AppError, AppResult};
 use crate::io::{self, FsRootBoundary};
 use crate::models::{
     EntityFileLocation, EntityKind, JsonComposition, JsonSourceLayer, ResourceSource,
+    windows_path_key,
 };
 use crate::services::project::model::ProjectSession;
 use crate::services::project::session::{lock_ready_session, session_handle};
 use crate::services::project::sources::core;
 use serde_json::Value;
+use std::collections::BTreeSet;
 use std::path::Path;
 
 /// Captures ordered source layers from a ready session and preserves their versions and errors.
@@ -24,13 +26,18 @@ pub(in crate::services::project) fn json_composition(
     relative: &str,
 ) -> AppResult<JsonComposition> {
     let mut layers = Vec::new();
+    // The editable source owns its root; each earlier physical source contributes only once.
+    let mut roots = BTreeSet::from([windows_path_key(&session.manifest.mod_root)]);
     if let Some(game) = &session.manifest.starsector_root
         && let Some(layer) = core::read_core_json_layer(game, relative)?
+        && roots.insert(windows_path_key(&layer.source.root))
     {
         layers.push(layer);
     }
     for view in session.preceding_references()? {
-        if let Some(mut layer) = source_layer(&view.session, relative)? {
+        if roots.insert(windows_path_key(&view.identity.mod_root))
+            && let Some(mut layer) = source_layer(&view.session, relative)?
+        {
             layer.source.reference = Some(Box::new(view.identity.clone()));
             layer.source.source = ResourceSource::Reference;
             layers.push(layer);
@@ -112,8 +119,10 @@ fn source_layer(session: &ProjectSession, relative: &str) -> AppResult<Option<Js
 #[cfg(test)]
 mod tests {
     use crate::domain::json_composition;
+    use crate::domain::schema;
     use crate::io;
     use crate::models::*;
+    use crate::parsers;
     use crate::services::misc_config;
     use crate::services::project;
     use crate::services::project::query::entities;
@@ -122,8 +131,156 @@ mod tests {
     use crate::services::project_save::execute_save_action;
     use crate::services::project_sync::release_project_session;
     use crate::test_support as source_test_support;
+    use crate::test_support::work_counts::count;
     use serde_json::json;
     use std::fs;
+    #[test]
+    fn physical_sources_contribute_once_through_save_and_reopen() {
+        if source_test_support::isolated_test() {
+            return;
+        }
+        let work = test_support::project_workspace("composition_physical_sources");
+        let relative = "data/variants/probe.variant";
+        let mut manifests = Vec::new();
+        for (name, groups) in [("starsector-core", 6), ("first", 0), ("local", 1)] {
+            let root = work.join(name);
+            let path = root.join(relative);
+            fs::create_dir_all(path.parent().unwrap()).unwrap();
+            fs::write(
+                &path,
+                json!({"variantId":"probe","hullId":"probe_hull",
+                "weaponGroups":vec![json!({"mode":"LINKED","weapons":{}}); groups],
+                "hullMods":[name]})
+                .to_string(),
+            )
+            .unwrap();
+            manifests.push(
+                project::open_project_session_traced(
+                    &root,
+                    Some(&work),
+                    &mut PerformanceTrace::new("composition.physical"),
+                )
+                .unwrap(),
+            );
+        }
+        let core_path = work.join("starsector-core").join(relative);
+        for (target, order, sources, expected) in [
+            (0, vec![0, 1, 2], vec![], vec!["starsector-core"]),
+            (2, vec![0, 1, 2], vec![], vec!["starsector-core", "local"]),
+            (2, vec![0, 1, 2], vec![0], vec!["starsector-core", "local"]),
+            (
+                2,
+                vec![0, 1, 2],
+                vec![0, 1],
+                vec!["starsector-core", "first", "local"],
+            ),
+            (
+                2,
+                vec![1, 0, 2],
+                vec![1, 0],
+                vec!["starsector-core", "first", "local"],
+            ),
+        ] {
+            project::set_reference_order(
+                order
+                    .iter()
+                    .map(|&i| manifests[i].session_id.clone())
+                    .collect(),
+            )
+            .unwrap();
+            project::set_reference_sources(
+                sources
+                    .iter()
+                    .map(|&i| manifests[i].session_id.clone())
+                    .collect(),
+            )
+            .unwrap();
+            let manifest = &manifests[target];
+            for attempt in 0..2 {
+                let reads = count("read", &core_path);
+                let entity =
+                    entities::query_entity(&manifest.session_id, EntityKind::Variant, "probe")
+                        .unwrap()
+                        .unwrap();
+                let composition = entity.composition.as_ref().unwrap();
+                assert_eq!(composition.layers.len(), expected.len() - 1);
+                if attempt == 1 {
+                    assert_eq!(count("read", &core_path), reads);
+                }
+                let effective =
+                    json_composition::compose_game_json(composition, &entity.data).unwrap();
+                assert_eq!(effective["hullMods"], json!(expected));
+                assert_eq!(
+                    effective["weaponGroups"].as_array().unwrap().len(),
+                    if target == 0 { 6 } else { 7 }
+                );
+                schema::validate_document(parsers::bundled_schema("variant"), &effective).unwrap();
+                assert!(
+                    composition
+                        .layers
+                        .iter()
+                        .all(|layer| layer.source.source == ResourceSource::Core
+                            || layer.source.reference.as_ref().unwrap().session_id
+                                == manifests[1].session_id)
+                );
+            }
+        }
+        project::set_reference_sources(Vec::new()).unwrap();
+        for (index, manifest) in manifests.iter().enumerate() {
+            let entity = entities::query_entity(&manifest.session_id, EntityKind::Variant, "probe")
+                .unwrap()
+                .unwrap();
+            let mut data = entity.data;
+            data["displayName"] = json!("Saved probe");
+            let saved = execute_save_action(SaveAction::SaveVariantEntity(JsonFileSave {
+                base_versions: entity.base_versions,
+                session_id: manifest.session_id.clone(),
+                mod_root: manifest.mod_root.clone(),
+                previous_id: Some("probe".into()),
+                next_id: "probe".into(),
+                data: data.clone(),
+                rel_path: Some(relative.into()),
+                json_write: Default::default(),
+                ordered_json: None,
+            }))
+            .unwrap();
+            assert_eq!(saved.changes.len(), 1);
+            assert_eq!(
+                io::read_json_file(
+                    &work
+                        .join(["starsector-core", "first", "local"][index])
+                        .join(relative)
+                )
+                .unwrap(),
+                data
+            );
+        }
+        for manifest in manifests {
+            release_project_session(manifest.session_id).unwrap();
+        }
+        for (name, groups, layers) in [("starsector-core", 6, 0), ("first", 6, 1), ("local", 7, 1)]
+        {
+            let manifest = project::open_project_session_traced(
+                &work.join(name),
+                Some(&work),
+                &mut PerformanceTrace::new("composition.reopen"),
+            )
+            .unwrap();
+            let entity = entities::query_entity(&manifest.session_id, EntityKind::Variant, "probe")
+                .unwrap()
+                .unwrap();
+            let composition = entity.composition.unwrap();
+            assert_eq!(composition.layers.len(), layers);
+            let effective =
+                json_composition::compose_game_json(&composition, &entity.data).unwrap();
+            assert_eq!(effective["displayName"], "Saved probe");
+            assert_eq!(effective["weaponGroups"].as_array().unwrap().len(), groups);
+            schema::validate_document(parsers::bundled_schema("variant"), &effective).unwrap();
+            release_project_session(manifest.session_id).unwrap();
+        }
+        work.close().unwrap();
+    }
+
     #[test]
     fn twelve_file_kinds_keep_local_contents_through_save_and_reopen() {
         let work = test_support::project_workspace("composition_twelve_kinds");

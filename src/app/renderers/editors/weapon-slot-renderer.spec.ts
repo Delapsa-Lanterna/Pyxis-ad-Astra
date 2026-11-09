@@ -6,6 +6,40 @@ import { drawWeaponSlotVisual, drawLaunchBayPortVisual, weaponSlotStyle, launchB
 const point = { x: 10, y: 20 };
 
 describe('drawWeaponSlotVisual', () => {
+  it.each([
+    ['ENERGY', false, false, 0.125, 0.66],
+    ['ENERGY', false, true, 0.075, 0.66],
+    ['ENERGY', true, false, 0.5, 1],
+    ['ENERGY', true, true, 0.3, 0.66],
+    ['SYNERGY', false, false, 0.0875, 0.66],
+    ['SYNERGY', false, true, 0.0525, 0.66],
+    ['SYNERGY', true, false, 0.35, 1],
+    ['SYNERGY', true, true, 0.21, 0.66],
+  ] as const)('matches hardpoint decoration to %s mount state selected=%s builtin=%s', (type, highlighted, builtin, alpha, factor) => {
+    for (const scale of [0.5, 1, 2]) {
+      const recorder = createCanvasRecorder();
+      recorder.ctx.globalAlpha = 0.4;
+      const style = weaponSlotStyle(type, highlighted ? 1 : 0.6);
+      drawWeaponSlotVisual(recorder.ctx, {
+        showArc: false,
+        angle: 0,
+        arc: 0,
+        mount: 'HARDPOINT',
+        point,
+        size: 'MEDIUM',
+        type,
+        style,
+        refit: { scale, highlighted, builtin },
+      });
+      const strokes = recorder.calls('stroke');
+      expect(strokes[0]!.alpha).toBeCloseTo(alpha);
+      expect(strokes.at(-1)!.alpha).toBeCloseTo(alpha);
+      expect(recorder.calls('scale').map((call) => call.args)).toEqual(Array(2).fill([scale * factor, scale * factor]));
+      expect(Number(strokes.at(-1)!.args[1]) * scale * factor).toBeCloseTo(style.outlineWidth);
+      expect(recorder.calls('fill').at(-1)!.alpha).toBe(style.alpha);
+      expect(recorder.ctx.globalAlpha).toBe(0.4);
+    }
+  });
   it.each([false, true])('isolates refit layers and restores auxiliary styles for builtin=%s', (builtin) => {
     const recorder = createCanvasRecorder();
     recorder.ctx.globalAlpha = 0.4;

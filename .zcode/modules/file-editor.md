@@ -12,7 +12,6 @@
 - `src-tauri/src/services/file_editor.rs`：后端编辑 service，消费 IO 路径授权并交付文本读写。
 - `src/app/FileEditorContent.vue`：窗口内容，拥有行号槽、文本域、快捷键与外部文本呈现。
 - `src/app/composables/editors/use-file-editor-view-model.ts`：编辑 ViewModel，拥有文本 Draft Session、加载、保存、undo/redo 与行列聚焦。
-- `src/orchestrators/file-editor-window.orchestrator.ts`：从正式回执及变更集提取所属路径的完整文本。
 - `src/services/files.service.ts`：文本读取、身份交接、保存与转码的 IPC 参数装配。
 - `src/windows/file-editor.window.ts`：消费完整文件请求并交付常规与恢复模式窗口身份。
 
@@ -32,6 +31,7 @@
 - `src/app/composables/use-snapshot-history.ts`：目标与基线代次绑定的文本和画布快照历史。
 - `src/app/composables/use-window-close-state.ts`：窗口内容关闭登记及操作锁。
 - `src/app/composables/use-window-shortcuts.ts`：统一窗口按键监听、菜单优先、关闭屏蔽及卸载释放。
+- `src/domain/project-sync/committed-text.ts`：从正式回执及变更集提取所属路径的完整文本。
 - `src/domain/project/entity-versions.ts`：保存目标版本捕获与关联表凭据交接。
 - `src/orchestrators/project-sync.orchestrator.ts`：窗口内保存消费过程和内容维护者交接。
 - `src/orchestrators/window-identity.orchestrator.ts`：正式文件身份预约及窗口交接。

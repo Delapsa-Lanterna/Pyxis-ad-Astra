@@ -101,6 +101,11 @@ pub enum WindowIdentity {
         mod_root: String,
         path: String,
     },
+    #[serde(rename = "code-editor")]
+    CodeEditor {
+        session_id: String,
+        mod_root: String,
+    },
     Recovery {
         mod_root: Option<String>,
         path: String,
@@ -119,6 +124,7 @@ impl WindowIdentity {
                 *path = windows_path_key(path);
             }
             Self::Spec { mod_root, .. }
+            | Self::CodeEditor { mod_root, .. }
             | Self::Immersive { mod_root, .. }
             | Self::WeaponFirePreview { mod_root, .. } => *mod_root = windows_path_key(mod_root),
         }
@@ -127,6 +133,7 @@ impl WindowIdentity {
     pub fn mod_root(&self) -> Option<&str> {
         match self {
             Self::Spec { mod_root, .. }
+            | Self::CodeEditor { mod_root, .. }
             | Self::Immersive { mod_root, .. }
             | Self::WeaponFirePreview { mod_root, .. }
             | Self::File { mod_root, .. } => Some(mod_root),
@@ -136,6 +143,7 @@ impl WindowIdentity {
     pub fn session_id(&self) -> Option<&str> {
         match self {
             Self::Spec { session_id, .. }
+            | Self::CodeEditor { session_id, .. }
             | Self::Immersive { session_id, .. }
             | Self::WeaponFirePreview { session_id, .. }
             | Self::File { session_id, .. } => Some(session_id),
@@ -328,6 +336,7 @@ pub struct FileWindowLocation {
     rename_all_fields = "camelCase"
 )]
 pub enum ManagedWindowInput {
+    CodeEditor,
     Editor { starsector_root: Option<String> },
     FileEditor { location: FileWindowLocation },
     ImmersiveEditor { row_key: Option<String> },
@@ -336,6 +345,7 @@ pub enum ManagedWindowInput {
 impl ManagedWindowInput {
     pub fn kind(&self) -> &'static str {
         match self {
+            Self::CodeEditor => "code-editor",
             Self::Editor { .. } => "editor",
             Self::FileEditor { .. } => "file-editor",
             Self::ImmersiveEditor { .. } => "immersive-editor",
@@ -367,6 +377,7 @@ impl ManagedWindowInput {
         matches!(
             (self, identity),
             (Self::Editor { .. }, WindowIdentity::Spec { .. })
+                | (Self::CodeEditor, WindowIdentity::CodeEditor { .. })
                 | (
                     Self::FileEditor { .. },
                     WindowIdentity::File { .. } | WindowIdentity::Recovery { .. }

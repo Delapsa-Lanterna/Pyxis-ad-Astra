@@ -1,7 +1,9 @@
 use crate::dependencies::{compatible, inspect, matches_file};
-use crate::model::{AnalysisRequest, AnalysisResponse, Builtin};
+use crate::package::Builtin;
 use crate::paths::{java_path, relative};
 use crate::protocol::AnalysisResult;
+use crate::protocol::{AnalysisRequest, AnalysisResponse};
+use crate::versions::REQUIRED_JAVA;
 use crate::{Result, invalid};
 use reqwest::Url;
 use serde_json::json;
@@ -143,7 +145,10 @@ impl Engine {
         let Some(AnalysisResult::Hello(hello)) = hello.result else {
             return Err(invalid("Engine handshake result is invalid"));
         };
-        if hello.protocol != manifest.protocol || hello.java != 17 || hello.engine != host.version {
+        if hello.protocol != manifest.protocol
+            || hello.java != REQUIRED_JAVA
+            || hello.engine != host.version
+        {
             return Err(invalid(
                 "Engine handshake does not match package requirements",
             ));

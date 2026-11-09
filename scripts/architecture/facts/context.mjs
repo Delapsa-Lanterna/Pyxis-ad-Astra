@@ -105,13 +105,12 @@ export async function collectArchitectureContext(root, options = {}) {
     const extension = extname(file.rel);
     return (
       !file.rel.endsWith('/') &&
-      !file.rel.startsWith('.zcode/plans/') &&
       !specFile(file.rel) &&
       ((sourceExtensions.has(extension) &&
         (file.rel.startsWith('src/') || file.rel.startsWith('src-tauri/') || file.rel.startsWith('scripts/architecture/rules/'))) ||
         file.rel === 'tsconfig.json' ||
         file.rel === '.zcode/module-map.md' ||
-        (file.rel.startsWith('.zcode/') && !file.rel.startsWith('.zcode/plans/') && extension === '.md') ||
+        (file.rel.startsWith('.zcode/') && extension === '.md') ||
         file.rel === 'package.json')
     );
   });

@@ -184,6 +184,7 @@ function trimUndoStack<TEntry>(state: UndoStackState<TEntry>): void {
 }
 
 export function retainLaterDraft<T>(current: T, submitted: T, saved: T): T {
+  if (typeof current === 'string' && typeof submitted === 'string') return current === submitted ? deepClone(saved) : current;
   if (stableDeepEqual(current, submitted)) return deepClone(saved);
   if (
     current &&

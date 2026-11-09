@@ -13,15 +13,13 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
   const paths = await collectRepoPaths(
     process.cwd(),
     (rel, extension) =>
-      (extensions.has(extension) && !rel.startsWith('.zcode/plans/')) ||
-      rel === '.zcode/module-map.md' ||
-      (rel.startsWith('.zcode/modules/') && extension === '.md'),
+      extensions.has(extension) || rel === '.zcode/module-map.md' || (rel.startsWith('.zcode/modules/') && extension === '.md'),
     true,
   );
   const repositoryPaths = new Set(paths.map(({ rel }) => rel));
   const files = await Promise.all(
     paths
-      .filter(({ rel }) => !rel.endsWith('/') && extensions.has(rel.slice(rel.lastIndexOf('.'))) && !rel.startsWith('.zcode/plans/'))
+      .filter(({ rel }) => !rel.endsWith('/') && extensions.has(rel.slice(rel.lastIndexOf('.'))))
       .map(async (file) => ({ ...file, text: await readFile(file.path, 'utf8') })),
   );
   const moduleDocs = await Promise.all(

@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { rotation, compare, markdown } from './report.mjs';
+import { markdown } from './report.mjs';
+import { rotation, compare } from '../shared/sample-statistics.mjs';
 
 test('balances two and three comparison groups by rotating the first group', () => {
   assert.deepEqual(
@@ -44,27 +45,27 @@ function report(time) {
 }
 test('enforces the existing monitor overhead budgets and leaves code comparisons informative', () => {
   assert.equal(
-    compare(report(100), report(101), 'disabled').every((item) => item.pass),
+    compare(report(100).metrics, report(101).metrics, 'disabled').every((item) => item.pass),
     true,
   );
   assert.equal(
-    compare(report(100), report(102), 'disabled').every((item) => item.pass),
+    compare(report(100).metrics, report(102).metrics, 'disabled').every((item) => item.pass),
     false,
   );
   assert.equal(
-    compare(report(100), report(110), 'enabled').every((item) => item.pass),
+    compare(report(100).metrics, report(110).metrics, 'enabled').every((item) => item.pass),
     true,
   );
   assert.equal(
-    compare(report(100), report(111), 'enabled').every((item) => item.pass),
+    compare(report(100).metrics, report(111).metrics, 'enabled').every((item) => item.pass),
     false,
   );
   assert.equal(
-    compare(report(1), report(6), 'enabled').every((item) => item.pass),
+    compare(report(1).metrics, report(6).metrics, 'enabled').every((item) => item.pass),
     true,
   );
   assert.equal(
-    compare(report(1), report(100), 'code').every((item) => item.pass),
+    compare(report(1).metrics, report(100).metrics, 'code').every((item) => item.pass),
     true,
   );
 });

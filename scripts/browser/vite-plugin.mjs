@@ -2,6 +2,8 @@ import { fileURLToPath } from 'node:url';
 import { readdir, readFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 
+const OPERATION_VERSION = 1;
+
 export const root = fileURLToPath(new URL('../../', import.meta.url));
 /** @param {'browser' | 'testbed'} mode */
 export function browserTestPlugin(mode = 'browser') {
@@ -33,7 +35,12 @@ export function browserTestPlugin(mode = 'browser') {
           .update(/** @type {string} */ (sources[index]))
           .update('\0'),
       );
-      metadata = { sourceHash: hash.digest('hex'), operationVersion: '1', build: environment.command + ':' + environment.mode, mode };
+      metadata = {
+        sourceHash: hash.digest('hex'),
+        operationVersion: String(OPERATION_VERSION),
+        build: environment.command + ':' + environment.mode,
+        mode,
+      };
       const characters = [
         ...new Set(
           ' ?' +

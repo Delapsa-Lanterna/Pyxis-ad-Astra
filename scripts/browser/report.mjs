@@ -1,22 +1,3 @@
-/** @param {number} groups @param {number} iteration */
-export const rotation = (groups, iteration) => Array.from({ length: groups }, (_, offset) => (iteration + offset) % groups);
-
-/** @param {import('../../src/test/browser/contracts.js').RunResult} before @param {import('../../src/test/browser/contracts.js').RunResult} after @param {'disabled' | 'enabled' | 'code'} policy */
-export function compare(before, after, policy = 'code') {
-  const ratio = policy === 'disabled' ? 0.01 : 0.1;
-  const floor = policy === 'disabled' ? 1 : 5;
-  return ['open', 'roundTrip', 'traverse', 'activate', 'close'].flatMap((metric) => {
-    const measured = before.metrics[metric];
-    if (!measured) return [];
-    return /** @type {const} */ (['median', 'p95']).map((statistic) => {
-      const baseline = measured[statistic];
-      const actual = after.metrics[metric]?.[statistic] ?? Infinity;
-      const maximum = policy === 'code' ? null : baseline + Math.max(baseline * ratio, floor);
-      return { metric, statistic, baseline, actual, maximum, pass: maximum === null || actual <= maximum };
-    });
-  });
-}
-
 /** @param {{ pass: boolean, runs: import('../../src/test/browser/contracts.js').RunResult[], [key: string]: unknown }} report */
 export function markdown(report) {
   const lines = [
@@ -65,5 +46,7 @@ export function markdown(report) {
   if (report.firstOpenMetrics) lines.push('', '## 首次打开统计', '', '```json', JSON.stringify(report.firstOpenMetrics, null, 2), '```');
   if (report.uiChecks) lines.push('', '## 页面操作验收', '', '```json', JSON.stringify(report.uiChecks, null, 2), '```');
   if (report.order) lines.push('', '## 执行顺序', '', '```json', JSON.stringify(report.order, null, 2), '```');
+  if (report.measurements) lines.push('', '## 代码编辑器测量', '', '```json', JSON.stringify(report.measurements, null, 2), '```');
+  if (report.environments) lines.push('', '## 运行环境', '', '```json', JSON.stringify(report.environments, null, 2), '```');
   return lines.join('\n') + '\n';
 }

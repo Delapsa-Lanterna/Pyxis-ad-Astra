@@ -2,6 +2,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { hash, toolRoot, writeJson } from './runtime.mjs';
+import { OVERVIEW_SCHEMA_VERSION } from './model.mjs';
 import { declaredDependencies } from './analyze.mjs';
 import { projectDependencies, selectDependencies } from './dependency-graph.mjs';
 
@@ -59,7 +60,7 @@ function overview(report) {
   );
   const edgeKinds = [...new Set(report.edges.map((edge) => edge.kind))].sort();
   return {
-    schemaVersion: 2,
+    schemaVersion: OVERVIEW_SCHEMA_VERSION,
     reportId: report.run.id,
     run: {
       id: report.run.id,

@@ -1,4 +1,4 @@
-use super::{
+use super::super::{
     AnalysisExtras, close_for_session, inputs_for_session, register, request_for_session, shutdown,
     start_for_session,
 };
@@ -7,6 +7,7 @@ use crate::services::project::PerformanceTrace;
 use crate::services::{project, project_sync};
 use crate::test_support::TestWorkspace;
 use pyxis_java_analysis::protocol::AnalysisResult;
+use pyxis_java_analysis::versions::DEFAULT_LANGUAGE;
 use pyxis_java_analysis::{AnalysisRequest, AnalysisRuntime, java_path};
 use serde_json::{Value, json};
 use std::env;
@@ -255,6 +256,7 @@ fn live_correct_mods_use_the_published_reference_inputs() {
                 "JavacBaseline",
                 &inputs.sources.join(";"),
                 &inputs.classpath.join(";"),
+                DEFAULT_LANGUAGE,
             ])
             .output()
             .unwrap();

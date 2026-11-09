@@ -25,6 +25,7 @@ mod tests;
 
 pub(crate) use roots::resolve_core_root;
 
+const SOURCE_CACHE_FORMAT: u32 = 2;
 static CACHE_ROOT: LazyLock<Mutex<Option<PathBuf>>> = LazyLock::new(|| Mutex::new(None));
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -89,7 +90,8 @@ impl SourceReader {
             .and_then(|path| io::read_utf8_no_bom(&path).ok())
             .and_then(|text| parse_persisted_json::<SourceCacheSnapshot>(&text).ok())
             .filter(|snapshot| {
-                snapshot.format == 1 && snapshot.root == boundary.root().to_string_lossy()
+                snapshot.format == SOURCE_CACHE_FORMAT
+                    && snapshot.root == boundary.root().to_string_lossy()
             })
             .map(|snapshot| snapshot.records)
             .unwrap_or_default();
@@ -707,7 +709,7 @@ impl SourceReader {
             io::write_utf8_no_bom(
                 &path,
                 &serde_json::to_string(&Borrowed {
-                    format: 1,
+                    format: SOURCE_CACHE_FORMAT,
                     root: self.root(),
                     records: &self.records,
                 })?,

@@ -134,6 +134,25 @@ function textApplied(event: { sessionId: string; modRoot: string; path: string; 
   void dispatchProjectChangeFixture(committedChangeFixture(result, event.sessionId, event.modRoot));
 }
 describe('useFileEditorViewModel loading', () => {
+  it('edits a large text with scalar comparison and preserves the existing undo history', async () => {
+    const original = 'x'.repeat(10 * 1024 * 1024);
+    mocks.loadEditableFileData.mockResolvedValue(editableFileFixture(original));
+    const vm = await initializeViewModel(paramsFixture());
+    const stringify = vi.spyOn(JSON, 'stringify');
+    try {
+      vm.updateText(original + '!');
+      expect(vm.dirty.value).toBe(true);
+      vm.undoEdit();
+      expect(vm.text.value).toBe(original);
+      expect(vm.dirty.value).toBe(false);
+      vm.redoEdit();
+      expect(vm.text.value).toBe(original + '!');
+      expect(stringify.mock.calls.some(([value]) => typeof value === 'string' && value.length >= original.length)).toBe(false);
+    } finally {
+      stringify.mockRestore();
+      vm.dispose();
+    }
+  });
   it.each([false, true])('refreshes disk once and preserves a dirty draft=%s', async (dirty) => {
     mocks.loadEditableFileData.mockResolvedValue(editableFileFixture('base'));
     const vm = await initializeViewModel(paramsFixture());

@@ -29,15 +29,17 @@ CSV 文档编辑模块管理整表文件的领域规则、运行态、展示、�
 - `src-tauri/src/models/table_save.rs`：CSV 保存请求、行修改、关联规格动作与写入目标。
 - `src-tauri/src/models/tables.rs`：CSV 查询请求、解析记录、搜索与窗口结果。
 - `src-tauri/src/services/project/model.rs`：正式表格路径、身份列、摘要来源与 Core 要求。
-- `src-tauri/src/services/project/query/entities.rs`：按正式来源、目标及组合规则交付校验实体内容。
 - `src-tauri/src/services/project/query/entity_targets.rs`：实际编辑目标、身份意图及正式版本范围。
+- `src-tauri/src/services/project/query/json_layers.rs`：校验消费的正式有序内容组合来源。
 - `src-tauri/src/services/project/query/source_catalog/values.rs`：校验消费的完整引用候选。
 - `src-tauri/src/services/project/resources/table_references.rs`：行预览与来源选项的授权图片及显示名称。
 - `src-tauri/src/services/project/session/access.rs`：捕获引用快照后锁定并交付所属就绪会话。
 - `src-tauri/src/services/project/session/csv_tables.rs`：正式表格内容、稳定行身份与来源版本。
 - `src-tauri/src/services/project/session/csv_writes.rs`：表格暂存与成功应用后的正式状态接纳。
+- `src-tauri/src/services/project/session/references.rs`：规格记录、引用来源身份与有效来源顺序。
 - `src-tauri/src/services/project/session/registry.rs`：会话存活登记、句柄与内容就绪门控。
 - `src-tauri/src/services/project/sources/core.rs`：按根共享 Core 产品、只读 CSV、单飞读取及缓存释放。
+- `src-tauri/src/services/project/sources/documents.rs`：校验消费的正式规格记录。
 - `src-tauri/src/services/project/versions.rs`：会话已接纳来源的路径凭据投影。
 - `src-tauri/src/services/project/write/entity_write.rs`：实体关联规格与描述的实际文件写入。
 - `src-tauri/src/services/project/write/entity_write/associated_spec_preparation.rs`：关联文件实际来源、目标准备与匹配版本。

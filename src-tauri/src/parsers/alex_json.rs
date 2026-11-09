@@ -377,7 +377,11 @@ fn string_to_value(word: &str) -> Option<Value> {
         return Some(Value::Number(value.into()));
     }
     if word.contains(['.', 'e', 'E']) {
-        return match word.parse::<f64>() {
+        return match word
+            .strip_suffix(['f', 'F', 'd', 'D'])
+            .unwrap_or(word)
+            .parse::<f64>()
+        {
             Ok(value) if value.is_finite() => Some(Value::Number(Number::from_f64(value)?)),
             Ok(_) => None,
             Err(_) => Some(Value::String(word.to_string())),
@@ -607,6 +611,37 @@ mod tests {
     fn non_finite_number_is_an_error() {
         let error = parse_starsector_json("{a: 1e309}").unwrap_err();
         assert!(error.to_string().contains("non-finite"), "{error}");
+    }
+
+    #[test]
+    fn floating_suffixes_follow_the_game_numeric_branch() {
+        for (word, expected) in [
+            ("0.625f", 0.625),
+            (".0F", 0.0),
+            ("2e1d", 20.0),
+            ("-3.5D", -3.5),
+        ] {
+            assert_eq!(
+                parse_starsector_json(&format!("{{value:{word}}}")).unwrap()["value"].as_f64(),
+                Some(expected)
+            );
+        }
+        for word in ["1f", "0.625ff", "0x1.5p3"] {
+            assert_eq!(
+                parse_starsector_json(&format!("{{value:{word}}}")).unwrap()["value"],
+                word
+            );
+        }
+        assert_eq!(
+            parse_starsector_json("{value:'0.625f'}").unwrap()["value"],
+            "0.625f"
+        );
+        assert!(
+            parse_starsector_json("{value:1e309f}")
+                .unwrap_err()
+                .to_string()
+                .contains("non-finite")
+        );
     }
 
     #[test]

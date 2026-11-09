@@ -560,6 +560,29 @@ impl WindowRegistry {
                 .filter(|owner| owner.as_str() != label)
                 .cloned()
                 .or_else(|| {
+                    let WindowIdentity::File {
+                        session_id,
+                        mod_root,
+                        path,
+                    } = identity
+                    else {
+                        return None;
+                    };
+                    let target = EditWriteTarget {
+                        session_id: session_id.clone(),
+                        mod_root: mod_root.clone(),
+                        path: path.clone(),
+                    };
+                    self.edit_target_owners(slice::from_ref(&target))
+                        .into_iter()
+                        .find(|owner| {
+                            owner != label
+                                && self.instances.get(owner).is_some_and(|instance| {
+                                    instance.status.dirty || instance.status.saving
+                                })
+                        })
+                })
+                .or_else(|| {
                     self.identities
                         .get(&key)
                         .filter(|owner| owner.as_str() != label)
@@ -1326,6 +1349,40 @@ mod tests {
     use std::path::Path;
     #[cfg(test)]
     use std::{fs, slice};
+
+    #[test]
+    fn multi_document_editor_reservations_share_file_ownership_rules() {
+        let mut state = WindowRegistry::default();
+        let label = state.register(
+            WindowIdentity::CodeEditor {
+                session_id: "sample".into(),
+                mod_root: "M:/sample".into(),
+            },
+            "code".into(),
+            ManagedWindowInput::CodeEditor,
+        );
+        state.instances.get_mut(&label).unwrap().status.dirty = true;
+        state.edit_targets.insert(
+            label.clone(),
+            vec![EditWriteTarget {
+                session_id: "sample".into(),
+                mod_root: "M:/sample".into(),
+                path: "M:/sample/A.java".into(),
+            }],
+        );
+        let identity = WindowIdentity::File {
+            session_id: "sample".into(),
+            mod_root: "M:/sample".into(),
+            path: "M:/sample/a.java".into(),
+        };
+        assert_eq!(
+            state.conflict("peer", slice::from_ref(&identity)),
+            Some(label.clone())
+        );
+        assert_eq!(state.conflict(&label, slice::from_ref(&identity)), None);
+        state.instances.get_mut(&label).unwrap().status.dirty = false;
+        assert_eq!(state.conflict("peer", slice::from_ref(&identity)), None);
+    }
 
     #[test]
     fn editor_bootstrap_delivers_the_owning_mod_name() {

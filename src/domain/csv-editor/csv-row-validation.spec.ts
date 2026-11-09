@@ -215,6 +215,29 @@ describe('CSV declared types and complete row rules', () => {
     ctx.complete = false;
     expect(check('weapons', values, ctx).some((i) => i.code === 'csv.projectile_missing' && i.severity === 'warning')).toBe(true);
   });
+  it.each([
+    ['beam', 'damage/shot'],
+    ['beam', 'energy/shot'],
+    ['beam', 'min spread'],
+    ['beam', 'max spread'],
+    ['beam', 'spread/shot'],
+    ['beam', 'spread decay/sec'],
+    ['beam', 'proj speed'],
+    ['beam', 'launch speed'],
+    ['beam', 'flight time'],
+    ['beam', 'proj hitpoints'],
+    ['projectile', 'damage/second'],
+    ['projectile', 'beam speed'],
+  ])('warns about %s field %s only when positive', (specClass, key) => {
+    for (const value of ['', '0', '0.0', '-0', '0e3', '-1', '1', '0.5', '1f', '1e-3']) {
+      const values = { [key!]: value },
+        ctx = context('weapons', values);
+      ctx.entities['weapon:entry'] = { specClass };
+      const issues = check('weapons', values, ctx).filter((issue) => issue.code === 'csv.branch_field');
+      expect(issues).toHaveLength(['1', '0.5', '1f', '1e-3'].includes(value) ? 1 : 0);
+      if (issues.length) expect(issues[0]).toMatchObject({ severity: 'warning', path: `entry/${key}` });
+    }
+  });
   it.each(['desc', 'sModDesc'])('checks Java string formatting in %s', (key) => {
     for (const value of ['value %d', 'value %11$s', 'value 20%'])
       expect(check('hullmods', { [key]: value }).some((i) => i.code === 'csv.format_invalid')).toBe(true);
@@ -272,6 +295,18 @@ describe('CSV declared types and complete row rules', () => {
       ctx = context('specialItems', values);
     for (const source of ['csv:ships.tags', 'csv:weapons.tags', 'csv:wings.tags']) ctx.sources[source] = [];
     expect(check('specialItems', values, ctx).some((i) => i.message.includes('package_tag'))).toBe(true);
+  });
+  it.each(['tier', 'reqPoints', 'reqPointsPerExtraSkill'])('warns about aptitude effect field %s only when positive', (key) => {
+    for (const value of ['', '0', '0.0', '-0', '-1', '1', '2']) {
+      const values = { [key]: value },
+        ctx = context('skills', values);
+      ctx.entities['skill:entry'] = { governingAptitude: 'sample' };
+      ctx.sources['aptitudeEffect:sample'] = ['entry'];
+      const issues = check('skills', values, ctx).filter(
+        (issue) => issue.code === 'csv.aptitude_override' && issue.path === `entry/${key}`,
+      );
+      expect(issues).toHaveLength(['1', '2'].includes(value) ? 1 : 0);
+    }
   });
   it('accepts explicit and previous string argument indices', () => {
     expect(check('hullmods', { desc: '%2$s %<s %s %%' }).some((i) => i.code === 'csv.format_invalid')).toBe(false);

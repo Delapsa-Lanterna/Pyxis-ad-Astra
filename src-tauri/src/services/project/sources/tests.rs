@@ -212,7 +212,7 @@ fn source_cache_partial_reuse() {
     let first = root.join("first.ship");
     let second = root.join("second.ship");
     fs::write(&first, r#"{"hullId":"first"}"#).unwrap();
-    fs::write(&second, r#"{"hullId":"second"}"#).unwrap();
+    fs::write(&second, r#"{"hullId":"second","scale":0.625f}"#).unwrap();
     let mut initial = SourceReader::new(&root).unwrap();
     initial.json(&first).unwrap();
     initial.json(&second).unwrap();
@@ -223,6 +223,10 @@ fn source_cache_partial_reuse() {
     let mut reopened = SourceReader::new(&root).unwrap();
     assert_eq!(reopened.json(&first).unwrap()["hullId"], "changed");
     assert_eq!(reopened.json(&second).unwrap()["hullId"], "second");
+    assert_eq!(
+        reopened.json(&second).unwrap()["scale"].as_f64(),
+        Some(0.625)
+    );
     assert!(reopened.reused());
     reopened.json(&first).unwrap();
     reopened.json(&second).unwrap();
@@ -234,6 +238,18 @@ fn source_cache_partial_reuse() {
         reopened.versions["first.ship"],
         file_version(&first).unwrap()
     );
+    let cache = cache_path(&reopened.boundary).unwrap().unwrap();
+    let mut snapshot: SourceCacheSnapshot =
+        parse_persisted_json(&io::read_utf8_no_bom(&cache).unwrap()).unwrap();
+    assert_eq!(snapshot.format, 2);
+    snapshot.format = 0;
+    fs::write(&cache, serde_json::to_string(&snapshot).unwrap()).unwrap();
+    let mut uncached = SourceReader::new(&root).unwrap();
+    assert_eq!(
+        uncached.json(&second).unwrap()["scale"].as_f64(),
+        Some(0.625)
+    );
+    assert_eq!(work_counts::count("parse", &second), 2);
     root.close().unwrap();
 }
 

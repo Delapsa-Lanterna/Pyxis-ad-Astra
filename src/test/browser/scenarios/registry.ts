@@ -98,6 +98,7 @@ export const workspaceEntries = [
     href: import.meta.env.BASE_URL + '?navigation=' + encodeURIComponent(item.id),
   })),
   ...[
+    ['code', '代码编辑窗口'],
     ['spec', '规格编辑窗口'],
     ['file', '文件编辑窗口'],
     ['immersive', '沉浸式编辑窗口'],

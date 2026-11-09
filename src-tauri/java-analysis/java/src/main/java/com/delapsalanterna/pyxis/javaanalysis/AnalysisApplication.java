@@ -76,9 +76,9 @@ public final class AnalysisApplication implements IApplication {
     if (operation.equals("hello"))
       return AstFacts.object(
           "protocol",
-          2,
+          Versions.PROTOCOL,
           "engine",
-          "1.0.0",
+          Versions.ENGINE,
           "java",
           Runtime.version().feature(),
           "workspace",
@@ -88,7 +88,8 @@ public final class AnalysisApplication implements IApplication {
     if (operation.equals("shutdown")) return AstFacts.object("closing", true);
     if (operation.equals("parse")) {
       JsonObject result =
-          AstFacts.syntax(typed.source(), typed.language() == null ? "17" : typed.language());
+          AstFacts.syntax(
+              typed.source(), typed.language() == null ? Versions.LANGUAGE : typed.language());
       result.addProperty("version", typed.version());
       return result;
     }

@@ -10,6 +10,24 @@ function request(kind: EntityKind = 'ship'): CsvValidationRequest {
 const hasCsvValidationInvalidation = (scope: Parameters<typeof affects>[0], input: CsvValidationRequest) =>
   affects(scope, input, (source) => hasSourceInvalidation(scope, source));
 describe('CSV validation dependency scope', () => {
+  it.each(['hullmods', 'industries', 'abilities', 'specialItems', 'submarkets', 'marketConditions'] as const)(
+    'refreshes every script field in %s for file and directory changes',
+    (table) => {
+      const input = csvValidationRequest(table, [
+        {
+          rowKey: 'probe',
+          isComment: false,
+          data: { id: 'probe', script: 'probe.Outer$Inner', plugin: 'probe.Outer$Inner', ai: 'probe.Outer$Inner' },
+        },
+      ]);
+      for (const source of ['mod', 'reference', 'core'] as const)
+        for (const relPath of ['probe/Outer.java', 'src/probe/Outer.java', 'probe/Outer$Inner.class', 'probe', 'src/probe']) {
+          const scope = savedWriteFixture().invalidation;
+          scope.resources = [{ source, relPath }];
+          expect(hasCsvValidationInvalidation(scope, input)).toBe(true);
+        }
+    },
+  );
   it.each(['mod', 'core', 'reference'] as const)('requests both hull types and refreshes descriptions for %s skin changes', (source) => {
     const input = csvValidationRequest(
       'descriptions',

@@ -1,108 +1,30 @@
 import assert from 'node:assert/strict';
-import { spawn, execFileSync } from 'node:child_process';
-import { createInterface } from 'node:readline';
+import { execFileSync } from 'node:child_process';
 import { mkdir, readFile, stat, readdir } from 'node:fs/promises';
-import { join, delimiter, relative } from 'node:path';
+import { join, delimiter, relative, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
-import { pathToFileURL } from 'node:url';
-import { root, output, reports, resources, executable, readJson, writeJson, files, sha256, run, javaTool } from './runtime.mjs';
-import { TestWorkspace } from '../shared/test-workspace.mjs';
+import { Session, command } from './session.mjs';
+import { root, output, reports, resources, readJson, files, sha256, run, javaTool, versions, setReportDirectory } from './runtime.mjs';
+import { TestWorkspace, reserveTestOutput } from '../shared/test-workspace.mjs';
 import { lifecycle, dependencies } from './lifecycle.mjs';
 import { performanceComparison } from './performance.mjs';
 import { incremental } from './incremental.mjs';
 
-const { values } = parseArgs({ options: { game: { type: 'string' }, download: { type: 'boolean' }, 'dry-run': { type: 'boolean' } } });
+const { values } = parseArgs({
+  options: {
+    game: { type: 'string' },
+    download: { type: 'boolean' },
+    'dry-run': { type: 'boolean' },
+    output: { type: 'string' },
+    warmup: { type: 'string', default: '2' },
+    rounds: { type: 'string', default: '30' },
+  },
+});
 const game = values.game ?? process.env.AST_GAME;
 if (!game) throw new Error('Set AST_GAME or --game to the game directory');
 const javaHome = join(game, 'jre');
 const java = join(game, 'jre/bin/java.exe');
 const counts = ['method', 'constructor', 'enumConstructor', 'methodReference'];
-
-/** @param {string} config @param {string} operation @param {Record<string, unknown>} [extra] */
-async function command(config, operation, extra = {}) {
-  const path = join(output, operation + '-' + Date.now() + '.json');
-  await writeJson(path, { configRoot: config, ...extra });
-  const result = await run('host-' + operation, executable, [operation, path]);
-  return JSON.parse(result.stdout);
-}
-
-export class Session {
-  /** @param {import('node:child_process').ChildProcessWithoutNullStreams} child */
-  constructor(child) {
-    this.child = child;
-    this.sequence = 0;
-    /** @type {Map<number,{done:(value:object)=>void,fail:(error:Error)=>void}>} */
-    this.pending = new Map();
-    this.errors = '';
-    this.exited = false;
-    child.stderr.on('data', (data) => {
-      this.errors += data;
-    });
-    this.reader = createInterface({ input: child.stdout });
-    this.reader.on('line', (line) => {
-      const response = JSON.parse(line);
-      const entry = this.pending.get(response.id);
-      if (entry) {
-        this.pending.delete(response.id);
-        entry.done(response);
-      }
-    });
-    this.exit = new Promise((resolve) =>
-      child.once('close', (code) => {
-        this.exited = true;
-        for (const pending of this.pending.values()) pending.fail(new Error(this.errors || 'Host exited'));
-        this.pending.clear();
-        resolve(code);
-      }),
-    );
-  }
-  /** @param {string} config */
-  static async start(config) {
-    const path = join(output, 'session-' + Date.now() + '.json');
-    await writeJson(path, { configRoot: config, java });
-    return new Session(spawn(executable, ['run', path], { cwd: root, windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] }));
-  }
-  async hello() {
-    const sample = await this.request('hello');
-    this.pid = sample.value.pid;
-    return sample;
-  }
-  /** @param {string} op @param {Record<string, unknown>} [params] @param {boolean} [error] */
-  async request(op, params = {}, error = false) {
-    assert.equal(this.exited, false, 'Analysis process exited: ' + this.errors);
-    const id = ++this.sequence;
-    const started = performance.now();
-    /** @type {{error?: object, result?: ReturnType<typeof JSON.parse>}} */
-    const result = await new Promise((done, fail) => {
-      const timer = setTimeout(() => fail(new Error('Request timed out: ' + op)), 180000);
-      this.pending.set(id, {
-        done: (value) => {
-          clearTimeout(timer);
-          done(value);
-        },
-        fail: (value) => {
-          clearTimeout(timer);
-          fail(value);
-        },
-      });
-      this.child.stdin.write(JSON.stringify({ id, op, ...params }) + '\n');
-    });
-    assert.equal(Boolean(result.error), error, JSON.stringify(result) + '\n' + this.errors);
-    return { value: result.result ?? result.error, milliseconds: performance.now() - started };
-  }
-  async close() {
-    if (this.exited) {
-      this.reader.close();
-      return;
-    }
-    if (!this.pid) await this.hello();
-    await this.request('shutdown');
-    this.child.stdin.end();
-    assert.equal(await this.exit, 0, this.errors);
-    this.reader.close();
-    assert.throws(() => process.kill(this.pid, 0));
-  }
-}
 
 /** @param {string} source */
 async function snapshot(source) {
@@ -120,19 +42,16 @@ async function snapshot(source) {
 }
 
 if (values['dry-run']) console.log(JSON.stringify({ java, output, reports, resources, game, download: values.download }));
-else if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  await run('host-build', 'cargo', ['build', '--manifest-path', 'src-tauri/Cargo.toml', '-p', 'pyxis-java-analysis', '--locked']);
-  await run('javac-baseline-build', javaTool('javac'), [
-    '--release',
-    '17',
-    '-d',
-    output,
-    join(root, 'scripts/java-analysis/JavacBaseline.java'),
-  ]);
-  const work = await TestWorkspace.create(join(output, 'tests'), 'acceptance');
-  const config = work.path('configuration 中文 spaces');
+else {
+  const directory = values.output ? resolve(join(values.output, '..')) : (await TestWorkspace.create(join(output, 'reports'), 'run')).root;
+  const reportOutput = await reserveTestOutput(values.output ?? join(directory, 'acceptance.json'));
+  const markdownOutput = await reserveTestOutput(reportOutput.path.replace(/\.json$/, '') + '.md');
+  setReportDirectory(join(directory, 'commands'));
+  /** @type {TestWorkspace | undefined} */
+  let work;
   const report = {
     passed: false,
+    errors: /** @type {string[]} */ ([]),
     java,
     package: await readJson(join(resources, 'catalog.json')),
     workcopies: {},
@@ -144,6 +63,25 @@ else if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).h
     mods: /** @type {unknown[]} */ ([]),
   };
   try {
+    await run('host-build', 'cargo', [
+      'build',
+      '--manifest-path',
+      'src-tauri/Cargo.toml',
+      '-p',
+      'pyxis-java-analysis',
+      '--example',
+      'java-analysis',
+      '--locked',
+    ]);
+    await run('javac-baseline-build', javaTool('javac'), [
+      '--release',
+      String(versions.java),
+      '-d',
+      output,
+      join(root, 'scripts/java-analysis/JavacBaseline.java'),
+    ]);
+    work = await TestWorkspace.create(join(output, 'tests'), 'acceptance');
+    const config = work.path('configuration 中文 spaces');
     const initial = await command(config, 'status');
     assert.equal(initial.installed, false);
     await assert.rejects(stat(config));
@@ -173,7 +111,7 @@ else if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).h
       }
     }
     const libraryInventory = await Promise.all(libraries.map(async (path) => ({ path, sha256: sha256(await readFile(path)) })));
-    const session = await Session.start(config);
+    const session = await Session.start(config, java);
     const corpora = [];
     try {
       report.workcopies = await lifecycle(session, work.path('fixture'), javaHome);
@@ -195,7 +133,16 @@ else if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).h
         await session.request('open', { project: name, sources: [source], classpath: libraries, javaHome: join(game, 'jre') });
         const analyzed = await session.request('analyze', { project: name });
         const baseline = JSON.parse(
-          (await run('javac-' + name, javaTool('java'), ['-cp', output, 'JavacBaseline', source, libraries.join(delimiter)])).stdout,
+          (
+            await run('javac-' + name, javaTool('java'), [
+              '-cp',
+              output,
+              'JavacBaseline',
+              source,
+              libraries.join(delimiter),
+              versions.language,
+            ])
+          ).stdout,
         );
         assert.equal(analyzed.value.errors, 0);
         assert.equal(baseline.errors, 0);
@@ -223,14 +170,10 @@ else if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).h
       await session.close();
     }
     const paths = (await command(config, 'status')).paths;
-    report.performance = await performanceComparison(
-      Session,
-      work.path('performance'),
-      java,
-      join(paths.dependencies, report.package.version),
-      corpora,
-      libraries,
-    );
+    report.performance = await performanceComparison(config, java, corpora, libraries, {
+      warmup: Number(values.warmup),
+      rounds: Number(values.rounds),
+    });
     for (const corpus of corpora) assert.equal((await snapshot(corpus.root)).hash, corpus.hash);
     for (const entry of libraryInventory) assert.equal(sha256(await readFile(entry.path)), entry.sha256);
     report.libraryInventory = libraryInventory;
@@ -242,7 +185,7 @@ else if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).h
     const configs = [join(parent, alias), work.path('long/' + 'a'.repeat(65) + '/' + 'b'.repeat(65) + '/' + 'c'.repeat(65))];
     for (const selected of configs) {
       await command(selected, 'import', { archive: join(output, 'jdt-dependencies.zip') });
-      const short = await Session.start(selected);
+      const short = await Session.start(selected, java);
       try {
         assert.equal((await short.request('parse', { source: 'class Orbit {}', version: 1 })).value.errors, 0);
         const source = join(selected, 'source 中文 spaces');
@@ -273,15 +216,47 @@ else if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).h
         workspaceReleased: true,
       });
     }
-    const offline = await Session.start(config);
+    const offline = await Session.start(config, java);
     try {
       assert.equal((await offline.request('parse', { source: 'class Orbit {}', version: 1 })).value.errors, 0);
     } finally {
       await offline.close();
     }
     report.passed = true;
+  } catch (error) {
+    report.errors.push(error instanceof Error ? (error.stack ?? error.message) : String(error));
+    process.exitCode = 1;
   } finally {
-    await writeJson(join(reports, 'acceptance.json'), report);
-    await work.close();
+    let resourcesReleased = true;
+    try {
+      await work?.close();
+    } catch (error) {
+      resourcesReleased = false;
+      report.errors.push(String(error));
+      report.passed = false;
+      process.exitCode = 1;
+    }
+    const environment = {
+      node: process.version,
+      java,
+      engineSha256: sha256(await readFile(join(resources, 'engine.jar'))),
+      launcherSha256: sha256(await readFile(join(resources, 'launcher.jar'))),
+      scriptSha256: sha256(await readFile(new URL('./verify.mjs', import.meta.url))),
+    };
+    try {
+      await reportOutput.handle.writeFile(JSON.stringify({ ...report, environment, resourcesReleased }, null, 2) + '\n', 'utf8');
+      await markdownOutput.handle.writeFile(
+        '# Java 分析验收\n\n判定：' +
+          (report.passed ? '通过' : '失败') +
+          '\n\n```json\n' +
+          JSON.stringify({ environment, mods: report.mods, performance: report.performance }, null, 2) +
+          '\n```\n',
+        'utf8',
+      );
+    } finally {
+      await reportOutput.handle.close();
+      await markdownOutput.handle.close();
+    }
+    console.log(JSON.stringify({ output: reportOutput.path, pass: report.passed, resourcesReleased }));
   }
 }

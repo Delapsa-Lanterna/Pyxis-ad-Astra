@@ -63,7 +63,9 @@ onScopeDispose(
     windowTarget: managedWindowContext.value
       ? managedWindowContext.value.identity.type === 'file' || managedWindowContext.value.identity.type === 'recovery'
         ? managedWindowContext.value.identity.path
-        : managedWindowContext.value.identity.id
+        : 'id' in managedWindowContext.value.identity
+          ? managedWindowContext.value.identity.id
+          : null
       : null,
   })),
 );

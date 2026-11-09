@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { FileChangeRecord } from '@/shared/types';
 import { savedWriteFixture, sessionUpdateFixture } from '@/test/fixtures/write-result';
-import { committedFileText } from './file-editor-window.orchestrator';
+import { committedFileText } from './committed-text';
 
 describe('saved text results', () => {
   it('projects directory replay text using the actual after paths and contents', async () => {

@@ -7,9 +7,16 @@ import { fileURLToPath } from 'node:url';
 export const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 export const component = join(root, 'src-tauri/java-analysis');
 export const output = join(root, 'src-tauri/target/java-analysis');
-export const reports = join(output, 'reports');
+export let reports = join(output, 'reports');
+/** @param {string} directory */
+export function setReportDirectory(directory) {
+  reports = directory;
+}
 export const resources = join(component, 'resources');
-export const executable = join(root, 'src-tauri/target/debug/java-analysis.exe');
+export const executable = join(root, 'src-tauri/target/debug/examples/java-analysis.exe');
+
+/** @type {{engine: string, protocol: number, java: number, language: string, jdt: string}} */
+export const versions = await readJson(join(component, 'versions.json'));
 
 /** @param {string} path */
 export async function readJson(path) {

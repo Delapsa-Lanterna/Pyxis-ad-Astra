@@ -1,5 +1,4 @@
 {
-  "java": 17,
   "artifacts": [
     {
       "path": "lib/animal-sniffer-annotations-1.9.jar",
@@ -200,11 +199,11 @@
       "licenseEntries": ["about_files/LICENSE-2.0.txt", "about_files/NOTICE.txt", "about.html"]
     },
     {
-      "path": "lib/org.eclipse.jdt.core-3.47.0.jar",
-      "url": "https://repo.maven.apache.org/maven2/org/eclipse/jdt/org.eclipse.jdt.core/3.47.0/org.eclipse.jdt.core-3.47.0.jar",
+      "path": "lib/org.eclipse.jdt.core-${jdt}.jar",
+      "url": "https://repo.maven.apache.org/maven2/org/eclipse/jdt/org.eclipse.jdt.core/${jdt}/org.eclipse.jdt.core-${jdt}.jar",
       "bytes": 4521231,
       "sha256": "723e30be1e841516c388ebb32017cb8b36662808f46be5265b78cc06bd4fe71c",
-      "coordinate": "org.eclipse.jdt:org.eclipse.jdt.core:3.47.0",
+      "coordinate": "org.eclipse.jdt:org.eclipse.jdt.core:${jdt}",
       "bundle": "org.eclipse.jdt.core; singleton:=true",
       "java": "JavaSE-17",
       "maxBaseClassMajor": 61,

@@ -207,25 +207,31 @@ export function drawWeaponSlotVisual(ctx: CanvasRenderingContext2D, options: Wea
     ctx.restore();
   }
 
+  const refit = options.refit;
+  const zoom = refit ? refit.scale * (refit.builtin ? 0.66 : refit.highlighted ? 1 : 0.66) : undefined;
+  const mountAlpha = refit
+    ? (refit.highlighted ? 1 : 0.25) * (refit.builtin ? 0.3 : 0.5) * (usesSizeLayers(type) ? 1 : 0.7)
+    : options.style.alpha;
   if (type !== 'SYSTEM') {
     ctx.save();
-    const refit = options.refit;
-    const zoom = refit ? refit.scale * (refit.builtin ? 0.66 : refit.highlighted ? 1 : 0.66) : undefined;
     if (zoom !== undefined) ctx.scale(zoom, zoom);
     outlineRadii.forEach((radius, index) => {
-      if (refit)
-        ctx.globalAlpha = (refit.highlighted ? 1 : 0.25) * (refit.builtin ? 0.3 : 0.5) * (usesSizeLayers(type) ? 0.5 ** index : 0.7);
+      ctx.globalAlpha = mountAlpha * (refit && usesSizeLayers(type) ? 0.5 ** index : 1);
       drawOutline(ctx, type, radius, color, options.style.outlineWidth, zoom);
     });
     ctx.restore();
   }
   if (options.mount === 'HARDPOINT') {
+    ctx.save();
+    if (zoom !== undefined) ctx.scale(zoom, zoom);
+    ctx.globalAlpha = mountAlpha;
     ctx.strokeStyle = color;
-    ctx.lineWidth = options.style.outlineWidth;
+    ctx.lineWidth = options.style.outlineWidth / (zoom ?? 1);
     ctx.beginPath();
     ctx.moveTo(-base * 0.9, base * 0.9);
     ctx.lineTo(base * 0.9, -base * 0.9);
     ctx.stroke();
+    ctx.restore();
   }
   drawSlotCenter(ctx, color, options.style.centerRadius);
   ctx.restore();

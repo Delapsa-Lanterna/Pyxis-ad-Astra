@@ -5,8 +5,9 @@ import { FIELD_TYPES } from '@/domain/schema/schema.types';
 
 it('registers functional destinations, real window shortcuts and independently runnable performance samples', () => {
   expect(scenarios.map(({ id }) => id)).toEqual(['workspace', 'csv', 'immersive', 'fields', 'pickers', 'resources', 'feedback']);
-  expect(workspaceEntries).toHaveLength(30);
-  expect(new Set(workspaceEntries.map(({ href }) => href)).size).toBe(30);
+  expect(workspaceEntries).toHaveLength(31);
+  expect(new Set(workspaceEntries.map(({ href }) => href)).size).toBe(31);
+  expect(workspaceEntries.find(({ id }) => id === 'code-window')).toMatchObject({ href: '/?sampleWindow=code-window' });
   expect(performanceScenarios.map(({ id }) => id)).toEqual(['csv', 'weapons', 'wings', 'hullmods']);
   expect(performanceScenarios.flatMap(({ counts }) => counts)).toHaveLength(12);
   expect(galleryFields.slice(0, FIELD_TYPES.length).map(({ type }) => type)).toEqual(FIELD_TYPES);

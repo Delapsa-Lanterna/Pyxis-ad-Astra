@@ -1,3 +1,5 @@
+export const OVERVIEW_SCHEMA_VERSION = 2;
+
 /**
  * @typedef {{path: string, line: number | null, column?: number | null, text: string, parser: string, conditional?: string}} Evidence
  * @typedef {{module: string, relation: string, evidence: Evidence[]}} Candidate
@@ -20,9 +22,8 @@
  * @typedef {{nodes: GraphNode[], edges: GraphEdge[]}} DependencyGraph
  * @typedef {{id: string, path: string, role: string, bytes: number, lines: number | null, hash: string, ownership: {status: string, owner: string | null, candidates: {module: string, relation: string}[]}}} FileSummary
  * @typedef {{kind: string, count: number, samples: {path: string, line: number | null, message: string}[]}} IssueCategory
- * @typedef {{schemaVersion: 2, reportId: string, run: {id: string, head: string, digest: string, startedAt: string, completedAt: string, toolVersion: string, engines: Record<string, unknown>}, metrics: {modules: number, files: number, relationships: number, issues: number, ownership: Record<string, number>, roles: Record<string, number>, coverage: {productionFiles: number, declared: number, shared: number, missing: string[], affectedReferences: number}}, edgeKinds: string[], modules: (Module & {fileCount: number})[], files: FileSummary[], graph: DependencyGraph, issueCategories: IssueCategory[], cycles: Report['cycles'], exploration: DependencyGraph | null}} ReportOverview
+ * @typedef {{schemaVersion: typeof OVERVIEW_SCHEMA_VERSION, reportId: string, run: {id: string, head: string, digest: string, startedAt: string, completedAt: string, toolVersion: string, engines: Record<string, unknown>}, metrics: {modules: number, files: number, relationships: number, issues: number, ownership: Record<string, number>, roles: Record<string, number>, coverage: {productionFiles: number, declared: number, shared: number, missing: string[], affectedReferences: number}}, edgeKinds: string[], modules: (Module & {fileCount: number})[], files: FileSummary[], graph: DependencyGraph, issueCategories: IssueCategory[], cycles: Report['cycles'], exploration: DependencyGraph | null}} ReportOverview
  * @typedef {{module: Module & {fileCount: number}, files: FileSummary[], edges: {source: string, target: string, references: Edge[]}[]}} ModuleDetail
  * @typedef {{file: File, declarations: Declaration[], events: Event[], edges: Edge[]}} FileDetail
  * @typedef {{files: File[], edges: Edge[]}} GraphIndex
  */
-export {};

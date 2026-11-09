@@ -1,7 +1,9 @@
 use crate::models::CloseScope;
 #[cfg(windows)]
 use crate::services::windows::auxiliary;
-use crate::services::{app_lifecycle, app_log, performance_monitor, project_sync, windows};
+use crate::services::{
+    app_lifecycle, app_log, code_editor, performance_monitor, project_sync, windows,
+};
 use serde_json::json;
 pub use services::java_analysis;
 use std::sync::Arc;
@@ -81,6 +83,15 @@ pub fn run() {
                 );
             }
             if matches!(event, WindowEvent::Destroyed)
+                && let Err(error) = code_editor::release_window(window.label())
+            {
+                diagnostics::failure(
+                    "code_editor.release",
+                    error,
+                    json!({"window":window.label()}),
+                );
+            }
+            if matches!(event, WindowEvent::Destroyed)
                 && let Err(error) = app_lifecycle::destroyed(window.label())
             {
                 diagnostics::failure(
@@ -122,6 +133,9 @@ pub fn run() {
                     commands::performance_monitor_batch,
                     commands::performance_monitor_report,
                     commands::request_window,
+                    commands::open_code_editor,
+                    commands::subscribe_code_editor,
+                    commands::finish_code_editor_open,
                     commands::register_window_save_receiver,
                     commands::unregister_window_save_receiver,
                     commands::request_window_save,

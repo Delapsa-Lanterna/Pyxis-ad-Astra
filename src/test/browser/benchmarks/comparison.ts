@@ -1,4 +1,4 @@
-import { rotation, compare } from '../../../../scripts/browser/report.mjs';
+import { rotation, compare } from '../../../../scripts/shared/sample-statistics.mjs';
 import type { RoundResult, RunOptions, RunResult } from '../contracts';
 
 export interface Variant {
@@ -80,7 +80,7 @@ export async function comparePages(variants: Variant[], options: RunOptions, pro
     }
     const comparisons = runs.slice(1).map((run, index) => {
       const policy = entries[index + 1]!.variant.policy;
-      return compare(runs[policy === 'enabled' ? index : 0]!, run, policy);
+      return compare(runs[policy === 'enabled' ? index : 0]!.metrics, run.metrics, policy);
     });
     return { runs, order, comparisons, pass: runs.every((run) => run.pass) && comparisons.flat().every((item) => item.pass) };
   } finally {

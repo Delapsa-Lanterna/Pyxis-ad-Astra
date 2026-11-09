@@ -63,15 +63,16 @@ export function createBenchmark(element: HTMLElement) {
     return result;
   }
   async function environment() {
+    const buildEnvironment = await fetch('/environment').then((response) => response.json());
     return {
-      ...(await fetch('/environment').then((response) => response.json())),
+      ...buildEnvironment,
       width: innerWidth,
       height: innerHeight,
       dpr: devicePixelRatio,
       browser: navigator.userAgent,
       cache: 'fresh scene; shared module, font and idle image caches',
       profiler: false,
-      operationVersion: 1,
+      operationVersion: Number(buildEnvironment.operationVersion),
     };
   }
   async function run(options: RunOptions, progress: (text: string) => void) {

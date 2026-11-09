@@ -1,14 +1,13 @@
-import { readdir } from 'node:fs/promises';
+import { readdir, readFile } from 'node:fs/promises';
 import { join, relative } from 'node:path';
-
-const ignoredDirs = new Set(['.cache', '.git', 'dist', 'node_modules', 'release', 'target']);
-const ignoredPathParts = ['src-tauri/gen', 'src-tauri/target'];
+import ignore from 'ignore';
 
 /** @typedef {{ path: string, rel: string }} RepoPath */
 /** @typedef {RepoPath & { text: string }} SourceFile */
+/** @typedef {{root: string, rules: import('ignore').Ignore}} IgnoreScope */
 
 /**
- * Walks the repository once with the shared ignore rules and keeps the files
+ * Walks the repository once with directory-scoped Git ignore rules and keeps the files
  * accepted by `include(rel, extension)`. Collection-scope differences between
  * entry scripts are expressed only through the predicate.
  *
@@ -18,7 +17,7 @@ const ignoredPathParts = ['src-tauri/gen', 'src-tauri/target'];
  * @returns {Promise<RepoPath[]>}
  */
 export async function collectRepoPaths(root, include, includeDirectories = false) {
-  return collectPaths(root, root, include, includeDirectories);
+  return collectPaths(root, root, include, includeDirectories, []);
 }
 
 /**
@@ -26,19 +25,28 @@ export async function collectRepoPaths(root, include, includeDirectories = false
  * @param {string} dir
  * @param {(rel: string, extension: string) => boolean} include
  * @param {boolean} includeDirectories
+ * @param {IgnoreScope[]} scopes
  * @returns {Promise<RepoPath[]>}
  */
-async function collectPaths(root, dir, include, includeDirectories) {
+async function collectPaths(root, dir, include, includeDirectories, scopes) {
   const entries = await readdir(dir, { withFileTypes: true });
+  if (entries.some((entry) => entry.name === '.gitignore' && entry.isFile()))
+    scopes = [...scopes, { root: dir, rules: ignore.default().add(await readFile(join(dir, '.gitignore'), 'utf8')) }];
   const files = [];
   for (const entry of entries) {
+    // Git metadata and the independent audit workspace remain outside the application checks.
+    if (entry.name === '.git' || (dir === root && entry.name === '.audit-tools')) continue;
     const path = join(dir, entry.name);
+    const directory = entry.isDirectory();
+    const ignored = scopes.reduce((excluded, scope) => {
+      const match = scope.rules.test(normalizePath(relative(scope.root, path)) + (directory ? '/' : ''));
+      return match.ignored || (!match.unignored && excluded);
+    }, false);
+    if (ignored) continue;
     const rel = normalizePath(relative(root, path));
-    if (rel === '.audit-tools') continue;
-    if (entry.isDirectory()) {
+    if (directory) {
       if (includeDirectories) files.push({ path, rel: rel + '/' });
-      if (ignoredDirs.has(entry.name) || ignoredPathParts.some((part) => rel.startsWith(`${part}/`) || rel === part)) continue;
-      files.push(...(await collectPaths(root, path, include, includeDirectories)));
+      files.push(...(await collectPaths(root, path, include, includeDirectories, scopes)));
       continue;
     }
     const extension = entry.name.includes('.') ? entry.name.slice(entry.name.lastIndexOf('.')) : '';

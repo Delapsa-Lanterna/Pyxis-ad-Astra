@@ -2,9 +2,11 @@ import { chromium } from 'playwright';
 import { parseArgs } from 'node:util';
 import { unlink, mkdir } from 'node:fs/promises';
 import { resolve, dirname, basename, join } from 'node:path';
-import { compare, markdown, rotation } from './report.mjs';
+import { markdown } from './report.mjs';
+import { verifyCodeEditor, measureCodeEditor } from './code-editor.mjs';
+import { verifyJavaAnalysis } from './java-analysis.mjs';
 import { verifyUI, verifyBrowserUI } from './ui.mjs';
-import { summarize } from '../shared/sample-statistics.mjs';
+import { summarize, compare, rotation } from '../shared/sample-statistics.mjs';
 import { TestWorkspace, reserveTestOutput } from '../shared/test-workspace.mjs';
 import { performanceScenarios } from './scenarios.mjs';
 
@@ -17,6 +19,7 @@ const { values } = parseArgs({
     suite: { type: 'string', default: 'lists' },
     scene: { type: 'string' },
     count: { type: 'string' },
+    shape: { type: 'string' },
     warmup: { type: 'string', default: '2' },
     rounds: { type: 'string' },
     output: { type: 'string' },
@@ -50,7 +53,10 @@ let browserToClose = null;
 const errors = [];
 try {
   await mkdir(artifacts);
-  const url = values.url ?? (values.suite === 'browser-ui' ? 'http://127.0.0.1:1461' : 'http://127.0.0.1:1462');
+  const workspaceSuites = ['browser-ui', 'code-editor', 'java-analysis', 'code-editor-performance'];
+  const uiSuites = ['ui', ...workspaceSuites];
+  if (!['lists', 'stress', 'resources', 'smoke', ...uiSuites].includes(values.suite)) throw Error('Unknown browser suite: ' + values.suite);
+  const url = values.url ?? (workspaceSuites.includes(values.suite) ? 'http://127.0.0.1:1461' : 'http://127.0.0.1:1462');
   const sceneNames = performanceScenarios.map(({ id }) => id);
   const workloads = /** @type {const} */ ({ lists: 'benchmark', stress: 'stress', resources: 'resources', smoke: 'stress' });
   const suite = /** @type {keyof typeof workloads} */ (values.suite);
@@ -91,7 +97,7 @@ try {
       suite === 'lists'
         ? cases.filter((item) => item.count === Number(values.count))
         : cases.map((item) => ({ ...item, count: Number(values.count) }));
-  if (!['ui', 'browser-ui'].includes(values.suite) && !cases.length) throw Error('没有匹配的性能项目：' + (values.scene ?? values.suite));
+  if (!uiSuites.includes(values.suite) && !cases.length) throw Error('没有匹配的性能项目：' + (values.scene ?? values.suite));
   const browser = await chromium.launch({
     channel: 'msedge',
     headless: true,
@@ -110,7 +116,7 @@ try {
   const comparisons = [];
   /** @type {unknown[]} */
   let uiChecks = [];
-  if (['ui', 'browser-ui'].includes(values.suite)) cases = [];
+  if (uiSuites.includes(values.suite)) cases = [];
   /** @param {string} endpoint */
   async function newPage(endpoint) {
     const context = await browser.newContext({ viewport: { width: 1280, height: 720 }, deviceScaleFactor: 1.5 });
@@ -120,12 +126,46 @@ try {
       if (['warning', 'error'].includes(message.type())) errors.push(new Error(message.type() + ': ' + message.text()));
     });
     await page.goto(endpoint);
-    if (values.suite === 'browser-ui') await page.locator('.browser-workspace-shell').waitFor();
+    if (workspaceSuites.includes(values.suite)) await page.locator('.browser-workspace-shell').waitFor();
     else await page.waitForFunction(() => 'testbed' in globalThis);
     return { context, page };
   }
   if (values.suite === 'ui') uiChecks = await verifyUI(browser, url, join(artifacts, 'ui'));
   if (values.suite === 'browser-ui') uiChecks = await verifyBrowserUI(browser, url, join(artifacts, 'browser-ui'));
+  let scenarioResult = {};
+  if (['code-editor', 'java-analysis', 'code-editor-performance'].includes(values.suite)) {
+    const entries = [];
+    try {
+      for (const variant of variants) {
+        const entry = await newPage(variant.url);
+        entries.push({
+          ...entry,
+          label: variant.label,
+          environment: {
+            ...(await entry.page.request.get(new URL('environment', variant.url).href).then((response) => response.json())),
+            browserVersion: browser.version(),
+            viewport: entry.page.viewportSize(),
+            dpr: await entry.page.evaluate(() => globalThis.devicePixelRatio),
+          },
+        });
+      }
+      if (values.suite === 'code-editor-performance')
+        scenarioResult = await measureCodeEditor(entries, {
+          warmup,
+          rounds,
+          count: values.count ? Number(values.count) : undefined,
+          shape: values.shape,
+        });
+      else
+        for (const entry of entries) {
+          if (values.suite === 'code-editor') uiChecks.push(...(await verifyCodeEditor(entry.page, artifacts)));
+          else uiChecks.push(...(await verifyJavaAnalysis(entry.page, artifacts)));
+        }
+      scenarioResult = { ...scenarioResult, environments: entries.map(({ label, environment }) => ({ label, ...environment })) };
+    } finally {
+      for (const entry of entries) await entry.context.close();
+    }
+  }
   for (const item of cases) {
     const entries = [];
     try {
@@ -204,7 +244,11 @@ try {
       for (let index = 1; index < group.length; index++) {
         const policy = /** @type {(typeof entries)[number]} */ (entries[index]).variant.policy;
         comparisons.push(
-          compare(/** @type {RunResult} */ (group[policy === 'enabled' ? index - 1 : 0]), /** @type {RunResult} */ (group[index]), policy),
+          compare(
+            /** @type {RunResult} */ (group[policy === 'enabled' ? index - 1 : 0]).metrics,
+            /** @type {RunResult} */ (group[index]).metrics,
+            policy,
+          ),
         );
       }
     } finally {
@@ -213,6 +257,7 @@ try {
   }
   const report = {
     artifacts,
+    suite: values.suite,
     pass:
       runs.length === cases.length * variants.length &&
       runs.every((run) => run.pass) &&
@@ -250,6 +295,7 @@ try {
     })),
     comparisons,
     uiChecks,
+    ...scenarioResult,
   };
   await jsonOutput.handle.writeFile(JSON.stringify(report, null, 2) + '\n', 'utf8');
   await markdownOutput.handle.writeFile(markdown(report), 'utf8');
