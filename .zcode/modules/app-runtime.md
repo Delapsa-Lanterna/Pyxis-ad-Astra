@@ -73,6 +73,7 @@
 - `src-tauri/src/services/app_log/directory.rs`：日志目录创建、已有目录解析、规范路径与传入工作区根的保护规则。
 - `src-tauri/src/services/app_settings.rs`：正式快照、revision、串行写盘、目录回调结果接纳及装配传入的运行参数提交动作。
 - `src-tauri/src/services/file_history/records.rs`：按实际 Mod 根持有 changeset、双栈、revision、容量及回放交接。
+- `src-tauri/src/services/java_analysis.rs`：Java 分析运行态初始化及应用关闭后的实例释放。
 - `src-tauri/src/services/performance_monitor.rs`：命令计时、环形缓冲与报告导出。
 - `src-tauri/src/services/project/resources/media_cache.rs`：正式设置接纳时配置后端媒体预算。
 - `src-tauri/src/services/project/session.rs`：会话打开、关闭、内容更新与内部登记及就绪访问能力交付。
@@ -249,6 +250,7 @@
 ## 规范
 
 - 应用版本必须以 package.json 的 version 为唯一维护来源，构建与 npm version 同步 npm 锁文件及 Rust 主程序版本。
+- Java 分析必须在应用初始化时登记惰性运行态，应用确认关闭后等待所属实例释放。
 - 关闭确认必须按实际关闭范围筛选未保存参与者并展开对象及全部路径；退出、关闭与 Esc 保留原编辑状态并沿所属关闭恢复流程交还焦点。
 - 启动入口必须在页面释放时结束接纳权，上下文、窗口根与设置、日志等待后的挂载、显示及失败呈现服从该寿命。
 - 主窗口与子窗口的模式差异必须由唯一窗口壳的 mode 参数表达，严禁出现第二份 Provider 栈。

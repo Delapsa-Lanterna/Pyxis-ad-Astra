@@ -36,6 +36,7 @@
 
 ### Rust
 
+- `src-tauri/java-analysis/`：Java 17 分析组件及自有资源，Rust 维护依赖安装和实例寿命，Java 宿主交付 JDT 语法与语义结果。
 - `src-tauri/src/commands/`：接收 wire 参数、访问应用状态、转换错误并调用所属服务。
 - `src-tauri/src/services/`：维护业务状态、会话生命周期、查询、保存协调、资源与平台能力，消费领域规则、解析及 IO；业务函数必须由服务装配直接从所属实现导出，query 只允许读取。
 - `src-tauri/src/domain/`：实体定义、编辑目标、资源引用、内容构造及业务投影的纯规则与转换。
@@ -56,6 +57,7 @@
 ## 项目内关键链路
 
 - 应用启动：`main.ts` → `initializeWindowContext` 接纳原生 bootstrap 与路径映射 → 根组件与正式 settings 并行加载 → Pinia、日志与性能装配 → 唯一 `WindowShell` → `showCurrentWindow`
+- Java 分析基础设施：原生初始化消费工具配置根 → 登记惰性分析运行态 → 明确调用安装固定依赖及启动 Java 17 → 交付带版本的源码分析 → 应用确认关闭后等待实例释放并清理工作区
 - 启动失败：`bootstrap()` 失败 → `failWindowStartup` 结束请求交付 → 卸载已挂载应用 → `StartupFailure` 展示原始诊断 → 当前窗口显示与重试、复制或退出
 - 工作区恢复：`beginWorkspaceRestore` 暂停自动保存 → 工具私有 `PersistedWorkspace` → `restorePersistedWorkspace` 捕获代次并重建游戏概览及 Mod session → 正式清单与运行态水合 → `finishWorkspaceRestore` 处理所属最终快照
 - 工作区持久化：Mod、目录、引用设置或列宽变化 → `watchWorkspacePersistence` 提取可恢复投影 → workspace service → Rust 写入工具私有快照 → 所属保存与关闭等待完成

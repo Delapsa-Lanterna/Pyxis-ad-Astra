@@ -7,7 +7,8 @@ edition = "2024"
 rust-version = "1.99.1"
 
 [workspace]
-members = ["command-macros"]
+members = ["command-macros", "java-analysis"]
+default-members = ["."]
 
 [lib]
 name = "pyxis_ad_astra_lib"
@@ -22,6 +23,7 @@ performance-monitor = []
 
 [dependencies]
 command-macros = { path = "command-macros" }
+pyxis-java-analysis = { path = "java-analysis" }
 base64 = "0.23"
 chrono = { version = "0.4", default-features = false, features = ["clock"] }
 csv = "1.3"

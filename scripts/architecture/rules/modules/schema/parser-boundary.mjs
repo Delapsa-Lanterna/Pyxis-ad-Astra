@@ -16,6 +16,7 @@ export const parserBoundaryRule = defineRule(
   import.meta.url,
   (context, report) => {
     for (const file of context.rust) {
+      if (!file.rel.startsWith('src-tauri/src/')) continue;
       const parts = modulePartsFromRel(file.rel);
       const role = /** @type {string} */ (parts[0]);
       const owner = parts.slice(0, 2).join('::');

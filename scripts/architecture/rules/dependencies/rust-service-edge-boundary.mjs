@@ -7,6 +7,7 @@ const allowedServiceEdges = new Set([
   'app_lifecycle -> app_log',
   'app_lifecycle -> file_history',
   'app_lifecycle -> performance_monitor',
+  'app_lifecycle -> java_analysis',
   'app_config -> system_open',
   'app_log -> app_settings',
   'app_log -> system_open',

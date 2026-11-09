@@ -3,6 +3,7 @@ use crate::models::CloseScope;
 use crate::services::windows::auxiliary;
 use crate::services::{app_lifecycle, app_log, performance_monitor, project_sync, windows};
 use serde_json::json;
+pub use services::java_analysis;
 use std::sync::Arc;
 use tauri::ipc::Invoke;
 use tauri::{Builder, Emitter, Manager, RunEvent, WindowEvent, async_runtime};
@@ -108,6 +109,7 @@ pub fn run() {
             diagnostics::install(Arc::new(move |entry| {
                 let _ = app_log::append_app_log(entry);
             }));
+            java_analysis::initialize(app.handle())?;
             #[cfg(windows)]
             for window in app.webview_windows().into_values() {
                 windows::set_window_memory_target(window, false);
@@ -211,6 +213,13 @@ pub fn run() {
         .expect("error while building tauri application")
         .run(|app, event| {
             if matches!(event, RunEvent::Exit) {
+                if let Err(error) = java_analysis::shutdown(app) {
+                    diagnostics::failure(
+                        "java_analysis.exit_failed",
+                        error,
+                        json!({"scope":"application"}),
+                    );
+                }
                 performance_monitor::shutdown();
                 diagnostics::info("app.exited", concat!("version=", env!("CARGO_PKG_VERSION")));
                 let _ = app_log::flush_native_logs(app.clone());

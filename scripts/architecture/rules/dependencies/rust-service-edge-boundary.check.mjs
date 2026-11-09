@@ -6,6 +6,17 @@ import { rustServiceEdgeBoundaryRule } from './rust-service-edge-boundary.mjs';
 const serviceAssembly =
   'pub(crate) use project::query::entities::query_entity; pub(crate) use project::write::entity_write::content::save_entity_spec;';
 
+test('application lifecycle releases the Java analysis infrastructure', () => {
+  const allowed = architectureFixtures({
+    'src-tauri/src/services/app_lifecycle.rs': 'fn close(){crate::services::java_analysis::shutdown(app);}',
+  });
+  assert.deepEqual(rustServiceEdgeBoundaryRule.check(allowed), []);
+  const rejected = architectureFixtures({
+    'src-tauri/src/services/spec_editor.rs': 'fn edit(){crate::services::java_analysis::shutdown(app);}',
+  });
+  assert.equal(rustServiceEdgeBoundaryRule.check(rejected).length, 1);
+});
+
 test('project synchronization assembles authorized roots and source watches', () => {
   const context = architectureFixtures({
     'src-tauri/src/services/project_sync.rs':

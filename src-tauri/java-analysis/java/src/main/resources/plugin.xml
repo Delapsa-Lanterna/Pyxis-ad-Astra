@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<plugin>
+  <extension point="org.eclipse.core.runtime.applications" id="engine">
+    <application cardinality="singleton-global" thread="main" visible="false">
+      <run class="com.delapsalanterna.pyxis.javaanalysis.AnalysisApplication"/>
+    </application>
+  </extension>
+</plugin>

@@ -3,8 +3,8 @@ use crate::errors::{AppError, AppResult, ErrorDiagnostic};
 use crate::models::{AppSettings, CloseIntent, ClosePhase, CloseResult, CloseScope, CloseStatus};
 use crate::services::configure_media_cache;
 use crate::services::{
-    app_lifecycle, app_log, file_history, performance_monitor, project, project_sync, windows,
-    workspace_persistence,
+    app_lifecycle, app_log, file_history, java_analysis, performance_monitor, project,
+    project_sync, windows, workspace_persistence,
 };
 use serde_json::json;
 use std::collections::{BTreeMap, BTreeSet};
@@ -362,6 +362,9 @@ fn execute_close(
             && !phase(app, id, &operation, ClosePhase::Flush, &main)?
         {
             return Ok(());
+        }
+        if operation.scope == CloseScope::Application {
+            java_analysis::shutdown(app)?;
         }
         confirmed = true;
         for label in child_windows(&operation) {

@@ -6,6 +6,33 @@ on:
   pull_request:
 
 jobs:
+  java-analysis:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: dtolnay/rust-toolchain@1.99.1
+        with:
+          components: rustfmt, clippy
+      - run: npm ci
+      - run: npm run build:java-analysis
+      - run: npm run check:java-analysis
+      - name: Test live Java runtime lifecycle
+        shell: pwsh
+        run: |
+          $env:JAVA_ANALYSIS_TEST_JAVA = Join-Path $env:JAVA_HOME 'bin/java.exe'
+          cargo test --manifest-path src-tauri/Cargo.toml -p pyxis-java-analysis --test runtime -- --include-ignored
+      - name: Test application Java analysis infrastructure
+        shell: pwsh
+        run: |
+          $env:JAVA_ANALYSIS_TEST_JAVA = Join-Path $env:JAVA_HOME 'bin/java.exe'
+          cargo test --manifest-path src-tauri/Cargo.toml -p pyxis-ad-astra services::java_analysis::tests::live_adapter_routes_configuration_diagnostics_and_shutdown -- --exact --ignored
   check:
     runs-on: windows-latest
     steps:

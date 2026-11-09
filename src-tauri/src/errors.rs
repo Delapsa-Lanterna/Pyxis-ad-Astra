@@ -1,6 +1,7 @@
 use crate::models::EntityEditTarget;
 use base64::DecodeError;
 use csv::Error as CsvError;
+use pyxis_java_analysis::Error as JavaAnalysisError;
 use serde::ser::SerializeStruct;
 use serde::{Deserialize, Serialize, Serializer};
 use serde_json::Error as SerdeJsonError;
@@ -93,6 +94,8 @@ pub enum AppError {
     Base64(#[from] DecodeError),
     #[error("{0}")]
     Tauri(#[from] TauriError),
+    #[error("{0}")]
+    JavaAnalysis(#[from] JavaAnalysisError),
     #[error("JSON 格式保留需要确认")]
     JsonRewriteRequired { files: Vec<JsonRewriteFile> },
     #[error("实体目标已存在")]
@@ -129,6 +132,7 @@ impl AppError {
             Self::Json(_) => "parse.json",
             Self::Base64(_) => "data.base64",
             Self::Tauri(_) => "window.native",
+            Self::JavaAnalysis(_) => "java_analysis.operation_failed",
             Self::JsonRewriteRequired { .. } => "json.rewrite_confirmation_required",
             Self::EntityTargetExists { .. } => "spec.target_exists",
             Self::SaveSourcesMissing { .. } => "write.sources_missing",

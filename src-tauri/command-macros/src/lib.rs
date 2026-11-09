@@ -1,8 +1,8 @@
 use proc_macro::TokenStream;
 use proc_macro2::TokenStream as ProcMacro2TokenStream;
 use quote::{format_ident, quote};
-use syn::{Attribute, Error, FnArg, ItemFn, LitStr, Pat, Path, Result, Token, parse_macro_input};
 use syn::punctuated::Punctuated;
+use syn::{Attribute, Error, FnArg, ItemFn, LitStr, Pat, Path, Result, Token, parse_macro_input};
 
 #[proc_macro_attribute]
 pub fn command(attributes: TokenStream, item: TokenStream) -> TokenStream {
@@ -35,10 +35,7 @@ pub fn command(attributes: TokenStream, item: TokenStream) -> TokenStream {
                     "command arguments require names",
                 )),
             },
-            _ => Err(Error::new_spanned(
-                argument,
-                "commands are free functions",
-            )),
+            _ => Err(Error::new_spanned(argument, "commands are free functions")),
         })
         .collect::<Result<Vec<_>>>();
     let arguments = match arguments {
