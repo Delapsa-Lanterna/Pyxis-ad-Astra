@@ -8,7 +8,7 @@ export const errorBoundaryRule = defineRule(
     for (const file of context.frontend) {
       if (!['services', 'orchestrators'].includes(file.role.layer)) continue;
       for (const failure of file.frontend.throws)
-        if (failure.name === 'Error')
+        if (failure.builtin)
           report(file, failure, 'service/orchestrator failures must throw AppError with an action', {
             symbol: failure.name,
             expected: 'AppError',

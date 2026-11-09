@@ -1,6 +1,7 @@
 import { posix } from 'node:path';
 import ts from 'typescript';
 import { parseArchitectureFrontend } from './frontend.mjs';
+import { performance } from 'node:perf_hooks';
 
 /** @typedef {import('../../shared/frontend-source.mjs').ImportBinding} ImportBinding */
 /** @typedef {{ specifier: string, resolved: string, typeOnly: boolean, bindings: ImportBinding[], line: number, column: number }} ResolvedImport */
@@ -14,8 +15,9 @@ const extensionSubstitutions = {
 };
 /** @typedef {import('../../shared/files.mjs').SourceFile & ReturnType<typeof parseArchitectureFrontend> & {dependencies: ResolvedImport[], referenceBindings: Map<string, {edge: ResolvedImport, binding: ImportBinding}>, repositoryPaths: ReadonlySet<string>}} ResolvedFile */
 
-/** @param {import('../../shared/files.mjs').SourceFile[]} sources @param {string[]} [available] @returns {ResolvedFile[]} */
-export function prepareArchitectureFiles(sources, available = sources.map((file) => file.rel)) {
+/** @param {import('../../shared/files.mjs').SourceFile[]} sources @param {string[]} [available] @param {{onStageTiming?:(timing:{stage:string,durationMs:number})=>void}} [options] @returns {ResolvedFile[]} */
+export function prepareArchitectureFiles(sources, available = sources.map((file) => file.rel), options = {}) {
+  let started = performance.now();
   const config = sources.find((file) => file.rel === 'tsconfig.json');
   /** @type {Record<string, string[]>} */
   const aliases = config ? configAliases(config) : {};
@@ -27,13 +29,27 @@ export function prepareArchitectureFiles(sources, available = sources.map((file)
       parent = posix.dirname(parent);
     }
   }
+  options.onStageTiming?.({ stage: 'importConfigAndPathIndexMs', durationMs: performance.now() - started });
+  started = performance.now();
+  /** @type {Map<string,{durationMs:number,units:number}>} */
+  const frontendTimings = new Map();
+  /** @param {{stage:string,durationMs:number,units:number}} timing */
+  function collectFrontendTiming(timing) {
+    const previous = frontendTimings.get(timing.stage) ?? { durationMs: 0, units: 0 };
+    previous.durationMs += timing.durationMs;
+    previous.units += timing.units;
+    frontendTimings.set(timing.stage, previous);
+  }
   const files = sources.map((file) => ({
     ...file,
-    ...parseArchitectureFrontend(file),
+    ...parseArchitectureFrontend(file, { onStageTiming: collectFrontendTiming }),
     dependencies: /** @type {ResolvedImport[]} */ ([]),
     referenceBindings: new Map(),
     repositoryPaths,
   }));
+  options.onStageTiming?.({ stage: 'frontendParsingMs', durationMs: performance.now() - started });
+  for (const [stage, timing] of frontendTimings) options.onStageTiming?.({ stage, ...timing });
+  started = performance.now();
   const paths = new Set(available.filter((rel) => !rel.endsWith('/')));
   for (const file of files) {
     /** @type {Map<string, ResolvedImport>} */
@@ -77,6 +93,7 @@ export function prepareArchitectureFiles(sources, available = sources.map((file)
         if (!file.referenceBindings.has(binding.specifier)) file.referenceBindings.set(binding.specifier, { edge, binding });
       }
   }
+  options.onStageTiming?.({ stage: 'importResolutionMs', durationMs: performance.now() - started });
   return files;
 }
 
@@ -100,6 +117,24 @@ export function importSpecifiers(file) {
 /** @param {import('./context.mjs').ArchitectureFile} file @returns {ResolvedImport[]} */
 export function importedProjectPaths(file) {
   return file.dependencies;
+}
+
+/** @param {import('./context.mjs').ArchitectureFile} file @param {string} localName @param {ReadonlyMap<string, import('./context.mjs').ArchitectureFile>} nodes @param {boolean} [includeTypes] */
+export function importedBindingOrigins(file, localName, nodes, includeTypes = true) {
+  return file.dependencies.flatMap((edge) =>
+    edge.bindings
+      .filter((binding) => binding.localName === localName && (includeTypes || !binding.typeOnly))
+      .flatMap((binding) => dependencyOrigins({ ...edge, bindings: [binding] }, nodes, () => false, undefined, includeTypes)),
+  );
+}
+
+/** @param {import('./context.mjs').ArchitectureFile} file @param {string} localName @param {ReadonlyMap<string, import('./context.mjs').ArchitectureFile>} nodes */
+export function importedTypeOrigins(file, localName, nodes) {
+  return file.dependencies.flatMap((edge) =>
+    edge.bindings
+      .filter((binding) => binding.localName === localName)
+      .flatMap((binding) => dependencyOrigins({ ...edge, bindings: [binding] }, nodes, () => false, undefined, true)),
+  );
 }
 
 /** @param {string} fromRel @param {string} request @param {Set<string>} paths @param {Record<string, string[]>} aliases @returns {string | null} */

@@ -4,7 +4,7 @@ import { sourcePositions } from '../../shared/source-position.mjs';
 import { rustServicePaths } from './rust-crate-paths.mjs';
 import { splitTopLevel } from '../../shared/rust-source.mjs';
 
-/** @typedef {{name: string, attributes: string[], start: number, end: number, body: string, signature: string, line: number, column: number}} RustFunction */
+/** @typedef {{name: string, commandName: string, public: boolean, attributes: string[], attributeArguments: ReadonlyMap<string,string>, start: number, end: number, body: string, signature: string, line: number, column: number}} RustFunction */
 /** @typedef {{name: string, target: string, arguments: string[], offset: number, line: number, column: number}} RustCall */
 /** @typedef {{macro: string, expression: string, path: string | null, offset: number, line: number, column: number}} RustEmbeddedAsset */
 /** @typedef {{embeddedAssets: RustEmbeddedAsset[], code: string, references: import('./rust-crate-paths.mjs').RustReference[], functions: RustFunction[], calls: RustCall[]}} RustFacts */
@@ -21,7 +21,12 @@ export function rustFacts(file, code, exports) {
       if (code[end] === '[') depth++;
       if (code[end] === ']') depth--;
     }
-    attributes.push({ path: /** @type {string} */ (match[1]), start: match.index, end });
+    attributes.push({
+      path: /** @type {string} */ (match[1]),
+      start: match.index,
+      end,
+      arguments: file.text.slice(match.index + match[0].length, end),
+    });
   }
   for (const match of code.matchAll(
     /\b(?:pub(?:\([^)]*\))?\s+)?(?:(?:async|const|unsafe|extern)\s+)*fn\s+((?:r#)?[A-Za-z_][A-Za-z0-9_]*)\s*/g,
@@ -55,15 +60,21 @@ export function rustFacts(file, code, exports) {
     const attached = [];
     let start = match.index;
     for (let index = attributes.length - 1; index >= 0; index--) {
-      const attribute = /** @type {{path: string, start: number, end: number}} */ (attributes[index]);
+      const attribute = /** @type {{path: string, start: number, end: number, arguments:string}} */ (attributes[index]);
       if (attribute.end > start) continue;
       if (!/^(?:\s|pub(?:\([^)]*\))?|async|const|unsafe|extern)*$/.test(code.slice(attribute.end, start))) break;
-      attached.unshift(attribute.path);
+      attached.unshift(attribute);
       start = attribute.start;
     }
+    const name = /** @type {string} */ (match[1]);
+    const attributeArguments = new Map(attached.map((attribute) => [attribute.path, attribute.arguments]));
+    const rename = /\brename\s*=\s*"([^"]+)"/.exec(attributeArguments.get('command_macros::command') ?? '');
     functions.push({
-      name: /** @type {string} */ (match[1]),
-      attributes: attached,
+      name,
+      commandName: rename?.[1] ?? name,
+      public: /^\s*pub(?:\s*\([^)]*\))?\s/.test(/** @type {string} */ (match[0])),
+      attributes: attached.map((attribute) => attribute.path),
+      attributeArguments,
       start: match.index,
       end,
       body: code.slice(opening, end),
@@ -92,10 +103,23 @@ export function rustFacts(file, code, exports) {
     });
   }
   for (const call of calls) {
+    if (call.name === 'canonicalize' && call.target === 'std::path::Path') call.target = 'std::path::Path::canonicalize';
     const receiver = /\b([A-Za-z_]\w*)\.\s*$/.exec(code.slice(0, call.offset));
     if (!receiver) continue;
     const owner = functions.filter((fn) => fn.start < call.offset && fn.end > call.offset).sort((a, b) => b.start - a.start)[0];
     if (!owner) continue;
+    if (call.name === 'canonicalize') {
+      const parameter = [...owner.signature.matchAll(/\b([A-Za-z_]\w*)\s*:\s*&(?:'\w+\s+)?(?:mut\s+)?([A-Za-z_:][\w:]*)/g)].find(
+        (match) => {
+          const typeStart = owner.start + (match.index ?? 0) + match[0].lastIndexOf(match[2] ?? '');
+          return (
+            match[1] === receiver[1] &&
+            references.some((reference) => reference.offset === typeStart && reference.target.join('::') === 'std::path::Path')
+          );
+        },
+      );
+      if (parameter) call.target = 'std::path::Path::canonicalize';
+    }
     const assignments = [
       ...code
         .slice(owner.start, call.offset)

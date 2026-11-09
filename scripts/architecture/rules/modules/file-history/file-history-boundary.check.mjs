@@ -51,13 +51,35 @@ test('replay remains owned by the replay orchestrator', () => {
 });
 
 test('file history cannot invent an empty changeset', () => {
-  const context = architectureFixtures({ 'src/app/composables/use-history-actions.ts': 'const changes: FileChangeRecord[] = [];' });
+  const context = architectureFixtures({
+    'src/shared/types/file-changes.types.ts': 'export interface FileChangeRecord { kind: string }',
+    'src/app/composables/use-history-actions.ts':
+      'import type { FileChangeRecord as Change } from "@/shared/types/file-changes.types"; const changes: Change[] = [];',
+  });
   const [diagnostic] = fileHistoryBoundaryRule.check(context);
   assert.ok(diagnostic);
   assert.equal(diagnostic.expected, 'WriteResult.changes');
 });
 
+test('unrelated local change records retain their own type identity', () => {
+  const context = architectureFixtures({
+    'src/app/composables/use-history-actions.ts': 'interface FileChangeRecord { note: string } const changes: FileChangeRecord[] = [];',
+  });
+  assert.deepEqual(fileHistoryBoundaryRule.check(context), []);
+});
+
 test('local snapshot functions retain their local meaning', () => {
   const context = architectureFixtures({ 'src/app/composables/use-history-actions.ts': 'function applySnapshot() {} applySnapshot();' });
   assert.deepEqual(fileHistoryBoundaryRule.check(context), []);
+});
+
+test('empty arrays retain aliased formal changeset types', () => {
+  const context = architectureFixtures({
+    'src/shared/types/file-changes.types.ts': 'export interface FileChangeRecord {}',
+    'src/app/composables/use-history-actions.ts':
+      'import type {FileChangeRecord as Change} from "@/shared/types/file-changes.types"; const changes: Array<Change> = [];',
+  });
+  const [diagnostic] = fileHistoryBoundaryRule.check(context);
+  assert.ok(diagnostic);
+  assert.equal(diagnostic.expected, 'WriteResult.changes');
 });

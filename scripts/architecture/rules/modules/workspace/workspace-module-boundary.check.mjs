@@ -28,3 +28,21 @@ test('workspace assignments follow their actual receiver', () => {
   assert.equal(diagnostics[0].line, 3);
   assert.equal(diagnostics[0].symbol, 'currentView');
 });
+
+test('Object.assign on the actual workspace store cannot bypass field ownership', () => {
+  for (const source of [
+    'Object.assign(state, { activeModRoot: root });',
+    'const assign = Object.assign; assign(state, { currentView: "table" });',
+  ]) {
+    const code = "import {useWorkspaceStore} from '@/stores/workspace.store'; const state=useWorkspaceStore(); " + source;
+    const diagnostics = workspaceModuleBoundaryRule.check(architectureFixtures({ ...provider, 'src/app/composables/use-sample.ts': code }));
+    assert.equal(diagnostics.length, 1);
+    assert.ok(['activeModRoot', 'currentView'].includes(diagnostics[0]?.symbol ?? ''));
+  }
+  const shadowed = architectureFixtures({
+    ...provider,
+    'src/app/composables/use-sample.ts':
+      'const Object={assign(){}};const state={activeModRoot:null};Object.assign(state,{activeModRoot:"local"});',
+  });
+  assert.deepEqual(workspaceModuleBoundaryRule.check(shadowed), []);
+});

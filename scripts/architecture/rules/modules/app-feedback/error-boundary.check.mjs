@@ -26,3 +26,14 @@ test('pure domain values and colocated tests retain their own error semantics', 
   });
   assert.deepEqual(errorBoundaryRule.check(context), []);
 });
+
+test('native Error aliases retain their identity and local Error classes are ignored', () => {
+  const alias = architectureFixtures({
+    'src/services/sample.service.ts': 'const Failure = Error; export function run(){ throw new Failure("sample"); }',
+  });
+  assert.equal(errorBoundaryRule.check(alias).length, 1);
+  const local = architectureFixtures({
+    'src/services/sample.service.ts': 'class Error extends Error {} export function run(){ throw new Error("sample"); }',
+  });
+  assert.deepEqual(errorBoundaryRule.check(local), []);
+});

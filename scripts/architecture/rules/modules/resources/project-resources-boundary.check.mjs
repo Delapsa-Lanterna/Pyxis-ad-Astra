@@ -14,3 +14,12 @@ test('Core commands reject a second Schema backend route even when the Project R
   assert.ok(diagnostics[0]);
   assert.equal(diagnostics[0].expected, 'services::project::resources::core_assets');
 });
+
+test('Core command ownership follows the registered external name', () => {
+  const context = architectureFixtures({
+    'src-tauri/src/commands/core_assets.rs':
+      '#[command_macros::command(rename = "scan_core_fields")] pub fn scan_fields() { crate::services::schema::scan_core_fields(); }',
+  });
+  const diagnostics = projectResourcesBoundaryRule.check(context);
+  assert.ok(diagnostics.some((diagnostic) => diagnostic.symbol === 'scan_core_fields'));
+});

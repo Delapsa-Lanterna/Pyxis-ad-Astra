@@ -6,7 +6,7 @@ import { rustModuleBoundaryContext, rustReferenceTarget } from '../../check-rust
 
 /** @typedef {'read' | 'scan' | 'write' | 'publish' | 'lifecycle'} EffectKind */
 /** @typedef {{kind:EffectKind, file:string, line:number, column:number, symbol:string}} Effect */
-/** @typedef {{id:string, file:string, name:string, line:number, column:number, edges:Set<string>, direct:Effect[]}} EffectFunction */
+/** @typedef {{id:string, file:string, name:string, public:boolean, line:number, column:number, edges:Set<string>, direct:Effect[]}} EffectFunction */
 /** @typedef {{function:EffectFunction, effect:Effect, chain:EffectFunction[]}} EffectPath */
 
 /** @param {string} symbol @returns {EffectKind | null} */
@@ -45,11 +45,12 @@ export function effectPaths(context, roots) {
   /** @type {Array<{file:import('./context.mjs').ArchitectureFile,ast:ts.SourceFile,offset:number}>} */
   const blocks = [];
   /** @param {string} file @param {string} name @param {{line:number,column:number}} position */
-  function add(file, name, position) {
+  function add(file, name, position, isPublic = false) {
     const value = {
       id: file + '#' + position.line + ':' + position.column + '#' + name,
       file,
       name,
+      public: isPublic,
       ...position,
       edges: new Set(),
       direct: [],
@@ -67,7 +68,12 @@ export function effectPaths(context, roots) {
         if (ts.isFunctionDeclaration(node) || ts.isFunctionExpression(node) || ts.isArrowFunction(node) || ts.isMethodDeclaration(node)) {
           const parent = node.parent;
           const name = node.name?.getText(ast) ?? (ts.isVariableDeclaration(parent) ? parent.name.getText(ast) : '@' + node.getStart(ast));
-          const entry = add(file.rel, name, file.positionAt(offset + node.getStart(ast)));
+          const isPublic =
+            (ts.canHaveModifiers(node) && ts.getModifiers(node)?.some((modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword)) ||
+            (ts.isVariableDeclaration(parent) &&
+              ts.isVariableStatement(parent.parent) &&
+              ts.getModifiers(parent.parent)?.some((modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword));
+          const entry = add(file.rel, name, file.positionAt(offset + node.getStart(ast)), Boolean(isPublic));
           declarations.set(node, entry);
           if (ts.isVariableDeclaration(parent)) declarations.set(parent, entry);
         }
@@ -76,7 +82,7 @@ export function effectPaths(context, roots) {
       visit(ast);
     }
   }
-  for (const file of context.rust) for (const fn of file.rust.functions) add(file.rel, fn.name, fn);
+  for (const file of context.rust) for (const fn of file.rust.functions) add(file.rel, fn.name, fn, fn.public);
   for (const file of frontend) {
     const initialization = named.get(file.rel + '#<module>');
     for (const edge of file.dependencies) {
@@ -89,7 +95,15 @@ export function effectPaths(context, roots) {
   function exported(rel, name) {
     const file = context.byPath.get(rel);
     const binding = file?.exports.find((entry) => entry.exportedName === name);
-    return named.get(rel + '#' + (binding?.localName ?? name));
+    const localName = binding?.localName ?? name;
+    for (const { ast } of file?.syntax.scripts ?? [])
+      for (const statement of ast.statements) {
+        if (ts.isFunctionDeclaration(statement) && statement.name?.text === localName) return declarations.get(statement);
+        if (ts.isVariableStatement(statement))
+          for (const declaration of statement.declarationList.declarations)
+            if (ts.isIdentifier(declaration.name) && declaration.name.text === localName) return declarations.get(declaration);
+      }
+    return named.get(rel + '#' + localName);
   }
   for (const { file, ast, offset } of blocks) {
     const checker = sourceChecker(ast);
@@ -117,6 +131,16 @@ export function effectPaths(context, roots) {
       if (declaration && declarations.has(declaration))
         return { targets: [/** @type {EffectFunction} */ (declarations.get(declaration))], external: [] };
       if (declaration && ts.isVariableDeclaration(declaration) && declaration.initializer) return resolve(declaration.initializer, seen);
+      if (declaration && ts.isBindingElement(declaration) && ts.isIdentifier(declaration.name)) {
+        const variable = declaration.parent.parent;
+        if (ts.isVariableDeclaration(variable) && variable.initializer) {
+          const source = resolve(variable.initializer, seen);
+          const property = declaration.propertyName ?? declaration.name;
+          if (source.external.length) return { targets: [], external: source.external.map((origin) => origin + '.' + property.getText()) };
+          if (ts.isIdentifier(variable.initializer) && !checker.getSymbolAtLocation(variable.initializer))
+            return { targets: [], external: [property.getText()] };
+        }
+      }
       if (ts.isElementAccessExpression(expression) && ts.isStringLiteralLike(expression.argumentExpression)) {
         const base = resolve(expression.expression, seen);
         const member = expression.argumentExpression.text;
@@ -192,6 +216,7 @@ export function effectPaths(context, roots) {
   const paths = [];
   for (const fn of functions.values()) {
     if (roots && !roots.has(fn.file)) continue;
+    if (fn.name !== '<module>' && !fn.public) continue;
     const pending = [{ node: fn, chain: [fn] }],
       seen = new Set();
     while (pending.length) {

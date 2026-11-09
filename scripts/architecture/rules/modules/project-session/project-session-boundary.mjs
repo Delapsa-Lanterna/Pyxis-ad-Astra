@@ -1,6 +1,7 @@
 import { defineRule } from '../../../diagnostics.mjs';
 import { classifyFrontendPath } from '../../../facts/classify.mjs';
 import { callsFrom } from '../../../facts/imports.mjs';
+import { piniaStoreFields } from '../../../facts/project-store-fields.mjs';
 
 const projectSources = new Set(['src/stores/project.store.ts']);
 const mutationNames = new Set(['registerProjectManifest', 'replaceProjectManifest', 'removeProjectManifest']);
@@ -12,6 +13,7 @@ const mutationOwners = new Set([
   'app/workspace-shell-actions',
 ]);
 const summaries = new Set(['entitySummaries', 'tableSummaries', 'tableEntitySummaries']);
+const projectFields = new Set(['activeModRoot', 'activeManifest', 'activeSessionId', 'projectName']);
 
 export const projectSessionBoundaryRule = defineRule(
   'project-session-boundary',
@@ -37,16 +39,11 @@ export const projectSessionBoundaryRule = defineRule(
             expected: 'window-supplied Core root',
           });
       }
-      const selection = ['activeModRoot', 'activeManifest', 'activeSessionId', 'projectName'].find((name) =>
-        file.frontend.identifiers.has(name),
-      );
-      if (owner === 'stores/project' && selection)
-        report(
-          file,
-          /** @type {import('../../../diagnostics.mjs').Position} */ (file.frontend.identifiers.get(selection)),
-          'active project projection must be owned by workspace',
-          { symbol: selection, expected: 'workspace' },
-        );
+      if (owner === 'stores/project') {
+        for (const field of piniaStoreFields(file, 'project'))
+          if (projectFields.has(field.name))
+            report(file, field, 'active project projection must be owned by workspace', { symbol: field.name, expected: 'workspace' });
+      }
       for (const call of callsFrom(file, context.byPath, projectSources))
         if (mutationNames.has(call.name) && !mutationOwners.has(owner))
           report(file, call, 'ProjectManifest mutation must be owned by ProjectSession open/remove/refresh boundaries', {

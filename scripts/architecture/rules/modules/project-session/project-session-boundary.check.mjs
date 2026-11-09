@@ -42,8 +42,19 @@ test('workspace derives active project projection through the manifest owner', (
 });
 
 test('active project fields belong to workspace', () => {
-  const files = architectureFixtures({ 'src/stores/project.store.ts': 'const activeSessionId = computed(() => null);' });
+  const files = architectureFixtures({
+    'src/stores/project.store.ts':
+      "import {defineStore} from 'pinia'; export const useProjectStore=defineStore('project',()=>{const activeSessionId=computed(()=>null);return {activeSessionId};});",
+  });
   assert.equal(messages(projectSessionBoundaryRule.check(files)).length, 1);
+});
+
+test('local variables with project field names do not define project store ownership', () => {
+  const files = architectureFixtures({
+    'src/stores/project.store.ts':
+      "import {defineStore} from 'pinia'; export const useProjectStore=defineStore('project',()=>{function read(){const activeSessionId=null;return activeSessionId;} return {read};});",
+  });
+  assert.deepEqual(messages(projectSessionBoundaryRule.check(files)), []);
 });
 
 for (const store of ['project', 'workspace', 'settings'])

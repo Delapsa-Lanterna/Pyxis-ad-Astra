@@ -1,6 +1,7 @@
 import ts from 'typescript';
 import { sourcePositions } from './source-position.mjs';
 import { parse } from 'vue/compiler-sfc';
+import { performance } from 'node:perf_hooks';
 
 /** @type {WeakMap<ts.SourceFile, ts.TypeChecker>} */
 const sourceCheckers = new WeakMap();
@@ -18,6 +19,21 @@ export function sourceChecker(ast) {
   return checker;
 }
 
+/** @param {ts.Expression | undefined} expression @param {ts.TypeChecker} checker @param {Set<ts.Node>} [seen] @returns {string | null} */
+export function constantString(expression, checker, seen = new Set()) {
+  if (!expression || seen.has(expression)) return null;
+  seen.add(expression);
+  if (ts.isStringLiteralLike(expression)) return expression.text;
+  if (ts.isParenthesizedExpression(expression) || ts.isAsExpression(expression) || ts.isSatisfiesExpression(expression))
+    return constantString(expression.expression, checker, seen);
+  if (ts.isIdentifier(expression)) {
+    const declaration = checker.getSymbolAtLocation(expression)?.valueDeclaration;
+    if (declaration && ts.isVariableDeclaration(declaration) && declaration.parent.flags & ts.NodeFlags.Const)
+      return constantString(declaration.initializer, checker, seen);
+  }
+  return null;
+}
+
 /** @typedef {{ importedName: string | null, localName: string | null, specifier: string, typeOnly: boolean, kind: 'import' | 'export' | 'dynamic' | 'type', line: number, column: number }} ImportBinding */
 /** @typedef {{ exportedName: string, localName: string, specifier: string | null, importedName: string, typeOnly: boolean, line: number, column: number }} ExportBinding */
 /** @typedef {{ localName: string | null, member: string | null, specifier: string | null, arguments: (string | null)[], argumentExpressions: (string | null)[], factory: boolean, line: number, column: number }} SourceCall */
@@ -25,8 +41,18 @@ export function sourceChecker(ast) {
 /** @typedef {Omit<SourceCall, 'arguments' | 'argumentExpressions'> & {write: boolean}} SourceAccess */
 /** @typedef {{ imports: ImportBinding[], exports: ExportBinding[], exportedFunctions: string[], calls: SourceCall[], accesses: SourceAccess[], dependencyFailures: SourceFailure[], syntax: {scripts: {ast: ts.SourceFile, offset: number}[], template: {text: string, offset: number, ast: import('@vue/compiler-dom').RootNode} | null, styles: import('@vue/compiler-sfc').SFCStyleBlock[]} }} FrontendSource */
 
-/** @param {import('./files.mjs').SourceFile} file @param {{references?: boolean, inspect?: boolean, onNode?: (node: ts.Node, ast: ts.SourceFile, offset: number) => void}} [options] @returns {FrontendSource} */
-export function parseFrontendSource(file, { references = true, inspect = true, onNode } = {}) {
+/** @param {import('./files.mjs').SourceFile} file @param {{references?: boolean, inspect?: boolean, onNode?: (node: ts.Node, ast: ts.SourceFile, offset: number) => void, onStageTiming?:(timing:{stage:string,durationMs:number,units:number})=>void}} [options] @returns {FrontendSource} */
+export function parseFrontendSource(file, { references = true, inspect = true, onNode, onStageTiming } = {}) {
+  /** @type {Map<string,{durationMs:number,units:number}>} */
+  const timings = new Map();
+  /** @param {string} stage @param {number} started */
+  function record(stage, started) {
+    if (!onStageTiming) return;
+    const previous = timings.get(stage) ?? { durationMs: 0, units: 0 };
+    previous.durationMs += performance.now() - started;
+    previous.units++;
+    timings.set(stage, previous);
+  }
   /** @type {FrontendSource} */
   const facts = {
     imports: [],
@@ -39,11 +65,19 @@ export function parseFrontendSource(file, { references = true, inspect = true, o
   };
   const positionAt = sourcePositions(file.text);
   if (!inspect || !/\.(?:ts|tsx|js|jsx|mjs|vue)$/.test(file.rel)) return facts;
+  let started = onStageTiming ? performance.now() : 0;
   const { blocks, template, styles } = scriptBlocks(file);
+  if (file.rel.endsWith('.vue')) record('vueSfcParseMs', started);
   facts.syntax.template = template;
   facts.syntax.styles = styles;
   for (const block of blocks) {
+    started = onStageTiming ? performance.now() : 0;
     const ast = ts.createSourceFile(file.rel, block.text, ts.ScriptTarget.Latest, true, block.kind);
+    record('typescriptAstParseMs', started);
+    started = onStageTiming ? performance.now() : 0;
+    const checker = sourceChecker(ast);
+    record('typeCheckerSetupMs', started);
+    started = onStageTiming ? performance.now() : 0;
     facts.syntax.scripts.push({ ast, offset: block.offset });
     /** @type {Map<ts.Node, Map<string, ts.Expression | null>>} */
     const scopes = new Map();
@@ -156,7 +190,7 @@ export function parseFrontendSource(file, { references = true, inspect = true, o
           const position = positionAt(block.offset + node.getStart(ast));
           facts.calls.push({
             ...target,
-            arguments: node.arguments.map((argument) => (ts.isStringLiteralLike(argument) ? argument.text : null)),
+            arguments: node.arguments.map((argument) => constantString(argument, checker)),
             argumentExpressions: node.arguments.map((argument) =>
               ts.isStringLiteralLike(argument) || ts.isPropertyAccessExpression(argument) || ts.isElementAccessExpression(argument)
                 ? argument.getText(ast)
@@ -318,7 +352,9 @@ export function parseFrontendSource(file, { references = true, inspect = true, o
       });
     }
     visit(ast);
+    record('frontendFactExtractionMs', started);
   }
+  for (const [stage, timing] of timings) onStageTiming?.({ stage, ...timing });
   return facts;
 }
 

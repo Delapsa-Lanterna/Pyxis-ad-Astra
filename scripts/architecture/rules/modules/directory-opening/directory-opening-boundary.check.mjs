@@ -22,6 +22,16 @@ for (const command of ['detect_directory', 'scan_game_overview'])
     assert.equal(diagnostics[0].expected, 'services::directory_opening');
   });
 
+test('Directory Opening ownership follows the external command name', () => {
+  const context = architectureFixtures({
+    'src-tauri/src/commands/directory.rs':
+      '#[command_macros::command(rename = "detect_directory")] pub fn identify() { crate::services::schema::run(); }',
+  });
+  const [diagnostic] = directoryOpeningBoundaryRule.check(context);
+  assert.ok(diagnostic);
+  assert.equal(diagnostic.symbol, 'detect_directory');
+});
+
 test('Directory Opening wire models stay in their model module', () => {
   const invalid = architectureFixtures({
     'src-tauri/src/models/project.rs': 'pub struct OpenDirectoryResult { pub root: String }',

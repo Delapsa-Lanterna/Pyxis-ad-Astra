@@ -36,3 +36,8 @@ test('engine rendering composables cannot create RGB colors locally', () => {
   assert.equal(diagnostic.ruleId, 'rendering-boundary');
   assert.equal(diagnostic.expected, 'engine-renderer');
 });
+
+test('layer words in user text do not count as drawing layer selection', () => {
+  const context = architectureFixtures({ 'src/app/composables/use-sample.ts': 'const message="projectileTrail";' });
+  assert.deepEqual(renderingBoundaryRule.check(context), []);
+});

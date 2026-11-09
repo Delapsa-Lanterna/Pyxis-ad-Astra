@@ -37,7 +37,7 @@ export const saveBackendBoundaryRule = defineRule(
     for (const file of context.rust) {
       if (!file.rel.startsWith('src-tauri/src/commands/')) continue;
       for (const fn of file.rust.functions) {
-        const owner = commandServices.get(fn.name);
+        const owner = commandServices.get(fn.commandName);
         if (!owner) continue;
         const allowed = new Set(owner === 'file_history' ? [owner] : [owner, 'project', 'write_transactions']);
         for (const edge of file.rust.references) {

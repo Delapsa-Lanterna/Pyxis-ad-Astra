@@ -19,7 +19,10 @@ export const pathBoundaryRule = defineRule(
       for (const call of file.rust.calls) {
         if (file.rel === keyOwner && ['to_lowercase', 'to_uppercase'].includes(call.name))
           report(file, call, 'Windows path identity must consume the native UTF-16 mapping', { expected: 'windows_path_case' });
-        if (call.target.split('::').at(-1) === 'canonicalize' && file.rel !== pathOwner)
+        if (
+          ['std::fs::canonicalize', 'std::path::Path::canonicalize', 'std::path::PathBuf::canonicalize'].includes(call.target) &&
+          file.rel !== pathOwner
+        )
           report(file, call, 'disk path expansion belongs to the IO path boundary', { target: call.target, expected: pathOwner });
       }
       if ([pathOwner, keyOwner].includes(file.rel)) continue;

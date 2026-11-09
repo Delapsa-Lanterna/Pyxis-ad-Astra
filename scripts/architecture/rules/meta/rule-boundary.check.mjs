@@ -38,6 +38,15 @@ test('registered implementation helpers inherit the fact consumption boundary', 
   assert.equal(diagnostic.expected, 'repository facts or declared contract');
 });
 
+test('destructuring source text is subject to the parsed-fact boundary', () => {
+  const [diagnostic] = ruleBoundaryRule.check(
+    context('export const rule=(file)=>{const {text:source}=file;return source.includes("sample");};'),
+  );
+  assert.ok(diagnostic);
+  assert.equal(diagnostic.symbol, 'text');
+  assert.equal(diagnostic.expected, 'parsed source facts');
+});
+
 test('registered rule identities and heading references resolve uniquely', () => {
   const fixtures = architectureFixtures({ [source]: '', '.zcode/module-map.md': '# Contract\n\n## Existing\n' });
   const rule = { ...registered, reference: '.zcode/module-map.md#existing' };

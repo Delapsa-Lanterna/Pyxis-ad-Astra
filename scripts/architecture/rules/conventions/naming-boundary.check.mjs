@@ -40,3 +40,16 @@ test('Vue declared event names preserve model updates and kebab-case actions', (
     ],
   );
 });
+
+test('Vue component basenames use PascalCase', () => {
+  assert.deepEqual(
+    namingBoundaryRule
+      .check(architectureFixtures({ 'src/app/components/sample-panel.vue': '<template><div/></template>' }))
+      .map((item) => item.expected),
+    ['PascalCase component name'],
+  );
+  assert.deepEqual(
+    namingBoundaryRule.check(architectureFixtures({ 'src/app/components/SamplePanel.vue': '<template><div/></template>' })),
+    [],
+  );
+});

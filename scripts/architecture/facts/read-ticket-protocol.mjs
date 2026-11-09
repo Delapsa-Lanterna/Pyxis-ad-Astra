@@ -20,6 +20,16 @@ export function readTicketProtocol(file) {
     signals: new Set(),
   };
   if (!file) return protocol;
+  /** @param {ts.Expression} expression @param {string} name @param {ts.TypeChecker} checker @param {Set<ts.Node>} [seen] */
+  function globalConstructor(expression, name, checker, seen = new Set()) {
+    if (seen.has(expression) || !ts.isIdentifier(expression)) return false;
+    seen.add(expression);
+    const declaration = checker.getSymbolAtLocation(expression)?.valueDeclaration;
+    if (!declaration) return expression.text === name;
+    if (ts.isVariableDeclaration(declaration) && declaration.initializer)
+      return globalConstructor(declaration.initializer, name, checker, seen);
+    return false;
+  }
   for (const { ast } of file.syntax.scripts) {
     const checker = sourceChecker(ast);
     /** @type {Set<ts.Node>} */
@@ -31,9 +41,9 @@ export function readTicketProtocol(file) {
       walk(fn.body, (node) => {
         if (!ts.isVariableDeclaration(node) || !node.initializer || !ts.isNewExpression(node.initializer)) return;
         const type = node.initializer.expression;
-        if (!ts.isIdentifier(type) || checker.getSymbolAtLocation(type)?.valueDeclaration) return;
-        if (type.text === 'AbortController') controllers.add(checker.getSymbolAtLocation(node.name));
-        if (type.text === 'Promise') promises.add(checker.getSymbolAtLocation(node.name));
+        if (!ts.isIdentifier(type)) return;
+        if (globalConstructor(type, 'AbortController', checker)) controllers.add(checker.getSymbolAtLocation(node.name));
+        if (globalConstructor(type, 'Promise', checker)) promises.add(checker.getSymbolAtLocation(node.name));
       });
       if (!controllers.size || !promises.size) continue;
       const result = fn.body.statements.find(

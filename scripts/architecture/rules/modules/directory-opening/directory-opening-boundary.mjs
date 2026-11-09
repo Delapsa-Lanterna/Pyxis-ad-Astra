@@ -28,7 +28,7 @@ export const directoryOpeningBoundaryRule = defineRule(
             });
       if (!file.rel.startsWith('src-tauri/src/commands/')) continue;
       for (const fn of file.rust.functions) {
-        if (!directoryCommands.has(fn.name)) continue;
+        if (!directoryCommands.has(fn.commandName)) continue;
         const targets = file.rust.references.filter(
           (edge) => edge.offset >= fn.start && edge.offset < fn.end && edge.target[0] === 'services',
         );
@@ -36,12 +36,12 @@ export const directoryOpeningBoundaryRule = defineRule(
           if (edge.target[1] !== 'directory_opening')
             report(file, edge, 'directory commands must consume Directory Opening backend', {
               target: edge.target.join('::'),
-              symbol: fn.name,
+              symbol: fn.commandName,
               expected: 'services::directory_opening',
             });
         if (!targets.length)
           report(file, fn, 'directory commands must consume Directory Opening backend', {
-            symbol: fn.name,
+            symbol: fn.commandName,
             expected: 'services::directory_opening',
           });
       }

@@ -36,7 +36,7 @@ test('query IO and cache scans depend on native operations after internal rename
 test('all source catalog query products retain read-only native effects', () => {
   for (const leaf of ['values', 'images', 'config_sources']) {
     const rel = 'src-tauri/src/services/project/query/source_catalog/' + leaf + '.rs';
-    const diagnostics = effectBoundaryRule.check(architectureFixtures({ [rel]: 'fn run(){std::fs::write(path,bytes);}' }));
+    const diagnostics = effectBoundaryRule.check(architectureFixtures({ [rel]: 'pub fn run(){std::fs::write(path,bytes);}' }));
     assert.equal(diagnostics.length, 1);
     assert.equal(diagnostics[0]?.expected, 'read-only query');
     assert.equal(diagnostics[0]?.file, rel);

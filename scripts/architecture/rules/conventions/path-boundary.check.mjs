@@ -20,12 +20,12 @@ test('Windows path owners consume native case rules in both languages', () => {
 
 test('path expansion belongs to the formal IO boundary across invocation forms', () => {
   for (const text of [
-    'fn run(path: &Path) { path.canonicalize(); }',
+    'use std::path::Path; fn run(path: &Path) { path.canonicalize(); }',
     'fn run(path: &Path) { std::fs::canonicalize(path); }',
     'use std::fs::canonicalize as expand; fn run(path: &Path) { expand(path); }',
     'fn run(path: &Path) { use std::fs as disk; disk::canonicalize(path); }',
     'fn run(path: &Path) { let expand = std::fs::canonicalize; expand(path); }',
-    'fn run(path: &Path) { Path::canonicalize(path); }',
+    'use std::path::Path; fn run(path: &Path) { Path::canonicalize(path); }',
   ]) {
     const diagnostics = check('\n' + text);
     assert.ok(diagnostics.length >= 1);
@@ -38,6 +38,10 @@ test('path expansion belongs to the formal IO boundary across invocation forms',
     }
     assert.deepEqual(check(text, 'src-tauri/src/io/paths.rs'), []);
   }
+});
+
+test('local functions named canonicalize are not filesystem path operations', () => {
+  assert.deepEqual(check('fn canonicalize(value:i32)->i32 {value} fn run(){canonicalize(1);}'), []);
 });
 
 test('filesystem identity operations consume shared string keys', () => {

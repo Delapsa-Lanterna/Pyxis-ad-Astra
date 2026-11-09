@@ -95,6 +95,15 @@ test('namespace factories retain the same direct copy evidence', () => {
   );
 });
 
+test('state factories imported through a project barrel retain their Vue origin', () => {
+  const context = architectureFixtures({
+    'src/shared/reactivity.ts': "export { ref as state } from 'vue';",
+    'src/app/composables/use-sample.ts':
+      "import {state} from '@/shared/reactivity'; const left=state(0),right=state(0); left.value=right.value;right.value=left.value;",
+  });
+  assert.equal(writableStateCopyCycleRule.check(context).length, 1);
+});
+
 test('every assignment between the same storage locations retains its evidence', () => {
   const diagnostics = check('const a=ref(0),b=ref(0);\na.value=b.value;\na.value=b.value;\nb.value=a.value;');
   assert.equal(diagnostics.length, 1);

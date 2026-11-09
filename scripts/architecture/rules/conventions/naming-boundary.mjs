@@ -17,6 +17,14 @@ export const namingBoundaryRule = defineRule(
     for (const file of context.files) {
       if (!frontendFile(file.rel) || specFile(file.rel)) continue;
       const suffix = suffixes.get(file.role.layer);
+      if (file.rel.endsWith('.vue')) {
+        const component = file.rel.split('/').at(-1)?.slice(0, -4) ?? '';
+        if (!/^[A-Z][A-Za-z0-9]*$/.test(component))
+          report(file, { line: 1, column: 1 }, 'Vue component files must use PascalCase', {
+            symbol: component,
+            expected: 'PascalCase component name',
+          });
+      }
       if (suffix && !suffix.some((ending) => file.rel.endsWith(ending)))
         report(file, { line: 1, column: 1 }, file.role.layer + ' files must use ' + suffix.join(' or '));
       if (file.role.layer === 'domain' && /\.(service|store|orchestrator)\.ts$/.test(file.rel))

@@ -1,5 +1,6 @@
 import { defineRule } from '../../../diagnostics.mjs';
 import { callsFrom } from '../../../facts/imports.mjs';
+import { formalFileChangeArrays } from '../../../facts/file-change-arrays.mjs';
 
 const historyStore = new Set(['src/stores/file-history.store.ts']);
 const historyService = new Set(['src/services/file-history.service.ts']);
@@ -33,12 +34,11 @@ export const fileHistoryBoundaryRule = defineRule(
             expected: [...replayOwners].join(', '),
           });
 
-      for (const array of file.frontend.emptyTypedArrays)
-        if (array.type === 'FileChangeRecord[]' || array.type.endsWith('<FileChangeRecord>'))
-          report(file, array, 'file history changesets must come from write results, not ad hoc empty arrays', {
-            symbol: array.type,
-            expected: 'WriteResult.changes',
-          });
+      for (const array of formalFileChangeArrays(file, context.byPath))
+        report(file, array, 'file history changesets must come from write results, not ad hoc empty arrays', {
+          symbol: array.type,
+          expected: 'WriteResult.changes',
+        });
     }
   },
 );

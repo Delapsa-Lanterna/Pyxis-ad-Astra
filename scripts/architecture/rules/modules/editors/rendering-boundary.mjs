@@ -10,7 +10,9 @@ export const renderingBoundaryRule = defineRule(
   (context, report) => {
     for (const file of context.frontend) {
       if (file.role.layer !== 'app') continue;
-      for (const literal of file.frontend.strings) {
+      for (const literal of file.frontend.stringCalls) {
+        const operation = literal.callee.split('.').at(-1);
+        if (!['image', 'drawImage', 'tint'].includes(operation ?? '')) continue;
         if (file.role.domain !== 'projectile-renderer' && projectileLayers.has(literal.value))
           report(file, literal, 'projectile effect layers must belong to the shared projectile renderer', {
             symbol: literal.value,

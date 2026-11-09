@@ -19,3 +19,23 @@ test('weapon catalogue and projectile details have distinct query owners', () =>
   assert.equal(diagnostics[0].line, 2);
   assert.equal(diagnostics[0].symbol, 'querySessionEntity');
 });
+
+test('query entity kinds resolve through immutable string constants', () => {
+  const context = architectureFixtures({
+    'src/services/entity-query.service.ts': 'export function querySessionEntity(){}',
+    'src/services/weapon-data.service.ts':
+      'import {querySessionEntity} from "./entity-query.service"; const kind="projectile"; querySessionEntity(session,kind,id);',
+  });
+  const [diagnostic] = editorQueryBoundaryRule.check(context);
+  assert.ok(diagnostic);
+  assert.equal(diagnostic.symbol, 'querySessionEntity');
+});
+
+test('constant query categories retain their literal through local bindings', () => {
+  const context = architectureFixtures({
+    'src/services/entity-query.service.ts': 'export function querySessionEntity() {}',
+    'src/services/weapon-data.service.ts':
+      "import {querySessionEntity} from '@/services/entity-query.service'; const kind='projectile'; querySessionEntity(session,kind,id);",
+  });
+  assert.equal(editorQueryBoundaryRule.check(context).length, 1);
+});

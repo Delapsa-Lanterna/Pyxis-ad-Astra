@@ -14,7 +14,8 @@ const imports = [
   "const { invokeCommand: run } = await import('@/shared/runtime/command.runtime'); run('read_settings');",
 ];
 
-const provider = 'export function invokeCommand() {}';
+const provider =
+  "import { invoke as nativeInvoke } from '@tauri-apps/api/core'; export function invokeCommand(command,args){return nativeInvoke(command,args);}";
 
 for (const [index, source] of imports.entries()) {
   test(`command source form ${index + 1} retains ownership and location`, () => {
@@ -59,7 +60,7 @@ test('computed commands require declared protocol facts', () => {
 
 test('ordered save transport retains command ownership through aliases and re-exports', () => {
   const files = architectureFixtures({
-    [COMMAND_TRANSPORT]: 'export function invokeSaveCommand() {}',
+    [COMMAND_TRANSPORT]: provider + " export function invokeSaveCommand(action,args){return invokeCommand('save_project',{action,args});}",
     'src/shared/save-bridge.ts': "export { invokeSaveCommand as save } from '@/shared/runtime/command.runtime';",
     'src/services/spec-editor.service.ts': "import { save } from '@/shared/save-bridge'; save('save_editor_spec');",
     'src/services/example.service.ts':
@@ -84,7 +85,7 @@ test('scoped aliases and shadowed parameters retain their lexical ownership', ()
 
 test('native calls and saved actions each use their own declared transport', () => {
   const context = architectureFixtures({
-    [COMMAND_TRANSPORT]: 'export function invokeCommand() {} export function invokeSaveCommand() {}',
+    [COMMAND_TRANSPORT]: provider + " export function invokeSaveCommand(action,args){return invokeCommand('save_project',{action,args});}",
     'src/services/spec-editor.service.ts': `import {invokeCommand, invokeSaveCommand} from '@/shared/runtime/command.runtime';
 invokeCommand('save_editor_spec'); invokeSaveCommand('load_imported_editor_spec_file');`,
   });
@@ -98,13 +99,26 @@ invokeCommand('save_editor_spec'); invokeSaveCommand('load_imported_editor_spec_
   assert.equal(actions.filter((action) => Object.values(commandOwners).flat().includes(action)).length, 0);
 });
 
+test('renaming internal transport functions preserves command ownership', () => {
+  const context = architectureFixtures({
+    [COMMAND_TRANSPORT]:
+      "import {invoke as send} from '@tauri-apps/api/core';export function transfer(command,args){return send(command,args);}",
+    'src/services/app-settings.service.ts': "import {transfer as wire} from '@/shared/runtime/command.runtime';wire('read_settings');",
+    'src/services/example.service.ts': "import {transfer as wire} from '@/shared/runtime/command.runtime';wire('read_settings');",
+  });
+  const diagnostics = commandBoundaryRule.check(context);
+  assert.equal(diagnostics.length, 1);
+  assert.equal(diagnostics[0]?.file, 'src/services/example.service.ts');
+});
+
 test('joint commands have a single capability owner and reject a second payload surface', () => {
   const files = architectureFixtures({
     'src/services/joint-edit.service.ts':
       "import {invokeCommand} from '@/shared/runtime/command.runtime'; export const read=(payload)=>invokeCommand('query_joint_edit',{payload});",
     'src/services/spec-editor.service.ts':
       "import {invokeCommand} from '@/shared/runtime/command.runtime'; export const read=(payload)=>invokeCommand('query_joint_edit',{payload});",
-    'src/shared/runtime/command.runtime.ts': 'export const invokeCommand=(command,args)=>({command,args});',
+    'src/shared/runtime/command.runtime.ts':
+      "import {invoke} from '@tauri-apps/api/core'; export function invokeCommand(command,args){return invoke(command,args);}",
   });
   const failures = messages(commandBoundaryRule.check(files));
   assert.equal(failures.length, 1);

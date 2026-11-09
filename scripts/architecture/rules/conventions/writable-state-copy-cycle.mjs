@@ -1,5 +1,6 @@
 import ts from 'typescript';
 import { defineRule } from '../../diagnostics.mjs';
+import { importedBindingOrigins } from '../../facts/imports.mjs';
 
 /** @typedef {{root: ts.CallExpression, path: string[], ref: boolean, unwrapped: boolean}} Slot */
 /** @typedef {{from: Slot, to: Slot, write: ts.Node, excluded: string[]}} Copy */
@@ -13,14 +14,19 @@ export const writableStateCopyCycleRule = defineRule(
   import.meta.url,
   (context, report) => {
     for (const file of context.frontend) {
-      const imported = file.imports.filter((binding) => !binding.typeOnly && binding.specifier === 'vue');
+      const imported = file.imports.filter((binding) => !binding.typeOnly);
       const creations = file.calls.filter(
         (call) =>
           !call.factory &&
           imported.some(
             (binding) =>
               binding.localName === call.localName &&
-              stateFactories.has(binding.importedName === '*' ? (call.member ?? '') : (binding.importedName ?? '')),
+              (binding.importedName === '*'
+                ? stateFactories.has(call.member ?? '') &&
+                  file.dependencies.some((edge) => edge.bindings.includes(binding) && edge.resolved === 'vue')
+                : importedBindingOrigins(file, binding.localName ?? '', context.byPath).some(
+                    (origin) => origin.rel === 'vue' && stateFactories.has(origin.name),
+                  )),
           ),
       );
       if (creations.length < 2) continue;
@@ -99,14 +105,20 @@ export const writableStateCopyCycleRule = defineRule(
         function origin(node) {
           node = definition(node);
           if (ts.isImportSpecifier(node) || ts.isNamespaceImport(node)) {
-            const binding = file.referenceBindings.get(node.name.getText());
-            if (binding) return { module: binding.edge.resolved, name: binding.binding.importedName ?? '*' };
+            const [resolved] = importedBindingOrigins(file, node.name.getText(), context.byPath);
+            if (resolved) return { module: resolved.rel, name: resolved.name };
           }
           if (ts.isPropertyAccessExpression(node)) {
             const namespace = definition(node.expression);
             if (ts.isNamespaceImport(namespace)) {
-              const binding = file.referenceBindings.get(namespace.name.getText());
-              if (binding) return { module: binding.edge.resolved, name: node.name.getText() };
+              const [resolved] = importedBindingOrigins(file, namespace.name.getText(), context.byPath);
+              if (resolved) return { module: resolved.rel, name: node.name.getText() };
+              const external = file.dependencies.find(
+                (edge) =>
+                  edge.bindings.some((binding) => binding.localName === namespace.name.getText() && binding.importedName === '*') &&
+                  !context.byPath.has(edge.resolved),
+              );
+              if (external) return { module: external.resolved, name: node.name.getText() };
             }
           }
           return undefined;

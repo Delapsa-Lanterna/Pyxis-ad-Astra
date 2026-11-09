@@ -28,3 +28,14 @@ test('the shared spec session rejects every business reader and the application 
     }
   }
 });
+
+test('barrels retain the originating spec implementation identity', () => {
+  const context = architectureFixtures({
+    'src/app/composables/spec-editor/use-spec-editor-window-view-model.ts': 'import {read} from "@/app/spec-bridge";',
+    'src/app/spec-bridge.ts': 'export {read} from "@/app/composables/spec-ship-editor";',
+    'src/app/composables/spec-ship-editor.ts': 'export function read(){}',
+  });
+  const [diagnostic] = editorModuleBoundaryRule.check(context);
+  assert.ok(diagnostic);
+  assert.equal(diagnostic.target, 'src/app/composables/spec-ship-editor.ts');
+});

@@ -1,5 +1,6 @@
 import { defineRule } from '../../../diagnostics.mjs';
 import { classifyFrontendPath } from '../../../facts/classify.mjs';
+import { importedBindingOrigins } from '../../../facts/imports.mjs';
 
 export const feedbackBoundaryRule = defineRule(
   'feedback-boundary',
@@ -29,7 +30,11 @@ export const feedbackBoundaryRule = defineRule(
         report(file, { line: 1, column: 1 }, 'app settings and app log wire types must live in separate shared type ownership files');
       if (current.layer === 'services' && current.domain === 'app-log')
         for (const edge of file.dependencies)
-          if (edge.bindings.some((binding) => binding.importedName === 'AppSettings'))
+          if (
+            edge.bindings.some((binding) =>
+              importedBindingOrigins(file, binding.localName ?? '', context.byPath).some((origin) => origin.name === 'AppSettings'),
+            )
+          )
             report(file, edge, 'app log service must consume app log types', { target: edge.resolved, expected: 'app log types' });
     }
   },

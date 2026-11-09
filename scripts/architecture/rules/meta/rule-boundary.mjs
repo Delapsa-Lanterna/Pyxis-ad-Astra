@@ -1,5 +1,6 @@
 import { pairedSourcePaths } from '../../../shared/files.mjs';
 import { defineRule } from '../../diagnostics.mjs';
+import { rawSourceTextReads } from '../../facts/rule-source.mjs';
 
 export const ruleBoundaryRule = defineRule('rule-boundary', '.zcode/modules/static-checks.md#规范', import.meta.url, (context, report) => {
   const identities = new Set();
@@ -31,7 +32,7 @@ export const ruleBoundaryRule = defineRule('rule-boundary', '.zcode/modules/stat
       });
   }
   for (const rel of context.paths) {
-    if (!rel.endsWith('.check.mjs')) continue;
+    if (!rel.endsWith('.check.mjs') || rel.startsWith('.zcode/plans/')) continue;
     if (context.byPath.has('package.json') && !context.testFiles.has(rel))
       report({ rel }, { line: 1, column: 1 }, 'checker tests must be discovered by test:checks', {
         target: 'package.json',
@@ -59,11 +60,7 @@ export const ruleBoundaryRule = defineRule('rule-boundary', '.zcode/modules/stat
           expected: 'repository facts or declared contract',
         });
     }
-    for (const property of file.frontend.properties)
-      if (property.name === 'text')
-        report(file, property, 'architecture rules must consume parsed source facts', {
-          symbol: property.name,
-          expected: 'parsed source facts',
-        });
+    for (const position of rawSourceTextReads(file))
+      report(file, position, 'architecture rules must consume parsed source facts', { symbol: 'text', expected: 'parsed source facts' });
   }
 });

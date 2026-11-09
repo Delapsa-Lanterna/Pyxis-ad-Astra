@@ -60,6 +60,16 @@ test('backend aliases resolve to their actual service owner', () => {
   assert.equal(messages(saveBackendBoundaryRule.check(files)).length, 1);
 });
 
+test('backend ownership uses the registered command name after Rust function renaming', () => {
+  const context = architectureFixtures({
+    'src-tauri/src/commands/example.rs':
+      '#[command_macros::command(rename = "save_mod_info")] pub fn replace_settings() { crate::services::file_editor::run(); }',
+  });
+  const [diagnostic] = saveBackendBoundaryRule.check(context);
+  assert.ok(diagnostic);
+  assert.equal(diagnostic.expected, 'config_entity');
+});
+
 test('test-only consumers do not extend production command permissions', () => {
   const files = architectureFixtures({
     'src-tauri/src/commands/example.rs':

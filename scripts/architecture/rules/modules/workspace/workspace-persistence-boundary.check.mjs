@@ -20,3 +20,13 @@ for (const command of ['load_workspace', 'save_workspace'])
     assert.equal(diagnostics[0].line, 2);
     assert.equal(diagnostics[0].expected, 'services::workspace_persistence');
   });
+
+test('workspace persistence ownership follows the external command name', () => {
+  const context = architectureFixtures({
+    'src-tauri/src/commands/workspace.rs':
+      '#[command_macros::command(rename = "load_workspace")] pub fn load_snapshot() { crate::services::app_settings::run(); }',
+  });
+  const [diagnostic] = workspacePersistenceBoundaryRule.check(context);
+  assert.ok(diagnostic);
+  assert.equal(diagnostic.expected, 'services::workspace_persistence');
+});

@@ -19,15 +19,18 @@ export const projectResourcesBoundaryRule = defineRule(
             });
       if (!file.rel.startsWith('src-tauri/src/commands/')) continue;
       for (const fn of file.rust.functions) {
-        if (!coreCommands.has(fn.name)) continue;
+        if (!coreCommands.has(fn.commandName)) continue;
         const targets = file.rust.references.filter((edge) => edge.offset >= fn.start && edge.offset < fn.end);
         if (!targets.some((edge) => edge.target.slice(0, 4).join('::') === 'services::project::resources::core_assets'))
-          report(file, fn, 'Core asset commands must route to Project Resources', { symbol: fn.name, expected: 'Project Resources' });
+          report(file, fn, 'Core asset commands must route to Project Resources', {
+            symbol: fn.commandName,
+            expected: 'Project Resources',
+          });
         for (const edge of targets)
           if (edge.target.slice(0, 2).join('::') === 'services::schema')
             report(file, edge, 'Core asset commands must not route through Schema backend', {
               target: edge.target.join('::'),
-              symbol: fn.name,
+              symbol: fn.commandName,
               expected: 'services::project::resources::core_assets',
             });
       }

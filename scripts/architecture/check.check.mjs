@@ -12,6 +12,64 @@ import { checkArchitecture } from './check.mjs';
 import { collectArchitectureContext, architectureContext } from './facts/context.mjs';
 import { rules } from './registry.mjs';
 
+test('timing callback reports every registered rule and preserves diagnostics', () => {
+  const context = architectureFixtures({ 'src/domain/sample.ts': 'export function sample() {}' });
+  /** @type {{ruleId:string,durationMs:number}[]} */
+  const samples = [];
+  const timed = checkArchitecture(context, { onRuleTiming: (sample) => samples.push(sample) });
+  assert.deepEqual(timed, checkArchitecture(context));
+  assert.deepEqual(
+    samples.map((sample) => sample.ruleId),
+    rules.map((rule) => rule.name),
+  );
+  assert.ok(samples.every((sample) => Number.isFinite(sample.durationMs) && sample.durationMs >= 0));
+});
+
+test('context stage timing reports measured collection phases without changing facts', () => {
+  const sources = [{ rel: 'src/domain/sample.ts', path: 'src/domain/sample.ts', text: 'export const sample = 1;' }];
+  const expected = architectureContext(sources);
+  /** @type {{stage:string,durationMs:number,units?:number}[]} */
+  const timings = [];
+  const actual = architectureContext(sources, undefined, { onStageTiming: (timing) => timings.push(timing) });
+  assert.deepEqual(
+    actual.files.map(({ rel, imports, exports, dependencies, rust, document }) => ({
+      rel,
+      imports,
+      exports,
+      dependencies,
+      rust,
+      document,
+    })),
+    expected.files.map(({ rel, imports, exports, dependencies, rust, document }) => ({
+      rel,
+      imports,
+      exports,
+      dependencies,
+      rust,
+      document,
+    })),
+  );
+  assert.deepEqual(actual.failures, expected.failures);
+  assert.deepEqual(
+    timings.map(({ stage }) => stage),
+    [
+      'importConfigAndPathIndexMs',
+      'frontendParsingMs',
+      'typescriptAstParseMs',
+      'typeCheckerSetupMs',
+      'frontendFactExtractionMs',
+      'importResolutionMs',
+      'rustMaskingAndExportsMs',
+      'rustFactsMs',
+      'moduleDocumentFactsMs',
+      'moduleMapFactsMs',
+      'contextIndexesAndFailuresMs',
+    ],
+  );
+  assert.ok(timings.every(({ durationMs }) => Number.isFinite(durationMs) && durationMs >= 0));
+  assert.equal(timings.find(({ stage }) => stage === 'typeCheckerSetupMs')?.units, 1);
+});
+
 /** @param {string} ruleId @param {import('./facts/context.mjs').ArchitectureContext} context */
 function checkedRule(ruleId, context) {
   return checkArchitecture(context).filter((diagnostic) => diagnostic.ruleId === ruleId);

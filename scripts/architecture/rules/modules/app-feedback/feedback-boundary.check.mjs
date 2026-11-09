@@ -30,6 +30,16 @@ test('log service consumes log types and keeps settings persistence at its owner
   }
 });
 
+test('aliased log type imports retain the actual settings type origin', () => {
+  const context = architectureFixtures({
+    'src/services/app-log.service.ts': 'import type {AppSettings as Config} from "@/shared/settings-bridge";',
+    'src/shared/settings-bridge.ts': 'export type {AppSettings as Config} from "./types/app-settings.types";',
+    'src/shared/types/app-settings.types.ts': 'export interface AppSettings{}',
+    'src/shared/types/app-log.types.ts': 'export interface AppLogEntry{}',
+  });
+  assert.equal(messages(feedbackBoundaryRule.check(context)).length, 1);
+});
+
 for (const source of ['src/app/app-feedback.ts', 'src/app/composables/use-app-feedback.ts']) {
   for (const target of [
     'src/services/files.service.ts',

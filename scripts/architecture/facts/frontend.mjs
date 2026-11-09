@@ -1,23 +1,25 @@
 import ts from 'typescript';
 import { sourcePositions } from '../../shared/source-position.mjs';
-import { parseFrontendSource } from '../../shared/frontend-source.mjs';
+import { parseFrontendSource, sourceChecker } from '../../shared/frontend-source.mjs';
 import { classifyFrontendPath, frontendFile, specFile } from './classify.mjs';
 
 /** @typedef {{line: number, column: number}} Position */
 /** @typedef {Position & {name: string}} Property */
-/** @typedef {Position & {type: string}} EmptyTypedArray */
+/** @typedef {Position & {type: string, elementType:string}} EmptyTypedArray */
 /** @typedef {Position & {name: string, exported: boolean, properties: string[], propertyTypes: ReadonlyMap<string, string[]>}} Declaration */
 /** @typedef {Position & {path: string}} Write */
-/** @typedef {{identifiers: Map<string, Position>, strings: (Position & {value: string})[], properties: Property[], declarations: Declaration[], writes: Write[], emptyTypedArrays: EmptyTypedArray[], tags: Map<string, Position>, conditions: (Position & {expression: string})[], objects: (Position & {properties: string[]})[], throws: (Position & {name: string})[], events: (Position & {name: string})[]}} FrontendFacts */
+/** @typedef {Position & {value:string,callee:string,argument:number}} StringCall */
+/** @typedef {{identifiers: Map<string, Position>, strings: (Position & {value: string})[], stringCalls:StringCall[], properties: Property[], declarations: Declaration[], writes: Write[], emptyTypedArrays: EmptyTypedArray[], tags: Map<string, Position>, conditions: (Position & {expression: string})[], objects: (Position & {properties: string[]})[], throws: (Position & {name: string,builtin:boolean})[], events: (Position & {name: string})[]}} FrontendFacts */
 
-/** @param {import('../../shared/files.mjs').SourceFile} file */
-export function parseArchitectureFrontend(file) {
+/** @param {import('../../shared/files.mjs').SourceFile} file @param {{onStageTiming?:(timing:{stage:string,durationMs:number,units:number})=>void}} [options] */
+export function parseArchitectureFrontend(file, options = {}) {
   const production = frontendFile(file.rel) && !specFile(file.rel);
   const inspect = production || (file.rel.startsWith('scripts/architecture/rules/') && !file.rel.endsWith('.check.mjs'));
   /** @type {FrontendFacts} */
   const frontend = {
     identifiers: new Map(),
     strings: [],
+    stringCalls: [],
     properties: [],
     declarations: [],
     writes: [],
@@ -28,7 +30,20 @@ export function parseArchitectureFrontend(file) {
     throws: [],
     events: [],
   };
-  const { identifiers, strings, properties, declarations, writes, emptyTypedArrays, tags, conditions, objects, throws, events } = frontend;
+  const {
+    identifiers,
+    strings,
+    stringCalls,
+    properties,
+    declarations,
+    writes,
+    emptyTypedArrays,
+    tags,
+    conditions,
+    objects,
+    throws,
+    events,
+  } = frontend;
   const at = sourcePositions(file.text);
   const emitBindings = new Set();
   /** @param {ts.Expression} expression @returns {{name: string} | null} */
@@ -41,6 +56,7 @@ export function parseArchitectureFrontend(file) {
   /** @param {ts.Node} node @param {ts.SourceFile} ast @param {number} offset */
   function visit(node, ast, offset) {
     const position = (/** @type {ts.Node} */ node) => at(offset + node.getStart(ast));
+    const checker = sourceChecker(ast);
     if (
       ts.isVariableDeclaration(node) &&
       ts.isIdentifier(node.name) &&
@@ -55,13 +71,33 @@ export function parseArchitectureFrontend(file) {
     if (
       ts.isVariableDeclaration(node) &&
       node.type &&
-      ts.isArrayTypeNode(node.type) &&
+      (ts.isArrayTypeNode(node.type) ||
+        (ts.isTypeReferenceNode(node.type) && ts.isIdentifier(node.type.typeName) && node.type.typeName.text === 'Array')) &&
       node.initializer &&
       ts.isArrayLiteralExpression(node.initializer) &&
       node.initializer.elements.length === 0
     )
-      emptyTypedArrays.push({ type: node.type.getText(ast), ...position(node) });
-    if (ts.isStringLiteralLike(node)) strings.push({ value: node.text, ...position(node) });
+      emptyTypedArrays.push({
+        type: node.type.getText(ast),
+        elementType: ts.isArrayTypeNode(node.type)
+          ? node.type.elementType.getText(ast)
+          : (node.type.typeArguments?.[0]?.getText(ast) ?? ''),
+        ...position(node),
+      });
+    if (ts.isStringLiteralLike(node)) {
+      strings.push({ value: node.text, ...position(node) });
+      for (let current = /** @type {ts.Node} */ (node); current.parent; current = current.parent) {
+        const parent = current.parent;
+        if (ts.isCallExpression(parent)) {
+          const argument = parent.arguments.findIndex(
+            (candidate) => candidate === current || (candidate.pos <= node.pos && candidate.end >= node.end),
+          );
+          if (argument >= 0) stringCalls.push({ value: node.text, callee: parent.expression.getText(ast), argument, ...position(node) });
+          break;
+        }
+        if (ts.isFunctionLike(parent) || ts.isSourceFile(parent)) break;
+      }
+    }
     if (ts.isPropertyAccessExpression(node) || ts.isElementAccessExpression(node)) {
       const access = property(node);
       if (access) {
@@ -120,8 +156,18 @@ export function parseArchitectureFrontend(file) {
         ),
         ...position(node),
       });
-    if (ts.isThrowStatement(node) && node.expression && ts.isNewExpression(node.expression))
-      throws.push({ name: node.expression.expression.getText(ast), ...position(node) });
+    if (ts.isThrowStatement(node) && node.expression && ts.isNewExpression(node.expression)) {
+      /** @param {ts.Expression} expression @param {Set<ts.Node>} [seen] */
+      const builtinError = (expression, seen = new Set()) => {
+        if (seen.has(expression) || !ts.isIdentifier(expression)) return false;
+        seen.add(expression);
+        const declaration = checker.getSymbolAtLocation(expression)?.valueDeclaration;
+        if (!declaration) return expression.text === 'Error';
+        if (ts.isVariableDeclaration(declaration) && declaration.initializer) return builtinError(declaration.initializer, seen);
+        return false;
+      };
+      throws.push({ name: node.expression.expression.getText(ast), builtin: builtinError(node.expression.expression), ...position(node) });
+    }
     if (ts.isCallExpression(node) && ts.isIdentifier(node.expression)) {
       if (node.expression.text === 'defineEmits') {
         const type = node.typeArguments?.[0];
@@ -138,7 +184,12 @@ export function parseArchitectureFrontend(file) {
         events.push({ name: node.arguments[0].text, ...position(node) });
     }
   }
-  const parsed = parseFrontendSource(file, { inspect: !specFile(file.rel), references: production, onNode: inspect ? visit : undefined });
+  const parsed = parseFrontendSource(file, {
+    inspect: !specFile(file.rel),
+    references: production,
+    onNode: inspect ? visit : undefined,
+    onStageTiming: options.onStageTiming,
+  });
   const markup = parsed.syntax.template;
   if (inspect && markup) {
     /** @param {import('@vue/compiler-dom').RootNode | import('@vue/compiler-dom').TemplateChildNode} node */

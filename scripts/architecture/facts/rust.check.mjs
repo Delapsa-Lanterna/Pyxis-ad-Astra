@@ -24,6 +24,13 @@ test('Rust masking preserves offsets through nested comments, raw strings, chars
   assert.equal(fn.name, 'read');
 });
 
+test('command external names follow macro rename attributes after implementation renames', () => {
+  const text = '#[command_macros::command(rename = "save_mod_info")] pub fn replace_settings() {}';
+  const file = architectureFixtures({ 'src-tauri/src/commands/settings.rs': text }).rust[0];
+  assert.equal(file?.rust.functions[0]?.name, 'replace_settings');
+  assert.equal(file?.rust.functions[0]?.commandName, 'save_mod_info');
+});
+
 test('native file receiver methods retain constructor origins and source positions', () => {
   const context = architectureFixtures({
     'src-tauri/src/services/sample.rs': 'use std::fs::File; fn run(){ let mut held=File::open("sample"); held.write_all(bytes); }',

@@ -1,7 +1,9 @@
 import { defineRule } from '../../../diagnostics.mjs';
 import { callsFrom, accessesFrom } from '../../../facts/imports.mjs';
+import { workspaceStoreWrites } from '../../../facts/workspace-store.mjs';
 
-const workspaceSources = new Set(['src/stores/workspace.store.ts']);
+const workspaceSource = 'src/stores/workspace.store.ts';
+const workspaceSources = new Set([workspaceSource]);
 const activation = new Set(['activateModOverview', 'activateModTable', 'activateModJson', 'activateModFileHistory', 'activateModFiles']);
 const stateFields = new Set(['activeModRoot', 'currentView', 'jsonPage']);
 
@@ -27,6 +29,12 @@ export const workspaceModuleBoundaryRule = defineRule(
             symbol: access.member ?? 'workspace state',
             expected: 'workspace domain actions',
           });
+      for (const write of workspaceStoreWrites(file, context.byPath, workspaceSource, stateFields))
+        report(file, write, 'workspace state must be changed through workspace domain actions', {
+          target: workspaceSource,
+          symbol: write.name,
+          expected: 'workspace domain actions',
+        });
     }
   },
 );
