@@ -1,11 +1,13 @@
 use crate::dependencies;
+use crate::transfer::TransferControl;
 use crate::{AnalysisRequest, AnalysisResponse, Engine, Package, Result, invalid};
 use serde::Serialize;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::mem;
 use std::path::{Path, PathBuf};
 use std::process;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
@@ -45,6 +47,7 @@ pub type EventSink = Arc<dyn Fn(AnalysisEvent) + Send + Sync>;
 struct Instance {
     engine: Option<Engine>,
     workspace: PathBuf,
+    projects: BTreeSet<String>,
 }
 
 #[derive(Default)]
@@ -60,6 +63,7 @@ pub struct AnalysisRuntime {
     package: Package,
     state: Mutex<State>,
     events: EventSink,
+    project_count: AtomicUsize,
 }
 
 impl AnalysisRuntime {
@@ -70,6 +74,7 @@ impl AnalysisRuntime {
             package: serde_json::from_str(CATALOG)?,
             state: Mutex::new(State::default()),
             events,
+            project_count: AtomicUsize::new(0),
         })
     }
 
@@ -100,26 +105,55 @@ impl AnalysisRuntime {
     }
 
     pub fn install(&self) -> Result<PathBuf> {
+        self.install_with_control(&TransferControl::default())
+    }
+
+    pub fn install_with_control(&self, control: &TransferControl) -> Result<PathBuf> {
         drop(self.state()?);
-        let result = dependencies::install(&self.paths.dependencies, &self.package);
+        let result =
+            dependencies::install_with_control(&self.paths.dependencies, &self.package, control);
         self.record("java_analysis.install", None, &result);
         result
     }
 
     pub fn import(&self, archive: &Path) -> Result<PathBuf> {
+        self.import_with_control(archive, &TransferControl::default())
+    }
+
+    pub fn import_with_control(
+        &self,
+        archive: &Path,
+        control: &TransferControl,
+    ) -> Result<PathBuf> {
         drop(self.state()?);
-        let result = dependencies::import(&self.paths.dependencies, archive, &self.package);
+        let result = dependencies::import_with_control(
+            &self.paths.dependencies,
+            archive,
+            &self.package,
+            control,
+        );
         self.record("java_analysis.import", None, &result);
         result
     }
 
     pub fn installed(&self) -> Result<bool> {
         drop(self.state()?);
-        Ok(dependencies::status(&self.paths.dependencies, &self.package.version)?.is_some())
+        match dependencies::status(&self.paths.dependencies, &self.package.version)? {
+            Some(manifest) if manifest == self.package.manifest() => Ok(true),
+            Some(_) => Err(invalid(
+                "Installed dependency identity differs from the fixed inventory",
+            )),
+            None => Ok(false),
+        }
     }
 
     pub fn instance_count(&self) -> Result<usize> {
         Ok(self.state()?.instances.len())
+    }
+
+    pub fn managed_counts(&self) -> Result<(usize, usize)> {
+        let state = self.state()?;
+        Ok((state.instances.len(), self.project_count()))
     }
 
     pub fn remove_dependencies(&self) -> Result<()> {
@@ -145,6 +179,7 @@ impl AnalysisRuntime {
         let instance = Arc::new(Mutex::new(Instance {
             engine: None,
             workspace: workspace.clone(),
+            projects: Default::default(),
         }));
         let mut instance_state = instance
             .lock()
@@ -185,6 +220,11 @@ impl AnalysisRuntime {
                 if workspace.exists() {
                     fs::remove_dir_all(workspace)?;
                 }
+                self.record::<()>(
+                    "java_analysis.start_failed",
+                    Some(&id),
+                    &Err(invalid(error.to_string())),
+                );
                 Err(error)
             }
         }
@@ -209,6 +249,19 @@ impl AnalysisRuntime {
             .request(request);
         if let Ok(response) = &mut result {
             response.queue_wait_milliseconds = queue_wait;
+            if response.error.is_none() {
+                match request {
+                    AnalysisRequest::Open { project, .. }
+                        if state.projects.insert(project.clone()) =>
+                    {
+                        self.project_count.fetch_add(1, Ordering::Relaxed);
+                    }
+                    AnalysisRequest::Close { project, .. } if state.projects.remove(project) => {
+                        self.project_count.fetch_sub(1, Ordering::Relaxed);
+                    }
+                    _ => {}
+                }
+            }
         }
         if let Ok(response) = &result
             && let Some(error) = &response.error
@@ -226,6 +279,11 @@ impl AnalysisRuntime {
             .lock()
             .map_err(|_| invalid("Java instance lock poisoned"))?;
         let result = instance.engine.take().map_or(Ok(()), Engine::close);
+        let projects = instance.projects.len();
+        if projects > 0 {
+            self.project_count.fetch_sub(projects, Ordering::Relaxed);
+        }
+        instance.projects.clear();
         let cleanup = fs::remove_dir_all(&instance.workspace).map_err(Into::into);
         let result = result.and(cleanup);
         self.record("java_analysis.release", Some(id), &result);
@@ -240,6 +298,26 @@ impl AnalysisRuntime {
             .ok_or_else(|| invalid("Unknown Java analysis instance"))?;
         drop(state);
         self.release(id, instance)
+    }
+
+    pub fn project_count(&self) -> usize {
+        self.project_count.load(Ordering::Relaxed)
+    }
+
+    /// Stops instances while retaining the runtime for subsequent explicit starts.
+    pub fn close_all(&self) -> Result<()> {
+        let instances = mem::take(&mut self.state()?.instances);
+        let mut failures = Vec::new();
+        for (id, instance) in instances {
+            if let Err(error) = self.release(&id, instance) {
+                failures.push(error.to_string());
+            }
+        }
+        if failures.is_empty() {
+            Ok(())
+        } else {
+            Err(invalid(failures.join("\n")))
+        }
     }
 
     /// Stops new work and waits for every already-created instance before returning.

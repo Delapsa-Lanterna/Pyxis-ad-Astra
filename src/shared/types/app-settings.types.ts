@@ -35,6 +35,7 @@ export interface AppSettings {
   ignoreEditorWarnings: boolean;
   immersiveGameFont: boolean;
   immersiveFontDirectory: string | null;
+  javaExecutable: string | null;
   preserveOriginalJson?: boolean;
   allowCoreEditing?: boolean;
   starsectorRoot: string | null;

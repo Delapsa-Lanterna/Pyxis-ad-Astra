@@ -1,6 +1,14 @@
 export const COMMAND_TRANSPORT = 'src/shared/runtime/command.runtime.ts';
 
 export const commandOwners = {
+  'src/services/java-analysis.service.ts': [
+    'subscribe_java_analysis',
+    'unsubscribe_java_analysis',
+    'manage_java_analysis',
+    'cancel_java_analysis',
+    'open_java_analysis_directory',
+    'java_analysis_context',
+  ],
   'src/services/misc-config.service.ts': ['query_misc_config_files', 'query_misc_config_file'],
   'src/services/performance-monitor.service.ts': ['performance_monitor_batch', 'performance_monitor_report'],
   'src/services/app-settings.service.ts': ['read_settings', 'read_default_settings', 'save_settings', 'query_system_fonts'],

@@ -112,6 +112,8 @@ pub struct AppSettings {
     pub immersive_game_font: bool,
     #[serde(default, deserialize_with = "deserialize_non_empty_string")]
     pub immersive_font_directory: Option<String>,
+    #[serde(default, deserialize_with = "deserialize_non_empty_string")]
+    pub java_executable: Option<String>,
     #[serde(default = "default_preserve_original_json")]
     pub preserve_original_json: bool,
     #[serde(default)]
@@ -145,6 +147,7 @@ impl Default for AppSettings {
             ignore_editor_warnings: false,
             immersive_game_font: default_immersive_game_font(),
             immersive_font_directory: None,
+            java_executable: None,
             preserve_original_json: default_preserve_original_json(),
             allow_core_editing: false,
             starsector_root: None,

@@ -8,7 +8,7 @@ mod support;
 use support::TestWorkspace;
 
 #[test]
-fn download_failures_cleanup_and_retry_share_one_local_fixture() {
+fn download_failures_retain_staging_and_retry_share_one_local_fixture() {
     let work = TestWorkspace::new();
     let root = work.0.join("installation");
     let server = TcpListener::bind("127.0.0.1:0").unwrap();
@@ -45,7 +45,8 @@ fn download_failures_cleanup_and_retry_share_one_local_fixture() {
     assert!(dependencies::install(&root, &package).is_err());
     package.artifacts[0].sha256 = "00".repeat(32);
     assert!(dependencies::install(&root, &package).is_err());
-    assert!(!root.join("fixture.staging").exists());
+    assert!(root.join("fixture.staging").exists());
+    assert!(!root.join("fixture.staging/lib/dep.jar").exists());
     package.artifacts[0].sha256 = format!("{:x}", Sha256::digest(b"library"));
     let directory = dependencies::install(&root, &package).unwrap();
     worker.join().unwrap();

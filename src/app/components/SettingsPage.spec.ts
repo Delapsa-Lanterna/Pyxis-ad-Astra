@@ -197,6 +197,7 @@ describe('settings limit controls', () => {
   it('places default-off monitoring last and keeps the runtime state until restart', async () => {
     const wrapper = mount(SettingsPage, {
       props: { changeSource: logUi.changeSource },
+      slots: { 'java-analysis': '<section><h3>Java 分析</h3></section>' },
       global: {
         stubs: { ...editorUiStubs, ColorPicker: true, 'n-radio-group': { template: '<div><slot /></div>' }, 'n-radio-button': true },
       },
@@ -204,7 +205,8 @@ describe('settings limit controls', () => {
     const sections = wrapper.findAll('section');
     const monitor = sections.at(-1)!;
     expect(monitor.get('h3').text()).toBe('性能调试');
-    expect(sections.at(-2)!.text()).toContain('日志级别');
+    expect(sections.at(-2)!.get('h3').text()).toBe('Java 分析');
+    expect(sections.at(-3)!.text()).toContain('日志级别');
     const traceDuration = monitor.findComponent(nInputNumber);
     expect(traceDuration.props()).toMatchObject({ min: 1, max: 60, step: 1, value: 15 });
     expect(monitor.findAll('.action-group button').map((button) => button.text())).toEqual([

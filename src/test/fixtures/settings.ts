@@ -36,6 +36,7 @@ export function createSettingsFixture(overrides: Partial<AppSettings> = {}): App
     ignoreEditorWarnings: false,
     immersiveGameFont: true,
     immersiveFontDirectory: null,
+    javaExecutable: null,
     preserveOriginalJson: true,
     allowCoreEditing: false,
     starsectorRoot: null,

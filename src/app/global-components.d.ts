@@ -12,6 +12,7 @@ import type { NInputNumber } from 'naive-ui/es/input-number';
 import type { NMessageProvider } from 'naive-ui/es/message';
 import type { NModal } from 'naive-ui/es/modal';
 import type { NPopover } from 'naive-ui/es/popover';
+import type { NProgress } from 'naive-ui/es/progress';
 import type { NRadioButton, NRadioGroup } from 'naive-ui/es/radio';
 import type AppSelect from './components/AppSelect.vue';
 import type { NSlider } from 'naive-ui/es/slider';
@@ -35,6 +36,7 @@ declare module 'vue' {
     NMessageProvider: typeof NMessageProvider;
     NModal: typeof NModal;
     NPopover: typeof NPopover;
+    NProgress: typeof NProgress;
     NRadioButton: typeof NRadioButton;
     NRadioGroup: typeof NRadioGroup;
     NSelect: typeof AppSelect;

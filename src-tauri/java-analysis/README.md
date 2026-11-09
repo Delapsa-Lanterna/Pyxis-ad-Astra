@@ -90,3 +90,24 @@ Rust 结果通过 `protocol::AnalysisResult` 区分握手、语法、项目、�
 27 个第三方 JAR 从固定 Maven Central HTTPS 地址直接下载，逐文件校验大小和 SHA-256。`dependencies.lock.json` 保留 Maven 坐标、许可证条目和 Java 字节码信息；原始 JAR 保留发布许可证。
 
 自有宿主与第三方依赖保持独立交付，Rust 启动前核对完整匹配关系。依赖安装采用文件锁、暂存目录和最后写入的完成清单，支持中断后的重新安装；独立构建同时生成离线依赖 ZIP。
+
+## 设置中的组件管理
+
+设置页的 Java 分析卡片位于配置文件和性能调试之间。卡片提供安装状态、JDT 版本、下载与暂存大小、安装路径、下载取消与重试、离线导入、检查并修复、环境自检、停止分析和移除。安装和日志目录通过正式系统打开能力交付。
+
+`ComponentManagement` 持有 FIFO 队列、当前操作、进度和订阅。相同动作复用原队列项，每项拥有自己的取消控制与完成回执；页面释放订阅后队列继续执行。命令等待所属队列项的最终回执，状态通道独立交付当前进度。依赖变更在执行时核对分析已停止，应用关闭先取消并等待管理队列，再释放分析实例。
+
+下载在 Java 模块内使用 reqwest 0.13.5、系统 TLS、系统代理及 Tokio 1.54.1。连接超时为 20 秒，单文件请求超时为 180 秒；等待网络时每 100 ms 接纳取消。完整 JAR 核对大小及 SHA-256 后取得正式暂存身份，未完成文件使用 `.part`；重试复核并复用有效文件。下载和导入共用完整清单核验与发布。
+
+Java 路径由实际游戏目录自动提供，手动选择先验证 Java 17，再经完整设置保存、镜像和重置流程交付 `javaExecutable`。保存的手动路径对下次会话启动及自检生效。环境自检建立独立 JVM，握手后解析中性小样本，等待进程与读取线程结束并清理工作区。移除保留路径设置和诊断日志。
+
+管理验收命令：
+
+```powershell
+$env:JAVA_ANALYSIS_TEST_JAVA = '<游戏根>/jre/bin/java.exe'
+$env:JAVA_ANALYSIS_TEST_JAVA_OTHER = '<其它版本 JDK>/bin/java.exe'
+cargo test --manifest-path src-tauri/Cargo.toml -p pyxis-ad-astra management_subscriptions_refresh_failure_and_closed_state
+cargo test --manifest-path src-tauri/Cargo.toml -p pyxis-ad-astra queued_component_operations_run_fifo_and_cancel_uses_the_owned_operation
+cargo test --manifest-path src-tauri/Cargo.toml -p pyxis-ad-astra live_management_install_repair_selfcheck_stop_remove_and_release -- --ignored --nocapture
+node scripts/browser/java-analysis.mjs --url <已启动的浏览器验收地址>
+```

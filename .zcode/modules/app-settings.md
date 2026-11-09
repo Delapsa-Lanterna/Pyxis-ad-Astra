@@ -28,6 +28,7 @@
 - `src-tauri/src/app_data_dir.rs`：正式设置快照持久化的工具私有目录解析。
 - `src-tauri/src/models/app_settings.rs`：设置 wire 模型与四项容量的默认值。
 - `src-tauri/src/models/cache_limits.rs`：设置持久化消费的缓存预算模型与默认值。
+- `src/app/components/java-analysis/JavaAnalysisCard.vue`：设置页通过所属槽位展示 Java 路径和组件管理反馈。
 - `src/app/composables/settings/use-app-config-actions.ts`：目录打开动作与错误反馈。
 - `src/app/composables/use-app-feedback.ts`：窗口反馈的提供与消费入口。
 - `src/app/composables/use-context-menu.ts`：窗口菜单状态、目标操作、事件生命周期与业务根登记。
@@ -60,6 +61,7 @@
 - 唯一主题 effect 拥有 DOM 写入，窗口壳与 Naive provider 消费同一具体颜色。
 - 日志目录动作经设置 ViewModel 与持久化编排接纳后端规范化快照。
 - 设置持久化拥有正式根判断、完整默认值和提交失败回退；设置页消费主窗口交付的来源切换动作。
+- 设置页在配置文件和性能调试之间交付 Java 分析卡片槽位，卡片由主窗口装配。
 - 设置和镜像提供请求 editMode，各编辑面拥有实际模式及所属输入交接。
 - 设置服务在写盘后调用应用装配交付的运行参数动作；主窗口装配向保存队列交付正式提交后的历史摘要刷新动作。
 - `watchFileChanges` 默认开启，随完整设置快照保存、镜像及重置，正式提交后立即应用到已打开的来源。
@@ -138,3 +140,4 @@
 - 窗口原版加载必须消费正式提交后的安装路径变化；设置编辑值严禁提前改变正式来源。
 - 重置设置必须取得用户确认并消费后端完整默认值，通过正式保存队列提交；工作区记录、Mod 内容和已有日志保留。
 - settings 必须写入工具私有目录，主窗口独占编辑值与保存队列；首次加载及保存由 Rust 串行执行，保存依次确认权限、校验和规范化、写盘、更新运行参数、提交快照、通知并返回同一快照。
+- `javaExecutable` 必须以 `null` 表达自动游戏 Java 路径，以经过 Java 17 验证的绝对可执行文件路径表达手动选择，随完整设置保存、镜像与重置。

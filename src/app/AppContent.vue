@@ -22,7 +22,12 @@
       @close-workspace="actions.confirmCloseWorkspace"
       @load-mod="actions.loadOverviewMod" /><SettingsPage
       v-else-if="workspace.currentView === 'settings'"
-      :change-source="actions.switchCoreSource" /><AboutPage v-else-if="workspace.currentView === 'about'" /><FileBrowser
+      :change-source="actions.switchCoreSource"
+      ><template #java-analysis
+        ><JavaAnalysisCard
+          :session-id="workspace.activeSessionId"
+          :game-root="workspace.gameOverview?.starsectorRoot ?? null" /></template></SettingsPage
+    ><AboutPage v-else-if="workspace.currentView === 'about'" /><FileBrowser
       :target="workspace.activeManifest"
       v-else-if="workspace.currentView === 'file-browser' && workspace.activeManifest" /><CsvEditorPage
       v-else-if="csvHost.target.value"
@@ -77,6 +82,7 @@ import { setRuntimeErrorContext } from '@/app/runtime-error-monitor';
 
 const OverviewPage = defineAsyncComponent(() => import('@/app/components/OverviewPage.vue'));
 const SettingsPage = defineAsyncComponent(() => import('@/app/components/SettingsPage.vue'));
+const JavaAnalysisCard = defineAsyncComponent(() => import('@/app/components/java-analysis/JavaAnalysisCard.vue'));
 const AboutPage = defineAsyncComponent(() => import('@/app/components/AboutPage.vue'));
 const CsvEditorPage = defineAsyncComponent(() => import('@/app/components/csv-editor/CsvEditorPage.vue'));
 const FileBrowser = defineAsyncComponent(() => import('@/app/components/file-browser/FileBrowser.vue'));

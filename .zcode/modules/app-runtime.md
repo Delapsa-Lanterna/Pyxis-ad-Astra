@@ -96,6 +96,7 @@
 - `src/app/components/immersive/variant/VariantImmersivePanel.vue`：装配、候选、插件及武器组交互组件。
 - `src/app/components/immersive/weapon/WeaponImmersivePanel.vue`：武器内容与弹体及开火预览事件入口。
 - `src/app/components/immersive/wing/WingImmersivePanel.vue`：战机联队内容及来源字段展示。
+- `src/app/components/java-analysis/JavaAnalysisCard.vue`：设置页 Java 组件管理的前端消费者，由主窗口装配。
 - `src/app/components/spec-editor/projectile/SpecProjectileEditor.vue`：弹体画布、检查器与行为测试。
 - `src/app/components/spec-editor/ship/SpecShipEditor.vue`：舰船画布、检查器与行为测试。
 - `src/app/components/spec-editor/system/SpecSystemEditor.vue`：系统表单展示与事件绑定入口。

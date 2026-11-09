@@ -64,6 +64,7 @@ export const useSettingsStore = defineStore('settings', () => {
   const ignoreEditorWarnings = ref(initialSettings.ignoreEditorWarnings);
   const immersiveGameFont = ref(initialSettings.immersiveGameFont);
   const immersiveFontDirectory = ref(initialSettings.immersiveFontDirectory);
+  const javaExecutable = ref(initialSettings.javaExecutable);
   const preserveOriginalJson = ref(readPreserveOriginalJson(initialSettings.preserveOriginalJson));
   const allowCoreEditing = ref(readAllowCoreEditing(initialSettings.allowCoreEditing));
   const savedCoreEditing = ref(allowCoreEditing.value);
@@ -161,6 +162,9 @@ export const useSettingsStore = defineStore('settings', () => {
   function setImmersiveFontDirectory(path: string | null) {
     immersiveFontDirectory.value = readOptionalDirectory(path);
   }
+  function setJavaExecutable(path: string | null) {
+    javaExecutable.value = readOptionalDirectory(path);
+  }
 
   function setPreserveOriginalJson(enabled: boolean) {
     preserveOriginalJson.value = readPreserveOriginalJson(enabled);
@@ -205,6 +209,7 @@ export const useSettingsStore = defineStore('settings', () => {
       ignoreEditorWarnings: ignoreEditorWarnings.value,
       immersiveGameFont: immersiveGameFont.value,
       immersiveFontDirectory: immersiveFontDirectory.value,
+      javaExecutable: javaExecutable.value,
       preserveOriginalJson: preserveOriginalJson.value,
       allowCoreEditing: allowCoreEditing.value,
       watchFileChanges: watchFileChanges.value,
@@ -244,6 +249,7 @@ export const useSettingsStore = defineStore('settings', () => {
     ignoreEditorWarnings.value = nextIgnoreEditorWarnings;
     immersiveGameFont.value = nextImmersiveGameFont;
     immersiveFontDirectory.value = nextImmersiveFontDirectory;
+    javaExecutable.value = readOptionalDirectory(settings.javaExecutable);
     preserveOriginalJson.value = readPreserveOriginalJson(settings.preserveOriginalJson);
     allowCoreEditing.value = readAllowCoreEditing(settings.allowCoreEditing);
     savedCoreEditing.value = allowCoreEditing.value;
@@ -277,6 +283,8 @@ export const useSettingsStore = defineStore('settings', () => {
     ignoreEditorWarnings,
     immersiveGameFont,
     immersiveFontDirectory,
+    javaExecutable,
+    setJavaExecutable,
     preserveOriginalJson,
     allowCoreEditing,
     canEditCore,

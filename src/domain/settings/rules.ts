@@ -52,6 +52,7 @@ export function assertValidSettings(settings: AppSettings): void {
   readIgnoreEditorWarnings(settings.ignoreEditorWarnings);
   readImmersiveGameFont(settings.immersiveGameFont);
   readOptionalDirectory(settings.immersiveFontDirectory);
+  readOptionalDirectory(settings.javaExecutable);
   readPreserveOriginalJson(settings.preserveOriginalJson);
   readAllowCoreEditing(settings.allowCoreEditing);
   readLogLevel(settings.logLevel);

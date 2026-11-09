@@ -2,18 +2,22 @@ use crate::app_data_dir;
 use crate::diagnostics;
 use crate::errors::{AppError, AppResult};
 use crate::io::{FsRootBoundary, canonical_path};
-use crate::services::project;
+use crate::services::{app_settings, project, system_open};
 use pyxis_java_analysis::protocol::AnalysisResult;
 use pyxis_java_analysis::{
     AnalysisEvent, AnalysisPaths, AnalysisRequest, AnalysisResponse, AnalysisRuntime, java_path,
 };
 use serde_json::{Value, json};
 use std::collections::BTreeMap;
+use std::fs;
 use std::path::Path;
 use std::sync::{Arc, LazyLock, Mutex, Weak};
 use std::time::Instant;
 use tauri::{AppHandle, Manager, Runtime};
+mod environment;
 mod inputs;
+pub mod management;
+use management::ComponentManagement;
 #[cfg(test)]
 mod session_tests;
 pub use inputs::{AnalysisExtras, AnalysisInputs, inputs_for_session};
@@ -32,8 +36,21 @@ struct SessionAnalysisState {
 }
 static SESSIONS: LazyLock<Mutex<SessionAnalysisState>> = LazyLock::new(Default::default);
 static SESSION_RUNTIME: LazyLock<Mutex<Weak<AnalysisRuntime>>> = LazyLock::new(Default::default);
+static MANAGEMENT: LazyLock<Mutex<Weak<ComponentManagement>>> = LazyLock::new(Default::default);
 
 fn record(event: AnalysisEvent) {
+    if matches!(
+        event.code,
+        "java_analysis.start"
+            | "java_analysis.start_failed"
+            | "java_analysis.request"
+            | "java_analysis.release"
+    ) && let Ok(manager) = MANAGEMENT.lock()
+        && let Some(manager) = manager.upgrade()
+        && let Err(error) = manager.publish_counts()
+    {
+        diagnostics::debug("java_analysis.counts", || error.to_string());
+    }
     let context = json!({"instance":event.instance});
     if let Some(message) = event.error {
         diagnostics::failure(
@@ -70,11 +87,43 @@ fn register<R: Runtime>(app: &AppHandle<R>, config_root: &Path) -> AppResult<()>
             "Java analysis runtime unavailable",
         )
     })? = Arc::downgrade(&runtime);
+    let manager = ComponentManagement::new(Arc::clone(&runtime));
+    *MANAGEMENT.lock().map_err(|_| {
+        AppError::message(
+            "java_analysis.management_lock",
+            "Java component state unavailable",
+        )
+    })? = Arc::downgrade(&manager);
+    app.manage(manager);
     Ok(())
 }
 
 pub fn paths<R: Runtime>(app: &AppHandle<R>) -> AnalysisPaths {
     app.state::<Arc<AnalysisRuntime>>().paths().clone()
+}
+
+pub fn open_component_directory<R: Runtime>(app: &AppHandle<R>, logs: bool) -> AppResult<()> {
+    let paths = paths(app);
+    let directory = if logs { paths.logs } else { paths.dependencies };
+    fs::create_dir_all(&directory)?;
+    system_open::open_path(&directory)
+}
+
+pub fn automatic_java_path(
+    session_id: Option<&str>,
+    game_root: Option<&str>,
+) -> AppResult<Option<String>> {
+    let game = if let Some(id) = session_id {
+        project::current_project_manifest(id)?.starsector_root
+    } else {
+        project::resolve_core_root(app_settings::starsector_root()?.as_deref(), game_root, None)?
+            .map(|path| path.to_string_lossy().into_owned())
+    };
+    Ok(game.map(|root| {
+        java_path(&Path::new(&root).join("jre/bin/java.exe"))
+            .to_string_lossy()
+            .into_owned()
+    }))
 }
 
 pub fn install<R: Runtime>(app: &AppHandle<R>) -> AppResult<()> {
@@ -83,6 +132,8 @@ pub fn install<R: Runtime>(app: &AppHandle<R>) -> AppResult<()> {
 }
 
 pub fn start<R: Runtime>(app: &AppHandle<R>, java: &Path) -> AppResult<String> {
+    let manager = app.state::<Arc<ComponentManagement>>();
+    let _guard = manager.analysis_guard()?;
     let java = canonical_path(java, "Java executable")?;
     app.state::<Arc<AnalysisRuntime>>()
         .start(&java)
@@ -234,6 +285,9 @@ pub fn close<R: Runtime>(app: &AppHandle<R>, instance: &str) -> AppResult<()> {
 }
 
 pub fn shutdown<R: Runtime>(app: &AppHandle<R>) -> AppResult<()> {
+    if let Some(manager) = app.try_state::<Arc<ComponentManagement>>() {
+        manager.shutdown()?;
+    }
     if let Some(runtime) = app.try_state::<Arc<AnalysisRuntime>>() {
         runtime.shutdown()?;
     }
@@ -263,6 +317,8 @@ pub fn start_for_session<R: Runtime>(
     java: &Path,
     extras: AnalysisExtras,
 ) -> AppResult<String> {
+    let manager = app.state::<Arc<ComponentManagement>>();
+    let _guard = manager.analysis_guard()?;
     let inputs = inputs_for_session(session_id, &extras)?;
     let mut state = SESSIONS.lock().map_err(|_| {
         AppError::message(
@@ -273,7 +329,12 @@ pub fn start_for_session<R: Runtime>(
     let instance = match &state.instance {
         Some(instance) => instance.clone(),
         None => {
-            let instance = start(app, java)?;
+            let selected = app_settings::java_executable()?;
+            let java = canonical_path(
+                selected.as_deref().map(Path::new).unwrap_or(java),
+                "Java executable",
+            )?;
+            let instance = app.state::<Arc<AnalysisRuntime>>().start(&java)?;
             state.instance = Some(instance.clone());
             instance
         }
@@ -422,6 +483,27 @@ fn close_owned_session(runtime: &AnalysisRuntime, session_id: &str) -> AppResult
     if last {
         runtime.close(&instance)?;
     }
+    Ok(())
+}
+
+fn stop_owned_analysis(runtime: &AnalysisRuntime) -> AppResult<()> {
+    let mut state = SESSIONS.lock().map_err(|_| {
+        AppError::message(
+            "java_analysis.session_lock",
+            "Java session state unavailable",
+        )
+    })?;
+    for owner in state.projects.values() {
+        owner
+            .lock()
+            .map_err(|_| {
+                AppError::message("java_analysis.session_lock", "Java project unavailable")
+            })?
+            .closed = true;
+    }
+    state.projects.clear();
+    state.instance = None;
+    runtime.close_all()?;
     Ok(())
 }
 

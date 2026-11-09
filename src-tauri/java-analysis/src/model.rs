@@ -8,6 +8,8 @@ use std::result::Result as StdResult;
 use zip::result::ZipError;
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
+    #[error("Java component operation cancelled")]
+    Cancelled,
     #[error("{0}")]
     Invalid(String),
     #[error(transparent)]

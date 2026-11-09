@@ -12,6 +12,16 @@ beforeEach(() => {
 });
 
 describe('settings integer limits', () => {
+  it('publishes, mirrors and resets the selected Java executable', () => {
+    const settings = useSettingsStore();
+    expect(settings.javaExecutable).toBeNull();
+    settings.setJavaExecutable('G:/runtime/bin/java.exe');
+    expect(settings.settingsSnapshot().javaExecutable).toBe('G:/runtime/bin/java.exe');
+    settings.replaceSettings(createSettingsFixture({ javaExecutable: 'H:/runtime/bin/java.exe' }));
+    expect(settings.javaExecutable).toBe('H:/runtime/bin/java.exe');
+    settings.replaceSettings(createSettingsFixture());
+    expect(settings.javaExecutable).toBeNull();
+  });
   it.each(['success', 'info', 'warning', 'error'] as const)('validates and mirrors %s toast durations', (level) => {
     const settings = useSettingsStore();
     expect(settings.toastDurations).toEqual({ success: 5, info: 7, warning: 7, error: 0 });

@@ -1,17 +1,18 @@
 [package]
 name = "pyxis-java-analysis"
 version = "1.0.0"
-edition = "2024"
-rust-version = "1.99.1"
+edition.workspace = true
+rust-version.workspace = true
 
 [[bin]]
 name = "java-analysis"
 path = "src/main.rs"
 
 [dependencies]
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
-thiserror = "2"
-reqwest = { version = "=0.13.5", default-features = false, features = ["blocking", "native-tls-no-alpn", "system-proxy"] }
-sha2 = "=0.10.9"
-zip = { version = "=9.4.2", default-features = false, features = ["deflate-flate2-zlib-rs"] }
+serde = { workspace = true, features = ["derive"] }
+serde_json.workspace = true
+thiserror.workspace = true
+reqwest = { workspace = true, features = ["native-tls-no-alpn", "system-proxy"] }
+tokio = { workspace = true, features = ["rt", "time"] }
+sha2.workspace = true
+zip = { workspace = true, features = ["deflate-flate2-zlib-rs"] }

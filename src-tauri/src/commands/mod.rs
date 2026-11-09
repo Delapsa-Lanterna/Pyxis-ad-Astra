@@ -10,6 +10,7 @@ mod file_editor;
 mod file_history;
 mod font;
 mod hull_reference;
+mod java_analysis;
 mod joint_edit;
 #[cfg(test)]
 mod json_file;
@@ -40,6 +41,7 @@ pub use file_editor::*;
 pub use file_history::*;
 pub use font::*;
 pub use hull_reference::*;
+pub use java_analysis::*;
 pub use joint_edit::*;
 pub use json_recovery::*;
 pub use misc_config::*;

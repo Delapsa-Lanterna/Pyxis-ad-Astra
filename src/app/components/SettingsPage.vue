@@ -293,6 +293,7 @@
         :warning="applicationLogError || logStatus?.lastError || ''"
       />
     </section>
+    <slot name="java-analysis" />
     <section class="settings-debug-panel panel-card ui-layout-shrink ui-control-border ui-content-surface ui-layout-grid ui-layout-stretch">
       <h3 class="panel-section-title">性能调试</h3>
       <FieldRow label="性能监视">

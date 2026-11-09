@@ -35,6 +35,12 @@ pub fn starsector_root() -> AppResult<Option<String>> {
         .and_then(|snapshot| snapshot.value.starsector_root.clone()))
 }
 
+pub fn java_executable() -> AppResult<Option<String>> {
+    Ok(snapshot_state()?
+        .as_ref()
+        .and_then(|snapshot| snapshot.value.java_executable.clone()))
+}
+
 pub fn read_settings(
     app: &AppHandle,
     resolve_log_directory: impl FnOnce(&Path, &str) -> AppResult<PathBuf>,
@@ -278,6 +284,7 @@ fn validate_settings(settings: &AppSettings) -> AppResult<()> {
         &settings.starsector_root,
         &settings.log_directory,
         &settings.immersive_font_directory,
+        &settings.java_executable,
     ]
     .into_iter()
     .flatten()
@@ -560,6 +567,11 @@ mod tests {
         let dir = TestWorkspace::new("settings_fonts");
         let settings = AppSettings {
             general_font: Some("Microsoft YaHei".into()),
+            java_executable: Some(
+                dir.join("runtime/bin/java.exe")
+                    .to_string_lossy()
+                    .into_owned(),
+            ),
             immersive_game_font: false,
             immersive_font_directory: Some(
                 dir.join("font_directory").to_string_lossy().into_owned(),
@@ -613,7 +625,7 @@ mod tests {
         valid["editHistoryLimit"] = serde_json::json!(321);
         valid["cacheLimits"]["mediaData"]["entries"] = serde_json::json!(17);
         let paths = setting_paths(&defaults, "");
-        assert_eq!(paths.len(), 55);
+        assert_eq!(paths.len(), 56);
         for pointer in paths.into_iter().skip(1) {
             for missing in [false, true] {
                 let mut source = valid.clone();

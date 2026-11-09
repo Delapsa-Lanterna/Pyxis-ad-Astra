@@ -16,10 +16,12 @@ import { stableDeepEqual } from '@/shared/lib/stable-compare';
 import { miscConfigDefinition } from '@/domain/misc-config';
 import { composeJson } from '@/domain/json-composition';
 import { isRowData } from '@/shared/lib/row-data';
+import { createJavaComponentPreview } from './java-analysis';
 
 type Handler = (event: { event: string; id: number; payload: unknown }) => void | Promise<void>;
 type DeliveryChannel = { onmessage: (delivery: T.ProjectSyncDelivery) => void };
 export function createBrowserWorkspace(systemTheme: T.AppTheme = 'light') {
+  const javaAnalysis = createJavaComponentPreview();
   initializeWindowsPathCase(windowsPathCaseFixture);
   let references: T.ReferenceSource[] = [];
   const buildProjects = () => [coreRoot, ...workspaceRoots].map(createWorkspaceProject);
@@ -205,6 +207,7 @@ export function createBrowserWorkspace(systemTheme: T.AppTheme = 'light') {
   }
   async function invoke(label: string, command: string, args: Record<string, unknown> = {}): Promise<unknown> {
     calls.push({ window: label, command });
+    if (javaAnalysis.commands.has(command)) return javaAnalysis.invoke(command, args);
     const request = command === 'save_project' ? (args.request as T.SaveRequest) : null;
     if (request) {
       command = request.action.kind;
@@ -726,6 +729,7 @@ export function createBrowserWorkspace(systemTheme: T.AppTheme = 'light') {
       return projects;
     },
     windows,
+    javaAnalysis,
     faults,
     diagnostics,
     calls,

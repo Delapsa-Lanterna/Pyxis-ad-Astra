@@ -10,8 +10,12 @@ Java 分析模块管理 Java 17 语法与语义分析、固定第三方依赖、
 
 - `scripts/java-analysis/`：模块的 Java 构建、资源核验、下载和正确性验收入口。
 - `src-tauri/java-analysis/`：独立 Rust 库、Java 宿主、自有内置资源、固定依赖清单与模块测试。
+- `src-tauri/src/commands/java_analysis.rs`：组件状态、任务、取消与目录管理的命令边界。
 - `src-tauri/src/services/java_analysis.rs`：应用适配、配置根、路径核验、诊断与错误交接。
-- `src-tauri/src/services/java_analysis/`：正式会话输入、补充来源及共享 JVM 的行为验收。
+- `src-tauri/src/services/java_analysis/`：正式会话输入、组件后台管理、Java 环境与共享 JVM 的行为验收。
+- `src/app/components/java-analysis/`：设置中的 Java 分析组件管理卡片。
+- `src/app/composables/java-analysis/`：管理状态订阅、用户动作、自检与 Java 路径选择。
+- `src/services/java-analysis.service.ts`：Java 组件管理命令的类型化交接。
 
 ### 消费
 
@@ -21,9 +25,16 @@ Java 分析模块管理 Java 17 语法与语义分析、固定第三方依赖、
 - `src-tauri/src/io/mod.rs`：Java 输入的正式文件指纹交付。
 - `src-tauri/src/io/paths.rs`：实际 Java、源码根和类路径的路径边界能力。
 - `src-tauri/src/models/project_session.rs`：Mod 正式清单及实际游戏来源。
+- `src-tauri/src/services/app_settings.rs`：自动 Java 路径消费已保存的游戏根。
 - `src-tauri/src/services/project/mod.rs`：当前就绪 Mod 清单及已发布可引用来源。
 - `src-tauri/src/services/project/session.rs`：正式就绪会话清单。
 - `src-tauri/src/services/project/session/references.rs`：当前已发布可引用 Mod 身份。
+- `src-tauri/src/services/project/sources/roots.rs`：自动 Java 路径复用正式游戏根解析。
+- `src-tauri/src/services/system_open.rs`：所属安装与日志目录的系统打开能力。
+- `src/app/composables/use-app-feedback.ts`：组件动作的确认与一次最终反馈。
+- `src/shared/runtime/dialog.runtime.ts`：Java 可执行文件及离线 ZIP 的选择能力。
+- `src/shared/types/java-analysis.types.ts`：组件管理状态、动作与环境结果协议。
+- `src/stores/settings.store.ts`：自定义 Java 路径的正式保存输入。
 
 ### 装配
 
@@ -31,6 +42,7 @@ Java 分析模块管理 Java 17 语法与语义分析、固定第三方依赖、
 - `src-tauri/src/lib.rs`：运行态初始化及退出资源交接。
 - `src-tauri/src/services/app_lifecycle.rs`：应用确认关闭后的实例等待与释放。
 - `src-tauri/src/services/project_sync.rs`：引用集合发布后刷新及 Mod 注销前释放 Java 项目。
+- `src/app/AppContent.vue`：向设置页的固定槽位装配 Java 分析卡片。
 
 ## 边界
 
@@ -44,6 +56,9 @@ Java 分析模块管理 Java 17 语法与语义分析、固定第三方依赖、
 - 应用日志消费操作身份和状态，Java 原始诊断留在所属实例日志。
 - 显式分析按 Mod 会话创建项目，已启动会话共用一个 JVM，最后项目关闭后释放 JVM。
 - 全部已发布可引用 Mod 按工作区顺序参与 Java 输入，引用自动刷新保留当前内存文档。
+- 组件管理任务由后端独占持有，页面只订阅状态；取消完成后保留已校验文件供重试。
+- 环境自检使用所属短时 JVM，完成进程和读取线程等待后释放工作区。
+- 手动 Java 路径通过完整设置快照保存、镜像及重置，并对下次会话启动和自检生效。
 
 ## 链路
 
@@ -60,6 +75,14 @@ Java 分析模块管理 Java 17 语法与语义分析、固定第三方依赖、
 3. 语法或项目请求进入 JDT，结果保留请求身份、文档版本和源码范围。
 4. 实例关闭等待 JVM 与读取线程结束后清理工作区并保留日志。
 5. 应用确认关闭后停止新工作并等待全部所属实例释放。
+
+### 组件管理
+
+1. 主窗口向设置页固定槽位交付卡片与当前会话及游戏根，卡片订阅后端正式状态。
+2. 用户动作取得唯一管理任务，下载和导入逐文件校验并共同发布完整安装。
+3. 状态订阅交付进度及一次最终回执，页面释放订阅后后台继续持有任务。
+4. Java 路径选择先验证版本再提交设置，自检独占短时 JVM 并等待所属资源释放。
+5. 停止动作释放全部分析，移除动作清理所属依赖和暂存，应用关闭先取消并等待管理任务。
 
 ## 规范
 
@@ -78,3 +101,7 @@ Java 分析模块管理 Java 17 语法与语义分析、固定第三方依赖、
 - 声明和引用位置必须按绑定身份建立项目版本索引，同版本查询复用该索引。
 - 正常释放必须等待进程和读取线程结束，再清理实例工作区；依赖与原始日志保持各自寿命。
 - 应用操作日志只允许包含身份、路径、状态、规模及诊断，严禁记录源码正文和请求响应正文。
+- 组件管理动作必须经单一 FIFO 队列执行，相同动作复用队列项，操作键只表达队列项身份并关联其取消控制。
+- 依赖变更必须在队列执行时核对全部分析实例已释放；队列存在待办时禁止新建分析实例。
+- 取消必须结束所属网络请求后交付回执，已校验文件保持可复用，未完成文件必须保留独立暂存身份。
+- 管理卡片必须位于配置文件与性能调试之间，停止与移除必须通过危险确认并说明实际影响。

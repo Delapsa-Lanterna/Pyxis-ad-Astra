@@ -1,6 +1,14 @@
-# Java 分析阶段 9 验收报告
+# Java 分析验收报告
 
 正式组件 `pyxis-java-analysis` 提供 Java 17 分析、Mod 会话装配、引用增量刷新与共享 JVM。JDT Core 为 3.47.0，自有宿主为 1.0.0，通信协议为 2。
+
+## 组件管理
+
+设置页在配置文件与性能调试之间装配 Java 分析卡片，提供固定依赖下载、取消、重试、离线导入、检查修复、移除、Java 路径、自检及停止分析。网络实现归组件，后台 FIFO 队列拥有当前动作、待执行项、取消控制与完成回执；相同动作复用原队列项，命令等待所属回执，状态订阅独立交付当前进度。应用关闭先清空待执行项并取消、等待当前项，再释放分析运行态。
+
+实际固定清单包含 27 个 JAR、16,423,216 字节，逐文件流式校验；有效暂存用于重试，完整清单验证后登记安装。Java 17 自检解析中性小样本后释放独立 JVM、读取线程和工作区。手动 Java 路径验证后进入 AppSettings 保存及镜像，移除保留路径设置与日志。
+
+管理验收的完整命令、截图、资源释放、性能及产物哈希见 [管理验收](../../.zcode/plans/java-ast-engine/STAGE10-REPORT.md)。当前主项目 Rust 测试为 741 项通过，前端为 298 个文件、3,797 项通过，Clippy、typecheck、ESLint、工程规则和 Tauri 无安装包构建通过。
 
 ## 现有入口与寿命
 
@@ -81,8 +89,8 @@
 | engine.jar           | 79563    | `ff7396b07ca5fcaf8283b23e1caefc526e6e63ec51dddccc83aac586b0482677` |
 | launcher.jar         | 3589     | `58fc66597c41b9667f4708fdb99cf8f110a207eba4b74564f6ce6c6c43ef6fb9` |
 | jdt-dependencies.zip | 15334234 | `39ebb16829646746c5a98aad2d21d915627f83e97e706d821c67d115772fe5ba` |
-| java-analysis.exe    | 3153920  | `d6f7c895458ab4f78941430639d52cbaa0381df238b4977009d3ca80b75cd3e0` |
-| 当前 Tauri 产物      | 21797888 | `9cc9cbdedbf42f14031c95ebebfe8b8bdca7e2161f89f521511ecd764832492f` |
+| java-analysis.exe    | 3140608  | `d83acecb4531542142cb953b6b0f32ce0b70807b67f0549df6b048bedaba34ad` |
+| 当前 Tauri 产物      | 23711232 | `b7039d330055fd0f46540125d6a50560c1034c038e939fee2f83369dd6251d0d` |
 
 Java 17 编译和 3 个 JUnit、Rust 组件检查/release、主项目 Clippy、适配层及真实会话测试、738 个主项目 Rust 测试及 1 个新增错误上下文测试、55 个引用测试、12 个服务边界规则测试、工程检查及 Tauri 无安装包构建均交付各自命令记录。需外部环境的测试由显式命令执行，默认框架记录 9 项 ignored。
 
@@ -92,6 +100,6 @@ Java 17 编译和 3 个 JUnit、Rust 组件检查/release、主项目 Clippy、�
 - [文件与预算](../target/java-analysis/reports/stage9-files.json)：以任务开始提交为基线，分别统计格式化新增/删除物理行，包含临时工作区文档。
 - [交付归档](../target/java-analysis/stage9-delivery.zip)：正式源码、资源、固定锁、离线依赖、release CLI 和证据。
 
-生产代码新增 1,171 行、删除 139 行、净增 1,032 行；全部源码、测试、配置与文档新增 2,065 行、删除 237 行、净增 1,828 行，包含临时工作区文档。预算上限分别为净增 3,200 和 6,000 行。当前入口和命令见 README.md，临时工作区 MERGE-GUIDE.md 提供会话调用步骤，NEXT-STAGES.md 从组件管理入口继续推进。
+组件管理阶段的物理行数、两类预算、产物及其增长对照见管理验收报告与 `stage10-lines.json`。当前入口和命令见 README.md，临时工作区 MERGE-GUIDE.md 提供队列和会话调用步骤，NEXT-STAGES.md 记录后续接入顺序。
 
 临时验证根 `%TEMP%/pyxis_test_9568_0_java_real_session` 当前保留 49 个文件、24 个目录，合计 16,641,540 字节，所属 Java 进程已退出。该目录的二进制文件与文件夹需使用具备对应删除能力的文件操作工具处理；本轮成功验收的所属工作区均已按正式生命周期释放。
