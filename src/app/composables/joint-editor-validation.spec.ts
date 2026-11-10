@@ -16,7 +16,6 @@ const context = (): CsvValidationContext => ({
   sources: {},
   files: {},
   classes: {},
-  stationData: {},
 });
 function fixture() {
   const records = [fixtureCsvRecord('csv', 'weapons', { id: 'one' }, { id: 'one', name: 'One', OPs: '2' })];

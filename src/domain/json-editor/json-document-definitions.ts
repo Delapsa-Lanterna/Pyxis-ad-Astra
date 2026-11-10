@@ -1,5 +1,3 @@
-import { entityContentIdField } from '@/domain/project/entity-definitions';
-import { cloneQuerySnapshot } from '@/shared/lib/query-snapshot';
 import type {
   CsvRow,
   DeepReadonly,
@@ -14,14 +12,18 @@ import type {
   JsonDocumentOrigin,
   JsonComposition,
 } from '@/shared/types';
+import type { JsonFileContent } from '@/shared/types';
+import { entityContentIdField } from '@/domain/project/entity-definitions';
+import { cloneQuerySnapshot } from '@/shared/lib/query-snapshot';
 import { aggregateSchemaSources } from '@/domain/schema/schema-sources';
-import { configFactionListItems } from './json-config-entities';
-import { variantFileDefinition, skinFileDefinition, jsonFileTitle, type JsonFileDefinition } from './json-file-definitions';
-import { requireRowData } from '@/shared/lib/row-data';
-import { miscConfigDefinition } from '@/domain/misc-config';
-import { composeJson } from '@/domain/json-composition';
 import { schemaDocumentIssues } from '@/domain/schema/schema-validation';
 import type { FileSchema } from '@/domain/schema/schema.types';
+import { configFactionListItems } from './json-config-entities';
+import { variantFileDefinition, skinFileDefinition, jsonFileTitle, type JsonFileDefinition } from './json-file-definitions';
+import { projectJsonValue } from '@/domain/json-document';
+import { miscConfigDefinition } from '@/domain/misc-config';
+import { composeJson } from '@/domain/json-composition';
+import { requireRowData } from '@/shared/lib/row-data';
 
 export type JsonDocumentKind = 'mod-info' | 'faction' | 'mission' | 'variant' | 'skin' | 'misc-config';
 export interface ConfigDocumentTarget {
@@ -31,19 +33,13 @@ export interface ConfigDocumentTarget {
   id: string;
   entity: EntityEditTarget | null;
 }
-export function jsonDocumentOrigin(target: ConfigDocumentTarget): JsonDocumentOrigin {
-  return target.kind === 'mod-info'
-    ? { kind: 'modInfo' }
-    : target.kind === 'misc-config'
-      ? { kind: 'miscConfig', file: miscConfigDefinition(target.id).kind }
-      : { kind: 'entity', target: { kind: target.kind, id: target.id, relPath: target.entity!.write.relPath } };
-}
 export interface JsonDocumentRecord {
-  composition?: JsonComposition;
   target: ConfigDocumentTarget;
   value: RowData;
+  document: JsonFileContent | null;
   baseVersions: FileVersion[];
   resources: Record<string, ResourceRef>;
+  composition?: JsonComposition;
 }
 export interface JsonDocumentDefinition {
   kind: JsonDocumentKind;
@@ -54,6 +50,7 @@ export interface JsonDocumentDefinition {
   file?: JsonFileDefinition;
 }
 export const JSON_DOCUMENT_DEFINITIONS: Record<JsonEditorPageId, JsonDocumentDefinition> = {
+  'mod-info': { kind: 'mod-info', label: 'Mod 信息', directory: 'mod_info.json', idField: 'id', icon: '' },
   'misc-config': {
     kind: 'misc-config',
     label: '杂项配置',
@@ -61,7 +58,6 @@ export const JSON_DOCUMENT_DEFINITIONS: Record<JsonEditorPageId, JsonDocumentDef
     idField: '',
     icon: 'M6 3h8l4 4v14H6zM14 3v5h4M9 12h6M9 16h6',
   },
-  'mod-info': { kind: 'mod-info', label: 'Mod 信息', directory: 'mod_info.json', idField: 'id', icon: '' },
   factions: {
     kind: 'faction',
     label: '势力',
@@ -93,36 +89,37 @@ export const JSON_DOCUMENT_DEFINITIONS: Record<JsonEditorPageId, JsonDocumentDef
     file: skinFileDefinition,
   },
 };
-export function configDocumentKey(target: ConfigDocumentTarget) {
-  return JSON.stringify({
-    sessionId: target.sessionId,
-    modRoot: target.modRoot,
-    kind: target.kind,
-    id: target.id,
-    relPath: target.entity?.write.relPath ?? null,
-  });
+export function configDocumentKey(target: ConfigDocumentTarget): string {
+  return JSON.stringify([target.sessionId, target.modRoot, target.kind, target.id, target.entity?.write.relPath ?? null]);
 }
-export function jsonDocumentValue(kind: JsonDocumentKind, data: RowData): RowData {
-  return kind === 'variant' || kind === 'skin' ? data : aggregateSchemaSources(kind === 'mission' ? data : { file: data });
-}
-export function jsonRecoveryValue(target: ConfigDocumentTarget, plan: JsonRecoveryPlan, current: RowData): RowData {
-  const sources = plan.currentSources;
-  if (target.kind === 'misc-config') return miscConfigDocumentValue(sources.file!);
-  if (target.kind === 'mission') {
-    const index = sources.index as unknown as { rows: CsvRow[] };
-    const list = index.rows.find((row) => !row.isComment && row.data.mission === target.id)!.data;
-    return { ...current, ...aggregateSchemaSources({ list, descriptor: sources.descriptor, text: sources.text ?? '' }) };
+export function jsonDocumentOrigin(target: ConfigDocumentTarget): JsonDocumentOrigin {
+  switch (target.kind) {
+    case 'mod-info':
+      return { kind: 'modInfo' };
+    case 'misc-config':
+      return { kind: 'miscConfig', file: miscConfigDefinition(target.id).kind };
+    default:
+      return { kind: 'entity', target: { kind: target.kind, id: target.id, relPath: target.entity!.write.relPath } };
   }
-  return jsonDocumentValue(target.kind, requireRowData(sources.file, 'JSON 文档内容无效'));
+}
+export function jsonDocumentValue(kind: JsonDocumentKind, value: RowData): RowData {
+  if (kind === 'variant' || kind === 'skin') return value;
+  return aggregateSchemaSources(kind === 'mission' ? value : { file: value });
 }
 export function jsonDocumentRecord(sessionId: string, modRoot: string, record: DeepReadonly<EntityData>): JsonDocumentRecord {
-  const entity = cloneQuerySnapshot<EntityData>(record);
+  const entity = cloneQuerySnapshot<EntityData>(record),
+    kind = entity.kind as JsonDocumentKind;
+  const raw =
+    entity.document && kind !== 'mission'
+      ? requireRowData(projectJsonValue(entity.document.content), 'JSON 文件根对象无效')
+      : requireRowData(entity.data, 'JSON 文档内容无效');
   return {
-    composition: entity.composition,
-    target: { sessionId, modRoot, kind: entity.kind as JsonDocumentKind, id: entity.id, entity: entity.target },
-    value: jsonDocumentValue(entity.kind as JsonDocumentKind, requireRowData(entity.data, 'JSON 文档内容无效')),
+    target: { sessionId, modRoot, kind, id: entity.id, entity: entity.target },
+    value: jsonDocumentValue(kind, raw),
+    document: entity.document,
     baseVersions: entity.baseVersions,
     resources: entity.resourceRefs,
+    composition: entity.composition ?? undefined,
   };
 }
 export function jsonDocumentContent(kind: JsonDocumentKind, value: RowData): RowData {
@@ -136,11 +133,30 @@ export function jsonDocumentPartial(definition: JsonDocumentDefinition, value: R
   return definition.kind === 'misc-config' || Boolean(composition && definition.kind !== 'variant' && !jsonDocumentId(definition, value));
 }
 export function jsonDocumentIssues(definition: JsonDocumentDefinition, schema: FileSchema, value: RowData, composition?: JsonComposition) {
-  const key =
-    definition.kind === 'mission' ? 'descriptor' : ['faction', 'mod-info', 'misc-config'].includes(definition.kind) ? 'file' : null;
-  const sources = definition.kind === 'misc-config' ? undefined : composition;
-  const effective = key ? { ...value, [key]: composeJson(value[key] as RowData, sources) } : composeJson(value, sources);
+  const kind = definition.kind,
+    key = kind === 'mission' ? 'descriptor' : ['faction', 'mod-info', 'misc-config'].includes(kind) ? 'file' : null;
+  const effective = key
+    ? { ...value, [key]: composeJson(value[key] as RowData, kind === 'misc-config' ? undefined : composition) }
+    : composeJson(value, composition);
   return schemaDocumentIssues(schema, effective, jsonDocumentPartial(definition, value, composition));
+}
+export function jsonRecoveryValue(target: ConfigDocumentTarget, plan: JsonRecoveryPlan, current: RowData): RowData {
+  if (target.kind === 'mission') {
+    const index = plan.currentSources.index as unknown as { rows: CsvRow[] };
+    const list = index.rows.find((row) => !row.isComment && row.data.mission === target.id)!.data;
+    return {
+      ...current,
+      ...aggregateSchemaSources({
+        list,
+        descriptor: plan.documents.descriptor ? projectJsonValue(plan.documents.descriptor.content) : plan.currentSources.descriptor,
+        text: plan.currentSources.text ?? '',
+      }),
+    };
+  }
+  const value = plan.documents.file ? projectJsonValue(plan.documents.file.content) : plan.currentSources.file!;
+  return target.kind === 'misc-config'
+    ? miscConfigDocumentValue(value)
+    : jsonDocumentValue(target.kind, requireRowData(value, 'JSON 文件根对象无效'));
 }
 export function jsonDocumentSummary(
   definition: JsonDocumentDefinition,
@@ -148,33 +164,30 @@ export function jsonDocumentSummary(
   draft = record.value,
   hullNames: Record<string, string> = {},
 ) {
-  const { kind } = definition;
-  const local = kind === 'mission' ? ((draft.descriptor ?? draft.list) as RowData) : jsonDocumentContent(kind, draft);
-  const data = composeJson(local, record.composition);
-  const id = kind === 'misc-config' ? record.target.id : jsonDocumentId(definition, draft) || record.target.id;
-  const file = definition.file;
+  const kind = definition.kind,
+    local = kind === 'mission' ? ((draft.descriptor ?? draft.list) as RowData) : jsonDocumentContent(kind, draft);
+  const data = composeJson(local, record.composition),
+    id = kind === 'misc-config' ? record.target.id : jsonDocumentId(definition, draft) || record.target.id;
   const title =
     kind === 'misc-config'
       ? miscConfigDefinition(id).label
-      : file
-        ? jsonFileTitle(file, { id, data }, hullNames)
+      : definition.file
+        ? jsonFileTitle(definition.file, { id, data }, hullNames)
         : String(data[kind === 'mission' ? 'title' : kind === 'mod-info' ? 'name' : 'displayName'] || id || definition.label);
   return {
     id,
     title,
     color: kind === 'faction' ? configFactionListItems({ [record.target.id]: data })[0]!.colorCss : '',
-    companion: file ? String(data[file.companionField] ?? '') : '',
+    companion: definition.file ? String(data[definition.file.companionField] ?? '') : '',
   };
 }
-
 export function jsonDocumentMedia(record: JsonDocumentRecord) {
   return record.target.kind === 'mission'
     ? (record.resources.icon ?? null)
     : (record.resources.sprite ?? record.resources.crest ?? record.resources.logo ?? null);
 }
-
-export function miscConfigDocumentValue(data: JsonValue): RowData {
-  return { file: data };
+export function miscConfigDocumentValue(value: JsonValue): RowData {
+  return { file: value };
 }
 export function miscConfigDocumentContent(value: RowData): JsonValue {
   return value.file!;

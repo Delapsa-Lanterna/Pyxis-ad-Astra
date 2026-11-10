@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { captureJsonEdits } from './json-edits';
-
-describe('JSON edits', () => {
-  it('captures actual object assignments, removals and atomic array replacements', () => {
-    expect(captureJsonEdits({ a: 1, remove: null, list: [1] }, { a: 2, added: null, list: [1, 2] })).toEqual([
-      { kind: 'set', path: ['a'], value: 2 },
-      { kind: 'remove', path: ['remove'] },
-      { kind: 'set', path: ['list'], value: [1, 2] },
-      { kind: 'set', path: ['added'], value: null },
+describe('semantic JSON edits', () => {
+  it('tracks nested changes and treats a collection as one business value', () => {
+    expect(
+      captureJsonEdits({ nested: { before: 1, kept: 2 }, items: [1, 1, 2] }, { nested: { kept: 2, after: 3 }, items: [1, 2] }),
+    ).toEqual([
+      { kind: 'remove', path: ['nested', 'before'] },
+      { kind: 'set', path: ['nested', 'after'], value: 3 },
+      { kind: 'set', path: ['items'], value: [1, 2] },
     ]);
   });
 });

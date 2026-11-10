@@ -82,7 +82,7 @@
 - 项目保存：编辑面提交输入并捕获 `SaveRequest` → `save_project` → 项目同步 FIFO → 所属业务准备 → `write_transactions::begin` 与版本复核 → 业务 changeset → 历史及正式内容登记 → 发布 `WriteResult` 并释放项目工作
 - 联合冲突与提交：联合基线、磁盘与提交草稿 → `submitJointEdit` 请求后端三方比较 → 独立修改合并与冲突选择 → 共享影响、Mod 覆盖和目标协调 → 确认版本复核 → 同根 changeset 与一次历史登记 → 实际联合快照
 - 实体身份联动：正式实体目标、内容与文件名选择 → 实体写入能力 → 主文件、关联规格、描述、势力索引与父装配引用暂存 → 同根 changeset 应用 → 会话表格接纳 → 实际内容、行键与身份变化
-- JSON 写入确认：捕获 `preserveOriginalJson` → `runConfirmedJsonWrite` → 原文结构更新或逐源重排要求 → 所属窗口确认具体文件 → 绑定来源指纹与版本重试 → changeset 写入
+- JSON 写入：所属文档提交 `FieldInputs` → schema 解释、校验并准备修改位点的目标格式 → 文档捕获完整数据、源对应关系、修改范围与 `preserveStructure` → 所属保存能力准备身份、版本与关联内容 → 项目队列应用明确修改 → 格式模块生成原结构或展开布局并重读核对 → 同根 changeset 写入 → 实际内容、格式与版本接纳 → 保留保存期间的后续编辑
 - 缺失来源重建：已捕获的完整内容与修改 → 项目队列发现缺失来源 → 所属请求确认路径 → 重新核对现存内容及版本 → 所属保存能力重建文件与必要索引 → 实际结果接纳
 - 写后接纳：`CommittedWriteEvent` 有序交付 → File History 摘要 → `sessionUpdates` 正式清单及资源、query 缓存失效 → 发起会话 `SaveAcceptanceTask` → 窗口身份交接 → 所属内容与后续草稿接纳
 - 文件修改失败恢复：根租约内写入失败 → 实际 before 字节、路径与存在状态 → 逆序恢复已执行及部分执行步骤 → 受阻位置保留项目工作 → 恢复或明确放弃 → 所属请求结束与后续队列推进

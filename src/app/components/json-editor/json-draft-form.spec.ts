@@ -29,6 +29,9 @@ import { useWorkspaceNavigationActions } from '@/app/composables/use-workspace-n
 import { initializeSettingsStore, useSettingsStore } from '@/stores/settings.store';
 import { createSettingsFixture } from '@/test/fixtures/settings';
 import { jsonEntityFixture } from '@/test/fixtures/json-editor';
+import { jsonFileFixture } from '@/test/fixtures/json-file';
+import { projectJsonValue } from '@/domain/json-document';
+import type { JsonFileSave } from '@/shared/types';
 import { sessionUpdateFixture, savedWriteFixture } from '@/test/fixtures/write-result';
 import { editorUiStubs, nInput } from '@/test/unit/ui-stubs';
 import { getSchema } from '@/domain/schema/config-schema-registry';
@@ -51,7 +54,7 @@ const mocks = vi.hoisted(() => ({
   read: vi.fn<typeof EntityQueryServiceModule.querySessionEntity>(),
   saveFile: vi.fn(),
   saveIndexed: vi.fn<typeof JsonSaveOrchestratorModule.saveIndexedEntityAction>(),
-  saveMod: vi.fn<typeof JsonSaveOrchestratorModule.saveModInfoAction>(),
+  saveMod: vi.fn<typeof JsonEntityServiceModule.saveModInfo>(),
   remove: vi.fn(),
   create: vi.fn<(...args: unknown[]) => unknown>(),
   complete: vi.fn(),
@@ -141,11 +144,17 @@ vi.mock('@/orchestrators/project-sync.orchestrator', async (original) => ({
 vi.mock('@/orchestrators/json-save.orchestrator', () => ({
   saveJsonFileAction: (_kind: string, ...args: unknown[]) => mocks.saveFile(...args),
   saveIndexedEntityAction: mocks.saveIndexed,
-  saveModInfoAction: mocks.saveMod,
   createJsonFileAction: (_kind: string, ...args: unknown[]) => mocks.create(...args),
   createIndexedEntityAction: mocks.create,
 }));
-vi.mock('@/services/json-file.service', () => ({ deleteVariantEntity: mocks.remove, deleteSkinEntity: mocks.remove }));
+vi.mock('@/services/json-file.service', () => ({
+  deleteVariantEntity: mocks.remove,
+  deleteSkinEntity: mocks.remove,
+  readJsonDocument: async (_session: string, path: string) => {
+    const manifest = useProjectStore().getManifest('M:/one')!;
+    return { document: jsonFileFixture(path === 'mod_info.json' ? manifest.modInfo! : {}), baseVersions: manifest.baseVersions };
+  },
+}));
 vi.mock('@/services/json-recovery.service', () => ({ prepareJsonSourceRecovery: mocks.prepare }));
 vi.mock('@/services/misc-config.service', async (original) => ({
   ...(await original<typeof MiscConfigServiceModule>()),
@@ -155,6 +164,7 @@ vi.mock('@/services/misc-config.service', async (original) => ({
   deleteMiscConfig: mocks.miscDelete,
 }));
 vi.mock('@/services/json-entity.service', () => ({
+  saveModInfo: mocks.saveMod,
   deleteIndexedConfigEntity: mocks.remove,
   queryFactionPreviewImages: mocks.previews,
   queryMissionDraftIcon: mocks.missionPreview,
@@ -175,7 +185,13 @@ vi.mock('@/app/composables/use-visible-resource-media', () => ({
 }));
 let wrapper: VueWrapper | null;
 let entities: Map<string, EntityData>;
-const stringsFile = { kind: 'strings' as const, path: 'M:/one/data/strings/strings.json', relPath: 'data/strings/strings.json' };
+const stringsFile = {
+  kind: 'strings' as const,
+  path: 'M:/one/data/strings/strings.json',
+  relPath: 'data/strings/strings.json',
+  document: jsonFileFixture({}),
+  composition: { layers: [], excluded: [], replace: false },
+};
 const pages = (Object.keys(JSON_DOCUMENT_DEFINITIONS) as JsonEditorPageId[]).filter((page) => page !== 'misc-config');
 const key = (session: string, kind: string, id: string) => [session, kind, id].join(':');
 function manifest(session = 's1', root = 'M:/one') {
@@ -222,8 +238,10 @@ async function mountPage(page: JsonEditorPageId, root = 'M:/one', input: Compone
   await flushPromises();
 }
 const nameInput = () => wrapper!.get<HTMLInputElement>('.schema-section input');
-function savedFile(session: string, root: string, id: string, data: RowData, previous: string | null, relPath: string) {
-  const kind = relPath.endsWith('.skin') ? 'skin' : 'variant',
+function savedFile(write: JsonFileSave) {
+  const { sessionId: session, modRoot: root, nextId: id, previousId: previous, relPath } = write;
+  const data = projectJsonValue(write.document.content) as RowData;
+  const kind = relPath!.endsWith('.skin') ? 'skin' : 'variant',
     before = entities.get(key(session, kind, previous ?? id))!;
   const after = jsonEntityFixture(kind, id, 'Written', root);
   after.data = data;
@@ -237,7 +255,7 @@ function savedFile(session: string, root: string, id: string, data: RowData, pre
     ...receipt,
     content: {
       target: { kind: 'json', origin: { kind: 'entity', target: { kind, id, relPath: after.target.write.relPath } } },
-      value: { data },
+      value: { data, document: jsonFileFixture(data) },
     },
   };
 }
@@ -253,14 +271,20 @@ beforeEach(() => {
   mocks.list.mockImplementation(async (session: string, kind: string) =>
     [...entities.entries()]
       .filter(([id]) => id.startsWith(session + ':' + kind + ':'))
-      .map(([, entity]) => (entity.kind === 'mission' ? { ...entity, data: { list: (entity.data as RowData).list! } } : entity)),
+      .map(([, entity]) => ({
+        ...entity,
+        document: null,
+        ...(entity.kind === 'mission' ? { data: { list: (entity.data as RowData).list! } } : {}),
+      })),
   );
   mocks.read.mockImplementation(async (session: string, kind: string, id: string) => entities.get(key(session, kind, id)) ?? null);
   mocks.saveFile.mockImplementation(async (...args: Parameters<typeof savedFile>) => savedFile(...args));
   mocks.saveIndexed.mockImplementation(async (write: IndexedConfigSave) => {
     const before = entities.get(key(write.sessionId, write.kind, write.previousId!))!,
       after = jsonEntityFixture(write.kind, write.nextId, 'Written', write.modRoot);
-    after.data = write.kind === 'faction' ? write.entityData.file! : { ...write.entityData, list: write.indexRow };
+    const file = projectJsonValue(write.document.content) as RowData;
+    const entityData: RowData = write.kind === 'faction' ? { file } : { descriptor: file, text: write.text };
+    after.data = write.kind === 'faction' ? file : { ...entityData, list: write.indexRow };
     const receipt = savedWriteFixture();
 
     receipt.baseVersions = after.baseVersions;
@@ -278,7 +302,8 @@ beforeEach(() => {
           entityId: write.nextId,
           indexPath: write.modRoot + (write.kind === 'faction' ? '/data/world/factions/factions.csv' : '/data/missions/mission_list.csv'),
           indexHeader: [],
-          entityData: write.entityData,
+          entityData,
+          document: jsonFileFixture(file),
           indexRows: [{ data: write.indexRow, isComment: false }],
         },
       },
@@ -295,6 +320,7 @@ beforeEach(() => {
         return {
           request,
           missingPaths: [],
+          documents: { [entity.kind === 'mission' ? 'descriptor' : 'file']: entity.document! },
           baseVersions: entity.baseVersions,
           currentSources:
             entity.kind === 'mission'
@@ -304,7 +330,14 @@ beforeEach(() => {
         };
       }
       const source = useProjectStore().getManifest(request.modRoot)!;
-      return { request, missingPaths: [], baseVersions: source.baseVersions, currentSources: { file: source.modInfo! }, resourceRefs: {} };
+      return {
+        request,
+        missingPaths: [],
+        documents: { file: jsonFileFixture(source.modInfo!) },
+        baseVersions: source.baseVersions,
+        currentSources: { file: source.modInfo! },
+        resourceRefs: {},
+      };
     },
   );
   mocks.feedback.choose.mockImplementation(async (options) => options.choices[0]?.value ?? null);
@@ -801,10 +834,12 @@ describe('JSON common workspace and form', () => {
     expect(actions[0]?.text()).toBe('沉浸式编辑器');
     await actions[0]!.trigger('click');
     await flushPromises();
-    expect(mocks.openImmersive).toHaveBeenCalledExactlyOnceWith(
-      { sessionId: 's1', modRoot: 'M:/one', kind: page === 'skins' ? 'skin' : 'variant', id: 'a' },
-      mocks.feedback,
-    );
+    expect(mocks.openImmersive).toHaveBeenCalledExactlyOnceWith({
+      sessionId: 's1',
+      modRoot: 'M:/one',
+      kind: page === 'skins' ? 'skin' : 'variant',
+      id: 'a',
+    });
   });
   it.each(['factions', 'mission'] as const)('%s keeps the immersive action hidden', async (page) => {
     await mountPage(page);
@@ -870,7 +905,7 @@ describe('JSON common workspace and form', () => {
     await flushPromises();
     expect(useWorkspaceStore().currentView).toBe('json-editor');
     expect(useWorkspaceStore().entityLocation).toBeNull();
-    expect(mocks.feedback.info).toHaveBeenCalledExactlyOnceWith('船体「hull」来自' + (source === 'core' ? '原版' : '其他 Mod') + '。', {
+    expect(mocks.feedback.info).toHaveBeenCalledExactlyOnceWith('船体 "hull" 来自' + (source === 'core' ? '原版' : '其他 Mod') + '。', {
       paths: ['M:/one', 'M:/game/data/hulls/ship_data.csv'],
     });
   });
@@ -933,6 +968,7 @@ describe('JSON common workspace and form', () => {
     mocks.miscRead.mockImplementation(async () => ({
       ...stringsFile,
       data: definition.initial,
+      document: jsonFileFixture(definition.initial),
       baseVersions: [{ path, fingerprint: 'created' }],
     }));
     mocks.prepare.mockImplementation(async (request) => ({
@@ -940,16 +976,17 @@ describe('JSON common workspace and form', () => {
       baseVersions: [{ path, fingerprint: null }],
       missingPaths: saved ? [] : [definition.path],
       currentSources: {},
+      documents: {},
       resourceRefs: {},
     }));
     mocks.miscSave.mockImplementation(async () => {
       saved = true;
-      return { ...savedWriteFixture() };
+      return { ...savedWriteFixture(jsonFileFixture(definition.initial)) };
     });
     await mountPage('misc-config');
     await wrapper!.get('.empty-state button').trigger('click');
     await flushPromises();
-    expect(mocks.miscSave.mock.lastCall![0]).toMatchObject({ data: definition.initial, orderedJson: JSON.stringify(definition.initial) });
+    expect(projectJsonValue(mocks.miscSave.mock.lastCall![0].document.content)).toEqual(definition.initial);
     const doc = wrapper!.getComponent(JsonDocumentEditor).props('document');
     expect(doc.schema.value.id).toBe('faction');
     expect(doc.draftValue.value).toEqual({ file: definition.initial });
@@ -996,11 +1033,12 @@ describe('JSON common workspace and form', () => {
       baseVersions: [{ path, fingerprint: exists ? 'v1' : null }],
       missingPaths: exists ? [] : ['data/strings/strings.json'],
       currentSources: {},
+      documents: {},
       resourceRefs: {},
     }));
     mocks.miscSave.mockImplementation(async () => {
       exists = true;
-      return { ...savedWriteFixture(), baseVersions: [{ path, fingerprint: 'v1' }] };
+      return { ...savedWriteFixture(jsonFileFixture({})), baseVersions: [{ path, fingerprint: 'v1' }] };
     });
     mocks.miscDelete.mockImplementation(async () => {
       exists = false;
@@ -1127,7 +1165,12 @@ describe('JSON common workspace and form', () => {
       expect(docA.dirty.value).toBe(false);
       expect((nameInput().element as HTMLInputElement).value).toBe('B draft');
       if (page === 'variants' || page === 'skins')
-        expect(mocks.saveFile.mock.lastCall!).toMatchObject({ 0: 's1', 1: 'M:/one', 2: 'a', 7: baseline.baseVersions });
+        expect(mocks.saveFile.mock.lastCall![0]).toMatchObject({
+          sessionId: 's1',
+          modRoot: 'M:/one',
+          nextId: 'a',
+          baseVersions: baseline.baseVersions,
+        });
       else
         expect(mocks.saveIndexed.mock.lastCall![0]).toMatchObject({
           sessionId: 's1',
@@ -1277,6 +1320,7 @@ describe('JSON common workspace and form', () => {
         request,
         baseVersions: [],
         currentSources: {},
+        documents: {},
         resourceRefs: {},
         missingPaths: request.origin.kind === 'entity' && request.origin.target.id === 'a' ? ['source.json'] : [],
       }));
@@ -1306,7 +1350,7 @@ describe('JSON common workspace and form', () => {
     entities.delete(key('s1', kind, 'a'));
     mocks.prepare.mockImplementation(async (request: JsonRecoveryRequest) =>
       request.origin.kind === 'entity' && request.origin.target.id === 'a'
-        ? { request, baseVersions: [], currentSources: {}, resourceRefs: {}, missingPaths: ['source.json'] }
+        ? { request, baseVersions: [], currentSources: {}, documents: {}, resourceRefs: {}, missingPaths: ['source.json'] }
         : prepare(request),
     );
     void projectChangeFixture('s1', {
@@ -1443,7 +1487,16 @@ describe('composed JSON detail adoption', () => {
     const data = miscConfigFixture(definition.kind);
     const path = 'M:/one/' + definition.path;
     const baseVersions = [{ path, fingerprint: 'local' }];
-    const file = { kind: definition.kind, path, relPath: definition.path, data, baseVersions };
+    const file = {
+      kind: definition.kind,
+      path,
+      relPath: definition.path,
+      data,
+      baseVersions,
+      get document() {
+        return jsonFileFixture(file.data);
+      },
+    };
     const composition = {
       replace: false,
       excluded: [],
@@ -1460,12 +1513,16 @@ describe('composed JSON detail adoption', () => {
       request,
       baseVersions,
       currentSources: { file: file.data },
+      documents: { file: file.document },
       missingPaths: [],
       resourceRefs: {},
     }));
     mocks.miscSave.mockImplementation(async (input) => {
-      file.data = input.data as RowData;
-      return { ...savedWriteFixture(file.data, { kind: 'json', origin: { kind: 'miscConfig', file: definition.kind } }), baseVersions };
+      file.data = projectJsonValue(input.document.content) as RowData;
+      return {
+        ...savedWriteFixture(jsonFileFixture(file.data), { kind: 'json', origin: { kind: 'miscConfig', file: definition.kind } }),
+        baseVersions,
+      };
     });
     await mountPage('misc-config');
     wrapper!.getComponent(JsonDocumentList).vm.$emit('select', definition.kind);
@@ -1490,7 +1547,7 @@ describe('composed JSON detail adoption', () => {
     await flushPromises();
     expect(wrapper!.getComponent(JsonDocumentEditor).props('document').problems.issues.value).toEqual([]);
     expect((await doc.save()).status).toBe('saved');
-    expect(mocks.miscSave.mock.lastCall![0].data).toEqual(updated);
+    expect(projectJsonValue(mocks.miscSave.mock.lastCall![0].document.content)).toEqual(updated);
     expect(doc.dirty.value).toBe(false);
     const navigation = useWorkspaceNavigationActions();
     navigation.showSettings();
@@ -1516,7 +1573,10 @@ describe('composed JSON detail adoption', () => {
     expect(wrapper!.get('.editor-fields > .ui-text-muted').text()).toBe('待组合文件');
     await nameInput().setValue('Saved override');
     expect((await doc.save()).status).toBe('saved');
-    expect(mocks.saveIndexed.mock.lastCall![0].entityData.file).toEqual({ knownShips: {}, displayName: 'Saved override' });
+    expect(projectJsonValue(mocks.saveIndexed.mock.lastCall![0].document.content)).toEqual({
+      knownShips: {},
+      displayName: 'Saved override',
+    });
     expect(mocks.feedback.choose).not.toHaveBeenCalled();
     expect(doc.dirty.value).toBe(false);
     expect(renderer.props('runtimeContext')!.composition).toBeDefined();

@@ -1,10 +1,12 @@
 import { entityTargetFixture } from '@/test/fixtures/entity-target';
+import { jsonFileFixture } from '@/test/fixtures/json-file';
 import { describe, expect, it } from 'vitest';
 import type { JsonEntityFile } from '@/shared/types';
 import { jsonFileCompanion, jsonFileTitle, skinFileDefinition, variantFileDefinition } from './json-file-definitions';
 
 function variantFixture(overrides: Partial<JsonEntityFile> = {}): JsonEntityFile {
   return {
+    document: jsonFileFixture(overrides.data ?? { variantId: 'v1', hullId: 'h1' }),
     baseVersions: [],
     target: entityTargetFixture('variant', 'v1'),
     id: 'v1',
@@ -17,6 +19,7 @@ function variantFixture(overrides: Partial<JsonEntityFile> = {}): JsonEntityFile
 
 function skinFixture(overrides: Partial<JsonEntityFile> = {}): JsonEntityFile {
   return {
+    document: jsonFileFixture(overrides.data ?? { skinHullId: 'sk1', baseHullId: 'h1' }),
     baseVersions: [],
     target: entityTargetFixture('skin', 'sk1'),
     id: 'sk1',

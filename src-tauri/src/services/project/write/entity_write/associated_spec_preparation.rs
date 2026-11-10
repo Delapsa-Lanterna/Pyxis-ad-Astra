@@ -1,67 +1,83 @@
 use crate::domain::entity_definitions;
 use crate::errors::{AppError, AppResult};
-use crate::io::{FsRootBoundary, read_versioned_bytes};
-use crate::models::*;
+use crate::io::{self, FsRootBoundary};
+use crate::models::file_content::JsonSource;
+use crate::models::file_value::Value;
+use crate::models::{
+    AssociatedSpecChange, AssociatedSpecFile, AssociatedSpecPreparation, CsvTableKey,
+    EntityFileLocation, FileVersion, ResourceSource, windows_path_key,
+};
+use crate::parsers::game;
 use crate::services::project::query::entity_targets::describe_entity_target;
 use crate::services::project::session::{lock_ready_session, session_handle};
-
 use crate::services::project::sources::{SourceReader, core, documents};
 #[cfg(test)]
 use crate::test_support::work_counts;
-use crate::{io, models, parsers};
-use serde_json::Value;
 use std::collections::BTreeMap;
+use std::iter;
 use std::path::Path;
-use std::{iter, slice};
+use std::slice;
+use std::sync::Arc;
 
-type AssociatedSpecReads = BTreeMap<String, (FileVersion, Result<Value, String>)>;
 #[cfg(test)]
 #[path = "associated_spec_preparation_tests.rs"]
 mod tests;
-
-fn read_associated_spec_once(
-    location: &EntityFileLocation,
-    reads: &mut AssociatedSpecReads,
-) -> AppResult<()> {
-    if reads.contains_key(&windows_path_key(&location.path)) {
+type Reads = BTreeMap<String, (FileVersion, Result<Arc<JsonSource>, String>)>;
+fn identifier(source: &JsonSource, field: &str, path: &Path) -> String {
+    source
+        .content
+        .get(field)
+        .and_then(|value| {
+            if let Value::Text(value) = value {
+                value.as_str()
+            } else {
+                None
+            }
+        })
+        .filter(|value| !value.is_empty())
+        .map(str::to_owned)
+        .unwrap_or_else(|| {
+            path.file_stem()
+                .expect("file name")
+                .to_string_lossy()
+                .into_owned()
+        })
+}
+fn read_once(location: &EntityFileLocation, reads: &mut Reads) -> AppResult<()> {
+    let key = windows_path_key(&location.path);
+    if reads.contains_key(&key) {
         return Ok(());
     }
-    let boundary = FsRootBoundary::new(Path::new(&location.root), "associated source")?;
-    let path = boundary.resolve_relative_target(&location.rel_path, "associated file")?;
-    let (version, value) = if path.exists() {
-        let (version, bytes) = read_versioned_bytes(&path)?;
-        let value = io::decode_text(&path, &bytes)
-            .and_then(|text| {
-                #[cfg(test)]
-                work_counts::record("parse", &path);
-                parsers::parse_starsector_json(&text)
-            })
-            .map_err(|error| error.to_string());
-        (version, value)
+    let path = FsRootBoundary::new(Path::new(&location.root), "associated root")?
+        .resolve_relative_target(&location.rel_path, "associated file")?;
+    let record = if path.exists() {
+        let (version, bytes) = io::read_versioned_bytes(&path)?;
+        #[cfg(test)]
+        work_counts::record("parse", &path);
+        (
+            version,
+            game::read_json(&bytes)
+                .map(Arc::new)
+                .map_err(|error| error.error.to_string()),
+        )
     } else {
         (io::file_version(&path)?, Err("文件不存在".into()))
     };
-    reads.insert(windows_path_key(&location.path), (version, value));
+    reads.insert(key, record);
     Ok(())
 }
-
-fn prepare_associated_spec_file(
+fn describe(
     location: EntityFileLocation,
     id: &str,
     field: &str,
-    reads: &mut AssociatedSpecReads,
+    reads: &mut Reads,
 ) -> AppResult<AssociatedSpecFile> {
-    read_associated_spec_once(&location, reads)?;
-    let (version, value) = &reads[&windows_path_key(&location.path)];
-    let problem = match value {
-        Ok(value)
-            if value.is_object()
-                && models::file_content_id(value, field, Path::new(&location.path)) == id =>
-        {
-            None
-        }
-        Ok(_) => Some(format!("文件内容或 ID 与 {id} 不符")),
-        Err(problem) => Some(problem.clone()),
+    read_once(&location, reads)?;
+    let (version, source) = &reads[&windows_path_key(&location.path)];
+    let problem = match source {
+        Ok(source) if identifier(source, field, Path::new(&location.path)) == id => None,
+        Ok(_) => Some(format!("文件内容 ID 与 {id} 不符")),
+        Err(error) => Some(error.clone()),
     };
     Ok(AssociatedSpecFile {
         location,
@@ -69,99 +85,91 @@ fn prepare_associated_spec_file(
         problem,
     })
 }
-
+fn location(root: &str, relative: String) -> EntityFileLocation {
+    EntityFileLocation {
+        reference: None,
+        source: ResourceSource::Mod,
+        path: Path::new(root)
+            .join(&relative)
+            .to_string_lossy()
+            .into_owned(),
+        root: root.into(),
+        rel_path: relative,
+    }
+}
 pub fn prepare_csv_associated_specs(
     session_id: &str,
     table: CsvTableKey,
     changes: &[AssociatedSpecChange],
 ) -> AppResult<Vec<AssociatedSpecPreparation>> {
-    let handle = session_handle(session_id)?;
-    let mut session = lock_ready_session(&handle)?;
     let definition = entity_definitions::associated_spec_definition(table)
         .ok_or_else(|| AppError::message("table.no_associated_spec", "该表没有关联规格"))?;
+    let handle = session_handle(session_id)?;
+    let mut session = lock_ready_session(&handle)?;
     let root = session.manifest.mod_root.clone();
-    let mut reads = AssociatedSpecReads::new();
-    let mut local = BTreeMap::new();
-    let known: BTreeMap<_, _> = session
+    let mut reader = SourceReader::for_session(Path::new(&root))?;
+    let known = session
         .spec_records(definition.entity_kind)
-        .expect("associated format")
+        .expect("associated records")
         .values()
         .map(|record| (windows_path_key(&record.location.path), record.id.clone()))
-        .collect();
-    let mut sources = SourceReader::for_session(Path::new(&root))?;
-    let mut paths = Vec::new();
+        .collect::<BTreeMap<_, _>>();
+    let mut reads = Reads::new();
+    let mut local = BTreeMap::new();
     for directory in definition.source_dirs() {
-        paths.extend(sources.files(directory)?);
-    }
-    paths.sort();
-    for path in paths.into_iter().filter(|path| {
-        path.extension().and_then(|ext| ext.to_str()) == Some(definition.extension_without_dot())
-    }) {
-        let location = EntityFileLocation {
-            root: root.clone(),
-            rel_path: sources.key(&path),
-            path: path.to_string_lossy().into(),
-            source: ResourceSource::Mod,
-            reference: None,
-        };
-        let id = if let Some(id) = known.get(&windows_path_key(&location.path)) {
-            Some(id.clone())
-        } else {
-            read_associated_spec_once(&location, &mut reads)?;
-            reads[&windows_path_key(&location.path)]
-                .1
-                .as_ref()
-                .ok()
-                .filter(|value| value.is_object())
-                .map(|value| models::file_content_id(value, definition.id_field, &path))
-        };
-        if let Some(id) = id {
-            local.insert(id, location);
+        for path in reader.files(directory)?.into_iter().filter(|path| {
+            path.extension().and_then(|v| v.to_str()) == Some(definition.extension_without_dot())
+        }) {
+            let file = location(&root, reader.key(&path));
+            let id = if let Some(id) = known.get(&windows_path_key(&file.path)) {
+                Some(id.clone())
+            } else {
+                read_once(&file, &mut reads)?;
+                reads[&windows_path_key(&file.path)]
+                    .1
+                    .as_ref()
+                    .ok()
+                    .map(|source| identifier(source, definition.id_field, &path))
+            };
+            if let Some(id) = id {
+                local.insert(id, file);
+            }
         }
     }
-    let core = if changes.iter().any(|change| match change {
+    let needs_core = changes.iter().any(|change| match change {
         AssociatedSpecChange::Rename { previous_id, .. } => {
             !local.contains_key(previous_id)
                 && !session
                     .spec_records(definition.entity_kind)
-                    .expect("associated format")
+                    .expect("associated records")
                     .contains_key(previous_id)
                 && session
                     .reference_spec(definition.entity_kind, previous_id)
                     .is_none()
         }
         _ => false,
-    }) {
-        session
-            .manifest
-            .starsector_root
-            .as_ref()
-            .map(|game| {
-                let root = core::core_dir(game)?;
-                let mut reader = SourceReader::new(&root)?;
-                let records = documents::load_spec_records_from(
-                    &mut reader,
-                    definition.source_dirs(),
-                    definition.extension_without_dot(),
-                    definition.id_field,
-                    ResourceSource::Core,
-                )?;
-                for record in records.values() {
-                    reads.insert(
-                        windows_path_key(&record.location.path),
-                        (
-                            reader.versions[&record.location.rel_path].clone(),
-                            Ok(record.data.clone()),
-                        ),
-                    );
-                }
-                Ok::<_, AppError>(records)
-            })
-            .transpose()?
-            .unwrap_or_default()
-    } else {
-        BTreeMap::new()
-    };
+    });
+    let mut core_records = BTreeMap::new();
+    if needs_core && let Some(game) = &session.manifest.starsector_root {
+        let root = core::core_dir(game)?;
+        let mut reader = SourceReader::new(&root)?;
+        core_records = documents::load_spec_records_from(
+            &mut reader,
+            definition.source_dirs(),
+            definition.extension_without_dot(),
+            definition.id_field,
+            ResourceSource::Core,
+        )?;
+        for record in core_records.values() {
+            reads.insert(
+                windows_path_key(&record.location.path),
+                (
+                    reader.versions[&record.location.rel_path].clone(),
+                    Ok(record.document.clone()),
+                ),
+            );
+        }
+    }
     changes
         .iter()
         .map(|change| {
@@ -170,33 +178,21 @@ pub fn prepare_csv_associated_specs(
                 _ => change.id(),
             };
             let info = describe_entity_target(&mut session, definition.entity_kind, id)?;
-            let target = info.target;
             let original = if matches!(change, AssociatedSpecChange::Rename { .. }) {
-                let fallback = EntityFileLocation {
-                    path: Path::new(&root)
-                        .join(definition.default_rel_path(id))
-                        .to_string_lossy()
-                        .into(),
-                    root: root.clone(),
-                    rel_path: definition.default_rel_path(id),
-                    source: ResourceSource::Mod,
-                    reference: None,
-                };
-                local
+                let original = local
                     .get(id)
                     .cloned()
-                    .or_else(|| target.source.clone())
-                    .or_else(|| core.get(id).map(|record| record.location.clone()))
-                    .or(Some(fallback))
-                    .map(|location| {
-                        prepare_associated_spec_file(location, id, definition.id_field, &mut reads)
-                    })
-                    .transpose()?
+                    .or_else(|| info.target.source.clone())
+                    .or_else(|| core_records.get(id).map(|record| record.location.clone()))
+                    .unwrap_or_else(|| location(&root, definition.default_rel_path(id)));
+                Some(describe(original, id, definition.id_field, &mut reads)?)
             } else {
                 None
             };
-            let relative = if let Some(source) = &original {
-                if source.location.source == ResourceSource::Mod {
+            let relative = original
+                .as_ref()
+                .filter(|source| source.location.source == ResourceSource::Mod)
+                .map(|source| {
                     io::forward_slash_path(
                         &Path::new(&source.location.rel_path).with_file_name(format!(
                             "{}{}",
@@ -204,55 +200,38 @@ pub fn prepare_csv_associated_specs(
                             definition.extension
                         )),
                     )
-                } else {
-                    definition.default_rel_path(change.id())
-                }
-            } else {
-                definition.default_rel_path(change.id())
-            };
-            let destination =
-                local
-                    .get(change.id())
-                    .cloned()
-                    .unwrap_or_else(|| EntityFileLocation {
-                        path: Path::new(&root).join(&relative).to_string_lossy().into(),
-                        root: root.clone(),
-                        rel_path: relative,
-                        source: ResourceSource::Mod,
-                        reference: None,
-                    });
-            let destination = prepare_associated_spec_file(
-                destination,
-                change.id(),
-                definition.id_field,
-                &mut reads,
-            )?;
-            let mut base_versions = info.base_versions;
+                })
+                .unwrap_or_else(|| definition.default_rel_path(change.id()));
+            let destination = local
+                .get(change.id())
+                .cloned()
+                .unwrap_or_else(|| location(&root, relative));
+            let destination = describe(destination, change.id(), definition.id_field, &mut reads)?;
+            let mut versions = info.base_versions;
             for file in original
                 .iter()
                 .filter(|file| file.location.source == ResourceSource::Mod)
                 .chain(iter::once(&destination))
             {
-                base_versions.retain(|version| {
+                versions.retain(|version| {
                     windows_path_key(&version.path) != windows_path_key(&file.version.path)
                 });
-                base_versions.push(file.version.clone());
+                versions.push(file.version.clone());
             }
             Ok(AssociatedSpecPreparation {
-                target,
-                base_versions,
+                target: info.target,
+                base_versions: versions,
                 original,
                 destination,
             })
         })
         .collect()
 }
-
 pub(in crate::services::project) fn verify_associated_spec_file(
     file: &AssociatedSpecFile,
 ) -> AppResult<()> {
-    let boundary = FsRootBoundary::new(Path::new(&file.location.root), "associated source")?;
-    let path = boundary.resolve_relative_target(&file.location.rel_path, "associated file")?;
+    let path = FsRootBoundary::new(Path::new(&file.location.root), "associated source")?
+        .resolve_relative_target(&file.location.rel_path, "associated file")?;
     if !io::same_physical_path(&path, Path::new(&file.location.path))
         || !io::same_physical_path(&path, Path::new(&file.version.path))
     {

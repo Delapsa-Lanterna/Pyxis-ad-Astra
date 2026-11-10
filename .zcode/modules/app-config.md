@@ -17,9 +17,12 @@
 ### 消费
 
 - `src-tauri/src/app_data_dir.rs`：工具私有数据目录的公共解析能力。
+- `src/app/composables/use-app-feedback.ts`：窗口反馈的提供与消费入口。
+
+### 装配
+
 - `src/app/components/SettingsPage.vue`：设置页面的目录打开入口。
 - `src/app/composables/settings/use-settings-view-model.ts`：设置页消费配置维护动作。
-- `src/app/composables/use-app-feedback.ts`：窗口反馈的提供与消费入口。
 
 ## 边界
 
@@ -39,8 +42,8 @@
 
 ## 规范
 
-- 工具数据目录必须消费 app_data_dir 的 data_directory 解析。
+- 工具数据目录消费 app_data_dir 的 data_directory 解析。
 - 打开失败必须保留原始诊断并由所属窗口呈现一次错误。
 - 打开目录必须先创建缺失目录，再调用系统打开能力。
-- Windows 路径打开必须通过 Explorer 进入目录或定位文件，文件目标使用 `/select,`。
-- Windows 打开结果必须以 Explorer 启动是否成功为准；macOS 与 Linux 以打开程序的退出状态判定。
+- Windows 路径打开通过 Explorer 进入目录或定位文件，文件目标使用 `/select,`。
+- Windows 打开结果以 Explorer 启动是否成功为准；macOS 与 Linux 以打开程序的退出状态判定。

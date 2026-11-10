@@ -29,7 +29,7 @@ fn version_from_path(
     known: &[FileVersion],
 ) -> AppResult<FileVersion> {
     let fingerprint = if path.is_file() {
-        let bytes = fs::read(path)?;
+        let bytes = fs::read(path).map_err(|error| AppError::from(error).at_path(path))?;
         #[cfg(test)]
         csv_files::record_csv_disk_read(path);
         Some(fingerprint(&bytes))
@@ -57,7 +57,8 @@ fn version_from_path(
                                 .clone()
                                 .expect("existing source has a fingerprint")
                         } else {
-                            let bytes = fs::read(entry.path())?;
+                            let bytes = fs::read(entry.path())
+                                .map_err(|error| AppError::from(error).at_path(entry.path()))?;
                             #[cfg(test)]
                             csv_files::record_csv_disk_read(entry.path());
                             fingerprint(&bytes)

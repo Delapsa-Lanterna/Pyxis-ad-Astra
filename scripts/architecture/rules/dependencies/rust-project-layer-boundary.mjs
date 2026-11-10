@@ -99,6 +99,10 @@ export const rustProjectLayerBoundaryRule = defineRule(
           from === 'project-write' && parts.slice(0, 4).join('::') === 'services::project::resources::entity_references';
         const sourceLayersRead =
           from === 'services' && reference === 'crate::services::project::query::json_layers::query_json_composition';
+        const fileTargetRead =
+          from === 'services' && reference === 'crate::services::project::query::entity_targets::query_file_entity_target';
+        const schemaNumber = modulePath.join('::') === 'domain::schema' && parts.slice(0, 3).join('::') === 'parsers::game::number';
+        const saveDispatch = modulePath.join('::') === 'services::project_save' && to === 'project-write';
         const mediaLifecycle =
           (modulePath.join('::') === 'services::app_lifecycle' &&
             reference === 'crate::services::project::resources::media_cache::configure_media_cache') ||
@@ -127,10 +131,14 @@ export const rustProjectLayerBoundaryRule = defineRule(
             'crate::services::project::session::source_versions::source_reader_for_session',
             'crate::services::project::session::source_versions::retain_session_sources',
             'crate::services::project::session::source_versions::capture_changed_versions',
+            'crate::services::project::session::source_versions',
           ].includes(reference);
         if (
           !committedResourceReferences &&
           !sourceLayersRead &&
+          !fileTargetRead &&
+          !schemaNumber &&
+          !saveDispatch &&
           !mediaLifecycle &&
           !historyCommand &&
           !historyScope &&

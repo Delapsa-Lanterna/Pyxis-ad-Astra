@@ -1,9 +1,13 @@
+import { jsonFileFixture } from '@/test/fixtures/json-file';
+import { projectJsonValue } from '@/domain/json-document';
+import { requireRowData } from '@/shared/lib/row-data';
+import type { JsonFileContent } from '@/shared/types';
 import SchemaReferenceInput from '@/app/components/field-editor/SchemaReferenceInput.vue';
 import SchemaValueInput from '@/app/components/field-editor/SchemaValueInput.vue';
 import type * as SpecEditorServiceModule from '@/services/spec-editor.service';
 import { selectDialogOption } from '@/test/unit/dialog-text';
 import { chooseEntityFilename } from '@/orchestrators/entity-write.orchestrator';
-import { savedWriteFixture } from '@/test/fixtures/write-result';
+import { savedWriteFixture, sessionUpdateFixture } from '@/test/fixtures/write-result';
 import { projectChangeFixture, savedContentWorks } from '@/test/unit/project-changes';
 import { entityTargetFixture } from '@/test/fixtures/entity-target';
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
@@ -33,7 +37,7 @@ vi.mock('@/services/window.service', () => ({ releaseNativeWindowTargets: vi.fn(
 const mocks = vi.hoisted(() => ({
   identityHandler: null as null | ((event: CommittedWriteEvent) => Promise<void>),
   querySpecEditorData: vi.fn(),
-  saveSpecEditorSpecByKind: vi.fn<typeof SpecEditorServiceModule.saveSpecEditorSpecByKind>(),
+  saveSpecEditorSpec: vi.fn<typeof SpecEditorServiceModule.saveSpecEditorSpec>(),
   loadSpecEditorImport: vi.fn<typeof SpecEditorServiceModule.loadSpecEditorImport>(),
   refreshBundleResources: vi.fn(),
   queryDraftEditorImages: vi.fn(),
@@ -53,7 +57,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@/services/spec-editor.service', () => ({
   loadSpecEditorImport: mocks.loadSpecEditorImport,
-  saveSpecEditorSpecByKind: mocks.saveSpecEditorSpecByKind,
+  saveSpecEditorSpec: mocks.saveSpecEditorSpec,
 }));
 vi.mock('@/services/spec-ship-editor.service', () => ({
   querySpecShipEditorData: vi.fn(),
@@ -91,8 +95,7 @@ vi.mock('@/orchestrators/spec-editor-identity.orchestrator', () => ({
 vi.mock('@/orchestrators/project-sync.orchestrator', async () => ({
   ...(await import('@/test/unit/project-changes')),
   beginSavedWrite: (await import('@/test/unit/project-changes')).withSavedCompletion((value) => {
-    const snapshot = value as { target: { modRoot: string; sessionId: string | null }; meta: { receipt: unknown } };
-    return mocks.publishCommittedWrite(snapshot.target.modRoot, snapshot.meta.receipt, snapshot.target.sessionId);
+    return mocks.publishCommittedWrite('M:/mod', value, 's1');
   }),
   publishCommittedWrite: mocks.publishCommittedWrite,
   listenSavedIdentity: vi.fn(async (handler) => {
@@ -103,11 +106,6 @@ vi.mock('@/orchestrators/project-sync.orchestrator', async () => ({
 
 vi.mock('@/app/composables/use-app-feedback', () => ({
   useAppFeedback: () => mocks.feedback,
-}));
-
-vi.mock('@/orchestrators/json-write-confirmation.orchestrator', () => ({
-  runConfirmedJsonWrite: (_feedback: unknown, write: (options: unknown) => Promise<unknown>) =>
-    write({ preserveOriginalJson: true, confirmedSources: [] }),
 }));
 
 vi.mock('@/shared/runtime/dialog.runtime', () => ({
@@ -128,7 +126,11 @@ import { formatError } from '@/shared/lib/errors';
 import { useSaveCommandStore } from '@/stores/save-command.store';
 import type { AppFeedback, JsonComposition, CommittedWriteEvent } from '@/shared/types/index';
 
-function shipBundleFixture(isNew = false): SpecEditorData<'ship'> {
+type SpecFixture<K extends SpecEditorKind = SpecEditorKind> = Omit<SpecEditorData<K>, 'document'>;
+function submittedSpec(): RowData {
+  return requireRowData(projectJsonValue(mocks.saveSpecEditorSpec.mock.lastCall![0].document.content), 'spec fixture');
+}
+function shipBundleFixture(isNew = false): SpecFixture<'ship'> {
   return {
     baseVersions: [],
     target: entityTargetFixture('ship', 'XY', isNew ? 'create' : 'existing'),
@@ -138,11 +140,13 @@ function shipBundleFixture(isNew = false): SpecEditorData<'ship'> {
   };
 }
 
-function writeResultFixture(refreshedEntity: RowData = { hullId: 'XY' }): WriteResult {
+function writeResultFixture(refreshedEntity: RowData = { hullId: 'XY' }): WriteResult<JsonFileContent> {
   return {
     ...savedWriteFixture(),
+    sessionUpdates: [sessionUpdateFixture('s1', 'M:/mod')],
+    baseVersions: [{ path: 'M:/mod/data/hulls/XY.ship', fingerprint: 'saved' }],
     identityChanges: [{ before: entityTargetFixture('ship', 'XY'), after: entityTargetFixture('ship', 'XY') }],
-    content: { target: { kind: 'spec', target: entityTargetFixture('ship', 'XY') }, value: refreshedEntity },
+    content: { target: { kind: 'spec', target: entityTargetFixture('ship', 'XY') }, value: jsonFileFixture(refreshedEntity) },
   };
 }
 
@@ -152,12 +156,12 @@ function savedSpecChange(event: {
   modRoot: string;
   id: string;
   spec: RowData;
-  writeResult?: WriteResult;
+  writeResult?: WriteResult<JsonFileContent>;
 }) {
   const target = entityTargetFixture(event.kind, event.id, 'existing', event.modRoot);
   const result = {
     ...(event.writeResult ?? writeResultFixture()),
-    content: { target: { kind: 'spec' as const, target }, value: event.spec },
+    content: { target: { kind: 'spec' as const, target }, value: jsonFileFixture(event.spec) },
     baseVersions: event.writeResult?.baseVersions.length
       ? event.writeResult.baseVersions
       : [{ path: target.write.path, fingerprint: 'saved' }],
@@ -190,7 +194,10 @@ function createViewModel(kind: SpecEditorKind = 'ship', validate = false) {
       {
         ...definition,
         validate: validate ? definition.validate : undefined,
-        read: (session, id, signal) => mocks.querySpecEditorData(session, kind, id, signal),
+        read: async (session, id, signal) => {
+          const data: SpecFixture = await mocks.querySpecEditorData(session, kind, id, signal);
+          return { ...data, document: data.isNew ? null : jsonFileFixture(data.spec) };
+        },
       },
     );
     const images =
@@ -222,7 +229,7 @@ function createViewModel(kind: SpecEditorKind = 'ship', validate = false) {
   releases.push(result.disposeEditorWindow);
   return result;
 }
-async function initializedViewModel(kind: SpecEditorKind = 'ship', bundle: SpecEditorData = shipBundleFixture()) {
+async function initializedViewModel(kind: SpecEditorKind = 'ship', bundle: SpecFixture = shipBundleFixture()) {
   mocks.querySpecEditorData.mockResolvedValue(bundle);
   const viewModel = createViewModel(kind);
   await viewModel.initializeEditorWindow();
@@ -330,13 +337,13 @@ describe.each(['ship', 'weapon', 'projectile', 'system'] as const)('%s composed 
         await flushPromises();
         expect(vm.draftValue.value[field]).toBe(next);
       }
-      mocks.saveSpecEditorSpecByKind.mockImplementationOnce(async (_session, _root, _target, draft) => ({
-        ...writeResultFixture(draft),
+      mocks.saveSpecEditorSpec.mockImplementationOnce(async (write) => ({
+        ...writeResultFixture(requireRowData(projectJsonValue(write.document.content), 'spec fixture')),
         identityChanges: [{ before: target, after: target }],
       }));
       await vm.saveEditorData();
-      expect(mocks.saveSpecEditorSpecByKind.mock.lastCall![3]).toEqual(vm.draftValue.value);
-      expect(mocks.saveSpecEditorSpecByKind.mock.lastCall![3][field]).toBe(next);
+      expect(submittedSpec()).toEqual(vm.draftValue.value);
+      expect(submittedSpec()[field]).toBe(next);
       expect(mocks.feedback.error).not.toHaveBeenCalled();
     } finally {
       wrapper.unmount();
@@ -389,7 +396,7 @@ describe('useSpecEditorWindowViewModel save gating', () => {
     expect(vm.draftValue.value).toEqual({ hullId: 'next', hullName: 'Local' });
     expect(vm.editorData.value?.spec).toEqual({ hullId: 'next', hullName: 'Local' });
     expect(vm.draftDirty.value).toBe(true);
-    expect(vm.editContext.value?.handoff).toBe('external');
+    expect(vm.editContext.value?.handoff).toBe('identity');
   });
   beforeEach(() => {
     vi.clearAllMocks();
@@ -441,8 +448,8 @@ describe('Spec common save checks', () => {
     });
     const vm = createViewModel(kind, true);
     await vm.initializeEditorWindow();
-    mocks.saveSpecEditorSpecByKind.mockImplementation(async (_session, _root, _target, draft) => ({
-      ...writeResultFixture(draft),
+    mocks.saveSpecEditorSpec.mockImplementation(async (write) => ({
+      ...writeResultFixture(requireRowData(projectJsonValue(write.document.content), 'spec fixture')),
       identityChanges: [{ before: target, after: target }],
     }));
     return vm;
@@ -457,12 +464,12 @@ describe('Spec common save checks', () => {
       vm.updateEditorDraft({ ...original, [key]: kind === 'weapon' ? [] : 'invalid' });
       expect(vm.problems.issues.value.some((issue) => issue.path === key)).toBe(true);
       await vm.saveEditorData();
-      expect(mocks.saveSpecEditorSpecByKind).not.toHaveBeenCalled();
+      expect(mocks.saveSpecEditorSpec).not.toHaveBeenCalled();
       expect(formatError(mocks.feedback.error.mock.calls.at(-1)![0])).toBe('请先解决顶部错误后再保存');
       vm.updateEditorDraft(original);
       expect(vm.problems.issues.value).toEqual([]);
       await vm.saveEditorData();
-      expect(mocks.saveSpecEditorSpecByKind).toHaveBeenCalledTimes(1);
+      expect(mocks.saveSpecEditorSpec).toHaveBeenCalledTimes(1);
     },
   );
   it.each([false, true])('controls warnings for direct and coordinated saves: %s', async (ignore) => {
@@ -473,12 +480,12 @@ describe('Spec common save checks', () => {
       { sessionId: 's1', modRoot: 'M:/mod', path: entityTargetFixture('system', 'XY').write.path },
     ])[0]!;
     await vm.saveEditorData();
-    expect(mocks.saveSpecEditorSpecByKind).toHaveBeenCalledTimes(ignore ? 1 : 0);
+    expect(mocks.saveSpecEditorSpec).toHaveBeenCalledTimes(ignore ? 1 : 0);
     mocks.feedback.choose.mockResolvedValue('save');
     await vm.saveEditorData();
     await participant.editing!.save();
     expect(mocks.feedback.choose).toHaveBeenCalledTimes(ignore ? 0 : 3);
-    expect(mocks.saveSpecEditorSpecByKind).toHaveBeenCalledTimes(ignore ? 3 : 2);
+    expect(mocks.saveSpecEditorSpec).toHaveBeenCalledTimes(ignore ? 3 : 2);
     useSettingsStore().setIgnoreEditorWarnings(false);
     await participant.editing!.save();
     expect(mocks.feedback.choose).toHaveBeenCalledTimes(ignore ? 1 : 4);
@@ -501,22 +508,22 @@ describe('Spec common save checks', () => {
     await flushPromises();
     useSettingsStore().setIgnoreEditorWarnings(true);
     await flushPromises();
-    expect(mocks.saveSpecEditorSpecByKind).not.toHaveBeenCalled();
+    expect(mocks.saveSpecEditorSpec).not.toHaveBeenCalled();
     vm.updateEditorDraft({ ...vm.draftValue.value, range: 25 });
     mocks.feedback.choose.mockResolvedValue('save');
     confirm('save');
     await saving;
     expect(mocks.feedback.choose).toHaveBeenCalledOnce();
-    expect(mocks.saveSpecEditorSpecByKind.mock.lastCall?.[3]).not.toHaveProperty('range', 25);
+    expect(submittedSpec()).not.toHaveProperty('range', 25);
     expect(vm.draftValue.value.range).toBe(25);
   });
   it('keeps actual write errors at the top and retries them through save', async () => {
     const vm = await openChecked('system');
-    mocks.saveSpecEditorSpecByKind.mockRejectedValueOnce(new Error('write failed'));
+    mocks.saveSpecEditorSpec.mockRejectedValueOnce(new Error('write failed'));
     await vm.saveEditorData();
     expect(vm.problems.issues.value).toMatchObject([{ severity: 'error', message: 'write failed' }]);
     await vm.saveEditorData();
-    expect(mocks.saveSpecEditorSpecByKind).toHaveBeenCalledTimes(2);
+    expect(mocks.saveSpecEditorSpec).toHaveBeenCalledTimes(2);
     expect(vm.problems.issues.value).toEqual([]);
   });
   it('retries failed content processing independently of the next save', async () => {
@@ -525,10 +532,10 @@ describe('Spec common save checks', () => {
     await vm.saveEditorData();
     await expect(savedContentWorks.at(-1)!.content).rejects.toThrow('publish failed');
     await savedContentWorks.at(-1)!.retryContent();
-    expect(mocks.saveSpecEditorSpecByKind).toHaveBeenCalledTimes(1);
+    expect(mocks.saveSpecEditorSpec).toHaveBeenCalledTimes(1);
     expect(vm.problems.issues.value).toEqual([]);
     await vm.saveEditorData();
-    expect(mocks.saveSpecEditorSpecByKind).toHaveBeenCalledTimes(2);
+    expect(mocks.saveSpecEditorSpec).toHaveBeenCalledTimes(2);
   });
 });
 
@@ -556,6 +563,7 @@ describe('useSpecEditorWindowViewModel saving', () => {
           }
         : {
             kind,
+            target: entityTargetFixture(kind, 'XY'),
             baseVersions: [],
             isNew: false,
             spec: { id: 'XY', turretSprite: 'graphics/old.png' },
@@ -598,24 +606,25 @@ describe('useSpecEditorWindowViewModel saving', () => {
 
   it('writes the draft, broadcasts the saved event and commits the base', async () => {
     const result = writeResultFixture({ hullId: 'XY', hullName: 'Saved Name' });
-    mocks.saveSpecEditorSpecByKind.mockResolvedValue(result);
+    mocks.saveSpecEditorSpec.mockResolvedValue(result);
     const viewModel = await initializedViewModel();
 
     viewModel.updateEditorDraft({ hullId: 'XY', hullName: 'Saved Name' });
     await viewModel.saveEditorData();
 
-    expect(mocks.saveSpecEditorSpecByKind).toHaveBeenCalledWith(
-      's1',
-      'M:/mod',
-      entityTargetFixture('ship', 'XY'),
-      { hullId: 'XY', hullName: 'Saved Name' },
-      { preserveOriginalJson: true, confirmedSources: [] },
-      [{ path: 'M:/mod/data/hulls/XY.ship', fingerprint: 'destination' }],
-      expect.any(Object),
+    expect(mocks.saveSpecEditorSpec).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sessionId: 's1',
+        modRoot: 'M:/mod',
+        target: entityTargetFixture('ship', 'XY', 'existing'),
+        jsonWrite: { keepFilename: false, preserveStructure: true, replacePaths: [] },
+        baseVersions: [{ path: 'M:/mod/data/hulls/XY.ship', fingerprint: 'destination' }],
+      }),
+      expect.any(Array),
       { id: 'fixture-save' },
     );
     expect(mocks.publishCommittedWrite).toHaveBeenCalledWith('M:/mod', result, 's1');
-    expect(mocks.feedback.success).toHaveBeenCalledWith('XY 已保存', { paths: ['M:/mod/data/hulls/XY.ship'] });
+    expect(mocks.feedback.success).toHaveBeenCalledWith('规格已保存', { paths: ['M:/mod/data/hulls/XY.ship'] });
     expect(viewModel.draftDirty.value).toBe(false);
     expect(viewModel.canSaveSpec.value).toBe(true);
   });
@@ -626,10 +635,10 @@ describe('useSpecEditorWindowViewModel saving', () => {
       const target = entityTargetFixture(kind, 'XY');
       const original = { id: 'XY', custom: 'original' };
       const vm = await initializedViewModel(kind, { kind, target, spec: original, baseVersions: [], isNew: false });
-      let release!: (result: WriteResult) => void;
-      mocks.saveSpecEditorSpecByKind.mockImplementationOnce(
+      let release!: (result: WriteResult<JsonFileContent>) => void;
+      mocks.saveSpecEditorSpec.mockImplementationOnce(
         () =>
-          new Promise<WriteResult>((resolve) => {
+          new Promise<WriteResult<JsonFileContent>>((resolve) => {
             release = resolve;
           }),
       );
@@ -641,7 +650,8 @@ describe('useSpecEditorWindowViewModel saving', () => {
       const result = { ...writeResultFixture(submitted), identityChanges: [{ before: target, after: target }] };
       release(result);
       await saving;
-      expect(mocks.saveSpecEditorSpecByKind.mock.lastCall?.slice(0, 4)).toEqual(['s1', 'M:/mod', target, submitted]);
+      expect(mocks.saveSpecEditorSpec.mock.lastCall?.[0]).toMatchObject({ sessionId: 's1', modRoot: 'M:/mod', target });
+      expect(submittedSpec()).toEqual(submitted);
       expect(vm.draftValue.value.custom).toBe('later');
       expect(vm.editorData.value?.spec).toBe(vm.draftValue.value);
       expect(vm.draftDirty.value).toBe(true);
@@ -655,7 +665,7 @@ describe('useSpecEditorWindowViewModel saving', () => {
         writeResult: {
           ...result,
 
-          content: { target: { kind: 'spec', target: entityTargetFixture('ship', 'XY') }, value: external },
+          content: { target: { kind: 'spec', target: entityTargetFixture(kind, 'XY') }, value: jsonFileFixture(external) },
         },
       });
       expect(vm.draftValue.value.custom).toBe('later');
@@ -668,7 +678,7 @@ describe('useSpecEditorWindowViewModel saving', () => {
   );
 
   it('reports save failures and keeps the draft editable', async () => {
-    mocks.saveSpecEditorSpecByKind.mockRejectedValue(new Error('write denied'));
+    mocks.saveSpecEditorSpec.mockRejectedValue(new Error('write denied'));
     const viewModel = await initializedViewModel();
     viewModel.updateEditorDraft({ hullId: 'XY' });
     await viewModel.saveEditorData();
@@ -679,11 +689,11 @@ describe('useSpecEditorWindowViewModel saving', () => {
   it('keeps the loaded spec credential when preparation queries the same destination again', async () => {
     const bundle = shipBundleFixture();
     const baseVersions = [{ path: bundle.target.write.path, fingerprint: 'loaded-spec' }];
-    mocks.saveSpecEditorSpecByKind.mockResolvedValue(writeResultFixture({ hullId: 'XY', hullName: 'Saved' }));
+    mocks.saveSpecEditorSpec.mockResolvedValue(writeResultFixture({ hullId: 'XY', hullName: 'Saved' }));
     const vm = await initializedViewModel('ship', { ...bundle, baseVersions });
     vm.updateEditorDraft({ hullId: 'XY', hullName: 'Saved' });
     await vm.saveEditorData();
-    expect(mocks.saveSpecEditorSpecByKind.mock.lastCall?.[5]).toEqual(baseVersions);
+    expect(mocks.saveSpecEditorSpec.mock.lastCall?.[0].baseVersions).toEqual(baseVersions);
   });
 
   it('preserves the weapon draft when a projectile is saved and its catalogue refreshes', async () => {
@@ -736,7 +746,7 @@ describe('useSpecEditorWindowViewModel saving', () => {
     const vm = await initializedViewModel('ship', shipBundleFixture(true));
     const result = writeResultFixture({ hullId: 'XY', hullName: 'Canonical' });
     result.requestId = 'captured-save';
-    mocks.saveSpecEditorSpecByKind.mockResolvedValueOnce(result);
+    mocks.saveSpecEditorSpec.mockResolvedValueOnce(result);
     mocks.publishCommittedWrite.mockRejectedValueOnce(new Error('broadcast failed'));
     vm.updateEditorDraft({ hullId: 'XY', hullName: 'Raw' });
     const writing = vm.saveEditorData();
@@ -744,18 +754,18 @@ describe('useSpecEditorWindowViewModel saving', () => {
     await writing;
     expect(await waiting).toBe(true);
     await expect(savedContentWorks.at(-1)!.content).rejects.toThrow('broadcast failed');
-    expect(vm.draftValue.value).toEqual(result.content?.value);
+    expect(vm.draftValue.value).toEqual(projectJsonValue(result.content!.value.content));
     expect(vm.editorData.value?.isNew).toBe(false);
     expect(vm.draftDirty.value).toBe(false);
     await savedContentWorks.at(-1)!.retryContent();
-    expect(mocks.saveSpecEditorSpecByKind).toHaveBeenCalledOnce();
+    expect(mocks.saveSpecEditorSpec).toHaveBeenCalledOnce();
     vm.updateEditorDraft({ hullId: 'XY', hullName: 'Later' });
     await savedSpecChange({
       kind: 'ship',
       sessionId: 's1',
       modRoot: 'M:/mod',
       id: 'XY',
-      spec: result.content!.value,
+      spec: requireRowData(projectJsonValue(result.content!.value.content), 'spec fixture'),
       writeResult: result,
     });
     expect(vm.draftValue.value.hullName).toBe('Later');
@@ -763,10 +773,10 @@ describe('useSpecEditorWindowViewModel saving', () => {
   });
 
   it('ignores concurrent saves while one is in flight', async () => {
-    let resolveSave: (value: WriteResult) => void = () => {};
-    mocks.saveSpecEditorSpecByKind.mockImplementation(
+    let resolveSave: (value: WriteResult<JsonFileContent>) => void = () => {};
+    mocks.saveSpecEditorSpec.mockImplementation(
       () =>
-        new Promise<WriteResult>((resolve) => {
+        new Promise<WriteResult<JsonFileContent>>((resolve) => {
           resolveSave = resolve;
         }),
     );
@@ -777,7 +787,7 @@ describe('useSpecEditorWindowViewModel saving', () => {
     await flushPromises();
     resolveSave(writeResultFixture());
     await Promise.all([first, second]);
-    expect(mocks.saveSpecEditorSpecByKind).toHaveBeenCalledTimes(1);
+    expect(mocks.saveSpecEditorSpec).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -802,22 +812,23 @@ describe('useSpecEditorWindowViewModel missing specs', () => {
       return 'continue';
     });
     mocks.pickEditorSpecFile.mockResolvedValue('C:/imports/XY.ship');
-    mocks.loadSpecEditorImport.mockResolvedValue({ hullId: 'XY', hullName: 'Imported' });
+    mocks.loadSpecEditorImport.mockResolvedValue(jsonFileFixture({ hullId: 'XY', hullName: 'Imported' }));
     const viewModel = createViewModel();
     await viewModel.initializeEditorWindow();
     await vi.waitFor(() => expect(viewModel.editorData.value?.spec).toEqual({ hullId: 'XY', hullName: 'Imported' }));
     expect(viewModel.canSaveSpec.value).toBe(true);
     expect(viewModel.draftDirty.value).toBe(true);
-    mocks.saveSpecEditorSpecByKind.mockResolvedValue(writeResultFixture({ hullId: 'XY', hullName: 'Imported' }));
+    mocks.saveSpecEditorSpec.mockResolvedValue(writeResultFixture({ hullId: 'XY', hullName: 'Imported' }));
     await viewModel.saveEditorData();
-    expect(mocks.saveSpecEditorSpecByKind).toHaveBeenCalledWith(
-      's1',
-      'M:/mod',
-      entityTargetFixture('ship', 'XY', 'create'),
-      { hullId: 'XY', hullName: 'Imported' },
-      { preserveOriginalJson: true, confirmedSources: [] },
-      [{ path: 'M:/mod/data/hulls/XY.ship', fingerprint: 'destination' }],
-      expect.any(Object),
+    expect(mocks.saveSpecEditorSpec).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sessionId: 's1',
+        modRoot: 'M:/mod',
+        target: entityTargetFixture('ship', 'XY', 'create'),
+        jsonWrite: { keepFilename: false, preserveStructure: true, replacePaths: [] },
+        baseVersions: [{ path: 'M:/mod/data/hulls/XY.ship', fingerprint: 'destination' }],
+      }),
+      expect.any(Array),
       { id: 'fixture-save' },
     );
     expect(viewModel.draftDirty.value).toBe(false);
@@ -939,6 +950,7 @@ describe.each(['ship', 'weapon'] as const)('%s draft resource lifecycle', (kind)
       ? { ...shipBundleFixture(), ...images(path), spec: spec(path) }
       : {
           kind,
+          target: entityTargetFixture(kind, 'XY'),
           baseVersions: [],
           isNew: false,
           spec: spec(path),
@@ -1069,7 +1081,7 @@ describe.each(['ship', 'weapon'] as const)('%s draft resource lifecycle', (kind)
       return 'continue';
     });
     mocks.pickEditorSpecFile.mockResolvedValue('M:/imported.spec');
-    mocks.loadSpecEditorImport.mockResolvedValue(spec('imported.png'));
+    mocks.loadSpecEditorImport.mockResolvedValue(jsonFileFixture(spec('imported.png')));
     const vm = createViewModel(kind);
     await vm.initializeEditorWindow();
     await flushPromises();
@@ -1143,7 +1155,7 @@ describe.each(['ship', 'weapon'] as const)('%s draft resource lifecycle', (kind)
       sources.length = 0;
       invalidateDetail();
       await flushPromises();
-      expect(sources.filter(Boolean)).toEqual([]);
+      expect(sources.filter(Boolean)).toEqual(['new.png']);
       expect(wrapper.find('canvas.editor-canvas').exists()).toBe(true);
       if (kind === 'ship') {
         const sync = wrapper.findAll('button').find((button) => button.text() === '按图片更新宽高');
@@ -1197,7 +1209,7 @@ describe('Spec local identity presence', () => {
   ])('saves local presence %s -> %s', async (beforeId, afterId) => {
     vi.clearAllMocks();
     mocks.feedback.choose.mockResolvedValue('save');
-    const bundle: SpecEditorData<'projectile'> = {
+    const bundle: SpecFixture<'projectile'> = {
       kind: 'projectile',
       target: entityTargetFixture('projectile', 'XY'),
       baseVersions: [],
@@ -1207,22 +1219,22 @@ describe('Spec local identity presence', () => {
     };
     const vm = await initializedViewModel('projectile', bundle);
     const after: RowData = afterId ? { id: 'XY', width: 3 } : { width: 3 };
-    mocks.saveSpecEditorSpecByKind.mockResolvedValue({
+    mocks.saveSpecEditorSpec.mockResolvedValue({
       ...savedWriteFixture(),
       identityChanges: [{ before: bundle.target, after: bundle.target }],
-      content: { target: { kind: 'spec', target: bundle.target }, value: after },
+      content: { target: { kind: 'spec', target: bundle.target }, value: jsonFileFixture(after) },
     });
     vm.updateEditorDraft(after);
     expect(vm.schemaRuntimeContext.value!.partial).toBe(!afterId);
     await vm.saveEditorData();
     expect(mocks.feedback.choose).toHaveBeenCalledTimes(Number(beforeId !== afterId));
-    expect(mocks.saveSpecEditorSpecByKind.mock.lastCall![3]).toEqual(after);
+    expect(submittedSpec()).toEqual(after);
     await vm.saveEditorData();
     expect(mocks.feedback.choose).toHaveBeenCalledTimes(Number(beforeId !== afterId));
   });
   it('preserves later identity edits while confirming a captured removal', async () => {
     vi.clearAllMocks();
-    const bundle: SpecEditorData<'projectile'> = {
+    const bundle: SpecFixture<'projectile'> = {
       kind: 'projectile',
       target: entityTargetFixture('projectile', 'XY'),
       baseVersions: [],
@@ -1238,10 +1250,10 @@ describe('Spec local identity presence', () => {
           answer = resolve;
         }),
     );
-    mocks.saveSpecEditorSpecByKind.mockResolvedValue({
+    mocks.saveSpecEditorSpec.mockResolvedValue({
       ...savedWriteFixture(),
       identityChanges: [{ before: bundle.target, after: bundle.target }],
-      content: { target: { kind: 'spec', target: bundle.target }, value: { width: 3 } },
+      content: { target: { kind: 'spec', target: bundle.target }, value: jsonFileFixture({ width: 3 }) },
     });
     vm.updateEditorDraft({ width: 3 });
     const pending = vm.saveEditorData();
@@ -1250,7 +1262,7 @@ describe('Spec local identity presence', () => {
     vm.updateEditorDraft({ id: 'Later', width: 4 });
     answer('save');
     await pending;
-    expect(mocks.saveSpecEditorSpecByKind.mock.lastCall![3]).toEqual({ width: 3 });
+    expect(submittedSpec()).toEqual({ width: 3 });
     expect(vm.draftValue.value).toEqual({ id: 'Later', width: 4 });
     expect(vm.draftDirty.value).toBe(true);
   });

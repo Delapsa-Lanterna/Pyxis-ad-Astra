@@ -22,7 +22,7 @@ import {
   readLogBackupCount,
   readLogLevel,
   readOptionalDirectory,
-  readPreserveOriginalJson,
+  readPreserveStructure,
   readAllowCoreEditing,
   readTheme,
   readToastDuration,
@@ -65,7 +65,7 @@ export const useSettingsStore = defineStore('settings', () => {
   const immersiveGameFont = ref(initialSettings.immersiveGameFont);
   const immersiveFontDirectory = ref(initialSettings.immersiveFontDirectory);
   const javaExecutable = ref(initialSettings.javaExecutable);
-  const preserveOriginalJson = ref(readPreserveOriginalJson(initialSettings.preserveOriginalJson));
+  const preserveStructure = ref(readPreserveStructure(initialSettings.preserveStructure));
   const allowCoreEditing = ref(readAllowCoreEditing(initialSettings.allowCoreEditing));
   const savedCoreEditing = ref(allowCoreEditing.value);
   const canEditCore = computed(() => allowCoreEditing.value && savedCoreEditing.value);
@@ -166,8 +166,8 @@ export const useSettingsStore = defineStore('settings', () => {
     javaExecutable.value = readOptionalDirectory(path);
   }
 
-  function setPreserveOriginalJson(enabled: boolean) {
-    preserveOriginalJson.value = readPreserveOriginalJson(enabled);
+  function setPreserveStructure(enabled: boolean) {
+    preserveStructure.value = readPreserveStructure(enabled);
   }
 
   function setAllowCoreEditing(enabled: boolean) {
@@ -210,7 +210,7 @@ export const useSettingsStore = defineStore('settings', () => {
       immersiveGameFont: immersiveGameFont.value,
       immersiveFontDirectory: immersiveFontDirectory.value,
       javaExecutable: javaExecutable.value,
-      preserveOriginalJson: preserveOriginalJson.value,
+      preserveStructure: preserveStructure.value,
       allowCoreEditing: allowCoreEditing.value,
       watchFileChanges: watchFileChanges.value,
       starsectorRoot: starsectorRoot.value,
@@ -250,7 +250,7 @@ export const useSettingsStore = defineStore('settings', () => {
     immersiveGameFont.value = nextImmersiveGameFont;
     immersiveFontDirectory.value = nextImmersiveFontDirectory;
     javaExecutable.value = readOptionalDirectory(settings.javaExecutable);
-    preserveOriginalJson.value = readPreserveOriginalJson(settings.preserveOriginalJson);
+    preserveStructure.value = readPreserveStructure(settings.preserveStructure);
     allowCoreEditing.value = readAllowCoreEditing(settings.allowCoreEditing);
     savedCoreEditing.value = allowCoreEditing.value;
     watchFileChanges.value = settings.watchFileChanges;
@@ -285,7 +285,7 @@ export const useSettingsStore = defineStore('settings', () => {
     immersiveFontDirectory,
     javaExecutable,
     setJavaExecutable,
-    preserveOriginalJson,
+    preserveStructure,
     allowCoreEditing,
     canEditCore,
     confirmSavedSettings,
@@ -312,7 +312,7 @@ export const useSettingsStore = defineStore('settings', () => {
     setIgnoreEditorWarnings,
     setImmersiveGameFont,
     setImmersiveFontDirectory,
-    setPreserveOriginalJson,
+    setPreserveStructure,
     setAllowCoreEditing,
     setFileHistoryLimit,
     setEditHistoryLimit,

@@ -9,11 +9,8 @@
 ### 拥有
 
 - `src/app/components/spec-editor/system/`：战术系统字段表单与行为测试。
-- `src/app/components/spec-editor/system/SpecSystemEditor.vue`：系统表单展示与事件绑定入口。
 - `src/app/composables/spec-editor/system/`：战术系统工作文档与条件字段动作。
-- `src/app/composables/spec-editor/system/use-spec-system-editor-view-model.ts`：系统草稿、条件投影、字段转换与显式动作。
 - `src/domain/spec-editor/system/`：战术系统字段及规格归一化规则。
-- `src/domain/spec-editor/system/spec-system-fields.ts`：系统结构化字段与规格归一化。
 - `src/services/spec-system-editor.service.ts`：战术系统规格与实际目标的查询入口。
 
 ### 消费
@@ -27,8 +24,7 @@
 - `src/app/composables/spec-editor/use-spec-problem-navigation.ts`：规格问题定位、所属分组展开与有效请求滚动交接。
 - `src/app/composables/spec-editor/use-spec-problems.ts`：会话问题聚合、原文优先级、失败保留及共享展示。
 - `src/domain/entity-write/spec-construction.ts`：前端规格、装配和皮肤构造及分支补全。
-- `src/domain/schema/schema-validation.ts`：字段与列资产加载、来源声明、值及结构纯规则。
-- `src/domain/schema/schema.types.ts`：系统表单消费的正式 schema 类型。
+- `src/domain/schema/`：字段与列资产加载、游戏数字解释、来源声明、校验及目标格式准备。
 - `src/domain/spec-editor/spec-schemas.ts`：Spec 资产引用解析及当前分支装配。
 - `src/services/entity-query.service.ts`：四类查询定义、正式请求与实体失效选择。
 
@@ -76,9 +72,9 @@
 
 - 全部业务键必须原样保留；保存消费实际 `.system` 目标，ID 修改由所属事务更新唯一关联 CSV 行。
 - 未知字段必须完整保留，Smart 模式的扩展区仅由所属 schema 显式开放并始终展示。
-- 激活、循环、关闭与用尽音效必须消费共同规格字段控件和正式声音目录。
-- 系统字段、默认值及条件分组必须消费 spec-system 资产，关联武器与无人机装配消费正式引用字段，检查独立于分组挂载并交付共同红黄问题框。
+- 激活、循环、关闭与用尽音效消费共同规格字段控件和正式声音目录。
+- 系统字段、默认值及条件分组消费 spec-system 资产，关联武器与无人机装配消费正式引用字段，检查独立于分组挂载并交付共同红黄问题框。
 - 系统字段和条件区段必须经显式提交入口更新完整草稿，type 切换保留全部已有字段，严禁以展示条件删除配置。
-- 系统新建与缺失规格草稿必须消费共享模板构造，type 为 `STAT_MOD`、aiType 为 `NONE`。
-- 系统类型必须覆盖游戏正式 11 项枚举；共享引擎、护盾和透明度属性在全部类型可编辑。
+- 系统新建与缺失规格草稿消费共享模板构造，type 为 `STAT_MOD`、aiType 为 `NONE`。
+- 系统类型覆盖游戏正式 11 项枚举；共享引擎、护盾和透明度属性在全部类型可编辑。
 - 颜色字段必须保持四通道数组形状；数值字段保留其步长语义。

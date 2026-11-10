@@ -1,7 +1,7 @@
 import { defineRule } from '../../../diagnostics.mjs';
 import { classifyFrontendPath } from '../../../facts/classify.mjs';
 
-const adapters = new Set(['app/draft-session', 'app/snapshot-history', 'stores/file-history', 'stores/csv-editor']);
+const adapters = new Set(['app/draft-session', 'app/snapshot-history', 'stores/file-history', 'stores/csv-editor', 'domain/json-document']);
 const acceptanceConsumers = new Set([
   'src/app/composables/use-edit-target-draft-session.ts',
   'src/domain/csv-editor/csv-table-draft.ts',

@@ -9,11 +9,8 @@
 ### 拥有
 
 - `src/app/components/immersive/wing/`：战机联队信息与来源展示。
-- `src/app/components/immersive/wing/WingImmersivePanel.vue`：战机联队内容及来源字段展示。
 - `src/app/composables/immersive-editor/wing/`：战机联队 rowKey、来源补全和业务动作。
-- `src/app/composables/immersive-editor/wing/use-immersive-wing-editor.ts`：按 rowKey 读取、来源补全、身份跟随及关联编辑器打开。
 - `src/domain/immersive/wing/`：战机联队来源、字段和编队纯投影。
-- `src/domain/immersive/wing/wing-panel.ts`：技术信息、来源绑定与编队输入投影。
 
 ### 消费
 
@@ -34,10 +31,7 @@
 - `src/domain/immersive/hull-scene.ts`：有效船体、装备层序、坐标与编队投影。
 - `src/domain/immersive/source-records.ts`：可编辑来源与装配记录选择。
 - `src/domain/joint-edit.ts`：联合写入范围提取、身份映射、草稿重接与冲突选择投影。
-- `src/domain/schema/config-schema-registry.ts`：字段与列资产加载、来源声明、值及结构纯规则。
-- `src/domain/schema/csv-schema-registry.ts`：字段与列资产加载、来源声明、值及结构纯规则。
-- `src/domain/schema/csv-value-validation.ts`：字段与列资产加载、来源声明、值及结构纯规则。
-- `src/domain/schema/schema-values.ts`：字段与列资产加载、来源声明、值及结构纯规则。
+- `src/domain/schema/`：字段与列资产加载、游戏数字解释、来源声明、校验及目标格式准备。
 - `src/orchestrators/immersive-editor.orchestrator.ts`：联合根读取、编辑目标准备与沉浸式窗口交付。
 - `src/services/joint-edit.service.ts`：三个 command 的类型化协议装配。
 - `src/test/fixtures/joint-edit/wing-joint-edit.ts`：战机联队联合来源及行键的测试构造。
@@ -76,7 +70,7 @@
 - 补全船体必须通过下拉选择战机船体或皮肤并只展示所选流程及待保存文件；单个确认按钮执行当前选择，身份跟随消费实际联队行的装配引用。
 - 关联编辑器打开必须提交活动输入并核对捕获目标；舰船身份消费装配实际 hullId 对应的 ship 或 skin 记录，装配身份消费联队 variant 引用，session 与 Mod 根沿用当前来源。
 - 战机联队名称必须消费有效船体名称与装配 `displayName`，并在一次字段动作中提交；用途优先消费 `role desc`，直接参数绑定战机联队 CSV 或有效船体的实际字段来源。
-- 战机联队投影必须消费原版角色、swarm 与防御分支；武装汇总按有效槽位统计，甲板、候选和内容渲染器的编队共同消费 `num`、`formation`、有效船体及装备的同一场景投影与绘制。
+- 战机联队投影消费原版角色、swarm 与防御分支；武装汇总按有效槽位统计，甲板、候选和内容渲染器的编队共同消费 `num`、`formation`、有效船体及装备的同一场景投影与绘制。
 - 来源补全必须由战机联队动作消费来源展示事件，确认、读取与创建绑定捕获目标和联合基线。
 - 身份交接必须映射并保留所属联合草稿与历史。
 - 身份重读必须消费当前 rowKey，严禁通过显示名推导实际战机联队。

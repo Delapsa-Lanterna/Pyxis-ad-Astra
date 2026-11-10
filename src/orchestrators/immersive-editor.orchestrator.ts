@@ -1,25 +1,17 @@
-import type { AppFeedback, EditWriteTarget, JointEditRoot, JointEditSnapshot } from '@/shared/types';
+import type { JointEditRoot, JointEditSnapshot } from '@/shared/types';
 import { focusNativeManagedWindow, retargetNativeWindow } from '@/services/window.service';
 import { openJointEditRowSnapshot, openJointEditSnapshot } from '@/orchestrators/joint-edit.orchestrator';
 import { openImmersiveEditorWindow, immersiveWindowTitle } from '@/windows/immersive-editor.window';
 import { publishWindowContext } from '@/windows/window-context.window';
-import { immersiveEditableRecords } from '@/domain/immersive/source-records';
 
-export async function openEntityImmersiveEditor(
-  request: {
-    root: JointEditRoot;
-    rowKey: string;
-    csvTarget: EditWriteTarget;
-  },
-  feedback: AppFeedback,
-): Promise<void> {
+export async function openEntityImmersiveEditor(request: { root: JointEditRoot; rowKey: string }): Promise<void> {
   if (await focusNativeManagedWindow({ type: 'immersive', ...request.root })) {
     await openImmersiveEditorWindow(request.root, request.root.kind === 'wing' ? request.rowKey : undefined);
     return;
   }
-  const captured = await openJointEditRowSnapshot(request.root, request.rowKey, request.csvTarget, feedback);
+  const captured = await openJointEditRowSnapshot(request.root, request.rowKey);
   if (!captured) return;
-  const snapshot = await openJointEditSnapshot(captured.root, feedback, undefined, immersiveEditableRecords);
+  const snapshot = await openJointEditSnapshot(captured.root);
   if (snapshot) {
     const row = snapshot.records.find((record) => record.key === snapshot.bindings.csv);
     await openImmersiveEditorWindow(
@@ -39,11 +31,11 @@ export async function retargetImmersiveWindow(snapshot: JointEditSnapshot): Prom
     }),
   );
 }
-export async function openVariantImmersiveEditor(root: JointEditRoot, feedback: AppFeedback): Promise<void> {
+export async function openVariantImmersiveEditor(root: JointEditRoot): Promise<void> {
   if (await focusNativeManagedWindow({ type: 'immersive', ...root })) {
     await openImmersiveEditorWindow(root);
     return;
   }
-  const snapshot = await openJointEditSnapshot(root, feedback, undefined, immersiveEditableRecords);
+  const snapshot = await openJointEditSnapshot(root);
   if (snapshot) await openImmersiveEditorWindow(snapshot.root);
 }

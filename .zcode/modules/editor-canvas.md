@@ -9,12 +9,6 @@
 ### 拥有
 
 - `src/app/composables/canvas/`：画布表面、导航、视口、选择与指针阶段及其测试。
-- `src/app/composables/canvas/use-canvas-editor.ts`：指针阶段、输入适配、导航、快捷键与窗口监听。
-- `src/app/composables/canvas/use-canvas-navigation.ts`：骨架和装配消费的右键平移、滚轮缩放与指针位置。
-- `src/app/composables/canvas/use-canvas-palette.ts`：主题派生与重绘通知的装配。
-- `src/app/composables/canvas/use-canvas-runtime.ts`：完整目标身份、悬停、检查器锁定、镜像开关与候选预览。
-- `src/app/composables/canvas/use-canvas-selection.ts`：骨架和装配消费的距离命中、选区身份与显式选择。
-- `src/app/composables/canvas/use-canvas-viewport.ts`：视口缩放与平移。
 - `src/app/composables/editors/use-editor-document.ts`：工作值、动作起点、提交快照、字段与手势边界及历史交接。
 - `src/app/composables/editors/use-editor-fields.ts`：所属文档字段、颜色与对象输入的绑定入口。
 - `src/app/composables/editors/use-editor-frame-loop.ts`：帧循环的启动、停止与释放。
@@ -22,14 +16,6 @@
 - `src/app/composables/editors/use-engine-rendering.ts`：统一装配引擎样式查询、媒体、解码、着色成品与引用释放。
 - `src/app/composables/editors/use-projectile-rendering.ts`：统一持有开火图片租约、解码与着色成品。
 - `src/app/renderers/editors/`：背景、几何标记、武器贴图及最终样式绘制原语。
-- `src/app/renderers/editors/canvas-drawing.ts`：清屏、网格与像素贴图的无状态绘制入口。
-- `src/app/renderers/editors/canvas-scene.ts`：共享背景、镜像轴、边界与光标场景的绘制入口。
-- `src/app/renderers/editors/canvas-styles.ts`：场景消费的标记样式投影入口。
-- `src/app/renderers/editors/canvas-visuals.ts`：消费显式样式的实体绘制原语。
-- `src/app/renderers/editors/engine-renderer.ts`：作为 Spec 与沉浸式引擎静态成品的唯一样式、尺寸与绘制入口。
-- `src/app/renderers/editors/projectile-renderer.ts`：统一绘制 Spec 与开火预览的弹体、导弹、光束及等离子本体。
-- `src/app/renderers/editors/weapon-images.ts`：武器编辑、开火预览、舰船与装配消费的共享贴图、装备阶段及光效绘制入口。
-- `src/app/renderers/editors/weapon-slot-renderer.ts`：武器槽位与起降口的共同样式、几何和无状态绘制。
 - `src/assets/engines/`：提供光柱、火焰与喷口辉光的 SVG 回退资产。
 - `src/domain/editors/editor-types.ts`：编辑坐标、模式与悬停预览的纯数据类型。
 - `src/domain/editors/lib/canvas-palette.ts`：应用主题到画布配色的纯投影。
@@ -129,21 +115,21 @@
 ## 规范
 
 - 画布尺寸与 DPI 必须共同判定实际变化，相同尺寸及 DPI 严禁重复重置画布；尺寸观察经所属布局帧调度。
-- 保存与历史必须由所属编辑会话维护，骨架只允许交付交互动作。
+- 保存与历史由所属编辑会话维护，骨架只允许交付交互动作。
 - 修饰键预览必须在指针未进入画布、拖拽中或平移中跳过。
-- 引擎尾焰必须统一消费正式 renderer，严禁在消费者新增引擎效果绘制；控制点消费现有标记原语。
-- 武器槽位轮廓必须由唯一槽位 renderer 共享形状及比例，小中大基础半径为 20、30、40；沉浸式轮廓消费显式缩放、高亮与内置身份并采用原版分层透明度和三重环带，辅助标记独立消费原有尺寸及样式。
+- 引擎尾焰统一由正式 renderer 绘制，控制点消费现有标记原语。
+- 武器槽位轮廓由唯一槽位 renderer 共享形状及比例，小中大基础半径为 20、30、40；沉浸式轮廓消费显式缩放、高亮与内置身份并采用原版分层透明度和三重环带，辅助标记独立消费原有尺寸及样式。
 - 引擎成品必须按 session、静态预设、实体类别、有效样式、来源修订、尺寸、RGBA、DPR 与预览透明度复用；位置、角度与缩放只变换成品，场景释放交还全部引用。
-- 引擎静态预设必须固定纹理相位及扩散，Spec 采用普通满推力，沉浸式采用装配静止状态；普通舰船、导弹、战机和 OMEGA 消费所属静态图层规则。
+- 引擎静态预设固定纹理相位及扩散，Spec 采用普通满推力，沉浸式采用装配静止状态；普通舰船、导弹、战机和 OMEGA 消费所属静态图层规则。
 - 引擎颜色必须优先消费所属 CUSTOM 样式或命名样式，缺失颜色采用 RGB 255、255、255；原图等待或缺失消费 SVG 回退。
-- 弹体本体必须消费共享 renderer，静态场景采用完整长度、满亮度及相位零；动态状态由所属预览交付。
+- 弹体本体消费共享 renderer，静态场景采用完整长度、满亮度及相位零；动态状态由所属预览交付。
 - 拖拽必须在释放、离开或保存捕获时提交当前位置并结束动作；后续指针事件只允许消费新的动作。
 - 显式锁定必须覆盖 T 键与检查器选择；重复锁定重新定位，普通悬停只允许更新选区。
 - 检查器定位必须保留键盘焦点，以目标字段编辑区及说明为范围，按上下各 12px 留白计算顶部与底部对齐位置；最终位置取两者组成区间内距当前位置最近的值，并在所属容器边界内平滑滚动；完整可见或超高区域已覆盖可视区时保持当前位置。
 - 检查器定位必须由最后一次有效请求接纳；新请求、模式切换、重置、文档基线交接及卸载使所属待完成定位失效。
 - 检查器连续输入必须实时提交草稿，并在单行 Enter、失焦、多行 Ctrl+Enter 或保存时结束一次字段动作；动作起点复用独立提交副本，动作结束、回放和上下文交接更新该副本。
-- 滚轮缩放锚点必须由调用方选择；Spec 画布固定鼠标所指坐标，缩放限值按实际接纳比例补偿平移。
+- 滚轮缩放锚点由调用方选择；Spec 画布固定鼠标所指坐标，缩放限值按实际接纳比例补偿平移。
 - 贴图运行态必须按资源键与内容增量接纳，稳定资源复用已解码图像和在途加载；替换与窗口释放撤销所属回调并释放对应图像和着色缓存。
 - 输入交接期间的短点击必须保留按下、最新位置与释放状态；指针动作沿同一上下文完成。
 - 选区状态必须以完整目标身份表达，起降口包含所属战机甲板与起降口下标，命中判定按距离与半径排序。
-- 骨架内严禁出现实体名称或业务字段。
+- 画布骨架仅处理通用坐标、选区、指针与绘制契约。

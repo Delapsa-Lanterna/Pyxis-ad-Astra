@@ -33,7 +33,9 @@ import { queryResourceDataUrls } from '@/services/resource-media.service';
 import { csvValidationDefinitions } from '@/domain/csv-editor/csv-validation';
 import { infoLog } from '@/shared/runtime/app-log-queue';
 import { logIdentity } from '@/shared/lib/log-fields';
-import { captureJsonEdits } from '@/shared/lib/json-edits';
+import { cell } from '@/shared/lib/starsector';
+import { prepareCsvValue } from '@/domain/schema/csv-value-validation';
+import { getCsvColumnSchemas } from '@/domain/schema/csv-schema-registry';
 
 const readTableIndex = new CachedSessionQuery<Omit<CsvTableIndexPayload, 'sessionId'>, CsvTableIndex>({
   queryKind: 'csv-table-window',
@@ -86,22 +88,18 @@ export function saveCsvPatch(
   rowOrder: CsvRowOrderEntry[] | null = null,
   originalRows: Record<string, CsvDraftRow> = {},
   request?: SaveCommandRequest,
-): Promise<WriteResult> {
+): Promise<WriteResult<CsvTableRowsRead>> {
   request ??= { id: crypto.randomUUID() };
   const requestId = request.id;
-  const before = Object.fromEntries(
-    patches
-      .filter((patch) => originalRows[patch.rowKey])
-      .map((patch) => {
-        const row = originalRows[patch.rowKey]!;
-        return [patch.rowKey, { rowKey: row.rowKey, data: row.data, isComment: row.isComment }];
-      }),
-  );
-  const after = Object.fromEntries(
-    patches
-      .filter((patch) => patch.action !== 'delete')
-      .map((patch) => [patch.rowKey, { rowKey: patch.rowKey, data: patch.row, isComment: patch.isComment }]),
-  );
+  const definitions = new Map(getCsvColumnSchemas(table).map((column) => [column.key, column]));
+  const prepared = patches.map((patch) => {
+    const row = { ...patch.row };
+    for (const key of patch.columns) {
+      const definition = definitions.get(key);
+      row[key] = definition ? prepareCsvValue(definition, cell(row[key])) : cell(row[key]);
+    }
+    return { ...patch, row };
+  });
   const idField = table === 'simOpponents' ? 'variant id' : 'id';
   for (const [index, patch] of patches.entries())
     infoLog('tables.row_submitted', () => ({
@@ -137,12 +135,12 @@ export function saveCsvPatch(
         sessionId,
         modRoot,
         table,
-        patches,
+        patches: prepared,
         associatedSpecs,
         ...(jsonWrite ? { jsonWrite } : {}),
       } satisfies CsvSave,
     },
-    captureJsonEdits(before, after),
+    [],
     request,
   );
 }

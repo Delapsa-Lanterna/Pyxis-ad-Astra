@@ -99,13 +99,15 @@ describe('joint edit capability protocols', () => {
     expect(invoke).toHaveBeenLastCalledWith('prepare_joint_edit', { payload: draft });
     const payload = {
       snapshot,
+      documents: {},
+      csvColumns: {},
       values: {},
       baseVersions: [],
-      jsonWrite: { preserveOriginalJson: false, confirmedSources: [] },
+      jsonWrite: { preserveStructure: false },
       createOverrides: [],
     };
     invoke.mockResolvedValue({ content: { target: { kind: 'joint', root: snapshot.root }, value: snapshot } });
-    await saveJointEdit(payload);
+    await saveJointEdit(payload, []);
     expect(invoke).toHaveBeenLastCalledWith('save_project', {
       request: { id: expect.any(String), edits: [], action: { kind: 'save_joint_edit', input: payload } },
     });

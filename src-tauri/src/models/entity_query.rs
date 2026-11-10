@@ -1,31 +1,31 @@
-use super::{EntityKind, ProjectSessionId, ResourceRef};
-use crate::models::{EntityEditTarget, FileVersion, JsonComposition};
+use super::{
+    EntityEditTarget, EntityKind, FileVersion, JsonComposition, ProjectSessionId, ResourceRef,
+};
+use crate::models::file_content::JsonFileContent;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::BTreeMap;
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EntityData {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub composition: Option<JsonComposition>,
     pub target: EntityEditTarget,
     pub base_versions: Vec<FileVersion>,
     pub kind: EntityKind,
     pub id: String,
     pub data: Value,
+    pub document: Option<JsonFileContent>,
     pub resource_refs: BTreeMap<String, ResourceRef>,
 }
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct QueryEntityPayload {
     pub session_id: ProjectSessionId,
     pub kind: EntityKind,
     pub id: String,
 }
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct QueryEntityListPayload {
     pub session_id: ProjectSessionId,
@@ -42,6 +42,7 @@ mod tests {
     #[test]
     fn entity_data_serializes_empty_resource_refs_explicitly() {
         let entity = EntityData {
+            document: None,
             composition: None,
             target: EntityEditTarget {
                 kind: EntityKind::Projectile,
@@ -74,7 +75,7 @@ mod tests {
                 "kind": "projectile",
                 "id": "demo_projectile",
                 "data": {},
-                "resourceRefs": {}, "baseVersions": []
+            "resourceRefs": {}, "baseVersions": [], "document":null, "composition":null
             })
         );
     }

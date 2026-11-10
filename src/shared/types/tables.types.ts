@@ -79,7 +79,6 @@ export interface CsvValidationRequest {
   sources: string[];
   files: string[];
   classes: string[];
-  stationData: string[];
 }
 export interface CsvValidationContext {
   complete: boolean;
@@ -87,7 +86,6 @@ export interface CsvValidationContext {
   sources: Record<string, string[]>;
   files: Record<string, boolean>;
   classes: Record<string, boolean>;
-  stationData: Record<string, { value: RowData | null; error: string | null }>;
 }
 
 export interface CsvTableRowsRead {

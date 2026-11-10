@@ -1,7 +1,13 @@
 #![cfg(test)]
+use super::content::{save_entity_spec, stage_entity_content, validate_entity_content_in};
+use crate::io::FileChangeSetBuilder;
+use crate::models::IndexedConfigContent;
 use crate::services::file_history::query_file_history;
+use crate::services::project::open_project_session_traced;
+use crate::services::project::session::{lock_session, session_handle};
 #[cfg(test)]
 use crate::services::project_sync::release_project_session;
+use crate::test_support::file_formats;
 
 #[cfg(test)]
 use crate::domain::entity_definitions;
@@ -11,8 +17,8 @@ use crate::io;
 use crate::models::{CsvSearchField, CsvTableKey, EntityKind, FileChangeReplayDirection};
 #[cfg(test)]
 use crate::models::{
-    EntityLinkedRecord, EntityTargetState, IndexedConfigKind, IndexedConfigSave, JsonWriteOptions,
-    ResourceSource, SaveAction, SpecSave, TextSave,
+    EntityLinkedRecord, EntityTargetState, IndexedConfigSave, JsonWriteOptions, ResourceSource,
+    SaveAction, SpecSave, TextSave,
 };
 use crate::services::project;
 #[cfg(test)]
@@ -74,12 +80,11 @@ fn spec_rename_updates_the_registered_row_and_preserves_a_comment_with_the_same_
             mod_root: manifest.mod_root.clone(),
             target: info.target,
             base_versions: info.base_versions,
-            data: content.clone(),
+            document: file_formats::json_write(&(content.clone())),
             json_write: Default::default(),
-            ordered_json: None,
         }))
         .unwrap();
-        assert_eq!(io::read_json_file(&source).unwrap()["custom"], 7);
+        assert_eq!(file_formats::read_json_value(&source).unwrap()["custom"], 7);
         let info =
             entity_targets::query_entity_edit_target(&manifest.session_id, kind, "old").unwrap();
         content[definition.id_field] = "next".into();
@@ -88,9 +93,8 @@ fn spec_rename_updates_the_registered_row_and_preserves_a_comment_with_the_same_
             mod_root: manifest.mod_root.clone(),
             target: info.target,
             base_versions: info.base_versions,
-            data: content,
+            document: file_formats::json_write(&(content)),
             json_write: Default::default(),
-            ordered_json: None,
         }))
         .unwrap();
         assert_eq!(
@@ -98,11 +102,13 @@ fn spec_rename_updates_the_registered_row_and_preserves_a_comment_with_the_same_
             format!("{directory}/next{}", definition.extension)
         );
         assert_eq!(
-            io::read_json_file(&root.join(format!("{directory}/next{}", definition.extension)))
-                .unwrap()["custom"],
+            file_formats::read_json_value(
+                &root.join(format!("{directory}/next{}", definition.extension))
+            )
+            .unwrap()["custom"],
             7
         );
-        let saved = io::read_csv_data(&csv).unwrap();
+        let saved = file_formats::read_csv_table(&csv).unwrap();
         assert_eq!(saved.header, ["a", "id", "name"]);
         assert_eq!(saved.rows[0].data["id"], "old");
         assert_eq!(saved.rows[0].data["a"], "# retained note");
@@ -118,7 +124,10 @@ fn spec_rename_updates_the_registered_row_and_preserves_a_comment_with_the_same_
             receipt.history.revision,
         )
         .unwrap();
-        assert_eq!(io::read_csv_data(&csv).unwrap().rows[1].data["id"], "old");
+        assert_eq!(
+            file_formats::read_csv_table(&csv).unwrap().rows[1].data["id"],
+            "old"
+        );
         write_transactions::replay(
             &manifest.session_id,
             &manifest.mod_root,
@@ -127,7 +136,10 @@ fn spec_rename_updates_the_registered_row_and_preserves_a_comment_with_the_same_
             undo.history.revision,
         )
         .unwrap();
-        assert_eq!(io::read_csv_data(&csv).unwrap().rows[1].data["id"], "next");
+        assert_eq!(
+            file_formats::read_csv_table(&csv).unwrap().rows[1].data["id"],
+            "next"
+        );
         release_project_session(manifest.session_id).unwrap();
         root.close().unwrap();
     }
@@ -178,9 +190,8 @@ fn loaded_nested_target_renames_with_its_csv_row_and_replays_identity() {
         mod_root: manifest.mod_root.clone(),
         target: info.target,
         base_versions: info.base_versions,
-        data: json!({"hullId":"new","hullName":"Saved"}),
+        document: file_formats::json_write(&(json!({"hullId":"new","hullName":"Saved"}))),
         json_write: Default::default(),
-        ordered_json: None,
     }))
     .unwrap();
     assert!(!root.join("data/hulls/nested/filename.ship").exists());
@@ -240,9 +251,8 @@ fn missing_spec_import_uses_content_identity() {
         mod_root: manifest.mod_root.clone(),
         target: info.target,
         base_versions: info.base_versions,
-        data: json!({"hullId":"imported"}),
+        document: file_formats::json_write(&(json!({"hullId":"imported"}))),
         json_write: Default::default(),
-        ordered_json: None,
     }))
     .unwrap();
     assert_eq!(result.identity_changes[0].after.id, "imported");
@@ -285,7 +295,7 @@ fn text_save_writes_submitted_text_without_identity_changes() {
     assert_eq!(fs::read_to_string(&old).unwrap(), text);
     assert!(!root.join("data/hulls/nested/new.ship").exists());
     assert_eq!(
-        io::read_csv_data(&root.join("data/hulls/ship_data.csv"))
+        file_formats::read_csv_table(&root.join("data/hulls/ship_data.csv"))
             .unwrap()
             .rows[0]
             .data["id"],
@@ -330,14 +340,13 @@ fn assert_core_projectile_override(directory: &str) {
         mod_root: manifest.mod_root.clone(),
         target: info.target,
         base_versions: info.base_versions,
-        data: json!({"id":"core","width":8}),
+        document: file_formats::json_write(&(json!({"id":"core","width":8}))),
         json_write: Default::default(),
-        ordered_json: None,
     }))
     .unwrap();
-    assert_eq!(io::read_json_file(&core).unwrap()["width"], 4);
+    assert_eq!(file_formats::read_json_value(&core).unwrap()["width"], 4);
     assert_eq!(
-        io::read_json_file(&root.join("data/weapons/proj/core.proj")).unwrap()["width"],
+        file_formats::read_json_value(&root.join("data/weapons/proj/core.proj")).unwrap()["width"],
         8
     );
     let next = entity_targets::query_entity_edit_target(
@@ -405,9 +414,8 @@ fn projectile_save_and_rename_preserve_the_loaded_directory() {
                 mod_root: manifest.mod_root.clone(),
                 target: entity.target,
                 base_versions: entity.base_versions,
-                data: json!({"id":id,"width":2}),
+                document: file_formats::json_write(&(json!({"id":id,"width":2}))),
                 json_write: Default::default(),
-                ordered_json: None,
             }))
             .unwrap();
             let expected = if id == "probe" {
@@ -420,7 +428,7 @@ fn projectile_save_and_rename_preserve_the_loaded_directory() {
                 .unwrap();
             assert_eq!(current.target.write.rel_path, expected);
             assert_eq!(
-                io::read_json_file(&root.join(&expected)).unwrap()["width"],
+                file_formats::read_json_value(&root.join(&expected)).unwrap()["width"],
                 2
             );
             let undo = write_transactions::replay(
@@ -431,7 +439,10 @@ fn projectile_save_and_rename_preserve_the_loaded_directory() {
                 saved.history.revision,
             )
             .unwrap();
-            assert_eq!(io::read_json_file(&path).unwrap()["width"], before_width);
+            assert_eq!(
+                file_formats::read_json_value(&path).unwrap()["width"],
+                before_width
+            );
             write_transactions::replay(
                 &manifest.session_id,
                 &manifest.mod_root,
@@ -440,7 +451,10 @@ fn projectile_save_and_rename_preserve_the_loaded_directory() {
                 undo.history.revision,
             )
             .unwrap();
-            assert_eq!(io::read_json_file(&root.join(&expected)).unwrap()["id"], id);
+            assert_eq!(
+                file_formats::read_json_value(&root.join(&expected)).unwrap()["id"],
+                id
+            );
         }
         release_project_session(manifest.session_id).unwrap();
         root.close().unwrap();
@@ -469,13 +483,15 @@ fn linked_csv_version_conflict_keeps_loaded_spec_and_history() {
         mod_root: manifest.mod_root.clone(),
         target: info.target,
         base_versions: info.base_versions,
-        data: json!({"hullId":"next"}),
+        document: file_formats::json_write(&(json!({"hullId":"next"}))),
         json_write: Default::default(),
-        ordered_json: None,
     }))
     .unwrap_err();
     assert_eq!(failed.code(), "write.version_conflict");
-    assert_eq!(io::read_json_file(&file).unwrap()["hullId"], "demo");
+    assert_eq!(
+        file_formats::read_json_value(&file).unwrap()["hullId"],
+        "demo"
+    );
     assert!(
         query_file_history(&manifest.session_id, &manifest.mod_root)
             .unwrap()
@@ -508,13 +524,15 @@ fn spec_save_requires_the_complete_loaded_version_scope() {
             mod_root: manifest.mod_root.clone(),
             target: info.target.clone(),
             base_versions: versions,
-            data: json!({"hullId":"next"}),
+            document: file_formats::json_write(&(json!({"hullId":"next"}))),
             json_write: Default::default(),
-            ordered_json: None,
         }))
         .unwrap_err();
         assert_eq!(error.code(), "write.version_scope_missing");
-        assert_eq!(io::read_json_file(&path).unwrap()["hullId"], "demo");
+        assert_eq!(
+            file_formats::read_json_value(&path).unwrap()["hullId"],
+            "demo"
+        );
     }
     assert!(
         query_file_history(&manifest.session_id, &manifest.mod_root)
@@ -561,9 +579,8 @@ fn partial_identity_preserves_nested_omissions_and_empty_id_through_reopen() {
                     mod_root: manifest.mod_root.clone(),
                     target: entity.target.clone(),
                     base_versions: entity.base_versions.clone(),
-                    data,
+                    document: file_formats::json_write(&data),
                     json_write: Default::default(),
-                    ordered_json: None,
                 }))
             };
             let mut invalid = data.clone();
@@ -574,7 +591,7 @@ fn partial_identity_preserves_nested_omissions_and_empty_id_through_reopen() {
             }
             assert_eq!(save(invalid).unwrap_err().code(), "config.shape_invalid");
             save(data.clone()).unwrap();
-            assert_eq!(io::read_json_file(&path).unwrap(), data);
+            assert_eq!(file_formats::read_json_value(&path).unwrap(), data);
             release_project_session(manifest.session_id).unwrap();
             let reopened = project::open_project_session_traced(
                 &root,
@@ -654,16 +671,16 @@ fn inherited_faction_filename_choices_commit_index_and_history_together() {
                         session_id: manifest.session_id.clone(),
                         mod_root: manifest.mod_root.clone(),
                         base_versions: versions.clone(),
-                        kind: IndexedConfigKind::Faction,
                         previous_id: Some("sample".into()),
                         next_id: "next".into(),
                         index_row: Default::default(),
-                        entity_data: json!({"file":data}),
+                        content: IndexedConfigContent::Faction {
+                            document: file_formats::json_write(&(json!({"file":data}))["file"]),
+                        },
                         json_write: JsonWriteOptions {
                             keep_filename: keep,
                             ..Default::default()
                         },
-                        ordered_json: None,
                     },
                 ))
             };
@@ -691,17 +708,20 @@ fn inherited_faction_filename_choices_commit_index_and_history_together() {
             } else {
                 "data/world/factions/next.faction"
             });
-            assert_eq!(io::read_json_file(&next_path).unwrap(), submitted);
+            assert_eq!(
+                file_formats::read_json_value(&next_path).unwrap(),
+                submitted
+            );
             assert_eq!(saved.identity_changes[0].after, next.target);
             let detail = entities::query_entity(&manifest.session_id, EntityKind::Faction, "next")
                 .unwrap()
                 .unwrap();
             assert_eq!(detail.composition.unwrap().layers.len(), usize::from(keep));
-            assert_eq!(io::read_json_file(&core).unwrap(), base);
+            assert_eq!(file_formats::read_json_value(&core).unwrap(), base);
             let touches_index = !keep || layout == "linked";
             assert_eq!(saved.changes.len(), 1 + usize::from(touches_index));
             if touches_index {
-                let table = io::read_csv_data(&index).unwrap();
+                let table = file_formats::read_csv_table(&index).unwrap();
                 assert_eq!(table.rows.len(), if layout == "missing" { 1 } else { 2 });
                 let row = table.rows.last().unwrap();
                 assert!(row.data.values().any(|value| value
@@ -736,9 +756,101 @@ fn inherited_faction_filename_choices_commit_index_and_history_together() {
                 undo.history.revision,
             )
             .unwrap();
-            assert_eq!(io::read_json_file(&next_path).unwrap(), submitted);
+            assert_eq!(
+                file_formats::read_json_value(&next_path).unwrap(),
+                submitted
+            );
             release_project_session(manifest.session_id).unwrap();
             work.close().unwrap();
         }
+    }
+}
+
+#[test]
+fn phase42_single_and_joint_staging_share_field_and_engine_checks() {
+    for (kind, relative, valid, invalid, code) in [
+        (
+            EntityKind::Weapon,
+            "data/weapons/entry.wpn",
+            json!({"id":"entry","specClass":"beam","turretOffsets":[0,0],"hardpointOffsets":[0,0]}),
+            json!({"id":"entry","specClass":"beam","turretOffsets":[],"hardpointOffsets":[0,0]}),
+            "spec.weapon_turret_barrel_required",
+        ),
+        (
+            EntityKind::Ship,
+            "data/hulls/entry.ship",
+            json!({"hullId":"entry","bounds":[0,0,1,2]}),
+            json!({"hullId":"entry","bounds":[0,0,"invalid",2]}),
+            "config.shape_invalid",
+        ),
+        (
+            EntityKind::Skin,
+            "data/hulls/skins/entry.skin",
+            json!({"skinHullId":"entry","baseHullId":"base"}),
+            json!({"skinHullId":"entry","baseHullId":"base","engineSlotChanges":{"4":{"length":2}}}),
+            "config.shape_invalid",
+        ),
+    ] {
+        let root = project_workspace("phase42_shared_validation");
+        let path = root.join(relative);
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        fs::create_dir_all(root.join("data/hulls")).unwrap();
+        fs::write(
+            root.join("data/hulls/base.ship"),
+            "{hullId:'base',engineSlots:[]}",
+        )
+        .unwrap();
+        fs::write(&path, valid.to_string()).unwrap();
+        let before = fs::read(&path).unwrap();
+        let manifest = open_project_session_traced(
+            &root,
+            None,
+            &mut PerformanceTrace::new("phase42.validation"),
+        )
+        .unwrap();
+        let target = entity_targets::query_entity_edit_target(&manifest.session_id, kind, "entry")
+            .unwrap()
+            .target;
+        let options = JsonWriteOptions::default();
+        let handle = session_handle(&manifest.session_id).unwrap();
+        let session = lock_session(&handle).unwrap();
+        validate_entity_content_in(&session, kind, relative, &valid, false, None).unwrap();
+        assert_eq!(
+            validate_entity_content_in(&session, kind, relative, &invalid, false, None)
+                .unwrap_err()
+                .code(),
+            code
+        );
+        drop(session);
+        assert_eq!(
+            save_entity_spec(
+                &manifest.session_id,
+                &target,
+                "entry",
+                file_formats::json_write(&invalid),
+                options.clone()
+            )
+            .unwrap_err()
+            .code(),
+            code
+        );
+        let handle = session_handle(&manifest.session_id).unwrap();
+        {
+            let mut session = lock_session(&handle).unwrap();
+            let mut builder = FileChangeSetBuilder::new(&root).unwrap();
+            let result = stage_entity_content(
+                &mut session,
+                &mut builder,
+                &target,
+                "entry",
+                &file_formats::json_write(&invalid),
+                &options,
+                None,
+            );
+            assert_eq!(result.err().unwrap().code(), code);
+        }
+        assert_eq!(fs::read(&path).unwrap(), before);
+        release_project_session(manifest.session_id).unwrap();
+        root.close().unwrap();
     }
 }

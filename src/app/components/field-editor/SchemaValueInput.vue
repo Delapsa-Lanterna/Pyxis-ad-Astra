@@ -51,10 +51,10 @@
     <span v-if="sourceOrigin" class="ui-text-muted ui-text-small">{{ booleanValue }} (来自 {{ sourceOrigin }})</span>
   </div>
   <NumberValueInput
-    v-else-if="
-      mode !== 'plain' && ['integer', 'float'].includes(active.type) && !(active.numberFormat === 'starsector' && typeof value === 'string')
-    "
+    v-else-if="mode !== 'plain' && ['integer', 'float'].includes(active.type)"
     :value="inherited ? undefined : value"
+    :source-text="inherited ? null : fieldOriginalText(runtimeContext, fieldPath ?? field.key)"
+    :parse-value="(text) => parseSchemaPlainNumber(text, active.type === 'integer')"
     :inherited-value="inherited ? Number(value) : undefined"
     :placeholder="inherited ? String(value ?? '') : undefined"
     :source-origin="sourceOrigin"
@@ -85,7 +85,8 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { compositionPath, composeJson, setCompositionValue, editComposedJson } from '@/domain/json-composition';
-import { fieldCompositionOrigin } from '@/domain/field-editor/field-editor-context';
+import { fieldCompositionOrigin, fieldDocumentPath } from '@/domain/field-editor/field-editor-context';
+import { prepareSchemaValue } from '@/domain/schema/game-number';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
 import SchemaCollectionInput from './SchemaCollectionInput.vue';
 import SchemaReferenceInput from './SchemaReferenceInput.vue';
@@ -93,9 +94,9 @@ import SchemaScalarInput from './SchemaScalarInput.vue';
 import ColorPicker from '@/shared/ui/ColorPicker.vue';
 import NumberValueInput from '@/shared/ui/NumberValueInput.vue';
 import { useFieldEditMode } from '@/app/composables/field-editor/use-field-edit-mode';
-import { schemaCollection, schemaFieldVariant, schemaJsonInputShape } from '@/domain/schema/schema-values';
+import { parseSchemaPlainNumber, schemaCollection, schemaFieldVariant, schemaJsonInputShape } from '@/domain/schema/schema-values';
 import type { FieldSchema, SchemaFieldUpdate } from '@/domain/schema/schema.types';
-import { fieldSchemaForContext, type FieldEditorContext } from '@/domain/field-editor/field-editor-context';
+import { fieldOriginalText, fieldSchemaForContext, type FieldEditorContext } from '@/domain/field-editor/field-editor-context';
 import type { JsonValue } from '@/shared/types';
 const props = defineProps<{
   field: FieldSchema;
@@ -108,12 +109,20 @@ const props = defineProps<{
 const emit = defineEmits<{ update: [update: SchemaFieldUpdate] }>();
 const feedback = useAppFeedback();
 function publish(update: SchemaFieldUpdate) {
+  const runtime = props.runtimeContext;
+  const filePath = runtime && fieldDocumentPath(runtime, props.fieldPath ?? props.field.key);
+  if (!update.fileEdit && update.kind === 'set' && filePath && runtime?.document?.find(filePath))
+    update = { ...update, fileEdit: { kind: 'replace', path: filePath, value: prepareSchemaValue(update.value, active.value) } };
   const context = props.runtimeContext?.composition;
   if (!context) {
     emit('update', update);
     return;
   }
   const path = compositionPath(props.fieldPath ?? props.field.key);
+  if (update.fileEdit && sourceOrigin.value === null && runtime?.applyDocumentEdit) {
+    runtime.applyDocumentEdit(update.fileEdit);
+    return;
+  }
   if (update.kind === 'remove') {
     context.apply(path, undefined);
     return;

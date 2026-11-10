@@ -26,7 +26,7 @@ export function useJointEditActions(validate?: Parameters<typeof submitJointEdit
     return chosen === 'continue' ? choices.value : null;
   }
   return {
-    open: (root: JointEditRoot, signal?: AbortSignal) => openJointEditSnapshot(root, feedback, signal),
+    open: (root: JointEditRoot, signal?: AbortSignal) => openJointEditSnapshot(root, signal),
     save: (draft: JointEditDraft, createOverrides: string[] = [], request?: SaveCommandRequest) =>
       submitJointEdit(draft, feedback, chooseConflicts, createOverrides, request, validate),
   };

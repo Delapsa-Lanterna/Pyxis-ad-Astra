@@ -8,7 +8,6 @@ import { createWeaponSpec } from '@/domain/entity-write/spec-construction';
 import { miscConfigDefinition } from '@/domain/misc-config';
 import { entityTargetFixture } from '../fixtures/entity-target';
 import { composeJson } from '@/domain/json-composition';
-import { parseJsonInput } from '@/shared/lib/json-input';
 const iconFields: Partial<Record<T.CsvTableKey, string>> = {
   hullmods: 'sprite',
   shipSystems: 'icon',
@@ -142,13 +141,8 @@ export function gameQuery(project: WorkspaceProject, command: string, payload: R
   const sources = project.sources();
   if (command === 'query_csv_validation') {
     const request = payload as unknown as T.CsvValidationRequest;
-    const context: T.CsvValidationContext = { complete: true, entities: {}, sources: {}, files: {}, classes: {}, stationData: {} };
+    const context: T.CsvValidationContext = { complete: true, entities: {}, sources: {}, files: {}, classes: {} };
     const pending = [...request.entities];
-    for (const raw of request.stationData) {
-      const parsed = parseJsonInput(raw, 'object');
-      context.stationData[raw] = parsed.kind === 'error' ? { value: null, error: parsed.message } : { value: parsed.value, error: null };
-      if (parsed.kind === 'value' && typeof parsed.value.variant === 'string') pending.push({ kind: 'variant', id: parsed.value.variant });
-    }
     const seen = new Set<string>();
     while (pending.length) {
       const { kind, id } = pending.shift()!,
@@ -159,7 +153,7 @@ export function gameQuery(project: WorkspaceProject, command: string, payload: R
       if (!record) continue;
       const data = record.data as T.RowData,
         local = (data.spec ?? data) as T.RowData;
-      context.entities[key] = composeJson(local, record.composition);
+      context.entities[key] = composeJson(local, record.composition ?? undefined);
       if (kind === 'weapon' && local.projectileSpecId) pending.push({ kind: 'projectile', id: String(local.projectileSpecId) });
       if (kind === 'variant' && local.hullId)
         pending.push({ kind: 'ship', id: String(local.hullId) }, { kind: 'skin', id: String(local.hullId) });

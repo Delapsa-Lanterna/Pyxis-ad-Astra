@@ -231,14 +231,6 @@ impl FileChangeSetBuilder {
         })
     }
 
-    pub fn new_with_lock(root: &Path, write_lock: RootWriteLock) -> AppResult<Self> {
-        Ok(Self {
-            boundary: FsRootBoundary::new(root, "changeset root")?,
-            changes: Vec::new(),
-            _write_lock: write_lock,
-        })
-    }
-
     pub fn root(&self) -> &Path {
         self.boundary.root()
     }
@@ -260,8 +252,7 @@ impl FileChangeSetBuilder {
         let target = self
             .boundary
             .resolve_relative(rel_path.as_ref(), "relative file")?;
-        self.changes
-            .push(build_file_change(&target, after_text, after_data_base64)?);
+        self.stage(build_file_change(&target, after_text, after_data_base64)?);
         Ok(self)
     }
 
@@ -280,7 +271,7 @@ impl FileChangeSetBuilder {
         require_rename_target(&before, &after)?;
         let mut change = build_text_change(&before, Some(text))?;
         change.after_path = after.to_string_lossy().to_string();
-        self.changes.push(change);
+        self.stage(change);
         Ok(self)
     }
 
@@ -288,7 +279,7 @@ impl FileChangeSetBuilder {
         let target = self
             .boundary
             .resolve_relative(rel_path.as_ref(), "relative directory")?;
-        self.changes.push(build_directory_delete_change(&target)?);
+        self.stage(build_directory_delete_change(&target)?);
         Ok(self)
     }
 
@@ -307,7 +298,7 @@ impl FileChangeSetBuilder {
         require_rename_target(&source, &target)?;
         let mut change = build_directory_replace_change(&source, after_files)?;
         change.after_path = target.to_string_lossy().to_string();
-        self.changes.push(change);
+        self.stage(change);
         Ok(self)
     }
 
@@ -319,6 +310,17 @@ impl FileChangeSetBuilder {
             snapshot_directory(&path)
         } else {
             Ok(Vec::new())
+        }
+    }
+
+    fn stage(&mut self, change: FileChangeRecord) {
+        if change.before_path != change.after_path
+            || change.before_exists != change.after_exists
+            || change.before_text != change.after_text
+            || change.before_data_base64 != change.after_data_base64
+            || change.before_files != change.after_files
+        {
+            self.changes.push(change);
         }
     }
 
@@ -822,6 +824,8 @@ thread_local! {
 
 #[cfg(test)]
 mod tests {
+    use crate::test_support::file_formats;
+
     use crate::services::file_history::query_file_history;
     use crate::services::project_sync::release_project_session;
 
@@ -989,10 +993,11 @@ mod tests {
             session_id: manifest.session_id.clone(),
             mod_root: manifest.mod_root.clone(),
             target: info.target,
-            data: serde_json::json!({"hullId":"saved","hullName":"Captured"}),
+            document: file_formats::json_write(
+                &(serde_json::json!({"hullId":"saved","hullName":"Captured"})),
+            ),
             base_versions: versions,
             json_write: Default::default(),
-            ordered_json: None,
         });
         FILE_STEP.with(|step| {
             *step.borrow_mut() = Some(Box::new(|index, change| {

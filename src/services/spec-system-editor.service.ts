@@ -15,7 +15,8 @@ export async function querySpecSystemEditorData(
   const info = data ?? (await querySessionEntityEditTarget(sessionId, 'system', id, signal));
   return {
     kind: 'system',
-    composition: data?.composition,
+    composition: data?.composition ?? undefined,
+    document: data?.document ?? null,
     spec: data ? requireRowData(data.data, '战术系统 ' + id + ' 数据无效') : createSystemSpec(id),
     target: info.target,
     baseVersions: cloneQuerySnapshot<FileVersion[]>(info.baseVersions),

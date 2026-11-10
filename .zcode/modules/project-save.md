@@ -15,12 +15,11 @@
 ### 消费
 
 - `src-tauri/src/models/save_action.rs`：保存请求及封闭业务动作。
-- `src-tauri/src/services/config_entity.rs`：JSON 实体正式内容准备与实际写入。
 - `src-tauri/src/services/json_file.rs`：Variant 与 Skin 文件保存及身份操作。
 - `src-tauri/src/services/misc_config.rs`：已登记配置文件的实际保存与删除。
 - `src-tauri/src/services/project/session.rs`：会话打开、关闭、内容更新与内部登记及就绪访问能力交付。
-- `src-tauri/src/services/project/session/references.rs`：有序引用来源、代次、共享快照与按需表格视图。
-- `src-tauri/src/services/project/session/source_refresh.rs`：同根正式候选构造、手动及自动来源接纳、缺失路径与 Core 会话更新。
+- `src-tauri/src/services/project/session/`：会话授权、就绪访问、CSV 正式内容、引用及来源版本管理。
+- `src-tauri/src/services/project/write/config_entity.rs`：Mod 信息和索引配置的正式保存准备及写入。
 - `src-tauri/src/services/project/write/csv_patch.rs`：CSV patch、关联规格、行键及同根 changeset 装配。
 - `src-tauri/src/services/project/write/entity_write/content.rs`：实体内容、关联规格准备与复核、描述、父引用、单文件和势力索引写入。
 - `src-tauri/src/services/project/write/joint_edit.rs`：联合当前来源图准备、身份与修改接纳及实际保存。
@@ -73,7 +72,7 @@
 
 - Mod 批次必须捕获 session 与根；同目标重复请求复用在途任务，不同目标按捕获顺序执行。
 - 跨窗口参与者必须绑定句柄编号与目标键；执行前复核登记、目标与关闭状态，接收释放按原代次交还。
-- 保存动作必须由封闭请求类型穷尽分派，具体编辑规则归所属业务入口。
+- 保存动作由封闭请求类型穷尽分派，具体编辑规则归所属业务入口。
 - 保存请求必须消费捕获的根、session、修改与发起窗口，等待覆盖所属项目执行。
 - 实际文件修改必须经正式事务入口，文件回放与来源刷新消费各自正式流程。
 - 结果必须由实际提交决定，引用通知失败保留提交结果并交付诊断。

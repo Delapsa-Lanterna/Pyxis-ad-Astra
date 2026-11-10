@@ -24,7 +24,6 @@ vi.mock('@/services/csv-table.service', async () => ({
     sources: {},
     files: {},
     classes: {},
-    stationData: {},
   }),
   prepareCsvAssociatedSpecs: vi.fn(async (_session: string, _table: string, changes: AssociatedSpecChange[]) =>
     changes.map((change) => {
@@ -50,13 +49,38 @@ vi.mock('@/services/window.service', () => ({
   reserveNativeWindowTargets: vi.fn(async () => {}),
   releaseNativeWindowTargets: vi.fn(async () => {}),
 }));
-vi.mock('@/orchestrators/project-sync.orchestrator', async (importOriginal) => ({
-  ...(await importOriginal<typeof ProjectSyncOrchestratorModule>()),
-  completeSavedWrite,
-  beginSavedWrite: (await import('@/test/unit/project-changes')).withSavedCompletion((result) =>
-    completeSavedWrite({ modRoot: MOD_ROOT, sessionId: SESSION_ID, label: '保存 ships CSV', result }),
-  ),
-}));
+vi.mock('@/orchestrators/project-sync.orchestrator', async (importOriginal) => {
+  const { beginSavedWrite } = await import('@/test/unit/project-changes');
+  return {
+    ...(await importOriginal<typeof ProjectSyncOrchestratorModule>()),
+    completeSavedWrite,
+    beginSavedWrite: (write: (request: { id: string }) => Promise<WriteResult>, accept: (result: WriteResult) => SaveAcceptanceTask[]) =>
+      beginSavedWrite(
+        async (request) => {
+          const result = await write(request);
+          if (result.content) return result;
+          const call = writeCsvPatch.mock.lastCall!;
+          const patches = call[3] as CsvRowPatch[];
+          const mappings = new Map(result.keyMap.map((item) => [item.previousKey, item.nextKey]));
+          return {
+            ...result,
+            content: {
+              target: { kind: 'csv' as const, table: call[2] },
+              value: {
+                table: call[2],
+                baseVersions: result.baseVersions,
+                rows: patches
+                  .filter((patch) => patch.action === 'upsert')
+                  .map((patch) => ({ rowKey: mappings.get(patch.rowKey) ?? patch.rowKey, data: patch.row, isComment: patch.isComment })),
+              },
+            },
+          } as unknown as WriteResult;
+        },
+        accept,
+        (result) => completeSavedWrite({ modRoot: MOD_ROOT, sessionId: SESSION_ID, label: '保存 ships CSV', result }),
+      ),
+  };
+});
 
 import type {
   ProjectInvalidation,
@@ -66,6 +90,8 @@ import type {
   AssociatedSpecPreparation,
   AssociatedSpecWrite,
   AppFeedback,
+  CsvRowPatch,
+  SaveAcceptanceTask,
 } from '@/shared/types';
 import { TABLE_KEYS } from '@/shared/types';
 import { useProjectStore } from '@/stores/project.store';
@@ -303,7 +329,10 @@ describe('table-save orchestrator', () => {
     if (choice === 'cancel')
       expect(csvEditorView({ sessionId: SESSION_ID, modRoot: MOD_ROOT, table: 'ships' }).hasCurrentTableChanges).toBe(true);
   });
-  beforeEach(() => setActivePinia(createPinia()));
+  beforeEach(() => {
+    setActivePinia(createPinia());
+    initializeSettingsStore(createSettingsFixture());
+  });
 
   it.each(['none', 'undo', 'edit', 'create', 'delete'] as const)(
     'saves the captured order while preserving a later %s action',
@@ -670,7 +699,14 @@ describe('table-save orchestrator', () => {
     writeCsvPatch.mockResolvedValueOnce(writeResult());
     await saveCsvChanges({ table: 'ships', manifest, selectAssociatedSpecs: async () => [] });
     expect(writeCsvPatch.mock.calls.at(-1)?.[3]).toEqual([
-      { rowKey: 'ships:r1', action: 'upsert', isComment: false, row: { id: 'npc1', hullName: 'typed' } },
+      {
+        rowKey: 'ships:r1',
+        action: 'upsert',
+        isComment: false,
+        row: { id: 'npc1', hullName: 'typed' },
+        columns: ['hullName'],
+        commentChanged: false,
+      },
     ]);
     expect(useDraftSessionsStore().hasUnsavedWorkForMod(MOD_ROOT)).toBe(false);
   });
@@ -814,9 +850,18 @@ describe('table-save orchestrator', () => {
       'sess-1',
       MOD_ROOT,
       'ships',
-      [{ rowKey: 'ships:r1', action: 'upsert', isComment: false, row: { id: 'npc1', hullName: 'B' } }],
+      [
+        {
+          rowKey: 'ships:r1',
+          action: 'upsert',
+          isComment: false,
+          row: { id: 'npc1', hullName: 'B' },
+          columns: ['hullName'],
+          commentChanged: false,
+        },
+      ],
       [],
-      { preserveOriginalJson: false, confirmedSources: [] },
+      { preserveStructure: true },
       [],
       null,
       expect.any(Object),
@@ -849,11 +894,10 @@ describe('table-save orchestrator', () => {
       'sess-1',
       MOD_ROOT,
       'ships',
-      [{ rowKey: 'ships:r1', action: 'delete', isComment: false, row: {} }],
+      [{ rowKey: 'ships:r1', action: 'delete', isComment: false, row: {}, columns: [], commentChanged: false }],
       [],
       {
-        preserveOriginalJson: false,
-        confirmedSources: [],
+        preserveStructure: true,
       },
       [],
       null,
@@ -990,7 +1034,7 @@ describe('table-save orchestrator', () => {
     writeCsvPatch.mockResolvedValueOnce(writeResult({ keyMap: [{ previousKey: restoredKey, nextKey: 'ships:row:3', rowIndex: 0 }] }));
     await saveCsvChanges({ table: 'ships', manifest: project.getManifest(MOD_ROOT), selectAssociatedSpecs: async () => [] });
     expect(writeCsvPatch.mock.calls.at(-1)?.[3]).toEqual([
-      { rowKey: restoredKey, action: 'upsert', isComment: false, row: { id: 'first' } },
+      { rowKey: restoredKey, action: 'upsert', isComment: false, row: { id: 'first' }, columns: ['id'], commentChanged: true },
     ]);
     expect(csvRows(state).map((row) => row?.data.id)).toEqual(['first', 'second']);
     expect(state.documents.ships.baselineRowOrder).toEqual(state.documents.ships.rowOrder);

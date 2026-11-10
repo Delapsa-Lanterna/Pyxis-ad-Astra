@@ -1,56 +1,52 @@
-import { useCoreSchema } from '@/app/composables/use-core-schema';
-import { beginSavedWrite } from '@/orchestrators/project-sync.orchestrator';
-import { releaseNativeWindowTargets } from '@/services/window.service';
-import { stableDeepEqual } from '@/shared/lib/stable-compare';
-import { requireRowData } from '@/shared/lib/row-data';
-import { createEditorProblems } from '@/shared/runtime/editor-problems';
-import { AppError } from '@/shared/lib/errors';
-import { miscConfigDocumentValue } from '@/domain/json-editor/json-document-definitions';
-import { observeSavedContent, sessionContentUpdate } from '@/orchestrators/project-sync.orchestrator';
-import { computed, effectScope, onScopeDispose, ref, watch } from 'vue';
-import { hasMiscConfigInvalidation } from '@/services/misc-config.service';
-import { miscConfigDefinition } from '@/domain/misc-config';
+import { computed, effectScope, onScopeDispose, ref, shallowRef, watch } from 'vue';
+import { createJsonDocument } from '@/domain/json-document';
+import { prepareValue } from '@/domain/schema/game-number';
+import { prepareSchemaAtPath } from '@/domain/schema/schema-values';
 import { transferVariantWeaponSlots } from '@/domain/json-editor/json-variant-weapons';
-import { useEditTargetDraftSession, type EditTargetDraftSessionOptions } from '@/app/composables/use-edit-target-draft-session';
-import { useSnapshotHistory } from '@/app/composables/use-snapshot-history';
-import { useFieldInputActions } from '@/app/composables/use-field-input-actions';
-import { useQueryReadOwner } from '@/app/composables/use-query-read-owner';
-import { useJsonDocumentIdentity } from './use-json-document-identity';
-import { useJsonSourceRecovery } from './use-json-source-recovery';
-import { loadJsonDocument, saveJsonDocument, type JsonDocumentMeta } from './json-document-capabilities';
 import {
   configDocumentKey,
   jsonDocumentId,
-  jsonRecoveryValue,
-  jsonDocumentOrigin,
-  jsonDocumentValue,
   jsonDocumentIssues,
+  jsonRecoveryValue,
   type ConfigDocumentTarget,
   type JsonDocumentDefinition,
   type JsonDocumentRecord,
 } from '@/domain/json-editor/json-document-definitions';
-import { useJsonEditorStore } from '@/stores/json-editor.store';
-import { useDraftSessionsStore } from '@/stores/draft-sessions.store';
-import { useSaveCommandStore, type SaveParticipant } from '@/stores/save-command.store';
-import { useSettingsStore } from '@/stores/settings.store';
-
-import { hasEntityInvalidation } from '@/services/entity-query.service';
+import { miscConfigDefinition } from '@/domain/misc-config';
+import { createFieldInputs } from '@/shared/runtime/field-inputs';
+import { createEditorProblems } from '@/shared/runtime/editor-problems';
+import { requireRowData } from '@/shared/lib/row-data';
 import { relativePathFromRoot } from '@/shared/lib/paths';
+import { stableDeepEqual } from '@/shared/lib/stable-compare';
+import { AppError } from '@/shared/lib/errors';
+import { beginSavedWrite, observeSavedContent, sessionContentUpdate } from '@/orchestrators/project-sync.orchestrator';
+import { releaseNativeWindowTargets } from '@/services/window.service';
+import { useCoreSchema } from '@/app/composables/use-core-schema';
+import { useFieldInputActions } from '@/app/composables/use-field-input-actions';
+import { useQueryReadOwner } from '@/app/composables/use-query-read-owner';
+import { useJsonDocumentIdentity } from './use-json-document-identity';
+import { useJsonSourceRecovery } from './use-json-source-recovery';
+import { loadJsonDocument, saveJsonDocument, type JsonDocumentSnapshot, type JsonDocumentWriter } from './json-document-capabilities';
+import { useJsonEditorStore } from '@/stores/json-editor.store';
+import { useSettingsStore } from '@/stores/settings.store';
+import { useSaveCommandStore, type SaveParticipant } from '@/stores/save-command.store';
+import { useDraftSessionsStore } from '@/stores/draft-sessions.store';
 import type { DocumentEditorActions, DocumentSaveResult } from '@/shared/runtime/document-editor';
-import type { AppFeedback, RowData, WriteContent, JsonRecoveryPlan, JsonValue } from '@/shared/types';
+import type { AppFeedback, EditContext, RowData } from '@/shared/types';
+import type { DocumentEdit } from '@/shared/types';
 
 export function useJsonDocumentSession(definition: JsonDocumentDefinition, record: JsonDocumentRecord, feedback: AppFeedback) {
-  const editors = useJsonEditorStore();
-  const { target } = record;
+  const editors = useJsonEditorStore(),
+    { target } = record;
   return editors.retainDocument(configDocumentKey(target), target.sessionId, target.modRoot, () => {
     const scope = effectScope(true);
-    const session = scope.run(() => createJsonDocumentSession(definition, record, feedback))!;
+    const session = scope.run(() => createSession(definition, record, feedback))!;
     let key = configDocumentKey(target);
     scope.run(() =>
       watch(
         session.targetKey,
         (next) => {
-          if (next && next !== key) {
+          if (next && key !== next) {
             editors.rekeyDocument(key, next);
             key = next;
           }
@@ -61,78 +57,142 @@ export function useJsonDocumentSession(definition: JsonDocumentDefinition, recor
     return { value: { session }, dispose: () => scope.stop() };
   }).session;
 }
-function createJsonDocumentSession(definition: JsonDocumentDefinition, record: JsonDocumentRecord, feedback: AppFeedback) {
-  const commands = useSaveCommandStore();
-  const editors = useJsonEditorStore();
-  const settings = useSettingsStore();
-  const { getMergedSchema } = useCoreSchema();
+
+function createSession(definition: JsonDocumentDefinition, record: JsonDocumentRecord, feedback: AppFeedback) {
+  const editors = useJsonEditorStore(),
+    settings = useSettingsStore(),
+    commands = useSaveCommandStore();
+  const { getMergedSchema } = useCoreSchema(),
+    reads = useQueryReadOwner();
   const schema = computed(() =>
     getMergedSchema(definition.kind === 'misc-config' ? miscConfigDefinition(record.target.id).schema : definition.kind)!,
   );
-  const active = ref(false);
-  const composition = ref(record.composition);
-  const reads = useQueryReadOwner();
-  const modRoot = computed(() => record.target.modRoot);
-  const session = useEditTargetDraftSession<RowData, ConfigDocumentTarget, JsonDocumentMeta>({
-    emptyValue: {},
-    beginSave: beginSavedWrite,
-    savedContent: (snapshot) => {
-      if (snapshot.meta.composition) composition.value = snapshot.meta.composition;
-      return { ...snapshot, meta: { ...snapshot.meta, receipt: null, recovery: undefined } };
-    },
-    targetKey: configDocumentKey,
-    load: loadJsonDocument,
-    confirmSave: (_target, submitted) => {
-      problems.clearFailure();
-      if (readProblems(submitted).some((issue) => issue.severity === 'error')) {
-        throw new AppError('请先解决文档中的字段错误', { action: 'json-validation' });
-      }
-      return true;
-    },
-    mapSaveError: (error) => {
-      if (!(error instanceof AppError && ['json-validation', 'commit-field-inputs'].includes(error.action ?? '')))
-        problems.recordFailure(error);
-      return error;
-    },
-    save: (target, draft, versions, original, request) =>
-      saveJsonDocument(definition, schema.value, feedback, target, draft, versions, original, request, composition.value),
-    acceptSaved: async (snapshot) => {
-      if (snapshot.meta.recovery) {
-        recovery.accept(snapshot.meta.recovery);
-      }
-      await releaseNativeWindowTargets();
-    },
-
-    afterSaved: (snapshot) => {
-      feedback.success(snapshot.meta.recovery ? 'JSON 来源已重新创建' : '当前 JSON 文档已保存', {
-        paths: [
-          ...(snapshot.target.entity ? [snapshot.target.entity.write.path] : []),
-          ...snapshot.baseVersions.map((version) => version.path),
-        ],
-      });
-    },
+  const filePath = definition.kind === 'mission' ? ['descriptor'] : ['variant', 'skin'].includes(definition.kind) ? [] : ['file'];
+  const document = createJsonDocument(record.document!, {
+    value: prepareValue(record.value).value,
+    filePath,
+    historyLimit: settings.editHistoryLimit,
   });
-  session.loadBaseForTarget({ ...record, meta: { receipt: null, resources: record.resources, composition: record.composition } });
-  function readProblems(value: RowData) {
-    return jsonDocumentIssues(definition, schema.value, value, composition.value);
+  const revision = ref(0),
+    active = ref(false),
+    saving = ref(false),
+    sourceMissing = ref(false);
+  const currentTarget = shallowRef<ConfigDocumentTarget | null>(record.target);
+  const currentTargetKey = computed(() => (currentTarget.value ? configDocumentKey(currentTarget.value) : null));
+  const inputs = createFieldInputs(currentTargetKey);
+  const baselineSnapshot = shallowRef<JsonDocumentSnapshot>({
+    target: record.target,
+    value: record.value,
+    baseVersions: record.baseVersions,
+    meta: { document: record.document!, resources: record.resources, composition: record.composition, receipt: null },
+  });
+  const pendingSnapshot = shallowRef<JsonDocumentSnapshot | null>(null);
+  const context = shallowRef<EditContext>({ targetKey: currentTargetKey.value!, baselineGeneration: 1, handoff: 'load' });
+  const composition = computed(() => baselineSnapshot.value.meta.composition);
+  let disposed = false,
+    submittedRequestId: string | undefined,
+    pendingSave: Promise<JsonDocumentSnapshot | null> | null = null;
+  let prepared = false,
+    refreshQueued = false;
+  const touch = () => {
+    revision.value++;
+  };
+  const projection = computed(() => {
+    void revision.value;
+    return requireRowData(document.projection, 'JSON 文档根对象无效');
+  });
+  const dirty = computed(() => {
+    void revision.value;
+    return document.dirty || inputs.dirty.value;
+  });
+  function setDraft(value: RowData) {
+    reads.revoke();
+    recovery.cancelRead();
+    if (definition.kind === 'variant' && settings.editMode === 'smart') value = transferVariantWeaponSlots(projection.value, value);
+    document.update(value, (value, path) => prepareSchemaAtPath(value, path, schema.value));
+    touch();
   }
-  const problems = createEditorProblems(session.inputs, () => readProblems(session.draftValue.value), true);
-  watch([session.draftValue, session.context, composition], problems.clearFailure);
-  watch(
-    () => session.baselineSnapshot.value?.meta.composition,
-    (next) => {
-      if (next) composition.value = next;
-    },
-    { flush: 'sync' },
-  );
-  const history = useSnapshotHistory<RowData>(
-    session.context,
-    computed(() => settings.editHistoryLimit),
-  );
+  const draftValue = computed({ get: () => projection.value, set: setDraft });
+  function publish(snapshot: JsonDocumentSnapshot, handoff: EditContext['handoff']) {
+    baselineSnapshot.value = snapshot;
+    currentTarget.value = snapshot.target;
+    context.value = { targetKey: configDocumentKey(snapshot.target), baselineGeneration: context.value.baselineGeneration + 1, handoff };
+    pendingSnapshot.value = null;
+    touch();
+  }
+  function loadBaseForTarget(snapshot: JsonDocumentSnapshot) {
+    reads.revoke();
+    inputs.cancel();
+    document.reload(snapshot.meta.document, prepareValue(snapshot.value).value);
+    publish(snapshot, 'load');
+  }
+  function acceptsSaveDelivery(target: ConfigDocumentTarget, id?: string) {
+    return (
+      !disposed &&
+      configDocumentKey(target) === currentTargetKey.value &&
+      !(id && (id === submittedRequestId || id === baselineSnapshot.value.requestId))
+    );
+  }
+  function applyExternalForTarget(snapshot: JsonDocumentSnapshot) {
+    if (disposed || configDocumentKey(snapshot.target) !== currentTargetKey.value) return 'obsolete' as const;
+    if (saving.value || prepared) {
+      refreshQueued = true;
+      return 'obsolete' as const;
+    }
+    if (stableDeepEqual(snapshot.baseVersions, baselineSnapshot.value.baseVersions)) return 'baseline' as const;
+    if (dirty.value) {
+      pendingSnapshot.value = snapshot;
+      return 'pending' as const;
+    }
+    loadBaseForTarget(snapshot);
+    return 'baseline' as const;
+  }
+  function adoptIdentity(expected: ConfigDocumentTarget, snapshot: JsonDocumentSnapshot, map: (value: RowData) => RowData) {
+    if (disposed || configDocumentKey(expected) !== currentTargetKey.value) return false;
+    const mapped = map(projection.value);
+    const captured = { ...document.capture('preserveStructure'), root: document.state.baseline };
+    document.accept(captured, snapshot.meta.document, prepareValue(snapshot.value).value);
+    document.update(mapped, (value, path) => prepareSchemaAtPath(value, path, schema.value));
+    publish(snapshot, 'identity');
+    return true;
+  }
+  async function refresh() {
+    if (saving.value || prepared) {
+      refreshQueued = true;
+      return;
+    }
+    const target = currentTarget.value!;
+    const plan = await recovery.refresh();
+    if (!plan) return;
+    sourceMissing.value = plan.missingPaths.length > 0;
+    if (sourceMissing.value) return;
+    const baseline = baselineSnapshot.value;
+    const document = plan.documents[target.kind === 'mission' ? 'descriptor' : 'file']!;
+    applyExternalForTarget({
+      target,
+      value: jsonRecoveryValue(target, plan, baseline.value),
+      baseVersions: plan.baseVersions,
+      meta: { ...baseline.meta, document, resources: plan.resourceRefs, receipt: null },
+    });
+  }
+  const session = {
+    currentTarget,
+    currentTargetKey,
+    baselineSnapshot,
+    draftValue,
+    context,
+    inputs,
+    dirty,
+    saving,
+    applyExternalForTarget,
+    adoptIdentity,
+    loadBaseForTarget,
+    setDraft,
+    acceptsSaveDelivery,
+  };
   const identity = useJsonDocumentIdentity(
     session,
     active,
-    history,
     definition.kind === 'mod-info' || definition.kind === 'misc-config'
       ? undefined
       : {
@@ -141,103 +201,176 @@ function createJsonDocumentSession(definition: JsonDocumentDefinition, record: J
           read: (target, id, signal) => loadJsonDocument({ ...target, id }, signal),
           map: (value, previous, next) => {
             if (jsonDocumentId(definition, value) !== previous) return value;
-            const source = definition.kind === 'mission' ? 'list' : definition.kind === 'faction' ? 'file' : null;
-            return source
-              ? { ...value, [source]: { ...(value[source] as RowData), [definition.idField]: next } }
-              : { ...value, [definition.idField]: next };
+            const path =
+              definition.kind === 'mission'
+                ? ['list', definition.idField]
+                : definition.kind === 'faction'
+                  ? ['file', definition.idField]
+                  : [definition.idField];
+            const root = structuredClone(value);
+            let parent = root;
+            for (const key of path.slice(0, -1)) parent = parent[key] as RowData;
+            parent[path.at(-1)!] = next;
+            return root;
           },
         },
     feedback,
   );
-  type Writer = EditTargetDraftSessionOptions<RowData, ConfigDocumentTarget, JsonDocumentMeta>['save'];
-  async function saveActual(write?: Writer): Promise<DocumentSaveResult> {
-    recovery.cancelRead();
-    if (!write && !session.dirty.value && !session.saving.value) return { status: 'noop' };
-    const snapshot = await session.saveDraft(write, Boolean(write));
+  const problems = createEditorProblems(
+    inputs,
+    () => jsonDocumentIssues(definition, schema.value, projection.value, composition.value),
+    true,
+  );
+  watch([revision, composition], problems.clearFailure);
+  const write: JsonDocumentWriter = (target, draft, versions, original, captured, request) =>
+    saveJsonDocument(definition, schema.value, feedback, target, draft, versions, original, captured, request, composition.value);
+  function saveDraft(writer: JsonDocumentWriter = write, preserveDraft = false): Promise<JsonDocumentSnapshot | null> {
+    if (pendingSave) return pendingSave;
+    saving.value = true;
+    reads.revoke();
+    const operation = (async () => {
+      const committed = inputs.commit(undefined, true);
+      if (committed && !(await committed)) return null;
+      if (!preserveDraft && problems.issues.value.some((issue) => issue.severity === 'error'))
+        throw new AppError('请先解决文档中的字段错误', { action: 'json-validation' });
+      const baseline = baselineSnapshot.value,
+        target = currentTarget.value!,
+        captured = document.capture(settings.preserveStructure ? 'preserveStructure' : 'expanded');
+      const submitted = projection.value;
+      const task = beginSavedWrite(
+        (request) => writer(target, submitted, baseline.baseVersions, baseline.value, captured, request),
+        (snapshot) => [
+          () => {
+            if (disposed) return;
+            document.accept(
+              preserveDraft ? { ...captured, root: document.state.baseline } : captured,
+              snapshot.meta.document,
+              prepareValue(snapshot.value).value,
+            );
+            publish(snapshot, 'save');
+            sourceMissing.value = false;
+          },
+          () => releaseNativeWindowTargets(),
+          async () => {
+            if (refreshQueued) {
+              refreshQueued = false;
+              await refreshAfterSave();
+            }
+          },
+        ],
+      );
+      submittedRequestId = task.id;
+      const snapshot = await task.result;
+      if (snapshot) feedback.success('当前 JSON 文档已保存', { paths: snapshot.baseVersions.map((version) => version.path) });
+      return snapshot ?? null;
+    })()
+      .catch((error) => {
+        if (!(error instanceof AppError && ['json-validation', 'commit-field-inputs'].includes(error.action ?? '')))
+          problems.recordFailure(error);
+        throw error;
+      })
+      .finally(() => {
+        saving.value = false;
+        pendingSave = null;
+      });
+    pendingSave = operation;
+    return operation;
+  }
+  async function refreshAfterSave() {
+    const snapshot = await loadJsonDocument(currentTarget.value!);
+    if (!disposed && configDocumentKey(snapshot.target) === currentTargetKey.value) {
+      if (dirty.value) pendingSnapshot.value = snapshot;
+      else loadBaseForTarget(snapshot);
+    }
+  }
+  async function saveActual(writer?: JsonDocumentWriter): Promise<DocumentSaveResult> {
+    if (!writer && !dirty.value) return { status: 'noop' };
+    const snapshot = await saveDraft(writer, Boolean(writer));
     return snapshot ? { status: 'saved', receipt: snapshot.meta.receipt! } : { status: 'cancelled' };
   }
+  const waitForSave = () =>
+    pendingSave
+      ? pendingSave.then(
+          (value) => value !== null,
+          () => false,
+        )
+      : Promise.resolve(true);
+  function prepareClose() {
+    prepared = true;
+    reads.revoke();
+    return async () => {
+      prepared = false;
+      if (refreshQueued) {
+        refreshQueued = false;
+        await refresh();
+      }
+    };
+  }
   const participant: SaveParticipant = {
-    targetKey: session.currentTargetKey,
-    modRoot,
-    saving: session.saving,
-    waitForSave: session.waitForSave,
+    targetKey: currentTargetKey,
+    modRoot: computed(() => record.target.modRoot),
+    saving,
+    waitForSave,
     editing: {
       label: definition.label,
-      dirty: session.dirty,
-      draftSession: session,
+      dirty,
+      draftSession: { draftValue, inputs, prepareClose },
+      save: () => saveActual(),
       targets: computed(() =>
-        session.baselineSnapshot.value!.baseVersions.map((version) => ({
+        baselineSnapshot.value.baseVersions.map((version) => ({
           sessionId: record.target.sessionId,
           modRoot: record.target.modRoot,
           path: version.path,
         })),
       ),
-      save: () => saveActual(),
     },
   };
-  const save = (write?: Writer) => commands.requestSave(participant, () => saveActual(write));
+  const save = (writer?: JsonDocumentWriter) => commands.requestSave(participant, () => saveActual(writer));
   const recovery = useJsonSourceRecovery({ session, active, save, feedback });
-  const { confirmDiscard } = useFieldInputActions(session.inputs, feedback);
-  function setDraft(value: RowData) {
-    recovery.cancelRead();
-    if (definition.kind === 'variant' && settings.editMode === 'smart') value = transferVariantWeaponSlots(session.draftValue.value, value);
-    history.push(session.draftValue.value, value);
-    session.setDraft(value);
-  }
+  const { confirmDiscard } = useFieldInputActions(inputs, feedback);
   async function replay(direction: 'undo' | 'redo') {
-    const committed = session.inputs.commit();
+    const committed = inputs.commit();
     if (committed && !(await committed)) return false;
-    if (!(direction === 'undo' ? history.canUndo.value : history.canRedo.value)) return null;
-    session.inputs.cancel();
-    recovery.cancelRead();
-    session.setDraft(history[direction]()!);
+    const stack = direction === 'undo' ? document.history.undoStack : document.history.redoStack;
+    if (!stack.length) return null;
+    inputs.cancel();
+    reads.revoke();
+    document[direction]();
+    touch();
     return true;
   }
-  async function refresh() {
-    const target = session.currentTarget.value!;
-    const plan = await recovery.refresh();
-    if (composition.value && plan && !recovery.missing.value)
-      await reads.consume('composition', target, (signal) => loadJsonDocument(target, signal), {
-        ready: (latest) => {
-          composition.value = latest.meta.composition;
-        },
-      });
-    if (plan && active.value && !recovery.missing.value && !identity.pending.value)
-      session.applyExternalForTarget({
-        target,
-        value: jsonRecoveryValue(target, plan, session.baselineSnapshot.value!.value),
-        baseVersions: plan.baseVersions,
-        meta: { receipt: null, resources: plan.resourceRefs, composition: composition.value },
-      });
-  }
   const actions: DocumentEditorActions<ConfigDocumentTarget> = {
-    target: session.currentTarget,
-    targetKey: session.currentTargetKey,
-    inputs: session.inputs,
-    dirty: session.dirty,
-    saving: computed(() => session.saving.value || commands.isSaveQueued(participant)),
-    canUndo: computed(() => history.canUndo.value || session.inputs.dirty.value),
-    canRedo: computed(() => history.canRedo.value || session.inputs.dirty.value),
+    target: currentTarget,
+    targetKey: currentTargetKey,
+    inputs,
+    dirty,
+    saving: computed(() => saving.value || commands.isSaveQueued(participant)),
+    canUndo: computed(() => {
+      void revision.value;
+      return document.history.undoStack.length > 0 || inputs.dirty.value;
+    }),
+    canRedo: computed(() => {
+      void revision.value;
+      return document.history.redoStack.length > 0 || inputs.dirty.value;
+    }),
     undo: () => replay('undo'),
     redo: () => replay('redo'),
     save: () => save(),
     waitForSave: () => commands.waitForParticipant(participant),
   };
-  const editor = actions;
   function setActive(enabled: boolean, fresh = false) {
     if (enabled === active.value) return;
     active.value = enabled;
     if (enabled) {
-      editors.activate(editor);
+      editors.activate(actions);
       if (!fresh) void refresh().catch((error) => feedback.error(error, '刷新 JSON 文档失败'));
     } else {
-      editors.deactivate(editor);
-      session.cancelRead();
+      editors.deactivate(actions);
       reads.revoke();
     }
   }
   watch(
-    session.currentTarget,
+    currentTarget,
     (next, before) => {
       if (next && before && next.id !== before.id) {
         const selected = editors.selection(next.sessionId, definition.kind);
@@ -246,120 +379,62 @@ function createJsonDocumentSession(definition: JsonDocumentDefinition, record: J
     },
     { flush: 'sync' },
   );
-  onScopeDispose(useDraftSessionsStore().registerDraftSession(modRoot, session.dirty));
+  onScopeDispose(useDraftSessionsStore().registerDraftSession(participant.modRoot, dirty));
   onScopeDispose(commands.registerSaveParticipant(participant));
   onScopeDispose(
-    observeSavedContent(
-      (event) => {
-        const update = sessionContentUpdate(event, record.target?.sessionId);
-        if (!update) return undefined;
-        if (update.manifest.sessionId !== record.target.sessionId) return undefined;
-
-        const target = session.currentTarget.value!;
-        const receipt = event.reason === 'refresh' ? null : event.result;
-        if (receipt && !session.acceptsSaveDelivery(target, receipt.requestId)) return undefined;
-        if (
-          receipt?.identityChanges.some(
-            (change) => change.after.kind === target.kind && change.after.id === target.id && change.before.id !== change.after.id,
-          )
-        )
-          return undefined;
-        const content = receipt?.content;
-        if (
-          content &&
-          (content.target.kind === 'json' || content.target.kind === 'recovery') &&
-          stableDeepEqual(content.target.origin, jsonDocumentOrigin(target))
-        ) {
-          if (content.target.kind === 'recovery') {
-            const plan = (content as WriteContent<JsonRecoveryPlan>).value;
-            session.applyExternalForTarget(
-              {
-                target,
-                value: jsonRecoveryValue(target, plan, session.baselineSnapshot.value!.value),
-                baseVersions: receipt!.baseVersions,
-                requestId: receipt!.requestId,
-                meta: { receipt: null, resources: plan.resourceRefs, composition: composition.value },
-              },
-              true,
-            );
-            return undefined;
-          }
-          if (target.kind === 'mod-info' || target.kind === 'misc-config') {
-            const value =
-              target.kind === 'misc-config'
-                ? miscConfigDocumentValue(content.value as JsonValue)
-                : jsonDocumentValue(target.kind, requireRowData(content.value, 'JSON 文档内容无效'));
-            session.applyExternalForTarget(
-              {
-                target,
-                value,
-                baseVersions: receipt!.baseVersions,
-                requestId: receipt!.requestId,
-                meta: { receipt: null },
-              },
-              true,
-            );
-            return undefined;
-          }
-        }
-        if (
-          definition.kind !== 'mod-info' &&
-          !(definition.kind === 'misc-config'
-            ? hasMiscConfigInvalidation(update.invalidation, record.target.modRoot, miscConfigDefinition(record.target.id).kind)
-            : hasEntityInvalidation(update.invalidation, 'entity-detail', definition.kind, session.currentTarget.value!.id))
-        )
-          return undefined;
-        if (active.value)
-          return refresh().catch((error) => {
-            feedback.error(error, '刷新 JSON 文档失败');
-            throw error;
-          });
-        return undefined;
-      },
-      (sessionId) => {
-        if (sessionId === record.target.sessionId) {
-          session.cancelRead();
-          reads.revoke('session');
-        }
-      },
-    ),
+    observeSavedContent((event) => {
+      if (!acceptsSaveDelivery(currentTarget.value!, event.result.requestId)) return;
+      if (sessionContentUpdate(event, currentTarget.value!.sessionId) && active.value) return refresh();
+      return undefined;
+    }),
   );
   onScopeDispose(() => {
-    editors.deactivate(editor);
-    history.dispose();
-    session.dispose();
+    disposed = true;
+    reads.revoke();
+    editors.deactivate(actions);
+    inputs.release();
   });
   return {
-    viewId: configDocumentKey(record.target),
-    problems,
     ...actions,
+    document,
+    revision,
     active,
     setActive,
-    externalUpdateNotice: session.externalUpdateNotice,
     schema,
-    composition: computed(() => composition.value ?? session.baselineSnapshot.value?.meta.composition),
-    draftValue: computed({ get: () => session.draftValue.value, set: setDraft }),
-    sourceTarget: computed(() => identity.pending.value?.snapshot.target ?? session.currentTarget.value!),
-    sourceMissing: recovery.missing,
+    composition,
+    problems,
+    draftValue,
+    applyEdit(edit: DocumentEdit) {
+      reads.revoke();
+      document.apply(edit);
+      touch();
+    },
+    externalUpdateNotice: computed(() => (pendingSnapshot.value ? '外部版本已更新，当前未保存草稿已保留。' : '')),
+    sourceMissing,
+    sourceTarget: computed(() => identity.pending.value?.snapshot.target ?? currentTarget.value!),
     recreateSources: recovery.recreate,
     handoffLocked: computed(() => false),
+    viewId: configDocumentKey(record.target),
     record: computed<JsonDocumentRecord>(() => ({
-      target: session.currentTarget.value!,
+      target: currentTarget.value!,
+      value: baselineSnapshot.value.value,
+      document: baselineSnapshot.value.meta.document,
+      baseVersions: baselineSnapshot.value.baseVersions,
+      resources: baselineSnapshot.value.meta.resources ?? record.resources,
       composition: composition.value,
-      value: session.baselineSnapshot.value!.value,
-      baseVersions: session.baselineSnapshot.value!.baseVersions,
-      resources: session.baselineSnapshot.value!.meta.resources ?? record.resources,
     })),
     paths: computed(() =>
-      session.baselineSnapshot.value!.baseVersions.map((version) => relativePathFromRoot(record.target.modRoot, version.path)).join(' · '),
+      baselineSnapshot.value.baseVersions.map((version) => relativePathFromRoot(record.target.modRoot, version.path)).join(' · '),
     ),
-    loadPendingExternal: async () => {
+    async loadPendingExternal() {
       if (await actions.waitForSave())
         confirmDiscard(
-          session.loadPendingExternal,
-          session.dirty.value,
-          () => session.currentTargetKey.value,
-          session.baselineSnapshot.value!.baseVersions.map((version) => version.path),
+          () => {
+            if (pendingSnapshot.value) loadBaseForTarget(pendingSnapshot.value);
+          },
+          dirty.value,
+          () => currentTargetKey.value,
+          baselineSnapshot.value.baseVersions.map((version) => version.path),
         );
     },
   };

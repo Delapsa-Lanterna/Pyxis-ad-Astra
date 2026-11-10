@@ -218,6 +218,8 @@ describe('formal reading protocols', () => {
       target,
       baseVersions: [{ path: 'M:/mod/demo.ship', fingerprint: 'v1' }],
       data: { nested: { title: 'Original' } },
+      document: null,
+      composition: null,
       resourceRefs: {},
     };
     invoke.mockResolvedValue(entity);

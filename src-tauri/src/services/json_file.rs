@@ -1,171 +1,54 @@
-use crate::domain::schema;
-use crate::errors::AppError;
+use crate::domain::save_edits;
+use crate::errors::AppResult;
+use crate::io;
 use crate::models::{
     EntityIdentityChange, EntityKind, JsonFileDelete, JsonFileSave, SaveEdit, WriteResult,
 };
-use crate::services::{
-    config_entity, create_json_entity_file, delete_json_entity_file, spec_entity_definition,
-};
-use crate::{io, models, parsers, services};
-use serde_json::Value;
+use crate::services;
+use serde_json::Value as JsonValue;
 use std::path::Path;
+use std::sync::Arc;
 
-pub(crate) fn json_file_save_context(
-    session_id: &str,
-    kind: EntityKind,
-    previous_id: Option<&str>,
-    next_id: &str,
-    source_rel_path: Option<&str>,
-) -> Result<bool, AppError> {
-    let target_exists = services::query_entity(session_id, kind, next_id)?.is_some();
-    if let Some(source_rel_path) = source_rel_path {
-        let source_id = previous_id.unwrap_or(next_id);
-        let info = services::query_entity_edit_target(session_id, kind, source_id)?;
-        let indexed_rel_path = info.target.write.rel_path;
-        if indexed_rel_path != source_rel_path {
-            return Err(AppError::message(
-                "spec.path_id_mismatch",
-                format!("实体路径与会话索引不匹配: {source_rel_path} ({source_id})"),
-            ));
-        }
-    }
-    Ok(target_exists)
+pub fn write_variant_request(input: JsonFileSave) -> AppResult<WriteResult<JsonValue>> {
+    services::save_file_entity(input, EntityKind::Variant)
 }
-
-pub(crate) fn prepare_file_save(
-    payload: &mut JsonFileSave,
+pub fn prepare_file_save(
+    input: &mut JsonFileSave,
     edits: &[SaveEdit],
     identities: &[EntityIdentityChange],
     kind: EntityKind,
-) -> Result<(), AppError> {
-    if payload
-        .base_versions
-        .iter()
-        .any(|version| io::source_recreation_allowed(&payload.mod_root, &version.path))
-    {
-        return Ok(());
+) -> AppResult<()> {
+    for identity in identities {
+        if identity.before.kind == kind && input.previous_id.as_deref() == Some(&identity.before.id)
+        {
+            if input.next_id == identity.before.id {
+                input.next_id = identity.after.id.clone();
+            }
+            input.previous_id = Some(identity.after.id.clone());
+            input.rel_path = Some(identity.after.write.rel_path.clone());
+        }
     }
-    let id_field = spec_entity_definition(kind)?.id_field;
-    let current = config_entity::prepare_json_entity_save(
-        &payload.session_id,
+    let snapshot = services::query_entity_edit_target(
+        &input.session_id,
         kind,
-        payload.previous_id.as_ref().unwrap_or(&payload.next_id),
-        edits,
-        identities,
+        input.previous_id.as_deref().unwrap_or(&input.next_id),
     )?;
-    payload.previous_id = Some(current.id);
-    payload.base_versions = current.base_versions;
-    payload.rel_path = Some(current.target.write.rel_path);
-    payload.data = current.data;
-    payload.next_id = models::file_content_id(
-        &payload.data,
-        id_field,
-        Path::new(payload.rel_path.as_ref().expect("entity path")),
-    );
-    payload.ordered_json = Some(serde_json::to_string(&payload.data)?);
+    if !edits.is_empty() && Path::new(&snapshot.target.write.path).is_file() {
+        let source = Arc::new(io::read_json_file(Path::new(&snapshot.target.write.path))?);
+        input.document = save_edits::prepare_json_write(source, edits, input.document.layout)?;
+    }
+    input.base_versions = snapshot.base_versions;
     Ok(())
 }
-
-pub(crate) fn create_entity_request(
-    payload: JsonFileSave,
+pub fn write_skin_request(input: JsonFileSave) -> AppResult<WriteResult<JsonValue>> {
+    services::save_file_entity(input, EntityKind::Skin)
+}
+pub fn create_entity_request(
+    input: JsonFileSave,
     kind: EntityKind,
-) -> Result<WriteResult<Value>, AppError> {
-    if kind == EntityKind::Skin {
-        schema::validate_document(parsers::bundled_schema("skin"), &payload.data)?;
-        services::validate_skin_engine_changes(&payload.session_id, &payload.data)?;
-    }
-    services::require_entity_version_scope(
-        &payload.session_id,
-        kind,
-        &payload.next_id,
-        &payload.base_versions,
-    )?;
-    let target_exists =
-        services::query_entity(&payload.session_id, kind, &payload.next_id)?.is_some();
-    let result = create_json_entity_file(
-        &payload.mod_root,
-        kind,
-        &payload.next_id,
-        payload.data,
-        target_exists,
-    )?;
-    Ok(result)
+) -> AppResult<WriteResult<JsonValue>> {
+    services::create_json_entity_file(input, kind)
 }
-
-pub(crate) fn delete_entity_request(
-    payload: JsonFileDelete,
-    kind: EntityKind,
-) -> Result<WriteResult, AppError> {
-    services::require_entity_version_scope(
-        &payload.session_id,
-        kind,
-        &payload.entity_id,
-        &payload.base_versions,
-    )?;
-    json_file_save_context(
-        &payload.session_id,
-        kind,
-        Some(&payload.entity_id),
-        &payload.entity_id,
-        Some(&payload.rel_path),
-    )?;
-    let result = delete_json_entity_file(
-        &payload.mod_root,
-        kind,
-        &payload.entity_id,
-        &payload.rel_path,
-    )?;
-    Ok(result)
-}
-
-pub fn write_variant_request(payload: JsonFileSave) -> Result<WriteResult<Value>, AppError> {
-    services::require_entity_version_scope(
-        &payload.session_id,
-        EntityKind::Variant,
-        payload.previous_id.as_deref().unwrap_or(&payload.next_id),
-        &payload.base_versions,
-    )?;
-    json_file_save_context(
-        &payload.session_id,
-        EntityKind::Variant,
-        payload.previous_id.as_deref(),
-        &payload.next_id,
-        payload.rel_path.as_deref(),
-    )?;
-    let result = services::save_file_entity(
-        &payload.session_id,
-        EntityKind::Variant,
-        payload.previous_id.as_deref(),
-        &payload.next_id,
-        payload.data,
-        payload.json_write,
-        payload.ordered_json.as_deref(),
-    )?;
-    Ok(result)
-}
-
-pub fn write_skin_request(payload: JsonFileSave) -> Result<WriteResult<Value>, AppError> {
-    services::require_entity_version_scope(
-        &payload.session_id,
-        EntityKind::Skin,
-        payload.previous_id.as_deref().unwrap_or(&payload.next_id),
-        &payload.base_versions,
-    )?;
-    json_file_save_context(
-        &payload.session_id,
-        EntityKind::Skin,
-        payload.previous_id.as_deref(),
-        &payload.next_id,
-        payload.rel_path.as_deref(),
-    )?;
-    let result = services::save_file_entity(
-        &payload.session_id,
-        EntityKind::Skin,
-        payload.previous_id.as_deref(),
-        &payload.next_id,
-        payload.data,
-        payload.json_write,
-        payload.ordered_json.as_deref(),
-    )?;
-    Ok(result)
+pub fn delete_entity_request(input: JsonFileDelete, kind: EntityKind) -> AppResult<WriteResult> {
+    services::delete_json_entity_file(input, kind)
 }

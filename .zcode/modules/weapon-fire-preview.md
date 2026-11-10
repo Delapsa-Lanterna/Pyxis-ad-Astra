@@ -10,14 +10,9 @@
 
 - `src/app/WeaponFirePreviewContent.vue`：加载状态、稳定预览实例与关闭动作的装配入口。
 - `src/app/components/weapon-fire-preview/`：开火预览控制、画布与行为测试。
-- `src/app/components/weapon-fire-preview/WeaponFirePreview.vue`：预览控件与画布事件绑定组件。
 - `src/app/composables/weapon-fire-preview/`：预览来源、读取、播放与模拟生命周期。
-- `src/app/composables/weapon-fire-preview/use-weapon-fire-preview-view-model.ts`：播放、开火、挂载视图、速度、模拟推进与渲染装配。
-- `src/app/composables/weapon-fire-preview/use-weapon-fire-preview-window-view-model.ts`：来源、读取票据、依赖刷新、身份及错误接纳。
 - `src/app/renderers/weapon-fire-preview/`：开火预览静态贴图和模拟阶段绘制。
-- `src/app/renderers/weapon-fire-preview/scene.ts`：预览场景及最终绘制样式，消费共享武器贴图绘制。
 - `src/domain/weapon-fire-preview/`：开火时序、弹体、光束及模拟参数规则。
-- `src/domain/weapon-fire-preview/simulation.ts`：维护世界坐标、出生定义、光束、弹体、尾迹与寿命阶段。
 - `src/orchestrators/weapon-fire-preview.orchestrator.ts`：预览原生身份、标题与窗口上下文交接。
 - `src/services/weapon-fire-preview.service.ts`：武器来源及完整弹体只读装配、依赖错误。
 - `src/windows/weapon-fire-preview.window.ts`：完整预览身份、来源、标题与尺寸的请求入口。
@@ -27,10 +22,7 @@
 - `src/app/components/editors/common/EditorFooter.vue`：编辑与预览共用的说明及操作插槽。
 - `src/app/components/editors/common/EditorHeader.vue`：编辑与预览共用的标题、dirty、外部基线及动作插槽。
 - `src/app/components/editors/common/EditorInspector.vue`：编辑与预览共用的属性区标题及独立滚动容器。
-- `src/app/composables/canvas/use-canvas-navigation.ts`：预览消费右键平移与鼠标锚点缩放。
-- `src/app/composables/canvas/use-canvas-palette.ts`：主题派生与重绘通知的装配。
-- `src/app/composables/canvas/use-canvas-surface.ts`：画布表面、导航、视口、选择与指针阶段及其测试。
-- `src/app/composables/canvas/use-canvas-viewport.ts`：预览消费缩放、平移、适应状态及画布尺寸。
+- `src/app/composables/canvas/`：画布表面、视口、导航、选择、指针与展示运行态。
 - `src/app/composables/editors/use-editor-frame-loop.ts`：帧循环的启动、停止与释放。
 - `src/app/composables/editors/use-engine-rendering.ts`：统一装配引擎样式查询、媒体、解码、着色成品与引用释放。
 - `src/app/composables/editors/use-projectile-rendering.ts`：统一持有开火图片租约、解码与着色成品。
@@ -39,10 +31,7 @@
 - `src/app/composables/use-managed-window-requests.ts`：组件作用域内请求接纳及释放适配。
 - `src/app/composables/use-window-close-state.ts`：窗口操作锁、具名关闭请求、内容参与登记和卸载释放。
 - `src/app/composables/use-window-shortcuts.ts`：统一窗口按键监听、菜单优先、关闭屏蔽及卸载释放。
-- `src/app/renderers/editors/canvas-scene.ts`：预览消费共同网格、鼠标十字及坐标绘制。
-- `src/app/renderers/editors/engine-renderer.ts`：作为 Spec 与沉浸式引擎静态成品的唯一样式、尺寸与绘制入口。
-- `src/app/renderers/editors/projectile-renderer.ts`：统一绘制 Spec 与开火预览的弹体、导弹、光束及等离子本体。
-- `src/app/renderers/editors/weapon-images.ts`：武器编辑、开火预览、舰船与装配消费的共享贴图、装备阶段及光效绘制入口。
+- `src/app/renderers/editors/`：共享背景、几何标记、武器、弹体及引擎绘制。
 - `src/domain/editors/editor-types.ts`：编辑坐标、模式与悬停预览的纯数据类型。
 - `src/domain/editors/lib/geometry.ts`：舰船与武器坐标、角度、距离及边界线段纯规则。
 - `src/domain/editors/projectile-appearance.ts`：投影共享弹体外观、原点、纹理参数及引擎几何。
@@ -104,15 +93,15 @@
 - 发射调度必须按事件时刻消费充能、连射、炮管及散布；光束 burst size 表达秒数，弹体表达次数。
 - 回看必须保留最近 120 幅完整模拟状态并计入当前画面，最早画面的上一帧禁用；继续播放从当前位置重新推进并替换后续记录。
 - 存活弹体必须持有出生时的定义，后续发射消费最新定义；视口变化只允许变换世界坐标。
-- 导弹必须沿出生方向消费 CSV launch speed、proj speed、flight time 及所属熄火、尾迹和渐隐配置。
+- 导弹沿出生方向消费 CSV launch speed、proj speed、flight time 及所属熄火、尾迹和渐隐配置。
 - 开火状态、挂载及规格改变必须以当前画面重新记录并保留弹体与进度；重置及目标交接建立新起点，卸载释放记录，历史出生定义沿现有媒体登记持有并随记录淘汰释放。
-- 开火预览只允许消费独立快照与只读查询，严禁拥有规格草稿、保存及编辑历史。
+- 开火预览通过独立快照与只读查询运行，规格草稿、保存及编辑历史由编辑器维护。
 - 暂停必须停止模拟帧循环并保留进度，字段、资源、主题与尺寸变化绘制当前状态。
 - 来源与依赖更新必须保持预览组件实例、播放、开火、倍速、挂载视图及模拟进度；重置由显式动作执行。
-- 武器辉光必须消费充能、连射、冷却及光束阶段的亮度，初始待机交付零亮度；暂停保留当前亮度。
-- 画布必须消费共同导航及十字绘制，坐标以武器原点为零、向右和向上为正、按 0.5 间隔显示一位小数；离开画布隐藏十字并结束拖动。
+- 武器辉光消费充能、连射、冷却及光束阶段的亮度，初始待机交付零亮度；暂停保留当前亮度。
+- 画布消费共同导航及十字绘制，坐标以武器原点为零、向右和向上为正、按 0.5 间隔显示一位小数；离开画布隐藏十字并结束拖动。
 - 窗口身份必须包含 session、Mod 根及武器 ID，身份交接共同映射 draft 规格 ID 与可重载上下文。
-- 视口必须独立持有观看位置与相对缩放，范围为适应比例的 0.1 至 20 倍；手动视野在挂载切换、模拟重置及规格更新后保留，暂停交互只重绘当前模拟状态。
-- 适应视图必须以武器原点左侧 80px、射程线右侧 60px 展示完整射程，按钮消费真实适应状态；实际平移或缩放取消适应，右键按下保留状态，适应期间尺寸与射程更新重新计算视野。
-- 逐帧按钮必须同行呈现，点击暂停；上一帧恢复已记录状态，下一帧优先恢复后续记录，到达最新画面后推进 1/60 秒模拟时间并保持当前倍速。
+- 视口独立持有观看位置与相对缩放，范围为适应比例的 0.1 至 20 倍；手动视野在挂载切换、模拟重置及规格更新后保留，暂停交互只重绘当前模拟状态。
+- 适应视图以武器原点左侧 80px、射程线右侧 60px 展示完整射程，按钮消费真实适应状态；实际平移或缩放取消适应，右键按下保留状态，适应期间尺寸与射程更新重新计算视野。
+- 逐帧按钮同行呈现，点击暂停；上一帧恢复已记录状态，下一帧优先恢复后续记录，到达最新画面后推进 1/60 秒模拟时间并保持当前倍速。
 - 零 alpha 必须跳过 glow 绘制及着色缓存，预览模拟帧循环由播放状态控制。

@@ -1,21 +1,46 @@
+use super::SourceReader;
 use crate::errors::AppResult;
-use crate::io::{self, FsRootBoundary, forward_slash_path};
-use crate::models;
-use crate::models::{EntityFileLocation, ResourceSource};
-use crate::services::project::sources::SourceReader;
+use crate::io::{self, FsRootBoundary};
+use crate::models::file_content::JsonSource;
+use crate::models::{self, EntityFileLocation, ResourceSource};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::BTreeMap;
 use std::path::Path;
+use std::sync::Arc;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct LoadedSpecRecord {
     pub id: String,
     pub location: EntityFileLocation,
     pub data: Value,
+    pub document: Arc<JsonSource>,
 }
-
+impl LoadedSpecRecord {
+    fn read(
+        reader: &mut SourceReader,
+        path: &Path,
+        id_field: &str,
+        source: ResourceSource,
+    ) -> AppResult<Self> {
+        let document = reader.json_source(path)?;
+        let data = document.content.to_json()?;
+        let id = models::file_content_id(&data, id_field, path);
+        Ok(Self {
+            id,
+            document,
+            data,
+            location: EntityFileLocation {
+                reference: None,
+                source,
+                root: reader.root().to_string_lossy().into_owned(),
+                rel_path: reader.key(path),
+                path: path.to_string_lossy().into_owned(),
+            },
+        })
+    }
+}
 pub(crate) fn load_spec_records(
     root: &Path,
     directory: &str,
@@ -23,88 +48,51 @@ pub(crate) fn load_spec_records(
     id_field: &str,
     source: ResourceSource,
 ) -> AppResult<BTreeMap<String, LoadedSpecRecord>> {
-    let mut sources = SourceReader::new(root)?;
-    load_spec_records_from(&mut sources, &[directory], extension, id_field, source)
+    load_spec_records_from(
+        &mut SourceReader::new(root)?,
+        &[directory],
+        extension,
+        id_field,
+        source,
+    )
 }
-
 pub(in crate::services::project) fn load_spec_records_from(
-    sources: &mut SourceReader,
+    reader: &mut SourceReader,
     directories: &[&str],
     extension: &str,
     id_field: &str,
     source: ResourceSource,
 ) -> AppResult<BTreeMap<String, LoadedSpecRecord>> {
-    let root = sources.root().to_path_buf();
-    let mut records = BTreeMap::new();
-    let mut files = Vec::new();
+    let mut paths = Vec::new();
     for directory in directories {
-        files.extend(sources.walk(directory, extension)?);
+        paths.extend(reader.discover(directory, &[extension], true)?);
     }
-    files.sort_by(|left, right| left.0.cmp(&right.0));
-    for (path, data) in files {
-        {
-            let id = models::file_content_id(&data, id_field, &path);
-            let rel_path = forward_slash_path(
-                path.strip_prefix(&root)
-                    .expect("loaded spec belongs to its root"),
-            );
-            records.insert(
-                id.clone(),
-                LoadedSpecRecord {
-                    id,
-                    location: EntityFileLocation {
-                        reference: None,
-                        source,
-                        root: root.to_string_lossy().to_string(),
-                        rel_path,
-                        path: path.to_string_lossy().to_string(),
-                    },
-                    data,
-                },
-            );
-        }
+    paths.sort();
+    paths.dedup();
+    let mut records = BTreeMap::new();
+    for path in paths {
+        let record = LoadedSpecRecord::read(reader, &path, id_field, source)?;
+        records.insert(record.id.clone(), record);
     }
     Ok(records)
 }
-
 pub(in crate::services::project) fn load_faction_files_from(
-    sources: &mut SourceReader,
+    reader: &mut SourceReader,
     source: ResourceSource,
 ) -> AppResult<BTreeMap<String, LoadedSpecRecord>> {
-    let mod_root = sources.root().to_path_buf();
-    let boundary = FsRootBoundary::new(&mod_root, "faction root")?;
-    let table = sources.csv(&sources.path("data/world/factions/factions.csv")?)?;
-    let mut defs =
-        load_spec_records_from(sources, &["data/world/factions"], "faction", "id", source)?;
-    for entry in io::faction_index_entries(&boundary, &table)? {
-        if !entry.path.exists() {
-            sources
-                .versions
-                .insert(sources.key(&entry.path), io::file_version(&entry.path)?);
-            continue;
+    let root = reader.root().to_path_buf();
+    let boundary = FsRootBoundary::new(&root, "faction source")?;
+    let path = reader.path("data/world/factions/factions.csv")?;
+    let index = reader.csv(&path)?;
+    let mut records =
+        load_spec_records_from(reader, &["data/world/factions"], "faction", "id", source)?;
+    for entry in io::faction_index_entries(&boundary, &index)? {
+        if entry.path.exists() {
+            let record = LoadedSpecRecord::read(reader, &entry.path, "id", source)?;
+            records.insert(record.id.clone(), record);
+        } else {
+            reader.stage_version(&entry.path)?;
         }
-        let data = sources.json(&entry.path)?;
-        let id = models::file_content_id(&data, "id", &entry.path);
-        let rel_path = forward_slash_path(
-            entry
-                .path
-                .strip_prefix(boundary.root())
-                .expect("faction belongs to authorized root"),
-        );
-        defs.insert(
-            id.clone(),
-            LoadedSpecRecord {
-                id,
-                location: EntityFileLocation {
-                    reference: None,
-                    source,
-                    root: boundary.root().to_string_lossy().to_string(),
-                    rel_path,
-                    path: entry.path.to_string_lossy().to_string(),
-                },
-                data,
-            },
-        );
     }
-    Ok(defs)
+    Ok(records)
 }

@@ -17,12 +17,13 @@
 
 ### 消费
 
+- `src-tauri/src/domain/entity_definitions.rs`：实体与表格的对应关系及游戏身份跳过规则。
 - `src-tauri/src/domain/schema_sources.rs`：配置字段来源的相对路径及对象分组声明。
 - `src-tauri/src/models/source_catalog.rs`：候选请求、选项、来源分组及模板的公共协议。
 - `src-tauri/src/services/project/definitions/entity_definitions.rs`：实体来源和列表定义。
 - `src-tauri/src/services/project/model.rs`：会话内容、EntityListEntry、表格定义及引用视图。
+- `src-tauri/src/services/project/query/entities.rs`：当前 Mod、引用与原版的实际规格身份索引。
 - `src-tauri/src/services/project/resources/`：候选名称、船体引用与授权图片投影。
-- `src-tauri/src/services/project/resources/resource_identity.rs`：候选资源按所属快照的引用身份接纳实际资源来源。
 - `src-tauri/src/services/project/session/`：会话就绪、正式行、引用快照与稳定身份。
 - `src-tauri/src/services/project/sources/`：对应来源的内容、版本、Core 文档及配置读取。
 - `src/domain/schema/schema-source-definitions.ts`：候选读取的字段来源名称、配置路径及 CSV 来源语法。
@@ -58,10 +59,10 @@
 ## 规范
 
 - 目录必须按本地、有序引用 Mod、原版的优先级去重；来源身份、完整候选值及实际顺序保留。
-- CSV 来源必须只消费正式非注释记录，非 ID 多值按原分隔规则交付。
+- CSV 来源消费正式非注释记录及所属业务身份规则；关联独立规格的 ID 候选与引用检查共用实际规格身份索引，非 ID 多值按原分隔规则交付。
 - 授权图片必须通过正式资源能力投影，图片目录查询只允许返回路径元数据。
-- 已知值和数字模板必须按表列隔离，动态标签消费实际来源内容。
+- 已知值和数字模板按表列隔离，动态标签消费实际来源内容。
 - 候选失效必须共同消费正式 query scope 与配置资源范围，缓存和字段刷新调用同一判定，实时读取沿所属框架结束等待。
 - Bundled schema 的 `config:` 来源必须属于正式配置目录登记，声音、设计类型、船体样式与引擎样式按当前 Mod 优先和原版补全交付候选。
-- 原版 tags、hints 与 UI 标签必须按 Starsector 版本及完整表列 source 查询；数字规则通过独立模板选项交付默认输入值与有效上限，选择填入标签自定义输入，并经所属 FieldInputs 提交；具体数字说明来自匹配的来源规则。
-- 图片候选必须按声明目录及子目录查询当前 Mod 和原版，同路径采用 Mod 优先，任务图片按当前任务目录交付相对路径；查询只允许交付路径元数据。
+- 原版 tags、hints 与 UI 标签按 Starsector 版本及完整表列 source 查询；数字规则通过独立模板选项交付默认输入值与有效上限，选择填入标签自定义输入，并经所属 FieldInputs 提交；具体数字说明来自匹配的来源规则。
+- 图片候选按声明目录及子目录查询当前 Mod 和原版，同路径采用 Mod 优先，任务图片按当前任务目录交付相对路径；查询只允许交付路径元数据。

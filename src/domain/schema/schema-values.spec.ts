@@ -14,7 +14,7 @@ import {
 import { deepClone } from '@/shared/lib/starsector';
 
 describe('whole-value plain numbers', () => {
-  it.each(['12foo', '1e3', '1.5', '9007199254740992', '0x10'])('preserves integer input %s', (raw) => {
+  it.each(['12foo', '1.5', '9007199254740992', '0x10'])('preserves integer input %s', (raw) => {
     expect(parseSchemaPlainNumber(raw, true)).toBe(raw);
   });
   it.each([
@@ -67,7 +67,8 @@ describe('schema scalar commit contract', () => {
   });
 
   it('uses declared boolean spellings and range constraints', () => {
-    expect(convertSchemaScalarInput('yes', { key: 'enabled', label: '启用', type: 'boolean' })).toEqual({ kind: 'set', value: true });
+    expect(convertSchemaScalarInput('true', { key: 'enabled', label: '启用', type: 'boolean' })).toEqual({ kind: 'set', value: true });
+    expect(convertSchemaScalarInput('yes', { key: 'enabled', label: '启用', type: 'boolean' })).toMatchObject({ kind: 'error' });
     expect(convertSchemaScalarInput('perhaps', { key: 'enabled', label: '启用', type: 'boolean' })).toMatchObject({ kind: 'error' });
     expect(convertSchemaScalarInput('5', { key: 'count', label: '数量', type: 'integer', max: 4 })).toMatchObject({ kind: 'error' });
   });

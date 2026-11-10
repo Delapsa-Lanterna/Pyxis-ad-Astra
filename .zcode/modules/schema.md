@@ -31,7 +31,10 @@
 ### 消费
 
 - `src-tauri/build.rs`：字段资产的编译期索引。
+- `src-tauri/src/models/file_content.rs`：精确文档、原始格式、物理 CSV 行格及完整写入请求。
+- `src-tauri/src/models/file_value.rs`：64 位整数、浮点与 UTF-16 文字的精确值。
 - `src-tauri/src/parsers/field_schema.rs`：内嵌字段资产的严格读取。
+- `src-tauri/src/parsers/game/`：游戏 JSON/CSV 的正式读取入口、文档方法、数值及文本格式能力。
 - `src/shared/lib/input-number.ts`：完整浮点及安全整数解析。
 - `src/shared/lib/paths.ts`：路径标签纯投影。
 - `src/shared/lib/starsector/value.ts`：JSON 值复制。
@@ -69,19 +72,18 @@
 - JSON 与 Spec 文档必须共同消费字段类型、结构与必填问题投影，文档遍历沿正式字段路径交付问题，原始业务内容保持所属形态。
 - 同一字段必须使用唯一的解析方式和类型规则，输入、校验与保存共同消费所属正式声明和解析入口。
 - 已提供的 null 必须按字段实际类型检查，局部内容只允许省略所属必填字段。
-- 严禁按关联规格、业务分支或处理阶段为同一字段切换解析方式或追加另一套类型规则。
 - 完整文档必须按正式字段路径检查适用声明中的缺失必填值，局部覆盖只检查已提供值，数值项与数组下标沿同一字段规则定位。
 - CSV 标准列及顺序必须唯一来自各表 schema 的 columns 声明，严禁新增独立列序资产或第二份手工列清单；正式表头回退和展示排序消费该声明。
-- CSV 字段说明必须在对应列填写 `description` 字符串，换行作为正文保留；进入字段速览必须在对应列填写 `summary: true`，展示顺序消费列定义顺序。
+- CSV 字段说明在对应列填写 `description` 字符串，换行作为正文保留；进入字段速览在对应列填写 `summary: true`，展示顺序消费列定义顺序。
 - CSV 类型检查必须消费列控件、整数声明、固定选项与必填规则；数字完整、有限，整数字段位于 32 位有符号整数范围，布尔字段采用游戏接受的 true 或 false；类型错误交付阻断问题，数值用途提醒独立交付警告。
-- Bundled JSON schema 必须以 `schemas/*.schema.json` 文件登记，文件名与资产 ID 一致；前端注册与 Rust 编译期索引消费同一目录。
+- Bundled JSON schema 以 `schemas/*.schema.json` 文件登记，文件名与资产 ID 一致；前端注册与 Rust 编译期索引消费同一目录。
 - Bundled schema 注册时必须校验每个 `csv:` source 的表名属于正式 CSV 表注册表或实体注册表的 source 声明，无效 source 阻止注册。
-- `root` 必须定义独立文件内容，`nested`、`valueSchema` 与 `item` 分别定义固定属性、可命名条目与列表元素，`operations` 限定结构动作。
-- `variants` 分支必须继承所属字段的键与名称，版本对象的数字与字符串部分保留原类型。
-- 字段默认与数组项默认必须由所属 schema 消费语义决定；完整规格新建消费所属格式的共享模板构造。
+- `root` 定义独立文件内容，`nested`、`valueSchema` 与 `item` 分别定义固定属性、可命名条目与列表元素，`operations` 限定结构动作。
+- `variants` 分支继承所属字段的键与名称，版本对象的数字与字符串部分保留原类型。
+- 字段默认与数组项默认由所属 schema 消费语义决定；完整规格新建消费所属格式的共享模板构造。
 - 对象键、条目数量、互斥字段及条件必填必须分别消费 `keySchema`、`minEntries`、`maxEntries`、`exclusiveKeys` 与 `requiredWhen`，条件按字符串相等、数字下限或键缺失共同交付字段标签和检查，结构操作服从所属约束。
 - 嵌套字段与键值输出必须保留自有业务键；字段路径读取只允许消费自有属性，构造可写字典采用无原型对象。
 - 字段定义及来源声明必须只消费本模块纯规则和公共契约，严禁依赖字段编辑运行态、业务查询或保存协调。
-- 配置字段来源必须消费前后端对应的 CONFIG_FIELD_SOURCES，来源名称、相对路径和对象分组保持一致。
+- 配置字段来源消费前后端对应的 CONFIG_FIELD_SOURCES，来源名称、相对路径和对象分组保持一致。
 - Spec 字段、分组、取值与保存约束必须声明在 schemas 资产；定义、嵌套与分支的来源共同校验，展示条件支持当前文档路径、正数判断与任一分支。
 - 静态字段定义合并必须消费当前 Core 根的发现结果，发现失败时保留静态 schema。

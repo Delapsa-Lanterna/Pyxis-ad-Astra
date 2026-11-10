@@ -18,6 +18,7 @@ use std::{env, fs, process, thread};
 #[cfg(windows)]
 use windows_sys::Win32;
 
+pub(crate) mod file_formats;
 pub(crate) mod work_counts;
 
 pub(crate) static SOURCE_WATCH_TEST_QUEUE: Mutex<()> = Mutex::new(());

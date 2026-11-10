@@ -12,10 +12,10 @@ import type {
   JointVariantCatalogKind,
   ResourceSource,
   ProjectInvalidation,
+  DocumentEdit,
 } from '@/shared/types';
 import { invokeCommand, invokeSaveCommand, type SaveCommandRequest } from '@/shared/runtime/command.runtime';
 import { readLiveSessionQuery, type SessionQueryDefinition, CachedSessionQuery } from '@/services/query-cache.service';
-import { captureJsonEdits } from '@/shared/lib/json-edits';
 
 export function hasJointEditInvalidation(invalidation: ProjectInvalidation) {
   return invalidation.session || invalidation.paths.length > 0;
@@ -100,9 +100,10 @@ export function queryJointVariantCatalog(
 export function prepareJointEdit(draft: JointEditDraft, signal?: AbortSignal): Promise<DeepReadonly<JointEditPrepared>> {
   return readLiveSessionQuery(readJointPreparation, draft.baseline.root.sessionId, draft, signal);
 }
-export function saveJointEdit(payload: SaveJointEditPayload, request?: SaveCommandRequest): Promise<JointEditWriteResult> {
-  const original = Object.fromEntries(
-    payload.snapshot.records.filter((record) => Object.hasOwn(payload.values, record.key)).map((record) => [record.key, record.value]),
-  );
-  return invokeSaveCommand('save_joint_edit', { payload }, captureJsonEdits(original, payload.values), request);
+export function saveJointEdit(
+  payload: SaveJointEditPayload,
+  edits: DocumentEdit[],
+  request?: SaveCommandRequest,
+): Promise<JointEditWriteResult> {
+  return invokeSaveCommand('save_joint_edit', { payload }, edits, request);
 }

@@ -114,8 +114,8 @@ pub struct AppSettings {
     pub immersive_font_directory: Option<String>,
     #[serde(default, deserialize_with = "deserialize_non_empty_string")]
     pub java_executable: Option<String>,
-    #[serde(default = "default_preserve_original_json")]
-    pub preserve_original_json: bool,
+    #[serde(default = "default_preserve_structure")]
+    pub preserve_structure: bool,
     #[serde(default)]
     pub allow_core_editing: bool,
     #[serde(default, deserialize_with = "deserialize_non_empty_string")]
@@ -148,7 +148,7 @@ impl Default for AppSettings {
             immersive_game_font: default_immersive_game_font(),
             immersive_font_directory: None,
             java_executable: None,
-            preserve_original_json: default_preserve_original_json(),
+            preserve_structure: default_preserve_structure(),
             allow_core_editing: false,
             starsector_root: None,
             log_directory: None,
@@ -193,7 +193,7 @@ fn default_watch_file_changes() -> bool {
     true
 }
 
-fn default_preserve_original_json() -> bool {
+fn default_preserve_structure() -> bool {
     true
 }
 
@@ -374,12 +374,12 @@ mod tests {
     }
 
     #[test]
-    fn preserve_original_json_defaults_true_for_existing_settings() {
+    fn preserve_structure_defaults_true_for_existing_settings() {
         let old: AppSettings = serde_json::from_value(json!({"theme":"light"})).unwrap();
-        assert!(old.preserve_original_json);
+        assert!(old.preserve_structure);
         let disabled: AppSettings =
-            serde_json::from_value(json!({"preserveOriginalJson":false})).unwrap();
-        assert!(!disabled.preserve_original_json);
+            serde_json::from_value(json!({"preserveStructure":false})).unwrap();
+        assert!(!disabled.preserve_structure);
         let old: AppSettings = serde_json::from_value(json!({"theme":"light"})).unwrap();
         assert!(!old.allow_core_editing);
     }

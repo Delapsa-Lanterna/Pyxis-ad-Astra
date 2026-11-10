@@ -1,482 +1,324 @@
-use crate::domain::entity_identity::validate_entity_id;
-use crate::domain::{save_edits, schema};
+use crate::domain::{entity_identity, save_edits, schema};
 use crate::errors::{AppError, AppResult};
-use crate::io::{
-    FileChangeSetBuilder, FsRootBoundary, JsonWriteBatch, acquire_root_write_lock, read_csv_data,
-};
+use crate::io::{self, FileChangeSetBuilder};
+use crate::models::JsonDocumentOrigin;
+use crate::models::JsonSourceIdentity;
+use crate::models::file_content::{JsonFileContent, JsonSource, SaveLayout};
 use crate::models::{
-    CsvRow, CsvTable, EntityData, EntityEditTarget, EntityFileLocation, EntityIdentityChange,
-    EntityKind, EntityLinkedRecord, EntityTargetState, FileSnapshot, IndexedConfigDelete,
-    IndexedConfigEntityRefresh, IndexedConfigKind, IndexedConfigSave, JsonDocumentOrigin,
-    JsonWriteOptions, ModInfoSave, ResourceSource, SaveEdit, WriteContentTarget, WriteResult,
+    EntityIdentityChange, EntityKind, EntityLinkedRecord, EntityTargetState, FileSnapshot,
+    IndexedConfigContent, IndexedConfigDelete, IndexedConfigEntityRefresh, IndexedConfigKind,
+    IndexedConfigSave, ModInfoSave, SaveEdit, WriteContentTarget, WriteResult,
 };
-use crate::parsers::render_csv_text;
-use crate::services::{config_entity, project};
-use crate::{io, models, parsers, services};
-use serde_json::{Map, Value};
+use crate::parsers;
+use crate::services::project::model::SessionCsvRow;
+use crate::services::project::query::entity_targets;
+use crate::services::project::session::{
+    csv_tables, csv_writes::CsvTableDraft, lock_session, session_handle,
+};
+use crate::services::project::sources::project_csv;
+use crate::services::project::write::entity_write::replace_paths;
+use crate::services::project::write::faction_identity;
+use serde_json::{Value, json};
 use std::path::Path;
+use std::sync::Arc;
 
-pub fn save_mod_info(
-    mod_root: &str,
-    data: Value,
-    options: JsonWriteOptions,
-    ordered_json: Option<&str>,
-) -> AppResult<WriteResult<Value>> {
-    schema::validate_document(parsers::bundled_schema("mod-info"), &data)?;
-    let mut builder = FileChangeSetBuilder::new(Path::new(mod_root))?;
-    let mut json = JsonWriteBatch::new(options);
-    let target = builder.root().join("mod_info.json");
-    let text = json.render(&target, &data, ordered_json)?;
-    json.finish()?;
-    if target.exists() && io::read_utf8_no_bom(&target)? == text {
-        return Ok(WriteResult::from_content(
-            Vec::new(),
-            WriteContentTarget::Json {
-                origin: JsonDocumentOrigin::ModInfo,
-            },
-            data,
-        ));
+pub fn prepare_mod_save(input: &mut ModInfoSave, edits: &[SaveEdit]) -> AppResult<()> {
+    if edits.is_empty() {
+        return Ok(());
     }
-    builder.text_file("mod_info.json", Some(text))?;
-    builder.apply().map(|changes| {
-        WriteResult::from_content(
-            changes,
-            WriteContentTarget::Json {
-                origin: JsonDocumentOrigin::ModInfo,
-            },
-            data,
-        )
-    })
-}
-
-const MISSION_INDEX: &str = "data/missions/mission_list.csv";
-fn mission_row_id(row: &CsvRow) -> Option<&str> {
-    if row.is_comment {
-        return None;
+    let path = Path::new(&input.mod_root).join("mod_info.json");
+    if path.is_file() {
+        let (version, source) = io::read_versioned_json(&path)?;
+        input.document =
+            save_edits::prepare_json_write(Arc::new(source), edits, input.document.layout)?;
+        input.base_versions = vec![version];
     }
-    row.data
-        .get("mission")
-        .and_then(Value::as_str)
-        .map(str::trim)
+    Ok(())
 }
-
-pub struct MissionSaveInput<'a> {
-    pub index: Option<CsvTable>,
-    pub index_row: Map<String, Value>,
-    pub entity_data: Value,
-    pub json_write: JsonWriteOptions,
-    pub ordered_json: Option<&'a str>,
-}
-
-pub fn save_mission_with_json(
-    root: &str,
-    previous_id: Option<&str>,
-    next_id: &str,
-    input: MissionSaveInput<'_>,
-) -> AppResult<WriteResult<Value>> {
-    let lease = acquire_root_write_lock(Path::new(root))?;
-    let boundary = FsRootBoundary::new(Path::new(root), "mission root")?;
-    let next_id = validate_entity_id(next_id, "无效战役 ID")?;
-    if let Some(previous) = previous_id {
-        validate_entity_id(previous, "无效战役 ID")?;
+pub fn prepare_indexed_request(
+    input: &mut IndexedConfigSave,
+    edits: &[SaveEdit],
+    identities: &[EntityIdentityChange],
+) -> AppResult<()> {
+    let kind = input.content.kind();
+    for identity in identities {
+        if identity.before.kind == kind.into()
+            && input.previous_id.as_deref() == Some(&identity.before.id)
+        {
+            if input.next_id == identity.before.id {
+                input.next_id = identity.after.id.clone();
+            }
+            input.previous_id = Some(identity.after.id.clone());
+        }
     }
-    let mut index = match input.index {
-        Some(index) => index,
-        None => read_csv_data(&boundary.resolve_relative(MISSION_INDEX, "mission index")?)?,
+    let snapshot = entity_targets::query_entity_edit_target(
+        &input.session_id,
+        kind.into(),
+        input.previous_id.as_deref().unwrap_or(&input.next_id),
+    )?;
+    let path = if kind == IndexedConfigKind::Mission {
+        Path::new(&snapshot.target.write.path).join("descriptor.json")
+    } else {
+        Path::new(&snapshot.target.write.path).to_path_buf()
     };
-    if index.header.is_empty() {
-        index.header.push("mission".to_string());
+    if !edits.is_empty() && path.is_file() {
+        let source = Arc::new(io::read_json_file(&path)?);
+        let next = save_edits::prepare_json_write(source, edits, input.content.document().layout)?;
+        match &mut input.content {
+            IndexedConfigContent::Faction { document }
+            | IndexedConfigContent::Mission { document, .. } => *document = next,
+        }
     }
-    let previous_position = previous_id.and_then(|id| {
-        index
-            .rows
-            .iter()
-            .position(|row| mission_row_id(row) == Some(id))
+    input.base_versions = snapshot.base_versions;
+    Ok(())
+}
+pub fn save_mod_info(input: ModInfoSave) -> AppResult<WriteResult<Value>> {
+    let path = Path::new(&input.mod_root).join("mod_info.json");
+    let data = input.document.content.to_json()?;
+    schema::validate_document(parsers::bundled_schema("mod-info"), &data)?;
+    let source = path
+        .is_file()
+        .then(|| io::read_json_file(&path))
+        .transpose()?;
+    let mut builder = FileChangeSetBuilder::new(Path::new(&input.mod_root))?;
+    let actual = io::stage_json_document(
+        &mut builder,
+        "mod_info.json",
+        source.as_ref(),
+        &input.document,
+    )?;
+    Ok(WriteResult::from_content(
+        builder.apply()?,
+        WriteContentTarget::Json {
+            origin: JsonDocumentOrigin::ModInfo,
+        },
+        serde_json::to_value(JsonFileContent::from(&actual))?,
+    ))
+}
+pub fn write_indexed_request(input: IndexedConfigSave) -> AppResult<WriteResult<Value>> {
+    let kind = input.content.kind();
+    entity_targets::require_entity_version_scope(
+        &input.session_id,
+        kind.into(),
+        input.previous_id.as_deref().unwrap_or(&input.next_id),
+        &input.base_versions,
+    )?;
+    match kind {
+        IndexedConfigKind::Faction => faction_identity::save_faction_entity(input),
+        IndexedConfigKind::Mission => save_mission(input),
+    }
+}
+pub fn create_indexed_request(input: IndexedConfigSave) -> AppResult<WriteResult<Value>> {
+    let target = entity_targets::query_entity_edit_target(
+        &input.session_id,
+        input.content.kind().into(),
+        &input.next_id,
+    )?
+    .target;
+    if target.state == EntityTargetState::Existing {
+        return Err(AppError::EntityTargetExists {
+            target: Box::new(target),
+        });
+    }
+    write_indexed_request(input)
+}
+fn save_mission(input: IndexedConfigSave) -> AppResult<WriteResult<Value>> {
+    let IndexedConfigContent::Mission { document, text } = input.content else {
+        unreachable!("mission save content")
+    };
+    let next = entity_identity::validate_entity_id(&input.next_id, "无效战役 ID")?;
+    let before = entity_targets::query_entity_edit_target(
+        &input.session_id,
+        EntityKind::Mission,
+        input.previous_id.as_deref().unwrap_or(next),
+    )?
+    .target;
+    let handle = session_handle(&input.session_id)?;
+    let mut session = lock_session(&handle)?;
+    csv_tables::ensure_session_table_rows(&mut session, "missions")?;
+    let mut index = CsvTableDraft::read_named(&session, "missions")?;
+    drop(session);
+    let previous = input.previous_id.as_deref().unwrap_or(next);
+    let position = index.rows.iter().position(|row| {
+        !row.is_comment && row.data.get("mission").and_then(Value::as_str) == Some(previous)
     });
-    if let Some(previous_id) = previous_id
-        && previous_position.is_none()
-    {
+    if input.previous_id.is_some() && before.source.is_none() && position.is_none() {
         return Err(AppError::message(
-            "config.index_missing",
-            format!("战役索引不存在: {}", previous_id),
+            "config.index_row_missing",
+            format!("战役索引不存在: {previous}"),
         ));
     }
-    if index
-        .rows
-        .iter()
-        .any(|row| mission_row_id(row) == Some(next_id))
-        && previous_id != Some(next_id)
-    {
+    if index.rows.iter().enumerate().any(|(i, row)| {
+        Some(i) != position
+            && !row.is_comment
+            && row.data.get("mission").and_then(Value::as_str) == Some(next)
+    }) {
         return Err(AppError::message(
             "config.entity_exists",
-            format!("战役已存在: {next_id}"),
+            format!("战役已存在：{next}"),
         ));
     }
-    let source_id = previous_id.unwrap_or(next_id);
-    let before_rel = format!("data/missions/{source_id}");
-    let after_rel = format!("data/missions/{next_id}");
-    let source = boundary.resolve_relative(&before_rel, "mission source")?;
-    let target = boundary.resolve_relative_target(&after_rel, "mission target")?;
-    if target.exists()
-        && previous_id != Some(next_id)
-        && (previous_id.is_none() || !io::same_physical_path(&source, &target))
-    {
-        return Err(AppError::message(
-            "config.target_exists",
-            format!("战役目标已存在: {after_rel}"),
-        ));
-    }
-    let mut row = previous_position
-        .map(|position| index.rows[position].data.clone())
+    let mut row = position
+        .map(|index_position| index.rows[index_position].data.clone())
         .unwrap_or_default();
     row.extend(input.index_row);
-    row.insert("mission".to_string(), Value::String(next_id.to_string()));
+    row.insert("mission".into(), Value::String(next.into()));
     for key in row.keys() {
         if !index.header.contains(key) {
             index.header.push(key.clone());
         }
     }
-    let next_position = previous_position.unwrap_or(index.rows.len());
-    if let Some(position) = previous_position {
+    let row_position = position.unwrap_or(index.rows.len());
+    if let Some(position) = position {
         index.rows[position].data = row;
     } else {
-        index.rows.push(CsvRow {
+        index.rows.push(SessionCsvRow {
+            row_key: format!("missions:row:{}", index.next_row_seq),
             data: row,
             is_comment: false,
+            source_row: None,
         });
+        index.next_row_seq += 1;
     }
-    let descriptor = input.entity_data.get("descriptor").ok_or_else(|| {
-        AppError::message(
-            "config.missing_mission_descriptor",
-            "missing mission descriptor data",
-        )
-    })?;
-    let text = input
-        .entity_data
-        .get("text")
-        .and_then(Value::as_str)
-        .ok_or_else(|| {
-            AppError::message("config.missing_mission_text", "missing mission text data")
-        })?;
-    let mut json = JsonWriteBatch::new(input.json_write);
-    let rendered = json.render(
-        &source.join("descriptor.json"),
-        descriptor,
-        input.ordered_json,
-    )?;
-    json.finish()?;
-    let mut builder = FileChangeSetBuilder::new_with_lock(boundary.root(), lease)?;
+    let before_relative = before.write.rel_path.clone();
+    let after_relative = format!("data/missions/{next}");
+    let descriptor_path = Path::new(&input.mod_root)
+        .join(&before_relative)
+        .join("descriptor.json");
+    let source = descriptor_path
+        .is_file()
+        .then(|| io::read_json_file(&descriptor_path))
+        .transpose()?;
+    let actual = match &source {
+        Some(source) => source.write(&document)?,
+        None => JsonSource::create(&document)?,
+    };
+    let csv = index.output(SaveLayout::PreserveStructure)?;
+    let mut builder = FileChangeSetBuilder::new(Path::new(&input.mod_root))?;
     builder.text_file(
-        MISSION_INDEX,
-        Some(render_csv_text(
-            &index.header,
-            &index
-                .rows
-                .iter()
-                .map(|row| (&row.data, row.is_comment))
-                .collect::<Vec<_>>(),
-        )?),
+        "data/missions/mission_list.csv",
+        Some(csv.document.source.to_string()),
     )?;
-    let rename = previous_id.is_some() && source_id != next_id;
-    if rename {
-        let mut files = builder.directory_files(&before_rel)?;
+    if before_relative != after_relative {
+        let mut files = builder.directory_files(&before_relative)?;
         for (relative, content) in [
-            ("descriptor.json", rendered),
-            ("mission_text.txt", text.to_string()),
+            ("descriptor.json", actual.text.to_string()),
+            ("mission_text.txt", text.clone()),
         ] {
             files.retain(|file| file.rel_path != relative);
             files.push(FileSnapshot {
-                rel_path: relative.to_string(),
+                rel_path: relative.into(),
                 text: Some(content),
                 data_base64: None,
             });
         }
-        files.sort_by(|left, right| left.rel_path.cmp(&right.rel_path));
-        builder.rename_directory(&before_rel, &after_rel, files)?;
+        files.sort_by(|a, b| a.rel_path.cmp(&b.rel_path));
+        builder.rename_directory(&before_relative, &after_relative, files)?;
     } else {
-        builder.text_file(format!("{after_rel}/descriptor.json"), Some(rendered))?;
         builder.text_file(
-            format!("{after_rel}/mission_text.txt"),
-            Some(text.to_string()),
+            format!("{after_relative}/descriptor.json"),
+            Some(actual.text.to_string()),
+        )?;
+        builder.text_file(
+            format!("{after_relative}/mission_text.txt"),
+            Some(text.clone()),
         )?;
     }
-    let changes = builder.apply()?;
-    let root = boundary.root().to_string_lossy().to_string();
-    let location = |rel: &str| EntityFileLocation {
-        reference: None,
-        source: ResourceSource::Mod,
-        root: root.clone(),
-        rel_path: rel.to_string(),
-        path: boundary.root().join(rel).to_string_lossy().to_string(),
-    };
-    let before_location = location(&before_rel);
-    let after_location = location(&after_rel);
-    let before = EntityEditTarget {
-        kind: EntityKind::Mission,
-        id: source_id.to_string(),
-        source: previous_id.map(|_| before_location.clone()),
-        write: before_location,
-        state: if previous_id.is_some() {
-            EntityTargetState::Existing
-        } else {
-            EntityTargetState::Create
-        },
-        linked_record: previous_position.map(|row_index| EntityLinkedRecord::Index {
-            path: MISSION_INDEX.to_string(),
-            row_index,
-        }),
-    };
-    let after = EntityEditTarget {
-        kind: EntityKind::Mission,
-        id: next_id.to_string(),
-        source: Some(after_location.clone()),
-        write: after_location,
-        state: EntityTargetState::Existing,
-        linked_record: Some(EntityLinkedRecord::Index {
-            path: MISSION_INDEX.to_string(),
-            row_index: next_position,
-        }),
-    };
+    replace_paths::stage_replace_paths(&mut builder, &input.json_write)?;
+    let mut after = before.clone();
+    after.id = next.into();
+    after.write = entity_targets::location(&input.mod_root, &after_relative);
+    after.source = Some(after.write.clone());
+    after.state = EntityTargetState::Existing;
+    after.linked_record = Some(EntityLinkedRecord::Index {
+        path: "data/missions/mission_list.csv".into(),
+        row_index: row_position,
+    });
+    let value = serde_json::to_value(IndexedConfigEntityRefresh {
+        entity_id: next.into(),
+        index_path: "data/missions/mission_list.csv".into(),
+        index_header: index.header.clone(),
+        index_rows: project_csv(&csv, Path::new("data/missions/mission_list.csv")).rows,
+        entity_data: json!({"descriptor":actual.content.to_json()?,"text":text}),
+        document: Some(JsonFileContent::from(&actual)),
+    })?;
     let mut result = WriteResult::from_content(
-        changes,
+        builder.apply()?,
         WriteContentTarget::Json {
             origin: (&after).into(),
         },
-        serde_json::to_value(IndexedConfigEntityRefresh {
-            entity_id: next_id.to_string(),
-            index_path: MISSION_INDEX.to_string(),
-            index_header: index.header,
-            index_rows: index.rows,
-            entity_data: input.entity_data,
-        })?,
+        value,
     );
+    {
+        let mut session = lock_session(&handle)?;
+        index.accept_named(&mut session, "missions", csv)?;
+    }
     result
         .identity_changes
         .push(EntityIdentityChange { before, after });
     Ok(result)
 }
-
-pub fn create_mission_entity(
-    root: &str,
-    next_id: &str,
-    index_row: Map<String, Value>,
-    entity_data: Value,
-) -> AppResult<WriteResult<Value>> {
-    save_mission_with_json(
-        root,
-        None,
-        next_id,
-        MissionSaveInput {
-            index: None,
-            index_row,
-            entity_data,
-            json_write: Default::default(),
-            ordered_json: None,
-        },
-    )
-}
-
-pub fn delete_mission_entity(
-    root: &str,
-    id: &str,
-    delete_target: bool,
-) -> AppResult<WriteResult<Value>> {
-    let lease = acquire_root_write_lock(Path::new(root))?;
-    validate_entity_id(id, "无效战役 ID")?;
-    let boundary = FsRootBoundary::new(Path::new(root), "mission root")?;
-    let mut index = read_csv_data(&boundary.resolve_relative(MISSION_INDEX, "mission index")?)?;
-    let position = index
-        .rows
-        .iter()
-        .position(|row| mission_row_id(row) == Some(id))
-        .ok_or_else(|| {
-            AppError::message("config.index_missing", format!("战役索引不存在: {id}"))
-        })?;
-    index.rows.remove(position);
-    let mut builder = FileChangeSetBuilder::new_with_lock(boundary.root(), lease)?;
+pub fn delete_indexed_request(input: IndexedConfigDelete) -> AppResult<WriteResult<Value>> {
+    entity_targets::require_entity_version_scope(
+        &input.session_id,
+        input.kind.into(),
+        &input.id,
+        &input.base_versions,
+    )?;
+    if input.kind == IndexedConfigKind::Faction {
+        return faction_identity::delete_faction(input);
+    }
+    let handle = session_handle(&input.session_id)?;
+    let mut session = lock_session(&handle)?;
+    csv_tables::ensure_session_table_rows(&mut session, "missions")?;
+    let mut index = CsvTableDraft::read_named(&session, "missions")?;
+    drop(session);
+    let before = index.rows.len();
+    index.rows.retain(|row| {
+        row.is_comment || row.data.get("mission").and_then(Value::as_str) != Some(&input.id)
+    });
+    if before == index.rows.len() {
+        return Err(AppError::message(
+            "config.index_missing",
+            format!("战役索引不存在: {}", input.id),
+        ));
+    }
+    let actual = index.output(SaveLayout::PreserveStructure)?;
+    let mut builder = FileChangeSetBuilder::new(Path::new(&input.mod_root))?;
     builder.text_file(
-        MISSION_INDEX,
-        Some(render_csv_text(
-            &index.header,
-            &index
-                .rows
-                .iter()
-                .map(|row| (&row.data, row.is_comment))
-                .collect::<Vec<_>>(),
-        )?),
+        "data/missions/mission_list.csv",
+        Some(actual.document.source.to_string()),
     )?;
-    if delete_target {
-        builder.delete_directory(format!("data/missions/{id}"))?;
+    if input.delete_target {
+        builder.delete_directory(format!("data/missions/{}", input.id))?;
     }
-    Ok(WriteResult::new(builder.apply()?, Vec::new(), None))
-}
-
-pub fn prepare_mod_save(input: &mut ModInfoSave, edits: &[SaveEdit]) -> AppResult<()> {
-    let path = Path::new(&input.mod_root).join("mod_info.json");
-    if io::source_recreation_allowed(&input.mod_root, &path.to_string_lossy()) {
-        return Ok(());
-    }
-    let current = project::current_project_manifest(&input.session_id)?;
-    input.data = current.mod_info.unwrap_or_default();
-    input.base_versions = current.base_versions;
-    save_edits::apply_save_edits(&mut input.data, edits);
-    input.ordered_json = Some(serde_json::to_string(&input.data)?);
-    Ok(())
-}
-
-pub(crate) fn prepare_indexed_request(
-    payload: &mut IndexedConfigSave,
-    edits: &[SaveEdit],
-    identities: &[EntityIdentityChange],
-) -> Result<(), AppError> {
-    if payload
-        .base_versions
-        .iter()
-        .any(|version| io::source_recreation_allowed(&payload.mod_root, &version.path))
-    {
-        return Ok(());
-    }
-    let current = config_entity::prepare_json_entity_save(
-        &payload.session_id,
-        payload.kind.into(),
-        payload.previous_id.as_ref().unwrap_or(&payload.next_id),
-        edits,
-        identities,
-    )?;
-    payload.previous_id = Some(current.id);
-    payload.base_versions = current.base_versions;
-    payload.entity_data = current.data;
-    if payload.kind == IndexedConfigKind::Faction {
-        payload.next_id = models::file_content_id(
-            &payload.entity_data["file"],
-            "id",
-            Path::new(&current.target.write.path),
-        );
-        payload.ordered_json = Some(serde_json::to_string(&payload.entity_data["file"])?);
-    } else {
-        payload.ordered_json = Some(serde_json::to_string(&payload.entity_data["descriptor"])?);
-    }
-    Ok(())
-}
-
-pub fn write_indexed_request(payload: IndexedConfigSave) -> Result<WriteResult<Value>, AppError> {
-    services::require_entity_version_scope(
-        &payload.session_id,
-        payload.kind.into(),
-        payload.previous_id.as_deref().unwrap_or(&payload.next_id),
-        &payload.base_versions,
-    )?;
-    if payload.kind == IndexedConfigKind::Faction {
-        let result = services::save_faction_entity(
-            &payload.session_id,
-            payload.previous_id.as_deref(),
-            &payload.next_id,
-            payload.entity_data,
-            payload.json_write,
-            payload.ordered_json.as_deref(),
-        )?;
-        return Ok(result);
-    }
-    let result = config_entity::save_mission_with_json(
-        &payload.mod_root,
-        payload.previous_id.as_deref(),
-        &payload.next_id,
-        MissionSaveInput {
-            index: Some(services::read_project_csv(
-                &payload.session_id,
-                MISSION_INDEX,
-            )?),
-            index_row: payload.index_row,
-            entity_data: payload.entity_data,
-            json_write: payload.json_write,
-            ordered_json: payload.ordered_json.as_deref(),
+    let result = WriteResult::from_changes(builder.apply()?).with_content(
+        WriteContentTarget::Json {
+            origin: JsonDocumentOrigin::Entity {
+                target: JsonSourceIdentity {
+                    kind: EntityKind::Mission,
+                    id: input.id,
+                    rel_path: None,
+                },
+            },
         },
-    )?;
+        Value::Null,
+    );
+    {
+        let mut session = lock_session(&handle)?;
+        index.accept_named(&mut session, "missions", actual)?;
+    }
     Ok(result)
-}
-
-pub fn create_indexed_request(payload: IndexedConfigSave) -> Result<WriteResult<Value>, AppError> {
-    services::require_entity_version_scope(
-        &payload.session_id,
-        payload.kind.into(),
-        &payload.next_id,
-        &payload.base_versions,
-    )?;
-    if payload.kind == IndexedConfigKind::Faction {
-        let result = services::save_faction_entity(
-            &payload.session_id,
-            None,
-            &payload.next_id,
-            payload.entity_data,
-            Default::default(),
-            None,
-        )?;
-        return Ok(result);
-    }
-    let result = config_entity::create_mission_entity(
-        &payload.mod_root,
-        &payload.next_id,
-        payload.index_row,
-        payload.entity_data,
-    )?;
-    Ok(result)
-}
-
-pub fn delete_indexed_request(
-    payload: IndexedConfigDelete,
-) -> Result<WriteResult<Value>, AppError> {
-    services::require_entity_version_scope(
-        &payload.session_id,
-        payload.kind.into(),
-        &payload.id,
-        &payload.base_versions,
-    )?;
-    if payload.kind == IndexedConfigKind::Faction {
-        let result = services::delete_faction_entity(
-            &payload.session_id,
-            &payload.id,
-            payload.delete_target,
-        )?;
-        return Ok(result);
-    }
-    let result = config_entity::delete_mission_entity(
-        &payload.mod_root,
-        &payload.id,
-        payload.delete_target,
-    )?;
-    Ok(result)
-}
-
-pub fn prepare_json_entity_save(
-    session_id: &str,
-    kind: EntityKind,
-    source_id: &str,
-    edits: &[SaveEdit],
-    identities: &[EntityIdentityChange],
-) -> Result<EntityData, AppError> {
-    let mut id = source_id.to_string();
-    for identity in identities {
-        if identity.before.kind == kind && identity.before.id == id {
-            id = identity.after.id.clone();
-        }
-    }
-    let mut current = services::query_entity(session_id, kind, &id)?
-        .ok_or_else(|| AppError::message("write.target_removed", "保存目标已删除"))?;
-    if kind == EntityKind::Faction {
-        current.data = serde_json::json!({"file": current.data});
-    }
-    save_edits::apply_save_edits(&mut current.data, edits);
-    Ok(current)
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::services::project_sync::release_project_session;
-
-    use super::*;
     #[cfg(test)]
     use crate::io;
     use crate::io::{read_utf8_no_bom, write_utf8_no_bom};
+    use crate::models::IndexedConfigContent;
+    use crate::models::ModInfoSave;
+    use crate::models::file_content::SaveLayout;
     use crate::models::{
         FileChangeReplayDirection, IndexedConfigDelete, IndexedConfigKind, IndexedConfigSave,
         ProjectManifest, SaveAction,
@@ -484,16 +326,59 @@ mod tests {
     use crate::services;
     use crate::services::project::PerformanceTrace;
     use crate::services::project::test_support::project_workspace;
+    use crate::services::project::write::config_entity;
+    use crate::services::project_sync::release_project_session;
     #[cfg(test)]
     use crate::services::write_transactions;
     use crate::services::{project, project_save};
+    use crate::test_support::file_formats;
     use std::fs;
 
-    struct IndexedSaveInput<'a> {
+    use crate::errors::AppResult;
+    use crate::models::file_content::JsonFileContent;
+    use crate::models::{EntityKind, EntityLinkedRecord, JsonWriteOptions, WriteResult};
+    use crate::test_support::file_formats::read_csv_table as read_csv_data;
+    use serde_json::{Map, Value};
+    use std::path::Path;
+    const MISSION_INDEX: &str = "data/missions/mission_list.csv";
+    fn save_mod_info(
+        root: &str,
+        data: Value,
+        options: JsonWriteOptions,
+    ) -> AppResult<WriteResult<Value>> {
+        with_session(root, |manifest| {
+            let source = Path::new(root).join("mod_info.json");
+            let mut document = if source.exists() {
+                file_formats::json_write_from_source(&io::read_json_file(&source)?, &data)
+            } else {
+                file_formats::json_write(&data)
+            };
+            document.layout = if options.preserve_structure {
+                SaveLayout::PreserveStructure
+            } else {
+                SaveLayout::Expanded
+            };
+            let actual = config_entity::save_mod_info(ModInfoSave {
+                session_id: manifest.session_id.clone(),
+                mod_root: manifest.mod_root.clone(),
+                base_versions: manifest.base_versions.clone(),
+                document,
+                json_write: options,
+            })?;
+            let target = actual.content.as_ref().unwrap().target.clone();
+            let value = serde_json::from_value::<JsonFileContent>(
+                actual.content.as_ref().unwrap().value.clone(),
+            )?
+            .content
+            .to_json()?;
+            Ok(actual.with_content(target, value))
+        })
+    }
+
+    struct IndexedSaveInput {
         index_row: Map<String, Value>,
         entity_data: Value,
         json_write: JsonWriteOptions,
-        ordered_json: Option<&'a str>,
     }
 
     fn with_session<T>(
@@ -512,7 +397,7 @@ mod tests {
         kind: IndexedConfigKind,
         previous: Option<&str>,
         next: &str,
-        input: IndexedSaveInput<'_>,
+        input: IndexedSaveInput,
     ) -> AppResult<WriteResult<Value>> {
         with_session(root, |manifest| {
             let entity_kind = if kind == IndexedConfigKind::Faction {
@@ -525,18 +410,43 @@ mod tests {
                 entity_kind,
                 previous.unwrap_or(next),
             )?;
+            let mut content = file_formats::indexed_content(kind, &input.entity_data);
+            let path = if kind == IndexedConfigKind::Faction {
+                Path::new(&info.target.write.path).to_path_buf()
+            } else {
+                Path::new(&info.target.write.path).join("descriptor.json")
+            };
+            let data = if kind == IndexedConfigKind::Faction {
+                input.entity_data["file"].clone()
+            } else {
+                input.entity_data["descriptor"].clone()
+            };
+            let mut document = if path.is_file() {
+                file_formats::json_write_from_source(&io::read_json_file(&path)?, &data)
+            } else {
+                file_formats::json_write(&data)
+            };
+            document.layout = if input.json_write.preserve_structure {
+                SaveLayout::PreserveStructure
+            } else {
+                SaveLayout::Expanded
+            };
+            match &mut content {
+                IndexedConfigContent::Faction { document: target }
+                | IndexedConfigContent::Mission {
+                    document: target, ..
+                } => *target = document,
+            }
             project_save::execute_save_action(SaveAction::SaveIndexedConfigEntity(
                 IndexedConfigSave {
                     session_id: manifest.session_id.clone(),
                     mod_root: manifest.mod_root.clone(),
                     base_versions: info.base_versions,
-                    kind,
                     previous_id: previous.map(str::to_string),
                     next_id: next.to_string(),
                     index_row: input.index_row,
-                    entity_data: input.entity_data,
+                    content,
                     json_write: input.json_write,
-                    ordered_json: input.ordered_json.map(str::to_string),
                 },
             ))
         })
@@ -560,7 +470,6 @@ mod tests {
                 index_row,
                 entity_data,
                 json_write: Default::default(),
-                ordered_json: None,
             },
         )
     }
@@ -621,13 +530,14 @@ mod tests {
                 session_id: manifest.session_id.clone(),
                 mod_root: manifest.mod_root.clone(),
                 base_versions: info.base_versions,
-                kind: IndexedConfigKind::Mission,
                 previous_id: Some("old".into()),
                 next_id: "next".into(),
                 index_row: Map::new(),
-                entity_data: serde_json::json!({"descriptor":{"title":"Next"},"text":"Next"}),
+                content: file_formats::indexed_content(
+                    IndexedConfigKind::Mission,
+                    &(serde_json::json!({"descriptor":{"title":"Next"},"text":"Next"})),
+                ),
                 json_write: Default::default(),
-                ordered_json: None,
             },
         ))
         .unwrap();
@@ -714,15 +624,13 @@ mod tests {
                 json_write: JsonWriteOptions {
                     replace_paths: Vec::new(),
                     keep_filename: false,
-                    preserve_original_json: true,
-                    confirmed_sources: Vec::new(),
+                    preserve_structure: true,
                 },
-                ordered_json: None,
             },
         )
         .unwrap();
         let text = read_utf8_no_bom(&dir.join("demo.faction")).unwrap();
-        assert_eq!(result.changes.len(), 2);
+        assert_eq!(result.changes.len(), 1);
         assert!(text.contains("# note"));
         assert!(text.find("displayName").unwrap() < text.find("id:").unwrap());
         root.close().unwrap();
@@ -826,7 +734,7 @@ mod tests {
             read_utf8_no_bom(&dir.join("factions.csv")).unwrap(),
             "faction\ndata/world/factions/demo.faction\n"
         );
-        assert_eq!(result.changes.len(), 2);
+        assert_eq!(result.changes.len(), 1);
         root.close().unwrap();
     }
 
@@ -956,10 +864,8 @@ mod tests {
             JsonWriteOptions {
                 replace_paths: Vec::new(),
                 keep_filename: false,
-                preserve_original_json: true,
-                confirmed_sources: Vec::new(),
+                preserve_structure: true,
             },
-            None,
         )
         .unwrap();
         assert!(result.changes.is_empty());
@@ -975,16 +881,11 @@ mod tests {
     fn mod_info_receipt_matches_persisted_content() {
         let root = project_workspace("mod_info_receipt");
         let data = serde_json::json!({"id":"demo", "name":"Saved", "version":"1", "gameVersion":"1", "dependencies":[{"id":"dep"}]});
-        let result = save_mod_info(
-            &root.to_string_lossy(),
-            data,
-            JsonWriteOptions::default(),
-            None,
-        )
-        .unwrap();
+        let result =
+            save_mod_info(&root.to_string_lossy(), data, JsonWriteOptions::default()).unwrap();
         assert_eq!(
             result.content.map(|content| content.value),
-            Some(io::read_json_file(&root.join("mod_info.json")).unwrap())
+            Some(file_formats::read_json_value(&root.join("mod_info.json")).unwrap())
         );
         root.close().unwrap();
     }

@@ -10,12 +10,8 @@
 
 - `src/app/components/immersive/ImmersiveHighlightedText.vue`：武器说明高亮文本展示。
 - `src/app/components/immersive/weapon/`：武器信息与弹体及开火预览事件展示。
-- `src/app/components/immersive/weapon/WeaponImmersivePanel.vue`：武器内容与弹体及开火预览事件入口。
 - `src/app/composables/immersive-editor/weapon/`：武器分支、弹体及开火预览动作。
-- `src/app/composables/immersive-editor/weapon/use-immersive-weapon-editor.ts`：分支覆盖、弹体及开火预览动作。
 - `src/domain/immersive/weapon/`：武器字段、统计与信息投影。
-- `src/domain/immersive/weapon/weapon-panel.ts`：武器字段、说明、图标来源、分支投影及弹体与贴图关联查询输入投影。
-- `src/domain/immersive/weapon/weapon-statistics.ts`：武器周期、弹药与伤害统计纯规则。
 
 ### 消费
 
@@ -34,10 +30,7 @@
 - `src/domain/immersive/highlighted-text.ts`：说明文本的高亮片段纯投影。
 - `src/domain/immersive/source-records.ts`：可编辑来源与装配记录选择。
 - `src/domain/joint-edit.ts`：联合写入范围提取、身份映射、草稿重接与冲突选择投影。
-- `src/domain/schema/config-schema-registry.ts`：字段与列资产加载、来源声明、值及结构纯规则。
-- `src/domain/schema/csv-schema-registry.ts`：字段与列资产加载、来源声明、值及结构纯规则。
-- `src/domain/schema/csv-value-validation.ts`：字段与列资产加载、来源声明、值及结构纯规则。
-- `src/domain/schema/schema-values.ts`：字段与列资产加载、来源声明、值及结构纯规则。
+- `src/domain/schema/`：字段与列资产加载、游戏数字解释、来源声明、校验及目标格式准备。
 - `src/stores/settings.store.ts`：settings 运行态，只持状态、setter 与派生值；初始快照经统一初始化入口注入。
 - `src/test/fixtures/joint-edit/weapon-joint-edit.ts`：武器联合来源与规格的测试构造。
 - `src/windows/spec-editor.window.ts`：四类规格的身份、尺寸与结构化窗口请求。
@@ -70,10 +63,10 @@
 
 - pulse 来源覆盖必须由联合保存共同确认合法分支、来源、目标与共享影响，实际分支转换绑定本次提交，取消保留原内容。
 - 分支转换必须经所属字段规则交付独立草稿，未知业务字段保留。
-- 弹体与开火预览动作必须归武器实现，基础展示协议严禁承载该动作。
+- 弹体与开火预览动作由武器实现交付，基础展示协议承载共同展示数据。
 - 弹体与开火预览打开必须提交活动输入并核对目标与接纳权；开火预览交付独立武器规格快照。
-- 武器描述必须以武器 ID 与 `WEAPON` 类型定位，用途优先消费 `primaryRoleStr`，再消费描述 `text2`；派生值和覆盖文本共同绑定实际来源参数。
-- 武器来源必须以 CSV 提供名称、性能及伤害类型，以规格提供类型、尺寸、挂载和发射参数；弹体只允许作为只读关联和独立编辑目标。
+- 武器描述以武器 ID 与 `WEAPON` 类型定位，用途优先消费 `primaryRoleStr`，再消费描述 `text2`；派生值和覆盖文本共同绑定实际来源参数。
+- 武器来源以 CSV 提供名称、性能及伤害类型，以规格提供类型、尺寸、挂载和发射参数；弹体只允许作为只读关联和独立编辑目标。
 - 武器统计必须消费原版发射点、模式、充能、连射、光束周期与弹药恢复规则；高亮只允许作为逐字片段展示，严禁解释为 HTML。
-- MIRV 统计必须直接消费 behaviorSpec 的 damage、numShots 与 emp；伤害或数量缺失时采用武器表基础伤害并交付具体诊断，伤害与 EMP 展示保留每枚后续弹体及发射数量的拆分，后续弹体参数通过所属弹体编辑入口修改。
+- MIRV 统计直接消费 behaviorSpec 的 damage、numShots 与 emp；伤害或数量缺失时采用武器表基础伤害并交付具体诊断，伤害与 EMP 展示保留每枚后续弹体及发射数量的拆分，后续弹体参数通过所属弹体编辑入口修改。
 - 连射光束必须展示充能、衰减、发射持续与冷却之和，周期编辑共同绑定所属四项武器表字段。

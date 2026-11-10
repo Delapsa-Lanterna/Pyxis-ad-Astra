@@ -34,6 +34,7 @@ const snapshot: JointEditSnapshot = {
       target: { kind: 'text', write: { source: 'mod', root: 'M:/mod', relPath: 'a.txt', path: 'M:/mod/a.txt' } },
       source: null,
       sourceVersion: null,
+      document: null,
       value: { state: 'present', value: 'before' },
       baseVersions: [],
       resourceRefs: {},

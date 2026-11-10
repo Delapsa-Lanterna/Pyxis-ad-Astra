@@ -73,9 +73,9 @@ export function stripRustCommentsAndStrings(text) {
   return output.join('');
 }
 
-/** @param {string} text @returns {string} */
-export function stripRustTestBlocks(text) {
-  const output = text.split('');
+/** @param {string} text @param {string} [source] @returns {string} */
+export function stripRustTestBlocks(text, source = text) {
+  const output = source.split('');
   for (const match of text.matchAll(/#!?\[cfg\(test\)\]|#\[(?:[A-Za-z_][A-Za-z0-9_]*::)?test(?:\([^]]*\))?\]/g)) {
     let end = match.index + match[0].length;
     let depth = 0;
@@ -93,7 +93,7 @@ export function stripRustTestBlocks(text) {
       }
     }
     for (let index = match.index; index <= end && index < text.length; index++)
-      if (text[index] !== '\n' && text[index] !== '\r') output[index] = ' ';
+      if (source[index] !== '\n' && source[index] !== '\r') output[index] = ' ';
   }
   return output.join('');
 }

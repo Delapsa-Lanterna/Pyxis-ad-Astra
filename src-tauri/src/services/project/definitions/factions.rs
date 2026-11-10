@@ -139,7 +139,7 @@ mod tests {
 
         let error = load_faction_files(&root).unwrap_err().to_string();
 
-        assert!(error.contains("解析 CSV 失败"));
+        assert!(error.contains("读取 CSV 失败"));
         assert!(error.contains("factions.csv"));
         root.close().unwrap();
     }

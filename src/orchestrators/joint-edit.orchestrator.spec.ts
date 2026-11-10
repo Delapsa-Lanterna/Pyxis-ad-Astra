@@ -24,10 +24,6 @@ vi.mock('@/services/joint-edit.service', () => ({
   queryJointEdit: mocks.query,
   queryJointEditPreview: mocks.preview,
 }));
-vi.mock('@/orchestrators/json-write-confirmation.orchestrator', () => ({
-  runConfirmedJsonWrite: async (_feedback: unknown, action: (options: unknown) => unknown) =>
-    action({ preserveOriginalJson: true, confirmedSources: [] }),
-}));
 import { skinJointFixture } from '@/test/fixtures/joint-edit/skin-joint-edit';
 import { openJointEditSnapshot, resolveWingReference, submitJointEdit } from './joint-edit.orchestrator';
 const records: AppLogEntry[] = [];
@@ -149,7 +145,10 @@ describe('joint declared editing scope confirmation', () => {
       async () => [{ recordKey: 'csv', path: ['hitpoints'], choice }],
     );
     if (choice === 'disk') {
-      await expect(saving).rejects.toMatchObject({ code: 'csv.value_invalid', location: { field: 'hitpoints', rowKey: 'csv' } });
+      await expect(saving).rejects.toMatchObject({
+        action: 'joint-validation',
+        issues: [expect.objectContaining({ code: 'csv.value_invalid' })],
+      });
       expect(mocks.save).not.toHaveBeenCalled();
     } else {
       await saving;
@@ -159,7 +158,7 @@ describe('joint declared editing scope confirmation', () => {
   it('opens the authoritative graph once while other document drafts remain independently owned', async () => {
     const snapshot = shipJointFixture();
     mocks.query.mockResolvedValue(snapshot);
-    const result = await openJointEditSnapshot(snapshot.root, feedback);
+    const result = await openJointEditSnapshot(snapshot.root);
     expect(mocks.query).toHaveBeenCalledExactlyOnceWith(snapshot.root, undefined);
     expect(result).toEqual(snapshot);
     expect(result).not.toBe(snapshot);
@@ -213,7 +212,7 @@ describe('joint declared editing scope confirmation', () => {
       'cancelled',
       'confirmed',
     ]);
-    expect(records.find((entry) => entry.code === 'joint.targets_submitted')!.fields?.requestId).toBe(mocks.save.mock.calls[0]![1]!.id);
+    expect(records.find((entry) => entry.code === 'joint.targets_submitted')!.fields?.requestId).toBe(mocks.save.mock.calls[0]![2]!.id);
   });
 });
 

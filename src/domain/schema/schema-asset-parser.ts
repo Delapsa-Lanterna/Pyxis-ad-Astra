@@ -140,10 +140,6 @@ function parseField(id: string, path: string, raw: unknown): FieldSchema {
       }
     }
   }
-  if (record.numberFormat !== undefined) {
-    if (record.numberFormat !== 'starsector') throw new Error(`schema ${id} ${path}: 非法 numberFormat`);
-    field.numberFormat = 'starsector';
-  }
   if (isString(record.format)) {
     if (record.format !== 'array-of-entries') {
       throw new Error(`schema ${id} ${path}: 非法 format ${record.format}`);

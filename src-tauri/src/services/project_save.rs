@@ -1,12 +1,15 @@
+use crate::diagnostics;
 use crate::errors::{AppError, AppResult};
 use crate::models::{
-    EntityIdentityChange, EntityKind, FileChangeReplayDirection, IndexedConfigKind, SaveAction,
-    SaveEdit, SaveRequest, WriteContent, WriteResult,
+    EntityIdentityChange, EntityKind, FileChangeReplayDirection, SaveAction, SaveEdit, SaveRequest,
+    WriteContent, WriteResult,
+};
+use crate::services::project::write::{
+    config_entity, csv_patch, entity_write::content, joint_edit, json_recovery,
 };
 use crate::services::{
-    config_entity, json_file, misc_config, project, project_sync, text_editor, write_transactions,
+    json_file, misc_config, project, project_sync, text_editor, write_transactions,
 };
-use crate::{diagnostics, services};
 use serde::Serialize;
 #[cfg(test)]
 use serde::de::DeserializeOwned;
@@ -17,14 +20,14 @@ pub async fn submit_project_save(
     owner: String,
     request: SaveRequest,
 ) -> AppResult<WriteResult<Value>> {
-    let (root, session_id, reason) = match &request.action {
+    let (root, session, reason) = match &request.action {
         SaveAction::RefreshProjectSources(input) => (
             project::current_project_manifest(&input.session_id)?.mod_root,
             Some(input.session_id.clone()),
             "refresh",
         ),
         action => {
-            let scope = action.scope().expect("file action owns its project scope");
+            let scope = action.scope().expect("file action has a scope");
             let reason = match action {
                 SaveAction::ApplyFileChangeSet(input) => match input.direction {
                     FileChangeReplayDirection::Undo => "undo",
@@ -33,42 +36,31 @@ pub async fn submit_project_save(
                 _ => "save",
             };
             (
-                scope.mod_root().to_string(),
+                scope.mod_root().to_owned(),
                 scope.session_id().cloned(),
                 reason,
             )
         }
     };
-    let request_id = request.id.clone();
-    let task = project_sync::enqueue(&owner, request.id, &root, session_id.as_deref())?;
+    let task = project_sync::enqueue(&owner, request.id, &root, session.as_deref())?;
     async_runtime::spawn_blocking(move || {
-        let phase = |code| {
-            diagnostics::debug(code, || {
-                format!("requestId={request_id} modRoot={root} sessionId={session_id:?}")
-            })
-        };
         let result = project_sync::execute_queued(
-            task.clone(),
+            task,
             &root,
-            session_id.as_deref(),
+            session.as_deref(),
             reason,
             |identities, versions| {
-                phase("save.versions_checking");
                 let mut action = request.action.clone();
                 let _lease =
                     project_sync::prepare_versions(&root, action.versions(), versions, identities)?;
-                phase("save.preparing");
                 prepare_save_action(&mut action, &request.edits, identities)?;
-                phase("save.writing");
                 execute_save_action(action)
             },
         )?;
-        phase("save.native_completed");
-        // Reference delivery must preserve the outcome of the completed file transaction.
         if let Err(error) =
-            project::reference_sources_changed(session_id.as_deref()).and_then(|snapshot| {
-                if let Some(snapshot) = snapshot {
-                    project_sync::publish_references(snapshot, project::reference_updates()?)?;
+            project::reference_sources_changed(session.as_deref()).and_then(|sources| {
+                if let Some(sources) = sources {
+                    project_sync::publish_references(sources, project::reference_updates()?)?;
                 }
                 Ok(())
             })
@@ -76,7 +68,7 @@ pub async fn submit_project_save(
             diagnostics::failure(
                 "save.reference_delivery_failed",
                 error,
-                json!({"modRoot":root,"sessionId":session_id}),
+                json!({"modRoot":root,"sessionId":session}),
             );
         }
         Ok(result)
@@ -84,17 +76,18 @@ pub async fn submit_project_save(
     .await
     .map_err(|error| AppError::message("write.execution_wait", error.to_string()))?
 }
-
 fn prepare_save_action(
     action: &mut SaveAction,
     edits: &[SaveEdit],
     identities: &[EntityIdentityChange],
 ) -> AppResult<()> {
     match action {
-        SaveAction::SaveEditorSpec(input) => services::prepare_spec_save(input, edits, identities),
+        SaveAction::SaveEditorSpec(input) => content::prepare_spec_save(input, edits, identities),
         SaveAction::SaveTextFile(input) => text_editor::prepare_text_save(input, identities),
-        SaveAction::SaveCsvPatch(input) => services::prepare_csv_save(input, edits),
-        SaveAction::SaveJointEdit(input) => services::prepare_joint_save(input, edits, identities),
+        SaveAction::SaveCsvPatch(input) => csv_patch::prepare_csv_save(input, edits),
+        SaveAction::SaveJointEdit(input) => {
+            joint_edit::prepare_joint_save(input, edits, identities)
+        }
         SaveAction::SaveModInfo(input) => config_entity::prepare_mod_save(input, edits),
         SaveAction::SaveIndexedConfigEntity(input) => {
             config_entity::prepare_indexed_request(input, edits, identities)
@@ -109,24 +102,33 @@ fn prepare_save_action(
         _ => Ok(()),
     }
 }
-
 pub(crate) fn execute_save_action(mut action: SaveAction) -> AppResult<WriteResult<Value>> {
-    let transaction = match &mut action {
-        SaveAction::ApplyFileChangeSet(_) | SaveAction::RefreshProjectSources(_) => None,
-        file_action => {
-            let versions = file_action.versions().to_vec();
-            Some(write_transactions::begin(
-                file_action
-                    .scope()
-                    .expect("file action owns its project scope"),
-                &versions,
-            )?)
+    match action {
+        SaveAction::ApplyFileChangeSet(input) => {
+            return json_result(write_transactions::replay(
+                &input.session_id,
+                &input.mod_root,
+                input.direction,
+                input.entry_id,
+                input.revision,
+            )?);
         }
-    };
+        SaveAction::RefreshProjectSources(input) => {
+            return json_result(project::refresh_root_sources(
+                &input.session_id,
+                input.sources,
+            )?);
+        }
+        _ => {}
+    }
+    let versions = action.versions().to_vec();
+    let transaction =
+        write_transactions::begin(action.scope().expect("file action scope"), &versions)?;
     let (result, label) = match action {
-        SaveAction::SaveEditorSpec(input) => {
-            (services::write_spec_request(input)?, "保存编辑器规格")
-        }
+        SaveAction::SaveEditorSpec(input) => (
+            json_result(content::write_spec_request(input)?)?,
+            "保存编辑器规格",
+        ),
         SaveAction::SaveTextFile(input) => (
             text_editor::save_project_text_file(&input.mod_root, &input.path, input.text)?,
             "保存文本",
@@ -139,43 +141,26 @@ pub(crate) fn execute_save_action(mut action: SaveAction) -> AppResult<WriteResu
             )?)?,
             "转换文本编码",
         ),
-        SaveAction::SaveCsvPatch(input) => (services::write_csv_request(input)?, "保存 CSV"),
-        SaveAction::SaveJointEdit(input) => {
-            (json_result(services::save_joint_edit(&input)?)?, "联合保存")
-        }
-        SaveAction::SaveModInfo(input) => (
-            config_entity::save_mod_info(
-                &input.mod_root,
-                input.data,
-                input.json_write,
-                input.ordered_json.as_deref(),
-            )?,
-            "保存 Mod 信息",
+        SaveAction::SaveCsvPatch(input) => (
+            json_result(csv_patch::write_csv_request(input)?)?,
+            "保存 CSV",
         ),
+        SaveAction::SaveJointEdit(input) => (
+            json_result(joint_edit::save_joint_edit(&input)?)?,
+            "联合保存",
+        ),
+        SaveAction::SaveModInfo(input) => (config_entity::save_mod_info(input)?, "保存 Mod 信息"),
         SaveAction::SaveIndexedConfigEntity(input) => {
-            let label = if input.kind == IndexedConfigKind::Faction {
-                "保存势力"
-            } else {
-                "保存配置实体"
-            };
-            (config_entity::write_indexed_request(input)?, label)
+            (config_entity::write_indexed_request(input)?, "保存配置实体")
         }
-        SaveAction::CreateIndexedConfigEntity(input) => {
-            let label = if input.kind == IndexedConfigKind::Faction {
-                "创建势力"
-            } else {
-                "创建配置实体"
-            };
-            (config_entity::create_indexed_request(input)?, label)
-        }
-        SaveAction::DeleteIndexedConfigEntity(input) => {
-            let label = if input.kind == IndexedConfigKind::Faction {
-                "删除势力"
-            } else {
-                "删除配置实体"
-            };
-            (config_entity::delete_indexed_request(input)?, label)
-        }
+        SaveAction::CreateIndexedConfigEntity(input) => (
+            config_entity::create_indexed_request(input)?,
+            "创建配置实体",
+        ),
+        SaveAction::DeleteIndexedConfigEntity(input) => (
+            config_entity::delete_indexed_request(input)?,
+            "删除配置实体",
+        ),
         SaveAction::SaveVariantEntity(input) => {
             (json_file::write_variant_request(input)?, "保存装配")
         }
@@ -200,7 +185,7 @@ pub(crate) fn execute_save_action(mut action: SaveAction) -> AppResult<WriteResu
             "删除皮肤",
         ),
         SaveAction::RecreateJsonSources(input) => (
-            json_result(services::restore_source_request(input)?)?,
+            json_result(json_recovery::restore_source_request(input)?)?,
             "重新创建 JSON 来源",
         ),
         SaveAction::SaveMiscConfig(input) => {
@@ -214,27 +199,12 @@ pub(crate) fn execute_save_action(mut action: SaveAction) -> AppResult<WriteResu
             )?)?,
             "删除杂项配置",
         ),
-        SaveAction::ApplyFileChangeSet(input) => {
-            return json_result(write_transactions::replay(
-                &input.session_id,
-                &input.mod_root,
-                input.direction,
-                input.entry_id,
-                input.revision,
-            )?);
-        }
-        SaveAction::RefreshProjectSources(input) => {
-            return json_result(project::refresh_root_sources(
-                &input.session_id,
-                input.sources,
-            )?);
+        SaveAction::ApplyFileChangeSet(_) | SaveAction::RefreshProjectSources(_) => {
+            unreachable!("non-file action returned before transaction")
         }
     };
-    transaction
-        .expect("file mutation opens its transaction")
-        .commit(result, label)
+    transaction.commit(result, label)
 }
-
 fn json_result<T: Serialize>(result: WriteResult<T>) -> AppResult<WriteResult<Value>> {
     Ok(WriteResult {
         session_updates: result.session_updates,
@@ -255,15 +225,18 @@ fn json_result<T: Serialize>(result: WriteResult<T>) -> AppResult<WriteResult<Va
         history: result.history,
     })
 }
-
 #[cfg(test)]
 pub fn execute_typed_save<T: DeserializeOwned>(action: SaveAction) -> AppResult<WriteResult<T>> {
-    let result = execute_save_action(action)?;
-    Ok(serde_json::from_value(serde_json::to_value(result)?)?)
+    Ok(serde_json::from_value(serde_json::to_value(
+        execute_save_action(action)?,
+    )?)?)
 }
 
 #[cfg(test)]
 mod tests {
+    use crate::test_support::file_formats;
+
+    use crate::services;
     use crate::services::project_sync::release_project_session;
 
     use super::*;
@@ -380,9 +353,10 @@ mod tests {
                             mod_root: manifest.mod_root.clone(),
                             target: info.target,
                             base_versions: info.base_versions,
-                            data: serde_json::json!({"hullId":"a","hullName":"Captured","width":20}),
+                            document: file_formats::json_write(
+                                &(serde_json::json!({"hullId":"a","hullName":"Captured","width":20})),
+                            ),
                             json_write: Default::default(),
-                            ordered_json: None,
                         }),
                         "data/hulls/a.ship",
                     )
@@ -403,13 +377,14 @@ mod tests {
                         next_id: "a".into(),
                         rel_path: Some(info.target.write.rel_path),
                         base_versions: info.base_versions,
-                        data: if kind == "variant" {
-                            serde_json::json!({"variantId":"a","hullId":"a","fluxVents":2})
-                        } else {
-                            serde_json::json!({"skinHullId":"a","baseHullId":"a","hullName":"Captured"})
-                        },
+                        document: file_formats::json_write(
+                            &(if kind == "variant" {
+                                serde_json::json!({"variantId":"a","hullId":"a","fluxVents":2})
+                            } else {
+                                serde_json::json!({"skinHullId":"a","baseHullId":"a","hullName":"Captured"})
+                            }),
+                        ),
                         json_write: Default::default(),
-                        ordered_json: None,
                     };
                     (
                         if kind == "variant" {
@@ -429,9 +404,10 @@ mod tests {
                         session_id: manifest.session_id.clone(),
                         mod_root: manifest.mod_root.clone(),
                         base_versions: manifest.base_versions.clone(),
-                        data: serde_json::json!({"id":"example","name":"Captured","version":"1","gameVersion":"1"}),
+                        document: file_formats::json_write(
+                            &serde_json::json!({"id":"example","name":"Captured","version":"1","gameVersion":"1"}),
+                        ),
                         json_write: Default::default(),
-                        ordered_json: None,
                     }),
                     "mod_info.json",
                 ),
@@ -454,28 +430,29 @@ mod tests {
                             base_versions: info.base_versions,
                             previous_id: Some("a".into()),
                             next_id: "a".into(),
-                            kind: if kind == "faction" {
-                                IndexedConfigKind::Faction
-                            } else {
-                                IndexedConfigKind::Mission
-                            },
                             index_row: serde_json::from_value(
                                 serde_json::json!({"mission":"a","custom":"001"}),
                             )
                             .unwrap(),
-                            entity_data: if kind == "faction" {
-                                serde_json::json!({"file":{
-                                    "id":"a","displayName":"Captured","displayNameWithArticle":"a Captured",
-                                    "logo":"logo.png","crest":"crest.png","color":[255,255,255,255],
-                                    "knownShips":{},"knownFighters":{},"knownWeapons":{},
-                                    "factionDoctrine":{"warships":1,"carriers":1,"phaseShips":1,"officerQuality":1,
-                                        "shipQuality":1,"numShips":1,"shipSize":1,"aggression":1}
-                                }})
-                            } else {
-                                serde_json::json!({"descriptor":{"title":"Captured"},"text":"Captured text"})
-                            },
+                            content: file_formats::indexed_content(
+                                if kind == "faction" {
+                                    IndexedConfigKind::Faction
+                                } else {
+                                    IndexedConfigKind::Mission
+                                },
+                                &(if kind == "faction" {
+                                    serde_json::json!({"file":{
+                                        "id":"a","displayName":"Captured","displayNameWithArticle":"a Captured",
+                                        "logo":"logo.png","crest":"crest.png","color":[255,255,255,255],
+                                        "knownShips":{},"knownFighters":{},"knownWeapons":{},
+                                        "factionDoctrine":{"warships":1,"carriers":1,"phaseShips":1,"officerQuality":1,
+                                            "shipQuality":1,"numShips":1,"shipSize":1,"aggression":1}
+                                    }})
+                                } else {
+                                    serde_json::json!({"descriptor":{"title":"Captured"},"text":"Captured text"})
+                                }),
+                            ),
                             json_write: Default::default(),
-                            ordered_json: None,
                         }),
                         match kind {
                             "faction" => "data/world/factions/a.faction",
@@ -503,6 +480,9 @@ mod tests {
                             mod_root: manifest.mod_root.clone(),
                             base_versions: rows.base_versions,
                             patches: vec![CsvRowPatch {
+                                columns: (row).keys().cloned().collect(),
+                                comment_changed: true,
+
                                 row_key: rows.rows[0].row_key.clone(),
                                 action: CsvRowPatchAction::Upsert,
                                 row,
@@ -546,23 +526,28 @@ mod tests {
             )
             .unwrap();
             let edits = if let SaveAction::SaveCsvPatch(input) = &action {
-                vec![SaveEdit::Set {
-                    path: vec![
+                vec![file_formats::replace_edit(
+                    vec![
                         input.patches[0].row_key.clone(),
                         "data".into(),
                         "name".into(),
                     ],
-                    value: "Captured".into(),
-                }]
+                    &("Captured".into()),
+                )]
             } else {
-                vec![SaveEdit::Set {
-                    path: vec![],
-                    value: match &action {
-                        SaveAction::SaveModInfo(input) => input.data.clone(),
-                        SaveAction::SaveEditorSpec(input) => input.data.clone(),
+                vec![file_formats::replace_edit(
+                    vec![],
+                    &(match &action {
+                        SaveAction::SaveModInfo(input) => input.document.content.to_json().unwrap(),
+                        SaveAction::SaveEditorSpec(input) => {
+                            input.document.content.to_json().unwrap()
+                        }
+                        SaveAction::SaveIndexedConfigEntity(input) => {
+                            input.content.document().content.to_json().unwrap()
+                        }
                         _ => Value::Null,
-                    },
-                }]
+                    }),
+                )]
             };
             let request = SaveRequest {
                 id: owner.clone(),
@@ -619,30 +604,30 @@ mod tests {
             }
             if kind == "spec" {
                 assert_eq!(
-                    io::read_json_file(&root.join(relative)).unwrap()["width"],
+                    file_formats::read_json_value(&root.join(relative)).unwrap()["width"],
                     20
                 );
             }
             if kind == "variant" {
                 assert_eq!(
-                    io::read_json_file(&root.join(relative)).unwrap()["fluxVents"],
+                    file_formats::read_json_value(&root.join(relative)).unwrap()["fluxVents"],
                     2
                 );
             }
             if kind == "skin" {
                 assert_eq!(
-                    io::read_json_file(&root.join(relative)).unwrap()["hullName"],
+                    file_formats::read_json_value(&root.join(relative)).unwrap()["hullName"],
                     "Captured"
                 );
             }
             if kind == "mod-info" {
                 assert_eq!(
-                    io::read_json_file(&root.join(relative)).unwrap()["name"],
+                    file_formats::read_json_value(&root.join(relative)).unwrap()["name"],
                     "Captured"
                 );
             }
             if kind == "csv" {
-                let table = io::read_csv_data(&root.join(relative)).unwrap();
+                let table = file_formats::read_csv_table(&root.join(relative)).unwrap();
                 assert_eq!(table.rows.len(), 3);
                 assert_eq!(table.rows[0].data["name"], "Captured");
                 assert_eq!(table.rows[1].data["custom"], "002");
@@ -650,13 +635,14 @@ mod tests {
             }
             if kind == "faction" {
                 assert_eq!(
-                    io::read_json_file(&root.join(relative)).unwrap()["displayName"],
+                    file_formats::read_json_value(&root.join(relative)).unwrap()["displayName"],
                     "Captured"
                 );
             }
             if kind.starts_with("mission-") {
                 assert_eq!(
-                    io::read_json_file(&root.join("data/missions/a/descriptor.json")).unwrap()["title"],
+                    file_formats::read_json_value(&root.join("data/missions/a/descriptor.json"))
+                        .unwrap()["title"],
                     "Captured"
                 );
                 assert_eq!(
@@ -668,7 +654,7 @@ mod tests {
                     "untouched"
                 );
                 assert_eq!(
-                    io::read_csv_data(&root.join("data/missions/mission_list.csv"))
+                    file_formats::read_csv_table(&root.join("data/missions/mission_list.csv"))
                         .unwrap()
                         .rows[1]
                         .data["custom"],

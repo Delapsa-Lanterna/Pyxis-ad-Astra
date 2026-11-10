@@ -1,211 +1,120 @@
-import { recreateJsonSources } from '@/services/json-recovery.service';
+import { saveIndexedConfigEntity, createIndexedConfigEntity, captureConfigIdentityIntent } from '@/services/json-entity.service';
+import { createSkinEntity, createVariantEntity, saveSkinEntity, saveVariantEntity } from '@/services/json-file.service';
+import { releaseNativeWindowTargets } from '@/services/window.service';
+import { createDefaultSkin, createDefaultVariant } from '@/domain/entity-write/spec-construction';
+import { prepareJsonWrite } from '@/domain/schema/game-number';
+import { captureIdentityVersions } from '@/domain/project/entity-versions';
+import { reserveFileIdentityIntent } from './window-identity.orchestrator';
+import { chooseEntityFilename } from './entity-write.orchestrator';
+import { focusEntityIdentityConflict } from './window-target-focus.orchestrator';
+import type { SaveCommandRequest } from '@/shared/runtime/command.runtime';
+import type { DocumentEdit } from '@/shared/types';
 import type {
   AppFeedback,
-  IndexedConfigKind,
-  IndexedConfigEntityRefresh,
-  JsonRecoveryPlan,
   EntityKind,
   FileVersion,
-  VariantFile,
-  SkinFile,
-  WriteResult,
+  IndexedConfigSave,
+  JsonFileSave,
   RowData,
   JsonComposition,
+  WriteResult,
+  VariantFile,
+  SkinFile,
 } from '@/shared/types';
 
-import {
-  createIndexedConfigEntity,
-  saveIndexedConfigEntity,
-  saveModInfo,
-  captureConfigIdentityIntent,
-} from '@/services/json-entity.service';
-import { createSkinEntity, createVariantEntity, saveSkinEntity, saveVariantEntity } from '@/services/json-file.service';
-import { createDefaultSkin, createDefaultVariant } from '@/domain/entity-write/spec-construction';
-import type { SaveCommandRequest } from '@/shared/runtime/command.runtime';
-
-import { runConfirmedJsonWrite } from '@/orchestrators/json-write-confirmation.orchestrator';
-
-import { reserveFileIdentityIntent } from '@/orchestrators/window-identity.orchestrator';
-import { chooseEntityFilename } from '@/orchestrators/entity-write.orchestrator';
-import { focusEntityIdentityConflict } from '@/orchestrators/window-target-focus.orchestrator';
-import { releaseNativeWindowTargets } from '@/services/window.service';
-import { captureIdentityVersions } from '@/domain/project/entity-versions';
-
-async function capturedVersions(
-  sessionId: string,
-  modRoot: string,
-  kind: EntityKind,
-  sourceId: string,
-  nextId: string,
-  baseVersions: FileVersion[],
-  create = false,
-) {
-  const captured = await captureConfigIdentityIntent(sessionId, kind, sourceId, nextId).catch(async (error) => {
-    await focusEntityIdentityConflict(sessionId, modRoot, error);
-    throw error;
-  });
-  await reserveFileIdentityIntent(sessionId, modRoot, captured.intent);
-  const versions = create ? captured.snapshot.baseVersions : baseVersions;
-  return captureIdentityVersions(versions, captured.intent.destinationVersion);
+interface IdentityWrite {
+  sessionId: string;
+  modRoot: string;
+  kind: EntityKind;
+  previousId: string | null;
+  nextId: string;
+  baseVersions: FileVersion[];
+}
+interface IdentityContent {
+  original: RowData;
+  data: RowData;
+  composition?: JsonComposition;
 }
 
-/** Settles the file name of an ID change and captures the versions of the chosen destination. */
-async function settledVersions(
-  sessionId: string,
-  modRoot: string,
-  kind: EntityKind,
-  sourceId: string,
-  nextId: string,
-  baseVersions: FileVersion[],
-  feedback: AppFeedback | undefined,
-  content?: { original: RowData; data: RowData; composition?: JsonComposition },
-) {
-  const captured = await captureConfigIdentityIntent(sessionId, kind, sourceId, nextId).catch(async (error) => {
+async function settleIdentity(write: IdentityWrite, feedback?: AppFeedback, content?: IdentityContent) {
+  const { sessionId, modRoot, kind, nextId } = write;
+  const captured = await captureConfigIdentityIntent(sessionId, kind, write.previousId ?? nextId, nextId).catch(async (error) => {
     await focusEntityIdentityConflict(sessionId, modRoot, error);
     throw error;
   });
-  const keepFilename = await chooseEntityFilename(
-    feedback,
-    captured.snapshot.target,
-    captured.intent,
-    content ? { before: content.original, after: content.data, composition: content.composition } : undefined,
-  );
+  const keepFilename =
+    write.previousId === null
+      ? false
+      : await chooseEntityFilename(
+          feedback,
+          captured.snapshot.target,
+          captured.intent,
+          content ? { before: content.original, after: content.data, composition: content.composition } : undefined,
+        );
   if (keepFilename === null) return null;
-  if (keepFilename) return { keepFilename, versions: await capturedVersions(sessionId, modRoot, kind, sourceId, sourceId, baseVersions) };
-  await reserveFileIdentityIntent(sessionId, modRoot, captured.intent);
-  return { keepFilename, versions: captureIdentityVersions(baseVersions, captured.intent.destinationVersion) };
+  const intent = keepFilename
+    ? (await captureConfigIdentityIntent(sessionId, kind, write.previousId!, write.previousId!)).intent
+    : captured.intent;
+  await reserveFileIdentityIntent(sessionId, modRoot, intent);
+  return {
+    keepFilename,
+    baseVersions: captureIdentityVersions(
+      write.previousId === null ? captured.snapshot.baseVersions : write.baseVersions,
+      intent.destinationVersion,
+    ),
+  };
 }
 
-async function retainConfigReservation<T>(write: Promise<T>): Promise<T> {
+async function withReservation<T>(write: () => Promise<T>): Promise<T> {
   try {
-    const result = await write;
-    if (result === null) await releaseNativeWindowTargets();
-    return result;
+    return await write();
   } catch (error) {
     await releaseNativeWindowTargets();
     throw error;
   }
 }
 
-export async function saveModInfoAction(
-  sessionId: string,
-  modRoot: string,
-  data: RowData,
-  feedback?: AppFeedback,
-  baseVersions: FileVersion[] = [],
-  original?: RowData,
-  request?: SaveCommandRequest,
-): Promise<WriteResult | null> {
-  return runConfirmedJsonWrite(feedback, (options) => saveModInfo(sessionId, modRoot, data, options, baseVersions, original, request));
-}
-
 export async function saveIndexedEntityAction(
-  write: {
-    baseVersions: FileVersion[];
-    sessionId: string;
-    modRoot: string;
-    kind: IndexedConfigKind;
-    previousId: string | null;
-    nextId: string;
-    indexRow: RowData;
-    entityData: RowData;
-  },
+  write: IndexedConfigSave,
+  edits: DocumentEdit[],
   feedback?: AppFeedback,
-  original?: RowData,
+  content?: IdentityContent,
   request?: SaveCommandRequest,
-  replacePaths: string[] = [],
-  composition?: JsonComposition,
-): Promise<WriteResult<IndexedConfigEntityRefresh> | null> {
-  const settled = await settledVersions(
-    write.sessionId,
-    write.modRoot,
-    write.kind,
-    write.previousId ?? write.nextId,
-    write.nextId,
-    write.baseVersions,
-    feedback,
-    original && write.kind === 'faction'
-      ? { original: original.file as RowData, data: write.entityData.file as RowData, composition }
-      : undefined,
-  );
-  if (!settled) return null;
-  const { keepFilename, versions } = settled;
-  const result = await retainConfigReservation(
-    runConfirmedJsonWrite(
-      feedback,
-      (options) =>
-        saveIndexedConfigEntity(
-          { ...write, baseVersions: versions },
-          keepFilename ? { ...options, keepFilename } : options,
-          original,
-          request,
-        ),
-      replacePaths,
+) {
+  const identity = await settleIdentity(write, feedback, content);
+  if (!identity) return null;
+  return withReservation(() =>
+    saveIndexedConfigEntity(
+      { ...write, baseVersions: identity.baseVersions, jsonWrite: { ...write.jsonWrite, keepFilename: identity.keepFilename } },
+      edits,
+      request,
     ),
   );
-  return result;
 }
 
-export async function createIndexedEntityAction(
-  write: {
-    baseVersions: FileVersion[];
-    sessionId: string;
-    modRoot: string;
-    kind: IndexedConfigKind;
-    previousId: null;
-    nextId: string;
-    indexRow: RowData;
-    entityData: RowData;
-  },
-  request?: SaveCommandRequest,
-): Promise<WriteResult<IndexedConfigEntityRefresh>> {
-  const baseVersions = await capturedVersions(write.sessionId, write.modRoot, write.kind, write.nextId, write.nextId, [], true);
-  return retainConfigReservation(createIndexedConfigEntity({ ...write, baseVersions }, request));
+export async function createIndexedEntityAction(write: IndexedConfigSave, request?: SaveCommandRequest) {
+  const identity = await settleIdentity({ ...write, previousId: null });
+  return withReservation(() => createIndexedConfigEntity({ ...write, baseVersions: identity!.baseVersions }, request));
 }
 
 export async function saveJsonFileAction(
   kind: 'variant' | 'skin',
-  sessionId: string,
-  modRoot: string,
-  id: string,
-  data: RowData,
-  previousId: string | null,
-  relPath: string,
+  write: JsonFileSave,
+  edits: DocumentEdit[],
   feedback?: AppFeedback,
-  baseVersions: FileVersion[] = [],
-  original?: RowData,
+  content?: IdentityContent,
   request?: SaveCommandRequest,
-  replacePaths: string[] = [],
-  composition?: JsonComposition,
-): Promise<WriteResult<VariantFile | SkinFile> | null> {
-  const settled = await settledVersions(
-    sessionId,
-    modRoot,
-    kind,
-    previousId ?? id,
-    id,
-    baseVersions,
-    feedback,
-    original ? { original, data, composition } : undefined,
-  );
-  if (!settled) return null;
-  const { keepFilename } = settled;
-  baseVersions = settled.versions;
-  const saveEntity = kind === 'variant' ? saveVariantEntity : saveSkinEntity;
-  const result = await retainConfigReservation(
-    runConfirmedJsonWrite<WriteResult<VariantFile | SkinFile>>(
-      feedback,
-      (options) =>
-        saveEntity(
-          { baseVersions, sessionId, modRoot, previousId, nextId: id, data, relPath },
-          keepFilename ? { ...options, keepFilename } : options,
-          original,
-          request,
-        ),
-      replacePaths,
+) {
+  const identity = await settleIdentity({ ...write, kind }, feedback, content);
+  if (!identity) return null;
+  const save = kind === 'variant' ? saveVariantEntity : saveSkinEntity;
+  return withReservation<WriteResult<VariantFile | SkinFile>>(() =>
+    save(
+      { ...write, baseVersions: identity.baseVersions, jsonWrite: { ...write.jsonWrite, keepFilename: identity.keepFilename } },
+      edits,
+      request,
     ),
   );
-  return result;
 }
 
 export async function createJsonFileAction(
@@ -215,25 +124,23 @@ export async function createJsonFileAction(
   baseHullId: string,
   id: string,
   request?: SaveCommandRequest,
-): Promise<WriteResult<VariantFile | SkinFile>> {
-  const createEntity = kind === 'variant' ? createVariantEntity : createSkinEntity;
-  const initial = kind === 'variant' ? createDefaultVariant : createDefaultSkin;
-  const baseVersions = await capturedVersions(sessionId, modRoot, kind, id, id, [], true);
-  const result = await retainConfigReservation<WriteResult<VariantFile | SkinFile>>(
-    createEntity({ baseVersions, sessionId, modRoot, previousId: null, relPath: null, nextId: id, data: initial(baseHullId, id) }, request),
-  );
-  return result;
-}
-
-export async function recreateJsonSourcesAction(
-  plan: JsonRecoveryPlan,
-  baseline: RowData,
-  feedback: AppFeedback,
-  targetKey: string,
-  request?: SaveCommandRequest,
 ) {
-  const { sessionId, modRoot } = plan.request;
-  void feedback;
-  void targetKey;
-  return recreateJsonSources({ sessionId, modRoot, plan, baseline }, request);
+  const identity = await settleIdentity({ sessionId, modRoot, kind, previousId: null, nextId: id, baseVersions: [] });
+  const create = kind === 'variant' ? createVariantEntity : createSkinEntity;
+  const initial = kind === 'variant' ? createDefaultVariant : createDefaultSkin;
+  return withReservation<WriteResult<VariantFile | SkinFile>>(() =>
+    create(
+      {
+        sessionId,
+        modRoot,
+        previousId: null,
+        nextId: id,
+        relPath: null,
+        baseVersions: identity!.baseVersions,
+        document: prepareJsonWrite(initial(baseHullId, id)),
+        jsonWrite: {},
+      },
+      request,
+    ),
+  );
 }

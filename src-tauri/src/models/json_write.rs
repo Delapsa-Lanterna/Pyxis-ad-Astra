@@ -6,9 +6,7 @@ pub struct JsonWriteOptions {
     #[serde(default)]
     pub keep_filename: bool,
     #[serde(default)]
-    pub preserve_original_json: bool,
-    #[serde(default)]
-    pub confirmed_sources: Vec<JsonSourceConfirmation>,
+    pub preserve_structure: bool,
     /// Mod-relative JSON paths that this write adds to the `mod_info.json` replace list.
     #[serde(default)]
     pub replace_paths: Vec<String>,
@@ -24,13 +22,6 @@ impl JsonWriteOptions {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct JsonSourceConfirmation {
-    pub path: String,
-    pub source_fingerprint: String,
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -38,18 +29,12 @@ mod tests {
 
     #[test]
     fn json_write_options_keep_missing_field_defaults() {
-        for value in [
-            json!({}),
-            json!({"preserveOriginalJson":false}),
-            json!({"confirmedSources":[]}),
-        ] {
+        for value in [json!({}), json!({"preserveStructure":false})] {
             let options: JsonWriteOptions = serde_json::from_value(value).unwrap();
-            assert!(!options.preserve_original_json);
-            assert!(options.confirmed_sources.is_empty());
+            assert!(!options.preserve_structure);
         }
         let options: JsonWriteOptions =
-            serde_json::from_value(json!({"preserveOriginalJson":true})).unwrap();
-        assert!(options.preserve_original_json);
-        assert!(options.confirmed_sources.is_empty());
+            serde_json::from_value(json!({"preserveStructure":true})).unwrap();
+        assert!(options.preserve_structure);
     }
 }

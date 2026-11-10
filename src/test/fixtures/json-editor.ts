@@ -1,5 +1,6 @@
 import { entityTargetFixture } from '@/test/fixtures/entity-target';
 import type { EntityData, RowData } from '@/shared/types';
+import { jsonFileFixture } from './json-file';
 
 export function jsonEntityFixture(
   kind: 'faction' | 'mission' | 'variant' | 'skin',
@@ -24,5 +25,17 @@ export function jsonEntityFixture(
       : kind === 'faction'
         ? [target.write.path, modRoot + '/data/world/factions/factions.csv']
         : [target.write.path];
-  return { kind, id, target, data, baseVersions: paths.map((path) => ({ path, fingerprint: 'v1' })), resourceRefs: {} };
+  const entity: EntityData = {
+    kind,
+    id,
+    target,
+    data,
+    get document() {
+      return jsonFileFixture(kind === 'mission' ? (entity.data as RowData).descriptor! : entity.data);
+    },
+    composition: null,
+    baseVersions: paths.map((path) => ({ path, fingerprint: 'v1' })),
+    resourceRefs: {},
+  };
+  return entity;
 }

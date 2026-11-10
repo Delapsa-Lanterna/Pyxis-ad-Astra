@@ -74,7 +74,6 @@ beforeEach(() => {
     sources: Object.fromEntries(request.sources.map((source) => [source, []])),
     files: {},
     classes: {},
-    stationData: {},
   }));
   setActivePinia(createPinia());
   initializeSettingsStore(createSettingsFixture({ editMode: 'plain' }));

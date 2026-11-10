@@ -96,6 +96,7 @@ export function applyCsvTableIndexDraft(
 }
 
 export function acceptSavedCsvTableRows(state: CsvTableState, rows: DeepReadonly<CsvTableRowsRead['rows']>) {
+  const projected = new Map(state.validationRows?.map((row) => [row.rowKey, row]));
   for (const entry of rows) {
     const before = state.baselineRows[entry.rowKey];
     const current = state.rows[entry.rowKey];
@@ -104,8 +105,8 @@ export function acceptSavedCsvTableRows(state: CsvTableState, rows: DeepReadonly
       current.isComment = retainLaterDraft(current.isComment, before.isComment, entry.isComment);
     } else if (!state.dirty[entry.rowKey]) state.rows[entry.rowKey] = cloneQuerySnapshot<CsvDraftRow>(entry);
     state.baselineRows[entry.rowKey] = cloneQuerySnapshot<CsvDraftRow>(entry);
-    const projected = state.validationRows?.find((row) => row.rowKey === entry.rowKey);
-    if (projected) Object.assign(projected, projectValidationRow(state.table, entry));
+    const validation = projected.get(entry.rowKey);
+    if (validation) Object.assign(validation, projectValidationRow(state.table, entry));
   }
   rebuildDirty(state);
   updateCounts(state);

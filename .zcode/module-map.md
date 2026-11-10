@@ -107,7 +107,7 @@
 - [项目查询与缓存](modules/project-query-cache.md)：说明类型化查询定义、会话共享读取、缓存、门控与失效通知。
 - [来源候选目录](modules/source-catalog.md)：说明实际来源分组、候选查询、图片目录、标签元数据与所属失效。
 - [实体查询](modules/entity-query.md)：说明实体详情、列表、编辑目标、身份意图及所属失效。
-- [文本与格式解析器](modules/text-parsers.md)：说明 CSV-like 与 JSON-like 解析、UTF-8 无 BOM、CP1252 规范化和格式错误上下文。
+- [文本与格式解析器](modules/text-parsers.md)：说明 CSV-like 与 JSON-like 精确值、源布局、局部写出、文本解码和格式错误上下文。
 - [CSV 文档编辑](modules/csv-editor.md)：说明整表运行态、行草稿、操作历史、输入、关联文件及原子保存。
 - [编辑会话原语](modules/draft-session.md)：说明完整目标快照、读取票据、文档保存队列、EditContext、快照历史与未保存注册表。
 - [联合编辑与目标交接](modules/joint-editing.md)：说明联合来源快照、物理写入范围、跨编辑面保存准备、三方冲突选择、原子提交及释放。

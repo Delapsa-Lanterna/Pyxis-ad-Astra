@@ -1,7 +1,8 @@
-import type { RowData } from '@/shared/types/json.types';
-import type { CsvRow } from '@/shared/types/tables.types';
-import type { FileVersion } from '@/shared/types/project-identity.types';
-import type { JsonWriteOptions } from '@/shared/types/json-write.types';
+import type { RowData } from './json.types';
+import type { CsvRow } from './tables.types';
+import type { FileVersion } from './project-identity.types';
+import type { JsonWriteOptions } from './json-write.types';
+import type { JsonFileContent, JsonFileWrite } from './file-content.types';
 
 export interface ConfigEditTarget {
   sessionId: string;
@@ -10,43 +11,37 @@ export interface ConfigEditTarget {
   id: string;
   relPath: string | null;
 }
-
 export type IndexedConfigKind = 'faction' | 'mission';
-
 export interface IndexedConfigEntityRefresh {
   entityId: string;
   indexPath: string;
   indexHeader: string[];
   indexRows: CsvRow[];
   entityData: RowData | null;
+  document: JsonFileContent | null;
 }
-
 export interface ModInfoSave {
-  baseVersions: FileVersion[];
   sessionId: string;
   modRoot: string;
-  data: RowData;
-  jsonWrite?: JsonWriteOptions;
-  orderedJson?: string | null;
+  baseVersions: FileVersion[];
+  document: JsonFileWrite;
+  jsonWrite: JsonWriteOptions;
 }
-
-export interface IndexedConfigSave {
-  baseVersions: FileVersion[];
+interface IndexedConfigSaveScope {
   sessionId: string;
   modRoot: string;
-  kind: IndexedConfigKind;
+  baseVersions: FileVersion[];
   previousId: string | null;
   nextId: string;
   indexRow: RowData;
-  entityData: RowData;
-  jsonWrite?: JsonWriteOptions;
-  orderedJson?: string | null;
+  jsonWrite: JsonWriteOptions;
 }
-
+export type IndexedConfigSave = IndexedConfigSaveScope &
+  ({ kind: 'faction'; document: JsonFileWrite } | { kind: 'mission'; document: JsonFileWrite; text: string });
 export interface IndexedConfigDelete {
-  baseVersions: FileVersion[];
   sessionId: string;
   modRoot: string;
+  baseVersions: FileVersion[];
   kind: IndexedConfigKind;
   id: string;
   deleteTarget: boolean;

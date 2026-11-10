@@ -26,30 +26,23 @@ CSV 文档编辑模块管理整表文件的领域规则、运行态、展示、�
 - `src-tauri/src/domain/json_composition.rs`：游戏 JSON 合并、排除字段及整体覆盖组合。
 - `src-tauri/src/domain/save_edits.rs`：当前正式内容的字段修改应用。
 - `src-tauri/src/io/mod.rs`：底层文件、路径及 changeset 能力导出。
+- `src-tauri/src/models/file_content.rs`：精确文档、原始格式、物理 CSV 行格及完整写入请求。
 - `src-tauri/src/models/table_save.rs`：CSV 保存请求、行修改、关联规格动作与写入目标。
 - `src-tauri/src/models/tables.rs`：CSV 查询请求、解析记录、搜索与窗口结果。
 - `src-tauri/src/services/project/model.rs`：正式表格路径、身份列、摘要来源与 Core 要求。
+- `src-tauri/src/services/project/query/entities.rs`：校验消费实际规格身份和有序来源组合，CSV 注册行保留独立身份。
 - `src-tauri/src/services/project/query/entity_targets.rs`：实际编辑目标、身份意图及正式版本范围。
 - `src-tauri/src/services/project/query/json_layers.rs`：校验消费的正式有序内容组合来源。
 - `src-tauri/src/services/project/query/source_catalog/values.rs`：校验消费的完整引用候选。
 - `src-tauri/src/services/project/resources/table_references.rs`：行预览与来源选项的授权图片及显示名称。
-- `src-tauri/src/services/project/session/access.rs`：捕获引用快照后锁定并交付所属就绪会话。
-- `src-tauri/src/services/project/session/csv_tables.rs`：正式表格内容、稳定行身份与来源版本。
-- `src-tauri/src/services/project/session/csv_writes.rs`：表格暂存与成功应用后的正式状态接纳。
-- `src-tauri/src/services/project/session/references.rs`：规格记录、引用来源身份与有效来源顺序。
-- `src-tauri/src/services/project/session/registry.rs`：会话存活登记、句柄与内容就绪门控。
-- `src-tauri/src/services/project/sources/core.rs`：按根共享 Core 产品、只读 CSV、单飞读取及缓存释放。
-- `src-tauri/src/services/project/sources/documents.rs`：校验消费的正式规格记录。
+- `src-tauri/src/services/project/session/`：会话授权、就绪访问、CSV 正式内容、引用及来源版本管理。
+- `src-tauri/src/services/project/sources/`：授权来源发现、带版本读取、Core 共享成果及规格文档装载。
 - `src-tauri/src/services/project/versions.rs`：会话已接纳来源的路径凭据投影。
 - `src-tauri/src/services/project/write/entity_write.rs`：实体关联规格与描述的实际文件写入。
-- `src-tauri/src/services/project/write/entity_write/associated_spec_preparation.rs`：关联文件实际来源、目标准备与匹配版本。
-- `src-tauri/src/services/project/write/entity_write/associated_specs.rs`：实体内容、关联规格准备与复核、描述、父引用、单文件和势力索引写入。
-- `src-tauri/src/services/project/write/entity_write/descriptions.rs`：实体内容、关联规格准备与复核、描述、父引用、单文件和势力索引写入。
+- `src-tauri/src/services/project/write/entity_write/`：实体内容构造、关联规格、描述、索引及父引用的写入准备。
 - `src/app/components/media/ResourceThumbnail.vue`：授权图片与配置选项消费的缩略图展示。
 - `src/app/composables/csv-editor/csv-editor-context.ts`：表格目标、清单、列宽及实体定位的宿主契约。
-- `src/app/composables/field-editor/use-field-edit-mode.ts`：来源读取、路径选择、输入模式、行身份及选项媒体寿命。
-- `src/app/composables/field-editor/use-field-option-media.ts`：来源读取、路径选择、输入模式、行身份及选项媒体寿命。
-- `src/app/composables/field-editor/use-image-source-options.ts`：来源读取、路径选择、输入模式、行身份及选项媒体寿命。
+- `src/app/composables/field-editor/`：字段输入模式、来源候选与选项媒体生命周期。
 - `src/app/composables/use-app-feedback.ts`：窗口反馈的提供与消费入口。
 - `src/app/composables/use-context-menu.ts`：窗口菜单状态、目标操作、事件生命周期与业务根登记。
 - `src/app/composables/use-field-input-actions.ts`：所属输入集合登记、活动输入提交与释放。
@@ -62,16 +55,11 @@ CSV 文档编辑模块管理整表文件的领域规则、运行态、展示、�
 - `src/domain/edit-session.ts`：历史双栈原语与正式保存后保留后续草稿的接纳规则。
 - `src/domain/editors/weapon-spec.ts`：武器关联创建消费的统一分支推断。
 - `src/domain/entity-write/spec-construction.ts`：武器分支定义与正式规格构造。
-- `src/domain/field-editor/csv-source-options.ts`：编辑上下文、候选展示和 CSV 选项索引。
-- `src/domain/field-editor/field-options.ts`：编辑上下文、候选展示和 CSV 选项索引。
-- `src/domain/schema/csv-schema-registry.ts`：表格消费的列 schema 加载入口。
-- `src/domain/schema/csv-value-validation.ts`：列 schema 所属的数字、整数、布尔、固定选项及必填值检查。
-- `src/domain/schema/schema-source-definitions.ts`：表格字段候选的来源解析与配置刷新路径。
-- `src/domain/schema/schema.types.ts`：字段与列资产加载、来源声明、值及结构纯规则。
+- `src/domain/field-editor/`：字段上下文、候选选项及 CSV 来源的纯投影。
+- `src/domain/schema/`：字段与列资产加载、游戏数字解释、来源声明、校验及目标格式准备。
 - `src/domain/spec-editor/spec-editor-definitions.ts`：窗口名称和尺寸的纯定义。
 - `src/orchestrators/immersive-editor.orchestrator.ts`：联合根读取、编辑目标准备与沉浸式窗口交付。
 - `src/orchestrators/joint-edit.orchestrator.ts`：联合读取、冲突确认与提交顺序。
-- `src/orchestrators/json-write-confirmation.orchestrator.ts`：保存提交所属的逐源重排确认。
 - `src/orchestrators/project-sync.orchestrator.ts`：表格保存消费的 receipt 同步与反馈入口。
 - `src/services/entity-query.service.ts`：四类查询定义、正式请求与实体失效选择。
 - `src/services/query-cache.service.ts`：类型化缓存实例、共享请求、即时读取、门控及失效通知。
@@ -238,15 +226,16 @@ CSV 文档编辑模块管理整表文件的领域规则、运行态、展示、�
 
 ## 规范
 
+- 调整表头时，数据行按列来源映射，注释与空行保持独立物理记录及原位置。
 - 表格读取等待必须消费所属索引任务、在途行需求与搜索提交；读取失败在表格区域交付重试，重试复用索引及失败行读取并保留草稿、原文、历史和选择。
-- 分表检查必须登记所需列与纯校验函数，共同消费全表精简基线、当前草稿及稳定行身份；顶部提示与保存门控消费同一问题结果。
-- 整表纯检查必须直接消费所属表、行、表头和来源内容，保存先检查纯字段与身份问题，再取得本次权威来源并检查全部问题。
+- 分表检查登记所需列与纯校验函数，共同消费全表精简基线、当前草稿及稳定行身份；顶部提示与保存门控消费同一问题结果。
+- 整表纯检查直接消费所属表、行、表头和来源内容，保存先检查纯字段与身份问题，再取得本次权威来源并检查全部问题。
 - 外部表格检查必须按当前会话授权的原版或引用根读取正式路径，文件版本、表头与精简行来自同次读取。
 - 类型错误、必读列缺失与确定失效的必需引用必须阻断保存，字段关系、有效 hints 组合及脚本来源不确定交付黄色提醒；USE_VS_FRIGATES 允许独立使用。
 - 图片及脚本检查必须使用授权的当前 Mod、引用与 Core 根，脚本 JAR 每次读取建立一次类条目索引并供同批类名复用；校验严禁执行用户脚本。
-- 缺失舰船或技能规格的身份创建必须沿关联规格选择交付，只有 CSV 的提交拒绝缺少所需规格的记录。
+- 舰船、武器和战术系统的缺失规格交付游戏跳过该行的提醒；技能缺失规格仍按其加载要求校验，身份创建沿关联规格选择交付。
 - 校验必须覆盖当前 Mod 同一整表的非注释业务记录；实体表检查有值 ID 的唯一性，描述检查 ID 与类型组合唯一性；`SHIP` 描述必须同时查询同名 ship 与 skin 并按任一匹配接纳，skin 来源变化必须刷新所属校验；模拟对手按允许重复的列表处理，联队有值 ID 交付小写 _wing 后缀提醒。
-- 行校验、重复身份检查与校验来源查询必须统一按非注释行的身份字段非空判定业务记录；模拟对手必须使用 `variant id`，其余表必须使用 `id`；空身份说明行必须原样保存。
+- 行校验、重复身份检查、关联规格动作与校验来源查询共同消费业务记录判定；技能 ID 以 # 开头的记录由游戏跳过，其余表保留各自身份规则；模拟对手必须使用 `variant id`，其余表必须使用 `id`；空身份说明行必须原结构保存。
 - 单元格选择与编辑必须分别维护，组合输入完整保留首字及组字过程，保存行键映射保留选中列及所属行身份。
 - 区域动作必须等待所需行完整读取后一次提交，单次动作只允许登记一条包含前后值与新增行的历史；搜索隐藏行保留原内容，批量成员消费保存后的行键映射。
 - CSV patch 必须携带读取基线与 `isComment`，恢复行携带 `insertAt`；正式 `rowKey` 删除命中实际行，未知键返回冲突。
@@ -255,12 +244,12 @@ CSV 文档编辑模块管理整表文件的领域规则、运行态、展示、�
 - limit 必须由窗口装配按当前 `editHistoryLimit` 同步输入；初始化、设置变化及镜像立即裁剪全部现有表的最早 undo 并保留 redo，新建与重建文档消费当前容量，卸载结束观察。
 - native 文本、多行浮层与多选必须在一次编辑动作结束时产生一条前后值操作；原始输入期间只允许登记待提交状态。
 - 保存映射必须同步 operation.rowKey 与行记录身份；来源位置与恢复插入位置分别交接。
-- 关联 spec 改名必须按本次 `preserveOriginalJson` 设置更新旧文件文本；需要整体重排时在 CSV 与 spec changeset 应用前确认。
+- 关联 spec 改名必须按本次 `preserveStructure` 设置生成布局，两种模式共同保留未修改值的原写法，实际文件与 CSV 共同进入 changeset。
 - 再次保存必须提交当前输入并捕获新快照，文件动作消费所属项目执行顺序，内容读取失败由维护者独立处理。
 - 列宽覆盖与测量锁定必须绑定 session、Mod 与表；目标变化先接纳所属列宽再处理 dirty 与读取。
-- 列宽调整必须直接更新 workspace 所属覆盖值，展示派生消费同一覆盖值。
-- 来源选项内容未变时必须保留当前列与来源索引；同表 token 目录按实际列值变化更新，ID 目录继续消费名称及资源变化。
-- 字段速览必须按 schema 列顺序显示全部已声明且实际存在的列，空集合隐藏速览卡片；悬停说明以字段键和换行正文呈现，空说明显示字段键。
+- 列宽调整直接更新 workspace 所属覆盖值，展示派生消费同一覆盖值。
+- 来源选项内容未变时保留当前列与来源索引；同表 token 目录按实际列值变化更新，ID 目录继续消费名称及资源变化。
+- 字段速览按 schema 列顺序显示全部已声明且实际存在的列，空集合隐藏速览卡片；悬停说明以字段键和换行正文呈现，空说明显示字段键。
 - 删除 patch 必须携带删除动作标记，严禁以空 upsert 表达删除。
 - 前端新增行只允许使用临时 new key，保存后以后端 `rowKey` map 替换。
 - 单元格编辑必须在动作提交边界一次性写值与登记历史；中间输入参与未保存判定，行脏标记只允许表达已提交行差异。

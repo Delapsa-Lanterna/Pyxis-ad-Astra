@@ -1,22 +1,39 @@
 use super::super::definitions::entity_definitions::entity_definition;
 use super::super::model::{MISSION_LIST_TABLE_KEY, ProjectSession, string_from_row};
-use super::super::session::csv_tables::{ensure_registered_table_rows, ensure_session_table_rows};
-use super::super::session::{lock_ready_session, session_handle};
+use super::super::session::{csv_tables, lock_ready_session, session_handle};
 use super::super::versions::version_for_path;
 use super::entity_presentation;
 use crate::domain::{entity_definitions, entity_identity, variant_modules};
 use crate::errors::{AppError, AppResult};
-use crate::io;
-use crate::io::FsRootBoundary;
+use crate::io::{self, FsRootBoundary};
 use crate::models::{
     CsvTableKey, EntityEditTarget, EntityFileLocation, EntityIdentityIntent, EntityKind,
     EntityLinkedRecord, EntityTargetSnapshot, EntityTargetState, FileVersion, ResourceSource,
     windows_path_key,
 };
-use crate::services::project::session::csv_tables;
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
+pub(crate) fn location(root: &str, relative: &str) -> EntityFileLocation {
+    EntityFileLocation {
+        source: ResourceSource::Mod,
+        reference: None,
+        root: root.into(),
+        rel_path: relative.into(),
+        path: Path::new(root)
+            .join(relative)
+            .to_string_lossy()
+            .into_owned(),
+    }
+}
+pub(super) fn remember_edit_target(session: &mut ProjectSession, target: &EntityEditTarget) {
+    session.loaded_edit_targets.retain(|previous| {
+        previous.kind != target.kind
+            || previous.id != target.id
+            || previous.write.rel_path != target.write.rel_path
+    });
+    session.loaded_edit_targets.push(target.clone());
+}
 pub fn query_entity_edit_target(
     session_id: &str,
     kind: EntityKind,
@@ -25,236 +42,87 @@ pub fn query_entity_edit_target(
     let handle = session_handle(session_id)?;
     let mut session = lock_ready_session(&handle)?;
     (entity_definition(kind)?.prepare)(&mut session)?;
-    let snapshot = describe_entity_target(&mut session, kind, id)?;
-    remember_edit_target(&mut session, &snapshot.target);
-    Ok(snapshot)
+    let result = describe_entity_target(&mut session, kind, id)?;
+    remember_edit_target(&mut session, &result.target);
+    Ok(result)
 }
-
-pub(super) fn remember_edit_target(session: &mut ProjectSession, target: &EntityEditTarget) {
-    session.loaded_edit_targets.retain(|origin| {
-        origin.kind != target.kind
-            || origin.id != target.id
-            || origin.write.rel_path != target.write.rel_path
-    });
-    session.loaded_edit_targets.push(target.clone());
-}
-
-pub fn require_entity_version_scope(
-    session_id: &str,
-    kind: EntityKind,
-    id: &str,
-    supplied: &[FileVersion],
-) -> AppResult<()> {
-    let snapshot = query_entity_edit_target(session_id, kind, id)?;
-    for required in snapshot.base_versions {
+fn require_versions(required: &[FileVersion], supplied: &[FileVersion]) -> AppResult<()> {
+    for version in required {
         if !supplied
             .iter()
-            .any(|version| windows_path_key(&version.path) == windows_path_key(&required.path))
+            .any(|supplied| windows_path_key(&supplied.path) == windows_path_key(&version.path))
         {
             return Err(AppError::message(
                 "write.version_scope_missing",
-                format!("保存缺少读取版本凭据: {}", required.path),
+                format!("保存缺少读取版本凭据：{}", version.path),
             ));
         }
     }
     Ok(())
 }
-
+pub fn require_entity_version_scope(
+    session: &str,
+    kind: EntityKind,
+    id: &str,
+    supplied: &[FileVersion],
+) -> AppResult<()> {
+    require_versions(
+        &query_entity_edit_target(session, kind, id)?.base_versions,
+        supplied,
+    )
+}
 pub fn require_csv_version_scope(
-    session_id: &str,
+    session: &str,
     table: CsvTableKey,
     supplied: &[FileVersion],
 ) -> AppResult<()> {
-    let handle = session_handle(session_id)?;
+    let handle = session_handle(session)?;
     let session = lock_ready_session(&handle)?;
-    let state = csv_tables::registered_session_table(&session, table)?;
-    let required = version_for_path(&session, &state.path);
-    if !supplied
-        .iter()
-        .any(|version| windows_path_key(&version.path) == windows_path_key(&required.path))
-    {
-        return Err(AppError::message(
-            "write.version_scope_missing",
-            format!("CSV 保存缺少读取版本凭据: {}", required.path),
-        ));
-    }
-    Ok(())
+    let table = csv_tables::registered_session_table(&session, table)?;
+    require_versions(&[version_for_path(&session, &table.path)], supplied)
 }
-
-pub fn query_file_entity_target(
-    session_id: &str,
-    path: &str,
-) -> AppResult<Option<EntityTargetSnapshot>> {
-    let handle = session_handle(session_id)?;
-    let mut session = lock_ready_session(&handle)?;
-    let key = windows_path_key(path);
-    let mut found = None;
-    for (kind, records) in [
-        (EntityKind::Ship, &session.ship_files),
-        (EntityKind::Weapon, &session.weapon_specs),
-        (EntityKind::Projectile, &session.projectile_specs),
-        (EntityKind::System, &session.system_files),
-        (EntityKind::Skill, &session.skill_files),
-        (EntityKind::Faction, &session.faction_files),
-    ] {
-        if let Some(record) = records.values().find(|record| {
-            record.location.source == ResourceSource::Mod
-                && windows_path_key(&record.location.path) == key
-        }) {
-            found = Some((kind, record.id.clone()));
-            break;
-        }
-    }
-    if found.is_none() {
-        found = session
-            .variant_files
-            .iter()
-            .find(|file| windows_path_key(&file.path) == key)
-            .map(|file| (EntityKind::Variant, file.variant_id.clone()))
-            .or_else(|| {
-                session
-                    .skin_files
-                    .iter()
-                    .find(|file| windows_path_key(&file.path) == key)
-                    .map(|file| (EntityKind::Skin, file.skin_hull_id.clone()))
-            });
-    }
-    found
-        .map(|(kind, id)| describe_entity_target(&mut session, kind, &id))
-        .transpose()
-}
-
-pub fn query_entity_identity_intent(
-    session_id: &str,
-    source: &EntityEditTarget,
-    next_id: &str,
-) -> AppResult<EntityIdentityIntent> {
-    let handle = session_handle(session_id)?;
-    let mut session = lock_ready_session(&handle)?;
-    (entity_definition(source.kind)?.prepare)(&mut session)?;
-    let current = describe_entity_target(&mut session, source.kind, &source.id)?;
-    if current.target != *source {
-        return Err(AppError::message(
-            "spec.target_changed",
-            "实体目标已变化，请载入外部版本",
-        ));
-    }
-    let definition = entity_definitions::entity_spec_definition(source.kind);
-    let next_id = entity_identity::validate_entity_id(
-        next_id,
-        definition
-            .map(|definition| definition.invalid_id_message)
-            .unwrap_or("无效战役 ID"),
-    )?;
-    let relative = if source.kind == EntityKind::Mission {
-        format!("data/missions/{next_id}")
-    } else if source.state == EntityTargetState::Create {
-        definition
-            .expect("spec kind has definition")
-            .default_rel_path(next_id)
-    } else if next_id == source.id {
-        source.write.rel_path.clone()
-    } else {
-        io::forward_slash_path(&Path::new(&source.write.rel_path).with_file_name(format!(
-            "{next_id}{}",
-            definition.expect("spec kind has definition").extension
-        )))
-    };
-    let boundary =
-        FsRootBoundary::new(Path::new(&session.manifest.mod_root), "entity intent root")?;
-    let destination = boundary.resolve_relative_target(&relative, "entity intent target")?;
-    let same_file = io::same_physical_path(Path::new(&source.write.path), &destination);
-    let next_target = describe_entity_target(&mut session, source.kind, next_id)?.target;
-    // An occupied file name of an existing single-file entity is a choice, not an identity conflict.
-    let filename_taken = destination.exists()
-        && !same_file
-        && source.state == EntityTargetState::Existing
-        && definition.is_some();
-    if (destination.exists()
-        && (source.state == EntityTargetState::Create || !same_file)
-        && !filename_taken)
-        || (next_id != source.id && next_target.state == EntityTargetState::Existing)
-    {
-        return Err(AppError::EntityTargetExists {
-            target: Box::new(next_target),
-        });
-    }
-    let inherits = next_id != source.id
-        && entity_presentation::entity_composition(&session, source)?
-            .is_some_and(|composition| !composition.layers.is_empty() && !composition.replace);
-    let mut next_write = source.write.clone();
-    next_write.rel_path = relative;
-    next_write.path = destination.to_string_lossy().to_string();
-    Ok(EntityIdentityIntent {
-        source: source.clone(),
-        next_id: next_id.to_string(),
-        destination_version: io::file_version(&destination)?,
-        next_write,
-        filename_taken,
-        inherits,
-    })
-}
-
 pub(in crate::services::project) struct EntityTargetIndex {
     kind: EntityKind,
     sources: BTreeMap<String, EntityFileLocation>,
     linked: BTreeMap<String, EntityLinkedRecord>,
-    index_version: Option<FileVersion>,
-    default_description_ids: BTreeSet<String>,
+    index: Option<FileVersion>,
+    descriptions: BTreeSet<String>,
     description_version: Option<FileVersion>,
-    parent_versions: BTreeMap<String, Vec<FileVersion>>,
+    parents: BTreeMap<String, Vec<FileVersion>>,
 }
-
 pub(in crate::services::project) fn prepare_entity_targets(
     session: &mut ProjectSession,
     kind: EntityKind,
 ) -> AppResult<EntityTargetIndex> {
-    let root = &session.manifest.mod_root;
-    let mut parent_versions = BTreeMap::<String, Vec<FileVersion>>::new();
-    if kind == EntityKind::Variant {
-        for parent in session.variant_files.iter() {
-            let content = &parent.data;
-            for (_, id) in variant_modules::module_entries(content.get("modules")) {
-                parent_versions
-                    .entry(id)
-                    .or_default()
-                    .push(version_for_path(session, &parent.rel_path));
-            }
-        }
-    }
+    let root = session.manifest.mod_root.clone();
     let mut sources = BTreeMap::new();
     match kind {
         EntityKind::Variant => {
-            for record in session.variant_files.iter() {
-                sources
-                    .entry(record.variant_id.clone())
-                    .or_insert_with(|| location(root, &record.rel_path));
+            for file in session.variant_files.iter() {
+                sources.insert(file.variant_id.clone(), location(&root, &file.rel_path));
             }
         }
         EntityKind::Skin => {
-            for record in session.skin_files.iter() {
-                sources
-                    .entry(record.skin_hull_id.clone())
-                    .or_insert_with(|| location(root, &record.rel_path));
+            for file in session.skin_files.iter() {
+                sources.insert(file.skin_hull_id.clone(), location(&root, &file.rel_path));
             }
         }
         EntityKind::Mission => {}
-        _ => {
-            let records = session.spec_records(kind).expect("file-backed entity kind");
-            sources.extend(
-                records
-                    .iter()
-                    .map(|(id, record)| (id.clone(), record.location.clone())),
-            );
-        }
+        _ => sources.extend(
+            session
+                .spec_records(kind)
+                .expect("file-backed entity")
+                .iter()
+                .map(|(id, file)| (id.clone(), file.location.clone())),
+        ),
     }
-    for view in &session.references {
-        for (id, location) in view.locations(kind) {
+    for reference in &session.references {
+        for (id, source) in reference.locations(kind) {
             if sources
                 .get(&id)
                 .is_none_or(|source| source.source == ResourceSource::Core)
             {
-                sources.insert(id, location);
+                sources.insert(id, source);
             }
         }
     }
@@ -265,33 +133,20 @@ pub(in crate::services::project) fn prepare_entity_targets(
     {
         if !sources.contains_key(&target.id)
             && let Some(source) = &target.source
-            && !Path::new(&source.path)
-                .try_exists()
-                .map_err(|error| AppError::from(error).at_path(&source.path))?
+            && !Path::new(&source.path).try_exists()?
         {
-            sources
-                .entry(target.id.clone())
-                .or_insert_with(|| source.clone());
+            sources.insert(target.id.clone(), source.clone());
         }
     }
-    let definition = entity_definitions::entity_spec_definition(kind);
     let mut linked = BTreeMap::new();
-    let index_version = if let Some(table) = definition.and_then(|definition| definition.csv_table)
-    {
-        ensure_registered_table_rows(session, table)?;
-        let state = session
-            .csv_tables
-            .get(table.as_str())
-            .expect("registered table");
-        for row in state
-            .rows
-            .as_ref()
-            .expect("associated rows are loaded")
+    let definition = entity_definitions::entity_spec_definition(kind);
+    let index = if let Some(table) = definition.and_then(|definition| definition.csv_table) {
+        csv_tables::ensure_registered_table_rows(session, table)?;
+        let state = csv_tables::registered_session_table(session, table)?;
+        for row in csv_tables::loaded_csv_rows(state, table.as_str())?
             .iter()
+            .filter(|row| !row.is_comment)
         {
-            if row.is_comment {
-                continue;
-            }
             if let Some(id) = string_from_row(&row.data, "id") {
                 linked.entry(id).or_insert_with(|| EntityLinkedRecord::Csv {
                     table,
@@ -301,55 +156,60 @@ pub(in crate::services::project) fn prepare_entity_targets(
         }
         Some(version_for_path(session, &state.path))
     } else if kind == EntityKind::Faction {
-        let index = "data/world/factions/factions.csv";
-        let boundary = FsRootBoundary::new(Path::new(&session.manifest.mod_root), "faction root")?;
-        let table = csv_tables::read_retained_csv(session, index)?;
+        #[cfg(test)]
+        io::record_faction_index_read();
+        let path = "data/world/factions/factions.csv";
+        let boundary = FsRootBoundary::new(Path::new(&root), "faction index")?;
+        let table = csv_tables::read_retained_csv(session, path)?;
         let entries = io::faction_index_entries(&boundary, &table)?;
-        let mut paths = BTreeMap::new();
-        for entry in entries {
-            paths
-                .entry(entry.path.to_string_lossy().to_string())
-                .or_insert(entry.row_index);
-        }
         for (id, source) in &sources {
-            if let Some(row_index) = paths.get(&source.path) {
+            if let Some(entry) = entries
+                .iter()
+                .find(|entry| io::same_physical_path(&entry.path, Path::new(&source.path)))
+            {
                 linked.insert(
                     id.clone(),
                     EntityLinkedRecord::Index {
-                        path: index.to_string(),
-                        row_index: *row_index,
+                        path: path.into(),
+                        row_index: entry.row_index,
                     },
                 );
             }
         }
-        Some(version_for_path(session, index))
+        Some(version_for_path(session, path))
     } else if kind == EntityKind::Mission {
-        ensure_session_table_rows(session, MISSION_LIST_TABLE_KEY)?;
-        let index = "data/missions/mission_list.csv";
-        for (row_index, row) in session.csv_tables[MISSION_LIST_TABLE_KEY]
-            .rows
-            .as_ref()
-            .expect("mission rows are loaded")
+        csv_tables::ensure_session_table_rows(session, MISSION_LIST_TABLE_KEY)?;
+        let state = csv_tables::session_table(session, MISSION_LIST_TABLE_KEY)?;
+        for (index, row) in csv_tables::loaded_csv_rows(state, MISSION_LIST_TABLE_KEY)?
             .iter()
             .enumerate()
+            .filter(|(_, row)| !row.is_comment)
         {
-            if row.is_comment {
-                continue;
-            }
             if let Some(id) = string_from_row(&row.data, "mission") {
                 linked
                     .entry(id)
                     .or_insert_with(|| EntityLinkedRecord::Index {
-                        path: index.to_string(),
-                        row_index,
+                        path: state.path.clone(),
+                        row_index: index,
                     });
             }
         }
-        Some(version_for_path(session, index))
+        Some(version_for_path(session, &state.path))
     } else {
         None
     };
-    let default_description_ids = if kind == EntityKind::Ship || kind == EntityKind::Weapon {
+    let mut parents = BTreeMap::<String, Vec<FileVersion>>::new();
+    if kind == EntityKind::Variant {
+        for file in session.variant_files.iter() {
+            for (_, id) in variant_modules::module_entries(file.data.get("modules")) {
+                parents
+                    .entry(id)
+                    .or_default()
+                    .push(version_for_path(session, &file.rel_path));
+            }
+        }
+    }
+    let descriptions = if matches!(kind, EntityKind::Ship | EntityKind::Weapon) {
         sources
             .keys()
             .chain(linked.keys())
@@ -365,22 +225,21 @@ pub(in crate::services::project) fn prepare_entity_targets(
     } else {
         BTreeSet::new()
     };
-    let description_version = ((kind == EntityKind::Ship || kind == EntityKind::Weapon)
-        && Path::new(&session.manifest.mod_root)
+    let description_version = (matches!(kind, EntityKind::Ship | EntityKind::Weapon)
+        && Path::new(&root)
             .join("data/strings/descriptions.csv")
             .is_file())
     .then(|| version_for_path(session, "data/strings/descriptions.csv"));
     Ok(EntityTargetIndex {
-        parent_versions,
         kind,
         sources,
         linked,
-        index_version,
-        default_description_ids,
+        index,
+        descriptions,
         description_version,
+        parents,
     })
 }
-
 impl EntityTargetIndex {
     pub(in crate::services::project) fn describe(
         &self,
@@ -388,13 +247,12 @@ impl EntityTargetIndex {
         id: &str,
     ) -> EntityTargetSnapshot {
         let root = &session.manifest.mod_root;
-        let definition = entity_definitions::entity_spec_definition(self.kind);
         let source = if self.kind == EntityKind::Mission {
-            let relative = format!("data/missions/{id}");
+            let path = format!("data/missions/{id}");
             Path::new(root)
-                .join(&relative)
+                .join(&path)
                 .is_dir()
-                .then(|| location(root, &relative))
+                .then(|| location(root, &path))
         } else {
             self.sources.get(id).cloned()
         };
@@ -405,9 +263,10 @@ impl EntityTargetIndex {
             .unwrap_or_else(|| {
                 location(
                     root,
-                    &definition
-                        .map(|definition| definition.default_rel_path(id))
-                        .unwrap_or_else(|| format!("data/missions/{id}")),
+                    &entity_definitions::entity_spec_definition(self.kind).map_or_else(
+                        || format!("data/missions/{id}"),
+                        |definition| definition.default_rel_path(id),
+                    ),
                 )
             });
         let state = if source
@@ -420,29 +279,26 @@ impl EntityTargetIndex {
         };
         let mut versions = vec![version_for_path(session, &write.rel_path)];
         if self.kind == EntityKind::Mission {
-            versions.push(version_for_path(
-                session,
-                &format!("{}/descriptor.json", write.rel_path),
-            ));
-            versions.push(version_for_path(
-                session,
-                &format!("{}/mission_text.txt", write.rel_path),
-            ));
+            for file in ["descriptor.json", "mission_text.txt"] {
+                versions.push(version_for_path(
+                    session,
+                    &format!("{}/{file}", write.rel_path),
+                ));
+            }
         }
-        versions.extend(self.index_version.iter().cloned());
-        if self.default_description_ids.contains(id) {
+        versions.extend(self.index.iter().cloned());
+        if self.descriptions.contains(id) {
             versions.extend(self.description_version.iter().cloned());
         }
-        if let Some(parents) = self.parent_versions.get(id) {
+        if let Some(parents) = self.parents.get(id) {
             versions.extend(parents.iter().cloned());
         }
-        versions.sort_by(|left, right| left.path.cmp(&right.path));
-        versions
-            .dedup_by(|left, right| windows_path_key(&left.path) == windows_path_key(&right.path));
+        versions.sort_by_key(|a| windows_path_key(&a.path));
+        versions.dedup_by(|a, b| windows_path_key(&a.path) == windows_path_key(&b.path));
         EntityTargetSnapshot {
             target: EntityEditTarget {
                 kind: self.kind,
-                id: id.to_string(),
+                id: id.into(),
                 source,
                 write,
                 state,
@@ -452,7 +308,6 @@ impl EntityTargetIndex {
         }
     }
 }
-
 pub(in crate::services::project) fn describe_entity_target(
     session: &mut ProjectSession,
     kind: EntityKind,
@@ -460,25 +315,128 @@ pub(in crate::services::project) fn describe_entity_target(
 ) -> AppResult<EntityTargetSnapshot> {
     Ok(prepare_entity_targets(session, kind)?.describe(session, id))
 }
-
-pub(crate) fn location(root: &str, rel_path: &str) -> EntityFileLocation {
-    EntityFileLocation {
-        reference: None,
-        source: ResourceSource::Mod,
-        root: root.to_string(),
-        rel_path: rel_path.to_string(),
-        path: Path::new(root).join(rel_path).to_string_lossy().to_string(),
+pub fn query_file_entity_target(
+    session_id: &str,
+    path: &str,
+) -> AppResult<Option<EntityTargetSnapshot>> {
+    let handle = session_handle(session_id)?;
+    let mut session = lock_ready_session(&handle)?;
+    let key = windows_path_key(path);
+    let mut found = None;
+    for kind in [
+        EntityKind::Ship,
+        EntityKind::Weapon,
+        EntityKind::Projectile,
+        EntityKind::System,
+        EntityKind::Skill,
+        EntityKind::Faction,
+    ] {
+        if let Some(record) = session.spec_records(kind).and_then(|records| {
+            records.values().find(|record| {
+                record.location.source == ResourceSource::Mod
+                    && windows_path_key(&record.location.path) == key
+            })
+        }) {
+            found = Some((kind, record.id.clone()));
+            break;
+        }
     }
+    found = found
+        .or_else(|| {
+            session
+                .variant_files
+                .iter()
+                .find(|file| windows_path_key(&file.path) == key)
+                .map(|file| (EntityKind::Variant, file.variant_id.clone()))
+        })
+        .or_else(|| {
+            session
+                .skin_files
+                .iter()
+                .find(|file| windows_path_key(&file.path) == key)
+                .map(|file| (EntityKind::Skin, file.skin_hull_id.clone()))
+        });
+    found
+        .map(|(kind, id)| describe_entity_target(&mut session, kind, &id))
+        .transpose()
+}
+pub fn query_entity_identity_intent(
+    session_id: &str,
+    source: &EntityEditTarget,
+    next: &str,
+) -> AppResult<EntityIdentityIntent> {
+    let handle = session_handle(session_id)?;
+    let mut session = lock_ready_session(&handle)?;
+    (entity_definition(source.kind)?.prepare)(&mut session)?;
+    if describe_entity_target(&mut session, source.kind, &source.id)?.target != *source {
+        return Err(AppError::message(
+            "spec.target_changed",
+            "实体目标已变化，请载入外部版本",
+        ));
+    }
+    let definition = entity_definitions::entity_spec_definition(source.kind);
+    let next = entity_identity::validate_entity_id(
+        next,
+        definition.map_or("无效战役 ID", |definition| {
+            definition.invalid_id_message
+        }),
+    )?;
+    let relative = if source.kind == EntityKind::Mission {
+        format!("data/missions/{next}")
+    } else if source.state == EntityTargetState::Create {
+        definition.expect("spec definition").default_rel_path(next)
+    } else if next == source.id {
+        source.write.rel_path.clone()
+    } else {
+        io::forward_slash_path(&Path::new(&source.write.rel_path).with_file_name(format!(
+            "{next}{}",
+            definition.expect("spec definition").extension
+        )))
+    };
+    let boundary = FsRootBoundary::new(Path::new(&session.manifest.mod_root), "identity root")?;
+    let destination = boundary.resolve_relative_target(&relative, "identity destination")?;
+    let same = io::same_physical_path(Path::new(&source.write.path), &destination);
+    let next_target = describe_entity_target(&mut session, source.kind, next)?.target;
+    let filename_taken = destination.exists()
+        && !same
+        && source.state == EntityTargetState::Existing
+        && definition.is_some();
+    if destination.exists()
+        && (source.state == EntityTargetState::Create || !same)
+        && !filename_taken
+        || next != source.id && next_target.state == EntityTargetState::Existing
+    {
+        return Err(AppError::EntityTargetExists {
+            target: Box::new(next_target),
+        });
+    }
+    let inherits = next != source.id
+        && entity_presentation::entity_composition(&session, source)?
+            .is_some_and(|composition| !composition.layers.is_empty() && !composition.replace);
+    let mut next_write = source.write.clone();
+    next_write.rel_path = relative;
+    next_write.path = destination.to_string_lossy().into_owned();
+    Ok(EntityIdentityIntent {
+        source: source.clone(),
+        next_id: next.into(),
+        next_write,
+        destination_version: io::file_version(&destination)?,
+        filename_taken,
+        inherits,
+    })
 }
 
 #[cfg(test)]
-#[cfg(windows)]
 mod tests {
+    use crate::test_support::file_formats;
+
     use crate::services::project_sync::release_project_session;
 
     use super::*;
     #[cfg(test)]
     use crate::models::{JointEditKind, JointEditRoot, JsonFileSave, SaveAction};
+    #[cfg(test)]
+    use crate::services;
     use crate::services::project;
     #[cfg(test)]
     use crate::services::project::query::joint_edit;
@@ -486,8 +444,6 @@ mod tests {
     use crate::services::project::{PerformanceTrace, test_support};
     #[cfg(test)]
     use crate::services::project_save;
-    #[cfg(test)]
-    use crate::{io, services};
     use serde_json::json;
     #[cfg(test)]
     use std::fs;
@@ -549,7 +505,7 @@ mod tests {
         );
         for parent in [&first, &second] {
             let original = fs::read(parent).unwrap();
-            let mut modified = io::read_json_file(parent).unwrap();
+            let mut modified = file_formats::read_json_value(parent).unwrap();
             modified["displayName"] = json!("External");
             let external = modified.to_string();
             fs::write(parent, &external).unwrap();
@@ -560,16 +516,17 @@ mod tests {
                     previous_id: Some("child".into()),
                     next_id: "child".into(),
                     rel_path: Some("data/variants/child.variant".into()),
-                    data: json!({"variantId":"child","hullId":"hull","displayName":"Draft"}),
+                    document: file_formats::json_write(
+                        &(json!({"variantId":"child","hullId":"hull","displayName":"Draft"})),
+                    ),
                     json_write: Default::default(),
-                    ordered_json: None,
                     base_versions: snapshot.base_versions.clone(),
                 }))
                 .unwrap_err();
             assert_eq!(error.code(), "write.version_conflict");
             assert_eq!(fs::read_to_string(parent).unwrap(), external);
             assert!(
-                io::read_json_file(&directory.join("child.variant"))
+                file_formats::read_json_value(&directory.join("child.variant"))
                     .unwrap()
                     .get("displayName")
                     .is_none()

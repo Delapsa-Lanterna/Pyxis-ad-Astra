@@ -1,6 +1,7 @@
 #![cfg(test)]
 #[cfg(test)]
 use crate::services::project_sync::release_project_session;
+use crate::test_support::file_formats;
 
 use crate::commands::{
     prepare_json_source_recovery, query_misc_config_file, query_misc_config_files,
@@ -18,6 +19,8 @@ use crate::models::{
     MiscConfigRead, MiscConfigScope, MiscConfigState, MiscConfigWrite, ResourceSource, SaveAction,
     WriteResult,
 };
+#[cfg(test)]
+use crate::parsers;
 #[cfg(windows)]
 #[cfg(test)]
 use crate::services::misc_config;
@@ -27,8 +30,6 @@ use crate::services::project::PerformanceTrace;
 use crate::services::project::test_support::project_workspace;
 use crate::services::{project, project_save, write_transactions};
 use crate::test_support::TestWorkspace;
-#[cfg(test)]
-use crate::{io, parsers};
 use serde_json::{Value, json};
 use std::fs;
 #[cfg(test)]
@@ -62,8 +63,7 @@ fn reject_linked_source() {
             kind: MiscConfigKind::Strings,
             session_id: "boundary-fixture".into(),
             mod_root,
-            data: json!({}),
-            ordered_json: "{}".into(),
+            document: file_formats::json_write(&(json!({}))),
             json_write: Default::default(),
             base_versions: vec![],
         },
@@ -106,14 +106,12 @@ impl Fixture {
             session_id: self.scope.session_id.clone(),
             mod_root: self.scope.mod_root.clone(),
             kind: MiscConfigKind::Strings,
-            ordered_json: data.to_string(),
-            data,
+            document: file_formats::json_write(&data),
             base_versions,
             json_write: JsonWriteOptions {
                 replace_paths: Vec::new(),
                 keep_filename: false,
-                preserve_original_json: true,
-                confirmed_sources: vec![],
+                preserve_structure: true,
             },
         }))
     }
@@ -250,12 +248,14 @@ fn recreate_missing_source() {
     let plan = prepare_json_source_recovery(request).unwrap();
     assert_eq!(plan.missing_paths, ["data/strings/strings.json"]);
     let restored = project_save::execute_typed_save::<JsonRecoveryPlan>(
-        SaveAction::RecreateJsonSources(JsonSourceRestore {
+        SaveAction::RecreateJsonSources(file_formats::recovery_request(JsonSourceRestore {
+            documents: Default::default(),
+            originals: Default::default(),
             session_id: f.scope.session_id.clone(),
             mod_root: f.scope.mod_root.clone(),
             plan,
             baseline: json!({"file":{"dialogue":{"line":"001"}}}),
-        }),
+        })),
     )
     .unwrap();
     assert!(restored.content.unwrap().value.missing_paths.is_empty());
@@ -297,14 +297,12 @@ fn config_formats_replay() {
                 kind,
                 session_id: f.scope.session_id.clone(),
                 mod_root: f.scope.mod_root.clone(),
-                ordered_json: data.to_string(),
-                data,
+                document: file_formats::json_write(&data),
                 base_versions,
                 json_write: JsonWriteOptions {
                     replace_paths: Vec::new(),
                     keep_filename: false,
-                    preserve_original_json: true,
-                    confirmed_sources: vec![],
+                    preserve_structure: true,
                 },
             }))
         };
@@ -379,12 +377,14 @@ fn config_formats_replay() {
             [domain_misc_config::misc_config_path(kind)]
         );
         project_save::execute_typed_save::<JsonRecoveryPlan>(SaveAction::RecreateJsonSources(
-            JsonSourceRestore {
+            file_formats::recovery_request(JsonSourceRestore {
+                documents: Default::default(),
+                originals: Default::default(),
                 session_id: f.scope.session_id.clone(),
                 mod_root: f.scope.mod_root.clone(),
                 plan,
                 baseline: json!({"file":content}),
-            },
+            }),
         ))
         .unwrap();
         assert_eq!(
@@ -489,13 +489,11 @@ fn engine_source_preservation() {
         session_id: f.scope.session_id.clone(),
         mod_root: f.scope.mod_root.clone(),
         base_versions: read.base_versions,
-        ordered_json: content.to_string(),
-        data: content,
+        document: file_formats::json_write(&(content)),
         json_write: JsonWriteOptions {
             replace_paths: Vec::new(),
             keep_filename: false,
-            preserve_original_json: true,
-            confirmed_sources: vec![],
+            preserve_structure: true,
         },
     }))
     .unwrap();
@@ -533,15 +531,14 @@ fn merged_config_save_validation() {
             mod_root: f.scope.mod_root.clone(),
             kind,
             base_versions: vec![file_version(&path).unwrap()],
-            ordered_json: data.to_string(),
-            data,
+            document: file_formats::json_write(&data),
             json_write: Default::default(),
         }))
     };
     let partial = json!({"SAMPLE":{"contrailMaxSpeedMult":"1f"}});
     save(MiscConfigKind::EngineStyles, partial.clone()).unwrap();
     let path = f.root.join("data/config/engine_styles.json");
-    assert_eq!(io::read_json_file(&path).unwrap(), partial);
+    assert_eq!(file_formats::read_json_value(&path).unwrap(), partial);
     assert!(
         save(
             MiscConfigKind::EngineStyles,
@@ -549,11 +546,11 @@ fn merged_config_save_validation() {
         )
         .is_err()
     );
-    assert_eq!(io::read_json_file(&path).unwrap(), partial);
+    assert_eq!(file_formats::read_json_value(&path).unwrap(), partial);
     let partial = json!({"sample":{"FRIGATE":{"pitch":1,"volume":2}}});
     save(MiscConfigKind::Sounds, partial.clone()).unwrap();
     let path = f.root.join("data/config/sounds.json");
-    assert_eq!(io::read_json_file(&path).unwrap(), partial);
+    assert_eq!(file_formats::read_json_value(&path).unwrap(), partial);
     assert!(
         save(
             MiscConfigKind::Sounds,
@@ -561,7 +558,7 @@ fn merged_config_save_validation() {
         )
         .is_err()
     );
-    assert_eq!(io::read_json_file(&path).unwrap(), partial);
+    assert_eq!(file_formats::read_json_value(&path).unwrap(), partial);
     save(
         MiscConfigKind::Sounds,
         json!({"sample":{"FRIGATE":{"pitch":1,"volume":1,"sounds":["0"]}}}),

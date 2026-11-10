@@ -5,12 +5,14 @@ use crate::io::{
     FsRootBoundary, acquire_root_write_lock, decode_text, file_version, read_versioned_bytes,
     read_versioned_csv, read_versioned_json,
 };
+use crate::models::file_content::JsonFileContent;
 use crate::models::{
     EntityEditTarget, EntityKind, EntityLinkedRecord, JsonDocumentOrigin, JsonRecoveryPlan,
     JsonRecoveryRequest, JsonSourceIdentity,
 };
 use crate::services::project;
 use crate::services::project::query::entity_presentation;
+use crate::services::project::sources::project_csv;
 use crate::{io, parsers};
 use serde_json::Value;
 use std::collections::BTreeMap;
@@ -72,6 +74,7 @@ pub fn prepare_json_source_recovery(request: JsonRecoveryRequest) -> AppResult<J
     let mut versions = Vec::new();
     let mut missing = Vec::new();
     let mut current = BTreeMap::new();
+    let mut documents = BTreeMap::new();
     let mut index = None;
     for (key, relative, json) in paths {
         let path = boundary.resolve_relative_target(&relative, "JSON recovery source")?;
@@ -84,12 +87,15 @@ pub fn prepare_json_source_recovery(request: JsonRecoveryRequest) -> AppResult<J
             }
             file_version(&path)?
         } else if key == "index" {
-            let (version, table) = read_versioned_csv(&path)?;
+            let (version, source) = read_versioned_csv(&path)?;
+            let table = project_csv(&source, &path);
             current.insert(key.to_string(), serde_json::to_value(&table)?);
             index = Some(table);
             version
         } else if json {
-            let (version, value) = read_versioned_json(&path)?;
+            let (version, source) = read_versioned_json(&path)?;
+            documents.insert(key.to_string(), JsonFileContent::from(&source));
+            let value = source.content.to_json()?;
             if let JsonDocumentOrigin::MiscConfig { file } = request.origin {
                 misc_config::validate_misc_config(
                     file,
@@ -153,6 +159,7 @@ pub fn prepare_json_source_recovery(request: JsonRecoveryRequest) -> AppResult<J
         BTreeMap::new()
     };
     Ok(JsonRecoveryPlan {
+        documents,
         request,
         base_versions: versions,
         missing_paths: missing,

@@ -1,6 +1,7 @@
 import type { AssociatedSpecChange, CsvTableState, CsvTableKey, AssociatedSpecPreparation } from '@/shared/types';
 import { rowSpecId, MODULE_LABELS } from '@/shared/lib/starsector';
 import { isCsvDeletedRow } from '@/domain/csv-editor/csv-dirty';
+import { isCsvBusinessRow } from './csv-rule-context';
 import { associatedSpecCreateParams } from '@/domain/csv-editor/associated-spec-creation';
 
 export interface AssociatedSpecCandidate {
@@ -20,7 +21,7 @@ export function getAssociatedSpecCandidates(state: CsvTableState, associatedSpec
   const candidates: AssociatedSpecCandidate[] = [];
   for (const [rowKey, dirty] of Object.entries(state.dirty)) {
     const original = originalRows.get(rowKey);
-    const previousId = original && !original.isComment ? rowSpecId(original.data, table) : '';
+    const previousId = original && isCsvBusinessRow(original, table) ? rowSpecId(original.data, table) : '';
     if (isCsvDeletedRow(dirty)) {
       if (previousId)
         candidates.push({
@@ -32,7 +33,7 @@ export function getAssociatedSpecCandidates(state: CsvTableState, associatedSpec
       continue;
     }
     const current = currentRows.get(rowKey)!;
-    const id = current.isComment ? '' : rowSpecId(current.data, table);
+    const id = isCsvBusinessRow(current, table) ? rowSpecId(current.data, table) : '';
     if (!id || previousId === id) continue;
     const create = associatedSpecCreateParams(table, id, current.data);
     const change: AssociatedSpecChange = previousId ? { action: 'rename', previousId, create } : { action: 'create', create };

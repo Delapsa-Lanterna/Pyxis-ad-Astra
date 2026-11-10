@@ -69,6 +69,8 @@ const props = withDefaults(
     size?: 'small' | 'medium' | 'large';
     placeholder?: string;
     sourceOrigin?: string | null;
+    sourceText?: string | null;
+    parseValue?: (text: string) => number | string;
   }>(),
   {
     inheritedValue: undefined,
@@ -84,6 +86,8 @@ const props = withDefaults(
     size: 'medium',
     placeholder: undefined,
     sourceOrigin: null,
+    sourceText: null,
+    parseValue: undefined,
   },
 );
 const emit = defineEmits<{ 'update:value': [value: number | null]; remove: [] }>();
@@ -93,7 +97,7 @@ const { raw, invalid, update, commit } = useRawFieldInput<number | null>({
   key: props.inputKey ?? 'number/' + getCurrentInstance()!.uid,
   path: props.inputKey,
   label: props.label,
-  text: () => cell(props.value),
+  text: () => props.sourceText ?? cell(props.value),
   convert,
   apply: (converted) => {
     if (converted.kind === 'remove') emit('remove');
@@ -108,7 +112,11 @@ const { raw, invalid, update, commit } = useRawFieldInput<number | null>({
     controlGeneration.value++;
   },
 });
-const numericValue = computed(() => (typeof props.value === 'number' ? props.value : null));
+const numericValue = computed(() => {
+  if (typeof props.value === 'number') return props.value;
+  const parsed = props.parseValue?.(cell(props.value));
+  return typeof parsed === 'number' ? parsed : null;
+});
 function format() {
   return raw.value;
 }
@@ -117,7 +125,7 @@ function convert(text: string): InputConversion<number | null> {
     if (props.clearAction === 'required') return { kind: 'error', message: '必填字段不能为空' };
     return props.clearAction === 'remove' ? { kind: 'remove' } : { kind: 'value', value: null };
   }
-  const value = parseInputNumber(text, props.integer);
+  const value = props.parseValue ? props.parseValue(text) : parseInputNumber(text, props.integer);
   if (typeof value === 'string') return { kind: 'error', message: '请输入完整有效数字' };
   if ((props.min !== undefined && value < props.min) || (props.max !== undefined && value > props.max))
     return { kind: 'error', message: '数值超出允许范围' };

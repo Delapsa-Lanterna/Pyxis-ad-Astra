@@ -11,12 +11,14 @@
 - `src-tauri/src/domain/save_edits.rs`：当前正式内容的字段修改应用。
 - `src-tauri/src/services/write_transactions.rs`：根租约、实际写入结果、历史登记、回放及正式内容提交。
 - `src-tauri/src/services/write_transactions/session_updates.rs`：已提交 changeset 的正式会话正式内容更新、pending 标记及重试交接。
-- `src/orchestrators/json-write-confirmation.orchestrator.ts`：JSON 原文保留、逐源重排确认及版本绑定的写入重试。
 
 ### 消费
 
+- `src-tauri/src/domain/document_edit.rs`：完整精确基线上的局部结构修改与保存请求准备。
 - `src-tauri/src/io/file_changes.rs`：根写入租约和文件变更集应用。
+- `src-tauri/src/io/mod.rs`：授权路径、同次字节与版本读取以及变更集能力。
 - `src-tauri/src/models/document_identity.rs`：JSON 内容所属文档与配置类别。
+- `src-tauri/src/models/file_content.rs`：精确文档、原始格式、物理 CSV 行格及完整写入请求。
 - `src-tauri/src/models/joint_target.rs`：联合保存的业务根与目标类别。
 - `src-tauri/src/models/json_write.rs`：JSON 原文保留及逐源确认选项。
 - `src-tauri/src/models/project_identity.rs`：保存消费的会话、实体和版本身份。

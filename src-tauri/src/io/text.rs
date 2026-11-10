@@ -1,83 +1,49 @@
+use super::{read_versioned_bytes, validate_walk_entry};
 use crate::errors::{AppError, AppResult};
-#[cfg(test)]
-use crate::io::csv_files;
-use crate::io::paths::validate_walk_entry;
-use crate::models::decode_starsector_text;
-use std::fs;
-use std::fs::OpenOptions;
+use crate::parsers::game::text::decode_plain;
+use std::fs::{self, OpenOptions};
 use std::path::Path;
 
-const UTF8_BOM: &[u8] = &[0xef, 0xbb, 0xbf];
-
-/// Opens a file for append as a writability probe without truncating content.
+pub fn read_utf8_no_bom(path: &Path) -> AppResult<String> {
+    let (_, bytes) = read_versioned_bytes(path)?;
+    decode_text(path, &bytes)
+}
+pub(crate) fn decode_text(path: &Path, bytes: &[u8]) -> AppResult<String> {
+    decode_plain(
+        bytes.strip_prefix(&[0xef, 0xbb, 0xbf]).unwrap_or(bytes),
+        "utf-8",
+    )
+    .map_err(|error| AppError::from(error).at_path(path))
+}
+#[cfg(test)]
+pub fn read_text_bytes_no_bom(path: &Path) -> AppResult<Vec<u8>> {
+    let (_, bytes) = read_versioned_bytes(path)?;
+    Ok(bytes
+        .strip_prefix(&[0xef, 0xbb, 0xbf])
+        .unwrap_or(&bytes)
+        .to_vec())
+}
+pub fn write_utf8_no_bom(path: &Path, text: &str) -> AppResult<()> {
+    if path.exists() {
+        validate_walk_entry(path, "text output")?;
+    }
+    fs::write(path, text.as_bytes()).map_err(|error| AppError::from(error).at_path(path))
+}
 pub fn ensure_file_appendable(path: &Path) -> AppResult<()> {
     OpenOptions::new()
         .create(true)
         .append(true)
         .open(path)
         .map(|_| ())
-        .map_err(|error| {
-            AppError::context(format!("打开文件失败 ({})", path.display()), error.into())
-                .at_path(path)
-        })?;
-    Ok(())
-}
-
-pub fn read_utf8_no_bom(path: &Path) -> AppResult<String> {
-    let bytes = read_text_bytes_no_bom(path)?;
-    decode_text(path, &bytes)
-}
-
-pub(crate) fn decode_text(path: &Path, bytes: &[u8]) -> AppResult<String> {
-    let bytes = bytes.strip_prefix(UTF8_BOM).unwrap_or(bytes);
-    decode_starsector_text(bytes).map_err(|offset| {
-        AppError::message(
-            "text.invalid_utf8",
-            format!("{} is not valid UTF-8 at byte {offset}", path.display()),
-        )
-        .at_path(path)
-    })
-}
-
-pub fn read_text_bytes_no_bom(path: &Path) -> AppResult<Vec<u8>> {
-    if path.exists() {
-        validate_walk_entry(path, "text file")?;
-    }
-    let bytes = fs::read(path).map_err(|error| {
-        AppError::context(
-            format!("读取文本文件失败 ({})", path.display()),
-            error.into(),
-        )
-        .at_path(path)
-    })?;
-    #[cfg(test)]
-    csv_files::record_csv_disk_read(path);
-    Ok(strip_utf8_bom(bytes))
-}
-
-fn strip_utf8_bom(bytes: Vec<u8>) -> Vec<u8> {
-    if bytes.starts_with(UTF8_BOM) {
-        bytes[UTF8_BOM.len()..].to_vec()
-    } else {
-        bytes
-    }
-}
-
-pub fn write_utf8_no_bom(path: &Path, text: &str) -> AppResult<()> {
-    fs::write(path, text.as_bytes()).map_err(|error| {
-        AppError::context(
-            format!("写入文本文件失败 ({})", path.display()),
-            error.into(),
-        )
-        .at_path(path)
-    })?;
-    Ok(())
+        .map_err(|error| AppError::from(error).at_path(path))
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::test_support::TestWorkspace;
+
+    use super::*;
+    const UTF8_BOM: &[u8] = &[0xef, 0xbb, 0xbf];
 
     #[test]
     fn strips_utf8_bom() {
@@ -112,35 +78,35 @@ mod tests {
     }
 
     #[test]
-    fn reads_cp1252_smart_single_quotes_as_ascii_apostrophes() {
+    fn explicit_cp1252_keeps_smart_single_quotes() {
         let path = TestWorkspace::file("reads_cp1252_quote.txt");
         fs::write(&path, b"\x91it\x92s\x92").unwrap();
 
-        let text = read_utf8_no_bom(&path).unwrap();
-
-        assert_eq!(text, "'it's'");
+        assert!(read_utf8_no_bom(&path).is_err());
+        let text = decode_plain(&fs::read(&path).unwrap(), "windows-1252").unwrap();
+        assert_eq!(text, "‘it’s’");
         path.close().unwrap();
     }
 
     #[test]
-    fn reads_cp1252_smart_double_quotes_as_ascii_quotes() {
+    fn explicit_cp1252_keeps_smart_double_quotes() {
         let path = TestWorkspace::file("reads_cp1252_double_quotes.txt");
         fs::write(&path, b"\x93quoted\x94").unwrap();
 
-        let text = read_utf8_no_bom(&path).unwrap();
-
-        assert_eq!(text, "\"quoted\"");
+        assert!(read_utf8_no_bom(&path).is_err());
+        let text = decode_plain(&fs::read(&path).unwrap(), "windows-1252").unwrap();
+        assert_eq!(text, "“quoted”");
         path.close().unwrap();
     }
 
     #[test]
-    fn reads_cp1252_en_dash_as_ascii_hyphen() {
+    fn explicit_cp1252_keeps_en_dash() {
         let path = TestWorkspace::file("reads_cp1252_en_dash.txt");
         fs::write(&path, b"left \x96 right").unwrap();
 
-        let text = read_utf8_no_bom(&path).unwrap();
-
-        assert_eq!(text, "left - right");
+        assert!(read_utf8_no_bom(&path).is_err());
+        let text = decode_plain(&fs::read(&path).unwrap(), "windows-1252").unwrap();
+        assert_eq!(text, "left – right");
         path.close().unwrap();
     }
 }

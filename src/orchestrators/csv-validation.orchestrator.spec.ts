@@ -13,7 +13,7 @@ import { replaceCsvTableDraft } from '@/domain/csv-editor/csv-table-draft';
 import { saveCsvChanges } from './csv-save.orchestrator';
 import type { AppFeedback, CsvValidationContext } from '@/shared/types';
 
-const mocks = vi.hoisted(() => ({ read: vi.fn(), write: vi.fn() }));
+const mocks = vi.hoisted(() => ({ read: vi.fn(), write: vi.fn<typeof importType.saveCsvPatch>() }));
 vi.mock('@/services/csv-table.service', async (original) => ({
   ...(await original<typeof importType>()),
   queryCsvValidation: mocks.read,
@@ -29,6 +29,22 @@ beforeEach(() => {
   setActivePinia(createPinia());
   vi.resetAllMocks();
   initializeSettingsStore(createSettingsFixture());
+  mocks.write.mockImplementation(async (_session, _root, table, patches) =>
+    savedWriteFixture(
+      {
+        table,
+        baseVersions: [],
+        rows: patches
+          .filter((patch) => patch.action === 'upsert')
+          .map((patch) => ({
+            rowKey: patch.rowKey,
+            data: patch.row,
+            isComment: patch.isComment,
+          })),
+      },
+      { kind: 'csv', table },
+    ),
+  );
 });
 function fixture() {
   const tables = useCsvEditorStore(),
@@ -58,7 +74,6 @@ function fixture() {
     sources: {},
     files: {},
     classes: {},
-    stationData: {},
   };
   return { tables, manifest, target, document, edit, save, context, choose };
 }
@@ -74,7 +89,6 @@ describe('CSV schema checks in the actual save entry', () => {
     });
     expect(f.tables.getTableProblems(f.target).issues.value).toMatchObject([{ code: 'csv.spec_missing' }]);
     mocks.read.mockResolvedValueOnce(f.context);
-    mocks.write.mockResolvedValueOnce(savedWriteFixture());
     await expect(f.save()).resolves.toMatchObject({ status: 'saved' });
     expect(mocks.read).toHaveBeenCalledTimes(1);
     expect(mocks.write).toHaveBeenCalledTimes(1);
@@ -87,13 +101,12 @@ describe('CSV schema checks in the actual save entry', () => {
     replaceCsvTableDraft(document, [csvDraftRow({ id: 'sample', name: 'Sample', 'burst size': '2' }, 'weapon-row')]);
     f.tables.updateCellValue({ ...target, rowKey: 'weapon-row', column: 'burst size' }, '2.625');
     mocks.read.mockResolvedValueOnce({ ...f.context, entities: { 'weapon:sample': { specClass } } });
-    mocks.write.mockResolvedValueOnce(savedWriteFixture());
     await expect(saveCsvChanges({ table: 'weapons', manifest: f.manifest, selectAssociatedSpecs: async () => [] })).resolves.toMatchObject({
       status: 'saved',
     });
     await savedContentWorks.at(-1)!.content;
     expect(mocks.write).toHaveBeenCalledTimes(1);
-    expect(mocks.write.mock.calls[0]![3][0].row['burst size']).toBe('2.625');
+    expect(mocks.write.mock.calls[0]![3][0]!.row['burst size']).toBe('2.625');
     expect(document.baselineRows['weapon-row']!.data['burst size']).toBe('2.625');
   });
   it('saves annotation content through the formal save entry', async () => {
@@ -102,7 +115,6 @@ describe('CSV schema checks in the actual save entry', () => {
     f.edit('name', 'Section');
     const content = { ...f.document.rows.row!.data };
     mocks.read.mockResolvedValueOnce(f.context);
-    mocks.write.mockResolvedValueOnce(savedWriteFixture());
     await expect(f.save()).resolves.toMatchObject({ status: 'saved' });
     await savedContentWorks.at(-1)!.content;
     expect(f.tables.getTableProblems(f.target).issues.value).toEqual([]);
@@ -112,10 +124,11 @@ describe('CSV schema checks in the actual save entry', () => {
       sources: [],
       files: [],
       classes: [],
-      stationData: [],
     });
     expect(mocks.write).toHaveBeenCalledTimes(1);
-    expect(mocks.write.mock.calls[0]![3]).toEqual([{ rowKey: 'row', action: 'upsert', isComment: false, row: content }]);
+    expect(mocks.write.mock.calls[0]![3]).toEqual([
+      { rowKey: 'row', action: 'upsert', isComment: false, row: content, columns: ['name'], commentChanged: false },
+    ]);
     expect(f.document.baselineRows.row!.data).toEqual(content);
     expect(f.document.dirty).toEqual({});
   });

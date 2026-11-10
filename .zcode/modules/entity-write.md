@@ -18,6 +18,7 @@
 ### 消费
 
 - `src-tauri/src/domain/csv_column_order.rs`：从唯一 CSV schema 提取标准列并维护补列顺序。
+- `src-tauri/src/domain/document_edit.rs`：精确基线、目标格式与局部结构修改。
 - `src-tauri/src/domain/entity_definitions.rs`：八种实体的目录、后缀、ID 字段及规格、表格关联登记。
 - `src-tauri/src/domain/entity_identity.rs`：跨编辑器实体 ID、路径与来源范围纯规则。
 - `src-tauri/src/domain/json_composition.rs`：游戏 JSON 合并、排除字段及整体覆盖组合。
@@ -25,19 +26,16 @@
 - `src-tauri/src/domain/schema.rs`：字段完整性、分支、类型和条件校验。
 - `src-tauri/src/domain/variant_modules.rs`：装配模块的共同格式规则。
 - `src-tauri/src/io/`：授权路径、JSON 原文渲染与同根变更集。
+- `src-tauri/src/models/file_content.rs`：精确文档、原始格式、物理 CSV 行格及完整写入请求。
+- `src-tauri/src/models/file_value.rs`：64 位整数、浮点与 UTF-16 文字的精确值。
+- `src-tauri/src/parsers/game/`：游戏 JSON/CSV 的正式读取入口、文档方法、数值及文本格式能力。
 - `src-tauri/src/services/project/definitions/entity_definitions.rs`：实体来源、读取准备、刷新与摘要的登记规则。
 - `src-tauri/src/services/project/model.rs`：会话、引用视图、可编辑 CSV 行身份及表格业务元数据。
 - `src-tauri/src/services/project/query/entities.rs`：按实际来源装配详情与列表。
 - `src-tauri/src/services/project/query/entity_targets.rs`：实际编辑目标、身份意图及正式版本范围。
 - `src-tauri/src/services/project/query/json_layers.rs`：会话所属的正式有序 JSON 来源组合与版本。
-- `src-tauri/src/services/project/session/access.rs`：捕获引用快照后锁定并交付所属就绪会话。
-- `src-tauri/src/services/project/session/csv_tables.rs`：正式表格、行身份与来源版本。
-- `src-tauri/src/services/project/session/csv_writes.rs`：表格暂存及成功应用后的正式接纳。
-- `src-tauri/src/services/project/session/registry.rs`：会话存活登记、句柄与内容就绪门控。
-- `src-tauri/src/services/project/sources/core.rs`：按根共享 Core 产品、只读 CSV、单飞读取及缓存释放。
-- `src-tauri/src/services/project/sources/documents.rs`：来源规格记录、势力索引装载、实际位置及内容构造。
-- `src-tauri/src/services/project/sources/json_documents.rs`：Variant 与 Skin 文件产品、目录装载及重复诊断。
-- `src-tauri/src/services/project/sources/mod.rs`：来源记录、发现、读取、Core 文档运行态、持久化与行为验证。
+- `src-tauri/src/services/project/session/`：会话授权、就绪访问、CSV 正式内容、引用及来源版本管理。
+- `src-tauri/src/services/project/sources/`：授权来源发现、带版本读取、Core 共享成果及规格文档装载。
 - `src/domain/json-composition.ts`：前端内容组合、来源定位、稀疏编辑及覆盖撤销。
 - `src/shared/types/project-identity.types.ts`：实体、目标和版本身份协议。
 
@@ -63,7 +61,7 @@
 1. 保存动作捕获正式目标、版本、内容及文件名选择。
 2. 项目保存队列准备当前内容，事务核对所属版本。
 3. 实体能力暂存主文件、关联表、描述、索引及父引用。
-4. JSON 原文确认完成后应用同根变更集。
+4. 局部输出和内存重读核对完成后应用同根变更集。
 5. 成功后接纳正式表格状态，返回实际内容及身份结果。
 6. 事务登记历史和正式内容，项目同步发布实际结果。
 
@@ -74,14 +72,14 @@
 - 本地 ID 有无变化必须统一确认文件、字段、完整性要求、基础身份、文件名与关联身份；确认绑定同次捕获内容，状态一致直接沿用所属保存流程。
 - 已有本地实体的保存、重命名及删除必须沿用实际来源路径，重命名保留来源目录；新建实体使用所属定义的默认目录。
 - 实体及关联文件必须共同进入所属同根变更集。
-- 暂存必须交付候选内容和身份；正式表格接纳发生在变更集应用成功后。
+- 暂存交付候选内容和身份；正式表格接纳发生在变更集应用成功后。
 - 单文件与联合暂存必须消费共同的有效内容、字段及皮肤引擎索引检查；联合检查消费已准备来源图中的组合内容，JSON 替换意图由所属写入批次交付。
-- Variant 与 Skin 的常规保存必须共同消费实体目标、来源组合、改名检查与暂存能力，返回实际内容和身份。
+- Variant 与 Skin 的常规保存共同消费实体目标、来源组合、改名检查与暂存能力，返回实际内容和身份。
 - CSV 关联覆盖必须优先采用 ID 匹配的本地、原版或引用原文件，缺少有效原内容才允许模板创建；读取已有目标保留目标文件原文及说明，CSV 内容独立保存。
 - CSV 关联选择必须绑定实际来源、目标及同次读取版本，确认后变化结束提交；覆盖与本地旧文件移除共同支持一次撤销，外部来源只允许读取。
 - 修改 ID 必须默认同时改名；同路径继承变化提供更改文件名与保留文件名选择，目标文件名已占用时只允许保留文件名，取消结束本次写入。
 - 组合规格改名必须按新路径的有效内容校验完整性；势力文件改名在同一变更集更新已有本地登记或新增所属本地登记。
-- CSV 驱动的规格 ID 必须只读：舰船 `hullId`、武器与战术系统 `id`；弹体、装配、皮肤、势力与战役允许在编辑器内修改 ID。
+- CSV 驱动的规格 ID 只读：舰船 `hullId`、武器与战术系统 `id`；弹体、装配、皮肤、势力与战役允许在编辑器内修改 ID。
 - 整体取代保存必须将文件相对路径追加到本 Mod `mod_info.json` 的 `replace`，并与实体文件共同进入同根 changeset。
 - 描述改名必须共同核对实体种类、描述类别、原身份及目标冲突。
 - 描述 ID 占用诊断必须交付所属 CSV 文件与 ID 字段，有本地原记录时共同交付稳定行键；错误包装保留原始码与位置。

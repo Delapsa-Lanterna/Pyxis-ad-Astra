@@ -39,6 +39,7 @@ export function buildGameJoint(
       const value: T.JointValue = values?.[key] ?? { state: 'present', value: { id, ...(type ? { type } : {}), ...(row?.data ?? {}) } };
       records.set(key, {
         key,
+        document: null,
         target: {
           kind: 'csv',
           table,
@@ -109,6 +110,7 @@ export function buildGameJoint(
     );
     records.set(key, {
       key,
+      document: entity.document,
       target: { kind: 'spec', target },
       source: target.source,
       sourceVersion: entity.baseVersions[0]!,

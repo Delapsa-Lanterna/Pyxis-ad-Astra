@@ -1,94 +1,228 @@
 use super::super::model::{ProjectSession, SessionCsvRow};
-use super::super::session::csv_tables::{read_table_snapshot, session_table_mut};
-use crate::errors::AppResult;
-use crate::io::FileChangeSetBuilder;
+use super::super::sources::project_csv;
+use super::csv_tables;
+use crate::errors::{AppError, AppResult};
 use crate::models::CsvTableKey;
-use crate::parsers::render_csv_text;
-#[cfg(test)]
-use std::cell::RefCell;
-#[cfg(test)]
-use std::collections::BTreeMap;
+use crate::models::file_content::{CsvContent, Record, RecordKind};
+use crate::models::file_content::{CsvSource, CsvWrite, SaveLayout};
+use std::collections::HashMap;
 #[cfg(test)]
 use std::mem;
+use std::path::Path;
+use std::sync::Arc;
+#[cfg(test)]
+use std::{cell::RefCell, collections::BTreeMap};
+#[cfg(test)]
+thread_local! { static RENDERS: RefCell<BTreeMap<CsvTableKey,usize>> = const { RefCell::new(BTreeMap::new()) }; }
+#[cfg(test)]
+pub(crate) fn take_render_counts() -> BTreeMap<CsvTableKey, usize> {
+    RENDERS.with(|counts| mem::take(&mut *counts.borrow_mut()))
+}
 
+#[derive(Clone)]
 pub(in crate::services::project) struct CsvTableDraft {
-    pub table: CsvTableKey,
     pub header: Vec<String>,
     pub rows: Vec<SessionCsvRow>,
     pub next_row_seq: u64,
+    pub source: Arc<CsvSource>,
+    #[cfg(test)]
+    pub table: Option<CsvTableKey>,
 }
-
-pub(in crate::services::project) struct StagedCsvWrite {
-    pub draft: CsvTableDraft,
-    text: String,
-}
-
-#[cfg(test)]
-thread_local! {
-    static RENDER_COUNTS: RefCell<BTreeMap<CsvTableKey, usize>> =
-        const { RefCell::new(BTreeMap::new()) };
-}
-
-#[cfg(test)]
-pub(in crate::services::project) fn take_render_counts() -> BTreeMap<CsvTableKey, usize> {
-    RENDER_COUNTS.with(|counts| mem::take(&mut *counts.borrow_mut()))
-}
-
 impl CsvTableDraft {
-    pub(in crate::services::project) fn read(
-        session: &ProjectSession,
-        table: CsvTableKey,
-    ) -> AppResult<Self> {
-        let (header, rows, next_row_seq) = read_table_snapshot(session, table)?;
+    pub fn read(session: &ProjectSession, table: CsvTableKey) -> AppResult<Self> {
+        Self::read_named(session, table.as_str())
+    }
+    pub fn read_named(session: &ProjectSession, key: &str) -> AppResult<Self> {
+        let state = csv_tables::session_table(session, key)?;
+        let rows = csv_tables::loaded_csv_rows(state, key)?.to_vec();
+        let source = match &state.source {
+            Some(source) => source.clone(),
+            None => csv_tables::empty_csv_source(&state.header)?,
+        };
         Ok(Self {
-            table,
-            header,
+            header: state.header.clone(),
             rows,
-            next_row_seq,
+            next_row_seq: state.next_row_seq,
+            source,
+            #[cfg(test)]
+            table: CsvTableKey::from_key(key),
         })
     }
-
-    pub(in crate::services::project) fn stage(
-        self,
-        session: &ProjectSession,
-        builder: &mut FileChangeSetBuilder,
-    ) -> AppResult<StagedCsvWrite> {
-        let text = render_csv_text(
-            &self.header,
-            &self
-                .rows
-                .iter()
-                .map(|row| (&row.data, row.is_comment))
-                .collect::<Vec<_>>(),
-        )?;
-        #[cfg(test)]
-        RENDER_COUNTS.with(|counts| *counts.borrow_mut().entry(self.table).or_default() += 1);
-        builder.text_file(
-            &session.csv_tables[self.table.as_str()].path,
-            Some(text.clone()),
-        )?;
-        Ok(StagedCsvWrite { draft: self, text })
+    pub fn request(&self, layout: SaveLayout) -> AppResult<CsvWrite> {
+        let previous = &self.source.document.content;
+        let mut source_columns = HashMap::<&str, Vec<usize>>::new();
+        for (index, key) in previous.header.iter().enumerate() {
+            source_columns.entry(key).or_default().push(index);
+        }
+        let mut occurrences = HashMap::<&str, usize>::new();
+        let columns = self
+            .header
+            .iter()
+            .map(|column| {
+                let occurrence = occurrences.entry(column).or_default();
+                let source = source_columns
+                    .get(column.as_str())
+                    .and_then(|indices| indices.get(*occurrence))
+                    .copied();
+                *occurrence += 1;
+                source
+            })
+            .collect::<Vec<_>>();
+        // Duplicate headers expose their last cell as the business value.
+        let target_columns = self
+            .header
+            .iter()
+            .enumerate()
+            .map(|(index, key)| (key.as_str(), index))
+            .collect::<HashMap<_, _>>();
+        let header_changed = self.header != previous.header;
+        let mut records = Vec::with_capacity(self.rows.len());
+        for row in &self.rows {
+            let before = row.source_row.map(|index| &previous.records[index]);
+            if before.is_some_and(|record| record.kind == RecordKind::Blank) && row.data.is_empty()
+            {
+                records.push(Record {
+                    kind: RecordKind::Blank,
+                    cells: Vec::new(),
+                });
+                continue;
+            }
+            // Comment records keep their physical columns when the data header moves.
+            let fixed_comment =
+                row.is_comment && before.is_some_and(|record| record.kind == RecordKind::Comment);
+            let header = if fixed_comment {
+                &previous.header
+            } else {
+                &self.header
+            };
+            let mut cells = if let Some(before) = before {
+                before.cells.clone()
+            } else {
+                vec![String::new(); self.header.len()]
+            };
+            if header_changed && !fixed_comment {
+                cells = columns
+                    .iter()
+                    .map(|index| {
+                        index
+                            .and_then(|index| before.and_then(|row| row.cells.get(index)))
+                            .cloned()
+                            .unwrap_or_default()
+                    })
+                    .collect();
+                if let Some(before) = before {
+                    cells.extend(before.cells.iter().skip(previous.header.len()).cloned());
+                }
+            }
+            for (index, key) in header.iter().enumerate() {
+                let last = if fixed_comment {
+                    *source_columns[key.as_str()]
+                        .last()
+                        .expect("source header occurrence")
+                } else {
+                    target_columns[key.as_str()]
+                };
+                if last != index {
+                    continue;
+                }
+                if let Some(value) = row.data.get(key) {
+                    let value = value.as_str().ok_or_else(|| {
+                        AppError::message(
+                            "csv.cell_requires_text",
+                            format!("CSV 字段 {key} 必须交付目标文字"),
+                        )
+                    })?;
+                    let prior = before.and_then(|row| {
+                        source_columns
+                            .get(key.as_str())
+                            .and_then(|indices| indices.last())
+                            .and_then(|index| row.cells.get(*index))
+                    });
+                    if prior.map(String::as_str) != Some(value) || before.is_none() {
+                        cells.resize(cells.len().max(index + 1), String::new());
+                        cells[index] = value.into();
+                    }
+                }
+            }
+            let kind = if row.is_comment {
+                RecordKind::Comment
+            } else {
+                RecordKind::Data
+            };
+            records.push(Record { kind, cells });
+        }
+        Ok(CsvWrite {
+            content: CsvContent {
+                header: self.header.clone(),
+                records,
+            },
+            origins: self.rows.iter().map(|row| row.source_row).collect(),
+            columns,
+            layout,
+        })
     }
-}
-
-impl StagedCsvWrite {
-    pub(in crate::services::project) fn accept(self, session: &mut ProjectSession) {
-        let state = session_table_mut(session, self.draft.table.as_str())
-            .expect("staged CSV table is registered");
-        state.header = self.draft.header;
-        state.rows = Some(self.draft.rows.into());
+    pub fn output(&self, layout: SaveLayout) -> AppResult<Arc<CsvSource>> {
+        #[cfg(test)]
+        if let Some(table) = self.table {
+            RENDERS.with(|counts| *counts.borrow_mut().entry(table).or_default() += 1);
+        }
+        self.source
+            .write(&self.request(layout)?)
+            .map(Arc::new)
+            .map_err(Into::into)
+    }
+    pub fn accept(
+        self,
+        session: &mut ProjectSession,
+        table: CsvTableKey,
+        actual: Arc<CsvSource>,
+    ) -> AppResult<()> {
+        self.accept_named(session, table.as_str(), actual)
+    }
+    pub fn accept_named(
+        self,
+        session: &mut ProjectSession,
+        key: &str,
+        actual: Arc<CsvSource>,
+    ) -> AppResult<()> {
+        let projected = project_csv(
+            &actual,
+            Path::new(&session.manifest.mod_root)
+                .join(&session.csv_tables[key].path)
+                .as_path(),
+        );
+        let rows = projected
+            .rows
+            .into_iter()
+            .zip(self.rows)
+            .enumerate()
+            .map(|(index, (row, identity))| SessionCsvRow {
+                row_key: identity.row_key,
+                data: row.data,
+                is_comment: row.is_comment,
+                source_row: Some(index),
+            })
+            .collect();
+        let state = csv_tables::session_table_mut(session, key)?;
+        state.header = actual.document.content.header.clone();
+        state.rows = Some(Arc::new(rows));
         state.row_index = None;
-        state.next_row_seq = self.draft.next_row_seq;
-        state.saved_text = Some(self.text);
+        state.next_row_seq = self.next_row_seq;
+        state.source = Some(actual);
+        state.missing_baseline = false;
+        Ok(())
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use crate::test_support::file_formats;
+
     use super::*;
-    #[cfg(test)]
-    use crate::io;
+
+    use crate::io::FileChangeSetBuilder;
     use crate::io::{read_utf8_no_bom, write_utf8_no_bom};
+    use crate::parsers::game;
     use crate::services::project::PerformanceTrace;
     use crate::services::project::session::build_project_session;
     use crate::services::project::session::csv_tables::ensure_registered_table_rows;
@@ -104,6 +238,56 @@ mod tests {
     #[cfg(windows)]
     #[cfg(test)]
     use std::os::windows::fs::OpenOptionsExt;
+
+    #[test]
+    fn duplicate_columns_follow_occurrences_and_keep_extra_cells_across_saves() {
+        let source = Arc::new(
+            game::read_csv(b"id,value,value\r\nentry,001,1.0,extra\r\n\r\n# fixed\r\n").unwrap(),
+        );
+        let rows = project_csv(&source, Path::new("fixture.csv"))
+            .rows
+            .into_iter()
+            .enumerate()
+            .map(|(index, row)| SessionCsvRow {
+                row_key: format!("row:{index}"),
+                data: row.data,
+                is_comment: row.is_comment,
+                source_row: Some(index),
+            })
+            .collect();
+        let mut draft = CsvTableDraft {
+            header: vec!["value".into(), "id".into(), "value".into()],
+            rows,
+            next_row_seq: 3,
+            source,
+            table: None,
+        };
+        draft.rows[0].data.insert("value".into(), "2.0".into());
+        for layout in [SaveLayout::PreserveStructure, SaveLayout::Expanded] {
+            let actual = draft.output(layout).unwrap();
+            assert_eq!(
+                actual.document.content.records[0].cells,
+                ["001", "entry", "2.0", "extra"]
+            );
+            assert_eq!(actual.document.content.records[1].kind, RecordKind::Blank);
+            assert_eq!(actual.document.content.records[2].kind, RecordKind::Comment);
+        }
+        let actual = draft.output(SaveLayout::PreserveStructure).unwrap();
+        for (row, actual) in draft
+            .rows
+            .iter_mut()
+            .zip(project_csv(&actual, Path::new("fixture.csv")).rows)
+        {
+            row.data = actual.data;
+        }
+        draft.source = actual;
+        draft.rows[0].data.insert("value".into(), "3.0".into());
+        let actual = draft.output(SaveLayout::PreserveStructure).unwrap();
+        assert_eq!(
+            actual.document.content.records[0].cells,
+            ["001", "entry", "3.0", "extra"]
+        );
+    }
 
     fn fixture() -> (TestWorkspace, ProjectSession) {
         let root = project_workspace("csv_writes");
@@ -129,6 +313,7 @@ mod tests {
             let mut draft = CsvTableDraft::read(&session, CsvTableKey::Ships).unwrap();
             let next_key = format!("ships:row:{}", draft.next_row_seq);
             draft.rows.push(SessionCsvRow {
+                source_row: None,
                 row_key: next_key.clone(),
                 data: json!({"id":format!("added{index}"),"name":"#Literal","custom":"009"})
                     .as_object()
@@ -139,7 +324,13 @@ mod tests {
             draft.next_row_seq += 1;
             let mut builder = FileChangeSetBuilder::new(&root).unwrap();
             take_render_counts();
-            let staged = draft.stage(&session, &mut builder).unwrap();
+            let actual = draft.output(SaveLayout::PreserveStructure).unwrap();
+            builder
+                .text_file(
+                    "data/hulls/ship_data.csv",
+                    Some(actual.document.source.to_string()),
+                )
+                .unwrap();
             assert_eq!(read_utf8_no_bom(&path).unwrap(), original);
             assert_eq!(
                 serde_json::to_value(&session.csv_tables["ships"]).unwrap(),
@@ -150,13 +341,18 @@ mod tests {
                 serde_json::to_value(&session.csv_tables["ships"]).unwrap(),
                 before
             );
-            staged.accept(&mut session);
+            draft
+                .accept(&mut session, CsvTableKey::Ships, actual)
+                .unwrap();
 
             let state = &session.csv_tables["ships"];
             let rows = state.rows.as_ref().unwrap();
-            assert_eq!(state.saved_text.as_ref(), changes[0].after_text.as_ref());
             assert_eq!(
-                state.saved_text.as_ref().unwrap(),
+                state.source.as_ref().unwrap().document.source.as_ref(),
+                changes[0].after_text.as_deref().unwrap()
+            );
+            assert_eq!(
+                state.source.as_ref().unwrap().document.source.as_ref(),
                 &read_utf8_no_bom(&path).unwrap()
             );
             assert_eq!(state.header, ["id", "name", "custom"]);
@@ -168,7 +364,7 @@ mod tests {
                 take_render_counts(),
                 BTreeMap::from([(CsvTableKey::Ships, 1)])
             );
-            let parsed = io::read_csv_data(&path).unwrap();
+            let parsed = file_formats::read_csv_table(&path).unwrap();
             assert!(!parsed.rows.last().unwrap().is_comment);
             assert_eq!(parsed.rows.last().unwrap().data["name"], "#Literal");
         }
@@ -185,7 +381,13 @@ mod tests {
         let mut draft = CsvTableDraft::read(&session, CsvTableKey::Ships).unwrap();
         draft.rows[1].data.insert("name".into(), "Changed".into());
         let mut builder = FileChangeSetBuilder::new(&root).unwrap();
-        let staged = draft.stage(&session, &mut builder).unwrap();
+        let actual = draft.output(SaveLayout::PreserveStructure).unwrap();
+        builder
+            .text_file(
+                "data/hulls/ship_data.csv",
+                Some(actual.document.source.to_string()),
+            )
+            .unwrap();
         let locked = OpenOptions::new()
             .read(true)
             .share_mode(0)
@@ -199,7 +401,7 @@ mod tests {
             serde_json::to_value(&session.csv_tables["ships"]).unwrap(),
             before
         );
-        drop(staged);
+        drop(actual);
         root.close().unwrap();
     }
 }

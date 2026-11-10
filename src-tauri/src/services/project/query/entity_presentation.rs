@@ -1,15 +1,27 @@
-use super::json_layers::json_composition;
-use crate::domain::{entity_definitions, json_composition as domain_json_composition};
+use super::super::model::ProjectSession;
+use super::super::resources::entity_references::{apply_resource_origins, entity_resource_refs};
+use super::super::resources::resource_identity;
+use super::json_layers;
+use crate::domain::{entity_definitions, json_composition};
 use crate::errors::AppResult;
 use crate::models::{EntityEditTarget, EntityKind, JsonComposition, ResourceRef, ResourceSource};
-use crate::services::project::model::ProjectSession;
-use crate::services::project::resources::entity_references::{
-    apply_resource_origins, entity_resource_refs,
-};
-use crate::services::project::resources::resource_identity;
 use serde_json::Value;
 use std::collections::BTreeMap;
 
+pub(in crate::services::project) fn entity_composition(
+    session: &ProjectSession,
+    target: &EntityEditTarget,
+) -> AppResult<Option<JsonComposition>> {
+    if !target
+        .source
+        .as_ref()
+        .is_some_and(|source| source.source == ResourceSource::Mod)
+        || entity_definitions::entity_spec_definition(target.kind).is_none()
+    {
+        return Ok(None);
+    }
+    json_layers::json_composition(session, &target.write.rel_path).map(Some)
+}
 pub(in crate::services::project) fn entity_presentation(
     session: &ProjectSession,
     target: &EntityEditTarget,
@@ -18,21 +30,22 @@ pub(in crate::services::project) fn entity_presentation(
 ) -> AppResult<(Option<JsonComposition>, BTreeMap<String, ResourceRef>)> {
     let composition = entity_composition(session, target)?;
     let wrapped = matches!(target.kind, EntityKind::Weapon | EntityKind::Skill);
-    let content = if wrapped { &data["spec"] } else { data };
-    let mut resources = match (composition.as_ref(), resources) {
+    let local = if wrapped { &data["spec"] } else { data };
+    let mut resources = match (&composition, resources) {
         (None, Some(resources)) => resources,
-        (composition, _) => {
+        _ => {
             let effective = composition
-                .map(|sources| domain_json_composition::compose_game_json(sources, content))
+                .as_ref()
+                .map(|layers| json_composition::compose_game_json(layers, local))
                 .transpose()?
-                .unwrap_or_else(|| content.clone());
-            let mut resource_data = data.clone();
+                .unwrap_or_else(|| local.clone());
+            let mut data = data.clone();
             if wrapped {
-                resource_data["spec"] = effective;
+                data["spec"] = effective;
             } else {
-                resource_data = effective;
+                data = effective;
             }
-            entity_resource_refs(session, target.kind, &target.id, &resource_data)
+            entity_resource_refs(session, target.kind, &target.id, &data)
         }
     };
     if target.kind != EntityKind::Variant
@@ -42,28 +55,15 @@ pub(in crate::services::project) fn entity_presentation(
         resource_identity::apply_source_reference(source, &mut resources);
     }
     if let Some(composition) = &composition {
-        apply_resource_origins(&mut resources, content, composition);
+        apply_resource_origins(&mut resources, local, composition);
     }
     Ok((composition, resources))
 }
 
-pub(in crate::services::project) fn entity_composition(
-    session: &ProjectSession,
-    target: &EntityEditTarget,
-) -> AppResult<Option<JsonComposition>> {
-    let local = target
-        .source
-        .as_ref()
-        .is_some_and(|source| source.source == ResourceSource::Mod);
-    if !local || entity_definitions::entity_spec_definition(target.kind).is_none() {
-        return Ok(None);
-    }
-    json_composition(session, &target.write.rel_path).map(Some)
-}
-
 #[cfg(test)]
 mod tests {
-    use crate::io;
+    use crate::test_support::file_formats;
+
     use crate::models::*;
     use crate::services::project;
     use crate::services::project::query::entities;
@@ -247,15 +247,14 @@ mod tests {
                 mod_root: manifest.mod_root.clone(),
                 target: entity.target,
                 base_versions: entity.base_versions,
-                data: data.clone(),
-                ordered_json: None,
+                document: file_formats::json_write(&(data.clone())),
                 json_write: JsonWriteOptions {
                     keep_filename: true,
                     ..Default::default()
                 },
             }))
             .unwrap();
-            assert_eq!(io::read_json_file(&path).unwrap(), data);
+            assert_eq!(file_formats::read_json_value(&path).unwrap(), data);
         }
         assert!(!work.join("data/hulls/other.ship").exists());
         assert!(

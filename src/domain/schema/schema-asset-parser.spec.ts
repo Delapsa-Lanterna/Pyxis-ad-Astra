@@ -3,6 +3,29 @@ import { parseCsvColumnSchemas, parseFileSchema } from './schema-asset-parser';
 import { CSV_COLUMN_CONTROLS, type FileSchema } from './schema.types';
 
 describe('schema asset validation', () => {
+  it('resolves every parsed bundled reference', () => {
+    const assets = import.meta.glob('../../../schemas/*.schema.json', { eager: true, import: 'default' });
+    const schemas = Object.fromEntries(
+      Object.entries(assets).map(([path, value]) => {
+        const id = path.slice(path.lastIndexOf('/') + 1, -'.schema.json'.length);
+        return [id, parseFileSchema(id, value)];
+      }),
+    );
+    function visit(value: unknown) {
+      if (!value || typeof value !== 'object') return;
+      if ('ref' in value && typeof value.ref === 'string') {
+        const [id, path] = value.ref.split('#/');
+        let target: unknown = schemas[id!];
+        for (const part of path!.split('/')) {
+          expect(target, `${value.ref}: ${part}`).toBeTypeOf('object');
+          target = Reflect.get(target as object, part);
+        }
+        expect(target, value.ref).toBeTypeOf('object');
+      }
+      Object.values(value).forEach(visit);
+    }
+    Object.values(schemas).forEach(visit);
+  });
   it.each([undefined, false, true])('loads CSV descriptions and summary=%s', (summary) => {
     const columns = [undefined, '', 'First line\nSecond line'].map((description, index) => ({
       key: String(index),

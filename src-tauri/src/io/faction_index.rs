@@ -1,9 +1,9 @@
 use super::FsRootBoundary;
 use crate::errors::AppResult;
-#[cfg(test)]
-use crate::io::read_csv_data;
 use crate::models::{CsvTable, FactionIndexEntry};
 use crate::parsers::parse_faction_index;
+#[cfg(test)]
+use crate::test_support::file_formats::read_csv_table as read_csv_data;
 #[cfg(test)]
 use std::cell::Cell;
 #[cfg(test)]

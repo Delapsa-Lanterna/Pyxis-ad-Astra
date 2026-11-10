@@ -1,97 +1,46 @@
-use crate::domain::entity_definitions::{EntitySpecDefinition, editor_spec_definition};
-#[cfg(test)]
-use crate::domain::entity_identity::validate_entity_id;
+use crate::domain::entity_definitions::editor_spec_definition;
 use crate::errors::{AppError, AppResult};
-use crate::io::{read_json_file, validate_safe_absolute_path, validate_walk_entry};
+use crate::io;
 use crate::models::SpecEditorKind;
-#[cfg(test)]
-use crate::models::{JsonWriteOptions, SaveAction, SpecSave, WriteResult};
-#[cfg(test)]
-use crate::services;
-#[cfg(test)]
-use crate::services::project::PerformanceTrace;
-#[cfg(test)]
-use crate::services::project_sync::release_project_session;
-#[cfg(test)]
-use crate::services::{project, project_save};
-use serde_json::Value;
+use crate::models::file_content::JsonFileContent;
 use std::path::Path;
 
-#[cfg(test)]
-pub fn save_editor_spec(
-    mod_root: &str,
+pub fn load_imported_editor_spec_file(
     kind: SpecEditorKind,
-    id: &str,
-    data: Value,
-) -> AppResult<WriteResult<Value>> {
-    save_editor_spec_with_json_options(mod_root, kind, id, data, JsonWriteOptions::default(), None)
-}
-
-#[cfg(test)]
-pub fn save_editor_spec_with_json_options(
-    mod_root: &str,
-    kind: SpecEditorKind,
-    id: &str,
-    data: Value,
-    options: JsonWriteOptions,
-    ordered_json: Option<&str>,
-) -> AppResult<WriteResult<Value>> {
+    path: String,
+) -> AppResult<JsonFileContent> {
     let definition = editor_spec_definition(kind)?;
-    validate_entity_id(id, definition.invalid_id_message)?;
-    let mut trace = PerformanceTrace::new("project.openSession");
-    let manifest = project::open_project_session_traced(Path::new(mod_root), None, &mut trace)?;
-    let result = (|| {
-        let info =
-            services::query_entity_edit_target(&manifest.session_id, definition.entity_kind, id)?;
-        project_save::execute_save_action(SaveAction::SaveEditorSpec(SpecSave {
-            session_id: manifest.session_id.clone(),
-            mod_root: manifest.mod_root.clone(),
-            target: info.target,
-            base_versions: info.base_versions,
-            data,
-            json_write: options,
-            ordered_json: ordered_json.map(str::to_string),
-        }))
-    })();
-    release_project_session(manifest.session_id)?;
-    result
-}
-
-pub fn load_imported_editor_spec_file(kind: SpecEditorKind, path: String) -> AppResult<Value> {
     let path = Path::new(&path);
-    validate_imported_editor_spec_path(editor_spec_definition(kind)?, path)?;
-    read_json_file(path)
-}
-
-fn validate_imported_editor_spec_path(
-    definition: &EntitySpecDefinition,
-    path: &Path,
-) -> AppResult<()> {
-    validate_safe_absolute_path(path, "imported editor spec")?;
-    validate_walk_entry(path, "imported editor spec")?;
-    let extension = definition.extension_without_dot();
-    if path.extension().and_then(|value| value.to_str()) != Some(extension) {
+    io::validate_safe_absolute_path(path, "imported specification")?;
+    io::validate_walk_entry(path, "imported specification")?;
+    if path.extension().and_then(|extension| extension.to_str())
+        != Some(definition.extension_without_dot())
+    {
         return Err(AppError::message(
             "spec.extension_invalid",
-            format!(
-                "imported editor spec extension must be .{}: {}",
-                extension,
-                path.display()
-            ),
-        ));
+            format!("规格文件扩展名应为 {}", definition.extension),
+        )
+        .at_path(path));
     }
-    Ok(())
+    io::read_json_file(path).map(|source| JsonFileContent::from(&source))
 }
 
 #[cfg(test)]
 mod tests {
+    use crate::domain::entity_identity;
+    use crate::services::spec_editor;
+
+    use crate::models::{JsonWriteOptions, WriteResult};
     use crate::services::file_history::query_file_history;
     use crate::services::project_sync::release_project_session;
+    use serde_json::Value;
 
     use super::*;
     #[cfg(test)]
     use crate::domain::entity_construction;
+    use crate::errors::AppResult;
     use crate::io::{read_utf8_no_bom, write_utf8_no_bom};
+    use crate::models::file_content::SaveLayout;
     #[cfg(test)]
     use crate::models::{
         AssociatedSpecCreateParams, EntityKind, SaveAction, SpecSave, WeaponSpecClass,
@@ -104,8 +53,72 @@ mod tests {
     #[cfg(test)]
     use crate::services::{project, project_save};
     use crate::test_support::TestWorkspace;
+    use crate::test_support::file_formats;
     use std::fs;
     use std::path::PathBuf;
+
+    fn load_imported_editor_spec_file(kind: SpecEditorKind, path: String) -> AppResult<Value> {
+        spec_editor::load_imported_editor_spec_file(kind, path)?
+            .content
+            .to_json()
+            .map_err(Into::into)
+    }
+    fn save_editor_spec(
+        root: &str,
+        kind: SpecEditorKind,
+        id: &str,
+        data: Value,
+    ) -> AppResult<WriteResult<Value>> {
+        save_editor_spec_with_json_options(root, kind, id, data, Default::default(), None)
+    }
+    fn save_editor_spec_with_json_options(
+        root: &str,
+        kind: SpecEditorKind,
+        id: &str,
+        data: Value,
+        options: JsonWriteOptions,
+        order: Option<&str>,
+    ) -> AppResult<WriteResult<Value>> {
+        entity_identity::validate_entity_id(id, "无效武器 ID")?;
+        let kind = match kind {
+            SpecEditorKind::Ship => EntityKind::Ship,
+            SpecEditorKind::Weapon => EntityKind::Weapon,
+            SpecEditorKind::Projectile => EntityKind::Projectile,
+            SpecEditorKind::System => EntityKind::System,
+        };
+        let manifest = project::open_project_session_traced(
+            Path::new(root),
+            None,
+            &mut PerformanceTrace::new("spec.fixture"),
+        )?;
+        let result = (|| {
+            let target = services::query_entity_edit_target(&manifest.session_id, kind, id)?.target;
+            let data = order.map(serde_json::from_str).transpose()?.unwrap_or(data);
+            let mut document = if Path::new(&target.write.path).exists() {
+                file_formats::json_write_from_source(
+                    &io::read_json_file(Path::new(&target.write.path))?,
+                    &data,
+                )
+            } else {
+                file_formats::json_write(&data)
+            };
+            document.layout = if options.preserve_structure {
+                SaveLayout::PreserveStructure
+            } else {
+                SaveLayout::Expanded
+            };
+            let actual =
+                services::save_entity_spec(&manifest.session_id, &target, id, document, options)?;
+            let target = actual.content.as_ref().unwrap().target.clone();
+            let value = actual.content.as_ref().unwrap().value.content.to_json()?;
+            Ok(actual.with_content(target, value))
+        })();
+        release_project_session(manifest.session_id)?;
+        result
+    }
+    fn read_json_file(path: &Path) -> AppResult<Value> {
+        file_formats::read_json_value(path)
+    }
 
     #[test]
     fn empty_weapon_editor_mounts_preserve_file_and_history_until_corrected() {
@@ -134,9 +147,8 @@ mod tests {
                     mod_root: manifest.mod_root.clone(),
                     target: info.target.clone(),
                     base_versions: info.base_versions.clone(),
-                    data,
+                    document: file_formats::json_write(&data),
                     json_write: Default::default(),
-                    ordered_json: None,
                 }))
             };
             for (field, code) in [
@@ -158,7 +170,18 @@ mod tests {
             valid["turretOffsets"] = serde_json::json!([4, 5]);
             let saved = save(valid.clone()).unwrap();
             assert_eq!(read_json_file(&path).unwrap(), valid);
-            assert_eq!(saved.content.map(|content| content.value), Some(valid));
+            assert_eq!(
+                saved
+                    .content
+                    .map(
+                        |content| serde_json::from_value::<JsonFileContent>(content.value)
+                            .unwrap()
+                            .content
+                            .to_json()
+                            .unwrap()
+                    ),
+                Some(valid)
+            );
             assert_eq!(saved.history.undo_stack.len(), 1);
             release_project_session(manifest.session_id).unwrap();
             root.close().unwrap();
@@ -234,8 +257,7 @@ mod tests {
                 JsonWriteOptions {
                     replace_paths: Vec::new(),
                     keep_filename: false,
-                    preserve_original_json: true,
-                    confirmed_sources: Vec::new(),
+                    preserve_structure: true,
                 },
                 None,
             )
@@ -257,12 +279,12 @@ mod tests {
         .unwrap();
 
         let result = save_editor_spec(
-            &root.to_string_lossy(),
-            SpecEditorKind::Weapon,
-            "demo",
-            serde_json::json!({"id": "demo", "specClass":"projectile", "weaponType": "ENERGY", "turretOffsets":[0,0], "hardpointOffsets":[0,0]}),
-        )
-        .unwrap();
+                &root.to_string_lossy(),
+                SpecEditorKind::Weapon,
+                "demo",
+                serde_json::json!({"id": "demo", "specClass":"projectile", "weaponType": "ENERGY", "turretOffsets":[0,0], "hardpointOffsets":[0,0]}),
+            )
+            .unwrap();
 
         let target = root
             .join("data/weapons/nested/demo.wpn")
@@ -285,32 +307,31 @@ mod tests {
         )
         .unwrap();
         let saved = save_editor_spec_with_json_options(
-            &root.to_string_lossy(),
-            SpecEditorKind::Weapon,
-            "demo",
-            serde_json::json!({"id":"demo","specClass":"projectile","weaponType":"ENERGY","turretOffsets":[0,0],"hardpointOffsets":[0,0]}),
-            JsonWriteOptions {
-                replace_paths: Vec::new(),
-                keep_filename: false,
-                preserve_original_json: true,
-                confirmed_sources: Vec::new(),
-            },
-            Some(r#"{"weaponType":"ENERGY","id":"demo","specClass":"projectile","turretOffsets":[0,0],"hardpointOffsets":[0,0]}"#),
-        )
-        .unwrap();
+                &root.to_string_lossy(),
+                SpecEditorKind::Weapon,
+                "demo",
+                serde_json::json!({"id":"demo","specClass":"projectile","weaponType":"ENERGY","turretOffsets":[0,0],"hardpointOffsets":[0,0]}),
+                JsonWriteOptions {
+                    replace_paths: Vec::new(),
+                    keep_filename: false,
+                    preserve_structure: true,
+                },
+                Some(r#"{"weaponType":"ENERGY","id":"demo","specClass":"projectile","turretOffsets":[0,0],"hardpointOffsets":[0,0]}"#),
+            )
+            .unwrap();
         let preserved = read_utf8_no_bom(&target).unwrap();
         assert_eq!(saved.changes.len(), 1);
         assert!(preserved.contains("# important"));
         assert!(preserved.find("weaponType").unwrap() < preserved.find("id:").unwrap());
         let normalized = save_editor_spec_with_json_options(
-            &root.to_string_lossy(),
-            SpecEditorKind::Weapon,
-            "demo",
-            serde_json::json!({"id":"demo","specClass":"projectile","weaponType":"ENERGY","turretOffsets":[0,0],"hardpointOffsets":[0,0]}),
-            JsonWriteOptions::default(),
-            None,
-        )
-        .unwrap();
+                &root.to_string_lossy(),
+                SpecEditorKind::Weapon,
+                "demo",
+                serde_json::json!({"id":"demo","specClass":"projectile","weaponType":"ENERGY","turretOffsets":[0,0],"hardpointOffsets":[0,0]}),
+                JsonWriteOptions::default(),
+                None,
+            )
+            .unwrap();
         assert_eq!(normalized.changes.len(), 1);
         assert!(!read_utf8_no_bom(&target).unwrap().contains("# important"));
         root.close().unwrap();
@@ -373,7 +394,7 @@ mod tests {
         .to_string();
         let default_target_exists = root.join("data/weapons/demo.wpn").exists();
 
-        assert!(error.contains("JSON 目录不是目录"));
+        assert!(error.contains("directory"), "{error}");
         assert!(!default_target_exists);
         root.close().unwrap();
     }
@@ -412,7 +433,7 @@ mod tests {
         .unwrap_err()
         .to_string();
 
-        assert!(error.contains("imported editor spec extension must be .wpn"));
+        assert!(error.contains("规格文件扩展名应为 .wpn"));
         root.close().unwrap();
     }
 
@@ -428,7 +449,7 @@ mod tests {
         .unwrap_err()
         .to_string();
 
-        assert!(error.contains("invalid imported editor spec path"));
+        assert!(error.contains("imported specification"));
         root.close().unwrap();
     }
 

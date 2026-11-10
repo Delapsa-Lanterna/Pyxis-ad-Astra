@@ -19,15 +19,17 @@
 - `src-tauri/src/domain/entity_definitions.rs`：八种实体的目录、后缀、ID 字段及规格、表格关联登记。
 - `src-tauri/src/domain/entity_identity.rs`：跨编辑器实体 ID、路径与来源范围纯规则。
 - `src-tauri/src/domain/json_composition.rs`：正式 JSON 来源的游戏合并规则。
+- `src-tauri/src/io/mod.rs`：授权路径、同次字节与版本读取以及变更集能力。
 - `src-tauri/src/models/entity_query.rs`：实体详情、列表请求及返回记录。
+- `src-tauri/src/models/file_content.rs`：精确文档、原始格式、物理 CSV 行格及完整写入请求。
+- `src-tauri/src/parsers/game/`：游戏 JSON/CSV 的正式读取入口、文档方法、数值及文本格式能力。
 - `src-tauri/src/services/project/definitions/entity_definitions.rs`：实体来源、读取准备、刷新与摘要的登记规则。
 - `src-tauri/src/services/project/model.rs`：会话、引用视图、可编辑 CSV 行身份及表格业务元数据。
 - `src-tauri/src/services/project/query/json_layers.rs`：会话所属的正式有序 JSON 来源和版本。
 - `src-tauri/src/services/project/resources/entity_references.rs`：详情、列表资源映射及实际资源来源。
 - `src-tauri/src/services/project/resources/resource_identity.rs`：实体呈现按正式来源接纳资源集合的引用身份。
-- `src-tauri/src/services/project/session/access.rs`：捕获引用快照后锁定并交付所属就绪会话。
-- `src-tauri/src/services/project/session/csv_tables.rs`：正式表格内容、稳定行身份、来源保留、加载版本及实体计数构建。
-- `src-tauri/src/services/project/session/registry.rs`：会话存活登记、句柄与内容就绪门控。
+- `src-tauri/src/services/project/session/`：会话授权、就绪访问、CSV 正式内容、引用及来源版本管理。
+- `src-tauri/src/services/project/sources/`：各类原版规格与已授权来源文档。
 - `src-tauri/src/services/project/versions.rs`：会话已接纳来源的路径凭据投影。
 - `src/domain/project/query-scopes.ts`：标准实体失效 scope 匹配。
 - `src/services/query-cache.service.ts`：会话缓存、实时请求与失效通知。
@@ -44,6 +46,7 @@
 - 实体列表一次准备实际来源和关联记录，前端业务 mapper 交付所属可写快照。
 - EntityListEntry 交付正式列表内容，查询按资源产品和批量目标共同装配 EntityData。
 - 实体查询拥有参数、返回和失效规则，会话缓存拥有共享请求和就绪结果。
+- 实际规格身份索引按当前 Mod、引用及原版优先级合并，候选筛选与 CSV 规格校验共用该索引，存在性与业务登记行分别表达。
 - 实际编辑目标与身份意图通过实时查询交付，详情与列表消费各自缓存。
 - 读取接纳归正式票据，资源引用按实体来源由所属资源能力构造。
 
@@ -67,7 +70,7 @@
 - 合并预览必须按原版、前序可引用 Mod、本地内容的顺序计算；实体列表只允许展示本地文件。
 - 查询必须分别交付本地内容与已保存的引用来源；本地缺省 ID 从文件名推断，游戏身份从合并结果读取。
 - 同路径合并必须消费游戏的数组追加、首项清空标记、颜色与音乐数组、类型冲突、replace 声明及设置字段排除规则；补充层标量保留写入类型。
-- 是否参与同路径组合必须由 `entity_composition` 统一判定：本 Mod 来源且经游戏 `readJSON` 加载的实体文件参与组合，装配包含在内；`loadJSON` 读取的 `mod_info.json` 与战役 `descriptor.json` 不参与。
+- 是否参与同路径组合由 `entity_composition` 统一判定：本 Mod 来源且经游戏 `readJSON` 加载的实体文件参与组合，装配包含在内；`loadJSON` 读取的 `mod_info.json` 与战役 `descriptor.json` 不参与。
 - 实体列表必须在一次查询内装配来源和关联记录，严禁逐实体重读索引或目标。
 - 同类实体的批量详情必须共用一次目标索引准备，并复用单实体的内容、来源组合与资源装配。
 - 实体失效必须核对种类及 ID，空 ID scope 作用于所属种类。

@@ -1,6 +1,5 @@
 import type { SaveCommandRequest } from '@/shared/runtime/command.runtime';
-import { captureJsonEdits } from '@/shared/lib/json-edits';
-import type { JsonValue } from '@/shared/types';
+import type { DocumentEdit } from '@/shared/types';
 import { invokeCommand, invokeSaveCommand } from '@/shared/runtime/command.runtime';
 import { pathBelongsToRoot } from '@/shared/lib/paths';
 import { MISC_CONFIG_DEFINITIONS, miscConfigDefinition } from '@/domain/misc-config';
@@ -42,15 +41,10 @@ export function hasMiscConfigInvalidation(invalidation: ProjectInvalidation, mod
 }
 export function saveMiscConfig(
   payload: MiscConfigWrite,
-  original?: JsonValue,
+  edits: DocumentEdit[],
   request?: SaveCommandRequest,
-): Promise<WriteResult<MiscConfigFile['data']>> {
-  return invokeSaveCommand(
-    'save_misc_config',
-    { payload },
-    original === undefined ? [{ kind: 'set', path: [], value: payload.data }] : captureJsonEdits(original, payload.data),
-    request,
-  );
+): Promise<WriteResult<MiscConfigFile['document']>> {
+  return invokeSaveCommand('save_misc_config', { payload }, edits, request);
 }
 export function deleteMiscConfig(payload: MiscConfigDelete, request?: SaveCommandRequest): Promise<WriteResult> {
   return invokeSaveCommand('delete_misc_config', { payload }, [], request);

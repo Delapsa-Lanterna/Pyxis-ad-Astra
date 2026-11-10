@@ -9,6 +9,8 @@ use serde_json::{Map, Value};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CsvRowPatch {
+    pub columns: Vec<String>,
+    pub comment_changed: bool,
     #[serde(default)]
     pub insert_at: Option<usize>,
     pub row_key: String,
@@ -168,16 +170,16 @@ mod tests {
 
     #[test]
     fn csv_insert_position_accepts_missing_and_null_values() {
-        let value = json!({"rowKey":"row","action":"upsert","row":{},"isComment":false});
+        let value = json!({"rowKey":"row","action":"upsert","row":{},"isComment":false,"columns":[],"commentChanged":false});
         for value in [
             value.clone(),
-            json!({"insertAt":null,"rowKey":"row","action":"upsert","row":{},"isComment":false}),
+            json!({"insertAt":null,"rowKey":"row","action":"upsert","row":{},"isComment":false,"columns":[],"commentChanged":false}),
         ] {
             let patch: CsvRowPatch = serde_json::from_value(value).unwrap();
             assert!(patch.insert_at.is_none());
         }
         let patch: CsvRowPatch = serde_json::from_value(
-            json!({"insertAt":0,"rowKey":"row","action":"upsert","row":{},"isComment":false}),
+            json!({"insertAt":0,"rowKey":"row","action":"upsert","row":{},"isComment":false,"columns":[],"commentChanged":false}),
         )
         .unwrap();
         assert_eq!(patch.insert_at, Some(0));
@@ -251,7 +253,7 @@ mod tests {
 
     #[test]
     fn csv_patch_wire_requires_and_preserves_the_parser_comment_flag() {
-        let mut patch = json!({"rowKey":"ships:row:0", "action":"upsert", "row":{"name":"#quoted","id":"active"}, "insertAt":null});
+        let mut patch = json!({"rowKey":"ships:row:0", "action":"upsert", "row":{"name":"#quoted","id":"active"}, "insertAt":null,"columns":["name"],"commentChanged":false});
         assert!(serde_json::from_value::<CsvRowPatch>(patch.clone()).is_err());
         patch["isComment"] = json!(false);
         let parsed = serde_json::from_value::<CsvRowPatch>(patch).unwrap();
@@ -264,7 +266,6 @@ mod tests {
     fn table_save_requests_keep_explicit_actions_and_default_json_options() {
         let payload: CsvSave = serde_json::from_value(json!({"rowOrder":null,"baseVersions":[],"sessionId":"session","modRoot":"M:/mod","table":"ships","patches":[],"associatedSpecs":[]})).unwrap();
         assert_eq!(payload.table, CsvTableKey::Ships);
-        assert!(!payload.json_write.preserve_original_json);
-        assert!(payload.json_write.confirmed_sources.is_empty());
+        assert!(!payload.json_write.preserve_structure);
     }
 }

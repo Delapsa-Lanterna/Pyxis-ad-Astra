@@ -18,7 +18,7 @@ export const FIELD_TYPES = [
 
 export type FieldType = (typeof FIELD_TYPES)[number];
 
-export type SchemaFieldUpdate = { kind: 'set'; value: unknown } | { kind: 'remove' };
+export type SchemaFieldUpdate = ({ kind: 'set'; value: unknown } | { kind: 'remove' }) & { fileEdit?: DocumentEdit };
 
 export const FIELD_TYPE_SET: ReadonlySet<string> = new Set(FIELD_TYPES);
 export type SchemaVisibility = Record<string, string[] | { gt: number }> | Record<string, string[] | { gt: number }>[];
@@ -56,7 +56,6 @@ export interface FieldSchema {
   valueSchema?: FieldSchema;
   keySchema?: FieldSchema;
   variants?: FieldSchema[];
-  numberFormat?: 'starsector';
   reservedKeys?: string[];
   presentation?: 'groups';
   operations?: { add?: boolean; remove?: boolean; rename?: boolean };
@@ -131,3 +130,4 @@ export interface CsvColumnSchema {
 }
 
 export type { DiscoveredField } from '@/shared/types';
+import type { DocumentEdit } from '@/shared/types';

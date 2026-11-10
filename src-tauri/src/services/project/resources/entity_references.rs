@@ -288,7 +288,7 @@ fn mission_icon_resource_ref(session: &ProjectSession, id: &str) -> AppResult<Op
     if !descriptor_path.exists() {
         return Ok(None);
     }
-    let descriptor = read_json_file(&descriptor_path)?;
+    let descriptor = read_json_file(&descriptor_path)?.content.to_json()?;
     let Some(icon) = descriptor.get("icon").and_then(Value::as_str) else {
         return Ok(None);
     };

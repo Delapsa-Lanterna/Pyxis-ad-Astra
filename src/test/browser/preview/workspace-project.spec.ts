@@ -9,6 +9,7 @@ import { coreRoot, gameRoot, workspaceRoots } from './game-files';
 import { jsonDocumentMedia, jsonDocumentRecord, jsonDocumentSummary } from '@/domain/json-editor/json-document-definitions';
 import { composeJson } from '@/domain/json-composition';
 import { jsonEntitySavedData } from '@/domain/json-editor/json-file-records';
+import { jsonFileFixture, jsonWriteFixture } from '@/test/fixtures/json-file';
 
 describe('complete browser workspace fixtures', () => {
   it('delivers a text write with its own path, version and reusable receipt', async () => {
@@ -55,7 +56,8 @@ describe('complete browser workspace fixtures', () => {
         modRoot: project.manifest.modRoot,
         previousId: action === 'rename' ? source.id : null,
         nextId: id,
-        data,
+        document: jsonWriteFixture(data),
+        jsonWrite: {},
         relPath: action === 'save' ? source.target.write.relPath : null,
         baseVersions: action === 'create' ? [] : source.baseVersions,
       };
@@ -65,7 +67,7 @@ describe('complete browser workspace fixtures', () => {
           edits: [],
           action: { kind: `${action === 'create' ? 'create' : 'save'}_${kind}_entity`, input },
         },
-      })) as T.WriteResult;
+      })) as T.WriteResult<T.VariantFile | T.SkinFile>;
       const saved = jsonEntitySavedData(result);
       expect(result.identityChanges).toHaveLength(1);
       expect(saved).toMatchObject({ id, data, target: { state: 'existing', id } });
@@ -98,6 +100,7 @@ describe('complete browser workspace fixtures', () => {
       color: [31, 97, 151, 255],
     };
     source.resourceRefs = core.resources('faction', id, source.data as T.RowData);
+    source.document = jsonFileFixture(source.data);
     const layer = {
       source: { ...source.target.write, source: 'core' as const },
       version: { path: source.target.write.path, fingerprint: 'core-fixture' },
@@ -105,6 +108,7 @@ describe('complete browser workspace fixtures', () => {
       replace: false,
     };
     faction.data = { id, localFlag: 'retained' };
+    faction.document = jsonFileFixture(faction.data);
     faction.resourceRefs = {};
     faction.composition = { layers: [layer], excluded: [], replace: false };
     const query = (command: string, id: string) =>
@@ -126,7 +130,11 @@ describe('complete browser workspace fixtures', () => {
       source: 'core',
       relPath: 'graphics/factions/inherited-crest.png',
     });
-    expect(composeJson(faction.data as T.RowData, row.composition)).toEqual({ ...(source.data as T.RowData), id, localFlag: 'retained' });
+    expect(composeJson(faction.data as T.RowData, row.composition ?? undefined)).toEqual({
+      ...(source.data as T.RowData),
+      id,
+      localFlag: 'retained',
+    });
   });
   it.each(['read', 'overwrite', 'csv'] as const)(
     'handles invalid original content and rejects stale files in browser mode %s',
@@ -324,7 +332,7 @@ describe('complete browser workspace fixtures', () => {
     await workspace.invoke('main', 'save_mod_info', {
       payload: {
         sessionId: owner.manifest.sessionId,
-        data: { ...original, name: 'Edited metadata', version: '2.4', description: 'Saved description' },
+        document: jsonWriteFixture({ ...original, name: 'Edited metadata', version: '2.4', description: 'Saved description' }),
       },
     });
     workspace.reopen();

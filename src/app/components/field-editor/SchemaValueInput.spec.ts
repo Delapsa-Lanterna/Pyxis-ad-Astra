@@ -154,12 +154,12 @@ describe('Schema numeric controls with real Naive UI', () => {
     await inputs.commit();
     expect(value.value).toBe(6.5);
   });
-  it('preserves game numeric strings through scalar submission', async () => {
-    const { value, inputs } = harness({ numberFormat: 'starsector' }, '2.5f');
+  it('retains untouched game strings and converts submitted numeric input', async () => {
+    const { value, inputs } = harness({}, '2.5f');
     await inputs.commit();
     expect(value.value).toBe('2.5f');
     await wrapper.get('input').setValue('3.5f');
     await inputs.commit();
-    expect(value.value).toBe('3.5f');
+    expect(value.value).toBe(3.5);
   });
 });

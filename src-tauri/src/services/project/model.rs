@@ -1,6 +1,5 @@
-use super::sources::SourceScope;
-use super::sources::core::CoreSourceRequirements;
-use super::sources::documents::LoadedSpecRecord;
+use super::sources::{SourceScope, core::CoreSourceRequirements, documents::LoadedSpecRecord};
+use crate::models::file_content::{CsvSource, JsonSource};
 use crate::models::{
     CsvTableKey, EntityEditTarget, EntityKind, EntitySummaries, FileVersion, GameScanWarning,
     ProjectManifest, ReferenceSource, SkinFile, VariantFile,
@@ -12,19 +11,10 @@ use std::sync::{Arc, Mutex};
 use std::time::SystemTime;
 
 pub(super) const MISSION_LIST_TABLE_KEY: &str = "missions";
-
-pub(super) struct EntityListEntry {
-    pub kind: EntityKind,
-    pub id: String,
-    pub data: Value,
-}
 pub(super) const MISSION_LIST_REL_PATH: &str = "data/missions/mission_list.csv";
-
-/// The missions index table has a single fixed column.
 pub(super) fn mission_list_default_header() -> Vec<String> {
-    vec!["mission".to_string()]
+    vec!["mission".into()]
 }
-
 pub(super) const WEAPON_SPRITE_FIELDS: [&str; 8] = [
     "turretSprite",
     "hardpointSprite",
@@ -35,8 +25,11 @@ pub(super) const WEAPON_SPRITE_FIELDS: [&str; 8] = [
     "turretGlowSprite",
     "hardpointGlowSprite",
 ];
-
-/// Formal table paths, identity fields and summary sources used by project consumers.
+pub(super) struct EntityListEntry {
+    pub kind: EntityKind,
+    pub id: String,
+    pub data: Value,
+}
 
 #[derive(Clone, Copy)]
 pub(super) struct CsvTableSpec {
@@ -46,211 +39,133 @@ pub(super) struct CsvTableSpec {
     pub entity_summary: Option<fn(&EntitySummaries) -> usize>,
     pub core_source_requirements: CoreSourceRequirements,
 }
-
-pub(super) const SHIPS_SPEC: CsvTableSpec = CsvTableSpec {
-    key: CsvTableKey::Ships,
-    rel_path: "data/hulls/ship_data.csv",
-    entity_id_field: "id",
-    entity_summary: Some(|summaries| summaries.ships),
-    core_source_requirements: CoreSourceRequirements {
-        ships: true,
-        weapons: false,
-        variants: false,
-    },
-};
-
-pub(super) const WEAPONS_SPEC: CsvTableSpec = CsvTableSpec {
-    key: CsvTableKey::Weapons,
-    rel_path: "data/weapons/weapon_data.csv",
-    entity_id_field: "id",
-    entity_summary: Some(|summaries| summaries.weapons),
-    core_source_requirements: CoreSourceRequirements {
-        ships: false,
-        weapons: true,
-        variants: false,
-    },
-};
-
-pub(super) const WINGS_SPEC: CsvTableSpec = CsvTableSpec {
-    key: CsvTableKey::Wings,
-    rel_path: "data/hulls/wing_data.csv",
-    entity_id_field: "id",
-    entity_summary: None,
-    core_source_requirements: CoreSourceRequirements {
-        ships: true,
-        weapons: false,
-        variants: true,
-    },
-};
-
-pub(super) const HULLMODS_SPEC: CsvTableSpec = CsvTableSpec {
-    key: CsvTableKey::Hullmods,
-    rel_path: "data/hullmods/hull_mods.csv",
-    entity_id_field: "id",
-    entity_summary: None,
-    core_source_requirements: CoreSourceRequirements {
-        ships: false,
-        weapons: false,
-        variants: false,
-    },
-};
-
-pub(super) const SHIP_SYSTEMS_SPEC: CsvTableSpec = CsvTableSpec {
-    key: CsvTableKey::ShipSystems,
-    rel_path: "data/shipsystems/ship_systems.csv",
-    entity_id_field: "id",
-    entity_summary: Some(|summaries| summaries.systems),
-    core_source_requirements: CoreSourceRequirements {
-        ships: false,
-        weapons: false,
-        variants: false,
-    },
-};
-
-pub(super) const INDUSTRIES_SPEC: CsvTableSpec = CsvTableSpec {
-    key: CsvTableKey::Industries,
-    rel_path: "data/campaign/industries.csv",
-    entity_id_field: "id",
-    entity_summary: None,
-    core_source_requirements: CoreSourceRequirements {
-        ships: false,
-        weapons: false,
-        variants: false,
-    },
-};
-
-pub(super) const SKILLS_SPEC: CsvTableSpec = CsvTableSpec {
-    key: CsvTableKey::Skills,
-    rel_path: "data/characters/skills/skill_data.csv",
-    entity_id_field: "id",
-    entity_summary: Some(|summaries| summaries.skills),
-    core_source_requirements: CoreSourceRequirements {
-        ships: false,
-        weapons: false,
-        variants: false,
-    },
-};
-
-pub(super) const ABILITIES_SPEC: CsvTableSpec = CsvTableSpec {
-    key: CsvTableKey::Abilities,
-    rel_path: "data/campaign/abilities.csv",
-    entity_id_field: "id",
-    entity_summary: None,
-    core_source_requirements: CoreSourceRequirements {
-        ships: false,
-        weapons: false,
-        variants: false,
-    },
-};
-
-pub(super) const COMMODITIES_SPEC: CsvTableSpec = CsvTableSpec {
-    key: CsvTableKey::Commodities,
-    rel_path: "data/campaign/commodities.csv",
-    entity_id_field: "id",
-    entity_summary: None,
-    core_source_requirements: CoreSourceRequirements {
-        ships: false,
-        weapons: false,
-        variants: false,
-    },
-};
-
-pub(super) const SPECIAL_ITEMS_SPEC: CsvTableSpec = CsvTableSpec {
-    key: CsvTableKey::SpecialItems,
-    rel_path: "data/campaign/special_items.csv",
-    entity_id_field: "id",
-    entity_summary: None,
-    core_source_requirements: CoreSourceRequirements {
-        ships: false,
-        weapons: false,
-        variants: false,
-    },
-};
-
-pub(super) const SUBMARKETS_SPEC: CsvTableSpec = CsvTableSpec {
-    key: CsvTableKey::Submarkets,
-    rel_path: "data/campaign/submarkets.csv",
-    entity_id_field: "id",
-    entity_summary: None,
-    core_source_requirements: CoreSourceRequirements {
-        ships: false,
-        weapons: false,
-        variants: false,
-    },
-};
-
-pub(super) const MARKET_CONDITIONS_SPEC: CsvTableSpec = CsvTableSpec {
-    key: CsvTableKey::MarketConditions,
-    rel_path: "data/campaign/market_conditions.csv",
-    entity_id_field: "id",
-    entity_summary: None,
-    core_source_requirements: CoreSourceRequirements {
-        ships: false,
-        weapons: false,
-        variants: false,
-    },
-};
-
-pub(super) const SIM_OPPONENTS_SPEC: CsvTableSpec = CsvTableSpec {
-    key: CsvTableKey::SimOpponents,
-    rel_path: "data/campaign/sim_opponents.csv",
-    entity_id_field: "variant id",
-    entity_summary: None,
-    core_source_requirements: CoreSourceRequirements {
-        ships: false,
-        weapons: false,
-        variants: false,
-    },
-};
-
-pub(super) const DESCRIPTIONS_SPEC: CsvTableSpec = CsvTableSpec {
-    key: CsvTableKey::Descriptions,
-    rel_path: "data/strings/descriptions.csv",
-    entity_id_field: "id",
-    entity_summary: None,
-    core_source_requirements: CoreSourceRequirements {
-        ships: false,
-        weapons: false,
-        variants: false,
-    },
-};
-
-pub(super) fn csv_table_spec(table: CsvTableKey) -> &'static CsvTableSpec {
-    match table {
-        CsvTableKey::Ships => &SHIPS_SPEC,
-        CsvTableKey::Weapons => &WEAPONS_SPEC,
-        CsvTableKey::Wings => &WINGS_SPEC,
-        CsvTableKey::Hullmods => &HULLMODS_SPEC,
-        CsvTableKey::ShipSystems => &SHIP_SYSTEMS_SPEC,
-        CsvTableKey::Industries => &INDUSTRIES_SPEC,
-        CsvTableKey::Skills => &SKILLS_SPEC,
-        CsvTableKey::Abilities => &ABILITIES_SPEC,
-        CsvTableKey::Commodities => &COMMODITIES_SPEC,
-        CsvTableKey::SpecialItems => &SPECIAL_ITEMS_SPEC,
-        CsvTableKey::Submarkets => &SUBMARKETS_SPEC,
-        CsvTableKey::MarketConditions => &MARKET_CONDITIONS_SPEC,
-        CsvTableKey::SimOpponents => &SIM_OPPONENTS_SPEC,
-        CsvTableKey::Descriptions => &DESCRIPTIONS_SPEC,
+const fn table(
+    key: CsvTableKey,
+    rel_path: &'static str,
+    entity_id_field: &'static str,
+    entity_summary: Option<fn(&EntitySummaries) -> usize>,
+    requirements: (bool, bool, bool),
+) -> CsvTableSpec {
+    CsvTableSpec {
+        key,
+        rel_path,
+        entity_id_field,
+        entity_summary,
+        core_source_requirements: CoreSourceRequirements {
+            ships: requirements.0,
+            weapons: requirements.1,
+            variants: requirements.2,
+        },
     }
 }
-
+const CSV_TABLES: [CsvTableSpec; 14] = [
+    table(
+        CsvTableKey::Ships,
+        "data/hulls/ship_data.csv",
+        "id",
+        Some(|v| v.ships),
+        (true, false, false),
+    ),
+    table(
+        CsvTableKey::Weapons,
+        "data/weapons/weapon_data.csv",
+        "id",
+        Some(|v| v.weapons),
+        (false, true, false),
+    ),
+    table(
+        CsvTableKey::Wings,
+        "data/hulls/wing_data.csv",
+        "id",
+        None,
+        (true, false, true),
+    ),
+    table(
+        CsvTableKey::Hullmods,
+        "data/hullmods/hull_mods.csv",
+        "id",
+        None,
+        (false, false, false),
+    ),
+    table(
+        CsvTableKey::ShipSystems,
+        "data/shipsystems/ship_systems.csv",
+        "id",
+        Some(|v| v.systems),
+        (false, false, false),
+    ),
+    table(
+        CsvTableKey::Industries,
+        "data/campaign/industries.csv",
+        "id",
+        None,
+        (false, false, false),
+    ),
+    table(
+        CsvTableKey::Skills,
+        "data/characters/skills/skill_data.csv",
+        "id",
+        Some(|v| v.skills),
+        (false, false, false),
+    ),
+    table(
+        CsvTableKey::Abilities,
+        "data/campaign/abilities.csv",
+        "id",
+        None,
+        (false, false, false),
+    ),
+    table(
+        CsvTableKey::Commodities,
+        "data/campaign/commodities.csv",
+        "id",
+        None,
+        (false, false, false),
+    ),
+    table(
+        CsvTableKey::SpecialItems,
+        "data/campaign/special_items.csv",
+        "id",
+        None,
+        (false, false, false),
+    ),
+    table(
+        CsvTableKey::Submarkets,
+        "data/campaign/submarkets.csv",
+        "id",
+        None,
+        (false, false, false),
+    ),
+    table(
+        CsvTableKey::MarketConditions,
+        "data/campaign/market_conditions.csv",
+        "id",
+        None,
+        (false, false, false),
+    ),
+    table(
+        CsvTableKey::SimOpponents,
+        "data/campaign/sim_opponents.csv",
+        "variant id",
+        None,
+        (false, false, false),
+    ),
+    table(
+        CsvTableKey::Descriptions,
+        "data/strings/descriptions.csv",
+        "id",
+        None,
+        (false, false, false),
+    ),
+];
 pub(super) fn csv_table_specs() -> &'static [CsvTableSpec] {
-    &[
-        SHIPS_SPEC,
-        WEAPONS_SPEC,
-        WINGS_SPEC,
-        HULLMODS_SPEC,
-        SHIP_SYSTEMS_SPEC,
-        INDUSTRIES_SPEC,
-        SKILLS_SPEC,
-        ABILITIES_SPEC,
-        COMMODITIES_SPEC,
-        SPECIAL_ITEMS_SPEC,
-        SUBMARKETS_SPEC,
-        MARKET_CONDITIONS_SPEC,
-        SIM_OPPONENTS_SPEC,
-        DESCRIPTIONS_SPEC,
-    ]
+    &CSV_TABLES
+}
+pub(super) fn csv_table_spec(key: CsvTableKey) -> &'static CsvTableSpec {
+    CSV_TABLES
+        .iter()
+        .find(|table| table.key == key)
+        .expect("registered CSV table")
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -265,38 +180,28 @@ pub(super) struct SpecBundle {
     pub variant_warnings: Vec<GameScanWarning>,
     pub skin_warnings: Vec<GameScanWarning>,
 }
-
-pub(super) struct ProjectContent {
-    pub mod_info: Option<Value>,
-    pub faction_files: BTreeMap<String, LoadedSpecRecord>,
-    pub faction_blueprint_tags: HashMap<String, String>,
-    pub mission_count: usize,
-    pub spec_bundle: SpecBundle,
-    pub table_entity_summaries: BTreeMap<CsvTableKey, usize>,
-}
-
 #[derive(Clone, Serialize, Deserialize)]
 pub(super) struct SessionCsvTable {
+    pub missing_baseline: bool,
     pub header: Vec<String>,
     pub path: String,
     pub rows: Option<Arc<Vec<SessionCsvRow>>>,
     #[serde(skip)]
     pub row_index: Option<HashMap<String, usize>>,
-    /// Sole allocator state for `{table}:row:{seq}` keys; survives refresh of
-    /// the table's own save so deletes cannot recycle surviving row identities.
     pub next_row_seq: u64,
-    pub saved_text: Option<String>,
+    #[serde(skip)]
+    pub source: Option<Arc<CsvSource>>,
 }
-
 #[derive(Clone, Serialize, Deserialize)]
 pub(super) struct SessionCsvRow {
     pub row_key: String,
     pub data: Map<String, Value>,
     pub is_comment: bool,
+    pub source_row: Option<usize>,
 }
-
 #[derive(Clone)]
 pub(super) struct ProjectSession {
+    pub documents: Arc<BTreeMap<String, Arc<JsonSource>>>,
     pub reference_revision: u64,
     pub references: Vec<Arc<ReferenceSnapshot>>,
     pub loaded_edit_targets: Vec<EntityEditTarget>,
@@ -318,34 +223,30 @@ pub(super) struct ProjectSession {
     pub system_files: Arc<BTreeMap<String, LoadedSpecRecord>>,
     pub skill_files: Arc<BTreeMap<String, LoadedSpecRecord>>,
 }
-
 pub(super) struct ReferenceSnapshot {
     pub identity: ReferenceSource,
     pub session: ProjectSession,
     pub tables: Mutex<BTreeMap<String, Arc<SessionCsvTable>>>,
 }
-
 pub(super) fn string_from_row(row: &Map<String, Value>, key: &str) -> Option<String> {
     row.get(key)
         .and_then(Value::as_str)
         .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .map(ToOwned::to_owned)
+        .filter(|v| !v.is_empty())
+        .map(str::to_owned)
 }
-
 pub(super) fn string_field(value: &Value, key: &str) -> Option<String> {
     value
         .get(key)
         .and_then(Value::as_str)
         .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .map(ToOwned::to_owned)
+        .filter(|v| !v.is_empty())
+        .map(str::to_owned)
 }
-
-pub(super) fn weapon_sprite_path(weapon: &Value) -> Option<String> {
+pub(super) fn weapon_sprite_path(value: &Value) -> Option<String> {
     WEAPON_SPRITE_FIELDS
         .iter()
-        .find_map(|key| string_field(weapon, key))
+        .find_map(|field| string_field(value, field))
 }
 
 #[cfg(test)]

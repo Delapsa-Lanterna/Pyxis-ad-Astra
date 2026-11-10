@@ -82,6 +82,7 @@ const fields = computed(() =>
 );
 const emit = defineEmits<{ update: [path: string, value: JsonValue]; remove: [path: string]; change: [path: string] }>();
 function updateField(field: FieldSchema, update: SchemaFieldUpdate) {
+  if (update.fileEdit) fieldRuntime.value?.applyDocumentEdit?.(update.fileEdit);
   if (update.kind === 'set') emit('update', path(field), update.value as JsonValue);
   else emit('remove', path(field));
   if (field.type === 'path-image') emit('change', path(field));

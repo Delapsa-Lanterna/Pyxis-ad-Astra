@@ -52,6 +52,6 @@
 
 - changelog 的 h3 分类只允许使用 `New`、`Improved`、`Changed`、`Bugfix`、`Removed`、`Security`，并必须按此顺序排列。
 - 每个分类必须包含至少一条记录，每条记录只允许归入一个分类，并描述用户能够感知的结果。
-- changelog 必须由构建入口内联，版本元信息消费从 package.json 注入的 `__APP_VERSION__`。
+- changelog 由构建入口内联，版本元信息消费从 package.json 注入的 `__APP_VERSION__`。
 - 渲染输入仅限仓库内联 changelog，严禁接收运行时字符串进入 `v-html`。
-- 页面路由必须经 workspace 视图状态，严禁引入独立路由记录。
+- 关于页导航统一使用 workspace 视图状态。

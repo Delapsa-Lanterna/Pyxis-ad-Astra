@@ -1,25 +1,26 @@
-use crate::errors::ErrorDiagnostic;
-use crate::models::{
+use super::{
     FileVersion, JsonComposition, JsonWriteOptions, MiscConfigKind, ProjectSessionId,
     project_identity,
 };
+use crate::errors::ErrorDiagnostic;
+use crate::models::file_content::{JsonFileContent, JsonWrite};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MiscConfigScope {
     pub session_id: ProjectSessionId,
     pub mod_root: String,
 }
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MiscConfigRead {
     pub session_id: ProjectSessionId,
     pub mod_root: String,
     pub kind: MiscConfigKind,
 }
-#[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub enum MiscConfigState {
     Present,
@@ -43,20 +44,20 @@ pub struct MiscConfigFile {
     pub path: String,
     pub rel_path: String,
     pub data: Value,
+    pub document: JsonFileContent,
     pub base_versions: Vec<FileVersion>,
 }
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MiscConfigWrite {
     pub kind: MiscConfigKind,
     pub session_id: ProjectSessionId,
     pub mod_root: String,
     pub base_versions: Vec<FileVersion>,
-    pub data: Value,
+    pub document: JsonWrite,
     pub json_write: JsonWriteOptions,
-    pub ordered_json: String,
 }
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MiscConfigDelete {
     pub kind: MiscConfigKind,

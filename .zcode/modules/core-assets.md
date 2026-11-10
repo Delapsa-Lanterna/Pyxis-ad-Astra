@@ -21,14 +21,11 @@ Core 索引与加载模块按游戏根管理字段和图形目录的独立读取
 - `src-tauri/src/models/core_assets.rs`：Core 扫描、失效请求与发现字段协议。
 - `src-tauri/src/services/app_settings.rs`：正式快照、revision、串行写盘、目录回调结果接纳及装配传入的运行参数提交动作。
 - `src-tauri/src/services/project/session.rs`：会话打开、关闭、内容更新与内部登记及就绪访问能力交付。
-- `src-tauri/src/services/project/session/access.rs`：捕获引用快照后锁定并交付所属就绪会话。
-- `src-tauri/src/services/project/session/registry.rs`：会话存活登记、句柄与内容就绪门控。
-- `src-tauri/src/services/project/sources/core.rs`：按游戏根交付 Core 来源、字段、图形和文档缓存。
-- `src-tauri/src/services/project/sources/roots.rs`：游戏及 Mod 根识别、游戏 mods 授权、位置推断及正式来源根选择。
+- `src-tauri/src/services/project/session/`：会话授权、就绪访问、CSV 正式内容、引用及来源版本管理。
+- `src-tauri/src/services/project/sources/`：授权来源发现、带版本读取、Core 共享成果及规格文档装载。
 - `src-tauri/src/services/project_sync.rs`：窗口 Core 根订阅与独立变化交付。
 - `src-tauri/src/services/project_sync/source_changes.rs`：根订阅角色与寿命、来源状态、合并批次、后台排队及 Core 分发。
-- `src/domain/schema/config-schema-registry.ts`：字段与列资产加载、来源声明、值及结构纯规则。
-- `src/domain/schema/schema-core-fields.ts`：字段与列资产加载、来源声明、值及结构纯规则。
+- `src/domain/schema/`：字段与列资产加载、游戏数字解释、来源声明、校验及目标格式准备。
 - `src/orchestrators/project-sync.orchestrator.ts`：窗口内保存消费过程和内容维护者交接。
 - `src/orchestrators/window-event-errors.orchestrator.ts`：窗口事件失败的统一反馈交接。
 - `src/shared/types/core-assets.types.ts`：Core 扫描、失效请求与发现字段协议。
@@ -63,7 +60,7 @@ Core 索引与加载模块按游戏根管理字段和图形目录的独立读取
 
 - fields 与 graphics 必须独立就绪、加载和失败；一类失败严禁阻断另一类。
 - 内存 Core 清理必须共同清理所属指纹缓存，持久化快照按根与源指纹校验。
-- 加载运行态必须消费窗口交付的响应式根，首次读取由消费者触发；上下文重解算为同一规范根时必须复用产品状态及在途任务，实际根变化时必须切换代次并独立读取字段和图形。
+- 加载运行态消费窗口交付的响应式根，首次读取由消费者触发；上下文重解算为同一规范根时复用产品状态及在途任务，实际根变化时切换代次并独立读取字段和图形。
 - 有效根读取失败必须清空当前投影、记录原始诊断并向所属等待交付空根；返回空根必须清空当前投影，上下文替换或窗口释放必须结束旧等待。
 - 多窗口对同一游戏根的同类请求必须复用后端 Core 产品结果。
 - 无项目会话的原版刷新必须消费所属根缓存清理和字段、图形加载能力，缓存清理等待后的加载复核窗口、根与产品代次。

@@ -1,4 +1,4 @@
-import type { TextFileData } from '@/shared/types';
+import type { TextFileData, RowData } from '@/shared/types';
 import type * as TextEditorServiceModule from '@/services/text-editor.service';
 import { projectChangeFixture, committedChangeFixture, dispatchProjectChangeFixture } from '@/test/unit/project-changes';
 import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils';
@@ -340,7 +340,7 @@ describe('useTextEditorViewModel editing', () => {
 
   it('retains subsequent text and both history actions after accepting the written baseline', async () => {
     const vm = await loadedViewModel();
-    let release!: (result: ReturnType<typeof savedWriteFixture>) => void;
+    let release!: (result: ReturnType<typeof savedWriteFixture<RowData>>) => void;
     mocks.saveTextFile.mockImplementationOnce(
       () =>
         new Promise((resolve) => {

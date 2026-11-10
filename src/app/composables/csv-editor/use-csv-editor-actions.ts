@@ -5,7 +5,6 @@ import type { AppFeedback, CsvTableTarget } from '@/shared/types';
 import { openEntityImmersiveEditor } from '@/orchestrators/immersive-editor.orchestrator';
 import { openSpecEditorWindow } from '@/windows/spec-editor.window';
 import { openWeaponFirePreviewWindow } from '@/windows/weapon-fire-preview.window';
-import { useProjectStore } from '@/stores/project.store';
 
 import { useCsvEditorStore } from '@/stores/csv-editor.store';
 import type { TableDetailAction } from '@/domain/csv-editor/table-detail-actions';
@@ -21,7 +20,6 @@ import type { CsvEditorModel } from './use-csv-editor-model';
 import type { CsvEditorHost } from './csv-editor-context';
 
 export function useCsvEditorActions(model: CsvEditorModel, host: CsvEditorHost, feedback: AppFeedback) {
-  const project = useProjectStore();
   const tables = useCsvEditorStore();
   const view = model.view;
   const key = computed(() => JSON.stringify(model.target.value));
@@ -144,20 +142,10 @@ export function useCsvEditorActions(model: CsvEditorModel, host: CsvEditorHost, 
     if (action.type === 'wing-navigation') {
       void navigateToWingReference(action);
     } else if (action.type === 'immersive-editor') {
-      const csvTarget = project.tableWriteTargets.find(
-        (target) =>
-          target.sessionId === action.sessionId &&
-          target.modRoot === action.modRoot &&
-          target.table === (action.kind === 'ship' ? 'ships' : action.kind === 'weapon' ? 'weapons' : 'wings'),
-      )!;
-      void openEntityImmersiveEditor(
-        {
-          root: { sessionId: action.sessionId, modRoot: action.modRoot, kind: action.kind, id: action.id },
-          rowKey: action.rowKey,
-          csvTarget,
-        },
-        feedback,
-      ).catch((error) => feedback.error(error, '打开沉浸式编辑器失败'));
+      void openEntityImmersiveEditor({
+        root: { sessionId: action.sessionId, modRoot: action.modRoot, kind: action.kind, id: action.id },
+        rowKey: action.rowKey,
+      }).catch((error) => feedback.error(error, '打开沉浸式编辑器失败'));
     } else if (action.type === 'weapon-fire-preview') {
       void openWeaponFirePreviewWindow({
         sessionId: action.sessionId,

@@ -1,4 +1,6 @@
 use crate::models::EntityEditTarget;
+use crate::models::file_content::ReadFailure;
+use crate::models::file_value::Error as GameError;
 use base64::DecodeError;
 use csv::Error as CsvError;
 use pyxis_java_analysis::Error as JavaAnalysisError;
@@ -55,18 +57,33 @@ fn problem_messages(issues: &[FieldProblem]) -> String {
         .join("\n")
 }
 
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct JsonRewriteFile {
-    pub path: String,
-    pub reason: String,
-    pub source_fingerprint: String,
-}
-
 pub type AppResult<T> = Result<T, AppError>;
+
+impl From<GameError> for AppError {
+    fn from(error: GameError) -> Self {
+        Self::message(
+            error.code,
+            format!(
+                "{} at line {} column {}",
+                error.message, error.line, error.column
+            ),
+        )
+        .at_position(error.line, Some(error.column))
+    }
+}
+impl From<ReadFailure> for AppError {
+    fn from(failure: ReadFailure) -> Self {
+        Self::FormatSource {
+            text: failure.text,
+            source: Box::new(failure.error.into()),
+        }
+    }
+}
 
 #[derive(Debug, thiserror::Error)]
 pub enum AppError {
+    #[error("{source}")]
+    FormatSource { text: String, source: Box<AppError> },
     #[error("{}", problem_messages(.issues))]
     Validation {
         code: &'static str,
@@ -96,8 +113,6 @@ pub enum AppError {
     Tauri(#[from] TauriError),
     #[error("{0}")]
     JavaAnalysis(#[from] JavaAnalysisError),
-    #[error("JSON 格式保留需要确认")]
-    JsonRewriteRequired { files: Vec<JsonRewriteFile> },
     #[error("实体目标已存在")]
     EntityTargetExists { target: Box<EntityEditTarget> },
     #[error("保存来源缺失，需要确认重建")]
@@ -125,7 +140,7 @@ impl AppError {
         match self {
             Self::Validation { code, .. } => code,
             Self::Message { code, .. } => code,
-            Self::Context { source, .. } => source.code(),
+            Self::Context { source, .. } | Self::FormatSource { source, .. } => source.code(),
             Self::Located { source, .. } => source.code(),
             Self::Io(_) => "io.unexpected",
             Self::Csv(_) => "parse.csv",
@@ -133,7 +148,6 @@ impl AppError {
             Self::Base64(_) => "data.base64",
             Self::Tauri(_) => "window.native",
             Self::JavaAnalysis(_) => "java_analysis.operation_failed",
-            Self::JsonRewriteRequired { .. } => "json.rewrite_confirmation_required",
             Self::EntityTargetExists { .. } => "spec.target_exists",
             Self::SaveSourcesMissing { .. } => "write.sources_missing",
         }
@@ -145,7 +159,7 @@ impl AppError {
                 issues.first().and_then(|issue| issue.location.as_deref())
             }
             Self::Located { location, .. } => Some(location),
-            Self::Context { source, .. } => source.location(),
+            Self::Context { source, .. } | Self::FormatSource { source, .. } => source.location(),
             _ => None,
         }
     }
@@ -207,14 +221,6 @@ impl AppError {
         }
     }
 
-    fn rewrite_files(&self) -> Option<&[JsonRewriteFile]> {
-        match self {
-            Self::JsonRewriteRequired { files } => Some(files),
-            Self::Context { source, .. } | Self::Located { source, .. } => source.rewrite_files(),
-            _ => None,
-        }
-    }
-
     fn validation_issues(&self) -> Option<&[FieldProblem]> {
         match self {
             Self::Validation { issues, .. } => Some(issues),
@@ -259,6 +265,13 @@ impl AppError {
             _ => None,
         }
     }
+    fn source_text(&self) -> Option<&str> {
+        match self {
+            Self::FormatSource { text, .. } => Some(text),
+            Self::Context { source, .. } | Self::Located { source, .. } => source.source_text(),
+            _ => None,
+        }
+    }
 }
 
 impl Serialize for AppError {
@@ -270,11 +283,11 @@ impl Serialize for AppError {
         state.serialize_field("code", self.code())?;
         state.serialize_field("message", &self.to_string())?;
         state.serialize_field("location", &self.location())?;
+        if let Some(text) = self.source_text() {
+            state.serialize_field("text", text)?;
+        }
         if self.validation_issues().is_some() {
             state.serialize_field("issues", &self.field_problems())?;
-        }
-        if let Some(files) = self.rewrite_files() {
-            state.serialize_field("files", files)?;
         }
         if let Some(target) = self.conflicting_target() {
             state.serialize_field("target", target)?;
@@ -375,7 +388,7 @@ mod tests {
     }
 
     #[test]
-    fn wrappers_preserve_diagnostic_location_and_rewrite_payload() {
+    fn wrappers_preserve_diagnostic_location_and_complete_source() {
         let error = AppError::context(
             "save",
             AppError::message("parse.json_syntax", "raw").at_position(3, Some(8)),
@@ -394,19 +407,16 @@ mod tests {
                 column: Some(8)
             }))
         );
-        let rewrite = AppError::context(
+        let failure = AppError::context(
             "save",
-            AppError::JsonRewriteRequired {
-                files: vec![JsonRewriteFile {
-                    path: "demo.json".into(),
-                    reason: "shape".into(),
-                    source_fingerprint: "v1".into(),
-                }],
+            AppError::FormatSource {
+                text: "{broken".into(),
+                source: Box::new(AppError::message("json.syntax", "incomplete object")),
             },
         )
         .at_path("demo.json");
-        let wire = serde_json::to_value(rewrite).unwrap();
-        assert_eq!(wire["files"][0]["sourceFingerprint"], "v1");
+        let wire = serde_json::to_value(failure).unwrap();
+        assert_eq!(wire["text"], "{broken");
         assert_eq!(wire["location"]["path"], "demo.json");
     }
 }

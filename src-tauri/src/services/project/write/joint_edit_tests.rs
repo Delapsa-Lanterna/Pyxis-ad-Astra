@@ -2,15 +2,22 @@
 use crate::services::file_history::query_file_history;
 #[cfg(test)]
 use crate::services::project_sync::release_project_session;
+use crate::test_support::file_formats;
+use crate::test_support::file_formats::read_csv_table as read_csv_data;
 
 use super::*;
 #[cfg(test)]
 use crate::domain::entity_construction;
 use crate::errors::AppResult;
-use crate::io::{read_csv_data, write_utf8_no_bom};
+use crate::io::write_utf8_no_bom;
+use crate::models::{
+    FileChangeReplayDirection, JointEditDraft, JointEditRoot, JointSourceCreate,
+    JointVariantCatalogKind, ResourceOwnerKind, WeaponSpecClass,
+};
 #[cfg(test)]
 use crate::models::{JsonFileSave, SaveAction};
 use crate::services::project::PerformanceTrace;
+use crate::services::project::query::joint_edit::query_joint_edit;
 #[cfg(test)]
 use crate::services::project::query::joint_edit::take_joint_graph_builds;
 #[cfg(test)]
@@ -89,7 +96,9 @@ fn fixture() -> (TestWorkspace, JointEditRoot) {
     (dir, root)
 }
 fn payload(snapshot: JointEditSnapshot) -> JointEditSubmission {
-    JointEditSubmission {
+    file_formats::joint_submission(JointEditSubmission {
+        documents: Default::default(),
+        csv_columns: Default::default(),
         values: snapshot
             .records
             .iter()
@@ -99,11 +108,12 @@ fn payload(snapshot: JointEditSnapshot) -> JointEditSubmission {
         snapshot,
         json_write: Default::default(),
         create_overrides: Vec::new(),
-    }
+    })
 }
 fn submit(payload: &JointEditSubmission) -> AppResult<WriteResult<JointEditSnapshot>> {
-    let transaction = write_transactions::begin(payload, &payload.base_versions)?;
-    transaction.commit(save_joint_edit(payload)?, "联合测试")
+    let payload = file_formats::joint_submission(payload.clone());
+    let transaction = write_transactions::begin(&payload, &payload.base_versions)?;
+    transaction.commit(save_joint_edit(&payload)?, "联合测试")
 }
 fn cleanup(dir: TestWorkspace, root: &JointEditRoot) {
     release_project_session(root.session_id.clone()).unwrap();
@@ -149,7 +159,7 @@ fn queued_joint_save_graph_builds() {
             "size",
             json!("MEDIUM"),
         ),
-        (JointEditKind::Wing, "wing", "csv", "num", json!(5)),
+        (JointEditKind::Wing, "wing", "csv", "num", json!("5")),
         (
             JointEditKind::Variant,
             "var",
@@ -157,7 +167,7 @@ fn queued_joint_save_graph_builds() {
             "fluxVents",
             json!(7),
         ),
-        (JointEditKind::Skin, "child", "spec", "maxSpeed", json!(180)),
+        (JointEditKind::Skin, "child", "spec", "fpMod", json!(180)),
     ] {
         let (dir, mut root) = if kind == JointEditKind::Skin {
             skin_tests::skin_fixture()
@@ -172,10 +182,10 @@ fn queued_joint_save_graph_builds() {
         take_joint_graph_builds();
         services::prepare_joint_save(
             &mut input,
-            &[SaveEdit::Set {
-                path: vec![key.clone(), "value".into(), field.into()],
-                value: value.clone(),
-            }],
+            &[file_formats::replace_edit(
+                vec![key.clone(), "value".into(), field.into()],
+                &(value.clone()),
+            )],
             &[],
         )
         .unwrap();
@@ -372,7 +382,7 @@ fn mod_only_joint_save_survives_missing_game_and_core_directories() {
         let saved = submit(&input).unwrap();
         assert_eq!(saved.history.undo_stack.len(), 1);
         assert_eq!(
-            io::read_json_file(&dir.join("data/hulls/a.ship")).unwrap()["hullName"],
+            file_formats::read_json_value(&dir.join("data/hulls/a.ship")).unwrap()["hullName"],
             "Captured"
         );
         cleanup(dir, &root);
@@ -429,14 +439,14 @@ fn confirmed_joint_save_recreates_spec_and_full_csv_from_loaded_content() {
             services::prepare_joint_save(
                 &mut input,
                 &[
-                    SaveEdit::Set {
-                        path: vec![spec_key.clone(), "value".into(), "hullName".into()],
-                        value: json!("Captured"),
-                    },
-                    SaveEdit::Set {
-                        path: vec![csv_key.clone(), "value".into(), "custom".into()],
-                        value: json!("009"),
-                    },
+                    file_formats::replace_edit(
+                        vec![spec_key.clone(), "value".into(), "hullName".into()],
+                        &(json!("Captured")),
+                    ),
+                    file_formats::replace_edit(
+                        vec![csv_key.clone(), "value".into(), "custom".into()],
+                        &(json!("009")),
+                    ),
                 ],
                 &[],
             )?;
@@ -446,7 +456,7 @@ fn confirmed_joint_save_recreates_spec_and_full_csv_from_loaded_content() {
     .unwrap();
     assert_eq!(saved.history.undo_stack.len(), 1);
     assert_eq!(
-        io::read_json_file(&dir.join("data/hulls/a.ship")).unwrap()["hullName"],
+        file_formats::read_json_value(&dir.join("data/hulls/a.ship")).unwrap()["hullName"],
         "Captured"
     );
     let table = read_csv_data(&dir.join("data/hulls/ship_data.csv")).unwrap();
@@ -503,7 +513,7 @@ fn variant_modules_atomic_history() {
     }
     let result = submit(&write).unwrap();
     assert_eq!(result.changes.len(), 2);
-    let main = io::read_json_file(&dir.join("data/variants/var.variant")).unwrap();
+    let main = file_formats::read_json_value(&dir.join("data/variants/var.variant")).unwrap();
     assert_eq!(main["modules"], json!([{"M2":"module"},{"M1":"module"}]));
     assert_eq!(main["unknown"], "007");
     let restored = write_transactions::replay(
@@ -516,7 +526,7 @@ fn variant_modules_atomic_history() {
     .unwrap();
     assert_eq!(restored.changes.len(), 2);
     assert_eq!(
-        io::read_json_file(&dir.join("data/variants/module.variant")).unwrap()["fluxVents"],
+        file_formats::read_json_value(&dir.join("data/variants/module.variant")).unwrap()["fluxVents"],
         1
     );
     cleanup(dir, &root);
@@ -551,20 +561,21 @@ fn variant_rename_all_mod_parents() {
         previous_id: Some("var".into()),
         next_id: "new".into(),
         rel_path: Some("data/variants/var.variant".into()),
-        data: json!({"variantId":"new","hullId":"a","fluxVents":3}),
+        document: file_formats::json_write(
+            &(json!({"variantId":"new","hullId":"a","fluxVents":3})),
+        ),
         json_write: Default::default(),
-        ordered_json: None,
         base_versions: versions,
     }))
     .unwrap();
     assert_eq!(result.changes.len(), 3);
     assert_eq!(result.history.undo_stack.len(), 1);
     assert_eq!(
-        io::read_json_file(&dir.join("data/variants/parent_a.variant")).unwrap()["modules"],
+        file_formats::read_json_value(&dir.join("data/variants/parent_a.variant")).unwrap()["modules"],
         json!({"A":"new"})
     );
     assert_eq!(
-        io::read_json_file(&dir.join("data/variants/parent_b.variant")).unwrap()["modules"],
+        file_formats::read_json_value(&dir.join("data/variants/parent_b.variant")).unwrap()["modules"],
         json!([{"B":"new"},{"C":"new"}])
     );
     let undo = write_transactions::replay(
@@ -577,7 +588,7 @@ fn variant_rename_all_mod_parents() {
     .unwrap();
     assert_eq!(undo.changes.len(), 3);
     assert_eq!(
-        io::read_json_file(&dir.join("data/variants/parent_a.variant")).unwrap()["modules"],
+        file_formats::read_json_value(&dir.join("data/variants/parent_a.variant")).unwrap()["modules"],
         json!({"A":"var"})
     );
     cleanup(dir, &root);
@@ -609,7 +620,7 @@ fn joint_variant_rename_parents() {
         .push(io::file_version(&dir.join("data/variants/new.variant")).unwrap());
     let result = submit(&write).unwrap();
     assert_eq!(result.changes.len(), 2);
-    let data = io::read_json_file(&dir.join("data/variants/parent.variant")).unwrap();
+    let data = file_formats::read_json_value(&dir.join("data/variants/parent.variant")).unwrap();
     assert_eq!(data["modules"], json!([{"M":"new"}]));
     assert_eq!(data["displayName"], "keep");
     cleanup(dir, &root);
@@ -1102,7 +1113,7 @@ fn wing_skin_sources_and_slots() {
     let saved = submit(&payload).unwrap();
     assert_eq!(saved.changes.len(), 1);
     assert_eq!(
-        io::read_json_file(&dir.join("data/hulls/skins/skin.skin")).unwrap()["maxSpeed"],
+        file_formats::read_json_value(&dir.join("data/hulls/skins/skin.skin")).unwrap()["maxSpeed"],
         json!(210)
     );
     assert_eq!(
@@ -1145,7 +1156,7 @@ fn wing_joint_save_and_replay() {
         matches!(&csv.value,JointValue::Present(data) if data["hitpoints"]=="900" && data["custom"]=="007")
     );
     assert_eq!(
-        io::read_json_file(&dir.join("data/variants/var.variant")).unwrap()["custom"],
+        file_formats::read_json_value(&dir.join("data/variants/var.variant")).unwrap()["custom"],
         json!("keep")
     );
     let undo = write_transactions::replay(
@@ -1165,7 +1176,7 @@ fn wing_joint_save_and_replay() {
         json!("750")
     );
     assert_eq!(
-        io::read_json_file(&dir.join("data/variants/var.variant")).unwrap()["displayName"],
+        file_formats::read_json_value(&dir.join("data/variants/var.variant")).unwrap()["displayName"],
         json!("Support Fighter")
     );
     cleanup(dir, &root);
@@ -1227,13 +1238,15 @@ fn wing_creates_skin_and_versions() {
             .iter()
             .any(|version| version.path.ends_with("a.ship"))
     );
-    let payload = JointEditSubmission {
+    let payload = file_formats::joint_submission(JointEditSubmission {
+        documents: Default::default(),
+        csv_columns: Default::default(),
         base_versions: prepared.snapshot.base_versions.clone(),
         snapshot: prepared.snapshot,
         values: prepared.values,
         json_write: Default::default(),
         create_overrides: Vec::new(),
-    };
+    });
     let saved = submit(&payload).unwrap();
     assert_eq!(saved.changes.len(), 1);
     let next = query_joint_edit(&root).unwrap();
@@ -1607,10 +1620,10 @@ fn late_change_rejects_confirmed_write() {
     }
     services::prepare_joint_save(
         &mut input,
-        &[SaveEdit::Set {
-            path: vec![key, "value".into(), "hullName".into()],
-            value: json!("Draft"),
-        }],
+        &[file_formats::replace_edit(
+            vec![key, "value".into(), "hullName".into()],
+            &(json!("Draft")),
+        )],
         &[],
     )
     .unwrap();
@@ -1621,7 +1634,7 @@ fn late_change_rejects_confirmed_write() {
     .unwrap();
     assert_eq!(submit(&input).unwrap_err().code(), "write.version_conflict");
     assert_eq!(
-        io::read_json_file(&dir.join("data/hulls/a.ship")).unwrap()["hullName"],
+        file_formats::read_json_value(&dir.join("data/hulls/a.ship")).unwrap()["hullName"],
         "Ship"
     );
     assert!(
@@ -1641,14 +1654,14 @@ fn queued_joint_changes_follow_consecutive_renames_and_preserve_current_fields()
     let csv = snapshot.bindings["csv"].clone();
     let mut queued = payload(snapshot.clone());
     let edits = vec![
-        SaveEdit::Set {
-            path: vec![spec.clone(), "value".into(), "hullName".into()],
-            value: json!("Queued"),
-        },
-        SaveEdit::Set {
-            path: vec![csv.clone(), "value".into(), "name".into()],
-            value: json!("Queued"),
-        },
+        file_formats::replace_edit(
+            vec![spec.clone(), "value".into(), "hullName".into()],
+            &(json!("Queued")),
+        ),
+        file_formats::replace_edit(
+            vec![csv.clone(), "value".into(), "name".into()],
+            &(json!("Queued")),
+        ),
     ];
     let mut identities = Vec::new();
     let mut latest = snapshot;
@@ -1677,7 +1690,7 @@ fn queued_joint_changes_follow_consecutive_renames_and_preserve_current_fields()
     services::prepare_joint_save(&mut queued, &edits, &identities).unwrap();
     assert_eq!(queued.snapshot.root.id, "final");
     let result = submit(&queued).unwrap();
-    let saved = io::read_json_file(&dir.join("data/hulls/final.ship")).unwrap();
+    let saved = file_formats::read_json_value(&dir.join("data/hulls/final.ship")).unwrap();
     assert_eq!(saved["hullId"], "final");
     assert_eq!(saved["hullName"], "Queued");
     assert_eq!(saved["custom"]["a"], 7);
@@ -1802,7 +1815,7 @@ fn core_override_keeps_original() {
     assert_eq!(copied.changes.len(), 3);
     assert_eq!(copied.key_map.len(), 2);
     assert_eq!(
-        io::read_json_file(&dir.join("data/hulls/base.ship")).unwrap()["hullName"],
+        file_formats::read_json_value(&dir.join("data/hulls/base.ship")).unwrap()["hullName"],
         "Core"
     );
     input = payload(copied.content.unwrap().value);
@@ -1831,7 +1844,7 @@ fn core_override_keeps_original() {
     assert_eq!(result.changes.len(), 3);
     assert_eq!(result.key_map.len(), 0);
     assert_eq!(
-        io::read_json_file(&core.join("data/hulls/base.ship")).unwrap()["hullName"],
+        file_formats::read_json_value(&core.join("data/hulls/base.ship")).unwrap()["hullName"],
         "Core"
     );
     assert_eq!(
@@ -1977,11 +1990,12 @@ fn core_system_uses_actual_source() {
     let saved = submit(&input).unwrap();
     assert_eq!(saved.changes.len(), 1);
     assert_eq!(
-        io::read_json_file(&dir.join("data/shipsystems/drive.system")).unwrap()["name"],
+        file_formats::read_json_value(&dir.join("data/shipsystems/drive.system")).unwrap()["name"],
         "Mod drive"
     );
     assert_eq!(
-        io::read_json_file(&core.join("data/shipsystems/nested/actual.system")).unwrap()["name"],
+        file_formats::read_json_value(&core.join("data/shipsystems/nested/actual.system")).unwrap()
+            ["name"],
         "Core drive"
     );
     cleanup(dir, &root);
@@ -2024,7 +2038,7 @@ fn missing_columns_keep_comments() {
         BTreeMap::from([(CsvTableKey::Ships, 1)])
     );
     let csv = read_csv_data(&dir.join("data/hulls/ship_data.csv")).unwrap();
-    assert_eq!(csv.header, ["name", "id", "hitpoints", "custom", "custom2"]);
+    assert_eq!(csv.header, ["id", "name", "custom", "custom2", "hitpoints"]);
     assert!(csv.rows[0].is_comment);
     assert_eq!(csv.rows[0].data["custom2"], "007");
     assert_eq!(csv.rows[1].data["hitpoints"], "999");
@@ -2152,7 +2166,7 @@ fn missing_ship_uses_construction() {
         JointValue::Present(json!({"hullId":"a","hullSize":"DESTROYER"})),
     )]);
     let result = submit(&input).unwrap();
-    let data = io::read_json_file(&dir.join("data/hulls/a.ship")).unwrap();
+    let data = file_formats::read_json_value(&dir.join("data/hulls/a.ship")).unwrap();
     assert_eq!(data["hullSize"], "DESTROYER");
     assert!(data["weaponSlots"].is_array());
     assert_eq!(result.changes.len(), 1);
@@ -2180,7 +2194,7 @@ fn missing_weapon_uses_construction() {
         JointValue::Present(json!({"id":"weapon","specClass":"beam","custom":"kept"})),
     )]);
     let result = submit(&input).unwrap();
-    let data = io::read_json_file(&dir.join("data/weapons/weapon.wpn")).unwrap();
+    let data = file_formats::read_json_value(&dir.join("data/weapons/weapon.wpn")).unwrap();
     assert_eq!(data["textureType"], "SMOOTH");
     assert_eq!(data["custom"], "kept");
     assert!(data["turretOffsets"].is_array());
@@ -2252,7 +2266,7 @@ fn core_pulse_requires_legal_override() {
         input.values.insert(key, JointValue::Present(data));
         let receipt = submit(&input).unwrap();
         assert_eq!(receipt.changes.len(), 3);
-        let saved = io::read_json_file(&dir.join("data/weapons/pulse.wpn")).unwrap();
+        let saved = file_formats::read_json_value(&dir.join("data/weapons/pulse.wpn")).unwrap();
         assert_eq!(saved["specClass"], template["specClass"]);
         assert_eq!(saved["custom"]["keep"], 1);
         assert_eq!(
@@ -2344,7 +2358,7 @@ fn core_header_and_sensor_sources() {
     }
     submit(&input).unwrap();
     let csv = read_csv_data(&dir.join("data/hulls/ship_data.csv")).unwrap();
-    assert_eq!(csv.header, ["id", "hitpoints", "name", "tags", "custom"]);
+    assert_eq!(csv.header, ["name", "id", "hitpoints", "tags", "custom"]);
     assert_eq!(csv.rows[1].data["custom"], "007");
     cleanup(dir, &root);
     game.close().unwrap();

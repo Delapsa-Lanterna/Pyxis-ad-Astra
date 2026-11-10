@@ -21,21 +21,14 @@
 - `src-tauri/src/services/project/resources/entity_references.rs`：舰船、武器、弹体、系统及配置实体的授权资源字段映射。
 - `src/app/components/spec-editor/SpecFieldList.vue`：同构字段、默认值展示和辅助动作事件。
 - `src/app/components/spec-editor/SpecProblems.vue`：固定顶部红黄框及全部问题计数。
-- `src/app/composables/canvas/use-canvas-navigation.ts`：骨架和装配消费的右键平移、滚轮缩放与指针位置。
-- `src/app/composables/canvas/use-canvas-palette.ts`：主题派生与重绘通知的装配。
-- `src/app/composables/canvas/use-canvas-surface.ts`：画布表面、导航、视口、选择与指针阶段及其测试。
-- `src/app/composables/canvas/use-canvas-viewport.ts`：视口缩放与平移。
+- `src/app/composables/canvas/`：画布表面、视口、导航、选择、指针与展示运行态。
 - `src/app/composables/editors/use-editor-document.ts`：工作值、动作起点、提交快照、字段与手势边界及历史交接。
 - `src/app/composables/editors/use-engine-rendering.ts`：统一装配引擎样式查询、媒体、解码、着色成品与引用释放。
 - `src/app/composables/editors/use-projectile-rendering.ts`：统一持有开火图片租约、解码与着色成品。
 - `src/app/composables/spec-editor/use-spec-problem-navigation.ts`：规格问题定位、所属分组展开与有效请求滚动交接。
 - `src/app/composables/spec-editor/use-spec-problems.ts`：会话问题聚合、原文优先级、失败保留及共享展示。
 - `src/app/composables/use-window-shortcuts.ts`：统一窗口按键监听、菜单优先、关闭屏蔽及卸载释放。
-- `src/app/renderers/editors/canvas-scene.ts`：共享背景、镜像轴、边界与光标场景的绘制入口。
-- `src/app/renderers/editors/canvas-styles.ts`：场景消费的标记样式投影入口。
-- `src/app/renderers/editors/canvas-visuals.ts`：消费显式样式的实体绘制原语。
-- `src/app/renderers/editors/engine-renderer.ts`：作为 Spec 与沉浸式引擎静态成品的唯一样式、尺寸与绘制入口。
-- `src/app/renderers/editors/projectile-renderer.ts`：统一绘制 Spec 与开火预览的弹体、导弹、光束及等离子本体。
+- `src/app/renderers/editors/`：共享背景、几何标记、武器、弹体及引擎绘制。
 - `src/domain/editors/editor-types.ts`：编辑坐标、模式与悬停预览的纯数据类型。
 - `src/domain/editors/projectile-appearance.ts`：投影共享弹体外观、原点、纹理参数及引擎几何。
 - `src/domain/entity-write/spec-construction.ts`：前端规格、装配和皮肤构造及分支补全。
@@ -95,9 +88,9 @@
 
 - missile 的 engineSpec 必须完整表达 turnAcc、turnRate、acc 与 dec。
 - 保存必须消费当前实际目标；同 ID 保存保留实际路径，Core 来源在当前 Mod 的默认路径创建覆盖。
-- 导弹引擎必须将 loc 与角度转换后消费共享普通满推力静态成品及正式样式资源，尾焰在弹体上层，控制点在编辑覆盖层。
+- 导弹引擎将 loc 与角度转换后消费共享普通满推力静态成品及正式样式资源，尾焰在弹体上层，控制点在编辑覆盖层。
 - 引擎新增必须提供唯一 ID、loc、角度、宽高及完整 CUSTOM styleSpec；引擎槽位只允许在 missile 分支编辑。
 - 弹体和导弹创建必须消费共享模板的独立克隆；分支转换保留业务字段并补齐缺失必读字段。
 - 弹体引用必须由正式字段按 ID 交接，行为中的分裂弹体、分裂后弹体及四项音效按游戏实际分派条件显示并保留隐藏数据，类型切换先提交所属活动输入。
 - 检查器必须区分必填缺失与有效默认值，图片尺寸同步消费当前已接纳资源；组内动作进入文档历史，固定对象默认关闭扩展，behaviorSpec 通过 FieldSchema 显式开放。
-- 视口必须归窗口运行态；适应视图消费视口状态，实际平移或缩放清除适应状态，单纯右键按下保留状态；缩放、平移与重置只允许修改展示状态，规格修改经字段动作交接。
+- 视口归窗口运行态；适应视图消费视口状态，实际平移或缩放清除适应状态，单纯右键按下保留状态；缩放、平移与重置只允许修改展示状态，规格修改经字段动作交接。

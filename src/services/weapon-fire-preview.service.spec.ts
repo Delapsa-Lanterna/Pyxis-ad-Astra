@@ -28,6 +28,8 @@ function entity(data: RowData, refs: Record<string, ResourceRef> = {}): EntityDa
     kind: 'ship',
     id: String(data.id ?? ''),
     data,
+    document: null,
+    composition: null,
     resourceRefs: refs,
   };
 }

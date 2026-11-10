@@ -1,3 +1,4 @@
+import type { JsonFileContent, JsonFileWrite } from './file-content.types';
 import type {
   EntityEditTarget,
   EntityFileLocation,
@@ -77,6 +78,7 @@ export type JointRecordTarget =
   | { kind: 'text'; write: EntityFileLocation };
 export type JointValue = { state: 'missing' } | { state: 'present'; value: JsonValue };
 export interface JointEditRecord {
+  document: JsonFileContent | null;
   composition?: JsonComposition;
   key: string;
   target: JointRecordTarget;
@@ -140,6 +142,8 @@ export interface JointConflictChoice {
   choice: 'disk' | 'draft';
 }
 export interface SaveJointEditPayload {
+  csvColumns: Record<string, string[]>;
+  documents: Record<string, JsonFileWrite>;
   snapshot: JointEditSnapshot;
   values: Record<string, JointValue>;
   baseVersions: FileVersion[];

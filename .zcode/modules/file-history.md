@@ -21,10 +21,13 @@
 - `src-tauri/src/models/file_history.rs`：历史查询、清空与回放请求、条目摘要及双栈快照。
 - `src-tauri/src/services/project/mod.rs`：历史读取与清空消费的 session 及根归属核对。
 - `src-tauri/src/services/project/session.rs`：会话打开、关闭、内容更新与内部登记及就绪访问能力交付。
-- `src/orchestrators/project-sync.orchestrator.ts`：回放消费的提交同步入口，交付历史摘要与会话正式内容。
 - `src/shared/types/file-history.types.ts`：历史查询、清空与回放请求、条目摘要及双栈快照契约。
 - `src/shared/types/write-commit.types.ts`：公共保存回执、提交同步、行键映射与正式内容交付。
 - `src/stores/project.store.ts`：指定 Mod 的正式清单与 session 查询，异步动作消费捕获目标。
+
+### 装配
+
+- `src/orchestrators/project-sync.orchestrator.ts`：回放消费的提交同步入口，交付历史摘要与会话正式内容。
 
 ### 关联
 
@@ -79,13 +82,13 @@
 
 ## 规范
 
-- commit 与 replay 必须共用正式结果登记；磁盘与历史已完成时，正式内容更新失败由当前项目保存任务继续处理。
+- commit 与 replay 共用正式结果登记；磁盘与历史已完成时，正式内容更新失败由当前项目保存任务继续处理。
 - dirty 文本编辑器只允许暂存回放文本并提示，严禁覆盖当前输入。
-- 历史列表必须消费 `FileHistoryEntrySummary`；摘要只包含条目 ID、标签、时间与路径，完整变更归后端历史记录。
+- 历史列表消费 `FileHistoryEntrySummary`；摘要只包含条目 ID、标签、时间与路径，完整变更归后端历史记录。
 - 历史双栈与 revision 必须只由记录状态修改；历史服务维护查询与清空授权，事务消费登记及回放交接接口。
 - 历史只允许记录后端实际写盘 changeset，回放前必须重新核对全部路径与父链。
 - 历史必须保存身份变化与双路径记录；回放按实际方向返回身份变化、目标版本及路径范围。
-- 双栈 limit 必须由后端应用设置的 `fileHistoryLimit` 输入；设置加载和保存立即裁剪最早的 undo，redo 保留，历史清空在所属根租约内核对 session 后执行。
+- 双栈 limit 由后端应用设置的 `fileHistoryLimit` 输入；设置加载和保存立即裁剪最早的 undo，redo 保留，历史清空在所属根租约内核对 session 后执行。
 - 回放必须复用首次保存的 before/after 快照，严禁重新计算。
 - 回放确认必须显式展示影响文件集合，严禁静默执行。
 - 失效与文本同步必须共同覆盖源与目标；同一物理文件的大小写改名保留实际方向与文件名。

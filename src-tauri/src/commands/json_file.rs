@@ -1,7 +1,7 @@
 #[cfg(test)]
 use crate::models::EntityKind;
 #[cfg(test)]
-use crate::services::json_file::json_file_save_context;
+use crate::services::json_file_save_context;
 
 #[cfg(test)]
 #[path = "json_file_validation_tests.rs"]
@@ -80,4 +80,12 @@ mod tests {
             root.close().unwrap();
         }
     }
+}
+use crate::errors::AppError;
+use crate::models::{JsonDocumentFile, JsonDocumentRead};
+use crate::services;
+
+#[command_macros::command(async)]
+pub fn read_json_document(payload: JsonDocumentRead) -> Result<Option<JsonDocumentFile>, AppError> {
+    services::read_json_document(&payload.session_id, &payload.rel_path)
 }

@@ -1,17 +1,12 @@
-use super::json_layers;
+use super::entities;
 use super::source_catalog::values;
-use crate::domain::json_composition;
 use crate::errors::{AppError, AppResult};
 use crate::io::{self, FsRootBoundary};
-use crate::models::{
-    CsvStationData, CsvTableKey, CsvValidationContext, CsvValidationEntity, EntityKind,
-    ResourceSource,
-};
-use crate::parsers;
+use crate::models::{CsvTableKey, CsvValidationContext, CsvValidationEntity, EntityKind};
 use crate::services::project::model;
 use crate::services::project::session::{lock_ready_session, session_handle};
 use crate::services::project::sources::core;
-use crate::services::project::sources::documents::LoadedSpecRecord;
+use crate::services::project::sources::project_csv;
 use serde_json::Value;
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
@@ -22,7 +17,6 @@ pub fn query_csv_validation(
     sources: Vec<String>,
     files: Vec<String>,
     classes: Vec<String>,
-    station_data: Vec<String>,
 ) -> AppResult<CsvValidationContext> {
     let handle = session_handle(session_id)?;
     let (mut roots, core_root) = {
@@ -60,28 +54,6 @@ pub fn query_csv_validation(
         .map(|entity| (entity.kind, entity.id))
         .collect();
     let mut seen = BTreeSet::new();
-    for raw in station_data {
-        let parsed = match parsers::parse_starsector_json(&raw) {
-            Ok(data) if data.is_object() => {
-                if let Some(variant) = data.get("variant").and_then(Value::as_str) {
-                    pending.push((EntityKind::Variant, variant.into()));
-                }
-                CsvStationData {
-                    value: Some(data),
-                    error: None,
-                }
-            }
-            Ok(_) => CsvStationData {
-                value: None,
-                error: Some("空间站数据应为 JSON 对象".into()),
-            },
-            Err(error) => CsvStationData {
-                value: None,
-                error: Some(error.to_string()),
-            },
-        };
-        result.station_data.insert(raw, parsed);
-    }
     while !pending.is_empty() {
         let mut batches = BTreeMap::<_, Vec<_>>::new();
         for (kind, id) in pending.drain(..) {
@@ -90,7 +62,7 @@ pub fn query_csv_validation(
             }
         }
         for (kind, ids) in batches {
-            let records = validation_entities(session_id, kind, &ids)?;
+            let records = entities::query_entity_specs(session_id, kind, &ids)?;
             for (id, entity) in ids.into_iter().zip(records) {
                 let key = format!(
                     "{}:{id}",
@@ -181,7 +153,10 @@ pub fn query_csv_validation(
                 "data/characters/skills/aptitude_data.csv",
                 "CSV aptitude source",
             )?;
-            for row in io::read_csv_data(&path)?
+            if !path.exists() {
+                continue;
+            }
+            for row in project_csv(&io::read_csv_data(&path)?, &path)
                 .rows
                 .into_iter()
                 .filter(|row| !row.is_comment)
@@ -266,84 +241,6 @@ pub fn query_csv_validation(
     }
     drop(lock_ready_session(&handle)?);
     Ok(result)
-}
-
-fn validation_entities(
-    session_id: &str,
-    kind: EntityKind,
-    ids: &[String],
-) -> AppResult<Vec<Option<Value>>> {
-    let handle = session_handle(session_id)?;
-    let session = lock_ready_session(&handle)?;
-    let paths = |records: &BTreeMap<String, LoadedSpecRecord>| {
-        records
-            .iter()
-            .map(|(id, record)| (id.clone(), record.location.rel_path.clone()))
-            .collect::<BTreeMap<_, _>>()
-    };
-    let core_paths = if let Some(root) = &session.manifest.starsector_root {
-        match kind {
-            EntityKind::Ship => paths(core::load_core_ship_files(root)?.as_ref()),
-            EntityKind::Weapon => paths(core::load_core_weapon_specs(root)?.as_ref()),
-            EntityKind::Projectile => paths(core::load_core_projectile_specs(root)?.as_ref()),
-            EntityKind::System => paths(core::load_core_system_files(root)?.as_ref()),
-            EntityKind::Skill => paths(core::load_core_skill_files(root)?.as_ref()),
-            EntityKind::Faction => paths(core::load_core_faction_files(root)?.as_ref()),
-            EntityKind::Variant => core::load_core_variant_files(root)?
-                .iter()
-                .map(|file| (file.variant_id.clone(), file.rel_path.clone()))
-                .collect(),
-            EntityKind::Skin => core::load_core_skin_files(root)?
-                .iter()
-                .map(|file| (file.skin_hull_id.clone(), file.rel_path.clone()))
-                .collect(),
-            EntityKind::Mission => BTreeMap::new(),
-        }
-    } else {
-        BTreeMap::new()
-    };
-    ids.iter()
-        .map(|id| {
-            let local = session
-                .spec_records(kind)
-                .and_then(|records| records.get(id))
-                .filter(|record| record.location.source == ResourceSource::Mod)
-                .map(|record| (record.location.rel_path.clone(), record.data.clone()))
-                .or_else(|| match kind {
-                    EntityKind::Variant => session
-                        .variant_files
-                        .iter()
-                        .find(|file| &file.variant_id == id)
-                        .map(|file| (file.rel_path.clone(), file.data.clone())),
-                    EntityKind::Skin => session
-                        .skin_files
-                        .iter()
-                        .find(|file| &file.skin_hull_id == id)
-                        .map(|file| (file.rel_path.clone(), file.data.clone())),
-                    _ => None,
-                });
-            // Only physical records establish existence; CSV registration supplies no spec content.
-            let owns_file = local.is_some();
-            let record = local
-                .or_else(|| {
-                    session
-                        .reference_spec(kind, id)
-                        .map(|record| (record.location.rel_path, Value::Object(Default::default())))
-                })
-                .or_else(|| {
-                    core_paths
-                        .get(id)
-                        .map(|relative| (relative.clone(), Value::Object(Default::default())))
-                });
-            record
-                .map(|(relative, local)| {
-                    let mut composition = json_layers::json_composition(&session, &relative)?;
-                    composition.replace &= owns_file;
-                    json_composition::compose_game_json(&composition, &local)
-                })
-                .transpose()
-        })
-        .collect()
 }
 
 fn archive_classes(bytes: &[u8]) -> AppResult<BTreeSet<Vec<u8>>> {
@@ -479,7 +376,6 @@ mod tests {
                 vec![],
                 vec![],
                 vec![],
-                vec![],
             )
             .unwrap();
             for definition in ENTITY_SPEC_DEFINITIONS {
@@ -586,11 +482,6 @@ mod tests {
                     "sample.Archived".into(),
                     "sample.Missing".into(),
                 ],
-                vec![
-                    "{variant:'absent',radius:100,fleetName:'Sample'}".into(),
-                    "[1]".into(),
-                    "{broken".into(),
-                ],
             )
         };
         for _ in 0..2 {
@@ -603,15 +494,6 @@ mod tests {
             assert!(result.classes["data.scripts.Sample"]);
             assert!(result.classes["sample.Archived"]);
             assert!(!result.classes["sample.Missing"]);
-            assert_eq!(
-                result.station_data["{variant:'absent',radius:100,fleetName:'Sample'}"]
-                    .value
-                    .as_ref()
-                    .unwrap()["radius"],
-                100
-            );
-            assert!(result.station_data["[1]"].error.is_some());
-            assert!(result.station_data["{broken"].error.is_some());
         }
         let spec_path = root.join("data/hulls/entry.ship");
         assert_eq!(work_counts::count("read", &spec_path), 1);
@@ -623,7 +505,6 @@ mod tests {
                 Vec::new(),
                 Vec::new(),
                 vec!["../outside.png".into()],
-                Vec::new(),
                 Vec::new()
             )
             .is_err()

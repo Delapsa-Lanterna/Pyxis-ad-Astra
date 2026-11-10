@@ -1,9 +1,15 @@
 use super::*;
 use crate::io::write_utf8_no_bom;
+use crate::models::{
+    EntityData, EntityTargetState, InvalidatedResourceScope, JointEditKind, JointEditRoot,
+    JointRecordTarget, JointValue, JointVariantCatalogKind, ProjectManifest, ResourceRef,
+    SourceOptionGroup,
+};
 use crate::services::project::query::entities;
 use crate::services::project::query::source_catalog::{images, values};
 #[cfg(test)]
 use crate::services::project::query::{hull_references, joint_edit, resources};
+use crate::services::project::refresh_project_sources;
 #[cfg(test)]
 use crate::services::project::test_support as project_test_support;
 use crate::services::project::{PerformanceTrace, session};
@@ -122,7 +128,7 @@ fn resource_source(resource: &ResourceRef) -> &str {
     &resource.reference.as_ref().unwrap().session_id
 }
 fn refresh(manifest: &ProjectManifest, relative: &str) {
-    session::refresh_project_sources(
+    refresh_project_sources(
         &manifest.session_id,
         vec![InvalidatedResourceScope {
             source: ResourceSource::Mod,

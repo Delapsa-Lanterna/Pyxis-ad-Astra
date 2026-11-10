@@ -58,8 +58,7 @@
                 "key": "volume",
                 "type": "float",
                 "label": "音量",
-                "description": "默认 1。",
-                "numberFormat": "starsector"
+                "description": "默认 1。"
               },
               {
                 "key": "randomStart",
@@ -109,15 +108,13 @@
             "key": "pitch",
             "type": "float",
             "label": "音高",
-            "description": "默认 1。",
-            "numberFormat": "starsector"
+            "description": "默认 1。"
           },
           {
             "key": "volume",
             "type": "float",
             "label": "音量",
-            "description": "默认 1。",
-            "numberFormat": "starsector"
+            "description": "默认 1。"
           }
         ],
         "default": {
@@ -147,15 +144,13 @@
                 "key": "pitch",
                 "type": "float",
                 "label": "音高",
-                "description": "默认 1。",
-                "numberFormat": "starsector"
+                "description": "默认 1。"
               },
               {
                 "key": "volume",
                 "type": "float",
                 "label": "音量",
-                "description": "默认 1。",
-                "numberFormat": "starsector"
+                "description": "默认 1。"
               }
             ],
             "default": {
@@ -192,15 +187,13 @@
                     "key": "pitch",
                     "type": "float",
                     "label": "音高",
-                    "description": "默认 1。",
-                    "numberFormat": "starsector"
+                    "description": "默认 1。"
                   },
                   {
                     "key": "volume",
                     "type": "float",
                     "label": "音量",
-                    "description": "默认 1。",
-                    "numberFormat": "starsector"
+                    "description": "默认 1。"
                   }
                 ],
                 "default": {
@@ -238,16 +231,14 @@
                 "type": "float",
                 "label": "音高倍数",
                 "required": true,
-                "description": "在原音频音高上乘以该值。",
-                "numberFormat": "starsector"
+                "description": "在原音频音高上乘以该值。"
               },
               {
                 "key": "volume",
                 "type": "float",
                 "label": "音量倍数",
                 "required": true,
-                "description": "在原音频音量上乘以该值。",
-                "numberFormat": "starsector"
+                "description": "在原音频音量上乘以该值。"
               }
             ],
             "default": {

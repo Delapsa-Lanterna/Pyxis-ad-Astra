@@ -2,6 +2,7 @@ use super::{
     CsvTableKey, EntityEditTarget, EntityFileLocation, EntityKind, FileVersion, JointEditRoot,
     JsonWriteOptions, ResourceRef, SessionModScope,
 };
+use crate::models::file_content::{JsonFileContent, JsonWrite};
 use crate::models::{JsonComposition, ResourceSource};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -140,6 +141,7 @@ pub enum JointValue {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct JointEditRecord {
+    pub document: Option<JsonFileContent>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub composition: Option<JsonComposition>,
     pub key: String,
@@ -235,6 +237,8 @@ pub struct JointEditPrepared {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct JointEditSubmission {
+    pub csv_columns: BTreeMap<String, Vec<String>>,
+    pub documents: BTreeMap<String, JsonWrite>,
     pub snapshot: JointEditSnapshot,
     pub values: BTreeMap<String, JointValue>,
     pub base_versions: Vec<FileVersion>,

@@ -53,7 +53,7 @@ export function assertValidSettings(settings: AppSettings): void {
   readImmersiveGameFont(settings.immersiveGameFont);
   readOptionalDirectory(settings.immersiveFontDirectory);
   readOptionalDirectory(settings.javaExecutable);
-  readPreserveOriginalJson(settings.preserveOriginalJson);
+  readPreserveStructure(settings.preserveStructure);
   readAllowCoreEditing(settings.allowCoreEditing);
   readLogLevel(settings.logLevel);
   readOptionalDirectory(settings.logDirectory);
@@ -141,9 +141,9 @@ export function readGeneralFont(value: string | null): string | null {
   return value;
 }
 
-export function readPreserveOriginalJson(value: boolean | undefined): boolean {
+export function readPreserveStructure(value: boolean | undefined): boolean {
   if (value === undefined) return true;
-  if (typeof value !== 'boolean') throw new Error(`Invalid preserve original JSON setting: ${value}`);
+  if (typeof value !== 'boolean') throw new Error(`Invalid preserve structure setting: ${value}`);
   return value;
 }
 

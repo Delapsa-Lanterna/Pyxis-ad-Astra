@@ -1,31 +1,29 @@
 import { computed, shallowRef, watch, type Ref } from 'vue';
 import { prepareJsonSourceRecovery } from '@/services/json-recovery.service';
-import { recreateJsonSourcesAction } from '@/orchestrators/json-save.orchestrator';
+import { recreateJsonSources } from '@/services/json-recovery.service';
 import { useQueryReadOwner } from '@/app/composables/use-query-read-owner';
-import type { EditTargetDraftSession, EditTargetDraftSessionOptions } from '@/app/composables/use-edit-target-draft-session';
+import { createJsonDocument } from '@/domain/json-document';
 import { jsonRecoveryValue, jsonDocumentOrigin, type ConfigDocumentTarget } from '@/domain/json-editor/json-document-definitions';
-import type { JsonDocumentMeta } from './json-document-capabilities';
+import type { JsonDocumentSnapshot, JsonDocumentWriter } from './json-document-capabilities';
 import type { DocumentSaveResult } from '@/shared/runtime/document-editor';
-import type { AppFeedback, JsonRecoveryPlan, JsonRecoveryRequest, RowData } from '@/shared/types';
-import { deepClone } from '@/shared/lib/starsector';
+import type { AppFeedback, JsonRecoveryPlan } from '@/shared/types';
 
 export function useJsonSourceRecovery(options: {
   feedback: AppFeedback;
-  session: EditTargetDraftSession<RowData, ConfigDocumentTarget, JsonDocumentMeta>;
+  session: {
+    currentTarget: Readonly<Ref<ConfigDocumentTarget | null>>;
+    currentTargetKey: Readonly<Ref<string | null>>;
+    baselineSnapshot: Readonly<Ref<JsonDocumentSnapshot>>;
+  };
   active: Readonly<Ref<boolean>>;
-  save: (write: EditTargetDraftSessionOptions<RowData, ConfigDocumentTarget, JsonDocumentMeta>['save']) => Promise<DocumentSaveResult>;
+  save: (write: JsonDocumentWriter) => Promise<DocumentSaveResult>;
 }) {
-  const { session } = options;
+  const { session, feedback } = options,
+    reads = useQueryReadOwner();
   const plan = shallowRef<JsonRecoveryPlan | null>(null);
-  const reads = useQueryReadOwner();
-  const feedback = options.feedback;
   async function refresh() {
     const target = session.currentTarget.value!;
-    const request: JsonRecoveryRequest = {
-      sessionId: target.sessionId,
-      modRoot: target.modRoot,
-      origin: jsonDocumentOrigin(target),
-    };
+    const request = { sessionId: target.sessionId, modRoot: target.modRoot, origin: jsonDocumentOrigin(target) };
     const accepted = await reads.consume('recovery', request, () => prepareJsonSourceRecovery(request), {
       ready: (value) => {
         plan.value = value;
@@ -37,42 +35,40 @@ export function useJsonSourceRecovery(options: {
     try {
       return (
         (
-          await options.save(async (_target, _draft, _versions, _original, request) => {
-            await refresh();
-            const prepared = plan.value!;
-            if (!prepared.missingPaths.length) return;
+          await options.save(async (_target, _draft, _versions, _original, _capture, request) => {
+            const prepared = await refresh();
+            if (!prepared?.missingPaths.length) return;
             const choice = await feedback.choose({
-              title: prepared.missingPaths.length === 1 ? '重新创建这个文件？' : '重新创建这些文件？',
-              content:
-                '使用最后保存的内容重新创建' +
-                (prepared.missingPaths.length === 1 ? '这个文件' : '以下 ' + prepared.missingPaths.length + ' 个文件') +
-                '。当前草稿和输入继续保留。\n\n' +
-                prepared.missingPaths.map((path) => prepared.request.modRoot + '/' + path).join('\n') +
-                '\n\nJSON 文件采用标准排版。',
+              title: '重新创建来源文件？',
+              content: '使用最后保存的内容重新创建以下文件，当前编辑继续保留。\n\n' + prepared.missingPaths.join('\n'),
               choices: [{ label: '重新创建', value: 'recreate', type: 'primary' }],
               cancelText: '返回编辑',
             });
             if (choice !== 'recreate') return;
-            const baseline = deepClone(session.baselineSnapshot.value!);
-            const result = await recreateJsonSourcesAction(prepared, baseline.value, feedback, session.currentTargetKey.value!, request);
-            if (!result) return;
-            const restored = result.baseVersions.filter((version) =>
-              prepared.missingPaths.some(
-                (path) =>
-                  version.path.replaceAll('\\', '/').endsWith('/' + path) ||
-                  (baseline.target.modRoot.replaceAll('\\', '/') + '/' + path).startsWith(version.path.replaceAll('\\', '/') + '/'),
-              ),
+            const baseline = session.baselineSnapshot.value;
+            const key = baseline.target.kind === 'mission' ? 'descriptor' : 'file';
+            const result = await recreateJsonSources(
+              {
+                ...prepared.request,
+                plan: prepared,
+                baseline: baseline.value,
+                originals: { [key]: baseline.meta.document },
+                documents: { [key]: createJsonDocument(baseline.meta.document).capture('expanded').request },
+              },
+              request,
             );
+            const actual = result.content!.value;
             return {
               ...baseline,
-              value: jsonRecoveryValue(baseline.target, result.content!.value, baseline.value),
-              baseVersions: [...new Map([...baseline.baseVersions, ...restored].map((version) => [version.path, version])).values()],
+              value: jsonRecoveryValue(baseline.target, actual, baseline.value),
+              baseVersions: result.baseVersions,
               requestId: result.requestId,
               meta: {
                 ...baseline.meta,
-                resources: result.content!.value.resourceRefs,
+                document: actual.documents[key]!,
                 receipt: result,
-                recovery: result.content!.value,
+                resources: actual.resourceRefs,
+                recovery: actual,
               },
             };
           })
@@ -98,13 +94,5 @@ export function useJsonSourceRecovery(options: {
     },
     { flush: 'sync' },
   );
-  return {
-    missing: computed(() => Boolean(plan.value?.missingPaths.length)),
-    refresh,
-    cancelRead: () => reads.revoke(),
-    recreate,
-    accept: (value: JsonRecoveryPlan) => {
-      plan.value = value;
-    },
-  };
+  return { refresh, recreate, missing: computed(() => Boolean(plan.value?.missingPaths.length)), cancelRead: () => reads.revoke() };
 }

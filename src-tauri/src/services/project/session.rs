@@ -1,26 +1,21 @@
-use super::definitions::{factions, projectiles};
+use super::definitions::{entity_definitions, factions, projectiles};
 use super::model::{
     MISSION_LIST_REL_PATH, MISSION_LIST_TABLE_KEY, ProjectSession, SessionCsvTable, SpecBundle,
 };
 use super::performance::PerformanceTrace;
-#[cfg(test)]
-use super::test_support::project_workspace;
-use crate::domain::entity_definitions::WEAPON_SPEC_DEFINITION;
+use super::sources::{SourceReader, core, documents, json_documents};
+use super::{invalidation, model, versions};
+use crate::domain::entity_definitions::{
+    EntitySpecDefinition, SHIP_SPEC_DEFINITION, SKILL_SPEC_DEFINITION, SYSTEM_SPEC_DEFINITION,
+    WEAPON_SPEC_DEFINITION, csv_id_active,
+};
 use crate::errors::{AppError, AppResult};
-use crate::io::FsRootBoundary;
+use crate::io::{self, FsRootBoundary};
 use crate::models::{
-    EntitySummaries, FileChangeRecord, ProjectInvalidation, ProjectManifest, ResourceSource,
+    self, EntityKind, EntitySummaries, FileChangeRecord, ProjectManifest, ResourceSource,
     SessionContentUpdate, TableSummary,
 };
-use crate::services::project::definitions::entity_definitions;
-use crate::services::project::model::{ProjectContent, SessionCsvRow};
-use crate::services::project::sources::json_documents::{
-    load_skin_files_from, load_variant_files_from,
-};
-use crate::services::project::sources::{SourceReader, core, documents};
-use crate::services::project::{invalidation, model, versions};
-use crate::{diagnostics, io, models};
-use serde_json::json;
+use crate::services::project::model::SessionCsvRow;
 use std::collections::BTreeMap;
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -33,86 +28,101 @@ pub(super) mod references;
 pub(super) mod registry;
 pub(in crate::services::project) mod source_refresh;
 pub(in crate::services::project) mod source_versions;
-#[cfg(test)]
-use source_refresh::{refresh_mod_root_sources, refresh_project_sources};
-
 pub(crate) use access::lock_ready_session;
 pub(super) use registry::{RegisteredSession, lock_registry};
 pub(crate) use registry::{lock_session, session_handle};
 
 static OPENINGS: RwLock<()> = RwLock::new(());
-static OPENINGS_HELD: AtomicBool = AtomicBool::new(false);
+static CLOSING: AtomicBool = AtomicBool::new(false);
+static SEQUENCE: AtomicU64 = AtomicU64::new(0);
 pub struct SessionOpeningPause {
     _guard: RwLockWriteGuard<'static, ()>,
 }
 impl Drop for SessionOpeningPause {
     fn drop(&mut self) {
-        OPENINGS_HELD.store(false, Ordering::Release);
+        CLOSING.store(false, Ordering::Release);
     }
 }
 pub fn hold_session_openings() -> AppResult<SessionOpeningPause> {
-    OPENINGS_HELD.store(true, Ordering::Release);
-    match OPENINGS.write() {
-        Ok(guard) => Ok(SessionOpeningPause { _guard: guard }),
-        Err(_) => {
-            OPENINGS_HELD.store(false, Ordering::Release);
-            Err(AppError::message(
-                "session.opening_poisoned",
-                "会话建立状态不可用",
-            ))
-        }
-    }
+    CLOSING.store(true, Ordering::Release);
+    let guard = OPENINGS.write().map_err(|_| {
+        CLOSING.store(false, Ordering::Release);
+        AppError::message("session.opening_poisoned", "会话建立状态不可用")
+    })?;
+    Ok(SessionOpeningPause { _guard: guard })
 }
 pub fn registered_session_ids() -> AppResult<Vec<String>> {
     Ok(lock_registry()?.keys().cloned().collect())
 }
-
+pub(super) fn new_session_id() -> String {
+    format!("session-{:020}", SEQUENCE.fetch_add(1, Ordering::Relaxed))
+}
+pub fn ensure_project_session_mod_root(id: &str, root: &str) -> AppResult<()> {
+    let registered = session_handle(id)?;
+    let expected = FsRootBoundary::new(Path::new(&registered.root), "registered root")?;
+    let actual = FsRootBoundary::new(Path::new(root), "requested root")?;
+    if expected.root() != actual.root() {
+        return Err(AppError::message(
+            "session.mod_root_mismatch",
+            format!("session {id} does not own mod root: {root}"),
+        ));
+    }
+    Ok(())
+}
 pub(crate) fn registered_manifests(
     root: &str,
     source: ResourceSource,
 ) -> AppResult<Vec<ProjectManifest>> {
+    let key = models::windows_path_key(root);
     let handles = lock_registry()?
         .values()
-        .filter(|handle| {
+        .filter(|entry| {
             models::windows_path_key(if source == ResourceSource::Core {
-                handle.core_root.as_deref().unwrap_or("")
+                entry.core_root.as_deref().unwrap_or("")
             } else {
-                &handle.root
-            }) == models::windows_path_key(root)
+                &entry.root
+            }) == key
         })
         .cloned()
         .collect::<Vec<_>>();
     handles
         .iter()
-        .map(|handle| Ok(lock_session(handle)?.manifest.clone()))
+        .map(|entry| Ok(lock_session(entry)?.manifest.clone()))
         .collect()
 }
-
-pub fn ensure_project_session_mod_root(session_id: &str, mod_root: &str) -> AppResult<()> {
-    let handle = session_handle(session_id)?;
-    let session = lock_session(&handle)?;
-    let expected_root = FsRootBoundary::new(Path::new(&session.manifest.mod_root), "mod root")?;
-    let actual_root = FsRootBoundary::new(Path::new(mod_root), "mod root")?;
-    if expected_root.root() != actual_root.root() {
-        return Err(AppError::message(
-            "session.mod_root_mismatch",
-            format!("project session {session_id} does not own mod root: {mod_root}"),
-        ));
-    }
+pub(crate) fn affected_session_ids(
+    changes: &[FileChangeRecord],
+) -> AppResult<Vec<(String, String)>> {
+    Ok(lock_registry()?
+        .values()
+        .filter(|entry| {
+            let root = models::windows_path_key(&entry.root);
+            changes.iter().any(|change| {
+                [&change.before_path, &change.after_path]
+                    .iter()
+                    .any(|path| io::relative_path_contains(&root, &models::windows_path_key(path)))
+            })
+        })
+        .map(|entry| (entry.session_id.clone(), entry.root.clone()))
+        .collect())
+}
+pub(crate) fn mark_session_pending(id: &str) -> AppResult<()> {
+    lock_session(&session_handle(id)?)?.content_pending = true;
     Ok(())
 }
-
+pub(crate) fn current_project_manifest(id: &str) -> AppResult<ProjectManifest> {
+    Ok(lock_ready_session(&session_handle(id)?)?.manifest.clone())
+}
+pub fn invalidate_core_cache(root: &str) -> AppResult<()> {
+    core::invalidate_core_cache(root)
+}
 pub fn invalidate_project_session(
-    session_id: &str,
+    id: &str,
     changes: Vec<FileChangeRecord>,
 ) -> AppResult<SessionContentUpdate> {
-    let handle = session_handle(session_id)?;
+    let handle = session_handle(id)?;
     let mut session = lock_session(&handle)?;
-    let mut invalidation = ProjectInvalidation::default();
-    invalidation.merge(invalidation::invalidate_session_changes(
-        &mut session,
-        &changes,
-    )?);
+    let invalidation = invalidation::invalidate_session_changes(&mut session, &changes)?;
     session.manifest.base_versions = vec![versions::version_for_path(&session, "mod_info.json")];
     session.content_pending = false;
     Ok(SessionContentUpdate {
@@ -120,49 +130,12 @@ pub fn invalidate_project_session(
         invalidation,
     })
 }
-
-pub fn invalidate_core_cache(starsector_root: &str) -> AppResult<()> {
-    core::invalidate_core_cache(starsector_root)
-}
-
-pub(crate) fn affected_session_ids(
-    changes: &[FileChangeRecord],
-) -> AppResult<Vec<(String, String)>> {
-    let mut affected = Vec::new();
-    for (session_id, registered) in lock_registry()?.iter() {
-        let root_key = models::windows_path_key(&registered.root);
-        if changes.iter().any(|change| {
-            [&change.before_path, &change.after_path]
-                .iter()
-                .any(|path| {
-                    let key = models::windows_path_key(path);
-                    key == root_key || key.starts_with(&format!("{root_key}/"))
-                })
-        }) {
-            affected.push((session_id.clone(), registered.root.clone()));
-        }
-    }
-    Ok(affected)
-}
-
-pub(crate) fn mark_session_pending(session_id: &str) -> AppResult<()> {
-    let handle = session_handle(session_id)?;
-    lock_session(&handle)?.content_pending = true;
-    Ok(())
-}
-
-pub(crate) fn current_project_manifest(session_id: &str) -> AppResult<ProjectManifest> {
-    let handle = session_handle(session_id)?;
-    let session = lock_ready_session(&handle)?;
-    Ok(session.manifest.clone())
-}
-
 pub(crate) fn open_project_session_traced(
-    mod_root: &Path,
-    starsector_root_override: Option<&Path>,
+    root: &Path,
+    game: Option<&Path>,
     trace: &mut PerformanceTrace,
 ) -> AppResult<ProjectManifest> {
-    if OPENINGS_HELD.load(Ordering::Acquire) {
+    if CLOSING.load(Ordering::Acquire) {
         return Err(AppError::message(
             "session.application_closing",
             "应用正在关闭",
@@ -171,16 +144,15 @@ pub(crate) fn open_project_session_traced(
     let _opening = OPENINGS
         .read()
         .map_err(|_| AppError::message("session.opening_poisoned", "会话建立状态不可用"))?;
-    if OPENINGS_HELD.load(Ordering::Acquire) {
+    if CLOSING.load(Ordering::Acquire) {
         return Err(AppError::message(
             "session.application_closing",
             "应用正在关闭",
         ));
     }
-    let session = build_project_session(mod_root, starsector_root_override, trace)?;
+    let session = build_project_session(root, game, trace)?;
     let manifest = session.manifest.clone();
-    let mut guard = lock_registry()?;
-    guard.insert(
+    lock_registry()?.insert(
         manifest.session_id.clone(),
         RegisteredSession {
             session_id: manifest.session_id.clone(),
@@ -195,385 +167,248 @@ pub(crate) fn open_project_session_traced(
             reference: None,
         },
     );
-    drop(guard);
-    // Open concentrated cold loads of core assets; persist them once here so
-    // the dump never runs inside a query.
-    if let Some(root) = &manifest.starsector_root
-        && let Err(error) = core::flush_core_cache(root)
-    {
-        diagnostics::failure(
-            "cache.core_save_failed",
-            error,
-            json!({"modRoot":manifest.mod_root,"sessionId":manifest.session_id,"root":root}),
-        );
-    }
     Ok(manifest)
 }
-
+pub(super) fn build_registered_session_csv_tables() -> BTreeMap<String, SessionCsvTable> {
+    let make = |path: &str, header| SessionCsvTable {
+        missing_baseline: false,
+        path: path.into(),
+        header,
+        rows: None,
+        row_index: None,
+        next_row_seq: 0,
+        source: None,
+    };
+    let mut tables = model::csv_table_specs()
+        .iter()
+        .map(|spec| (spec.key.as_str().into(), make(spec.rel_path, Vec::new())))
+        .collect::<BTreeMap<_, _>>();
+    tables.insert(
+        MISSION_LIST_TABLE_KEY.into(),
+        make(MISSION_LIST_REL_PATH, model::mission_list_default_header()),
+    );
+    tables.insert(
+        "faction-index".into(),
+        make("data/world/factions/factions.csv", Vec::new()),
+    );
+    tables
+}
 pub(super) fn build_project_session(
-    mod_root: &Path,
-    starsector_root_override: Option<&Path>,
+    root: &Path,
+    game: Option<&Path>,
     trace: &mut PerformanceTrace,
 ) -> AppResult<ProjectSession> {
-    let mod_root_boundary = FsRootBoundary::new(mod_root, "mod root")?;
-    let mod_root = mod_root_boundary.root();
-    let _lease = io::acquire_root_write_lock(mod_root)?;
-    let source_timer = trace.timer();
-    let mut sources = SourceReader::new(mod_root)?;
-    let session_id = new_session_id();
-    let starsector_root = starsector_root_override.map(Path::to_path_buf);
-    let starsector_root = starsector_root
-        .as_deref()
+    let boundary = FsRootBoundary::new(root, "mod root")?;
+    let root = boundary.root();
+    let _lease = io::acquire_root_write_lock(root)?;
+    let game = game
         .map(|root| {
             FsRootBoundary::new(root, "starsector root")
                 .map(|boundary| boundary.root().to_path_buf())
         })
         .transpose()?;
-    let core_available = starsector_root
-        .as_ref()
-        .is_some_and(|root| root.join("starsector-core").exists());
-    let content = load_project_content(&mut sources, starsector_root.as_deref(), trace)?;
+    let mut sources = SourceReader::new(root)?;
+    let timer = trace.timer();
+    let info = sources.path("mod_info.json")?;
+    let mod_info = info.exists().then(|| sources.json(&info)).transpose()?;
+    let faction_files = documents::load_faction_files_from(&mut sources, ResourceSource::Mod)?;
+    let faction_blueprint_tags = factions::faction_blueprint_tags(&faction_files);
+    let mission_path = sources.path(MISSION_LIST_REL_PATH)?;
+    let missions = sources.count(&mission_path, "mission", |id| {
+        csv_id_active(EntityKind::Mission, id)
+    })?;
+    let bundle = load_spec_bundle(&mut sources, game.as_deref(), trace)?;
+    let summaries = EntitySummaries {
+        factions: faction_files.len(),
+        missions,
+        ships: bundle.ship_files.len(),
+        weapons: bundle.weapon_specs.len(),
+        projectiles: bundle.projectile_specs.len(),
+        variants: bundle.variant_files.len(),
+        skins: bundle.skin_files.len(),
+        systems: bundle.system_files.len(),
+        skills: bundle.skill_files.len(),
+    };
+    let table_entity_summaries =
+        csv_tables::build_table_entity_summaries_from(&mut sources, &summaries)?;
     source_versions::capture_project_versions(&mut sources)?;
-    trace.record_stage("source_records", source_timer, || {
-        vec![(
-            "result",
-            if sources.reused() { "reused" } else { "parsed" }.to_string(),
-        )]
-    });
-    sources.flush();
-    let source_versions = sources.versions;
-    let source_scopes = sources.scopes;
-    let source_stamps = sources.stamps;
     let mut csv_tables = build_registered_session_csv_tables();
-    for (path, csv) in sources.tables {
-        if let Some((key, state)) = csv_tables.iter_mut().find(|(_, table)| table.path == path) {
-            state.header = csv.header;
-            state.rows = Some(
+    for (key, table) in &mut csv_tables {
+        if let Some(csv) = sources.tables.get(&table.path) {
+            table.header = csv.header.clone();
+            table.rows = Some(Arc::new(
                 csv.rows
-                    .into_iter()
+                    .iter()
                     .enumerate()
                     .map(|(index, row)| SessionCsvRow {
                         row_key: format!("{key}:row:{index}"),
-                        data: row.data,
+                        data: row.data.clone(),
                         is_comment: row.is_comment,
+                        source_row: Some(index),
                     })
-                    .collect::<Vec<_>>()
-                    .into(),
-            );
-            state.next_row_seq = state.rows.as_ref().expect("loaded rows").len() as u64;
+                    .collect(),
+            ));
+            table.next_row_seq = csv.rows.len() as u64;
+            table.source = sources.csv_sources.get(&table.path).cloned();
         }
     }
-    let ProjectContent {
-        mod_info,
-        faction_files,
-        faction_blueprint_tags,
-        mission_count,
-        spec_bundle,
-        table_entity_summaries,
-    } = content;
     let table_summaries = model::csv_table_specs()
         .iter()
-        .map(|definition| {
-            let table = csv_tables.get(definition.key.as_str()).ok_or_else(|| {
-                AppError::message(
-                    "table.unknown",
-                    format!("missing registered CSV table: {}", definition.key.as_str()),
-                )
-            })?;
-            Ok((
-                definition.key,
+        .map(|spec| {
+            let table = &csv_tables[spec.key.as_str()];
+            (
+                spec.key,
                 TableSummary {
                     path: table.path.clone(),
                     header: table.header.clone(),
-                    available: mod_root.join(&table.path).exists(),
-                    total_rows: None,
+                    available: root.join(&table.path).exists(),
+                    total_rows: table.rows.as_ref().map(|rows| rows.len()),
                 },
-            ))
+            )
         })
-        .collect::<AppResult<BTreeMap<_, _>>>()?;
-    let entity_summaries = EntitySummaries {
-        factions: faction_files.len(),
-        missions: mission_count,
-        ships: spec_bundle.ship_files.len(),
-        weapons: spec_bundle.weapon_specs.len(),
-        projectiles: spec_bundle.projectile_specs.len(),
-        variants: spec_bundle.variant_files.len(),
-        skins: spec_bundle.skin_files.len(),
-        systems: spec_bundle.system_files.len(),
-        skills: spec_bundle.skill_files.len(),
-    };
+        .collect();
+    let warnings = bundle
+        .variant_warnings
+        .iter()
+        .chain(&bundle.skin_warnings)
+        .cloned()
+        .collect();
     let manifest = ProjectManifest {
-        base_versions: vec![source_versions["mod_info.json"].clone()],
-        session_id,
-        mod_root: mod_root.to_string_lossy().to_string(),
-        starsector_root: starsector_root.map(|path| path.to_string_lossy().to_string()),
-        core_available,
+        base_versions: vec![sources.versions["mod_info.json"].clone()],
+        session_id: new_session_id(),
+        mod_root: root.to_string_lossy().into_owned(),
+        starsector_root: game
+            .as_ref()
+            .map(|root| root.to_string_lossy().into_owned()),
+        core_available: game
+            .as_ref()
+            .is_some_and(|root| root.join("starsector-core").is_dir()),
         associated_spec_tables: entity_definitions::associated_spec_tables(),
         mod_info,
         table_summaries,
         table_entity_summaries,
-        entity_summaries,
-        warnings: spec_bundle
-            .variant_warnings
-            .iter()
-            .chain(&spec_bundle.skin_warnings)
-            .cloned()
-            .collect(),
+        entity_summaries: summaries,
+        warnings,
     };
+    trace.record_stage("source_records", timer, || {
+        vec![(
+            "result",
+            if sources.reused() { "reused" } else { "parsed" }.into(),
+        )]
+    });
+    sources.flush();
+    let documents = Arc::new(sources.documents());
     Ok(ProjectSession {
+        documents,
         reference_revision: 0,
         references: Vec::new(),
         loaded_edit_targets: Vec::new(),
         content_pending: false,
-        source_versions: source_versions.into(),
-        source_scopes: source_scopes.into(),
-        source_stamps: source_stamps.into(),
+        source_versions: Arc::new(sources.versions),
+        source_scopes: Arc::new(sources.scopes),
+        source_stamps: Arc::new(sources.stamps),
         manifest,
-        faction_files: faction_files.into(),
+        faction_files: Arc::new(faction_files),
         faction_blueprint_tags,
         csv_tables: csv_tables
             .into_iter()
             .map(|(key, table)| (key, Arc::new(table)))
             .collect(),
-        ship_files: spec_bundle.ship_files.into(),
-        variant_files: spec_bundle.variant_files.into(),
-        skin_files: spec_bundle.skin_files.into(),
-        variant_warnings: spec_bundle.variant_warnings,
-        skin_warnings: spec_bundle.skin_warnings,
-        weapon_specs: spec_bundle.weapon_specs.into(),
-        projectile_specs: spec_bundle.projectile_specs.into(),
-        system_files: spec_bundle.system_files.into(),
-        skill_files: spec_bundle.skill_files.into(),
+        ship_files: Arc::new(bundle.ship_files),
+        variant_files: Arc::new(bundle.variant_files),
+        skin_files: Arc::new(bundle.skin_files),
+        variant_warnings: bundle.variant_warnings,
+        skin_warnings: bundle.skin_warnings,
+        weapon_specs: Arc::new(bundle.weapon_specs),
+        projectile_specs: Arc::new(bundle.projectile_specs),
+        system_files: Arc::new(bundle.system_files),
+        skill_files: Arc::new(bundle.skill_files),
     })
 }
-
-fn load_project_content(
-    sources: &mut SourceReader,
-    starsector_root: Option<&Path>,
-    trace: &mut PerformanceTrace,
-) -> AppResult<ProjectContent> {
-    let timer = trace.timer();
-    let mod_root = sources.root().to_path_buf();
-    let info_path = sources.path("mod_info.json")?;
-    let mod_info = info_path
-        .exists()
-        .then(|| sources.json(&info_path))
-        .transpose()?;
-    trace.record_stage("mod_info", timer, || {
-        vec![(
-            "path",
-            mod_root.join("mod_info.json").to_string_lossy().to_string(),
-        )]
-    });
-    let timer = trace.timer();
-    let faction_files = documents::load_faction_files_from(sources, ResourceSource::Mod)?;
-    let faction_blueprint_tags = factions::faction_blueprint_tags(&faction_files);
-    trace.record_stage("factions", timer, || {
-        vec![
-            ("factionFiles", faction_files.len().to_string()),
-            ("tags", faction_blueprint_tags.len().to_string()),
-        ]
-    });
-    let timer = trace.timer();
-    let mission_count =
-        sources.count(&sources.path("data/missions/mission_list.csv")?, "mission")?;
-    trace.record_stage("mission_count", timer, || {
-        vec![("missions", mission_count.to_string())]
-    });
-    let spec_bundle = load_spec_bundle(sources, starsector_root, trace)?;
-    let entity_summaries = EntitySummaries {
-        factions: faction_files.len(),
-        missions: mission_count,
-        ships: spec_bundle.ship_files.len(),
-        weapons: spec_bundle.weapon_specs.len(),
-        projectiles: spec_bundle.projectile_specs.len(),
-        variants: spec_bundle.variant_files.len(),
-        skins: spec_bundle.skin_files.len(),
-        systems: spec_bundle.system_files.len(),
-        skills: spec_bundle.skill_files.len(),
-    };
-    let table_entity_summaries =
-        csv_tables::build_table_entity_summaries_from(sources, &entity_summaries)?;
-    let content = ProjectContent {
-        mod_info,
-        faction_files,
-        faction_blueprint_tags,
-        mission_count,
-        spec_bundle,
-        table_entity_summaries,
-    };
-    Ok(content)
-}
-
-pub(super) fn build_registered_session_csv_tables() -> BTreeMap<String, SessionCsvTable> {
-    let mut tables: BTreeMap<String, SessionCsvTable> = model::csv_table_specs()
-        .iter()
-        .map(|definition| {
-            (
-                definition.key.as_str().to_string(),
-                SessionCsvTable {
-                    row_index: None,
-                    header: Vec::new(),
-                    path: definition.rel_path.to_string(),
-                    rows: None,
-                    next_row_seq: 0,
-                    saved_text: None,
-                },
-            )
-        })
-        .collect();
-    tables.insert(
-        MISSION_LIST_TABLE_KEY.to_string(),
-        SessionCsvTable {
-            row_index: None,
-            header: model::mission_list_default_header(),
-            path: MISSION_LIST_REL_PATH.to_string(),
-            rows: None,
-            next_row_seq: 0,
-            saved_text: None,
-        },
-    );
-    tables.insert(
-        "faction-index".to_string(),
-        SessionCsvTable {
-            row_index: None,
-            header: Vec::new(),
-            path: "data/world/factions/factions.csv".into(),
-            rows: None,
-            next_row_seq: 0,
-            saved_text: None,
-        },
-    );
-    tables
-}
-
-pub(super) fn new_session_id() -> String {
-    static SESSION_SEQUENCE: AtomicU64 = AtomicU64::new(0);
-    let sequence = SESSION_SEQUENCE.fetch_add(1, Ordering::Relaxed);
-    format!("session-{sequence:020}")
-}
-
 pub(super) fn load_spec_bundle(
     sources: &mut SourceReader,
-    starsector_root: Option<&Path>,
+    game: Option<&Path>,
     trace: &mut PerformanceTrace,
 ) -> AppResult<SpecBundle> {
-    let total_timer = trace.timer();
     let timer = trace.timer();
-    let ship_files = documents::load_spec_records_from(
-        sources,
-        &["data/hulls"],
-        "ship",
-        "hullId",
-        ResourceSource::Mod,
-    )?;
-    trace.record_stage("spec.ship_files", timer, || {
-        vec![("files", ship_files.len().to_string())]
-    });
-    let timer = trace.timer();
-    let weapon_specs = documents::load_spec_records_from(
-        sources,
-        WEAPON_SPEC_DEFINITION.source_dirs(),
-        "wpn",
-        "id",
-        ResourceSource::Mod,
-    )?;
-    trace.record_stage("spec.weapon_specs", timer, || {
-        vec![("files", weapon_specs.len().to_string())]
-    });
-    let timer = trace.timer();
-    let (variant_files, variant_warnings) = load_variant_files_from(sources)?;
-    trace.record_stage("spec.variant_files", timer, || {
-        vec![
-            ("files", variant_files.len().to_string()),
-            ("warnings", variant_warnings.len().to_string()),
-        ]
-    });
-    let timer = trace.timer();
-    let (skin_files, skin_warnings) = load_skin_files_from(sources)?;
-    trace.record_stage("spec.skin_files", timer, || {
-        vec![
-            ("files", skin_files.len().to_string()),
-            ("warnings", skin_warnings.len().to_string()),
-        ]
-    });
-    let timer = trace.timer();
-    let core_projectiles = starsector_root
+    let mut load = |definition: &EntitySpecDefinition| {
+        documents::load_spec_records_from(
+            sources,
+            definition.source_dirs(),
+            definition.extension_without_dot(),
+            definition.id_field,
+            ResourceSource::Mod,
+        )
+    };
+    let ship_files = load(&SHIP_SPEC_DEFINITION)?;
+    let weapon_specs = load(&WEAPON_SPEC_DEFINITION)?;
+    let system_files = load(&SYSTEM_SPEC_DEFINITION)?;
+    let skill_files = load(&SKILL_SPEC_DEFINITION)?;
+    let (variant_files, variant_warnings) = json_documents::load_variant_files_from(sources)?;
+    let (skin_files, skin_warnings) = json_documents::load_skin_files_from(sources)?;
+    let core_projectiles = game
         .map(|root| core::load_core_projectile_specs(&root.to_string_lossy()))
         .transpose()?;
     let projectile_specs =
         projectiles::load_projectile_specs_from(sources, core_projectiles.as_deref())?;
-    trace.record_stage("spec.projectile_specs", timer, || {
-        vec![("files", projectile_specs.len().to_string())]
+    trace.record_stage("spec_bundle", timer, || {
+        vec![(
+            "files",
+            (ship_files.len()
+                + weapon_specs.len()
+                + system_files.len()
+                + skill_files.len()
+                + projectile_specs.len()
+                + variant_files.len()
+                + skin_files.len())
+            .to_string(),
+        )]
     });
-    let timer = trace.timer();
-    let system_files = documents::load_spec_records_from(
-        sources,
-        &["data/shipsystems"],
-        "system",
-        "id",
-        ResourceSource::Mod,
-    )?;
-    trace.record_stage("spec.system_files", timer, || {
-        vec![("files", system_files.len().to_string())]
-    });
-    let timer = trace.timer();
-    let skill_files = documents::load_spec_records_from(
-        sources,
-        &["data/characters/skills"],
-        "skill",
-        "id",
-        ResourceSource::Mod,
-    )?;
-    trace.record_stage("spec.skill_files", timer, || {
-        vec![("files", skill_files.len().to_string())]
-    });
-    let bundle = SpecBundle {
+    Ok(SpecBundle {
         ship_files,
-        variant_files,
-        skin_files,
         weapon_specs,
-        projectile_specs,
         system_files,
         skill_files,
+        variant_files,
         variant_warnings,
+        skin_files,
         skin_warnings,
-    };
-    trace.record_stage("spec_bundle", total_timer, || {
-        vec![
-            ("shipFiles", bundle.ship_files.len().to_string()),
-            ("weaponSpecs", bundle.weapon_specs.len().to_string()),
-            ("projectileSpecs", bundle.projectile_specs.len().to_string()),
-            ("systemFiles", bundle.system_files.len().to_string()),
-            ("skillFiles", bundle.skill_files.len().to_string()),
-            ("variantFiles", bundle.variant_files.len().to_string()),
-            ("skinFiles", bundle.skin_files.len().to_string()),
-        ]
-    });
-    Ok(bundle)
+        projectile_specs,
+    })
 }
 
 #[cfg(test)]
 mod tests {
+    use super::source_refresh::refresh_core_session;
+    #[cfg(test)]
+    use crate::models::{EntityKind, InvalidatedResourceScope};
+    use crate::test_support::work_counts;
+    #[cfg(test)]
+    use crate::{io, services};
+    #[cfg(test)]
+    use std::slice;
+
     use crate::services::project_sync::release_project_session;
 
+    use super::source_refresh::refresh_mod_root_sources;
     use super::*;
     use crate::io::write_utf8_no_bom;
     #[cfg(test)]
     use crate::models::{CsvRowPatch, CsvRowPatchAction, CsvSearchField, CsvTableKey};
     #[cfg(test)]
     use crate::services::project::query::csv_window::query_csv_table_window;
+    use crate::services::project::refresh_project_sources;
     #[cfg(test)]
     use crate::services::project::sources;
     #[cfg(test)]
     use crate::services::project::sources::json_documents::take_load_counts;
     use crate::services::project::test_support::project_workspace;
     #[cfg(test)]
-    use crate::services::project::write::csv_patch::save_csv_patch;
-    #[cfg(test)]
     use crate::test_support;
     #[cfg(test)]
-    use serde_json::{Map, Value};
+    use crate::test_support::file_formats::save_csv_patch;
+    #[cfg(test)]
+    use serde_json::{Map, Value, json};
     #[cfg(test)]
     use std::sync::{Arc, Barrier};
     #[cfg(test)]
@@ -737,7 +572,10 @@ mod tests {
 
         assert_eq!(loaded.table_entity_summaries[&CsvTableKey::Wings], 2);
         assert_eq!(loaded.table_entity_summaries[&CsvTableKey::SimOpponents], 2);
-        assert_eq!(loaded.table_summaries[&CsvTableKey::Wings].total_rows, None);
+        assert_eq!(
+            loaded.table_summaries[&CsvTableKey::Wings].total_rows,
+            Some(4)
+        );
         root.close().unwrap();
     }
 
@@ -948,6 +786,9 @@ mod tests {
                         &session_id,
                         CsvTableKey::Ships,
                         vec![CsvRowPatch {
+                            columns: (row).keys().cloned().collect(),
+                            comment_changed: true,
+
                             is_comment: false,
                             insert_at: None,
                             row_key: format!("ships:new:{thread_index}-{round}"),
@@ -984,22 +825,6 @@ mod tests {
             roots[session_index].clone().close().unwrap();
         }
     }
-}
-
-#[cfg(test)]
-mod source_refresh_tests {
-    use crate::services::project_sync::release_project_session;
-
-    use super::source_refresh::refresh_core_session;
-    use super::*;
-    #[cfg(test)]
-    use crate::models::{CsvSearchField, EntityKind};
-    use crate::models::{CsvTableKey, InvalidatedResourceScope, ResourceSource};
-    use crate::test_support::work_counts;
-    #[cfg(test)]
-    use crate::{io, services};
-    #[cfg(test)]
-    use std::{fs, slice};
 
     #[test]
     fn session_open_keeps_business_credentials_and_defers_graphics_reads() {
@@ -1182,7 +1007,7 @@ mod source_refresh_tests {
                     .unwrap()
             ));
         }
-        assert_eq!(work_counts::count("read", &csv) - reads, 3);
+        assert_eq!(work_counts::count("read", &csv) - reads, 0);
         assert_eq!(work_counts::count("parse", &csv) - parses, 0);
         release_project_session(manifest.session_id).unwrap();
         root.close().unwrap();
@@ -1569,6 +1394,12 @@ mod source_refresh_tests {
         )
         .unwrap();
         fs::remove_file(&path).unwrap();
+        let handle = session_handle(&manifest.session_id).unwrap();
+        let mut state = lock_ready_session(&handle).unwrap();
+        let table = csv_tables::session_table_mut(&mut state, "ships").unwrap();
+        table.rows = None;
+        table.source = None;
+        drop(state);
         let error = services::query_csv_table_index(
             &manifest.session_id,
             CsvTableKey::Ships,

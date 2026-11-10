@@ -1,8 +1,8 @@
-use super::read_text_bytes_no_bom;
-use crate::errors::AppResult;
-use crate::io::{file_version, read_versioned_bytes};
-use crate::models::{CsvTable, FileVersion};
-use crate::parsers;
+use super::read_versioned_bytes;
+use crate::errors::{AppError, AppResult};
+use crate::models::FileVersion;
+use crate::models::file_content::CsvSource;
+use crate::parsers::game;
 #[cfg(test)]
 use crate::test_support::work_counts;
 #[cfg(test)]
@@ -10,15 +10,11 @@ use std::cell::Cell;
 use std::path::Path;
 
 #[cfg(test)]
-thread_local! {
-    static CSV_WORK: Cell<(usize, usize, usize)> = const { Cell::new((0, 0, 0)) };
-}
-
+thread_local! { static CSV_WORK: Cell<(usize,usize,usize)> = const { Cell::new((0,0,0)) }; }
 #[cfg(test)]
 pub(crate) fn take_csv_work() -> (usize, usize, usize) {
     CSV_WORK.with(|work| work.replace((0, 0, 0)))
 }
-
 #[cfg(test)]
 pub(crate) fn record_csv_row_copies(count: usize) {
     CSV_WORK.with(|work| {
@@ -26,68 +22,44 @@ pub(crate) fn record_csv_row_copies(count: usize) {
         work.set((reads, parses, copies + count));
     });
 }
-
 #[cfg(test)]
 pub(crate) fn record_csv_disk_read(path: &Path) {
     work_counts::record("read", path);
-    if !path
+    if path
         .extension()
-        .and_then(|extension| extension.to_str())
         .is_some_and(|extension| extension.eq_ignore_ascii_case("csv"))
     {
-        return;
-    }
-    CSV_WORK.with(|work| {
-        let (reads, parses, copies) = work.get();
-        work.set((reads + 1, parses, copies));
-    });
-}
-
-pub fn read_csv_data(path: &Path) -> AppResult<CsvTable> {
-    if !path.exists() {
-        return Ok(CsvTable {
-            header: vec![],
-            rows: vec![],
-            path: path.to_string_lossy().to_string(),
+        CSV_WORK.with(|work| {
+            let (reads, parses, copies) = work.get();
+            work.set((reads + 1, parses, copies));
         });
     }
-    let bytes = read_text_bytes_no_bom(path)?;
-    #[cfg(test)]
-    CSV_WORK.with(|work| {
-        let (reads, parses, copies) = work.get();
-        work.set((reads, parses + 1, copies));
-    });
-    parsers::parse_csv_bytes(&path.to_string_lossy(), &bytes)
 }
-
-pub fn parse_csv_text(path_label: &str, text: &str) -> AppResult<CsvTable> {
-    #[cfg(test)]
-    CSV_WORK.with(|work| {
-        let (reads, parses, copies) = work.get();
-        work.set((reads, parses + 1, copies));
-    });
-    parsers::parse_csv_bytes(path_label, text.as_bytes())
+pub fn read_csv_data(path: &Path) -> AppResult<CsvSource> {
+    read_versioned_csv(path).map(|(_, source)| source)
 }
-
-pub fn parse_csv_data(path_label: &str, bytes: &[u8]) -> AppResult<CsvTable> {
-    #[cfg(test)]
-    CSV_WORK.with(|work| {
-        let (reads, parses, copies) = work.get();
-        work.set((reads, parses + 1, copies));
-    });
-    parsers::parse_csv_bytes(
-        path_label,
-        bytes.strip_prefix(&[0xef, 0xbb, 0xbf]).unwrap_or(bytes),
-    )
-}
-
-pub fn read_versioned_csv(path: &Path) -> AppResult<(FileVersion, CsvTable)> {
-    if !path.exists() {
-        return Ok((file_version(path)?, read_csv_data(path)?));
-    }
+pub fn read_versioned_csv(path: &Path) -> AppResult<(FileVersion, CsvSource)> {
     let (version, bytes) = read_versioned_bytes(path)?;
-    let table = parse_csv_data(&version.path, &bytes)?;
-    Ok((version, table))
+    parse_csv_data(&version.path, &bytes).map(|source| (version, source))
+}
+pub fn parse_csv_data(path: &str, bytes: &[u8]) -> AppResult<CsvSource> {
+    #[cfg(test)]
+    record_csv_parse(Path::new(path));
+    game::read_csv(bytes).map_err(|error| {
+        AppError::context(format!("读取 CSV 失败：{path}"), AppError::from(error)).at_path(path)
+    })
+}
+#[cfg(test)]
+pub(crate) fn record_csv_parse(path: &Path) {
+    CSV_WORK.with(|work| {
+        let (reads, parses, copies) = work.get();
+        work.set((reads, parses + 1, copies));
+    });
+    work_counts::record("parse", path);
+}
+#[cfg(test)]
+pub fn parse_csv_text(path: &str, text: &str) -> AppResult<CsvSource> {
+    parse_csv_data(path, text.as_bytes())
 }
 
 #[cfg(test)]
@@ -97,11 +69,9 @@ mod tests {
     use crate::test_support::TestWorkspace;
 
     #[test]
-    fn read_csv_data_returns_an_empty_table_for_missing_files() {
+    fn read_csv_data_reports_missing_file() {
         let root = TestWorkspace::new("missing_csv");
-        let table = read_csv_data(&root.join("missing/table.csv")).expect("empty table");
-        assert!(table.header.is_empty());
-        assert!(table.rows.is_empty());
+        assert!(read_csv_data(&root.join("missing/table.csv")).is_err());
         root.close().unwrap();
     }
 
@@ -109,14 +79,11 @@ mod tests {
     fn parse_csv_text_reads_headers_and_rows_like_the_game_parser() {
         let text = "id,name\nxy,Ruler\n";
         let table = parse_csv_text("test.csv", text).expect("parsed");
-        assert_eq!(table.header, vec!["id".to_string(), "name".to_string()]);
-        assert_eq!(table.rows.len(), 1);
         assert_eq!(
-            table.rows[0]
-                .data
-                .get("name")
-                .and_then(|value| value.as_str()),
-            Some("Ruler")
+            table.document.content.header,
+            vec!["id".to_string(), "name".to_string()]
         );
+        assert_eq!(table.document.content.records.len(), 1);
+        assert_eq!(table.document.content.records[0].cells[1], "Ruler");
     }
 }

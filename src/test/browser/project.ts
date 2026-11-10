@@ -10,6 +10,8 @@ import { renderGameCsv } from './format';
 import { buildGameJoint } from './joint';
 import { gameQuery, gameCatalog, gameCommands } from './queries';
 import { installModelQueries } from './runtime/commands';
+import { jsonFileFixture } from '../fixtures/json-file';
+import { projectJsonValue } from '@/domain/json-document';
 
 export interface GameSource {
   manifest: T.ProjectManifest;
@@ -121,7 +123,16 @@ export function createWorkspaceProject(root: string, index: number, files = game
       const row = table ? tables.get(table)!.rows.find((row) => row.data.id === id) : undefined;
       if (row) target.linkedRecord = { kind: 'csv', table: table!, rowKey: row.rowKey };
       const data = kind === 'weapon' || kind === 'projectile' ? { spec, csvRow: row?.data ?? {} } : spec;
-      entities.set(entityKey(kind, id), { kind, id, data, target, baseVersions: [version(path)], resourceRefs: resources(kind, id, spec) });
+      entities.set(entityKey(kind, id), {
+        kind,
+        id,
+        data,
+        target,
+        document: jsonFileFixture(spec),
+        composition: null,
+        baseVersions: [version(path)],
+        resourceRefs: resources(kind, id, spec),
+      });
     }
     for (const [path, text] of textFiles)
       if (path.endsWith('/descriptor.json')) {
@@ -135,6 +146,8 @@ export function createWorkspaceProject(root: string, index: number, files = game
           id,
           target,
           data: { descriptor, text: textFiles.get(directory + 'mission_text.txt')!, list },
+          document: jsonFileFixture(descriptor),
+          composition: null,
           baseVersions: [version(path)],
           resourceRefs: resources('mission', id, { icon: 'data/missions/' + id + '/' + descriptor.icon }),
         });
@@ -163,6 +176,8 @@ export function createWorkspaceProject(root: string, index: number, files = game
         path: root + '/' + path,
         relPath: path,
         data: JSON.parse(textFiles.get(root + '/' + path)!) as T.RowData,
+        document: jsonFileFixture(JSON.parse(textFiles.get(root + '/' + path)!) as T.RowData),
+        composition: { layers: [], excluded: [], replace: false },
         baseVersions: [version(root + '/' + path)],
       })),
     );
@@ -312,9 +327,9 @@ export function createWorkspaceProject(root: string, index: number, files = game
       ? (existing!.data as T.RowData)
       : indexed
         ? kind === 'faction'
-          ? (input.entityData.file as T.RowData)
-          : { ...input.entityData, list: input.indexRow }
-        : input.data;
+          ? (projectJsonValue(input.document.content) as T.RowData)
+          : { descriptor: projectJsonValue(input.document.content), text: input.kind === 'mission' ? input.text : '', list: input.indexRow }
+        : (projectJsonValue(input.document.content) as T.RowData);
     const touched: string[] = [];
     if (kind === 'mission') {
       const prefix = `${root}/data/missions/`;
@@ -368,10 +383,11 @@ export function createWorkspaceProject(root: string, index: number, files = game
           indexHeader: index!.header,
           indexRows: index!.rows.map((data) => ({ data, isComment: false })),
           entityData: deleting ? null : kind === 'faction' ? { file: data } : data,
+          document: deleting ? null : jsonFileFixture(kind === 'mission' ? data.descriptor! : data),
         }
       : deleting
         ? null
-        : { id, data, path: next.write.path, relPath: next.write.relPath };
+        : { id, data, document: jsonFileFixture(data), path: next.write.path, relPath: next.write.relPath };
     const result = write(value, { kind: 'json', origin }, touched);
     if (!deleting && (!indexed || (existing && previous !== id)))
       result.identityChanges.push({

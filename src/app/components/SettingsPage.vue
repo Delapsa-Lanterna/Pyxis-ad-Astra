@@ -137,10 +137,9 @@
         <n-switch class="tool-switch" :value="settings.ignoreEditorWarnings" @update:value="settings.setIgnoreEditorWarnings" />
         <template #hint><FieldHints description="隐藏编辑警告，并跳过保存前的警告确认。" /></template>
       </FieldRow>
-      <FieldRow label="JSON 原样保存"
-        ><n-switch class="tool-switch" :value="settings.preserveOriginalJson" @update:value="settings.setPreserveOriginalJson" /><template
-          #hint
-          ><FieldHints description="尽量保留结构化 JSON 文件的注释与字段顺序。无法保留时会在写入前请求确认。" /></template
+      <FieldRow label="JSON 原结构保存"
+        ><n-switch class="tool-switch" :value="settings.preserveStructure" @update:value="settings.setPreserveStructure" /><template #hint
+          ><FieldHints description="保留空格、Tab、换行和注释位置，仅调整编辑所需的局部结构。" /></template
       ></FieldRow>
     </section>
     <section class="settings-cache-panel panel-card ui-layout-shrink ui-control-border ui-content-surface ui-layout-grid ui-layout-stretch">

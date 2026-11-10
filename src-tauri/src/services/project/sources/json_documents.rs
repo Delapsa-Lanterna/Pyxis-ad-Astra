@@ -1,68 +1,70 @@
+use super::SourceReader;
 use crate::errors::{AppError, AppResult, ErrorLocation};
-use crate::io::forward_slash_relative_path;
-use crate::models;
-use crate::models::{GameScanWarning, GameWarningEditTarget, SkinFile, VariantFile};
-use crate::services::project::sources::SourceReader;
+use crate::io;
+use crate::models::file_content::{JsonFileContent, JsonSource};
+use crate::models::{self, GameScanWarning, GameWarningEditTarget, SkinFile, VariantFile};
 use serde_json::Value;
 #[cfg(test)]
 use std::cell::Cell;
-use std::collections::HashMap;
+use std::collections::BTreeSet;
 use std::path::Path;
 
 #[cfg(test)]
-thread_local! { static LOAD_COUNTS: Cell<(usize, usize)> = const { Cell::new((0, 0)) }; }
+thread_local! { static LOAD_COUNTS: Cell<(usize,usize)> = const { Cell::new((0,0)) }; }
 #[cfg(test)]
 pub(in crate::services::project) fn take_load_counts() -> (usize, usize) {
     LOAD_COUNTS.with(|counts| counts.replace((0, 0)))
 }
-
 #[cfg(test)]
 pub(crate) fn load_variant_files(
-    mod_root: &Path,
+    root: &Path,
 ) -> AppResult<(Vec<VariantFile>, Vec<GameScanWarning>)> {
-    load_variant_files_from(&mut SourceReader::new(mod_root)?)
+    load_variant_files_from(&mut SourceReader::new(root)?)
+}
+fn duplicate(root: &Path, path: &Path, field: &str, id: &str, code: &str) -> GameScanWarning {
+    let path = path.to_string_lossy().into_owned();
+    GameScanWarning {
+        code: code.into(),
+        path: path.clone(),
+        message: format!("重复 {field} {id}"),
+        location: Some(ErrorLocation {
+            path: Some(path.clone()),
+            ..Default::default()
+        }),
+        edit_target: Some(GameWarningEditTarget {
+            mod_root: root.to_string_lossy().into_owned(),
+            path,
+        }),
+    }
 }
 pub(in crate::services::project) fn load_variant_files_from(
-    sources: &mut SourceReader,
+    reader: &mut SourceReader,
 ) -> AppResult<(Vec<VariantFile>, Vec<GameScanWarning>)> {
-    let mod_root = sources.root().to_path_buf();
     #[cfg(test)]
     LOAD_COUNTS.with(|counts| {
-        let (variant, skin) = counts.get();
-        counts.set((variant + 1, skin));
+        let (a, b) = counts.get();
+        counts.set((a + 1, b));
     });
-    let mut seen = HashMap::new();
     let mut files = Vec::new();
     let mut warnings = Vec::new();
-    for (path, data) in sources.walk("data/variants", "variant")? {
-        let rel_path = forward_slash_relative_path(&mod_root, &path);
-        let file = build_variant_file(&mod_root, &rel_path, &data)
-            .map_err(|error| AppError::context(path.display().to_string(), error).at_path(&path))?;
-        if let Some(previous) =
-            seen.insert(file.variant_id.clone(), path.to_string_lossy().to_string())
-        {
-            warnings.push(GameScanWarning {
-                code: "scan.variant_id_duplicate".to_string(),
-                location: Some(ErrorLocation {
-                    row_key: None,
-                    field: None,
-                    path: Some(path.to_string_lossy().to_string()),
-                    line: None,
-                    column: None,
-                }),
-                path: path.to_string_lossy().to_string(),
-                message: format!(
-                    "重复 variantId {}，已保留第一个文件并跳过后续文件：{previous}",
-                    file.variant_id
-                ),
-                edit_target: Some(GameWarningEditTarget {
-                    mod_root: mod_root.to_string_lossy().to_string(),
-                    path: path.to_string_lossy().to_string(),
-                }),
-            });
-            continue;
+    let mut seen = BTreeSet::new();
+    for path in reader.discover("data/variants", &["variant"], true)? {
+        let source = reader.json_source(&path)?;
+        let relative = reader.key(&path);
+        let file = variant_summary(reader.root(), &relative, &source).map_err(|error| {
+            AppError::context(format!("读取装配失败：{}", path.display()), error).at_path(&path)
+        })?;
+        if !seen.insert(file.variant_id.clone()) {
+            warnings.push(duplicate(
+                reader.root(),
+                &path,
+                "variantId",
+                &file.variant_id,
+                "scan.variant_id_duplicate",
+            ));
+        } else {
+            files.push(file);
         }
-        files.push(file);
     }
     files.sort_by(|a, b| {
         a.hull_id
@@ -71,49 +73,32 @@ pub(in crate::services::project) fn load_variant_files_from(
     });
     Ok((files, warnings))
 }
-
 pub(in crate::services::project) fn load_skin_files_from(
-    sources: &mut SourceReader,
+    reader: &mut SourceReader,
 ) -> AppResult<(Vec<SkinFile>, Vec<GameScanWarning>)> {
-    let mod_root = sources.root().to_path_buf();
     #[cfg(test)]
     LOAD_COUNTS.with(|counts| {
-        let (variant, skin) = counts.get();
-        counts.set((variant, skin + 1));
+        let (a, b) = counts.get();
+        counts.set((a, b + 1));
     });
-    let mut seen = HashMap::new();
     let mut files = Vec::new();
     let mut warnings = Vec::new();
-    for (path, data) in sources.walk("data/hulls/skins", "skin")? {
-        let rel_path = forward_slash_relative_path(&mod_root, &path);
-        let file = build_skin_file(&mod_root, &rel_path, &data)
-            .map_err(|error| AppError::context(path.display().to_string(), error).at_path(&path))?;
-        if let Some(previous) = seen.insert(
-            file.skin_hull_id.clone(),
-            path.to_string_lossy().to_string(),
-        ) {
-            warnings.push(GameScanWarning {
-                code: "scan.skin_id_duplicate".to_string(),
-                location: Some(ErrorLocation {
-                    row_key: None,
-                    field: None,
-                    path: Some(path.to_string_lossy().to_string()),
-                    line: None,
-                    column: None,
-                }),
-                path: path.to_string_lossy().to_string(),
-                message: format!(
-                    "重复 skinHullId {}，已保留第一个文件并跳过后续文件：{previous}",
-                    file.skin_hull_id
-                ),
-                edit_target: Some(GameWarningEditTarget {
-                    mod_root: mod_root.to_string_lossy().to_string(),
-                    path: path.to_string_lossy().to_string(),
-                }),
-            });
-            continue;
+    let mut seen = BTreeSet::new();
+    for path in reader.discover("data/hulls/skins", &["skin"], true)? {
+        let source = reader.json_source(&path)?;
+        let relative = reader.key(&path);
+        let file = skin_summary(reader.root(), &relative, &source)?;
+        if !seen.insert(file.skin_hull_id.clone()) {
+            warnings.push(duplicate(
+                reader.root(),
+                &path,
+                "skinHullId",
+                &file.skin_hull_id,
+                "scan.skin_id_duplicate",
+            ));
+        } else {
+            files.push(file);
         }
-        files.push(file);
     }
     files.sort_by(|a, b| {
         a.base_hull_id
@@ -122,63 +107,63 @@ pub(in crate::services::project) fn load_skin_files_from(
     });
     Ok((files, warnings))
 }
-
-pub fn build_variant_file(mod_root: &Path, rel_path: &str, data: &Value) -> AppResult<VariantFile> {
-    let variant_id = required_string(data, "variantId", "装配")?;
-    let hull_id = required_string(data, "hullId", "装配")?;
+fn required(data: &Value, field: &str) -> AppResult<String> {
+    data.get(field)
+        .and_then(Value::as_str)
+        .filter(|value| !value.trim().is_empty())
+        .map(str::to_owned)
+        .ok_or_else(|| AppError::message("config.missing_field", format!("缺少字段：{field}")))
+}
+fn array_len(data: &Value, field: &str) -> usize {
+    data[field].as_array().map_or(0, Vec::len)
+}
+fn object_len(data: &Value, field: &str) -> usize {
+    data[field].as_object().map_or(0, |fields| fields.len())
+}
+pub fn build_variant_file(
+    root: &Path,
+    relative: &str,
+    source: &JsonSource,
+) -> AppResult<VariantFile> {
+    let mut file = variant_summary(root, relative, source)?;
+    file.document = Some(JsonFileContent::from(source));
+    Ok(file)
+}
+fn variant_summary(root: &Path, relative: &str, source: &JsonSource) -> AppResult<VariantFile> {
+    let data = source.content.to_json()?;
     Ok(VariantFile {
-        variant_id,
-        hull_id,
-        path: mod_root.join(rel_path).to_string_lossy().to_string(),
-        rel_path: rel_path.to_string(),
-        weapon_group_count: array_len(data.get("weaponGroups")),
-        hull_mod_count: array_len(data.get("hullMods")),
-        perma_mod_count: array_len(data.get("permaMods")),
-        wing_count: array_len(data.get("wings")),
-        data: data.clone(),
+        variant_id: required(&data, "variantId")?,
+        hull_id: required(&data, "hullId")?,
+        path: io::forward_slash_path(&root.join(relative)),
+        rel_path: relative.into(),
+        document: None,
+        weapon_group_count: array_len(&data, "weaponGroups"),
+        hull_mod_count: array_len(&data, "hullMods"),
+        perma_mod_count: array_len(&data, "permaMods"),
+        wing_count: array_len(&data, "wings"),
+        data,
     })
 }
-
-pub fn build_skin_file(mod_root: &Path, rel_path: &str, data: &Value) -> AppResult<SkinFile> {
-    let skin_hull_id = models::file_content_id(data, "skinHullId", Path::new(rel_path));
-    let base_hull_id = data
-        .get("baseHullId")
-        .and_then(Value::as_str)
-        .unwrap_or_default()
-        .to_string();
+pub fn build_skin_file(root: &Path, relative: &str, source: &JsonSource) -> AppResult<SkinFile> {
+    let mut file = skin_summary(root, relative, source)?;
+    file.document = Some(JsonFileContent::from(source));
+    Ok(file)
+}
+fn skin_summary(root: &Path, relative: &str, source: &JsonSource) -> AppResult<SkinFile> {
+    let data = source.content.to_json()?;
     Ok(SkinFile {
-        skin_hull_id,
-        base_hull_id,
-        path: mod_root.join(rel_path).to_string_lossy().to_string(),
-        rel_path: rel_path.to_string(),
-        built_in_mod_count: array_len(data.get("builtInMods")),
-        built_in_weapon_count: object_len(data.get("builtInWeapons")),
-        built_in_wing_count: array_len(data.get("builtInWings")),
-        weapon_slot_change_count: object_len(data.get("weaponSlotChanges")),
-        engine_slot_change_count: object_len(data.get("engineSlotChanges")),
-        data: data.clone(),
+        skin_hull_id: models::file_content_id(&data, "skinHullId", Path::new(relative)),
+        base_hull_id: data["baseHullId"].as_str().unwrap_or_default().into(),
+        path: io::forward_slash_path(&root.join(relative)),
+        rel_path: relative.into(),
+        document: None,
+        built_in_mod_count: array_len(&data, "builtInMods"),
+        built_in_weapon_count: object_len(&data, "builtInWeapons"),
+        built_in_wing_count: array_len(&data, "builtInWings"),
+        weapon_slot_change_count: object_len(&data, "weaponSlotChanges"),
+        engine_slot_change_count: object_len(&data, "engineSlotChanges"),
+        data,
     })
-}
-
-fn required_string(value: &Value, key: &str, display_name: &str) -> AppResult<String> {
-    value
-        .get(key)
-        .and_then(Value::as_str)
-        .filter(|text| !text.trim().is_empty())
-        .map(str::to_string)
-        .ok_or_else(|| {
-            AppError::message("config.missing_field", format!("{display_name}缺少 {key}"))
-        })
-}
-
-fn array_len(value: Option<&Value>) -> usize {
-    value.and_then(Value::as_array).map_or(0, Vec::len)
-}
-
-fn object_len(value: Option<&Value>) -> usize {
-    value
-        .and_then(Value::as_object)
-        .map_or(0, |object| object.len())
 }
 
 #[cfg(test)]

@@ -32,12 +32,12 @@
 - `src/shared/lib/keyboard-shortcuts.ts`：四种键盘命令及可编辑目标的公共纯规则。
 - `src/shared/runtime/event.runtime.ts`：公共事件注册、载荷和错误交接，解除由窗口运行态持有。
 - `src/shared/types/window.types.ts`：前端窗口输入、上下文与交付结果模型。
-- `src/windows/spec-editor.window.ts`：四类规格的身份、尺寸与结构化窗口请求。
-- `src/windows/text-editor.window.ts`：文本编辑器窗口请求，承载常规与错误恢复两种请求形状。
 
 ### 关联
 
 - `src/shared/lib/paths.ts`：文件系统、资源及游戏目录的路径纯规则。
+- `src/windows/spec-editor.window.ts`：四类规格的身份、尺寸与结构化窗口请求。
+- `src/windows/text-editor.window.ts`：文本编辑器窗口请求，承载常规与错误恢复两种请求形状。
 
 ## 边界
 
@@ -101,7 +101,7 @@
 - 打开或身份交接遇到已登记的 dirty、saving 或 creating 目标时，窗口能力必须先显示并聚焦占用实例，再返回稳定冲突错误。
 - 沉浸式身份必须包含 session、Mod、`JointEditKind` 与 ID，并按正式 Windows 路径键比较；同实体的规格、文本与沉浸式窗口保留各自实例身份及共同物理协调范围。
 - 窗口身份与编辑目标必须消费正式读取交付的规范路径；登记、聚焦、预约和重定向沿用该路径身份。
-- 聚焦能力必须按完整 `WindowIdentity` 查询现有登记、显示窗口、恢复最小化并聚焦；找不到所属实例返回 `false`，调用方保留草稿与冲突诊断。
+- 聚焦能力按完整 `WindowIdentity` 查询现有登记、显示窗口、恢复最小化并聚焦；找不到所属实例返回 `false`，调用方保留草稿与冲突诊断。
 - 获准窗口必须在销毁前完成性能尾批交付；观测交付失败继续已确认的关闭。
 - 规格、文本、CSV 关联和配置身份准备遇到目标已存在时，必须消费错误中的正式 target 聚焦所属实例，再报告原始冲突；配置列表的同 ID 拒绝消费所属已加载目标。
 - 规格身份必须分别表达 `sessionId`、kind、`modRoot` 与 id；文本身份分别表达 `sessionId`、`modRoot` 与 path；恢复身份分别表达 nullable `modRoot` 与 path。

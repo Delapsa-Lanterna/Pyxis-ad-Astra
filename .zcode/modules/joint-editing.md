@@ -25,16 +25,22 @@
 ### 消费
 
 - `src-tauri/src/domain/csv_column_order.rs`：从唯一 CSV schema 提取标准列并维护补列顺序。
+- `src-tauri/src/domain/document_edit.rs`：逐文件精确基线与明确结构修改。
 - `src-tauri/src/domain/entity_construction.rs`：缺失规格的正式构造。
 - `src-tauri/src/domain/entity_definitions.rs`：八种实体的目录、后缀、ID 字段及规格、表格关联登记。
 - `src-tauri/src/domain/entity_identity.rs`：跨编辑器实体 ID、路径与来源范围纯规则。
 - `src-tauri/src/domain/json_composition.rs`：游戏 JSON 合并、排除字段及整体覆盖组合。
 - `src-tauri/src/domain/save_edits.rs`：当前正式内容的字段修改应用。
+- `src-tauri/src/domain/schema.rs`：字段解释、业务校验及修改值的目标格式。
 - `src-tauri/src/domain/variant_modules.rs`：装配模块格式的读取和引用替换。
+- `src-tauri/src/io/mod.rs`：授权路径、同次字节与版本读取以及变更集能力。
+- `src-tauri/src/models/file_content.rs`：精确文档、原始格式、物理 CSV 行格及完整写入请求。
+- `src-tauri/src/models/file_value.rs`：64 位整数、浮点与 UTF-16 文字的精确值。
 - `src-tauri/src/models/joint_edit.rs`：联合来源记录、缺失值、冲突与提交模型。
 - `src-tauri/src/models/joint_target.rs`：联合业务根、类别与所属项目范围。
 - `src-tauri/src/models/project_identity.rs`：联合来源消费的实体、CSV 表与版本身份。
 - `src-tauri/src/models/write_commit.rs`：联合提交消费的公共回执与行键映射。
+- `src-tauri/src/parsers/game/`：游戏 JSON/CSV 的正式读取入口、文档方法、数值及文本格式能力。
 - `src-tauri/src/services/project/model.rs`：来源装配消费的已加载记录。
 - `src-tauri/src/services/project/query/entity_presentation.rs`：实体是否参与组合的判定及对外内容、目标和资源呈现装配。
 - `src-tauri/src/services/project/query/entity_targets.rs`：实际编辑目标、身份意图及正式版本范围。
@@ -44,26 +50,20 @@
 - `src-tauri/src/services/project/resources/resource_identity.rs`：联合查询按实际规格来源接纳资源集合的引用身份。
 - `src-tauri/src/services/project/resources/table_references.rs`：表格行、图片路径列及来源引用的授权资源与显示名称投影。
 - `src-tauri/src/services/project/session.rs`：会话打开、关闭、内容更新与内部登记及就绪访问能力交付。
-- `src-tauri/src/services/project/session/access.rs`：捕获引用快照后锁定并交付所属就绪会话。
-- `src-tauri/src/services/project/session/csv_tables.rs`：正式表格内容、稳定行身份、来源保留、加载版本及实体计数构建。
-- `src-tauri/src/services/project/session/csv_writes.rs`：所属表格写入缓冲与成功接纳。
-- `src-tauri/src/services/project/session/registry.rs`：会话存活登记、句柄与内容就绪门控。
+- `src-tauri/src/services/project/session/`：会话授权、就绪访问、CSV 正式内容、引用及来源版本管理。
 - `src-tauri/src/services/project/sources/`：带版本来源读取与共享 Core 文档成果。
 - `src-tauri/src/services/project/versions.rs`：会话已接纳来源的路径凭据投影。
 - `src-tauri/src/services/project/write/entity_write.rs`：实体暂存、描述及父引用的写入规则。
-- `src-tauri/src/services/project/write/entity_write/content.rs`：实体内容、关联规格准备与复核、描述、父引用、单文件和势力索引写入。
-- `src-tauri/src/services/project/write/entity_write/descriptions.rs`：实体内容、关联规格准备与复核、描述、父引用、单文件和势力索引写入。
-- `src/app/WindowRuntime.vue`：显式交付窗口反馈并挂载目标交接。
+- `src-tauri/src/services/project/write/entity_write/`：实体内容构造、关联规格、描述、索引及父引用的写入准备。
 - `src/app/composables/use-app-feedback.ts`：窗口反馈的提供与消费入口。
 - `src/app/composables/use-edit-target-draft-session.ts`：完整目标快照、读取票据、保存 Promise 与接纳上下文。
 - `src/domain/edit-session.ts`：保存准备与跨窗口请求消费的目标重叠比较。
 - `src/domain/entity-write/spec-construction.ts`：前端规格、装配和皮肤构造及分支补全。
 - `src/domain/json-composition.ts`：前端内容组合、来源定位、稀疏编辑及覆盖撤销。
+- `src/domain/json-document.ts`：精确文件基线、集合身份、局部修改、历史及实际写出结果的接纳。
 - `src/domain/project/entity-definitions.ts`：实体内容 ID 字段及字符串 ID 提取。
-- `src/domain/schema/csv-schema-registry.ts`：CSV 记录消费的正式列声明。
-- `src/domain/schema/csv-value-validation.ts`：联合 CSV 草稿与保存内容消费的共同值规则。
+- `src/domain/schema/`：字段与列资产加载、游戏数字解释、来源声明、校验及目标格式准备。
 - `src/orchestrators/entity-write.orchestrator.ts`：实体本地 ID 状态变化的统一确认。
-- `src/orchestrators/json-write-confirmation.orchestrator.ts`：保存提交所属的原文保留、逐源确认和写入重试。
 - `src/orchestrators/project-sync.orchestrator.ts`：窗口内保存消费过程和内容维护者交接。
 - `src/services/query-cache.service.ts`：类型化缓存实例、共享请求、即时读取、门控及失效通知。
 - `src/services/window.service.ts`：窗口 command 的类型化签名与参数装配。
@@ -79,6 +79,7 @@
 ### 装配
 
 - `src-tauri/src/services/mod.rs`：直接从所属实现交付正式业务函数入口。
+- `src/app/WindowRuntime.vue`：显式交付窗口反馈并挂载目标交接。
 
 ### 关联
 
@@ -137,37 +138,37 @@
 - 联合保存必须在冲突选择完成后，按实际物理文件汇总本地 ID 有无变化，并消费实体写入的统一确认能力。
 - 联合规格的局部覆盖校验必须消费各文件的本地身份；确认与事务共同消费准备后的内容和版本。
 - CSV 暂存必须先合并规格身份、字段、描述及注释首列，再按最终表各渲染一次；回执与会话消费同一最终表和实际提交文本。
-- CSV 来源目录必须一次准备所属表的身份索引；行键匹配保持注释身份与 description 的 id/type 组合。
+- CSV 来源目录一次准备所属表的身份索引；行键匹配保持注释身份与 description 的 id/type 组合。
 - CSV 补列必须以明确字段提交为依据；标准列按已配置 Core 表头或正式列资产排序，自定义列保持相对顺序并位于末尾。
 - CSV、配置、文本与专项保存参与者必须登记完整物理范围，输入、dirty、saving 和历史保持所属会话 owner；原生目标登记只允许由窗口能力维护。
 - Core 来源必须携带来源版本与当前 Mod 创建凭据；覆盖修改经显式确认并写入授权 Mod 目标。
-- `JointEditQuery` 必须分别承载正式根、可选 CSV `rowKey`、草稿值、`newSources` 与可选 catalog；`rowKey` 由后端解析已保存 ID，草稿关联投影消费独立捕获值。
-- `JointEditRoot` 必须完整表达 `sessionId`、`modRoot`、kind 和 id；四类根为 ship、weapon、wing 与 variant。
-- `JointHull` 必须表达装配、基础船体、Skin 链、实际字段绑定、逐船体 CSV／描述／系统展示绑定、完整有效槽位、有效 hints、内置装备、模块定位与授权贴图；有效值按继承顺序投影，字段提交消费所属 `recordKey` 与 path，展示绑定指向同一来源图中的实际记录键。
-- `JointRecordTarget` 必须分别表达规格、CSV 与文本；CSV 具有 table、`rowKey`、业务 identity 和授权 write。
-- `JointValue` 必须区分 missing 与 present；`null`、删除、数组和文本原文保持各自语义。
+- `JointEditQuery` 分别承载正式根、可选 CSV `rowKey`、草稿值、`newSources` 与可选 catalog；`rowKey` 由后端解析已保存 ID，草稿关联投影消费独立捕获值。
+- `JointEditRoot` 完整表达 `sessionId`、`modRoot`、kind 和 id；四类根为 ship、weapon、wing 与 variant。
+- `JointHull` 表达装配、基础船体、Skin 链、实际字段绑定、逐船体 CSV／描述／系统展示绑定、完整有效槽位、有效 hints、内置装备、模块定位与授权贴图；有效值按继承顺序投影，字段提交消费所属 `recordKey` 与 path，展示绑定指向同一来源图中的实际记录键。
+- `JointRecordTarget` 分别表达规格、CSV 与文本；CSV 具有 table、`rowKey`、业务 identity 和授权 write。
+- `JointValue` 区分 missing 与 present；`null`、删除、数组和文本原文保持各自语义。
 - Mod 写入版本必须保持所属根范围；Core 来源消费独立 `sourceVersion` 核对，授权 Mod 覆盖目标保留不存在凭据。
 - Skin 缺少 `descriptionId` 时必须消费 `skinHullId`，显式空引用呈现缺失状态；恢复默认描述通过明确字段移除动作提交。
 - `newSources` 只允许声明关联图中的 ship、variant 与 skin 创建类型及 ID；准备必须捕获新增关联的 Mod 版本，保存核对原目标与不存在凭据。
-- `query_joint_edit` 的 catalog 请求必须返回 `JointVariantCatalogRead`；目录直接读取所属类型及配置，战机联队预览在一次来源图内按实际 ID 去重并消费有效船体投影，返回来源、版本和 `ResourceRef`。可写基线消费 `JointEditSnapshot` 与原权威查询。
-- `referenceSettings` 必须共同提供 Core／Mod 的幅能参数、引擎样式、UI 资源及配置版本；`ResourceRef` 由后端授权，展示消费者分别登记媒体集合。
-- variants 必须按实际装配记录键提供根与关联装配的有效投影；catalog 只允许按请求种类返回武器、战机联队或插件的元数据、来源、资源与版本。
+- `query_joint_edit` 的 catalog 请求返回 `JointVariantCatalogRead`；目录直接读取所属类型及配置，战机联队预览在一次来源图内按实际 ID 去重并消费有效船体投影，返回来源、版本和 `ResourceRef`。可写基线消费 `JointEditSnapshot` 与原权威查询。
+- `referenceSettings` 共同提供 Core／Mod 的幅能参数、引擎样式、UI 资源及配置版本；`ResourceRef` 由后端授权，展示消费者分别登记媒体集合。
+- variants 按实际装配记录键提供根与关联装配的有效投影；catalog 只允许按请求种类返回武器、战机联队或插件的元数据、来源、资源与版本。
 - 三方比较必须按对象字段路径与 CSV 记录内容执行，数组与文本整体选择；独立修改保留两侧业务内容。
 - 保存期间新增编辑及草稿撤销重做必须独立保留，正式结果接纳保留捕获后的草稿差异。
 - 保存确认必须绑定当前版本，确认后的来源变化返回版本冲突并保留草稿。
-- 共享关系必须沿船体、Skin 与装配反向展开至实际战机联队；确认呈现实际来源、写入文件与关联对象。
+- 共享关系沿船体、Skin 与装配反向展开至实际战机联队；确认呈现实际来源、写入文件与关联对象。
 - 战机联队 CSV 改名必须以原 `rowKey` 解析权威 ID，描述身份继续消费实际船体来源；引用提交后按实际磁盘重读新的来源与版本。
 - 根与模块改名必须共同映射实际记录键、引用定位、草稿与历史；父引用写入接纳实际版本并进入同一文件历史与保存事件。
 - 模块引用必须消费原版对象和有序条目数组的正式格式；读写保留加载格式、顺序、共享记录身份和未知字段。
-- 武器描述必须按武器 ID 与 `WEAPON` 类型读取；武器 ID 改名在同一事务中更新所属描述记录，目标描述占用拒绝整次保存。
+- 武器描述按武器 ID 与 `WEAPON` 类型读取；武器 ID 改名在同一事务中更新所属描述记录，目标描述占用拒绝整次保存。
 - 皮肤根必须保持真实 skin 身份，保存、改名与权威来源重读共同接纳其有序字段来源和实际生效规格。
-- 目标适配器必须声明可编辑记录集合；草稿、三方比较、共享影响确认与保存协调只允许消费该集合。
+- 目标适配器声明可编辑记录集合；草稿、三方比较、共享影响确认与保存协调只允许消费该集合。
 - 联合基线的写后重读必须消费提交通知的投影阶段，并等待身份阶段完成；所属会话释放撤销基线与关联读取。
 - 联合提交必须只应用一次 changeset、登记一次文件历史；写后结果由实际 after 快照装配版本。
 - 联合保存必须在所属根租约内一次构造当前来源图，修改应用、目标映射及写入消费该图，实际写入前核对所属来源凭据。
 - 已读取规格及 CSV 缺失时必须保留当前完整内容，重建确认后共同应用捕获修改并保留其他记录。
 - 联合保存必须按实际来源读取必要原版内容，Mod 内容齐全时支持无原版保存。
-- 联合武器关联投影必须按当前草稿的 `projectileSpecId` 与伤害类型返回弹体来源和配置授权图标；配置版本参与关联失效。
-- 船体属性必须消费统一皮肤字段映射，来源按基础与继承链有序交付；舰队点数优先采用 fleetPoints 再采用 fpMod，价值先采用 baseValue 再应用 baseValueMult 并截取整数。
+- 联合武器关联投影按当前草稿的 `projectileSpecId` 与伤害类型返回弹体来源和配置授权图标；配置版本参与关联失效。
+- 船体属性消费统一皮肤字段映射，来源按基础与继承链有序交付；舰队点数优先采用 fleetPoints 再采用 fpMod，价值先采用 baseValue 再应用 baseValueMult 并截取整数。
 - 装配身份改名必须在同一根事务中更新当前 Mod 全部父装配 modules 引用；读取版本与交接目标覆盖父文件，配置、文本和联合写入共同消费该规则。
 - 默认舰船描述键必须由所属身份规则随 `hullId` 改名；联合提交接纳描述记录的实际 ID、行键、bindings 与版本，显式 `descriptionId` 只允许由明确字段动作改变。

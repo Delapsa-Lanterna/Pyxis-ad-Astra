@@ -6,6 +6,7 @@ export async function querySpecWeaponEditorData(sessionId: string, id: string, s
   const data = await queryWeaponSpecData(sessionId, id, undefined, signal);
   return {
     kind: 'weapon',
+    document: data.document,
     spec: data.weapon,
     composition: data.composition,
     target: data.target,

@@ -1,3 +1,5 @@
+import { jsonFileFixture, jsonWriteFixture } from '@/test/fixtures/json-file';
+import { projectJsonValue } from '@/domain/json-document';
 import type { WriteResult, VariantFile, SkinFile } from '@/shared/types';
 import type * as JsonEntityServiceModule from '@/services/json-entity.service';
 import type * as JsonFileServiceModule from '@/services/json-file.service';
@@ -54,7 +56,6 @@ import {
   createIndexedEntityAction,
   createJsonFileAction,
   saveIndexedEntityAction,
-  saveModInfoAction,
   saveJsonFileAction,
 } from '@/orchestrators/json-save.orchestrator';
 import { deleteJsonDocument } from '@/app/composables/json-editor/json-document-capabilities';
@@ -64,9 +65,9 @@ import type { AppFeedback, RowData, EntityKind } from '@/shared/types';
 const MOD_ROOT = 'M:\\test-mod';
 const SESSION_ID = 'sess-1';
 
-function writeResult<T extends RowData = never>(refreshedEntity: T | null = null): WriteResult<T> {
-  const kind = refreshedEntity?.variantId ? 'variant' : 'skin';
-  const id = (refreshedEntity?.variantId ?? refreshedEntity?.skinHullId ?? '') as string;
+function writeResult<T extends object = never>(refreshedEntity: T | null = null): WriteResult<T> {
+  const kind = refreshedEntity && Reflect.get(refreshedEntity, 'variantId') ? 'variant' : 'skin';
+  const id = String(refreshedEntity && (Reflect.get(refreshedEntity, 'variantId') ?? Reflect.get(refreshedEntity, 'skinHullId') ?? ''));
   const target = entityTargetFixture(kind, id);
   return {
     ...savedWriteFixture(),
@@ -91,7 +92,7 @@ function writeResult<T extends RowData = never>(refreshedEntity: T | null = null
 }
 
 const variantFile: VariantFile = {
-  baseVersions: [],
+  document: jsonFileFixture({}),
   variantId: 'variant_new',
   hullId: 'npc_dave',
   path: 'data/variants/variant_new.variant',
@@ -103,7 +104,7 @@ const variantFile: VariantFile = {
   wingCount: 0,
 };
 const skinFile: SkinFile = {
-  baseVersions: [],
+  document: jsonFileFixture({}),
   skinHullId: 'skin_new',
   baseHullId: 'npc_dave',
   path: 'data/hulls/skin_new.skin',
@@ -116,7 +117,7 @@ const skinFile: SkinFile = {
   engineSlotChangeCount: 0,
 };
 function indexedEntity(entityId: string) {
-  return { entityId, indexPath: `${entityId}.csv`, indexHeader: ['id'], indexRows: [], entityData: null };
+  return { entityId, indexPath: `${entityId}.csv`, indexHeader: ['id'], indexRows: [], entityData: null, document: null };
 }
 
 beforeEach(() => {
@@ -137,46 +138,40 @@ describe('JSON save orchestrator', () => {
       if (kind === 'variant')
         mocks.writeVariantEntity.mockResolvedValue(writeResult({ ...variantFile, variantId: nextId, data: { variantId: nextId } }));
       else mocks.writeSkinEntity.mockResolvedValue(writeResult({ ...skinFile, skinHullId: nextId, data: { skinHullId: nextId } }));
-      await save(kind, SESSION_ID, MOD_ROOT, nextId, { [field]: nextId }, 'Demo', source.write.relPath, undefined, baseVersions);
+      await save(
+        kind,
+        {
+          sessionId: SESSION_ID,
+          modRoot: MOD_ROOT,
+          nextId,
+          previousId: 'Demo',
+          relPath: source.write.relPath,
+          baseVersions,
+          document: jsonWriteFixture({ [field]: nextId }),
+          jsonWrite: {},
+        },
+        [],
+      );
       expect(write.mock.lastCall?.[0].baseVersions).toEqual(baseVersions);
     }
   });
-  it('writes canonical mod info and synchronizes its captured receipt', async () => {
-    mocks.writeModInfo.mockResolvedValue(writeResult());
-
-    const result = await saveModInfoAction(SESSION_ID, MOD_ROOT, { id: 'demo' });
-
-    expect(mocks.writeModInfo).toHaveBeenCalledWith(
-      SESSION_ID,
-      MOD_ROOT,
-      { id: 'demo' },
-      { preserveOriginalJson: false, confirmedSources: [] },
-      [],
-      undefined,
-      undefined,
-    );
-    expect(result).toEqual(writeResult());
-  });
-
-  it('does not record file history when a preserved JSON save has no changes', async () => {
-    mocks.writeModInfo.mockResolvedValue({ ...writeResult(), changes: [] });
-    const result = await saveModInfoAction(SESSION_ID, MOD_ROOT, { id: 'demo' });
-    expect(result!.changes).toEqual([]);
-  });
-
   it('save indexed entity returns the refreshed entity id and records a save label', async () => {
     mocks.writeIndexedConfigEntity.mockResolvedValue(writeResult(indexedEntity('npc_dave')));
 
-    const entityId = await saveIndexedEntityAction({
-      baseVersions: [],
-      sessionId: SESSION_ID,
-      modRoot: MOD_ROOT,
-      kind: 'faction',
-      previousId: 'npc_dave',
-      nextId: 'npc_dave',
-      indexRow: {},
-      entityData: {},
-    });
+    const entityId = await saveIndexedEntityAction(
+      {
+        baseVersions: [],
+        sessionId: SESSION_ID,
+        modRoot: MOD_ROOT,
+        kind: 'faction',
+        previousId: 'npc_dave',
+        nextId: 'npc_dave',
+        indexRow: {},
+        document: jsonWriteFixture({}),
+        jsonWrite: {},
+      },
+      [],
+    );
 
     expect(entityId?.content?.value).toMatchObject({ entityId: 'npc_dave' });
     expect(entityId).toEqual(writeResult(indexedEntity('npc_dave')));
@@ -193,7 +188,9 @@ describe('JSON save orchestrator', () => {
       previousId: null,
       nextId: 'mission_new',
       indexRow: {},
-      entityData: {},
+      document: jsonWriteFixture({}),
+      text: '',
+      jsonWrite: {},
     });
 
     expect(entityId.content!.value.entityId).toBe('mission_new');
@@ -235,7 +232,7 @@ describe('JSON save orchestrator', () => {
     expect(variant.content!.value).toMatchObject({ variantId: 'variant_new' });
     const payload = mocks.writeCreateVariantEntity.mock.calls[0]![0];
     expect(payload.nextId).toBe('variant_new');
-    expect(payload.data).toEqual(createDefaultVariant('npc_dave', 'variant_new'));
+    expect(projectJsonValue(payload.document.content)).toEqual(createDefaultVariant('npc_dave', 'variant_new'));
   });
 
   it('variant save forwards the previous id for renames', async () => {
@@ -250,12 +247,17 @@ describe('JSON save orchestrator', () => {
 
     await saveJsonFileAction(
       'variant',
-      SESSION_ID,
-      MOD_ROOT,
-      'variant_b',
-      { variantId: 'variant_b' },
-      'variant_a',
-      'data/variants/variant_a.variant',
+      {
+        sessionId: SESSION_ID,
+        modRoot: MOD_ROOT,
+        nextId: 'variant_b',
+        previousId: 'variant_a',
+        relPath: 'data/variants/variant_a.variant',
+        baseVersions: [],
+        document: jsonWriteFixture({ variantId: 'variant_b' }),
+        jsonWrite: {},
+      },
+      [],
     );
 
     expect(mocks.writeVariantEntity).toHaveBeenCalledWith(
@@ -266,8 +268,7 @@ describe('JSON save orchestrator', () => {
         previousId: 'variant_a',
         nextId: 'variant_b',
       }),
-      { preserveOriginalJson: false, confirmedSources: [] },
-      undefined,
+      [],
       undefined,
     );
   });
@@ -307,7 +308,20 @@ describe('JSON save orchestrator', () => {
       writeResult({ ...skinFile, skinHullId: 'skin_b', path: 'data/hulls/skin_b.skin', relPath: 'skins/skin_b.skin' }),
     );
 
-    await saveJsonFileAction('skin', SESSION_ID, MOD_ROOT, 'skin_b', { skinHullId: 'skin_b' }, 'skin_a', 'data/hulls/skins/skin_a.skin');
+    await saveJsonFileAction(
+      'skin',
+      {
+        sessionId: SESSION_ID,
+        modRoot: MOD_ROOT,
+        nextId: 'skin_b',
+        previousId: 'skin_a',
+        relPath: 'data/hulls/skins/skin_a.skin',
+        baseVersions: [],
+        document: jsonWriteFixture({ skinHullId: 'skin_b' }),
+        jsonWrite: {},
+      },
+      [],
+    );
 
     expect(mocks.writeSkinEntity).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -317,8 +331,7 @@ describe('JSON save orchestrator', () => {
         previousId: 'skin_a',
         nextId: 'skin_b',
       }),
-      { preserveOriginalJson: false, confirmedSources: [] },
-      undefined,
+      [],
       undefined,
     );
   });
@@ -357,10 +370,25 @@ describe('JSON local identity presence', () => {
     const target = entityTargetFixture('skin', 'sample');
     mocks.writeSkinEntity.mockResolvedValue(writeResult({ ...skinFile, skinHullId: 'sample', data: after }));
     const save = () =>
-      saveJsonFileAction('skin', SESSION_ID, MOD_ROOT, 'sample', after, 'sample', target.write.relPath, feedback, [], before);
+      saveJsonFileAction(
+        'skin',
+        {
+          sessionId: SESSION_ID,
+          modRoot: MOD_ROOT,
+          nextId: 'sample',
+          previousId: 'sample',
+          relPath: target.write.relPath,
+          baseVersions: [],
+          document: jsonWriteFixture(after),
+          jsonWrite: {},
+        },
+        [],
+        feedback,
+        { original: before, data: after },
+      );
     expect(await save()).not.toBeNull();
     expect(choose).toHaveBeenCalledTimes(Number(beforeId !== afterId));
-    expect(mocks.writeSkinEntity.mock.lastCall![0].data).toEqual(after);
+    expect(projectJsonValue(mocks.writeSkinEntity.mock.lastCall![0].document.content)).toEqual(after);
     if (beforeId !== afterId) {
       choose.mockResolvedValueOnce('cancel');
       const count = mocks.writeSkinEntity.mock.calls.length;

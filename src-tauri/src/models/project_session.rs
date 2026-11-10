@@ -1,14 +1,14 @@
 use super::collections::push_unique_all;
 use super::serde_fields::deserialize_non_empty_string;
 use super::{
-    CsvTableKey, EntityKind, FileChangeRecord, GameScanWarning, ProjectSessionId, ResourceSource,
+    CsvTableKey, EntityKind, FileChangeRecord, FileVersion, GameScanWarning, ProjectSessionId,
+    ResourceSource,
 };
-use crate::models::{FileVersion, InvalidatedResourceScope as ModelsInvalidatedResourceScope};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::BTreeMap;
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ProjectManifest {
     pub base_versions: Vec<FileVersion>,
@@ -23,8 +23,7 @@ pub struct ProjectManifest {
     pub entity_summaries: EntitySummaries,
     pub warnings: Vec<GameScanWarning>,
 }
-
-#[derive(Debug, Serialize, Deserialize, Clone, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct ProjectInvalidation {
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -36,29 +35,25 @@ pub struct ProjectInvalidation {
     pub query_scopes: Vec<InvalidatedQueryScope>,
     pub session: bool,
 }
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionContentUpdate {
     pub manifest: ProjectManifest,
     pub invalidation: ProjectInvalidation,
 }
-
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct InvalidatedEntityRef {
     pub kind: EntityKind,
     pub id: Option<String>,
 }
-
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct InvalidatedResourceScope {
     pub source: ResourceSource,
     pub rel_path: String,
 }
-
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct InvalidatedQueryScope {
     pub kind: InvalidatedQueryKind,
@@ -67,8 +62,7 @@ pub struct InvalidatedQueryScope {
     pub entity: Option<InvalidatedEntityRef>,
     pub resource: Option<InvalidatedResourceScope>,
 }
-
-#[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "kebab-case")]
 pub enum InvalidatedQueryKind {
     CsvTableWindow,
@@ -79,8 +73,7 @@ pub enum InvalidatedQueryKind {
     EntityList,
     ResourceDataUrls,
 }
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TableSummary {
     pub path: String,
@@ -88,8 +81,7 @@ pub struct TableSummary {
     pub available: bool,
     pub total_rows: Option<usize>,
 }
-
-#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EntitySummaries {
     pub factions: usize,
@@ -102,7 +94,6 @@ pub struct EntitySummaries {
     pub systems: usize,
     pub skills: usize,
 }
-
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OpenProjectSessionPayload {
@@ -110,38 +101,34 @@ pub struct OpenProjectSessionPayload {
     #[serde(deserialize_with = "deserialize_non_empty_string")]
     pub starsector_root: Option<String>,
 }
-
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CloseProjectSessionPayload {
     pub session_id: ProjectSessionId,
 }
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct InvalidateProjectSessionPayload {
     pub session_id: ProjectSessionId,
     pub changes: Vec<FileChangeRecord>,
 }
-
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SourceRefresh {
     pub session_id: String,
-    pub sources: Vec<ModelsInvalidatedResourceScope>,
+    pub sources: Vec<InvalidatedResourceScope>,
 }
-
 impl ProjectInvalidation {
-    pub fn merge(&mut self, other: Self) {
-        if let Some(renames) = other.renames {
+    pub fn merge(&mut self, next: Self) {
+        if let Some(renames) = next.renames {
             self.renames.get_or_insert_with(Vec::new).extend(renames);
         }
-        push_unique_all(&mut self.paths, other.paths);
-        push_unique_all(&mut self.tables, other.tables);
-        push_unique_all(&mut self.entities, other.entities);
-        push_unique_all(&mut self.resources, other.resources);
-        push_unique_all(&mut self.query_scopes, other.query_scopes);
-        self.session |= other.session;
+        push_unique_all(&mut self.paths, next.paths);
+        push_unique_all(&mut self.tables, next.tables);
+        push_unique_all(&mut self.entities, next.entities);
+        push_unique_all(&mut self.resources, next.resources);
+        push_unique_all(&mut self.query_scopes, next.query_scopes);
+        self.session |= next.session;
     }
 }
 

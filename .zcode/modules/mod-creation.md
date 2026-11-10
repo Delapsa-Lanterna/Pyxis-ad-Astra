@@ -13,7 +13,6 @@
 - `src-tauri/src/io/mod_creation.rs`：目录骨架与模板写入。
 - `src-tauri/src/services/mod_creation.rs`：创建 service 实现，拥有目标校验、冲突检查与回滚。
 - `src/domain/mod-creation/`：新建 Mod 模板与请求投影。
-- `src/domain/mod-creation/new-mod-template.ts`：模板与校验，拥有 ID/名称/版本规则与 mod-info 默认值。
 - `src/orchestrators/mod-creation.orchestrator.ts`：创建编排，负责实际创建调用、创建日志及结果交付。
 - `src/services/mod-creation.service.ts`：类型化创建签名与 command 参数装配。
 
@@ -21,8 +20,7 @@
 
 - `src-tauri/src/models/mod_creation.rs`：新建目的地、模板与正式创建结果。
 - `src-tauri/src/services/project/sources/roots.rs`：新建目标消费的游戏 mods 目录授权与游戏根推断。
-- `src/domain/schema/mod-info-schema.ts`：新建模板消费的已校验 Mod 信息字段默认值。
-- `src/domain/schema/schema-sections.ts`：字段与列资产加载、来源声明、值及结构纯规则。
+- `src/domain/schema/`：字段与列资产加载、游戏数字解释、来源声明、校验及目标格式准备。
 - `src/shared/types/mod-creation.types.ts`：类型化创建请求与返回模型。
 
 ## 边界
@@ -52,7 +50,7 @@
 ## 规范
 
 - Mod ID 必须匹配受限 ASCII 标识规则，同时作为新建目录名。
-- `mod_info.json` 模板必须输出 UTF-8 无 BOM 与 CRLF。
+- `mod_info.json` 模板输出 UTF-8 无 BOM 与 CRLF。
 - 创建只允许写入 `mod_info.json` 与空目录骨架，目录必须包含 hulls、weapons、variants、factions、missions 和图像资源目录。
 - 创建失败必须回滚本次创建的根目录。
 - 名称、版本与游戏版本必须是非空单行文本且不超过各自长度上限。

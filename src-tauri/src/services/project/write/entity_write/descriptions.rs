@@ -140,6 +140,7 @@ pub(in crate::services::project) fn rename_description_row(
             &csv_column_order::standard_csv_columns(CsvTableKey::Descriptions),
         );
         rows.push(SessionCsvRow {
+            source_row: None,
             row_key: format!("descriptions:row:{sequence}"),
             data,
             is_comment: false,

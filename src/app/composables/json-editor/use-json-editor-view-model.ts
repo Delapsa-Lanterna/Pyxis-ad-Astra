@@ -10,7 +10,7 @@ import { useQueryReadOwner } from '@/app/composables/use-query-read-owner';
 import { useContextMenuScope } from '@/app/composables/use-context-menu';
 import { useJsonDocumentSession, type JsonDocumentSession } from './use-json-document-session';
 import { useJsonListSelection } from './use-json-list-selection';
-import { createJsonDocument, deleteJsonDocument } from './json-document-capabilities';
+import { createJsonDocument, deleteJsonDocument, loadJsonDocument } from './json-document-capabilities';
 import { useJsonEditorStore, type JsonDocumentState, type JsonSearchField } from '@/stores/json-editor.store';
 import { useSettingsStore } from '@/stores/settings.store';
 import {
@@ -21,7 +21,8 @@ import {
   type JsonDocumentDefinition,
   type JsonDocumentRecord,
 } from '@/domain/json-editor/json-document-definitions';
-import { querySessionEntity, querySessionEntityList, hasEntityInvalidation } from '@/services/entity-query.service';
+import { querySessionEntityList, hasEntityInvalidation } from '@/services/entity-query.service';
+import type { JsonFileContent } from '@/shared/types';
 import { queryHullReferenceOptions, querySessionHullReferences } from '@/services/hull-reference.service';
 
 import { refreshProjectSourcePaths, observeSavedContent, sessionContentUpdate } from '@/orchestrators/project-sync.orchestrator';
@@ -203,6 +204,7 @@ export function useJsonEditorViewModel(definition: JsonDocumentDefinition, conte
         bindRecord({
           target: { sessionId: manifest.sessionId, modRoot: manifest.modRoot, kind, id: 'mod-info', entity: null },
           value: jsonDocumentValue(kind, manifest.modInfo ?? {}),
+          document: null,
           baseVersions: manifest.baseVersions,
           resources: {},
         }),
@@ -264,6 +266,7 @@ export function useJsonEditorViewModel(definition: JsonDocumentDefinition, conte
           const record: JsonDocumentRecord = {
             target: { ...scope, kind: 'misc-config', id, entity: null },
             value: miscConfigDocumentValue(cloneQuerySnapshot<JsonValue>(file.data)),
+            document: cloneQuerySnapshot<JsonFileContent>(file.document),
             baseVersions: [...file.baseVersions],
             resources: {},
             composition: file.composition ? cloneQuerySnapshot<JsonComposition>(file.composition) : undefined,
@@ -370,17 +373,22 @@ export function useJsonEditorViewModel(definition: JsonDocumentDefinition, conte
     () => {
       reads.revoke('consumer', 'selected');
       const record = records.value.find((record) => record.target.id === selectedId.value);
-      if (
-        record &&
-        kind !== 'mod-info' &&
-        kind !== 'misc-config' &&
-        !documents.value.some((document) => document.target.value!.id === record.target.id)
-      ) {
+      if (record && !record.document && !documents.value.some((document) => document.target.value!.id === record.target.id)) {
         activateRecord();
         const target = record.target;
-        void reads.consume('selected', target, (signal) => querySessionEntity(target.sessionId, kind, target.id, signal), {
-          ready: (entity) => {
-            if (entity) activateRecord(jsonDocumentRecord(target.sessionId, target.modRoot, entity), true);
+        void reads.consume('selected', target, (signal) => loadJsonDocument(target, signal), {
+          ready: (snapshot) => {
+            activateRecord(
+              {
+                target: snapshot.target,
+                value: snapshot.value,
+                document: snapshot.meta.document,
+                baseVersions: snapshot.baseVersions,
+                resources: snapshot.meta.resources ?? {},
+                composition: snapshot.meta.composition,
+              },
+              true,
+            );
           },
           error: (error) => feedback.error(error, '读取' + definition.label + '失败'),
         });

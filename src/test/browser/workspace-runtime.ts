@@ -4,6 +4,8 @@ import { createWorkspaceProject } from './project';
 import { workspaceRoots, coreRoot, gameRoot } from './sample-data';
 import { dispatch as dispatchScene } from './runtime/commands';
 import { createSettingsFixture } from '../fixtures/settings';
+import { jsonFileFixture } from '../fixtures/json-file';
+import { projectJsonValue } from '@/domain/json-document';
 import { entityTargetFixture } from '../fixtures/entity-target';
 import { buildModNavigationSections } from '@/domain/workspace/mod-navigation';
 import { gameQuery, gameCatalog } from './queries';
@@ -553,17 +555,17 @@ export function createBrowserWorkspace(
       case 'save_editor_spec': {
         const input = args.payload as T.SpecSave;
         const entity = receiver.entities.get(receiver.entityKey(input.target.kind, input.target.id));
-        const data =
-          input.target.kind === 'weapon' || input.target.kind === 'projectile'
-            ? { ...(entity!.data as T.RowData), spec: input.data }
-            : input.data;
-        result = receiver.saveEntity(input.target, data);
+        const spec = projectJsonValue(input.document.content) as T.RowData;
+        const data = input.target.kind === 'weapon' || input.target.kind === 'projectile' ? { ...(entity!.data as T.RowData), spec } : spec;
+        const saved = receiver.saveEntity(input.target, data);
+        result = { ...saved, content: { target: { kind: 'spec', target: input.target }, value: jsonFileFixture(spec) } };
         break;
       }
       case 'save_mod_info': {
-        const modInfo = payload.data as T.RowData;
+        const input = args.payload as T.ModInfoSave;
+        const modInfo = projectJsonValue(input.document.content) as T.RowData;
         receiver.textFiles.set(receiver.manifest.modRoot + '/mod_info.json', JSON.stringify(modInfo, null, 2) + '\n');
-        result = receiver.write({ file: payload.data as T.RowData }, { kind: 'json', origin: { kind: 'modInfo' } }, [
+        result = receiver.write(jsonFileFixture(modInfo), { kind: 'json', origin: { kind: 'modInfo' } }, [
           receiver.manifest.modRoot + '/mod_info.json',
         ]);
         break;

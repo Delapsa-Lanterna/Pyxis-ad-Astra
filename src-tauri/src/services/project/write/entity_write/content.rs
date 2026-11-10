@@ -1,63 +1,40 @@
-use super::super::super::definitions::entity_definitions::entity_definition;
-use super::super::super::query::entity_targets::describe_entity_target;
-use super::super::super::query::json_layers as source_layers;
-use super::super::super::session::csv_writes::CsvTableDraft;
-use super::super::super::session::{lock_session, session_handle};
-use crate::domain::entity_definitions::entity_spec_definition;
-use crate::domain::entity_identity::validate_entity_id;
-use crate::domain::{entity_construction, json_composition, save_edits, schema, variant_modules};
+use super::descriptions::DescriptionRename;
+use super::{descriptions, single_files, variant_references};
+use crate::domain::{
+    entity_construction, entity_definitions, entity_identity, json_composition, save_edits, schema,
+};
 use crate::errors::{AppError, AppResult};
-use crate::io::{FileChangeSetBuilder, FsRootBoundary, JsonWriteBatch, read_json_file};
+use crate::io::{self, FileChangeSetBuilder};
+use crate::models::file_content::{JsonFileContent, JsonSource, JsonWrite, SaveLayout};
+use crate::models::file_value::Value as FileValue;
 use crate::models::{
-    EntityEditTarget, EntityIdentityChange, EntityKind, EntityLinkedRecord, EntityTargetState,
-    JsonComposition, JsonWriteOptions, SaveEdit, SpecSave, WriteContentTarget, WriteResult,
+    CsvTableKey, EntityEditTarget, EntityIdentityChange, EntityKind, EntityLinkedRecord,
+    EntityTargetState, JsonComposition, JsonWriteOptions, SaveEdit, SpecSave, WriteContentTarget,
+    WriteResult,
 };
-use crate::services::project::model::ProjectSession;
-use crate::services::project::sources::json_documents;
-use crate::services::project::write::entity_write::descriptions::DescriptionRename;
-use crate::services::project::write::entity_write::{
-    descriptions, faction_index, single_files, variant_references,
+use crate::parsers;
+use crate::services::project::model::{self, ProjectSession};
+use crate::services::project::query::{entity_targets, json_layers};
+use crate::services::project::session::{
+    csv_tables, csv_writes::CsvTableDraft, lock_session, session_handle,
 };
-use crate::services::save_entity_spec as save_spec_via_service;
-use crate::services::{query_entity, require_entity_version_scope};
-use crate::{io, models, parsers};
+use crate::services::project::write::entity_write::replace_paths;
 use serde_json::Value;
 use std::path::Path;
+use std::sync::Arc;
 
 fn content_schema(kind: EntityKind) -> Option<&'static Value> {
     Some(parsers::bundled_schema(match kind {
-        EntityKind::Faction => "faction",
-        EntityKind::Skin => "skin",
-        EntityKind::Variant => "variant",
         EntityKind::Ship => "spec-ship",
         EntityKind::Weapon => "spec-weapon",
         EntityKind::Projectile => "spec-projectile",
         EntityKind::System => "spec-system",
-        _ => return None,
+        EntityKind::Faction => "faction",
+        EntityKind::Variant => "variant",
+        EntityKind::Skin => "skin",
+        EntityKind::Skill | EntityKind::Mission => return None,
     }))
 }
-
-#[cfg(test)]
-pub fn validate_entity_content(
-    session_id: &str,
-    kind: EntityKind,
-    relative: &str,
-    data: &Value,
-    options: &JsonWriteOptions,
-) -> AppResult<()> {
-    let handle = session_handle(session_id)?;
-    let session = lock_session(&handle)?;
-    let composition = source_layers::json_composition(&session, relative)?;
-    validate_entity_content_in(
-        &session,
-        kind,
-        relative,
-        data,
-        options.replaces(relative),
-        Some(&composition),
-    )
-}
-
 pub(in crate::services::project) fn validate_entity_content_in(
     session: &ProjectSession,
     kind: EntityKind,
@@ -66,7 +43,7 @@ pub(in crate::services::project) fn validate_entity_content_in(
     replacing: bool,
     composition: Option<&JsonComposition>,
 ) -> AppResult<()> {
-    let Some(schema) = content_schema(kind) else {
+    let Some(definition) = content_schema(kind) else {
         return Ok(());
     };
     let mut composition = composition.cloned().unwrap_or_default();
@@ -82,30 +59,32 @@ pub(in crate::services::project) fn validate_entity_content_in(
             issues.extend(error.field_problems());
         }
     };
-    let id_field = entity_spec_definition(kind).expect("spec format").id_field;
+    let id = entity_definitions::entity_spec_definition(kind)
+        .expect("file kind")
+        .id_field;
     if data
-        .get(id_field)
+        .get(id)
         .and_then(Value::as_str)
         .is_none_or(str::is_empty)
     {
-        collect(schema::validate_partial_document(schema, data));
+        collect(schema::validate_partial_document(definition, data));
     } else if matches!(
         kind,
-        EntityKind::Faction | EntityKind::Skin | EntityKind::Variant
+        EntityKind::Faction | EntityKind::Variant | EntityKind::Skin
     ) {
-        collect(schema::validate_document(schema, &effective));
+        collect(schema::validate_document(definition, &effective));
     }
     if kind == EntityKind::Weapon
         && data
-            .get(id_field)
+            .get(id)
             .and_then(Value::as_str)
-            .is_some_and(|id| !id.is_empty())
+            .is_some_and(|value| !value.is_empty())
         && effective.get("specClass").is_some()
     {
         collect(entity_construction::validate_weapon_editor_spec(
             &effective,
             &Path::new(&session.manifest.mod_root).join(relative),
-            schema,
+            definition,
         ));
     }
     if kind == EntityKind::Skin && effective.get("baseHullId").is_some() {
@@ -117,7 +96,7 @@ pub(in crate::services::project) fn validate_entity_content_in(
         && let Some(bounds) = effective.get("bounds")
     {
         collect(schema::validate_field(
-            &schema["definitions"]["bounds"],
+            &definition["definitions"]["bounds"],
             bounds,
             "bounds",
             true,
@@ -129,390 +108,245 @@ pub(in crate::services::project) fn validate_entity_content_in(
         Err(AppError::Validation { code, issues })
     }
 }
-pub fn save_entity_spec(
-    session_id: &str,
-    target: &EntityEditTarget,
-    data: Value,
-    options: JsonWriteOptions,
-    ordered_json: Option<&str>,
-) -> AppResult<WriteResult<Value>> {
-    let handle = session_handle(session_id)?;
-    let root = lock_session(&handle)?.manifest.mod_root.clone();
-    let _write_lock = io::acquire_root_write_lock(Path::new(&root))?;
-    let mut session = lock_session(&handle)?;
-    (entity_definition(target.kind)?.prepare)(&mut session)?;
-    let current = describe_entity_target(&mut session, target.kind, &target.id)?;
-    if current.target != *target {
-        return Err(AppError::message(
-            "spec.target_changed",
-            "实体目标已变化，请载入外部版本",
-        ));
+pub fn prepare_spec_save(
+    input: &mut SpecSave,
+    edits: &[SaveEdit],
+    identities: &[EntityIdentityChange],
+) -> AppResult<()> {
+    for identity in identities {
+        if identity.before.kind == input.target.kind && identity.before.id == input.target.id {
+            input.target = identity.after.clone();
+        }
     }
-    let mut json = JsonWriteBatch::new(options);
-    let mut builder = FileChangeSetBuilder::new(Path::new(&root))?;
-    let composition = source_layers::json_composition(&session, &target.write.rel_path)?;
-    let staged = stage_entity_content(
-        &mut session,
-        &mut builder,
-        &mut json,
-        target,
-        data,
-        ordered_json,
-        Some(&composition),
+    if io::source_recreation_allowed(&input.mod_root, &input.target.write.path)
+        && !Path::new(&input.target.write.path).exists()
+    {
+        return Ok(());
+    }
+    let snapshot = entity_targets::query_entity_edit_target(
+        &input.session_id,
+        input.target.kind,
+        &input.target.id,
     )?;
-    let description = descriptions::prepare_description_renames(
-        &session,
-        &staged
-            .description_rename
-            .iter()
-            .cloned()
-            .collect::<Vec<_>>(),
-    )?;
-    variant_references::stage_variant_parents(&session, &mut builder, &mut json, &staged.identity)?;
-    let description = description
-        .map(|csv| csv.stage(&session, &mut builder))
-        .transpose()?;
-    let linked_csv = staged
-        .linked_csv
-        .map(|csv| csv.stage(&session, &mut builder))
-        .transpose()?;
-    json.stage_replace_paths(&mut builder)?;
-    json.finish()?;
-    let changes = builder.apply()?;
-    if let Some(csv) = description {
-        csv.accept(&mut session);
+    input.target = snapshot.target;
+    input.base_versions = snapshot.base_versions;
+    if !edits.is_empty() && Path::new(&input.target.write.path).is_file() {
+        input.document = save_edits::prepare_json_write(
+            Arc::new(io::read_json_file(Path::new(&input.target.write.path))?),
+            edits,
+            input.document.layout,
+        )?;
     }
-    if let Some(csv) = linked_csv {
-        csv.accept(&mut session);
-    }
-    let owner = WriteContentTarget::Spec {
-        target: Box::new(staged.identity.after.clone()),
-    };
-    let mut result = WriteResult::from_content(changes, owner, staged.data);
-    result.identity_changes.push(staged.identity);
-    Ok(result)
+    Ok(())
 }
-
+fn content_id<'a>(target: &'a EntityEditTarget, request: &'a JsonWrite) -> &'a str {
+    let field = entity_definitions::entity_spec_definition(target.kind)
+        .expect("specification definition")
+        .id_field;
+    match request.content.get(field) {
+        Some(FileValue::Text(text)) => text
+            .as_str()
+            .filter(|text| !text.is_empty())
+            .unwrap_or(&target.id),
+        _ => &target.id,
+    }
+}
+pub fn write_spec_request(input: SpecSave) -> AppResult<WriteResult<JsonFileContent>> {
+    entity_targets::require_entity_version_scope(
+        &input.session_id,
+        input.target.kind,
+        &input.target.id,
+        &input.base_versions,
+    )?;
+    let next = content_id(&input.target, &input.document).to_owned();
+    save_entity_spec(
+        &input.session_id,
+        &input.target,
+        &next,
+        input.document,
+        input.json_write,
+    )
+}
 pub(in crate::services::project) struct StagedEntityWrite {
-    pub data: Value,
+    pub document: JsonSource,
     pub identity: EntityIdentityChange,
-    pub(in crate::services::project) linked_csv: Option<CsvTableDraft>,
-    pub(in crate::services::project) description_rename: Option<DescriptionRename>,
+    pub linked_csv: Option<(CsvTableKey, CsvTableDraft)>,
+    pub description_rename: Option<DescriptionRename>,
 }
-
-pub(in crate::services::project) fn stage_entity_content(
-    session: &mut ProjectSession,
-    builder: &mut FileChangeSetBuilder,
-    json: &mut JsonWriteBatch,
+pub(in crate::services::project) struct ValidatedEntityContent(Value);
+pub(in crate::services::project) fn prepare_entity_content(
+    session: &ProjectSession,
     target: &EntityEditTarget,
-    mut data: Value,
-    ordered_json: Option<&str>,
+    request: &JsonWrite,
+    options: &JsonWriteOptions,
     composition: Option<&JsonComposition>,
-) -> AppResult<StagedEntityWrite> {
-    let definition = entity_spec_definition(target.kind)
-        .ok_or_else(|| AppError::message("spec.kind_unknown", "实体规格格式不存在"))?;
-    let schema = content_schema(target.kind);
+) -> AppResult<ValidatedEntityContent> {
+    let data = request.content.to_json()?;
     validate_entity_content_in(
         session,
         target.kind,
         &target.write.rel_path,
         &data,
-        json.replaces(&target.write.rel_path),
+        options.replaces(&target.write.rel_path),
         composition,
-    )?;
-    let next_id =
-        models::file_content_id(&data, definition.id_field, Path::new(&target.write.path));
-    let next_id = validate_entity_id(&next_id, definition.invalid_id_message)?.to_string();
-    if data
-        .get(definition.id_field)
-        .and_then(Value::as_str)
-        .is_some_and(|id| !id.is_empty())
-    {
-        data[definition.id_field] = Value::String(next_id.clone());
+    )
+    .map_err(|error| error.at_path(&target.write.path))?;
+    Ok(ValidatedEntityContent(data))
+}
+pub(in crate::services::project) fn stage_entity_content(
+    session: &mut ProjectSession,
+    builder: &mut FileChangeSetBuilder,
+    target: &EntityEditTarget,
+    next: &str,
+    request: &JsonWrite,
+    options: &JsonWriteOptions,
+    composition: Option<&JsonComposition>,
+) -> AppResult<StagedEntityWrite> {
+    let validated = prepare_entity_content(session, target, request, options, composition)?;
+    stage_validated_entity(session, builder, target, next, request, options, validated)
+}
+pub(in crate::services::project) fn stage_validated_entity(
+    session: &mut ProjectSession,
+    builder: &mut FileChangeSetBuilder,
+    target: &EntityEditTarget,
+    next: &str,
+    request: &JsonWrite,
+    options: &JsonWriteOptions,
+    validated: ValidatedEntityContent,
+) -> AppResult<StagedEntityWrite> {
+    let definition =
+        entity_definitions::entity_spec_definition(target.kind).expect("file entity definition");
+    let next = entity_identity::validate_entity_id(next, definition.invalid_id_message)?;
+    let mut current =
+        entity_targets::describe_entity_target(session, target.kind, &target.id)?.target;
+    if current.source.is_none() {
+        current.source = target.source.clone();
     }
-    if target.kind == EntityKind::Variant {
-        variant_modules::rename_module_reference(&mut data, &target.id, &next_id);
-    }
-    let boundary = FsRootBoundary::new(Path::new(&session.manifest.mod_root), "entity write root")?;
-    let render_source = target
-        .source
-        .as_ref()
-        .map(|source| Path::new(&source.path))
-        .unwrap_or_else(|| Path::new(&target.write.path));
-    let source = boundary.resolve_relative(&target.write.rel_path, "entity source")?;
-    let original = target
-        .source
-        .as_ref()
-        .filter(|location| {
-            Path::new(&location.path).exists()
-                || !io::source_recreation_allowed(&session.manifest.mod_root, &location.path)
-        })
-        .map(|location| read_json_file(Path::new(&location.path)))
-        .transpose()?;
-    if target.state == EntityTargetState::Existing
-        && models::file_content_id(
-            original.as_ref().unwrap_or(&data),
-            definition.id_field,
-            &source,
-        ) != target.id
-    {
+    if current != *target {
         return Err(AppError::message(
-            "spec.path_id_mismatch",
-            "实体源文件 ID 与加载身份不一致",
+            "spec.target_changed",
+            format!("{}目标已变化，请载入外部版本", definition.display_name),
         ));
     }
-    let description_rename = descriptions::description_rename(
-        target.kind,
-        &target.id,
-        &next_id,
-        original.as_ref().unwrap_or(&data),
-    );
-    let next_rel = if target.state == EntityTargetState::Create {
-        definition.default_rel_path(&next_id)
-    } else if next_id != target.id && !json.keep_filename() {
+    let data = validated.0;
+    let relative = if options.keep_filename || next == target.id {
+        target.write.rel_path.clone()
+    } else if target.state == EntityTargetState::Create {
+        definition.default_rel_path(next)
+    } else {
         io::forward_slash_path(
             &Path::new(&target.write.rel_path)
-                .with_file_name(format!("{next_id}{}", definition.extension)),
+                .with_file_name(format!("{next}{}", definition.extension)),
         )
-    } else {
-        target.write.rel_path.clone()
     };
-    if next_rel != target.write.rel_path
-        && let Some(schema) = schema
-    {
-        let previous = source_layers::json_composition(session, &target.write.rel_path)?;
-        if !previous.replace && !previous.layers.is_empty() {
-            let effective = json_composition::compose_game_json(
-                &source_layers::json_composition(session, &next_rel)?,
-                &data,
-            )?;
-            schema::validate_document(schema, &effective)?;
+    let mut after = target.clone();
+    after.id = next.into();
+    after.state = EntityTargetState::Existing;
+    after.write = entity_targets::location(&session.manifest.mod_root, &relative);
+    after.source = Some(after.write.clone());
+    let source: Option<Arc<JsonSource>> =
+        if let Some(source) = session.documents.get(&target.write.rel_path) {
+            Some(source.clone())
+        } else if Path::new(&target.write.path).is_file() {
+            Some(Arc::new(io::read_json_file(Path::new(&target.write.path))?))
+        } else if let Some(source) = &target.source {
+            Some(Arc::new(
+                session.read_spec_source(target.kind, &target.id, source)?.1,
+            ))
+        } else {
+            None
+        };
+    let document = match source {
+        Some(source) => source.write(request)?,
+        None => JsonSource::create(request)?,
+    };
+    if target.state == EntityTargetState::Existing && target.write.rel_path != relative {
+        builder.rename_text_file(&target.write.rel_path, &relative, document.text.to_string())?;
+    } else {
+        builder.text_file(&relative, Some(document.text.to_string()))?;
+    }
+    let linked_csv = if next != target.id {
+        if let Some(EntityLinkedRecord::Csv { table, row_key }) = &target.linked_record {
+            csv_tables::ensure_registered_table_rows(session, *table)?;
+            let mut draft = CsvTableDraft::read(session, *table)?;
+            let row = draft
+                .rows
+                .iter_mut()
+                .find(|row| row.row_key == *row_key)
+                .ok_or_else(|| AppError::message("csv.row_key_unknown", "关联数据行已变化"))?;
+            row.data.insert("id".into(), Value::String(next.into()));
+            Some((*table, draft))
+        } else {
+            None
         }
-    }
-    let destination = boundary.resolve_relative_target(&next_rel, "entity target")?;
-    match target.kind {
-        EntityKind::Variant => {
-            json_documents::build_variant_file(boundary.root(), &next_rel, &data)?;
-        }
-        EntityKind::Skin => {
-            json_documents::build_skin_file(boundary.root(), &next_rel, &data)?;
-        }
-        _ => {}
-    }
-    if target.state == EntityTargetState::Create || next_id != target.id {
-        io::require_rename_target(&source, &destination)?;
-        if target.state == EntityTargetState::Create && destination.exists() {
-            return Err(AppError::message(
-                "spec.target_exists",
-                format!("实体目标已存在: {next_rel}"),
-            ));
-        }
-        let next_target = describe_entity_target(session, target.kind, &next_id)?.target;
-        if next_id != target.id && next_target.state == EntityTargetState::Existing {
-            return Err(AppError::message(
-                "spec.target_exists",
-                format!("实体 ID 已存在: {next_id}"),
-            ));
-        }
-    }
-    if target.kind == EntityKind::Weapon && data.get("specClass").is_some() {
-        entity_construction::validate_weapon_spec_class(
-            &data,
-            &destination,
-            parsers::bundled_schema("spec-weapon"),
-        )?;
-    }
-    let text = json.render(render_source, &data, ordered_json)?;
-    if target.state == EntityTargetState::Existing && next_rel != target.write.rel_path {
-        builder.rename_text_file(&target.write.rel_path, &next_rel, text)?;
-    } else if !source.exists() || io::read_utf8_no_bom(&source)? != text {
-        builder.text_file(&next_rel, Some(text))?;
-    }
-    let mut linked_csv = None;
-    if next_id != target.id
-        && let Some(EntityLinkedRecord::Csv { table, row_key }) = &target.linked_record
-    {
-        let mut csv = CsvTableDraft::read(session, *table)?;
-        let row = csv
-            .rows
-            .iter_mut()
-            .find(|row| row.row_key == *row_key)
-            .ok_or_else(|| AppError::message("table.row_key_unknown", "关联 CSV 行已变化"))?;
-        row.data.insert("id".into(), Value::String(next_id.clone()));
-        linked_csv = Some(csv);
-    }
-    let linked_record = faction_index::stage_faction_index(
-        session, &boundary, builder, target, &next_id, &next_rel,
-    )?;
-    let mut next = target.clone();
-    next.linked_record = linked_record;
-    next.id = next_id;
-    next.write.rel_path = next_rel;
-    next.write.path = destination.to_string_lossy().to_string();
-    next.source = Some(next.write.clone());
-    next.state = EntityTargetState::Existing;
+    } else {
+        None
+    };
+    let description_rename = descriptions::description_rename(target.kind, &target.id, next, &data);
     Ok(StagedEntityWrite {
-        data,
+        document,
         identity: EntityIdentityChange {
             before: target.clone(),
-            after: next,
+            after,
         },
         linked_csv,
         description_rename,
     })
 }
-
-pub fn prepare_spec_save(
-    input: &mut SpecSave,
-    edits: &[SaveEdit],
-    identities: &[EntityIdentityChange],
-) -> Result<(), AppError> {
-    let SpecSave {
-        session_id,
+pub fn save_entity_spec(
+    session_id: &str,
+    target: &EntityEditTarget,
+    next: &str,
+    request: JsonWrite,
+    options: JsonWriteOptions,
+) -> AppResult<WriteResult<JsonFileContent>> {
+    let mut builder = FileChangeSetBuilder::new(Path::new(&target.write.root))?;
+    let handle = session_handle(session_id)?;
+    let mut session = lock_session(&handle)?;
+    let composition = json_layers::json_composition(&session, &target.write.rel_path)?;
+    let staged = stage_entity_content(
+        &mut session,
+        &mut builder,
         target,
-        data,
-        base_versions,
-        ordered_json,
-        ..
-    } = input;
-    for identity in identities {
-        if identity.before.kind == target.kind && identity.before.id == target.id {
-            *target = identity.after.clone();
+        next,
+        &request,
+        &options,
+        Some(&composition),
+    )?;
+    let mut tables = staged.linked_csv.into_iter().collect::<Vec<_>>();
+    if let Some(rename) = staged.description_rename {
+        csv_tables::ensure_registered_table_rows(&mut session, CsvTableKey::Descriptions)?;
+        if let Some(table) = descriptions::prepare_description_renames(&session, &[rename])? {
+            tables.push((CsvTableKey::Descriptions, table));
         }
     }
-    if io::source_recreation_allowed(&target.write.root, &target.write.path) {
-        return Ok(());
-    }
-    let current = query_entity(session_id, target.kind, &target.id)?;
-    if let Some(current) = current {
-        *data = if matches!(target.kind, EntityKind::Weapon | EntityKind::Skill) {
-            current.data["spec"].clone()
-        } else {
-            current.data
-        };
-        *target = current.target;
-        *base_versions = current.base_versions;
-        save_edits::apply_save_edits(data, edits);
-        *ordered_json = Some(serde_json::to_string(&data)?);
-    } else if target.state == EntityTargetState::Existing {
-        return Err(AppError::message("write.target_removed", "保存目标已删除"));
-    }
-    Ok(())
-}
-
-pub fn write_spec_request(payload: SpecSave) -> Result<WriteResult<Value>, AppError> {
-    require_entity_version_scope(
-        &payload.session_id,
-        payload.target.kind,
-        &payload.target.id,
-        &payload.base_versions,
+    variant_references::stage_variant_parents(
+        &session,
+        &staged.identity.before,
+        &staged.identity.after,
+        &mut builder,
     )?;
-    let result = save_spec_via_service(
-        &payload.session_id,
-        &payload.target,
-        payload.data,
-        payload.json_write,
-        payload.ordered_json.as_deref(),
-    )?;
+    let mut outputs = Vec::new();
+    for (key, table) in tables {
+        let output = table.output(SaveLayout::PreserveStructure)?;
+        builder.text_file(
+            model::csv_table_spec(key).rel_path,
+            Some(output.document.source.to_string()),
+        )?;
+        outputs.push((key, table, output));
+    }
+    replace_paths::stage_replace_paths(&mut builder, &options)?;
+    let target = WriteContentTarget::Spec {
+        target: Box::new(staged.identity.after.clone()),
+    };
+    let mut result = WriteResult::from_content(
+        builder.apply()?,
+        target,
+        JsonFileContent::from(&staged.document),
+    );
+    for (table, draft, actual) in outputs {
+        draft.accept(&mut session, table, actual)?;
+    }
+    result.identity_changes.push(staged.identity);
     Ok(result)
-}
-
-#[cfg(test)]
-mod phase42_tests {
-    use super::*;
-    use crate::services::project::query::entity_targets;
-    use crate::services::project::test_support::project_workspace;
-    use crate::services::project::{PerformanceTrace, open_project_session_traced};
-    use crate::services::project_sync::release_project_session;
-    use serde_json::json;
-    use std::fs;
-
-    #[test]
-    fn phase42_single_and_joint_staging_share_field_and_engine_checks() {
-        for (kind, relative, valid, invalid, code) in [
-            (
-                EntityKind::Weapon,
-                "data/weapons/entry.wpn",
-                json!({"id":"entry","specClass":"beam","turretOffsets":[0,0],"hardpointOffsets":[0,0]}),
-                json!({"id":"entry","specClass":"beam","turretOffsets":[],"hardpointOffsets":[0,0]}),
-                "spec.weapon_turret_barrel_required",
-            ),
-            (
-                EntityKind::Ship,
-                "data/hulls/entry.ship",
-                json!({"hullId":"entry","bounds":[0,0,1,2]}),
-                json!({"hullId":"entry","bounds":[0,0,"invalid",2]}),
-                "config.shape_invalid",
-            ),
-            (
-                EntityKind::Skin,
-                "data/hulls/skins/entry.skin",
-                json!({"skinHullId":"entry","baseHullId":"base"}),
-                json!({"skinHullId":"entry","baseHullId":"base","engineSlotChanges":{"4":{"length":2}}}),
-                "config.shape_invalid",
-            ),
-        ] {
-            let root = project_workspace("phase42_shared_validation");
-            let path = root.join(relative);
-            fs::create_dir_all(path.parent().unwrap()).unwrap();
-            fs::create_dir_all(root.join("data/hulls")).unwrap();
-            fs::write(
-                root.join("data/hulls/base.ship"),
-                "{hullId:'base',engineSlots:[]}",
-            )
-            .unwrap();
-            fs::write(&path, valid.to_string()).unwrap();
-            let before = fs::read(&path).unwrap();
-            let manifest = open_project_session_traced(
-                &root,
-                None,
-                &mut PerformanceTrace::new("phase42.validation"),
-            )
-            .unwrap();
-            let target =
-                entity_targets::query_entity_edit_target(&manifest.session_id, kind, "entry")
-                    .unwrap()
-                    .target;
-            let options = JsonWriteOptions::default();
-            validate_entity_content(&manifest.session_id, kind, relative, &valid, &options)
-                .unwrap();
-            assert_eq!(
-                validate_entity_content(&manifest.session_id, kind, relative, &invalid, &options)
-                    .unwrap_err()
-                    .code(),
-                code
-            );
-            assert_eq!(
-                save_entity_spec(
-                    &manifest.session_id,
-                    &target,
-                    invalid.clone(),
-                    options.clone(),
-                    None
-                )
-                .unwrap_err()
-                .code(),
-                code
-            );
-            let handle = session_handle(&manifest.session_id).unwrap();
-            {
-                let mut session = lock_session(&handle).unwrap();
-                let mut builder = FileChangeSetBuilder::new(&root).unwrap();
-                let mut json = JsonWriteBatch::new(options);
-                let result = stage_entity_content(
-                    &mut session,
-                    &mut builder,
-                    &mut json,
-                    &target,
-                    invalid,
-                    None,
-                    None,
-                );
-                assert_eq!(result.err().unwrap().code(), code);
-            }
-            assert_eq!(fs::read(&path).unwrap(), before);
-            release_project_session(manifest.session_id).unwrap();
-            root.close().unwrap();
-        }
-    }
 }

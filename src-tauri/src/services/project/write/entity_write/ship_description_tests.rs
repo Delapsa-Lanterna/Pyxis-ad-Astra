@@ -2,9 +2,11 @@
 use crate::services::file_history::query_file_history;
 #[cfg(test)]
 use crate::services::project_sync::release_project_session;
+use crate::test_support::file_formats::read_csv_table as read_csv_data;
+use crate::test_support::file_formats::read_json_value as read_json_file;
 
 use crate::errors::AppResult;
-use crate::io::{read_csv_data, read_json_file, write_utf8_no_bom};
+use crate::io::write_utf8_no_bom;
 use crate::models::{
     CsvSave, JointEditSnapshot, JsonDocumentOrigin, SaveAction, SpecSave, WriteContentTarget, *,
 };
@@ -13,9 +15,9 @@ use crate::services::project::PerformanceTrace;
 #[cfg(test)]
 use crate::services::project::session::csv_writes;
 use crate::services::project::test_support::project_workspace;
-use crate::services::project::write::csv_patch;
 use crate::services::{project, project_save, write_transactions};
 use crate::test_support::TestWorkspace;
+use crate::test_support::file_formats as csv_patch;
 use serde_json::{Value, json};
 use std::collections::BTreeMap;
 use std::fs;
@@ -56,9 +58,8 @@ fn rename(root: &Path, manifest: &ProjectManifest, mode: &str) -> AppResult<Writ
             mod_root: manifest.mod_root.clone(),
             target: info.target,
             base_versions: info.base_versions,
-            data,
+            document: csv_patch::json_write(&data),
             json_write: Default::default(),
-            ordered_json: None,
         })),
         "csv" => {
             let EntityLinkedRecord::Csv { row_key, .. } =
@@ -73,6 +74,15 @@ fn rename(root: &Path, manifest: &ProjectManifest, mode: &str) -> AppResult<Writ
                 table: CsvTableKey::Ships,
                 base_versions: info.base_versions,
                 patches: vec![CsvRowPatch {
+                    columns: (json!({"id":"new","name":"Old"})
+                        .as_object()
+                        .unwrap()
+                        .clone())
+                    .keys()
+                    .cloned()
+                    .collect(),
+                    comment_changed: true,
+
                     row_key,
                     action: CsvRowPatchAction::Upsert,
                     row: json!({"id":"new","name":"Old"})
@@ -124,13 +134,15 @@ fn rename(root: &Path, manifest: &ProjectManifest, mode: &str) -> AppResult<Writ
                 values: BTreeMap::from([(key, JointValue::Present(data))]),
             })?;
             project_save::execute_typed_save::<JointEditSnapshot>(SaveAction::SaveJointEdit(
-                Box::new(JointEditSubmission {
+                Box::new(csv_patch::joint_submission(JointEditSubmission {
+                    documents: Default::default(),
+                    csv_columns: Default::default(),
                     base_versions: prepared.snapshot.base_versions.clone(),
                     snapshot: prepared.snapshot,
                     values: prepared.values,
                     json_write: Default::default(),
                     create_overrides: Vec::new(),
-                }),
+                })),
             ))
             .map(|receipt| {
                 let content = receipt.content.as_ref().unwrap();
@@ -280,9 +292,8 @@ fn description_version_conflict() {
         mod_root: manifest.mod_root.clone(),
         target: info.target,
         base_versions: info.base_versions,
-        data,
+        document: csv_patch::json_write(&data),
         json_write: Default::default(),
-        ordered_json: None,
     }))
     .unwrap_err();
     assert_eq!(error.code(), "write.version_conflict");

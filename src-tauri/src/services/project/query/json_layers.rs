@@ -1,17 +1,44 @@
+use super::super::model::ProjectSession;
+use super::super::session::{lock_ready_session, session_handle};
+use super::super::sources::core;
 use crate::errors::{AppError, AppResult};
 use crate::io::{self, FsRootBoundary};
+use crate::models::JsonDocumentFile;
+use crate::models::file_content::JsonFileContent;
 use crate::models::{
-    EntityFileLocation, EntityKind, JsonComposition, JsonSourceLayer, ResourceSource,
-    windows_path_key,
+    EntityFileLocation, JsonComposition, JsonSourceLayer, ResourceSource, windows_path_key,
 };
-use crate::services::project::model::ProjectSession;
-use crate::services::project::session::{lock_ready_session, session_handle};
-use crate::services::project::sources::core;
 use serde_json::Value;
 use std::collections::BTreeSet;
 use std::path::Path;
 
-/// Captures ordered source layers from a ready session and preserves their versions and errors.
+pub(crate) fn read_json_document(
+    session_id: &str,
+    relative: &str,
+) -> AppResult<Option<JsonDocumentFile>> {
+    let handle = session_handle(session_id)?;
+    let session = lock_ready_session(&handle)?;
+    let path = FsRootBoundary::new(Path::new(&session.manifest.mod_root), "JSON source root")?
+        .resolve_relative(relative, "JSON document")?;
+    if !path.is_file() {
+        return Ok(None);
+    }
+    if let (Some(source), Some(version)) = (
+        session.documents.get(relative),
+        session.source_versions.get(relative),
+    ) {
+        return Ok(Some(JsonDocumentFile {
+            document: JsonFileContent::from(source.as_ref()),
+            base_versions: vec![version.clone()],
+        }));
+    }
+    let (version, source) = io::read_versioned_json(&path)?;
+    Ok(Some(JsonDocumentFile {
+        document: JsonFileContent::from(&source),
+        base_versions: vec![version],
+    }))
+}
+
 pub(crate) fn query_json_composition(
     session_id: &str,
     relative: &str,
@@ -20,44 +47,42 @@ pub(crate) fn query_json_composition(
     let session = lock_ready_session(&handle)?;
     json_composition(&session, relative)
 }
-
 pub(in crate::services::project) fn json_composition(
     session: &ProjectSession,
     relative: &str,
 ) -> AppResult<JsonComposition> {
-    let mut layers = Vec::new();
-    // The editable source owns its root; each earlier physical source contributes only once.
     let mut roots = BTreeSet::from([windows_path_key(&session.manifest.mod_root)]);
+    let mut layers = Vec::new();
     if let Some(game) = &session.manifest.starsector_root
         && let Some(layer) = core::read_core_json_layer(game, relative)?
         && roots.insert(windows_path_key(&layer.source.root))
     {
         layers.push(layer);
     }
-    for view in session.preceding_references()? {
-        if roots.insert(windows_path_key(&view.identity.mod_root))
-            && let Some(mut layer) = source_layer(&view.session, relative)?
+    for source in session.preceding_references()? {
+        if roots.insert(windows_path_key(&source.identity.mod_root))
+            && let Some(mut layer) = source_layer(&source.session, relative)?
         {
-            layer.source.reference = Some(Box::new(view.identity.clone()));
+            layer.source.reference = Some(Box::new(source.identity.clone()));
             layer.source.source = ResourceSource::Reference;
             layers.push(layer);
         }
     }
+    let excluded = if relative == "data/config/settings.json" {
+        "vsync refreshRate fps devMode godMode playtestingMode colorblindMode resolutionOverride forceAspectRatio autoturnMode showEnemyWaypoints windowLocationX windowLocationY undecoratedWindow enableSoundFilters allowAnyJavaVersion allowForceQuitInIronMode useDefaultMouseCursor queryMaxAASamples maxAASamples aaSamplesOverride screenScaleOverride refreshRateOverride baseMemoryRequired maxMemoryFractionOfTotal minMemoryMB maxMemoryMB allowJVMRestartFromLauncher allowJVMRestartFromLauncherInDevMode requireTypingDeleteToDeleteSave".split_whitespace().map(str::to_owned).collect()
+    } else {
+        Vec::new()
+    };
     Ok(JsonComposition {
         layers,
+        excluded,
         replace: replaces(session.manifest.mod_info.as_ref(), relative),
-        excluded: if relative == "data/config/settings.json" {
-            "vsync refreshRate fps devMode godMode playtestingMode colorblindMode resolutionOverride forceAspectRatio autoturnMode showEnemyWaypoints windowLocationX windowLocationY undecoratedWindow enableSoundFilters allowAnyJavaVersion allowForceQuitInIronMode useDefaultMouseCursor queryMaxAASamples maxAASamples aaSamplesOverride screenScaleOverride refreshRateOverride baseMemoryRequired maxMemoryFractionOfTotal minMemoryMB maxMemoryMB allowJVMRestartFromLauncher allowJVMRestartFromLauncherInDevMode requireTypingDeleteToDeleteSave".split_whitespace().map(str::to_string).collect()
-        } else {
-            Vec::new()
-        },
     })
 }
-
 fn replaces(info: Option<&Value>, relative: &str) -> bool {
-    !relative.ends_with("settings.json")
+    relative != "data/config/settings.json"
         && info
-            .and_then(|value| value.get("replace"))
+            .and_then(|v| v.get("replace"))
             .and_then(Value::as_array)
             .is_some_and(|paths| {
                 paths.iter().any(|path| {
@@ -66,37 +91,25 @@ fn replaces(info: Option<&Value>, relative: &str) -> bool {
                 })
             })
 }
-
 fn source_layer(session: &ProjectSession, relative: &str) -> AppResult<Option<JsonSourceLayer>> {
-    let boundary = FsRootBoundary::new(Path::new(&session.manifest.mod_root), "JSON source root")?;
-    let path = boundary.resolve_relative(relative, "JSON source")?;
+    let boundary = FsRootBoundary::new(Path::new(&session.manifest.mod_root), "JSON layer")?;
+    let path = boundary.resolve_relative(relative, "JSON layer")?;
     if !path.is_file() {
         return Ok(None);
     }
-    let retained = [
-        EntityKind::Faction,
-        EntityKind::Ship,
-        EntityKind::Weapon,
-        EntityKind::Projectile,
-        EntityKind::System,
-        EntityKind::Skill,
-    ]
-    .into_iter()
-    .filter_map(|kind| session.spec_records(kind))
-    .flat_map(|records| records.values())
-    .find(|record| record.location.rel_path == relative);
-    let (version, data) = if let Some(record) = retained {
+    let (version, data) = if let Some(source) = session.documents.get(relative) {
         (
             session.source_versions[relative].clone(),
-            record.data.clone(),
+            source.content.to_json()?,
         )
     } else {
-        io::read_versioned_json(&path)?
+        let (version, source) = io::read_versioned_json(&path)?;
+        (version, source.content.to_json()?)
     };
     if session
         .source_versions
         .get(relative)
-        .is_some_and(|expected| expected != &version)
+        .is_some_and(|expected| *expected != version)
     {
         return Err(
             AppError::message("reference.changed", "引用来源已变化，请刷新来源").at_path(&path),
@@ -108,7 +121,7 @@ fn source_layer(session: &ProjectSession, relative: &str) -> AppResult<Option<Js
             source: ResourceSource::Mod,
             root: session.manifest.mod_root.clone(),
             rel_path: relative.into(),
-            path: path.to_string_lossy().into(),
+            path: path.to_string_lossy().into_owned(),
         },
         version,
         data,
@@ -118,9 +131,11 @@ fn source_layer(session: &ProjectSession, relative: &str) -> AppResult<Option<Js
 
 #[cfg(test)]
 mod tests {
+    use crate::test_support::file_formats;
+
     use crate::domain::json_composition;
     use crate::domain::schema;
-    use crate::io;
+
     use crate::models::*;
     use crate::parsers;
     use crate::services::misc_config;
@@ -149,8 +164,8 @@ mod tests {
             fs::write(
                 &path,
                 json!({"variantId":"probe","hullId":"probe_hull",
-                "weaponGroups":vec![json!({"mode":"LINKED","weapons":{}}); groups],
-                "hullMods":[name]})
+                    "weaponGroups":vec![json!({"mode":"LINKED","weapons":{}}); groups],
+                    "hullMods":[name]})
                 .to_string(),
             )
             .unwrap();
@@ -238,15 +253,14 @@ mod tests {
                 mod_root: manifest.mod_root.clone(),
                 previous_id: Some("probe".into()),
                 next_id: "probe".into(),
-                data: data.clone(),
+                document: file_formats::json_write(&(data.clone())),
                 rel_path: Some(relative.into()),
                 json_write: Default::default(),
-                ordered_json: None,
             }))
             .unwrap();
             assert_eq!(saved.changes.len(), 1);
             assert_eq!(
-                io::read_json_file(
+                file_formats::read_json_value(
                     &work
                         .join(["starsector-core", "first", "local"][index])
                         .join(relative)
@@ -380,14 +394,13 @@ mod tests {
                 mod_root: manifest.mod_root.clone(),
                 target: entity.target,
                 base_versions: entity.base_versions,
-                data: json!({"fixtureValue":2}),
+                document: file_formats::json_write(&(json!({"fixtureValue":2}))),
                 json_write: Default::default(),
-                ordered_json: None,
             }))
             .unwrap();
             assert_eq!(saved.changes.len(), 1, "{relative}");
             assert_eq!(
-                io::read_json_file(&root.join(relative)).unwrap(),
+                file_formats::read_json_value(&root.join(relative)).unwrap(),
                 json!({"fixtureValue":2})
             );
         }
@@ -404,12 +417,14 @@ mod tests {
                 mod_root: manifest.mod_root.clone(),
                 kind,
                 base_versions: file.base_versions,
-                data: data.clone(),
-                ordered_json: data.to_string(),
+                document: file_formats::json_write(&(data.clone())),
                 json_write: Default::default(),
             }))
             .unwrap();
-            assert_eq!(io::read_json_file(&root.join(relative)).unwrap(), data);
+            assert_eq!(
+                file_formats::read_json_value(&root.join(relative)).unwrap(),
+                data
+            );
         }
         release_project_session(manifest.session_id).unwrap();
         let reopened = project::open_project_session_traced(

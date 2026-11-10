@@ -153,6 +153,12 @@ pub const ENTITY_SPEC_DEFINITIONS: [EntitySpecDefinition; 8] = [
     SKIN_SPEC_DEFINITION,
 ];
 
+/// Applies the identity skips performed by the corresponding game table loader.
+pub fn csv_id_active(kind: EntityKind, id: &str) -> bool {
+    !id.is_empty()
+        && (!matches!(kind, EntityKind::Skill | EntityKind::Mission) || !id.starts_with('#'))
+}
+
 pub fn entity_spec_definition(kind: EntityKind) -> Option<&'static EntitySpecDefinition> {
     ENTITY_SPEC_DEFINITIONS
         .iter()
@@ -187,6 +193,17 @@ pub fn associated_spec_tables() -> Vec<CsvTableKey> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn csv_identity_skips_are_owned_by_the_game_loader() {
+        for kind in [EntityKind::Skill, EntityKind::Mission] {
+            assert!(!csv_id_active(kind, "#archived"));
+            assert!(csv_id_active(kind, " #literal"));
+            assert!(csv_id_active(kind, "active"));
+        }
+        assert!(csv_id_active(EntityKind::Weapon, "#literal"));
+        assert!(!csv_id_active(EntityKind::Weapon, ""));
+    }
 
     #[test]
     fn path_matches_accepts_files_inside_the_directory_with_the_extension() {

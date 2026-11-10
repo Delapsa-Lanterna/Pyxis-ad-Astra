@@ -1,15 +1,13 @@
-use super::file_history;
+use super::{app_settings, file_history, project};
 use crate::errors::{AppError, AppResult};
-use crate::io::{
-    FsRootBoundary, RootWriteLock, acquire_root_write_lock, verify_versions, version_after_change,
-};
+use crate::io::{self, FsRootBoundary, RootWriteLock};
+use crate::models::windows_path_key;
 use crate::models::{
     EntityIdentityChange, FileChangeKind, FileChangeRecord, FileChangeReplayDirection, FileVersion,
-    SessionModScope, WriteResult, windows_path_key,
+    SessionModScope, WriteResult,
 };
-use crate::services::{app_settings, project};
-use crate::{diagnostics, io, models, services};
-use serde_json::json;
+use crate::services;
+use std::collections::BTreeMap;
 use std::path::Path;
 
 mod session_updates;
@@ -17,86 +15,66 @@ mod session_updates;
 pub struct WriteTransaction {
     root: String,
     session_id: Option<String>,
-    base_versions: Vec<FileVersion>,
-    _lease: RootWriteLock,
+    base: Vec<FileVersion>,
+    lease: RootWriteLock,
 }
-
-pub fn begin(
-    payload: &(impl SessionModScope + ?Sized),
-    base: &[FileVersion],
-) -> AppResult<WriteTransaction> {
-    let mut transaction = acquire(payload.mod_root(), payload.session_id().map(String::as_str))?;
-    app_settings::ensure_core_editing_allowed(&transaction.root)?;
-    verify_versions(&transaction.root, base)?;
-    transaction.base_versions = base.to_vec();
-    Ok(transaction)
-}
-
-fn acquire(root: &str, session_id: Option<&str>) -> AppResult<WriteTransaction> {
-    let lease = acquire_root_write_lock(Path::new(root))?;
-    if let Some(session_id) = session_id {
-        project::ensure_project_session_mod_root(session_id, root)?;
+fn acquire(root: &str, session: Option<&str>) -> AppResult<WriteTransaction> {
+    let lease = io::acquire_root_write_lock(Path::new(root))?;
+    if let Some(session) = session {
+        project::ensure_project_session_mod_root(session, root)?;
     }
-    let root = FsRootBoundary::new(Path::new(root), "write root")?
-        .root()
-        .to_string_lossy()
-        .into_owned();
+    let boundary = FsRootBoundary::new(Path::new(root), "write root")?;
     Ok(WriteTransaction {
-        root,
-        session_id: session_id.map(str::to_string),
-        base_versions: Vec::new(),
-        _lease: lease,
+        root: boundary.root().to_string_lossy().into_owned(),
+        session_id: session.map(str::to_owned),
+        base: Vec::new(),
+        lease,
     })
 }
-
+pub fn begin(
+    scope: &(impl SessionModScope + ?Sized),
+    versions: &[FileVersion],
+) -> AppResult<WriteTransaction> {
+    let mut transaction = acquire(scope.mod_root(), scope.session_id().map(String::as_str))?;
+    app_settings::ensure_core_editing_allowed(&transaction.root)?;
+    io::verify_versions(&transaction.root, versions)?;
+    transaction.base = versions.to_vec();
+    Ok(transaction)
+}
 impl WriteTransaction {
     pub fn commit<T>(self, mut result: WriteResult<T>, label: &str) -> AppResult<WriteResult<T>> {
-        let mut versions = self.base_versions.clone();
-        for identity in &result.identity_changes {
-            if identity.before.write.path != identity.after.write.path {
-                versions.retain(|version| {
-                    !io::same_physical_path(
-                        Path::new(&version.path),
-                        Path::new(&identity.before.write.path),
-                    )
-                });
-            }
-        }
+        let moved = result
+            .changes
+            .iter()
+            .filter(|change| change.before_path != change.after_path)
+            .map(|change| windows_path_key(&change.before_path))
+            .collect::<Vec<_>>();
+        let mut versions = self
+            .base
+            .into_iter()
+            .filter(|version| {
+                let path = windows_path_key(&version.path);
+                !moved
+                    .iter()
+                    .any(|moved| io::relative_path_contains(moved, &path))
+            })
+            .map(|version| (windows_path_key(&version.path), version))
+            .collect::<BTreeMap<_, _>>();
         for change in &result.changes {
-            if change.before_path != change.after_path {
-                versions.retain(|version| {
-                    !io::same_physical_path(
-                        Path::new(&version.path),
-                        Path::new(&change.before_path),
-                    )
-                });
-            }
+            let version = io::version_after_change(change)?;
+            versions.insert(windows_path_key(&version.path), version);
         }
-        for version in versions_for_changes(&result.changes)? {
-            versions.retain(|previous| {
-                windows_path_key(&previous.path) != windows_path_key(&version.path)
-            });
-            versions.push(version);
-        }
-        for version in &mut versions {
+        for version in versions.values_mut() {
             if Path::new(&version.path).is_dir()
                 && result
                     .changes
                     .iter()
                     .any(|change| Path::new(&change.after_path).starts_with(&version.path))
             {
-                match io::file_version(Path::new(&version.path)) {
-                    Ok(current) => *version = current,
-                    Err(error) => diagnostics::failure(
-                        "save.directory_version_refresh_failed",
-                        error,
-                        json!({"modRoot":self.root,"sessionId":self.session_id,"path":version.path}),
-                    ),
-                }
+                *version = io::file_version(Path::new(&version.path))?;
             }
         }
-        versions.sort_by(|left, right| left.path.cmp(&right.path));
-        result.base_versions = versions;
+        result.base_versions = versions.into_values().collect();
         if self.session_id.is_some() {
             result.history = file_history::record_write(
                 &self.root,
@@ -105,89 +83,92 @@ impl WriteTransaction {
                 label,
             )?;
         }
-        diagnostics::debug("save.history_registered", || {
-            format!(
-                "modRoot={} sessionId={:?} historyRevision={}",
-                self.root, self.session_id, result.history.revision
-            )
-        });
         result.session_updates = session_updates::refresh_committed_sessions(
             &self.root,
             self.session_id.as_deref(),
             &result.changes,
         )?;
-        if let Some(session_id) = &self.session_id
-            && !result.identity_changes.is_empty()
-        {
-            let mut versions = Vec::new();
-            for identity in &result.identity_changes {
-                match services::query_entity_edit_target(
-                    session_id,
-                    identity.after.kind,
-                    &identity.after.id,
-                ) {
-                    Ok(snapshot) => models::push_unique_all(&mut versions, snapshot.base_versions),
-                    Err(error) => diagnostics::failure(
-                        "save.target_version_refresh_failed",
-                        error,
-                        json!({"modRoot":self.root,"sessionId":session_id,"kind":identity.after.kind,"id":identity.after.id,"path":identity.after.write.path}),
-                    ),
-                }
-            }
-            if !versions.is_empty() {
-                versions.sort_by(|left, right| left.path.cmp(&right.path));
-                result.base_versions = versions;
+        if let Some(session) = self.session_id.as_deref() {
+            let actual = identity_versions(session, &result.identity_changes)?;
+            if !actual.is_empty() {
+                result.base_versions = actual;
             }
         }
         Ok(result)
     }
 }
-
+fn identity_versions(
+    session: &str,
+    identities: &[EntityIdentityChange],
+) -> AppResult<Vec<FileVersion>> {
+    let mut versions = BTreeMap::new();
+    for identity in identities {
+        let target =
+            services::query_entity_edit_target(session, identity.after.kind, &identity.after.id)?;
+        for version in target.base_versions {
+            versions.insert(windows_path_key(&version.path), version);
+        }
+    }
+    Ok(versions.into_values().collect())
+}
+fn require_replay_source(change: &FileChangeRecord) -> AppResult<()> {
+    if change.before_path != change.after_path {
+        io::require_rename_target(
+            Path::new(&change.before_path),
+            Path::new(&change.after_path),
+        )?;
+    }
+    let current = match change.kind {
+        FileChangeKind::File => io::build_text_change(Path::new(&change.before_path), None)?,
+        FileChangeKind::Directory => {
+            io::build_directory_delete_change(Path::new(&change.before_path))?
+        }
+    };
+    if current.before_exists != change.before_exists
+        || current.before_text != change.before_text
+        || current.before_data_base64 != change.before_data_base64
+        || current.before_files != change.before_files
+    {
+        return Err(AppError::message(
+            "write.version_conflict",
+            format!("回放来源已经改变：{}", change.before_path),
+        )
+        .at_path(&change.before_path));
+    }
+    Ok(())
+}
 pub fn replay(
-    session_id: &str,
+    session: &str,
     root: &str,
     direction: FileChangeReplayDirection,
     entry_id: u64,
     revision: u64,
 ) -> AppResult<WriteResult> {
-    let transaction = acquire(root, Some(session_id))?;
+    let transaction = acquire(root, Some(session))?;
     app_settings::ensure_core_editing_allowed(&transaction.root)?;
     let entry = file_history::prepare_replay(&transaction.root, direction, entry_id, revision)?;
-    let mut changes = entry.changes.clone();
-    if matches!(direction, FileChangeReplayDirection::Undo) {
-        changes.reverse();
-        changes = changes.iter().map(FileChangeRecord::reversed).collect();
-    }
+    let changes = match direction {
+        FileChangeReplayDirection::Redo => entry.changes.clone(),
+        FileChangeReplayDirection::Undo => entry
+            .changes
+            .iter()
+            .rev()
+            .map(FileChangeRecord::reversed)
+            .collect(),
+    };
     for change in &changes {
-        if change.before_path != change.after_path {
-            io::require_rename_target(
-                Path::new(&change.before_path),
-                Path::new(&change.after_path),
-            )?;
-        }
-        let current = match change.kind {
-            FileChangeKind::File => io::build_text_change(Path::new(&change.before_path), None)?,
-            FileChangeKind::Directory => {
-                io::build_directory_delete_change(Path::new(&change.before_path))?
-            }
-        };
-        if current.before_exists != change.before_exists
-            || current.before_text != change.before_text
-            || current.before_data_base64 != change.before_data_base64
-            || current.before_files != change.before_files
-        {
-            return Err(AppError::message(
-                "write.version_conflict",
-                format!("回放目标已被修改: {}", change.after_path),
-            ));
-        }
+        require_replay_source(change)?;
     }
     let changes = io::resolve_change_paths(root, changes, FileChangeReplayDirection::Redo)?;
     transaction
-        ._lease
+        .lease
         .apply_changes(&changes, FileChangeReplayDirection::Redo)?;
     let mut result = WriteResult::from_changes(changes);
-    result.base_versions = versions_for_changes(&result.changes)?;
+    result.base_versions = result
+        .changes
+        .iter()
+        .map(io::version_after_change)
+        .collect::<AppResult<_>>()?;
     result.identity_changes = entry
         .identity_changes
         .iter()
@@ -202,39 +183,20 @@ pub fn replay(
     result.history = file_history::accept_replay(&transaction.root, direction, entry)?;
     result.session_updates = session_updates::refresh_committed_sessions(
         &transaction.root,
-        Some(session_id),
+        Some(session),
         &result.changes,
     )?;
-    if !result.identity_changes.is_empty() {
-        let mut versions = Vec::new();
-        for identity in &result.identity_changes {
-            match services::query_entity_edit_target(
-                session_id,
-                identity.after.kind,
-                &identity.after.id,
-            ) {
-                Ok(snapshot) => models::push_unique_all(&mut versions, snapshot.base_versions),
-                Err(error) => diagnostics::failure(
-                    "history.target_version_refresh_failed",
-                    error,
-                    json!({"modRoot":root,"sessionId":session_id,"entryId":entry_id,"direction":direction,"kind":identity.after.kind,"id":identity.after.id}),
-                ),
-            }
-        }
-        versions.sort_by(|left, right| left.path.cmp(&right.path));
-        if !versions.is_empty() {
-            result.base_versions = versions;
-        }
+    let versions = identity_versions(session, &result.identity_changes)?;
+    if !versions.is_empty() {
+        result.base_versions = versions;
     }
     Ok(result)
 }
 
-fn versions_for_changes(changes: &[FileChangeRecord]) -> AppResult<Vec<FileVersion>> {
-    changes.iter().map(version_after_change).collect()
-}
-
 #[cfg(test)]
 mod tests {
+    use crate::test_support::file_formats;
+
     use crate::services::file_history::query_file_history;
     use crate::services::project_sync::release_project_session;
 
@@ -278,9 +240,10 @@ mod tests {
                 previous_id: Some("demo".into()),
                 next_id: "next".into(),
                 rel_path: Some(loaded.target.write.rel_path),
-                data: serde_json::json!({"variantId":"next","hullId":"hull"}),
+                document: file_formats::json_write(
+                    &(serde_json::json!({"variantId":"next","hullId":"hull"})),
+                ),
                 json_write: Default::default(),
-                ordered_json: None,
             }))
             .unwrap();
         assert_eq!(saved.session_updates.len(), 2);
@@ -324,7 +287,7 @@ mod tests {
             move |error| {
                 assert_eq!(error.code(), "parse.json_syntax");
                 assert_eq!(
-                    io::read_json_file(&check_root.join("data/variants/next.variant"))?
+                    file_formats::read_json_value(&check_root.join("data/variants/next.variant"))?
                         .get("variantId"),
                     Some(&serde_json::json!("next"))
                 );
@@ -351,9 +314,10 @@ mod tests {
                     previous_id: Some("demo".into()),
                     next_id: "next".into(),
                     rel_path: Some(loaded.target.write.rel_path),
-                    data: serde_json::json!({"variantId":"next","hullId":"hull"}),
+                    document: file_formats::json_write(
+                        &(serde_json::json!({"variantId":"next","hullId":"hull"})),
+                    ),
                     json_write: Default::default(),
-                    ordered_json: None,
                 }))
             },
         )
@@ -479,13 +443,14 @@ mod tests {
                 session_id: manifest.session_id.clone(),
                 mod_root: manifest.mod_root.clone(),
                 base_versions: base,
-                kind: IndexedConfigKind::Mission,
                 previous_id: Some("old".to_string()),
                 next_id: next_id.to_string(),
                 index_row: serde_json::from_value(serde_json::json!({"mission":next_id})).unwrap(),
-                entity_data: serde_json::json!({"descriptor":{"title":"New"},"text":"new text"}),
+                content: file_formats::indexed_content(
+                    IndexedConfigKind::Mission,
+                    &(serde_json::json!({"descriptor":{"title":"New"},"text":"new text"})),
+                ),
                 json_write: Default::default(),
-                ordered_json: None,
             },
         ))
         .unwrap();
@@ -506,7 +471,7 @@ mod tests {
         assert_eq!(saved.base_versions, snapshot.base_versions);
         assert_eq!(saved.identity_changes[0].after.id, next_id);
         assert_eq!(
-            io::read_csv_data(&root.join("data/missions/mission_list.csv"))
+            file_formats::read_csv_table(&root.join("data/missions/mission_list.csv"))
                 .unwrap()
                 .rows[0]
                 .data["custom"],
@@ -675,6 +640,9 @@ mod tests {
             mod_root: manifest.mod_root.clone(),
             table: CsvTableKey::Ships,
             patches: vec![CsvRowPatch {
+                columns: vec!["id".into(), "name".into()],
+                comment_changed: true,
+
                 is_comment: false,
                 insert_at: None,
                 row_key: original.rows[0].row_key.clone(),

@@ -1,3 +1,4 @@
+use crate::models::file_content::{JsonFileContent, JsonWrite};
 use crate::models::{
     FileVersion, JsonDocumentOrigin, ProjectSessionId, ResourceRef, project_identity,
 };
@@ -16,6 +17,7 @@ pub struct JsonRecoveryRequest {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct JsonRecoveryPlan {
+    pub documents: BTreeMap<String, JsonFileContent>,
     pub request: JsonRecoveryRequest,
     pub base_versions: Vec<FileVersion>,
     pub missing_paths: Vec<String>,
@@ -26,6 +28,8 @@ pub struct JsonRecoveryPlan {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct JsonSourceRestore {
+    pub originals: BTreeMap<String, JsonFileContent>,
+    pub documents: BTreeMap<String, JsonWrite>,
     pub session_id: ProjectSessionId,
     pub mod_root: String,
     pub plan: JsonRecoveryPlan,

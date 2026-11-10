@@ -91,8 +91,9 @@ fn project_hull(
         };
         current = base;
     }
-    let hull =
-        spec(records, EntityKind::Ship, current).expect("joint graph contains the referenced hull");
+    let Some(hull) = spec(records, EntityKind::Ship, current) else {
+        return Ok(None);
+    };
     let csv = records.iter().find(|record| matches!(&record.target, JointRecordTarget::Csv {table: CsvTableKey::Ships, identity, ..} if identity.get("id").map(String::as_str) == Some(current))).expect("joint graph contains the hull CSV");
     let mut fields = BTreeMap::new();
     for path in [

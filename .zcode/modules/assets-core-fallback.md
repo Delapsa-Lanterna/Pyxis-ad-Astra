@@ -42,13 +42,8 @@
 - `src-tauri/src/services/project/model.rs`：资源读取消费的已加载来源记录。
 - `src-tauri/src/services/project/query/json_layers.rs`：正式有序 JSON 来源层及其版本。
 - `src-tauri/src/services/project/resources/fonts.rs`：session 来源补充、安装根授权及 FNT 图集读取。
-- `src-tauri/src/services/project/session/access.rs`：捕获引用快照后锁定并交付所属就绪会话。
-- `src-tauri/src/services/project/session/csv_tables.rs`：正式表格内容、稳定行身份、来源保留、加载版本及实体计数构建。
-- `src-tauri/src/services/project/session/references.rs`：有序引用来源、代次、共享快照与按需表格视图。
-- `src-tauri/src/services/project/session/registry.rs`：会话存活登记、句柄与内容就绪门控。
-- `src-tauri/src/services/project/sources/core.rs`：实际来源根所属的共享 Core 文档目录。
-- `src-tauri/src/services/project/sources/documents.rs`：来源规格记录、势力索引装载、实际位置及内容构造。
-- `src-tauri/src/services/project/sources/engine_styles.rs`：经正式来源读取交付引擎样式与匹配版本。
+- `src-tauri/src/services/project/session/`：会话授权、就绪访问、CSV 正式内容、引用及来源版本管理。
+- `src-tauri/src/services/project/sources/`：授权来源发现、带版本读取、Core 共享成果及规格文档装载。
 - `src-tauri/src/services/project_session.rs`：游戏根与 Mod 根授权、来源输入准备及会话范围核对。
 - `src/app/composables/use-app-feedback.ts`：窗口反馈的提供与消费入口。
 - `src/domain/project/query-scopes.ts`：标准实体失效 scope 的种类、ID 与通配匹配。
@@ -121,10 +116,10 @@
 - 批量媒体结果必须按请求顺序保留完整资源身份及实际图片路径，缓存命中保留同一路径，成功交付 nullable 图片内容，失败逐项交付原始诊断；同一物理资源复用本批读取结果。
 - 媒体消费者必须接纳本批成功项，失败项保留可重试状态；错误反馈必须交付操作涉及的成功与失败资源来源，缺失、读取失败及解码失败保留资源身份、已知实际路径与原始原因。
 - 外部 Mod 资源必须携带实际来源会话与根，媒体缓存区分来源身份及引用范围版本，关闭或取消来源后撤销所属读取。
-- 引用来源转换必须由资源身份能力维护；Core 资源与已有引用身份保留，普通 Mod 资源接纳捕获的引用身份，资源路径、业务 owner 与字段键保留。
+- 引用来源转换由资源身份能力维护；Core 资源与已有引用身份保留，普通 Mod 资源接纳捕获的引用身份，资源路径、业务 owner 与字段键保留。
 - Core fallback 只允许提供只读资源。
 - Core root 与所有资源路径必须 canonicalize，拒绝 `..` 与已有父链链接或 reparse point。
-- Skin 实体贴图必须消费 SkinFile.data.spriteName；内置槽位携带最后定义该内置武器的 Mod/Core 来源并据此分组。
+- Skin 实体贴图消费 SkinFile.data.spriteName；内置槽位携带最后定义该内置武器的 Mod/Core 来源并据此分组。
 - 资源读取必须绑定请求 session；`ResourceRef` 由后端授权并交付 source 与规范化 relPath，外部 Mod 引用携带实际来源 session 与根；前端严禁构造引用、拼路径、逐项读图或把 data URL 写入 manifest，缺失 data URL 保持 `null`。
 - 单个 data URL 超过闲置预算时必须保留活跃租约，最后一个引用释放时立即逐出；隐藏、引用切换、失效和卸载交还所属工作引用。
 - 可见媒体 owner 必须按资源登记、可见性变化、引用替换和卸载增量释放；登记单行严禁扫描全部登记项。
@@ -134,14 +129,14 @@
 - 媒体批次的失败资源必须按物理资源键建立一次结果索引，再按键交付可见消费者；错误后的下一次活跃集合请求释放已失败票据并重试。
 - 媒体根边界必须按实际访问在批次内准备并复用，每次实际读取复核根目录状态，目标逐次消费正式路径与已有父链授权。
 - 媒体缓存命中必须先于根边界准备，全部命中时根准备次数为零；关闭 session 后的迟到结果严禁写入媒体缓存。
-- 引擎图片必须按每个槽位的有效样式选择，严禁采用原版首槽位决定整舰贴图的行为；此项作为编辑器与原版的行为差异说明。
+- 编辑器按每个槽位的有效样式选择引擎图片，原版按首槽位选择整舰图片。
 - 引擎样式必须消费原版、前序可引用 Mod、当前 Mod 的游戏 JSON 合并结果；默认与逐槽位自定义图片按实际资源来源解析。
 - 引用解析只接受 Mod 根内安全相对路径；绝对路径、`..` 与链接逃逸必须拒绝。
 - 成品引用交接必须先取得新引用再释放旧引用，同一资源失效必须按物理身份去重并只递增一次修订；目录通知必须匹配实际登记或持有的资源，所属后端缓存必须在通知前失效，图片内容必须由所属租约沿正式媒体入口读取。
 - 缺失资源的 null 结果必须与正结果共同服从闲置条数预算，资源失效或预算逐出后重新核对；读取异常严禁进入结果缓存，下次明确活跃请求重试。
-- 联合配置资源必须消费 Core／Mod 的实际配置和版本，UI 图标从 graphics.ui 解析；展示消费者使用返回的 `ResourceRef`。
+- 联合配置资源消费 Core／Mod 的实际配置和版本，UI 图标从 graphics.ui 解析；展示消费者使用返回的 `ResourceRef`。
 - 规格纹理数组引用必须携带完整字段路径；失效依据实际授权引用接纳，引擎样式选项复用合并后的正式目录。
-- 静态武器及装配绘制必须共用正式层序、原点、发射点与有效 Skin 来源，已装载导弹消费实际弹体资源。
+- 静态武器及装配绘制共用正式层序、原点、发射点与有效 Skin 来源，已装载导弹消费实际弹体资源。
 - 静态缩略图与预读必须共用成品需求和在途任务，原图工作引用在绘制完成后释放；返回可见区复用当前签名的完成画面。
 - 预读只允许请求所属视口上下各一个视口的邻近资源，窗口预读只允许四项并发；失效、session 关闭和窗口销毁必须清理所属解码及依赖成品，迟到值服从所属票据。
 - 驻留图片与成品必须提供同步就绪消费；成品身份包含 session、来源代次、实际绘制参数、尺寸和 DPR，成品只允许消费正式领域绘制。

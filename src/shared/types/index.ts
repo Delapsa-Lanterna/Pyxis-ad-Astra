@@ -122,7 +122,7 @@ export type {
   CsvRowOrderEntry,
   CsvSave,
 } from '@/shared/types/table-save.types';
-export type { JsonSourceConfirmation, JsonWriteOptions } from './json-write.types';
+export type { JsonWriteOptions } from './json-write.types';
 export type { SaveAction, SaveRequest } from '@/shared/types/save-action.types';
 export type {
   CsvRowKeyMapping,
@@ -256,3 +256,5 @@ export type { PerformanceBatch, PerformanceMonitorStatus } from './performance-m
 export type { JsonComposition, JsonSourceLayer } from './json-composition.types';
 export type { JavaManagementAction, JavaManagementSnapshot, JavaEnvironment } from './java-analysis.types';
 export type { CodeEditorFile, CodeEditorOpen, CodeEditorDelivery, CodeEditorFileResult } from './code-editor.types';
+export type * from './file-content.types';
+export type { JsonDocumentFile, JsonDocumentRead } from './json-file.types';

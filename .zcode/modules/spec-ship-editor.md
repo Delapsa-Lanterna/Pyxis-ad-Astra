@@ -16,14 +16,10 @@
 
 ### 消费
 
-- `src/app/components/field-editor/SchemaScalarInput.vue`：字段、表单、集合及标量输入展示。
-- `src/app/components/field-editor/SchemaValueInput.vue`：字段、表单、集合及标量输入展示。
+- `src/app/components/field-editor/`：字段、集合与标量输入的展示和提交。
 - `src/app/components/spec-editor/SpecFieldList.vue`：同构字段、默认值展示和辅助动作事件。
 - `src/app/components/spec-editor/SpecProblems.vue`：固定顶部红黄框及全部问题计数。
-- `src/app/composables/canvas/use-canvas-editor.ts`：舰船消费的共享画布交互、选区和动作提交入口。
-- `src/app/composables/canvas/use-canvas-palette.ts`：主题派生与重绘通知的装配。
-- `src/app/composables/canvas/use-canvas-runtime.ts`：完整目标身份、悬停、检查器锁定、镜像开关与候选预览。
-- `src/app/composables/canvas/use-canvas-viewport.ts`：视口缩放与平移。
+- `src/app/composables/canvas/`：画布表面、视口、导航、选择、指针与展示运行态。
 - `src/app/composables/editors/use-editor-document.ts`：工作值、动作起点、提交快照、字段与手势边界及历史交接。
 - `src/app/composables/editors/use-editor-images.ts`：贴图加载、替换、结果接纳、解码修订、着色缓存与释放。
 - `src/app/composables/editors/use-engine-rendering.ts`：统一装配引擎样式查询、媒体、解码、着色成品与引用释放。
@@ -34,13 +30,7 @@
 - `src/app/composables/use-app-feedback.ts`：窗口反馈的提供与消费入口。
 - `src/app/composables/use-context-menu.ts`：窗口菜单状态、目标操作、事件生命周期与业务根登记。
 - `src/app/composables/use-resource-media-registry.ts`：持有集合差量、业务引用、媒体租约与所属反馈。
-- `src/app/renderers/editors/canvas-drawing.ts`：清屏、网格与像素贴图的无状态绘制入口。
-- `src/app/renderers/editors/canvas-scene.ts`：共享背景、镜像轴、边界与光标场景的绘制入口。
-- `src/app/renderers/editors/canvas-styles.ts`：场景消费的标记样式投影入口。
-- `src/app/renderers/editors/canvas-visuals.ts`：消费显式样式的实体绘制原语。
-- `src/app/renderers/editors/engine-renderer.ts`：作为 Spec 与沉浸式引擎静态成品的唯一样式、尺寸与绘制入口。
-- `src/app/renderers/editors/weapon-images.ts`：武器编辑、开火预览、舰船与装配消费的共享贴图、装备阶段及光效绘制入口。
-- `src/app/renderers/editors/weapon-slot-renderer.ts`：武器槽位与起降口的共同样式、几何和无状态绘制。
+- `src/app/renderers/editors/`：共享背景、几何标记、武器、弹体及引擎绘制。
 - `src/domain/editors/editor-types.ts`：编辑坐标、模式与悬停预览的纯数据类型。
 - `src/domain/editors/lib/editor-constants.ts`：吸附步长与选项常量。
 - `src/domain/editors/lib/geometry.ts`：舰船与武器坐标、角度、距离及边界线段纯规则。
@@ -121,15 +111,15 @@
 - builtInWeapons 必须按当前 weaponSlots 中 type 为 BUILT_IN 的槽位顺序生成固定 schema 字段，槽位 ID 作为固定标签，武器 ID 输入登记到所属目标会话并参与保存、关闭与外部版本保护；清空删除对应武器记录并保留槽位编辑行。
 - 原规格未声明 `descriptionId` 时，`hullId` 改名必须在同一 changeset 中将旧 ID 的 `SHIP` 描述记录改为新 ID；显式 `descriptionId` 保持所属引用语义。
 - 同 ID 保存必须使用实际已加载路径；修改 `hullId` 保留原目录并同步所属 CSV 的 ID 字段与文件历史。
-- 引擎必须消费共享普通满推力静态成品及正式样式资源；正式、镜像与操作预览共同生成展示列表，层序消费有效 RENDER_ENGINES_BELOW_HULL hint，控制点在编辑覆盖层。
+- 引擎消费共享普通满推力静态成品及正式样式资源；正式、镜像与操作预览共同生成展示列表，层序消费有效 RENDER_ENGINES_BELOW_HULL hint，控制点在编辑覆盖层。
 - 用户主动加载成功必须同步实际贴图宽高；真实无图首次加载通过中心字段赋值居中，附属几何保留相对坐标。
-- 目标定位必须将武器槽与战机甲板映射至标识符、引擎映射至角度、中心与护盾映射至首个坐标字段、起降口与边界点映射至所属坐标输入行。
+- 目标定位将武器槽与战机甲板映射至标识符、引擎映射至角度、中心与护盾映射至首个坐标字段、起降口与边界点映射至所属坐标输入行。
 - 组内增删必须捕获所属选中对象；起降口动作绑定所属战机甲板身份，引擎样式选项消费正式资源目录；固定对象默认关闭扩展，builtInWeapons 消费槽位生成的固定 FieldSchema。
 - 编辑器内部显示和编辑 `.ship` 的 `hullName`；编辑器外的舰船显示名称必须优先使用 `ship_data.csv` 的 `name`，仅在该名称缺失时才允许 `hullName`。
-- 舰船字段与槽位检查必须消费 spec-ship 资产并交付共同问题清单，合法槽位类型包含 LAUNCH_BAY，普通武器槽类型下拉排除 LAUNCH_BAY，战机甲板在所属区域编辑；内置武器及引擎预览诊断作为可保存提醒进入共同黄框。
+- 舰船字段与槽位检查消费 spec-ship 资产并交付共同问题清单，合法槽位类型包含 LAUNCH_BAY，普通武器槽类型下拉排除 LAUNCH_BAY，战机甲板在所属区域编辑；内置武器及引擎预览诊断作为可保存提醒进入共同黄框。
 - 舰船新建与关联创建必须消费共享模板构造；ID 与 `hullName` 由明确创建参数装配，builtInWeapons 保留全部原始槽位键。
 - 舰船槽位 ID 修改必须在槽位 ID 输入处仅依据 weaponSlots 校验占用，并在同一次字段动作中交接对应内置武器记录；撤销与重做共同恢复槽位 ID 和武器记录。
-- 船体样式、内置武器、内置插件、内置战机联队与命名引擎样式必须消费正式引用字段及来源目录，内置武器键归所属槽位 ID，已有值与手填 ID 原样保留。
+- 船体样式、内置武器、内置插件、内置战机联队与命名引擎样式消费正式引用字段及来源目录，内置武器键归所属槽位 ID，已有值与手填 ID 原样保留。
 - 贴图浏览只允许选择 Mod 根内 PNG，并把授权相对路径原样提交为 `spriteName`；路径与加载后的几何更新必须分别消费普通编辑动作。
 - 锁定起降口必须保留战机甲板下标与起降口下标；输入校验失败保留原输入、所属目标与锁定身份。
 - 镜像新增、调整与删除必须成对生效，中轴元素作为单件处理；镜像联动只允许作用于正式几何集合。

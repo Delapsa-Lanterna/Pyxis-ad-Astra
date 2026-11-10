@@ -1,113 +1,86 @@
 use super::super::model::{
-    MISSION_LIST_TABLE_KEY, ProjectSession, SessionCsvRow, SessionCsvTable,
-    mission_list_default_header,
+    self, MISSION_LIST_TABLE_KEY, ProjectSession, SessionCsvRow, SessionCsvTable,
 };
-use super::super::sources::core::load_core_csv_table;
+use super::super::sources::{SourceReader, core, project_csv};
 use crate::domain::csv_column_order;
 use crate::errors::{AppError, AppResult};
 use crate::io;
-use crate::io::read_versioned_csv;
-#[cfg(test)]
-use crate::io::{csv_files, faction_index};
+use crate::models::file_content::{CsvContent, CsvSource};
 use crate::models::{CsvRow, CsvTable, CsvTableKey, EntitySummaries};
-use crate::services::project::model;
-use crate::services::project::sources::SourceReader;
-use serde_json::{Map, Value};
+use crate::parsers::game;
+use serde_json::Value;
 use std::collections::{BTreeMap, VecDeque};
 use std::path::Path;
 use std::sync::Arc;
 
 pub(in crate::services::project) fn build_table_entity_summaries_from(
-    sources: &mut SourceReader,
-    entity_summaries: &EntitySummaries,
+    reader: &mut SourceReader,
+    summaries: &EntitySummaries,
 ) -> AppResult<BTreeMap<CsvTableKey, usize>> {
     model::csv_table_specs()
         .iter()
         .map(|spec| {
-            let count = if let Some(summary) = spec.entity_summary {
-                summary(entity_summaries)
-            } else {
-                sources.count(&sources.path(spec.rel_path)?, spec.entity_id_field)?
+            let count = match spec.entity_summary {
+                Some(count) => count(summaries),
+                None => {
+                    reader.count(&reader.path(spec.rel_path)?, spec.entity_id_field, |_| true)?
+                }
             };
             Ok((spec.key, count))
         })
         .collect()
 }
-
-pub(in crate::services::project) fn read_table_snapshot(
+pub(crate) fn session_table<'a>(
+    session: &'a ProjectSession,
+    key: &str,
+) -> AppResult<&'a SessionCsvTable> {
+    session
+        .csv_tables
+        .get(key)
+        .map(Arc::as_ref)
+        .ok_or_else(|| AppError::message("table.unknown", format!("unknown table: {key}")))
+}
+pub(crate) fn session_table_mut<'a>(
+    session: &'a mut ProjectSession,
+    key: &str,
+) -> AppResult<&'a mut SessionCsvTable> {
+    session
+        .csv_tables
+        .get_mut(key)
+        .map(Arc::make_mut)
+        .ok_or_else(|| AppError::message("table.unknown", format!("unknown table: {key}")))
+}
+pub(crate) fn registered_session_table(
     session: &ProjectSession,
     table: CsvTableKey,
-) -> AppResult<(Vec<String>, Vec<SessionCsvRow>, u64)> {
-    let state = registered_session_table(session, table)?;
-    let path = Path::new(&session.manifest.mod_root).join(&state.path);
-    let csv = if path
-        .try_exists()
-        .map_err(|error| AppError::from(error).at_path(&path))?
-    {
-        read_versioned_csv(&path)?.1
-    } else {
-        if let Some(retained) = missing_table_source(session, &state.path, &path)? {
-            let rows = retained
-                .rows
-                .as_ref()
-                .expect("retained CSV has complete rows");
-            #[cfg(test)]
-            csv_files::record_csv_row_copies(rows.len());
-            return Ok((
-                retained.header.clone(),
-                rows.as_ref().clone(),
-                retained.next_row_seq,
-            ));
-        }
-        CsvTable {
-            header: state.header.clone(),
-            rows: Vec::new(),
-            path: state.path.clone(),
-        }
-    };
-    table_snapshot_from_csv(state, table, csv)
+) -> AppResult<&SessionCsvTable> {
+    session_table(session, table.as_str())
 }
-
-pub(crate) fn read_retained_csv(session: &ProjectSession, relative: &str) -> AppResult<CsvTable> {
-    let path = Path::new(&session.manifest.mod_root).join(relative);
-    if path
-        .try_exists()
-        .map_err(|error| AppError::from(error).at_path(&path))?
-    {
-        #[cfg(test)]
-        if relative == "data/world/factions/factions.csv" {
-            faction_index::record_faction_index_read();
-        }
-        return io::read_csv_data(&path);
-    }
-    if let Some(state) = missing_table_source(session, relative, &path)? {
-        let rows = state.rows.as_ref().expect("retained CSV has complete rows");
-        #[cfg(test)]
-        csv_files::record_csv_row_copies(rows.len());
-        return Ok(CsvTable {
-            header: state.header.clone(),
-            rows: rows
-                .iter()
-                .map(|row| CsvRow {
-                    data: row.data.clone(),
-                    is_comment: row.is_comment,
-                })
-                .collect(),
-            path: path.to_string_lossy().into(),
-        });
-    }
-    io::read_csv_data(&path)
+pub(crate) fn loaded_csv_rows<'a>(
+    table: &'a SessionCsvTable,
+    label: &str,
+) -> AppResult<&'a [SessionCsvRow]> {
+    table.rows.as_deref().map(Vec::as_slice).ok_or_else(|| {
+        AppError::message(
+            "table.rows_not_loaded",
+            format!("CSV rows are not loaded: {label}"),
+        )
+    })
 }
-
-fn missing_table_source<'a>(
+pub(crate) fn loaded_registered_csv_rows(
+    session: &ProjectSession,
+    table: CsvTableKey,
+) -> AppResult<&[SessionCsvRow]> {
+    loaded_csv_rows(registered_session_table(session, table)?, table.as_str())
+}
+fn missing_source<'a>(
     session: &'a ProjectSession,
     relative: &str,
-    path: &Path,
 ) -> AppResult<Option<&'a SessionCsvTable>> {
     let retained = session
         .csv_tables
         .values()
-        .find(|table| table.path == relative && table.rows.is_some())
+        .find(|table| table.path == relative && table.source.is_some())
         .map(Arc::as_ref);
     if retained.is_none()
         && session
@@ -117,176 +90,220 @@ fn missing_table_source<'a>(
     {
         return Err(AppError::message(
             "write.recovery_content_missing",
-            "缺失 CSV 的完整内容尚未加载，无法重建",
+            "缺失表格的完整文件基线尚未载入",
         )
-        .at_path(path));
+        .at_path(Path::new(&session.manifest.mod_root).join(relative)));
     }
     Ok(retained)
 }
-
+pub(crate) fn read_retained_csv(session: &ProjectSession, relative: &str) -> AppResult<CsvTable> {
+    if let Some(table) = session
+        .csv_tables
+        .values()
+        .find(|table| table.path == relative && table.rows.is_some())
+    {
+        #[cfg(test)]
+        io::record_csv_row_copies(table.rows.as_ref().expect("loaded CSV rows").len());
+        return Ok(CsvTable {
+            header: table.header.clone(),
+            rows: loaded_csv_rows(table, relative)?
+                .iter()
+                .map(|row| CsvRow {
+                    data: row.data.clone(),
+                    is_comment: row.is_comment,
+                })
+                .collect(),
+            path: Path::new(&session.manifest.mod_root)
+                .join(relative)
+                .to_string_lossy()
+                .into_owned(),
+        });
+    }
+    if let Some(source) = session
+        .csv_tables
+        .values()
+        .find(|table| table.path == relative)
+        .and_then(|table| table.source.as_ref())
+    {
+        return Ok(project_csv(
+            source,
+            &Path::new(&session.manifest.mod_root).join(relative),
+        ));
+    }
+    let path = Path::new(&session.manifest.mod_root).join(relative);
+    if !path.exists() {
+        missing_source(session, relative)?;
+        return Ok(CsvTable {
+            header: Vec::new(),
+            rows: Vec::new(),
+            path: path.to_string_lossy().into_owned(),
+        });
+    }
+    Ok(project_csv(&io::read_csv_data(&path)?, &path))
+}
+pub(crate) fn ensure_registered_table_rows(
+    session: &mut ProjectSession,
+    table: CsvTableKey,
+) -> AppResult<()> {
+    ensure_session_table_rows(session, table.as_str())
+}
+pub(crate) fn ensure_session_table_rows(session: &mut ProjectSession, key: &str) -> AppResult<()> {
+    let table = session_table(session, key)?;
+    if table.rows.is_some() {
+        if table.source.is_none() {
+            let path = Path::new(&session.manifest.mod_root).join(&table.path);
+            if path.exists() {
+                let (version, source) = io::read_versioned_csv(&path)?;
+                if session
+                    .source_versions
+                    .get(&table.path)
+                    .is_some_and(|loaded| *loaded != version)
+                {
+                    return Err(AppError::message(
+                        "write.version_conflict",
+                        "表格来源已变化，请刷新",
+                    )
+                    .at_path(&path));
+                }
+                session_table_mut(session, key)?.source = Some(Arc::new(source));
+            }
+        }
+        return Ok(());
+    }
+    if table.missing_baseline {
+        return Err(AppError::message(
+            "write.recovery_content_missing",
+            "缺失表格的完整文件基线尚未载入",
+        )
+        .at_path(Path::new(&session.manifest.mod_root).join(&table.path)));
+    }
+    let relative = table.path.clone();
+    let path = Path::new(&session.manifest.mod_root).join(&relative);
+    let (version, source) = if path.exists() {
+        let (version, source) = io::read_versioned_csv(&path)?;
+        (version, Some(Arc::new(source)))
+    } else {
+        let source = missing_source(session, &relative)?.and_then(|table| table.source.clone());
+        (io::file_version(&path)?, source)
+    };
+    let csv = if let Some(source) = &source {
+        project_csv(source, &path)
+    } else {
+        let mut header = if key == MISSION_LIST_TABLE_KEY {
+            model::mission_list_default_header()
+        } else {
+            Vec::new()
+        };
+        if let Some(table) = CsvTableKey::from_key(key) {
+            if let Some(root) = &session.manifest.starsector_root {
+                header = core::load_core_csv_table(root, &relative)?
+                    .map(|table| table.header.clone())
+                    .unwrap_or_default();
+            }
+            if header.is_empty() {
+                header = csv_column_order::standard_csv_columns(table);
+            }
+        }
+        CsvTable {
+            header,
+            rows: Vec::new(),
+            path: path.to_string_lossy().into_owned(),
+        }
+    };
+    let table = session_table_mut(session, key)?;
+    let start = table.next_row_seq;
+    let rows = csv
+        .rows
+        .into_iter()
+        .enumerate()
+        .map(|(index, row)| SessionCsvRow {
+            row_key: format!("{key}:row:{}", start + index as u64),
+            data: row.data,
+            is_comment: row.is_comment,
+            source_row: source.as_ref().map(|_| index),
+        })
+        .collect::<Vec<_>>();
+    table.next_row_seq = start + rows.len() as u64;
+    table.rows = Some(Arc::new(rows));
+    table.row_index = None;
+    table.header = csv.header;
+    table.source = source;
+    Arc::make_mut(&mut session.source_versions).insert(relative, version);
+    Ok(())
+}
+/// A disk refresh matches business identities only; saves carry their explicit row mapping.
 pub(in crate::services::project) fn table_snapshot_from_csv(
     state: &SessionCsvTable,
     table: CsvTableKey,
     csv: CsvTable,
 ) -> AppResult<(Vec<String>, Vec<SessionCsvRow>, u64)> {
     let identity = model::csv_table_spec(table).entity_id_field;
-    let key = |data: &Map<String, Value>, comment: bool| {
-        serde_json::to_string(&(
-            comment,
-            data.get(identity),
-            if table == CsvTableKey::Descriptions {
-                data.get("type")
-            } else {
-                None
-            },
-            if comment || !data.contains_key(identity) {
-                Some(data)
-            } else {
-                None
-            },
-        ))
+    let key = |row: &CsvRow| {
+        (
+            row.is_comment,
+            row.data
+                .get(identity)
+                .and_then(Value::as_str)
+                .map(str::to_owned),
+            row.data
+                .get("type")
+                .and_then(Value::as_str)
+                .map(str::to_owned),
+        )
     };
-    let mut known = BTreeMap::<String, VecDeque<String>>::new();
+    let mut known = BTreeMap::<(bool, Option<String>, Option<String>), VecDeque<String>>::new();
     for row in state.rows.as_deref().map(Vec::as_slice).unwrap_or(&[]) {
+        let row_key = key(&CsvRow {
+            data: row.data.clone(),
+            is_comment: row.is_comment,
+        });
         known
-            .entry(key(&row.data, row.is_comment)?)
+            .entry(row_key)
             .or_default()
             .push_back(row.row_key.clone());
     }
-    let mut next_seq = state.next_row_seq;
+    let mut sequence = state.next_row_seq;
     let rows = csv
         .rows
         .into_iter()
-        .map(|row| {
-            let matched = known
-                .get_mut(&key(&row.data, row.is_comment)?)
-                .and_then(VecDeque::pop_front);
-            let row_key = matched.unwrap_or_else(|| {
-                let key = format!("{}:row:{next_seq}", table.as_str());
-                next_seq += 1;
-                key
-            });
+        .enumerate()
+        .map(|(index, row)| {
+            let signature = key(&row);
+            let row_key = known
+                .get_mut(&signature)
+                .and_then(VecDeque::pop_front)
+                .unwrap_or_else(|| {
+                    let row_key = format!("{}:row:{sequence}", table.as_str());
+                    sequence += 1;
+                    row_key
+                });
             Ok(SessionCsvRow {
                 row_key,
                 data: row.data,
                 is_comment: row.is_comment,
+                source_row: Some(index),
             })
         })
         .collect::<AppResult<Vec<_>>>()?;
-    Ok((csv.header, rows, next_seq))
+    Ok((csv.header, rows, sequence))
 }
-
-pub(crate) fn session_table<'a>(
-    session: &'a ProjectSession,
-    table: &str,
-) -> AppResult<&'a SessionCsvTable> {
-    session
-        .csv_tables
-        .get(table)
-        .map(Arc::as_ref)
-        .ok_or_else(|| AppError::message("table.unknown", format!("unknown table: {table}")))
-}
-
-pub(crate) fn registered_session_table(
+pub(in crate::services::project) fn read_table_snapshot(
     session: &ProjectSession,
     table: CsvTableKey,
-) -> AppResult<&SessionCsvTable> {
-    session_table(session, table.as_str())
+) -> AppResult<(Vec<String>, Vec<SessionCsvRow>, u64)> {
+    let state = registered_session_table(session, table)?;
+    let csv = read_retained_csv(session, &state.path)?;
+    table_snapshot_from_csv(state, table, csv)
 }
-
-pub(crate) fn loaded_csv_rows<'a>(
-    table: &'a SessionCsvTable,
-    table_label: &str,
-) -> AppResult<&'a [SessionCsvRow]> {
-    table.rows.as_deref().map(Vec::as_slice).ok_or_else(|| {
-        AppError::message(
-            "table.rows_not_loaded",
-            format!("CSV rows are not loaded: {table_label}"),
-        )
-    })
-}
-
-pub(crate) fn loaded_registered_csv_rows(
-    session: &ProjectSession,
-    table: CsvTableKey,
-) -> AppResult<&[SessionCsvRow]> {
-    loaded_csv_rows(registered_session_table(session, table)?, table.as_str())
-}
-
-pub(crate) fn session_table_mut<'a>(
-    session: &'a mut ProjectSession,
-    table: &str,
-) -> AppResult<&'a mut SessionCsvTable> {
-    session
-        .csv_tables
-        .get_mut(table)
-        .map(Arc::make_mut)
-        .ok_or_else(|| AppError::message("table.unknown", format!("unknown table: {table}")))
-}
-
-pub(crate) fn ensure_session_table_rows(
-    session: &mut ProjectSession,
-    table: &str,
-) -> AppResult<()> {
-    let needs_load = session_table(session, table)?.rows.is_none();
-    if !needs_load {
-        return Ok(());
-    }
-    let rel_path = session_table(session, table)?.path.clone();
-    let path = Path::new(&session.manifest.mod_root).join(&rel_path);
-    if !path
-        .try_exists()
-        .map_err(|error| AppError::from(error).at_path(&path))?
-    {
-        missing_table_source(session, &rel_path, &path)?;
-    }
-    let (version, mut csv) = read_versioned_csv(&path)?;
-    if version.fingerprint.is_none() {
-        if table == MISSION_LIST_TABLE_KEY {
-            csv.header = mission_list_default_header();
-        } else if let Some(table_key) = CsvTableKey::from_key(table) {
-            csv.header = match &session.manifest.starsector_root {
-                Some(root) => load_core_csv_table(root, model::csv_table_spec(table_key).rel_path)?
-                    .map(|core| core.header.clone())
-                    .unwrap_or_default(),
-                None => Vec::new(),
-            };
-            if csv.header.is_empty() {
-                csv.header = csv_column_order::standard_csv_columns(table_key);
-            }
-        }
-    }
-    let row_sequence = session_table(session, table)?.next_row_seq;
-    let rows: Vec<SessionCsvRow> = csv
-        .rows
-        .into_iter()
-        .enumerate()
-        .map(|(index, row)| SessionCsvRow {
-            row_key: format!("{table}:row:{}", row_sequence + index as u64),
-            is_comment: row.is_comment,
-            data: row.data,
-        })
-        .collect();
-    let next_row_seq = row_sequence + rows.len() as u64;
-    let table_state = session_table_mut(session, table)?;
-    if table_state.header.is_empty() {
-        table_state.header = csv.header;
-    }
-    table_state.rows = Some(rows.into());
-    table_state.row_index = None;
-    table_state.next_row_seq = next_row_seq;
-    table_state.saved_text = None;
-    if session.source_versions.get(&rel_path) != Some(&version) {
-        Arc::make_mut(&mut session.source_versions).insert(rel_path, version);
-    }
-    Ok(())
-}
-
-pub(crate) fn ensure_registered_table_rows(
-    session: &mut ProjectSession,
-    table: CsvTableKey,
-) -> AppResult<()> {
-    ensure_session_table_rows(session, table.as_str())
+pub(in crate::services::project) fn empty_csv_source(
+    header: &[String],
+) -> AppResult<Arc<CsvSource>> {
+    let content = CsvContent {
+        header: header.to_vec(),
+        records: Vec::new(),
+    };
+    let text = game::write_csv(&content)?;
+    Ok(Arc::new(game::read_csv(text.as_bytes())?))
 }
 
 #[cfg(test)]
@@ -304,6 +321,7 @@ mod tests {
     #[test]
     fn ensure_session_table_rows_rejects_unknown_table() {
         let mut session = ProjectSession {
+            documents: Default::default(),
             reference_revision: 0,
             references: Vec::new(),
             loaded_edit_targets: Vec::new(),
@@ -351,16 +369,17 @@ mod tests {
         fs::create_dir_all(root.join("data/hulls")).unwrap();
         fs::create_dir_all(root.join("data/characters/skills")).unwrap();
         write_utf8_no_bom(
-            &root.join("data/hulls/ship_data.csv"),
-            "id,tags,_faction,_rowKey\r\nship,demo_bp,business,business-key\r\n#comment,,,\r\n,,,\r\n",
-        )
-        .unwrap();
+                &root.join("data/hulls/ship_data.csv"),
+                "id,tags,_faction,_rowKey\r\nship,demo_bp,business,business-key\r\n#comment,,,\r\n,,,\r\n",
+            )
+            .unwrap();
         write_utf8_no_bom(
             &root.join("data/characters/skills/skill_data.csv"),
             "id,name\r\nskill,Skill\r\n",
         )
         .unwrap();
         let mut session = ProjectSession {
+            documents: Default::default(),
             reference_revision: 0,
             references: Vec::new(),
             loaded_edit_targets: Vec::new(),
@@ -387,23 +406,25 @@ mod tests {
                 (
                     CsvTableKey::Ships.as_str().to_string(),
                     SessionCsvTable {
+                        missing_baseline: false,
                         row_index: None,
                         header: Vec::new(),
                         path: "data/hulls/ship_data.csv".to_string(),
                         rows: None,
                         next_row_seq: 0,
-                        saved_text: None,
+                        source: None,
                     },
                 ),
                 (
                     CsvTableKey::Skills.as_str().to_string(),
                     SessionCsvTable {
+                        missing_baseline: false,
                         row_index: None,
                         header: Vec::new(),
                         path: "data/characters/skills/skill_data.csv".to_string(),
                         rows: None,
                         next_row_seq: 0,
-                        saved_text: None,
+                        source: None,
                     },
                 ),
             ])
@@ -460,6 +481,12 @@ mod tests {
             .map(Arc::make_mut)
             .unwrap()
             .rows = None;
+        session
+            .csv_tables
+            .get_mut(CsvTableKey::Ships.as_str())
+            .map(Arc::make_mut)
+            .unwrap()
+            .source = None;
         for error in [
             read_table_snapshot(&session, CsvTableKey::Ships)
                 .err()

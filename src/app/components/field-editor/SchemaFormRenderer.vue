@@ -165,6 +165,10 @@ defineExpose({
 });
 
 function onFieldUpdate(key: string, update: SchemaFieldUpdate) {
+  if (update.fileEdit && props.runtimeContext?.applyDocumentEdit && !props.runtimeContext.composition) {
+    props.runtimeContext.applyDocumentEdit(update.fileEdit);
+    return;
+  }
   const updated = applySchemaFieldUpdate(modelValue.value, key, update);
   modelValue.value = updated;
 }

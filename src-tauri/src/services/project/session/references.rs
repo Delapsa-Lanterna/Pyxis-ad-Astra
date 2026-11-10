@@ -1,9 +1,13 @@
 use super::super::model::{ProjectSession, ReferenceSnapshot, SessionCsvRow};
-use super::{csv_tables as csv, registry};
+use super::super::sources::documents::LoadedSpecRecord;
+use super::{csv_tables, registry};
 use crate::errors::{AppError, AppResult};
 use crate::io;
-use crate::models::*;
-use crate::services::project::sources::documents::LoadedSpecRecord;
+use crate::models::file_content::JsonSource;
+use crate::models::{
+    CommittedSessionUpdate, CsvTableKey, EntityFileLocation, EntityKind, FileVersion,
+    ProjectInvalidation, ReferenceSource, ReferenceSources, ResourceSource, SessionContentUpdate,
+};
 use serde_json::Value;
 use std::collections::BTreeMap;
 use std::path::Path;
@@ -13,88 +17,54 @@ use std::sync::{Arc, LazyLock, Mutex, MutexGuard};
 #[cfg(test)]
 #[path = "references_tests.rs"]
 mod tests;
-
-static REFERENCES: LazyLock<Mutex<ReferenceSources>> = LazyLock::new(Default::default);
+static SOURCES: LazyLock<Mutex<ReferenceSources>> = LazyLock::new(Default::default);
 static REVISION: AtomicU64 = AtomicU64::new(0);
-pub(crate) fn reference_revision() -> u64 {
-    REVISION.load(Ordering::Acquire)
-}
 fn state() -> AppResult<MutexGuard<'static, ReferenceSources>> {
-    REFERENCES
+    SOURCES
         .lock()
         .map_err(|_| AppError::message("reference.lock_poisoned", "引用来源状态不可用"))
+}
+fn advance(state: &mut ReferenceSources) {
+    state.revision += 1;
+    REVISION.store(state.revision, Ordering::Release);
+}
+pub(crate) fn reference_revision() -> u64 {
+    REVISION.load(Ordering::Acquire)
 }
 pub(crate) fn reference_sources() -> AppResult<ReferenceSources> {
     Ok(state()?.clone())
 }
-
 pub(crate) fn set_reference_order(order: Vec<String>) -> AppResult<()> {
-    let mut current = state()?;
-    if current.order != order {
-        current.order = order;
-        current.revision += 1;
-        REVISION.store(current.revision, Ordering::Release);
+    let mut state = state()?;
+    if state.order != order {
+        state.order = order;
+        advance(&mut state);
     }
     Ok(())
 }
-
-pub(crate) fn reference_updates() -> AppResult<Vec<CommittedSessionUpdate>> {
-    let registered = registry::lock_registry()?
-        .values()
-        .cloned()
-        .collect::<Vec<_>>();
-    registered
-        .into_iter()
-        .map(|registered| {
-            let mut session = registry::lock_session(&registered)?;
-            session.references.clear();
-            Ok(CommittedSessionUpdate {
-                session_id: session.manifest.session_id.clone(),
-                mod_root: session.manifest.mod_root.clone(),
-                content: SessionContentUpdate {
-                    manifest: session.manifest.clone(),
-                    invalidation: ProjectInvalidation {
-                        session: true,
-                        ..Default::default()
-                    },
-                }
-                .into(),
-            })
-        })
-        .collect()
-}
-
 pub(crate) fn set_reference_sources(ids: Vec<String>) -> AppResult<ReferenceSources> {
-    let mut sources = Vec::new();
+    let mut views = BTreeMap::new();
     for id in &ids {
         let handle = registry::session_handle(id)?;
         let session = registry::lock_content_ready_session(&handle)?;
-        let mut registered = registry::lock_registry()?;
-        let source = registered
-            .get_mut(id)
-            .ok_or_else(|| AppError::message("session.unknown", format!("引用来源已关闭：{id}")))?;
-        let view = Arc::new(ReferenceSnapshot::new(&session));
-        sources.push(view.identity.clone());
-        source.reference = Some(view);
+        views.insert(id.clone(), Arc::new(ReferenceSnapshot::capture(&session)));
     }
-    for (id, source) in registry::lock_registry()?.iter_mut() {
-        if !ids.contains(id) {
-            source.reference = None;
-        }
+    let sources = ids
+        .iter()
+        .map(|id| views[id].identity.clone())
+        .collect::<Vec<_>>();
+    for (id, entry) in registry::lock_registry()?.iter_mut() {
+        entry.reference = views.remove(id);
     }
     let mut state = state()?;
     if state.sources != sources {
         state.sources = sources;
-        state.revision += 1;
-        REVISION.store(state.revision, Ordering::Release);
+        advance(&mut state);
     }
     Ok(state.clone())
 }
-
-pub(crate) fn reference_sources_changed(
-    session_id: Option<&str>,
-) -> AppResult<Option<ReferenceSources>> {
-    let Some(id) = session_id else {
+pub(crate) fn reference_sources_changed(id: Option<&str>) -> AppResult<Option<ReferenceSources>> {
+    let Some(id) = id else {
         return Ok(None);
     };
     if !state()?
@@ -109,24 +79,62 @@ pub(crate) fn reference_sources_changed(
         .as_ref()
         .map(|handle| {
             registry::lock_content_ready_session(handle)
-                .map(|session| Arc::new(ReferenceSnapshot::new(&session)))
+                .map(|session| Arc::new(ReferenceSnapshot::capture(&session)))
         })
         .transpose()?;
-    let mut registered = registry::lock_registry()?;
-    if let Some(source) = registered.get_mut(id) {
-        source.reference = view;
-    }
+    let existing = {
+        let mut registry = registry::lock_registry()?;
+        if let Some(entry) = registry.get_mut(id) {
+            entry.reference = view;
+        }
+        registry.keys().cloned().collect::<Vec<_>>()
+    };
     let mut state = state()?;
     state
         .sources
-        .retain(|source| registered.contains_key(&source.session_id));
-    state.revision += 1;
-    REVISION.store(state.revision, Ordering::Release);
+        .retain(|source| existing.contains(&source.session_id));
+    advance(&mut state);
     Ok(Some(state.clone()))
 }
-
+pub(crate) fn reference_updates() -> AppResult<Vec<CommittedSessionUpdate>> {
+    let registered = registry::lock_registry()?
+        .values()
+        .cloned()
+        .collect::<Vec<_>>();
+    registered
+        .iter()
+        .map(|registered| {
+            let mut session = registry::lock_session(registered)?;
+            session.references.clear();
+            Ok(CommittedSessionUpdate {
+                session_id: registered.session_id.clone(),
+                mod_root: registered.root.clone(),
+                content: Arc::new(SessionContentUpdate {
+                    manifest: session.manifest.clone(),
+                    invalidation: ProjectInvalidation {
+                        session: true,
+                        ..Default::default()
+                    },
+                }),
+            })
+        })
+        .collect()
+}
+pub(super) fn prepare(receiver: &str) -> AppResult<(u64, Vec<Arc<ReferenceSnapshot>>)> {
+    let snapshot = state()?.clone();
+    let registered = registry::lock_registry()?;
+    Ok((
+        snapshot.revision,
+        snapshot
+            .sources
+            .iter()
+            .filter(|source| source.session_id != receiver)
+            .filter_map(|source| registered.get(&source.session_id)?.reference.clone())
+            .collect(),
+    ))
+}
 impl ReferenceSnapshot {
-    fn new(session: &ProjectSession) -> Self {
+    fn capture(session: &ProjectSession) -> Self {
         let session = ProjectSession {
             references: Vec::new(),
             loaded_edit_targets: Vec::new(),
@@ -142,14 +150,12 @@ impl ReferenceSnapshot {
         }
     }
     pub fn read<T>(&self, query: impl FnOnce(&mut ProjectSession) -> AppResult<T>) -> AppResult<T> {
-        let tables = self
+        let mut snapshot = self.session.clone();
+        snapshot.csv_tables = self
             .tables
             .lock()
-            .map_err(|_| AppError::message("reference.lock_poisoned", "引用数据不可用"))?
+            .map_err(|_| AppError::message("reference.lock_poisoned", "引用表格状态不可用"))?
             .clone();
-        let mut snapshot = self.session.clone();
-        snapshot.csv_tables = tables;
-        // Dependent projections may read other sources, so cache locks cannot span the query.
         let result = query(&mut snapshot)?;
         if snapshot.source_versions != self.session.source_versions {
             return Err(AppError::message(
@@ -159,7 +165,7 @@ impl ReferenceSnapshot {
         }
         self.tables
             .lock()
-            .map_err(|_| AppError::message("reference.lock_poisoned", "引用数据不可用"))?
+            .map_err(|_| AppError::message("reference.lock_poisoned", "引用表格状态不可用"))?
             .extend(
                 snapshot
                     .csv_tables
@@ -170,12 +176,24 @@ impl ReferenceSnapshot {
     }
     pub fn table(&self, table: CsvTableKey) -> AppResult<Arc<Vec<SessionCsvRow>>> {
         self.read(|session| {
-            csv::ensure_registered_table_rows(session, table)?;
+            csv_tables::ensure_registered_table_rows(session, table)?;
             Ok(session.csv_tables[table.as_str()]
                 .rows
                 .clone()
                 .expect("loaded reference rows"))
         })
+    }
+    pub fn location(&self, relative: &str) -> EntityFileLocation {
+        EntityFileLocation {
+            reference: Some(Box::new(self.identity.clone())),
+            source: ResourceSource::Reference,
+            root: self.identity.mod_root.clone(),
+            rel_path: relative.into(),
+            path: Path::new(&self.identity.mod_root)
+                .join(relative)
+                .to_string_lossy()
+                .into_owned(),
+        }
     }
     pub fn spec(&self, kind: EntityKind, id: &str) -> Option<LoadedSpecRecord> {
         if let Some(record) = self
@@ -208,6 +226,7 @@ impl ReferenceSnapshot {
             id: id.into(),
             location: self.location(relative),
             data: data.clone(),
+            document: self.session.documents[relative].clone(),
         })
     }
     pub fn locations(&self, kind: EntityKind) -> BTreeMap<String, EntityFileLocation> {
@@ -234,53 +253,31 @@ impl ReferenceSnapshot {
                 .collect(),
         }
     }
-    pub fn location(&self, relative: &str) -> EntityFileLocation {
-        EntityFileLocation {
-            reference: Some(Box::new(self.identity.clone())),
-            source: ResourceSource::Reference,
-            root: self.identity.mod_root.clone(),
-            rel_path: relative.into(),
-            path: Path::new(&self.identity.mod_root)
-                .join(relative)
-                .to_string_lossy()
-                .into(),
-        }
-    }
 }
-
 impl ProjectSession {
-    pub fn preceding_references(&self) -> AppResult<impl Iterator<Item = &Arc<ReferenceSnapshot>>> {
-        let order = state()?.order.clone();
-        // The workspace owns tab order; consumers receive the eligible source sequence.
-        Ok(self.references.iter().filter(move |view| {
-            order
-                .iter()
-                .position(|id| id == &view.identity.session_id)
-                .is_none_or(|index| !order[..=index].contains(&self.manifest.session_id))
-        }))
-    }
-
-    pub fn read_spec_source(
+    pub fn read_spec_value(
         &self,
         kind: EntityKind,
         id: &str,
         source: &EntityFileLocation,
     ) -> AppResult<(FileVersion, Value)> {
-        if let Some(identity) = source.reference.as_deref() {
-            let view = self
-                .references
-                .iter()
-                .find(|view| &view.identity == identity)
-                .expect("authorized reference source");
-            let record = view
-                .spec(kind, id)
-                .expect("reference spec belongs to snapshot");
-            return Ok((
-                view.session.source_versions[&source.rel_path].clone(),
-                record.data,
-            ));
-        }
-        io::read_versioned_json(Path::new(&source.path))
+        let (version, source) = self.read_spec_source(kind, id, source)?;
+        Ok((version, source.content.to_json()?))
+    }
+    pub fn preceding_references(&self) -> AppResult<impl Iterator<Item = &Arc<ReferenceSnapshot>>> {
+        let order = state()?.order.clone();
+        let receiver = order.iter().position(|id| id == &self.manifest.session_id);
+        Ok(self.references.iter().filter(move |source| {
+            match (
+                receiver,
+                order
+                    .iter()
+                    .position(|id| id == &source.identity.session_id),
+            ) {
+                (Some(receiver), Some(source)) => source < receiver,
+                _ => true,
+            }
+        }))
     }
     pub fn spec_records(&self, kind: EntityKind) -> Option<&BTreeMap<String, LoadedSpecRecord>> {
         match kind {
@@ -294,20 +291,28 @@ impl ProjectSession {
         }
     }
     pub fn reference_spec(&self, kind: EntityKind, id: &str) -> Option<LoadedSpecRecord> {
-        self.references.iter().find_map(|view| view.spec(kind, id))
-    }
-}
-
-pub(super) fn prepare(session_id: &str) -> AppResult<(u64, Vec<Arc<ReferenceSnapshot>>)> {
-    let registered = registry::lock_registry()?;
-    let state = state()?;
-    Ok((
-        state.revision,
-        state
-            .sources
+        self.references
             .iter()
-            .filter(|source| source.session_id != session_id)
-            .filter_map(|source| registered.get(&source.session_id)?.reference.clone())
-            .collect(),
-    ))
+            .find_map(|source| source.spec(kind, id))
+    }
+    pub fn read_spec_source(
+        &self,
+        kind: EntityKind,
+        id: &str,
+        source: &EntityFileLocation,
+    ) -> AppResult<(FileVersion, JsonSource)> {
+        if let Some(reference) = source.reference.as_deref() {
+            let view = self
+                .references
+                .iter()
+                .find(|view| view.identity == *reference)
+                .expect("authorized reference snapshot");
+            let record = view.spec(kind, id).expect("authorized reference document");
+            return Ok((
+                view.session.source_versions[&source.rel_path].clone(),
+                (*record.document).clone(),
+            ));
+        }
+        io::read_versioned_json(Path::new(&source.path))
+    }
 }

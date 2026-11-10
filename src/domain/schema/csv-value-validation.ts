@@ -1,48 +1,6 @@
 import type { CsvColumnSchema, FieldSchema } from './schema.types';
 import { convertSchemaScalarInput } from './schema-values';
 
-export function parseCsvValue(
-  column: CsvColumnSchema,
-  raw: string,
-): { kind: 'empty' } | { kind: 'value'; raw: string; value: string | number | boolean } | { kind: 'error'; message: string } {
-  const error = (message: string) => ({ kind: 'error' as const, message });
-  if (raw === '') return column.required ? error('必填字段不能为空') : { kind: 'empty' };
-  if (column.options) {
-    const values =
-      column.control === 'tags'
-        ? raw
-            .split(',')
-            .map((entry) => entry.trim())
-            .filter(Boolean)
-        : [raw];
-    const invalid = values.filter((entry) => !column.options!.includes(entry));
-    if (invalid.length) return error(`值不在允许范围内：${invalid.join('、')}`);
-  }
-  if (column.control === 'boolean')
-    return /^(true|false)$/i.test(raw) ? { kind: 'value', raw, value: raw.toLowerCase() === 'true' } : error('请输入 true 或 false');
-  if (column.control === 'number') {
-    const parsed = convertSchemaScalarInput(raw, {
-      key: column.key,
-      label: column.label ?? column.key,
-      type: 'float',
-      numberFormat: 'starsector',
-    });
-    if (parsed.kind === 'error') return parsed;
-    if (parsed.kind === 'remove') return error('请输入完整有效数字');
-    const number = Number(raw.trim().replace(/[fFdD]$/, ''));
-    if (!Number.isFinite(number)) return error('请输入有限数字');
-    if (column.valueType === 'integer' && (!Number.isSafeInteger(number) || number < -2147483648 || number > 2147483647))
-      return error('请输入 32 位有符号整数范围内的整数');
-    return { kind: 'value', raw, value: number };
-  }
-  return { kind: 'value', raw, value: raw };
-}
-
-export function csvValueError(column: CsvColumnSchema, raw: string): string | null {
-  const parsed = parseCsvValue(column, raw);
-  return parsed.kind === 'error' ? parsed.message : null;
-}
-
 export function csvFieldSchema(column: CsvColumnSchema): FieldSchema {
   return {
     ...column,
@@ -55,6 +13,46 @@ export function csvFieldSchema(column: CsvColumnSchema): FieldSchema {
           : column.options || column.source
             ? 'enum'
             : 'string',
-    numberFormat: 'starsector',
   };
+}
+export function parseCsvValue(
+  column: CsvColumnSchema,
+  raw: string,
+): { kind: 'empty' } | { kind: 'value'; raw: string; value: string | number | boolean } | { kind: 'error'; message: string } {
+  if (!raw) return column.required ? { kind: 'error', message: '必填字段不能为空' } : { kind: 'empty' };
+  const parsed = convertSchemaScalarInput(raw, csvFieldSchema(column));
+  if (parsed.kind === 'error') return parsed;
+  if (parsed.kind === 'remove') return { kind: 'empty' };
+  const value = parsed.value;
+  if (typeof value !== 'number' && typeof value !== 'string' && typeof value !== 'boolean')
+    throw new Error('CSV scalar schema produces a scalar');
+  if (column.valueType === 'integer' && typeof value === 'number' && (value < -2147483648 || value > 2147483647))
+    return { kind: 'error', message: '请输入 32 位有符号整数范围内的整数' };
+  if (
+    column.options &&
+    (column.control === 'tags'
+      ? raw
+          .split(',')
+          .map((v) => v.trim())
+          .filter(Boolean)
+      : [raw]
+    ).some((v) => !column.options!.includes(v))
+  )
+    return { kind: 'error', message: '值不在允许范围内' };
+  return { kind: 'value', raw, value };
+}
+export function csvValueError(column: CsvColumnSchema, raw: string): string | null {
+  const result = parseCsvValue(column, raw);
+  return result.kind === 'error' ? result.message : null;
+}
+export function prepareCsvValue(column: CsvColumnSchema, raw: string): string {
+  const parsed = parseCsvValue(column, raw);
+  if (parsed.kind === 'error') throw new Error(parsed.message);
+  if (parsed.kind === 'empty') return '';
+  if (column.control === 'number') {
+    const value = parsed.value as number;
+    const text = String(value);
+    return column.valueType === 'integer' || /[.eE]/.test(text) ? text : `${text}.0`;
+  }
+  return typeof parsed.value === 'boolean' ? String(parsed.value) : raw;
 }

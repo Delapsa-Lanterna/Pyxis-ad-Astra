@@ -1,10 +1,23 @@
 use super::serde_fields::deserialize_nullable;
-use super::{JsonWriteOptions, ProjectSessionId};
-use crate::models::{FileVersion, project_identity};
+use super::{FileVersion, JsonWriteOptions, ProjectSessionId, project_identity};
+use crate::models::file_content::{JsonFileContent, JsonWrite};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct JsonDocumentRead {
+    pub session_id: ProjectSessionId,
+    pub rel_path: String,
+}
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct JsonDocumentFile {
+    pub document: JsonFileContent,
+    pub base_versions: Vec<FileVersion>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct JsonFileSave {
     pub base_versions: Vec<FileVersion>,
@@ -13,16 +26,12 @@ pub struct JsonFileSave {
     #[serde(deserialize_with = "deserialize_nullable")]
     pub previous_id: Option<String>,
     pub next_id: String,
-    pub data: Value,
     #[serde(deserialize_with = "deserialize_nullable")]
     pub rel_path: Option<String>,
-    #[serde(default)]
+    pub document: JsonWrite,
     pub json_write: JsonWriteOptions,
-    #[serde(default)]
-    pub ordered_json: Option<String>,
 }
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct JsonFileDelete {
     pub base_versions: Vec<FileVersion>,
@@ -31,10 +40,9 @@ pub struct JsonFileDelete {
     pub entity_id: String,
     pub rel_path: String,
 }
-
 project_identity::impl_session_mod_scope_required!(JsonFileSave, JsonFileDelete);
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct VariantFile {
     pub variant_id: String,
@@ -42,13 +50,13 @@ pub struct VariantFile {
     pub path: String,
     pub rel_path: String,
     pub data: Value,
+    pub document: Option<JsonFileContent>,
     pub weapon_group_count: usize,
     pub hull_mod_count: usize,
     pub perma_mod_count: usize,
     pub wing_count: usize,
 }
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SkinFile {
     pub skin_hull_id: String,
@@ -56,6 +64,7 @@ pub struct SkinFile {
     pub path: String,
     pub rel_path: String,
     pub data: Value,
+    pub document: Option<JsonFileContent>,
     pub built_in_mod_count: usize,
     pub built_in_weapon_count: usize,
     pub built_in_wing_count: usize,
@@ -65,6 +74,8 @@ pub struct SkinFile {
 
 #[cfg(test)]
 mod tests {
+    use crate::test_support::file_formats;
+
     use super::*;
     use serde_json::json;
 
@@ -75,7 +86,7 @@ mod tests {
             "sessionId": "session-1",
             "modRoot": "D:/mods/demo",
             "nextId": "demo",
-            "data": {"id": "demo"}
+            "document": file_formats::json_write(&json!({"id":"demo"})), "jsonWrite": {}
         }));
 
         assert!(result.is_err());
@@ -85,25 +96,28 @@ mod tests {
     fn config_file_entity_payload_requires_explicit_nullable_rel_path() {
         let result = serde_json::from_value::<JsonFileSave>(json!({
             "baseVersions": [], "sessionId":"session-1", "modRoot":"D:/mods/demo", "previousId":null,
-            "nextId":"demo", "data":{"id":"demo"}
+            "nextId":"demo", "document":file_formats::json_write(&json!({"id":"demo"})),"jsonWrite":{}
         }));
         assert!(result.is_err());
         let payload = serde_json::from_value::<JsonFileSave>(json!({
-            "baseVersions": [], "sessionId":"session-1", "modRoot":"D:/mods/demo", "previousId":null,
-            "nextId":"demo", "relPath":null, "data":{"id":"demo"}
-        }))
-        .unwrap();
+                "baseVersions": [], "sessionId":"session-1", "modRoot":"D:/mods/demo", "previousId":null,
+                "nextId":"demo", "relPath":null, "document":file_formats::json_write(&json!({"id":"demo"})),"jsonWrite":{}
+            }))
+            .unwrap();
         assert!(payload.rel_path.is_none());
     }
 
     #[test]
     fn json_entity_requests_keep_explicit_source_and_default_json_options() {
-        let value = json!({"baseVersions":[],"sessionId":"session","modRoot":"M:/mod","previousId":null,"nextId":"demo","relPath":null,"data":{"variantId":"demo"}});
+        let value = json!({"baseVersions":[],"sessionId":"session","modRoot":"M:/mod","previousId":null,"nextId":"demo","relPath":null,"document":file_formats::json_write(&json!({"variantId":"demo"})),"jsonWrite":{}});
         let payload: JsonFileSave = serde_json::from_value(value.clone()).unwrap();
         assert!(payload.previous_id.is_none());
         assert!(payload.rel_path.is_none());
-        assert!(!payload.json_write.preserve_original_json);
-        assert!(payload.ordered_json.is_none());
+        assert!(!payload.json_write.preserve_structure);
+        assert_eq!(
+            payload.document.content.to_json().unwrap()["variantId"],
+            "demo"
+        );
         for field in ["previousId", "relPath"] {
             let mut missing = value.clone();
             missing.as_object_mut().unwrap().remove(field);

@@ -1,9 +1,12 @@
+import { stripRustCommentsAndStrings, stripRustTestBlocks } from './rust-source.mjs';
+
 const CJK = '\\p{Script=Han}';
 const LATIN = '[A-Za-z]';
 const MASK_CHAR = '\uE000';
 const BANNED_PUNCTUATION = /[“”‘’（）]/gu;
 const TEXT_EXTENSIONS = new Set(['.css', '.html', '.js', '.json', '.md', '.mjs', '.rs', '.toml', '.ts', '.vue']);
-const TEST_PATH = /(?:^|\/)(?:test|tests|testdata|__tests__)(?:\/|$)|(?:^|\/)test_support\.[^.]+$|(?:\.spec|\.test)\.[^.]+$/;
+const TEST_PATH =
+  /(?:^|\/)(?:test|tests|testdata|test_support|__tests__|__snapshots__|\.vitest)(?:\/|$)|(?:^|\/)(?:test_support|tests?)\.[^.]+$|_tests?\.rs$|(?:\.spec|\.test|\.check)\.[^.]+$/;
 
 /** @typedef {{ rel: string, text: string }} TextFile */
 /** @typedef {{ start: number, text: string, strictOuter?: boolean }} TextCandidate */
@@ -18,7 +21,10 @@ export function checkTextGuidelines(files) {
   /** @type {string[]} */
   const failures = [];
   for (const file of files) {
-    for (const candidate of extractCandidates(file.rel, file.text)) scanCandidate(file.rel, file.text, candidate, failures);
+    const extension = file.rel.slice(file.rel.lastIndexOf('.'));
+    if (!isTextGuidelineFile(file.rel, extension)) continue;
+    const text = extension === '.rs' ? stripRustTestBlocks(stripRustCommentsAndStrings(file.text), file.text) : file.text;
+    for (const candidate of extractCandidates(file.rel, text)) scanCandidate(file.rel, file.text, candidate, failures);
   }
   return failures;
 }

@@ -1,9 +1,8 @@
-use super::{JsonWriteOptions, ProjectSessionId};
-use crate::models::{EntityEditTarget, FileVersion, project_identity};
+use super::{EntityEditTarget, FileVersion, JsonWriteOptions, ProjectSessionId, project_identity};
+use crate::models::file_content::JsonWrite;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 #[serde(rename_all = "camelCase")]
 pub enum SpecEditorKind {
     Ship,
@@ -11,39 +10,34 @@ pub enum SpecEditorKind {
     Projectile,
     System,
 }
-
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum WeaponSpecClass {
     Projectile,
     Beam,
 }
-
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LoadImportedEditorSpecPayload {
     pub kind: SpecEditorKind,
     pub path: String,
 }
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SpecSave {
     pub base_versions: Vec<FileVersion>,
     pub session_id: ProjectSessionId,
     pub mod_root: String,
     pub target: EntityEditTarget,
-    pub data: Value,
-    #[serde(default)]
+    pub document: JsonWrite,
     pub json_write: JsonWriteOptions,
-    #[serde(default)]
-    pub ordered_json: Option<String>,
 }
-
 project_identity::impl_session_mod_scope_required!(SpecSave);
 
 #[cfg(test)]
 mod tests {
+    use crate::test_support::file_formats;
+
     use super::*;
     #[cfg(test)]
     use crate::models::EntityKind;
@@ -60,11 +54,14 @@ mod tests {
 
     #[test]
     fn spec_save_requests_keep_loaded_target_and_default_json_options() {
-        let value = json!({"baseVersions":[],"sessionId":"session","modRoot":"M:/mod","target":{"kind":"ship","id":"demo","source":null,"write":{"source":"mod","root":"M:/mod","relPath":"data/hulls/demo.ship","path":"M:/mod/data/hulls/demo.ship"},"state":"create","linkedRecord":null},"data":{"hullId":"demo"}});
+        let value = json!({"baseVersions":[],"sessionId":"session","modRoot":"M:/mod","target":{"kind":"ship","id":"demo","source":null,"write":{"source":"mod","root":"M:/mod","relPath":"data/hulls/demo.ship","path":"M:/mod/data/hulls/demo.ship"},"state":"create","linkedRecord":null},"document":file_formats::json_write(&json!({"hullId":"demo"})),"jsonWrite":{}});
         let payload: SpecSave = serde_json::from_value(value).unwrap();
         assert_eq!(payload.target.kind, EntityKind::Ship);
         assert_eq!(payload.target.id, "demo");
-        assert!(!payload.json_write.preserve_original_json);
-        assert!(payload.ordered_json.is_none());
+        assert!(!payload.json_write.preserve_structure);
+        assert_eq!(
+            payload.document.content.to_json().unwrap()["hullId"],
+            "demo"
+        );
     }
 }

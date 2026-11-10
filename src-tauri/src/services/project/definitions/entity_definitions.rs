@@ -11,8 +11,7 @@ use crate::domain::entity_definitions::{
     EntitySpecDefinition, FACTION_SPEC_DEFINITION, PROJECTILE_SPEC_DEFINITION,
     SHIP_SPEC_DEFINITION, SKILL_SPEC_DEFINITION, SKIN_SPEC_DEFINITION, SYSTEM_SPEC_DEFINITION,
     VARIANT_SPEC_DEFINITION, WEAPON_SPEC_DEFINITION,
-    associated_spec_definition as domain_associated_spec_definition,
-    associated_spec_tables as domain_associated_spec_tables,
+    associated_spec_tables as domain_associated_spec_tables, csv_id_active,
 };
 use crate::domain::entity_identity;
 use crate::domain::entity_identity::path_is_or_in_dir;
@@ -67,12 +66,6 @@ pub(in crate::services::project) fn entity_definition(
 
 pub(in crate::services::project) fn entity_definitions() -> &'static [ProjectEntityDefinition] {
     &PROJECT_ENTITY_DEFINITIONS
-}
-
-pub(in crate::services::project) fn associated_spec_definition(
-    table: CsvTableKey,
-) -> Option<&'static EntitySpecDefinition> {
-    domain_associated_spec_definition(table)
 }
 
 pub(in crate::services::project) fn associated_spec_tables() -> Vec<CsvTableKey> {
@@ -429,28 +422,37 @@ pub(in crate::services::project) fn registered_mission_rows(
         })?;
     Ok(registered_entity_rows(
         loaded_csv_rows(table, MISSION_LIST_TABLE_KEY)?,
-        "mission",
+        EntityKind::Mission,
     ))
 }
 
 fn registered_weapon_rows(session: &ProjectSession) -> AppResult<Vec<RegisteredCsvEntityRow>> {
     Ok(registered_entity_rows(
         loaded_registered_csv_rows(session, CsvTableKey::Weapons)?,
-        "id",
+        EntityKind::Weapon,
     ))
 }
 
 fn registered_skill_rows(session: &ProjectSession) -> AppResult<Vec<RegisteredCsvEntityRow>> {
     Ok(registered_entity_rows(
         loaded_registered_csv_rows(session, CsvTableKey::Skills)?,
-        "id",
+        EntityKind::Skill,
     ))
 }
 
-fn registered_entity_rows(rows: &[SessionCsvRow], id_column: &str) -> Vec<RegisteredCsvEntityRow> {
+fn registered_entity_rows(rows: &[SessionCsvRow], kind: EntityKind) -> Vec<RegisteredCsvEntityRow> {
     rows.iter()
         .filter(|row| !row.is_comment)
         .filter_map(|row| {
+            let id_column = if kind == EntityKind::Mission {
+                "mission"
+            } else {
+                "id"
+            };
+            let id = row.data.get(id_column)?.as_str()?;
+            if !csv_id_active(kind, id) {
+                return None;
+            }
             let id = string_from_row(&row.data, id_column)?;
             Some(RegisteredCsvEntityRow {
                 id,
@@ -601,6 +603,7 @@ fn build_mission_entity(session: &mut ProjectSession, id: &str) -> AppResult<Opt
         Value::String(format!("data/missions/{clean}")),
     );
     capture_changed_versions(&mut sources, &[&format!("data/missions/{clean}")])?;
+    Arc::make_mut(&mut session.documents).extend(sources.documents());
     Arc::make_mut(&mut session.source_versions).extend(sources.versions);
     Ok(Some(Value::Object(data)))
 }
@@ -763,9 +766,11 @@ fn refresh_mission(
     _session: &ProjectSession,
     sources: &mut SourceReader,
 ) -> AppResult<EntityRefresh> {
-    Ok(EntityRefresh::Mission(
-        sources.count(&sources.path(MISSION_LIST_REL_PATH)?, "mission")?,
-    ))
+    Ok(EntityRefresh::Mission(sources.count(
+        &sources.path(MISSION_LIST_REL_PATH)?,
+        "mission",
+        |id| csv_id_active(EntityKind::Mission, id),
+    )?))
 }
 fn refresh_variant(
     _session: &ProjectSession,
@@ -791,6 +796,28 @@ pub(in crate::services::project) fn source_option_origin_scopes(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn registered_rows_apply_loader_skips_without_removing_physical_rows() {
+        let rows = ["#archived", "active"].map(|id| SessionCsvRow {
+            row_key: id.into(),
+            data: [
+                ("id".into(), Value::String(id.into())),
+                ("mission".into(), Value::String(id.into())),
+            ]
+            .into_iter()
+            .collect(),
+            is_comment: false,
+            source_row: None,
+        });
+        for kind in [EntityKind::Skill, EntityKind::Mission] {
+            let active = registered_entity_rows(&rows, kind);
+            assert_eq!(active.len(), 1);
+            assert_eq!(active[0].id, "active");
+        }
+        assert_eq!(registered_entity_rows(&rows, EntityKind::Weapon).len(), 2);
+        assert_eq!(rows[0].data["id"], "#archived");
+    }
 
     #[test]
     fn faction_source_option_scopes_include_fighter_tags() {

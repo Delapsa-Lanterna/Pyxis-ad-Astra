@@ -18,7 +18,6 @@ pub fn query_csv_validation(
         payload.sources,
         payload.files,
         payload.classes,
-        payload.station_data,
     )
 }
 

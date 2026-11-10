@@ -1,9 +1,8 @@
 use super::super::session::{lock_ready_session, session_handle};
 use crate::errors::{AppError, AppResult};
-use crate::io::{FsRootBoundary, forward_slash_path, read_text_bytes_no_bom};
-use crate::models::{
-    FileDirectory, FileEntry, FileKind, FileSearch, FileTextTarget, decode_starsector_text,
-};
+use crate::io::{self, FsRootBoundary};
+use crate::models::{FileDirectory, FileEntry, FileKind, FileSearch, FileTextTarget};
+use crate::parsers::game::text;
 use chrono::{DateTime, Utc};
 use std::collections::BTreeMap;
 use std::fs;
@@ -13,46 +12,23 @@ use std::os::windows::fs::MetadataExt;
 use std::path::Path;
 use walkdir::WalkDir;
 
-fn session_boundary(session_id: &str) -> AppResult<FsRootBoundary> {
-    let handle = session_handle(session_id)?;
+fn boundary(session: &str) -> AppResult<FsRootBoundary> {
+    let handle = session_handle(session)?;
     let session = lock_ready_session(&handle)?;
-    FsRootBoundary::new(Path::new(&session.manifest.mod_root), "mod root")
+    FsRootBoundary::new(Path::new(&session.manifest.mod_root), "file browser root")
 }
-pub fn query_file_directory(session_id: &str, directory: Option<&str>) -> AppResult<FileDirectory> {
-    let boundary = session_boundary(session_id)?;
-    read_directory(&boundary, directory)
+#[cfg(windows)]
+fn link(metadata: &Metadata) -> bool {
+    metadata.file_type().is_symlink() || metadata.file_attributes() & 0x400 != 0
 }
-fn read_directory(boundary: &FsRootBoundary, directory: Option<&str>) -> AppResult<FileDirectory> {
-    let path = directory
-        .map(|rel| boundary.resolve_relative(rel, "mod directory"))
-        .transpose()?
-        .unwrap_or_else(|| boundary.root().to_path_buf());
-    let children = fs::read_dir(&path).map_err(|error| {
-        AppError::context(format!("读取目录失败 ({})", path.display()), error.into()).at_path(&path)
-    })?;
-    let mut entries = Vec::new();
-    for child in children {
-        let child = child.map_err(|error| {
-            AppError::context(
-                format!("读取目录条目失败 ({})", path.display()),
-                error.into(),
-            )
-            .at_path(&path)
-        })?;
-        let target = child.path();
-        entries.push(describe_entry(boundary, &target)?);
-    }
-    Ok(FileDirectory {
-        directory: directory.map(str::to_owned),
-        entries,
-    })
+#[cfg(not(windows))]
+fn link(metadata: &Metadata) -> bool {
+    metadata.file_type().is_symlink()
 }
-fn describe_entry(boundary: &FsRootBoundary, target: &Path) -> AppResult<FileEntry> {
-    let metadata = fs::symlink_metadata(target).map_err(|error| {
-        AppError::context(format!("读取条目失败 ({})", target.display()), error.into())
-            .at_path(target)
-    })?;
-    let kind = if metadata.file_type().is_symlink() || is_reparse_point(&metadata) {
+fn entry(root: &FsRootBoundary, path: &Path) -> AppResult<FileEntry> {
+    let metadata =
+        fs::symlink_metadata(path).map_err(|error| AppError::from(error).at_path(path))?;
+    let kind = if link(&metadata) {
         FileKind::Restricted
     } else if metadata.is_dir() {
         FileKind::Directory
@@ -62,16 +38,12 @@ fn describe_entry(boundary: &FsRootBoundary, target: &Path) -> AppResult<FileEnt
         FileKind::Restricted
     };
     Ok(FileEntry {
-        name: target
+        name: path
             .file_name()
-            .expect("directory child has a name")
+            .expect("directory child name")
             .to_string_lossy()
             .into_owned(),
-        rel_path: forward_slash_path(
-            target
-                .strip_prefix(boundary.root())
-                .expect("enumerated entry belongs to root"),
-        ),
+        rel_path: io::forward_slash_relative_path(root.root(), path),
         kind,
         size_bytes: (kind == FileKind::File).then_some(metadata.len()),
         modified_at: metadata
@@ -80,93 +52,69 @@ fn describe_entry(boundary: &FsRootBoundary, target: &Path) -> AppResult<FileEnt
             .map(|time| DateTime::<Utc>::from(time).timestamp_millis()),
     })
 }
-pub fn query_file_search(session_id: &str, query: &str) -> AppResult<FileSearch> {
-    search_files(&session_boundary(session_id)?, query)
+fn read_directory(root: &FsRootBoundary, directory: Option<&str>) -> AppResult<FileDirectory> {
+    let path = directory
+        .map(|directory| root.resolve_relative(directory, "browser directory"))
+        .transpose()?
+        .unwrap_or_else(|| root.root().to_path_buf());
+    let entries = fs::read_dir(&path)
+        .map_err(|error| AppError::from(error).at_path(&path))?
+        .map(|child| entry(root, &child?.path()))
+        .collect::<AppResult<_>>()?;
+    Ok(FileDirectory {
+        directory: directory.map(str::to_owned),
+        entries,
+    })
 }
-fn search_files(boundary: &FsRootBoundary, query: &str) -> AppResult<FileSearch> {
+pub fn query_file_directory(session: &str, directory: Option<&str>) -> AppResult<FileDirectory> {
+    read_directory(&boundary(session)?, directory)
+}
+fn search_files(root: &FsRootBoundary, query: &str) -> AppResult<FileSearch> {
     let query = query.trim().to_owned();
     let needle = query.to_lowercase();
-    let mut walker = WalkDir::new(boundary.root())
+    let mut walker = WalkDir::new(root.root())
         .min_depth(1)
         .follow_links(false)
         .into_iter();
-    let mut directories = BTreeMap::<String, FileEntry>::new();
-    let mut entries = BTreeMap::<String, FileEntry>::new();
-    let mut matched_paths = Vec::new();
-    while let Some(next) = walker.next() {
-        let next = next.map_err(|error| {
-            let path = error.path().unwrap_or(boundary.root()).to_path_buf();
-            AppError::message(
-                "io.walk_failed",
-                format!("搜索目录失败 ({}): {error}", path.display()),
-            )
-            .at_path(path)
-        })?;
-        let entry = describe_entry(boundary, next.path())?;
-        if entry.kind == FileKind::Restricted && next.file_type().is_dir() {
+    let mut parents = BTreeMap::new();
+    let mut result = BTreeMap::new();
+    let mut matches = Vec::new();
+    while let Some(item) = walker.next() {
+        let item = item.map_err(|error| AppError::message("io.walk_failed", error.to_string()))?;
+        let entry = entry(root, item.path())?;
+        if entry.kind == FileKind::Restricted && item.file_type().is_dir() {
             walker.skip_current_dir();
         }
         if entry.kind == FileKind::Directory {
-            directories.insert(entry.rel_path.clone(), entry.clone());
+            parents.insert(entry.rel_path.clone(), entry.clone());
         }
-        if entry.name.to_lowercase().contains(&needle) {
-            matched_paths.push(entry.rel_path.clone());
-            let mut parent = Path::new(&entry.rel_path).parent();
-            while let Some(path) = parent.filter(|path| !path.as_os_str().is_empty()) {
-                let key = forward_slash_path(path);
-                entries
-                    .entry(key.clone())
-                    .or_insert_with(|| directories[&key].clone());
-                parent = path.parent();
-            }
-            entries.insert(entry.rel_path.clone(), entry);
+        if !entry.name.to_lowercase().contains(&needle) {
+            continue;
         }
+        matches.push(entry.rel_path.clone());
+        for parent in Path::new(&entry.rel_path)
+            .ancestors()
+            .skip(1)
+            .filter(|path| !path.as_os_str().is_empty())
+        {
+            let key = io::forward_slash_path(parent);
+            result
+                .entry(key.clone())
+                .or_insert_with(|| parents[&key].clone());
+        }
+        result.insert(entry.rel_path.clone(), entry);
     }
     Ok(FileSearch {
         query,
-        entries: entries.into_values().collect(),
-        matched_paths,
+        entries: result.into_values().collect(),
+        matched_paths: matches,
     })
 }
-#[cfg(windows)]
-fn is_reparse_point(metadata: &Metadata) -> bool {
-    metadata.file_attributes() & 0x400 != 0
+pub fn query_file_search(session: &str, query: &str) -> AppResult<FileSearch> {
+    search_files(&boundary(session)?, query)
 }
-#[cfg(not(windows))]
-fn is_reparse_point(_metadata: &Metadata) -> bool {
-    false
-}
-pub fn query_file_text_target(
-    session_id: &str,
-    rel_path: &str,
-) -> AppResult<Option<FileTextTarget>> {
-    let boundary = session_boundary(session_id)?;
-    let target = boundary.resolve_relative(rel_path, "mod file")?;
-    if !is_text_file(&target)? {
-        return Ok(None);
-    }
-    Ok(Some(FileTextTarget {
-        session_id: session_id.into(),
-        mod_root: forward_slash_path(boundary.root()),
-        path: forward_slash_path(&target),
-    }))
-}
-fn is_text_file(path: &Path) -> AppResult<bool> {
-    let bytes = read_text_bytes_no_bom(path)?;
-    if binary_content(&bytes) {
-        return Ok(false);
-    }
-    decode_starsector_text(&bytes).map_err(|offset| {
-        AppError::message(
-            "text.invalid_utf8",
-            format!("{} is not valid UTF-8 at byte {offset}", path.display()),
-        )
-        .at_path(path)
-    })?;
-    Ok(true)
-}
-fn binary_content(bytes: &[u8]) -> bool {
-    const HEADERS: &[&[u8]] = &[
+fn binary(bytes: &[u8]) -> bool {
+    const SIGNATURES: &[&[u8]] = &[
         b"\x89PNG\r\n\x1a\n",
         b"\xff\xd8\xff",
         b"GIF87a",
@@ -186,20 +134,42 @@ fn binary_content(bytes: &[u8]) -> bool {
         b"MZ",
         b"\xca\xfe\xba\xbe",
     ];
-    HEADERS.iter().any(|header| bytes.starts_with(header))
-        || bytes
-            .windows(2)
-            .take(1)
-            .any(|pair| pair[0] == 0xff && pair[1] & 0xe0 == 0xe0)
+    SIGNATURES
+        .iter()
+        .any(|signature| bytes.starts_with(signature))
+        || bytes.starts_with(&[0xff]) && bytes.get(1).is_some_and(|byte| byte & 0xe0 == 0xe0)
         || bytes.iter().any(|byte| {
-            *byte == 0x7f || (*byte < 0x20 && !matches!(byte, b'\t' | b'\n' | b'\r' | 0x0c))
+            *byte == 0x7f || *byte < 0x20 && !matches!(byte, b'\t' | b'\n' | b'\r' | 0x0c)
         })
 }
+fn is_text_file(path: &Path) -> AppResult<bool> {
+    let (_, bytes) = io::read_versioned_bytes(path)?;
+    if binary(&bytes) {
+        return Ok(false);
+    }
+    text::decode_plain(&bytes, "utf-8").map_err(|error| AppError::from(error).at_path(path))?;
+    Ok(true)
+}
+pub fn query_file_text_target(session: &str, relative: &str) -> AppResult<Option<FileTextTarget>> {
+    let root = boundary(session)?;
+    let path = root.resolve_relative(relative, "text target")?;
+    if !is_text_file(&path)? {
+        return Ok(None);
+    }
+    Ok(Some(FileTextTarget {
+        session_id: session.into(),
+        mod_root: io::forward_slash_path(root.root()),
+        path: io::forward_slash_path(&path),
+    }))
+}
+
 #[cfg(test)]
 mod tests {
     use crate::services::project_sync::release_project_session;
 
+    use super::binary as binary_content;
     use super::*;
+    use crate::io::forward_slash_path;
     #[cfg(test)]
     use crate::services::project::performance::PerformanceTrace;
     #[cfg(test)]
@@ -247,7 +217,6 @@ mod tests {
             ("empty", b"".as_slice()),
             ("custom.ext", "中文\n\t".as_bytes()),
             ("bom", b"\xef\xbb\xbftext".as_slice()),
-            ("punctuation", b"\x91word\x92".as_slice()),
         ] {
             let path = root.join(name);
             fs::write(&path, bytes).unwrap();

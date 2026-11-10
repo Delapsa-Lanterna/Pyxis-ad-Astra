@@ -10,7 +10,6 @@
 
 - `src/app/components/immersive/ship/`：舰船内容与静态贴图展示组件。
 - `src/domain/immersive/ship/`：舰船信息、来源、统计及行为测试。
-- `src/domain/immersive/ship/ship-panel.ts`：舰船来源、后勤、战斗、装备投影及系统与防御关联查询输入投影。
 
 ### 消费
 
@@ -25,10 +24,7 @@
 - `src/domain/immersive/hull-fields.ts`：船体基础与皮肤字段的统一读取、计算与输入投影。
 - `src/domain/immersive/source-records.ts`：可编辑来源与装配记录选择。
 - `src/domain/joint-edit.ts`：联合写入范围提取、身份映射、草稿重接与冲突选择投影。
-- `src/domain/schema/config-schema-registry.ts`：字段与列资产加载、来源声明、值及结构纯规则。
-- `src/domain/schema/csv-schema-registry.ts`：字段与列资产加载、来源声明、值及结构纯规则。
-- `src/domain/schema/csv-value-validation.ts`：字段与列资产加载、来源声明、值及结构纯规则。
-- `src/domain/schema/schema-values.ts`：字段与列资产加载、来源声明、值及结构纯规则。
+- `src/domain/schema/`：字段与列资产加载、游戏数字解释、来源声明、校验及目标格式准备。
 
 ## 边界
 
@@ -55,8 +51,8 @@
 
 ## 规范
 
-- 只读与编辑内容必须复用同一舰船内容投影。
+- 只读与编辑内容复用同一舰船内容投影。
 - 皮肤窗口必须沿用真实皮肤身份和舰船展示能力，属性浮层分别交付基础与各层受支持的皮肤字段；未填写覆盖保留继承输入入口。
-- 舰船名称、定位、设计类型、系统与性能必须消费基础 CSV 及按序皮肤覆盖，几何、槽位、内置引用与贴图消费有效规格，描述消费实际来源的 `SHIP` 记录与皮肤前缀。
-- 舰船船员必须绑定 `min crew` 与 `max crew`，部署点数消费 `supplies/rec`；护盾维持按 `shield upkeep` × `flux dissipation` 计算，相位消耗按来源系数 × `max flux` 计算。
+- 舰船名称、定位、设计类型、系统与性能消费基础 CSV 及按序皮肤覆盖，几何、槽位、内置引用与贴图消费有效规格，描述消费实际来源的 `SHIP` 记录与皮肤前缀。
+- 舰船船员绑定 `min crew` 与 `max crew`，部署点数消费 `supplies/rec`；护盾维持按 `shield upkeep` × `flux dissipation` 计算，相位消耗按来源系数 × `max flux` 计算。
 - 装配统计只允许作为只读投影，基础船体修改必须提交实际来源参数。

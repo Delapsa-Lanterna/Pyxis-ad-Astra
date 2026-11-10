@@ -135,8 +135,7 @@
 - `src/app/composables/use-workspace-shell-lifecycle.ts`：主窗口恢复、工作区持久化及保存事件生命周期。
 - `src/app/performance-monitor.ts`：窗口采集装配、批量交付与采集错误状态。
 - `src/app/runtime-error-monitor.ts`：窗口和 Vue 运行错误的监听、上下文及结构化日志接入。
-- `src/domain/csv-editor/csv-rule-context.ts`：表格草稿、操作历史、关联规格及展示投影。
-- `src/domain/csv-editor/csv-validation.ts`：表格草稿、操作历史、关联规格及展示投影。
+- `src/domain/csv-editor/`：表格字段检查、来源上下文与关联规格的纯规则。
 - `src/domain/editors/weapon-spec.ts`：武器创建、CSV 字段分支推断、归一化与分支转换。
 - `src/domain/immersive/appearance.ts`：沉浸式缩放、主题与颜色投影。
 - `src/domain/immersive/fields.ts`：字段规则、数值投影与具名关联查询输入契约。
@@ -147,14 +146,10 @@
 - `src/domain/immersive/wing/wing-panel.ts`：技术信息、来源绑定与编队输入投影。
 - `src/domain/joint-edit.ts`：联合写入范围提取、身份映射、草稿重接与冲突选择投影。
 - `src/domain/json-composition.ts`：前端内容组合、来源定位、稀疏编辑及覆盖撤销。
-- `src/domain/schema/config-schema-registry.ts`：字段与列资产加载、来源声明、值及结构纯规则。
-- `src/domain/schema/schema-source-definitions.ts`：规格窗口装配捕获配置候选的正式刷新路径。
-- `src/domain/schema/schema-validation.ts`：字段与列资产加载、来源声明、值及结构纯规则。
+- `src/domain/schema/`：字段与列资产加载、游戏数字解释、来源声明、校验及目标格式准备。
 - `src/domain/settings/theme.ts`：主题令牌与色彩数学，拥有 accent 预设、light/dark 中性色、`createThemeColors` 纯函数及 `THEME_TOKEN_MAP` 的 ThemeColorTokens 与主题属性映射。
-- `src/domain/spec-editor/projectile/spec-projectile-fields.ts`：弹体分支、引擎槽位与静态几何规则。
-- `src/domain/spec-editor/projectile/spec-projectile-model.ts`：弹体分支、引擎槽位与静态几何规则。
-- `src/domain/spec-editor/ship/spec-ship-editing.ts`：舰船文档、几何、点位及内置武器投影规则。
-- `src/domain/spec-editor/ship/spec-ship-fields.ts`：舰船文档、几何、点位及内置武器投影规则。
+- `src/domain/spec-editor/projectile/`：弹体字段、分支与几何模型的纯规则。
+- `src/domain/spec-editor/ship/`：舰船字段、文档、几何与内置武器的纯规则。
 - `src/domain/spec-editor/system/spec-system-fields.ts`：系统结构化字段与规格归一化。
 - `src/domain/spec-editor/weapon/spec-weapon-fields.ts`：发射点动作、镜像及操作预览规则。
 - `src/env.d.ts`：启动诊断消费的公共构建版本声明。
@@ -257,13 +252,13 @@
 - Java 分析必须在应用初始化时登记惰性运行态，应用确认关闭后等待所属实例释放。
 - 关闭确认必须按实际关闭范围筛选未保存参与者并展开对象及全部路径；退出、关闭与 Esc 保留原编辑状态并沿所属关闭恢复流程交还焦点。
 - 启动入口必须在页面释放时结束接纳权，上下文、窗口根与设置、日志等待后的挂载、显示及失败呈现服从该寿命。
-- 主窗口与子窗口的模式差异必须由唯一窗口壳的 mode 参数表达，严禁出现第二份 Provider 栈。
+- 主窗口与子窗口共用一套 Provider 栈，模式差异由唯一窗口壳的 mode 参数表达。
 - 全部窗口 settings snapshot 必须从 Rust 设置服务读取并经统一校验入口初始化，后续更新先监听再读取正式快照并按版本接纳。
 - 启动失败页面必须提供重试、复制诊断和退出，提供原生窗口控制；退出等待启动失败交接并消费现有关闭流程，展示独立于 settings、业务 store 和 Provider 初始化。
 - 应用关闭必须先完成主窗口确认和设置提交，再逐个销毁子窗口与独立恢复窗口、释放会话并最后销毁主窗口。
 - 每个窗口壳必须建立一次 Core 加载生命周期，释放时撤销所属监听及响应接纳。
 - 窗口 Core 根必须消费后端按所属会话或工作区确定的实际来源，由唯一 Core 加载生命周期交付给字段、图形与提示过滤。
-- 窗口操作锁必须由 WindowRuntime 提供；内容区域消费 inert，业务浮层消费关闭状态的声明式命名空间，确认与结果反馈由所属窗口的 Provider 承载。
-- 窗口根组件必须按窗口类型懒加载，严禁建立包含全部窗口根的公共入口模块。
-- 设置 IPC 必须由应用装配连接设置服务、日志目录动作与运行参数 owner；正式提交顺序由设置服务独占。
+- 窗口操作锁由 WindowRuntime 提供；内容区域消费 inert，业务浮层消费关闭状态的声明式命名空间，确认与结果反馈由所属窗口的 Provider 承载。
+- 窗口根组件由各自入口按窗口类型懒加载。
+- 设置 IPC 由应用装配连接设置服务、日志目录动作与运行参数 owner；正式提交顺序由设置服务独占。
 - 自定义日志目录操作必须先捕获同次持久化根集合再交付目录能力；存在工作区快照时每次准备或解析只读取该快照一次，默认目录读取零次，重复正式设置读取复用初始化结果。

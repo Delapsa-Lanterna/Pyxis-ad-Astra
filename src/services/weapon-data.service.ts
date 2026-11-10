@@ -18,7 +18,9 @@ import type {
   RowData,
   JsonComposition,
 } from '@/shared/types';
+import type { JsonFileContent } from '@/shared/types';
 export interface WeaponData extends EntityTargetSnapshot {
+  document: JsonFileContent | null;
   composition?: JsonComposition;
   weapon: RowData;
   weaponCsvRow: RowData;
@@ -42,7 +44,8 @@ export async function queryWeaponSpecData(
     ? await querySessionDraftResources(sessionId, 'weapon', id, weaponOverride, signal)
     : weapon.resourceRefs;
   return {
-    composition: weapon.composition,
+    composition: weapon.composition ?? undefined,
+    document: cloneQuerySnapshot<JsonFileContent | null>(weapon.document),
     weapon: weaponSpec,
     target: weapon.target,
     baseVersions: weapon.baseVersions,

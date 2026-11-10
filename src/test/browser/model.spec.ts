@@ -105,9 +105,16 @@ describe('browser sample service', () => {
       associatedSpecs: [],
       rowOrder: ['ships:new:1', 'ships:row:3', 'ships:row:0', 'ships:row:1'],
       patches: [
-        { action: 'delete', rowKey: 'ships:row:2', row: {}, isComment: false },
-        { action: 'upsert', rowKey: 'ships:row:1', row: { id: 'edited', name: 'Saved' }, isComment: false },
-        { action: 'upsert', rowKey: 'ships:new:1', row: {}, isComment: true },
+        { action: 'delete', rowKey: 'ships:row:2', row: {}, columns: [], commentChanged: false, isComment: false },
+        {
+          action: 'upsert',
+          rowKey: 'ships:row:1',
+          row: { id: 'edited', name: 'Saved' },
+          columns: ['id', 'name'],
+          commentChanged: false,
+          isComment: false,
+        },
+        { action: 'upsert', rowKey: 'ships:new:1', row: {}, columns: [], commentChanged: true, isComment: true },
       ],
     };
     const saved = model.saveCsv(payload);
@@ -133,6 +140,8 @@ describe('browser sample service', () => {
     const saved = model.saveJoint({
       snapshot,
       values: { [key]: value },
+      documents: {},
+      csvColumns: {},
       baseVersions: snapshot.baseVersions,
       jsonWrite: {},
       createOverrides: [],
@@ -168,7 +177,9 @@ describe('browser sample service', () => {
       baseVersions: [],
       associatedSpecs: [],
       rowOrder: null,
-      patches: [{ action: 'upsert', rowKey: 'ships:row:1', row: { id: 'saved' }, isComment: false }],
+      patches: [
+        { action: 'upsert', rowKey: 'ships:row:1', row: { id: 'saved' }, columns: ['id'], commentChanged: false, isComment: false },
+      ],
     };
     model.failures.set('save_csv_patch', 'save failed');
     await expect(invoke('save_csv_patch', { payload })).rejects.toThrow('save failed');
@@ -215,6 +226,8 @@ describe('browser sample service', () => {
     model.saveJoint({
       snapshot: base,
       values: { variant: { state: 'present', value: variant } },
+      documents: {},
+      csvColumns: {},
       baseVersions: base.baseVersions,
       jsonWrite: {},
       createOverrides: [],

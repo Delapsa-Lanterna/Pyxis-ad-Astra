@@ -246,7 +246,7 @@ describe('settings limit controls', () => {
       '展开字段解析',
       '允许编辑原版',
       '忽略编辑警告',
-      'JSON 原样保存',
+      'JSON 原结构保存',
     ]);
     expect(useSettingsStore().expandFieldDescriptions).toBe(false);
     await editing.get('.n-switch-stub').trigger('click');

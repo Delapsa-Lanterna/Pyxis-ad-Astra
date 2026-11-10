@@ -1,54 +1,65 @@
-import type { SaveCommandRequest } from '@/shared/runtime/command.runtime';
 import { miscConfigDefinition } from '@/domain/misc-config';
-import { miscConfigDocumentValue, miscConfigDocumentContent } from '@/domain/json-editor/json-document-definitions';
-import { cloneQuerySnapshot } from '@/shared/lib/query-snapshot';
-import { queryMiscConfigFile, saveMiscConfig, deleteMiscConfig } from '@/services/misc-config.service';
-import { prepareJsonSourceRecovery } from '@/services/json-recovery.service';
-import { deleteIndexedConfigEntity } from '@/services/json-entity.service';
-import { deleteVariantEntity, deleteSkinEntity } from '@/services/json-file.service';
-import { runConfirmedJsonWrite } from '@/orchestrators/json-write-confirmation.orchestrator';
-import { takeReplaceBase } from '@/domain/json-composition';
-import type { FileSchema } from '@/domain/schema/schema.types';
-import { useProjectStore } from '@/stores/project.store';
-import { querySessionEntity } from '@/services/entity-query.service';
-import { entityRenameContext } from '@/domain/project/entity-definitions';
-import { entityIdInvalidMessage, isEntityId } from '@/domain/schema/schema-identity';
-import { AppError } from '@/shared/lib/errors';
+import { projectJsonValue } from '@/domain/json-document';
+import { prepareJsonWrite } from '@/domain/schema/game-number';
+import { saveModInfo } from '@/services/json-entity.service';
 import {
   jsonDocumentRecord,
   jsonDocumentValue,
   jsonDocumentId,
+  jsonDocumentContent,
+  miscConfigDocumentValue,
   type ConfigDocumentTarget,
   type JsonDocumentDefinition,
 } from '@/domain/json-editor/json-document-definitions';
 import {
-  configModInfoSaveData,
-  configFactionSaveDraft,
-  configMissionSaveDraft,
   buildFactionIndexRow,
   buildMissionIndexRow,
   createDefaultFaction,
+  configMissionSaveDraft,
 } from '@/domain/json-editor/json-config-entities';
+import { isEntityId, entityIdInvalidMessage } from '@/domain/schema/schema-identity';
+import { takeReplaceBase } from '@/domain/json-composition';
+import { queryMiscConfigFile, saveMiscConfig, deleteMiscConfig } from '@/services/misc-config.service';
+import { prepareJsonSourceRecovery } from '@/services/json-recovery.service';
+import { querySessionEntity } from '@/services/entity-query.service';
+import { readJsonDocument, deleteVariantEntity, deleteSkinEntity } from '@/services/json-file.service';
+import { deleteIndexedConfigEntity } from '@/services/json-entity.service';
 import {
-  saveModInfoAction,
   saveIndexedEntityAction,
   saveJsonFileAction,
   createIndexedEntityAction,
   createJsonFileAction,
 } from '@/orchestrators/json-save.orchestrator';
+import { AppError } from '@/shared/lib/errors';
+import { requireRowData } from '@/shared/lib/row-data';
+import { cloneQuerySnapshot } from '@/shared/lib/query-snapshot';
 import type { EditTargetSnapshot } from '@/app/composables/use-edit-target-draft-session';
+import type { FileSchema } from '@/domain/schema/schema.types';
+import type { DocumentSaveCapture } from '@/domain/json-document';
+import type { SaveCommandRequest } from '@/shared/runtime/command.runtime';
+import type { JsonFileContent } from '@/shared/types';
 import type {
   AppFeedback,
   FileVersion,
+  JsonComposition,
   JsonRecoveryPlan,
-  JsonValue,
+  ResourceRef,
   RowData,
   WriteResult,
-  JsonComposition,
-  ResourceRef,
+  IndexedConfigSave,
 } from '@/shared/types';
 
+export type JsonDocumentWriter = (
+  target: ConfigDocumentTarget,
+  draft: RowData,
+  versions: FileVersion[],
+  original: RowData,
+  capture: DocumentSaveCapture,
+  request?: SaveCommandRequest,
+) => Promise<JsonDocumentSnapshot | void>;
+
 export interface JsonDocumentMeta {
+  document: JsonFileContent;
   composition?: JsonComposition;
   resources?: Record<string, ResourceRef>;
   receipt: WriteResult<unknown> | null;
@@ -57,33 +68,37 @@ export interface JsonDocumentMeta {
 export type JsonDocumentSnapshot = EditTargetSnapshot<RowData, ConfigDocumentTarget, JsonDocumentMeta>;
 
 export async function loadJsonDocument(target: ConfigDocumentTarget, signal?: AbortSignal): Promise<JsonDocumentSnapshot> {
-  const kind = target.kind;
-  if (kind === 'misc-config') {
-    const file = await queryMiscConfigFile(target.sessionId, target.modRoot, miscConfigDefinition(target.id).kind, signal);
-    if (!file) throw new AppError('杂项配置来源已删除', { code: 'json.source_missing' });
-    return {
-      target,
-      value: miscConfigDocumentValue(cloneQuerySnapshot<JsonValue>(file.data)),
-      baseVersions: [...file.baseVersions],
-      meta: {
-        receipt: null,
-        composition: file.composition ? cloneQuerySnapshot<JsonComposition>(file.composition) : undefined,
-      },
-    };
-  }
+  const { sessionId, kind } = target;
   if (kind === 'mod-info') {
-    const manifest = useProjectStore().getManifest(target.modRoot)!;
+    const file = await readJsonDocument(sessionId, 'mod_info.json');
+    if (!file) throw new AppError('Mod 信息来源已删除', { code: 'json.source_missing' });
     return {
       target,
-      value: jsonDocumentValue(kind, manifest.modInfo ?? {}),
-      baseVersions: manifest.baseVersions,
-      meta: { receipt: null },
+      value: jsonDocumentValue(kind, requireRowData(projectJsonValue(file.document.content), 'Mod 信息内容无效')),
+      baseVersions: file.baseVersions,
+      meta: { document: file.document, receipt: null },
     };
   }
-  const entity = await querySessionEntity(target.sessionId, kind, target.id, signal);
-  if (!entity) throw new AppError('JSON 文档来源已删除', { action: 'read-json-document', code: 'json.source_missing' });
-  const record = jsonDocumentRecord(target.sessionId, target.modRoot, entity);
-  return { ...record, meta: { receipt: null, resources: record.resources, composition: record.composition } };
+  if (kind === 'misc-config') {
+    const file = await queryMiscConfigFile(sessionId, target.modRoot, miscConfigDefinition(target.id).kind, signal);
+    if (!file) throw new AppError('杂项配置来源已删除', { code: 'json.source_missing' });
+    const document = cloneQuerySnapshot<JsonFileContent>(file.document);
+    return {
+      target,
+      value: miscConfigDocumentValue(projectJsonValue(document.content)),
+      baseVersions: [...file.baseVersions],
+      meta: { document, composition: cloneQuerySnapshot<JsonComposition>(file.composition), receipt: null },
+    };
+  }
+  const entity = await querySessionEntity(sessionId, kind, target.id, signal);
+  if (!entity) throw new AppError('JSON 文档来源已删除', { code: 'json.source_missing' });
+  const record = jsonDocumentRecord(sessionId, target.modRoot, entity);
+  return {
+    target: record.target,
+    value: record.value,
+    baseVersions: record.baseVersions,
+    meta: { document: record.document!, resources: record.resources, composition: record.composition, receipt: null },
+  };
 }
 
 export async function saveJsonDocument(
@@ -94,133 +109,92 @@ export async function saveJsonDocument(
   data: RowData,
   baseVersions: FileVersion[],
   original: RowData,
+  capture: DocumentSaveCapture,
   request?: SaveCommandRequest,
   composition?: JsonComposition,
 ): Promise<JsonDocumentSnapshot | void> {
-  const { kind, file } = definition;
-  const { sessionId, modRoot, id } = target;
-  const replaced = takeReplaceBase(data, kind === 'variant' || kind === 'skin' ? [] : ['file']);
-  data = replaced.value;
-  const replacePaths = replaced.replace ? [kind === 'misc-config' ? miscConfigDefinition(id).path : target.entity!.write.relPath] : [];
-  // The saved file now replaces its base layers, so the editor composes the saved content alone.
-  if (replaced.replace && composition) composition = { ...composition, replace: true };
-  if (kind === 'misc-config') {
-    const content = miscConfigDocumentContent(data);
-    const receipt = await runConfirmedJsonWrite(
-      feedback,
-      (jsonWrite) =>
-        saveMiscConfig(
-          {
-            sessionId,
-            modRoot,
-            kind: miscConfigDefinition(id).kind,
-            baseVersions,
-            data: content,
-            jsonWrite,
-            orderedJson: JSON.stringify(content),
-          },
-          miscConfigDocumentContent(original),
-          request,
-        ),
-      replacePaths,
-    );
-    if (!receipt) return;
-    return {
-      target,
-      value: miscConfigDocumentValue(receipt.content!.value),
-      baseVersions: receipt.baseVersions,
-      meta: { receipt, composition },
-      requestId: receipt.requestId,
-    };
-  }
-  const nextId =
-    jsonDocumentId(definition, data) ||
-    target.entity?.write.relPath
-      .split('/')
-      .at(-1)!
-      .replace(/\.[^.]+$/, '') ||
-    id;
-  if (kind !== 'mod-info' && !isEntityId(nextId))
-    throw new AppError(entityIdInvalidMessage(definition.idField, nextId), { action: 'save-json-document', code: 'config.id_invalid' });
-  let value: RowData;
-  let receipt: WriteResult<unknown>;
-  if (kind === 'mod-info') {
-    const result = await saveModInfoAction(
-      sessionId,
-      modRoot,
-      configModInfoSaveData(data, schema),
-      feedback,
-      baseVersions,
-      configModInfoSaveData(original, schema),
-      request,
-    );
-    if (!result) return;
+  const { kind } = definition,
+    { sessionId, modRoot, id } = target;
+  const replacement = takeReplaceBase(data, kind === 'variant' || kind === 'skin' ? [] : ['file']);
+  const replacePaths = replacement.replace ? [kind === 'misc-config' ? miscConfigDefinition(id).path : target.entity!.write.relPath] : [];
+  if (replacement.replace && composition) composition = { ...composition, replace: true };
+  const jsonWrite = { preserveStructure: capture.request.layout === 'preserveStructure', replacePaths };
+  const document = capture.request;
+  const nextId = jsonDocumentId(definition, data) || id;
+  if (kind !== 'mod-info' && kind !== 'misc-config' && !isEntityId(nextId))
+    throw new AppError(entityIdInvalidMessage(definition.idField, nextId), { code: 'config.id_invalid' });
+  let receipt: WriteResult<unknown>, actual: JsonFileContent, value: RowData;
+  if (kind === 'mod-info' || kind === 'misc-config') {
+    const result =
+      kind === 'mod-info'
+        ? await saveModInfo({ sessionId, modRoot, baseVersions, document, jsonWrite }, capture.edits, request)
+        : await saveMiscConfig(
+            { sessionId, modRoot, kind: miscConfigDefinition(id).kind, baseVersions, document, jsonWrite },
+            capture.edits,
+            request,
+          );
     receipt = result;
-    value = jsonDocumentValue(kind, result.content?.value as RowData);
+    actual = result.content!.value;
+    value =
+      kind === 'mod-info'
+        ? jsonDocumentValue(kind, requireRowData(projectJsonValue(actual.content), 'Mod 信息内容无效'))
+        : miscConfigDocumentValue(projectJsonValue(actual.content));
   } else if (kind === 'variant' || kind === 'skin') {
-    if (kind === 'variant' && !String(data[file!.companionField] ?? '').trim())
-      throw new AppError(file!.companionField + ' 不能为空', { action: 'save-json-document', code: 'config.missing_field' });
     const result = await saveJsonFileAction(
       kind,
-      sessionId,
-      modRoot,
-      nextId,
-      data,
-      entityRenameContext(id, nextId).previousId,
-      target.entity!.write.relPath,
+      { sessionId, modRoot, baseVersions, document, jsonWrite, previousId: id, nextId, relPath: target.entity!.write.relPath },
+      capture.edits,
       feedback,
-      baseVersions,
-      original,
+      { original, data, composition },
       request,
-      replacePaths,
-      composition,
     );
     if (!result) return;
     receipt = result;
-    value = result.content!.value.data as RowData;
+    actual = result.content!.value.document!;
+    value = requireRowData(projectJsonValue(actual.content), 'JSON 文档内容无效');
   } else {
-    const draft = kind === 'faction' ? configFactionSaveDraft(data, schema, nextId) : configMissionSaveDraft(data, schema);
+    const common = { sessionId, modRoot, baseVersions, previousId: id, nextId, document, jsonWrite };
+    const mission = kind === 'mission' ? configMissionSaveDraft(data, schema) : null;
+    const payload: IndexedConfigSave = mission
+      ? {
+          ...common,
+          kind: 'mission',
+          text: mission.text,
+          indexRow: buildMissionIndexRow([mission.list], Object.keys(mission.list), nextId),
+        }
+      : { ...common, kind: 'faction', indexRow: buildFactionIndexRow(nextId) };
     const result = await saveIndexedEntityAction(
-      {
-        sessionId,
-        modRoot,
-        kind,
-        previousId: id,
-        nextId,
-        baseVersions,
-        indexRow: 'file' in draft ? buildFactionIndexRow(nextId) : buildMissionIndexRow([draft.list], Object.keys(draft.list), nextId),
-        entityData: 'file' in draft ? { file: draft.file } : { descriptor: draft.descriptor, text: draft.text },
-      },
+      payload,
+      capture.edits,
       feedback,
-      kind === 'faction' ? { file: original.file! } : { descriptor: original.descriptor!, text: original.text! },
+      { original: jsonDocumentContent(kind, original), data: jsonDocumentContent(kind, data), composition },
       request,
-      replacePaths,
-      composition,
     );
     if (!result) return;
     receipt = result;
-    const entity = result.content!.value;
+    actual = result.content!.value.document!;
     value =
       kind === 'faction'
-        ? entity.entityData!
-        : {
-            ...entity.entityData!,
-            list: entity.indexRows.find((row) => !row.isComment && row.data.mission === nextId)!.data,
-          };
-    value = kind === 'faction' ? value : jsonDocumentValue(kind, value);
+        ? jsonDocumentValue(kind, requireRowData(projectJsonValue(actual.content), '势力内容无效'))
+        : jsonDocumentValue(kind, {
+            ...result.content!.value.entityData!,
+            list: result.content!.value.indexRows.find((row) => !row.isComment && row.data.mission === nextId)!.data,
+          });
   }
   const entity =
-    kind === 'mod-info' ? null : receipt.identityChanges.find((change) => change.before.kind === kind && change.before.id === id)!.after;
+    kind === 'mod-info' || kind === 'misc-config'
+      ? null
+      : (receipt.identityChanges.find((change) => change.before.kind === kind && change.before.id === id)?.after ?? target.entity);
   if (entity && entity.write.relPath !== target.entity!.write.relPath) {
-    const saved = await querySessionEntity(sessionId, entity.kind, entity.id);
-    composition = saved!.composition ? cloneQuerySnapshot<JsonComposition>(saved!.composition) : undefined;
+    const record = await querySessionEntity(sessionId, entity.kind, entity.id);
+    composition = record?.composition ? cloneQuerySnapshot<JsonComposition>(record.composition) : undefined;
   }
   return {
-    target: { ...target, id: kind === 'mod-info' ? id : nextId, entity },
+    target: { ...target, id: nextId, entity },
     value,
     baseVersions: receipt.baseVersions,
-    meta: { receipt, composition },
     requestId: receipt.requestId,
+    meta: { document: actual, composition, receipt },
   };
 }
 
@@ -231,45 +205,30 @@ export async function createJsonDocument(
   companion: string,
   request?: SaveCommandRequest,
 ) {
-  const { kind, file } = definition;
+  const { kind } = definition,
+    { sessionId, modRoot } = target;
   if (kind === 'misc-config') {
-    const { sessionId, modRoot } = target;
-    const { kind, initial } = miscConfigDefinition(id);
-    const plan = await prepareJsonSourceRecovery({ sessionId, modRoot, origin: { kind: 'miscConfig', file: kind } });
-    if (!plan.missingPaths.length) throw new AppError('文件已存在', { code: 'spec.target_exists' });
+    const file = miscConfigDefinition(id);
+    const plan = await prepareJsonSourceRecovery({ sessionId, modRoot, origin: { kind: 'miscConfig', file: file.kind } });
     return saveMiscConfig(
-      {
-        sessionId,
-        modRoot,
-        kind,
-        baseVersions: plan.baseVersions,
-        data: cloneQuerySnapshot(initial),
-        jsonWrite: { preserveOriginalJson: true, confirmedSources: [] },
-        orderedJson: JSON.stringify(initial),
-      },
-      undefined,
+      { sessionId, modRoot, kind: file.kind, baseVersions: plan.baseVersions, document: prepareJsonWrite(file.initial), jsonWrite: {} },
+      [],
       request,
     );
   }
-  if (!isEntityId(id))
-    throw new AppError(entityIdInvalidMessage(definition.idField, id), { action: 'create-json-document', code: 'config.id_invalid' });
-  const { sessionId, modRoot } = target;
-  if (kind === 'variant' || kind === 'skin') {
-    if (!companion)
-      throw new AppError(file!.companionField + ' 不能为空', { action: 'create-json-document', code: 'config.missing_field' });
-    return createJsonFileAction(kind, sessionId, modRoot, companion, id, request);
-  }
+  if (!isEntityId(id)) throw new AppError(entityIdInvalidMessage(definition.idField, id), { code: 'config.id_invalid' });
+  if (kind === 'variant' || kind === 'skin') return createJsonFileAction(kind, sessionId, modRoot, companion, id, request);
+  const common = { sessionId, modRoot, previousId: null, nextId: id, baseVersions: [], jsonWrite: {} };
   return createIndexedEntityAction(
-    {
-      sessionId,
-      modRoot,
-      kind: kind as 'faction' | 'mission',
-      previousId: null,
-      nextId: id,
-      baseVersions: [],
-      indexRow: kind === 'faction' ? buildFactionIndexRow(id) : buildMissionIndexRow([], ['mission'], id),
-      entityData: kind === 'faction' ? { file: createDefaultFaction(id) } : { descriptor: { title: id }, text: '' },
-    },
+    kind === 'faction'
+      ? { ...common, kind, indexRow: buildFactionIndexRow(id), document: prepareJsonWrite(createDefaultFaction(id)) }
+      : {
+          ...common,
+          kind: 'mission',
+          indexRow: buildMissionIndexRow([], ['mission'], id),
+          document: prepareJsonWrite({ title: id }),
+          text: '',
+        },
     request,
   );
 }
@@ -280,12 +239,13 @@ export function deleteJsonDocument(
   deleteSource: boolean,
   request?: SaveCommandRequest,
 ) {
-  const { sessionId, modRoot, id, entity, kind } = target;
+  const { sessionId, modRoot, id, kind } = target;
   if (kind === 'misc-config') return deleteMiscConfig({ sessionId, modRoot, kind: miscConfigDefinition(id).kind, baseVersions }, request);
-  if (kind === 'variant' || kind === 'skin') {
-    const remove = kind === 'variant' ? deleteVariantEntity : deleteSkinEntity;
-    return remove({ sessionId, modRoot, entityId: id, relPath: entity!.write.relPath, baseVersions }, request);
-  }
+  if (kind === 'variant' || kind === 'skin')
+    return (kind === 'variant' ? deleteVariantEntity : deleteSkinEntity)(
+      { sessionId, modRoot, entityId: id, relPath: target.entity!.write.relPath, baseVersions },
+      request,
+    );
   return deleteIndexedConfigEntity(
     { sessionId, modRoot, kind: kind as 'faction' | 'mission', id, deleteTarget: deleteSource, baseVersions },
     request,

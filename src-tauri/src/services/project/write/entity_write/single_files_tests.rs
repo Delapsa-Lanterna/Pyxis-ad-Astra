@@ -1,21 +1,127 @@
 #![cfg(test)]
-use super::single_files::*;
-use crate::errors::AppError;
+use super::single_files;
+use crate::errors::AppResult;
 use crate::io;
-use crate::io::{read_json_file, read_utf8_no_bom, write_utf8_no_bom};
-use crate::models::{EntityKind, FileChangeReplayDirection, JsonWriteOptions};
+use crate::io::{read_utf8_no_bom, write_utf8_no_bom};
+use crate::models::file_content::SaveLayout;
+use crate::models::{
+    EntityKind, FileChangeReplayDirection, JsonFileDelete, JsonFileSave, JsonWriteOptions,
+    ProjectManifest, WriteResult,
+};
+use crate::services::project::query::entity_targets;
 use crate::services::project::test_support::project_workspace;
+use crate::services::project::{self, PerformanceTrace};
+use crate::services::project_sync::release_project_session;
+use crate::test_support::file_formats::read_json_value as read_json_file;
+use crate::test_support::file_formats::{json_write, json_write_from_source};
 use serde_json::{Value, json};
 use std::fs;
 use std::path::Path;
 
+struct JsonEntityFileInput<'a> {
+    source_rel_path: Option<&'a str>,
+    data: Value,
+    json_write: JsonWriteOptions,
+}
+fn in_session<T>(root: &str, action: impl FnOnce(ProjectManifest) -> AppResult<T>) -> AppResult<T> {
+    let manifest = project::open_project_session_traced(
+        Path::new(root),
+        None,
+        &mut PerformanceTrace::new("file.fixture"),
+    )?;
+    let id = manifest.session_id.clone();
+    let result = action(manifest);
+    release_project_session(id)?;
+    result
+}
+fn save_json_entity_file(
+    root: &str,
+    kind: EntityKind,
+    previous: Option<&str>,
+    next: &str,
+    input: JsonEntityFileInput<'_>,
+) -> AppResult<WriteResult<Value>> {
+    in_session(root, |manifest| {
+        let info = entity_targets::query_entity_edit_target(
+            &manifest.session_id,
+            kind,
+            previous.unwrap_or(next),
+        )?;
+        let value = input.data;
+        let mut document = if let Some(path) = input.source_rel_path {
+            json_write_from_source(&io::read_json_file(&Path::new(root).join(path))?, &value)
+        } else {
+            json_write(&value)
+        };
+        document.layout = if input.json_write.preserve_structure {
+            SaveLayout::PreserveStructure
+        } else {
+            SaveLayout::Expanded
+        };
+        single_files::save_file_entity(
+            JsonFileSave {
+                session_id: manifest.session_id,
+                mod_root: manifest.mod_root,
+                base_versions: info.base_versions,
+                previous_id: previous.map(str::to_owned),
+                next_id: next.into(),
+                rel_path: input.source_rel_path.map(str::to_owned),
+                document,
+                json_write: input.json_write,
+            },
+            kind,
+        )
+    })
+}
+fn create_json_entity_file(
+    root: &str,
+    kind: EntityKind,
+    next: &str,
+    data: Value,
+) -> AppResult<WriteResult<Value>> {
+    in_session(root, |manifest| {
+        let info = entity_targets::query_entity_edit_target(&manifest.session_id, kind, next)?;
+        single_files::create_json_entity_file(
+            JsonFileSave {
+                session_id: manifest.session_id,
+                mod_root: manifest.mod_root,
+                base_versions: info.base_versions,
+                previous_id: None,
+                next_id: next.into(),
+                rel_path: None,
+                document: json_write(&data),
+                json_write: Default::default(),
+            },
+            kind,
+        )
+    })
+}
+fn delete_json_entity_file(
+    root: &str,
+    kind: EntityKind,
+    id: &str,
+    relative: &str,
+) -> AppResult<WriteResult> {
+    in_session(root, |manifest| {
+        let info = entity_targets::query_entity_edit_target(&manifest.session_id, kind, id)?;
+        single_files::delete_json_entity_file(
+            JsonFileDelete {
+                session_id: manifest.session_id,
+                mod_root: manifest.mod_root,
+                base_versions: info.base_versions,
+                entity_id: id.into(),
+                rel_path: relative.into(),
+            },
+            kind,
+        )
+    })
+}
+
 fn save_input<'a>(rel_path: Option<&'a str>, data: Value) -> JsonEntityFileInput<'a> {
     JsonEntityFileInput {
         source_rel_path: rel_path,
-        target_exists_in_index: false,
         data,
         json_write: JsonWriteOptions::default(),
-        ordered_json: None,
     }
 }
 
@@ -36,15 +142,12 @@ fn variant_rename_preserves_old_file_comments_and_key_order() {
         "new",
         JsonEntityFileInput {
             source_rel_path: Some("data/variants/old.variant"),
-            target_exists_in_index: false,
             data: json!({"hullId":"demo","variantId":"new"}),
             json_write: JsonWriteOptions {
                 replace_paths: Vec::new(),
                 keep_filename: false,
-                preserve_original_json: true,
-                confirmed_sources: Vec::new(),
+                preserve_structure: true,
             },
-            ordered_json: Some(r#"{"hullId":"demo","variantId":"new"}"#),
         },
     )
     .unwrap();
@@ -289,8 +392,7 @@ fn spec_edits_preserve_selected_filename_and_rename_with_replay() {
                 json_write: JsonWriteOptions {
                     replace_paths: Vec::new(),
                     keep_filename: false,
-                    preserve_original_json: true,
-                    confirmed_sources: Vec::new(),
+                    preserve_structure: true,
                 },
                 ..save_input(Some(&source), entity_json(case, "old"))
             },
@@ -309,8 +411,7 @@ fn spec_edits_preserve_selected_filename_and_rename_with_replay() {
                 json_write: JsonWriteOptions {
                     replace_paths: Vec::new(),
                     keep_filename: false,
-                    preserve_original_json: true,
-                    confirmed_sources: Vec::new(),
+                    preserve_structure: true,
                 },
                 ..save_input(Some(&source), entity_json(case, "new"))
             },
@@ -366,7 +467,7 @@ fn spec_save_validates_disk_id_without_previous_id() {
             "old",
             save_input(Some(&source), entity_json(case, "old")),
         );
-        assert!(matches!(result, Err(AppError::Message { .. })));
+        assert_eq!(result.unwrap_err().code(), "spec.target_changed");
         assert_eq!(
             read_json_file(&root.join(&source)).unwrap()[case.id_field],
             "other"
@@ -392,7 +493,6 @@ fn spec_create_rejects_existing_id_in_another_filename() {
                 case.kind,
                 "old",
                 entity_json(case, "old"),
-                true,
             )
             .is_err()
         );
@@ -401,7 +501,6 @@ fn spec_create_rejects_existing_id_in_another_filename() {
             case.kind,
             "new",
             entity_json(case, "new"),
-            false,
         )
         .unwrap();
         assert_eq!(

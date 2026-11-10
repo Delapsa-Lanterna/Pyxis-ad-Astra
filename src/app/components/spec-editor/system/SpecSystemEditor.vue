@@ -29,7 +29,7 @@
             :field="field"
             :value="document[field.key] ?? field.default"
             :runtime-context="schemaRuntime"
-            @update="$event.kind === 'set' ? actions.setField(field.key, $event.value as JsonValue) : actions.removeField(field.key)"
+            @update="updateField(field.key, $event)"
           />
         </n-collapse-item>
       </n-collapse>
@@ -40,6 +40,7 @@
 <script setup lang="ts">
 import { inject, useTemplateRef } from 'vue';
 import type { JsonValue } from '@/shared/types';
+import type { SchemaFieldUpdate } from '@/domain/schema/schema.types';
 import NCollapse from '@/app/components/editors/common/EditorCollapse.vue';
 import NCollapseItem from '@/app/components/editors/common/EditorCollapseItem.vue';
 import SchemaFieldRenderer from '@/app/components/field-editor/SchemaFieldRenderer.vue';
@@ -58,4 +59,9 @@ const emit = defineEmits<SpecSystemEditorEvents>();
 const schemaRuntime = inject(specSchemaContext, null);
 const editorWindowRef = useTemplateRef<HTMLElement>('editorWindowRef');
 const { document, view, actions } = useSpecSystemEditorViewModel(props, emit, editorWindowRef);
+function updateField(key: string, update: SchemaFieldUpdate) {
+  if (update.fileEdit) schemaRuntime?.value?.applyDocumentEdit?.(update.fileEdit);
+  if (update.kind === 'set') actions.setField(key, update.value as JsonValue);
+  else actions.removeField(key);
+}
 </script>

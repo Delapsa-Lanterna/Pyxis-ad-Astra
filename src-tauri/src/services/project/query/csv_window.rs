@@ -9,11 +9,12 @@ use crate::errors::{AppError, AppResult};
 use crate::io::csv_files;
 use crate::io::{FsRootBoundary, read_versioned_csv};
 use crate::models::{
-    CsvRowPreview, CsvRowRecord, CsvSearchField, CsvTable, CsvTableIndex, CsvTableKey,
-    CsvTableRowsRead, EntityFileLocation, ResourceRef, ResourceSource,
+    CsvRowPreview, CsvRowRecord, CsvSearchField, CsvTableIndex, CsvTableKey, CsvTableRowsRead,
+    EntityFileLocation, ResourceRef, ResourceSource,
 };
 use crate::services::project::session::csv_tables;
 use crate::services::project::sources::core;
+use crate::services::project::sources::project_csv;
 use crate::services::project::{model, versions};
 use serde_json::Value;
 use std::collections::BTreeMap;
@@ -48,6 +49,7 @@ pub fn query_csv_source_index(
     let boundary = FsRootBoundary::new(Path::new(&root), "CSV validation source")?;
     let path = boundary.resolve_relative(model::csv_table_spec(table).rel_path, "CSV source")?;
     let (version, csv) = read_versioned_csv(&path)?;
+    let csv = project_csv(&csv, &path);
     let rows = csv
         .rows
         .into_iter()
@@ -71,12 +73,6 @@ pub fn query_csv_source_index(
         rows: Vec::new(),
         base_versions: vec![version],
     })
-}
-
-pub(crate) fn read_project_csv(session_id: &str, relative: &str) -> AppResult<CsvTable> {
-    let handle = session_handle(session_id)?;
-    let session = lock_ready_session(&handle)?;
-    csv_tables::read_retained_csv(&session, relative)
 }
 
 pub fn query_csv_table_index(
@@ -434,7 +430,7 @@ mod tests {
 
     #[test]
     fn search_fields_only_match_their_business_columns() {
-        let row = SessionCsvRow {
+        let row = SessionCsvRow {source_row: None,
             row_key: "row".to_string(),
             is_comment: false,
             data: json!({"id":"Alpha","name":"银河舰船","tags":"demo_bp,RARE","description":"only-description"})
@@ -586,6 +582,7 @@ mod tests {
     #[test]
     fn search_uses_registered_ids_and_preserves_comment_rows() {
         let row = SessionCsvRow {
+            source_row: None,
             row_key: "row".to_string(),
             is_comment: true,
             data: json!({"variant id":"#demo","id":"wrong-field"})

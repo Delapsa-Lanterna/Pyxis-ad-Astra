@@ -17,7 +17,8 @@ export async function querySpecProjectileEditorData(
   const info = data ?? (await querySessionEntityEditTarget(sessionId, 'projectile', id, signal));
   return {
     kind: 'projectile',
-    composition: data?.composition,
+    composition: data?.composition ?? undefined,
+    document: data?.document ?? null,
     spec: data ? requireRowData(data.data, '弹体 ' + id + ' 数据无效') : createProjectileSpec(id),
     target: info.target,
     baseVersions: cloneQuerySnapshot<FileVersion[]>(info.baseVersions),

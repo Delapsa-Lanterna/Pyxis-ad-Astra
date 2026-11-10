@@ -10,15 +10,15 @@ JSON 文档编辑模块提供 Mod 信息、势力、战役、装配、舰船皮�
 
 - `src-tauri/src/commands/json_file.rs`：装配与皮肤的保存、创建、删除及会话来源核对。
 - `src-tauri/src/commands/json_recovery.rs`：来源重建准备、事务版本复核与 changeset 提交。
-- `src-tauri/src/services/config_entity.rs`：Mod 信息保存、战役索引及任务目录的保存、创建和删除。
 - `src-tauri/src/services/json_file.rs`：装配与皮肤文件查询、保存、创建、删除和重命名。
 - `src-tauri/src/services/project/query/json_recovery.rs`：按已读取原目标重新授权来源、索引及版本。
+- `src-tauri/src/services/project/write/config_entity.rs`：Mod 信息、势力和战役的完整保存准备及实际内容交付。
 - `src-tauri/src/services/project/write/faction_identity.rs`：势力索引、实际规格目标及保存删除。
 - `src-tauri/src/services/project/write/json_recovery.rs`：缺失基线渲染、必要索引修复和实际 changeset。
 - `src/app/components/json-editor/`：六类 JSON 编辑页面、列表、表单与主窗口生命周期验证。
 - `src/app/composables/json-editor/`：页面身份、目标会话、列表选择、输入、资源和保存装配。
 - `src/domain/json-editor/`：独立文件与索引配置的内容规则、默认值、记录投影和装配模块转换。
-- `src/orchestrators/json-save.orchestrator.ts`：配置保存编排、文档来源恢复与回执接纳。
+- `src/orchestrators/json-save.orchestrator.ts`：带身份选择和目标预约的配置保存与创建编排。
 - `src/services/json-entity.service.ts`：Mod 信息、势力与战役写入、身份准备和草稿资源查询。
 - `src/services/json-file.service.ts`：装配与皮肤的保存、创建和删除能力包装。
 - `src/services/json-recovery.service.ts`：重建准备与正式提交的 IPC 包装。
@@ -33,21 +33,24 @@ JSON 文档编辑模块提供 Mod 信息、势力、战役、装配、舰船皮�
 - `src-tauri/src/domain/save_edits.rs`：当前正式内容的字段修改应用。
 - `src-tauri/src/domain/schema.rs`：保存时消费的字段内容与结构校验。
 - `src-tauri/src/io/faction_index.rs`：势力索引引用的所属根授权。
+- `src-tauri/src/io/mod.rs`：授权路径、同次字节与版本读取以及变更集能力。
 - `src-tauri/src/models/config_entity.rs`：Mod 信息与索引实体请求、刷新内容及势力索引结构。
+- `src-tauri/src/models/file_content.rs`：精确文档、原始格式、物理 CSV 行格及完整写入请求。
+- `src-tauri/src/models/file_value.rs`：64 位整数、浮点与 UTF-16 文字的精确值。
 - `src-tauri/src/models/json_file.rs`：JSON 文件写入与删除请求协议。
 - `src-tauri/src/models/json_recovery.rs`：来源重建请求、计划和版本协议。
+- `src-tauri/src/parsers/game/`：游戏 JSON/CSV 的正式读取入口、文档方法、数值及文本格式能力。
+- `src-tauri/src/services/project/model.rs`：会话持有的完整内容、来源和版本。
 - `src-tauri/src/services/project/query/csv_window.rs`：CSV 窗口行、搜索与单行预览查询。
 - `src-tauri/src/services/project/query/entities.rs`：按实际来源装配详情与列表。
 - `src-tauri/src/services/project/query/entity_presentation.rs`：实体是否参与组合的判定及对外内容、目标和资源呈现装配。
 - `src-tauri/src/services/project/query/entity_targets.rs`：实际编辑目标、身份意图及正式版本范围。
 - `src-tauri/src/services/project/query/json_layers.rs`：会话所属的正式有序 JSON 来源组合与版本。
 - `src-tauri/src/services/project/session.rs`：会话打开、关闭、内容更新与内部登记及就绪访问能力交付。
-- `src-tauri/src/services/project/session/registry.rs`：会话存活登记、句柄与内容就绪门控。
-- `src-tauri/src/services/project/sources/json_documents.rs`：Variant 与 Skin 的实际来源文件产品构造。
+- `src-tauri/src/services/project/session/`：会话授权、就绪访问、CSV 正式内容、引用及来源版本管理。
+- `src-tauri/src/services/project/sources/`：授权来源发现、带版本读取、Core 共享成果及规格文档装载。
 - `src-tauri/src/services/project/write/entity_write.rs`：Variant、Skin、势力及关联文件的实际写入。
-- `src-tauri/src/services/project/write/entity_write/content.rs`：实体内容、关联规格准备与复核、描述、父引用、单文件和势力索引写入。
-- `src-tauri/src/services/project/write/entity_write/faction_index.rs`：实体内容、关联规格准备与复核、描述、父引用、单文件和势力索引写入。
-- `src-tauri/src/services/project/write/entity_write/single_files.rs`：实体内容、关联规格准备与复核、描述、父引用、单文件和势力索引写入。
+- `src-tauri/src/services/project/write/entity_write/`：实体内容构造、关联规格、描述、索引及父引用的写入准备。
 - `src/app/components/field-editor/SchemaFormRenderer.vue`：schema 字段表单展示。
 - `src/app/components/media/ResourceThumbnail.vue`：授权图片与配置选项消费的缩略图展示。
 - `src/app/composables/field-editor/use-field-source-options.ts`：来源读取、路径选择、输入模式、行身份及选项媒体寿命。
@@ -60,24 +63,18 @@ JSON 文档编辑模块提供 Mod 信息、势力、战役、装配、舰船皮�
 - `src/app/composables/use-snapshot-history.ts`：按 EditContext 绑定的前后值撤销历史。
 - `src/app/composables/use-visible-resource-media.ts`：可视区媒体解析。
 - `src/domain/entity-write/spec-construction.ts`：装配与皮肤的正式初始内容。
-- `src/domain/field-editor/field-editor-context.ts`：编辑上下文、候选展示和 CSV 选项索引。
-- `src/domain/field-editor/field-options.ts`：编辑上下文、候选展示和 CSV 选项索引。
+- `src/domain/field-editor/`：字段上下文、候选选项及 CSV 来源的纯投影。
 - `src/domain/json-composition.ts`：前端内容组合、来源定位、稀疏编辑及覆盖撤销。
+- `src/domain/json-document.ts`：精确文件基线、集合身份、局部修改、历史及实际写出结果的接纳。
 - `src/domain/misc-config.ts`：配置文件登记、顺序、路径、schema 与初始值。
 - `src/domain/project/entity-definitions.ts`：实体内容 ID、通用 ID 规则与重命名身份投影。
 - `src/domain/project/entity-versions.ts`：目标版本凭据与改名目标凭据交接。
-- `src/domain/schema/config-schema-registry.ts`：装配与皮肤 schema。
-- `src/domain/schema/schema-identity.ts`：字段与列资产加载、来源声明、值及结构纯规则。
-- `src/domain/schema/schema-sources.ts`：字段与列资产加载、来源声明、值及结构纯规则。
-- `src/domain/schema/schema-validation.ts`：当前有效文档及捕获保存内容的共同字段问题。
-- `src/domain/schema/schema.types.ts`：字段与列资产加载、来源声明、值及结构纯规则。
+- `src/domain/schema/`：字段与列资产加载、游戏数字解释、来源声明、校验及目标格式准备。
 - `src/orchestrators/entity-write.orchestrator.ts`：实体保存的文件名选择。
 - `src/orchestrators/immersive-editor.orchestrator.ts`：装配沉浸式编辑器打开动作。
-- `src/orchestrators/json-write-confirmation.orchestrator.ts`：保存提交所属的 JSON 原文保留和逐源重排确认。
 - `src/orchestrators/project-sync.orchestrator.ts`：提交 receipt 接纳、来源刷新及跨窗口通知。
 - `src/orchestrators/window-identity.orchestrator.ts`：已准备文件身份的预约和原生窗口身份交接。
 - `src/orchestrators/window-target-focus.orchestrator.ts`：冲突目标、已加载路径与规格或文本窗口聚焦的动作。
-- `src/orchestrators/workspace-history.orchestrator.ts`：主窗口活动 JSON 草稿撤销与重做分派。
 - `src/services/entity-query.service.ts`：实体列表、详情、正式目标和身份意图查询。
 - `src/services/hull-reference.service.ts`：船体名称、Hull 引用和内置武器槽查询。
 - `src/services/misc-config.service.ts`：读取票据、路径失效和写入协议包装。
@@ -104,6 +101,7 @@ JSON 文档编辑模块提供 Mod 信息、势力、战役、装配、舰船皮�
 - `src-tauri/src/services/mod.rs`：后端正式业务函数入口。
 - `src/app/AppContent.vue`：按工作区宿主交付的目标直接懒挂载对应 JSON 页面。
 - `src/app/composables/use-workspace-json-editor-host.ts`：页面目标、定位完成及实际工作区导航的宿主实现。
+- `src/orchestrators/workspace-history.orchestrator.ts`：主窗口活动 JSON 草稿撤销与重做分派。
 
 ## 边界
 
@@ -131,7 +129,7 @@ JSON 文档编辑模块提供 Mod 信息、势力、战役、装配、舰船皮�
 ### 保存与身份交接
 
 1. 保存入队捕获文档与 session，轮到时提交所属输入、读取最新草稿和版本并捕获独立提交快照。
-2. JSON 保存编排准备身份与版本，消费 JSON 写入确认和对应业务服务。
+2. JSON 保存编排准备身份与版本，消费完整文档、目标格式和对应业务服务。
 3. Rust command 在统一事务中复核目标、版本及索引，并提交实际变更集。
 4. 文档会话接纳实际基线，保存期间的新输入与草稿保留。
 5. receipt 交给项目同步更新文件历史、清单、缓存与窗口。
@@ -145,7 +143,7 @@ JSON 文档编辑模块提供 Mod 信息、势力、战役、装配、舰船皮�
 ### 来源重建
 
 1. 文档运行态核对原目标来源及必要索引，接纳缺失清单、现存内容和版本凭据。
-2. 用户确认具体恢复路径和标准排版，正式目标交接准备所属物理范围。
+2. 用户确认具体恢复路径和完整基线内容，正式目标交接准备所属物理范围。
 3. command 在 FIFO 事务内复核计划，write 采用最后保存基线重建缺失文件及必要索引。
 4. 文档先接纳已恢复版本并保留草稿，再暂存现存文件的外部差异。
 5. 回执经项目同步完成后反馈；同步失败保留回执并由原保存句柄重试。
@@ -161,13 +159,13 @@ JSON 文档编辑模块提供 Mod 信息、势力、战役、装配、舰船皮�
 - 组合实体文档的状态标签必须区分待组合文件与具有本地身份的完整定义，并按本地身份表达状态。
 - 本地 ID 有无变化必须消费实体写入的统一确认；确认与保存消费同次捕获内容。
 - JSON 文件改名成功必须按实际目标重新接纳组合来源；保留文件名继续消费原路径的组合关系。
-- Faction 与 Mission 索引必须消费 `CsvRow` 的 data 和 `isComment`；保存回执的 `indexRows` 保留两者，实体选择只允许消费非注释的正式 ID 行。
+- Faction 与 Mission 索引消费 `CsvRow` 的 data 和 `isComment`；保存回执的 `indexRows` 保留两者，实体选择只允许消费非注释的正式 ID 行。
 - Faction 的本地改名必须由编辑会话先接纳目标与实际基线，再共同更新列表及选择，保存期间的新输入保持原控件与所属会话。
 - JSON 保存成功反馈必须在写盘及同步完成后发出一次；待同步回执由文档生命周期持有并仅重试同步。
 - JSON 文档必须按 session、Mod 根、种类及正式目标绑定身份；全部已访问文档保留草稿、基线和快照历史至 session 关闭。
 - JSON 本地保存必须保留文档快照历史；保存后撤销更新内存草稿并按实际写盘基线重算 dirty。
-- Mission 与 Faction 的写入职责必须分别归任务目录 owner 与势力身份 owner；修改 ID 按所属格式执行完整改名。
-- Mission 列表必须消费索引顺序并按索引记录展示名称，所选项完成所属详情读取后建立文档；Faction 消费 ID 排序。
+- Mission 与 Faction 的写入职责分别归任务目录 owner 与势力身份 owner；修改 ID 按所属格式执行完整改名。
+- Mission 列表消费索引顺序并按索引记录展示名称，所选项完成所属详情读取后建立文档；Faction 消费 ID 排序。
 - Mission 的本地改名必须由实际保存记录共同交接草稿基线、列表与选择；保存回调保留所属版本。
 - Variant 改名涉及的主文件、父装配引用、版本校验与 receipt 必须共同进入同一根事务。
 - 业务 JSON 的顶层键、嵌套字典键与数组对象键必须完整保留；运行时身份、版本与资源投影由实体记录承载。
@@ -177,25 +175,25 @@ JSON 文档编辑模块提供 Mod 信息、势力、战役、装配、舰船皮�
 - 列表筛选必须提交所属输入并复核页面身份，按 ID、显示名称或两者忽略大小写包含匹配，杂项配置按文件名匹配 ID；筛选保留当前文档，搜索状态按 session 隔离，同页返回保留，切换页面种类重置，session 释放清理。
 - 创建与删除的列表刷新必须由动作 owner 执行一次；写入期间所属失效合并到动作接纳。
 - 创建与改名必须在 FIFO 事务中复核源版本、关联索引及目标不存在凭据；源与下一目标分别表达。
-- 初载与删除当前项后必须选择所属展示排序的首项；空列表采用空选择；删除其他项保留当前选择。
-- 势力创建必须由正式构造器提供 logo、displayNameWithArticle、names、portraits 和 RGBA color，并使用游戏 UI 颜色字段。
-- 势力加载身份必须优先消费规格字符串 id，缺省时消费实际文件名；目录文件与索引引用共同参与发现，读写及删除消费同一授权路径。
+- 初载与删除当前项后选择所属展示排序的首项；空列表采用空选择；删除其他项保留当前选择。
+- 势力创建由正式构造器提供 logo、displayNameWithArticle、names、portraits 和 RGBA color，并使用游戏 UI 颜色字段。
+- 势力加载身份优先消费规格字符串 id，缺省时消费实际文件名；目录文件与索引引用共同参与发现，读写及删除消费同一授权路径。
 - 局部 JSON 草稿必须只持有实际本地内容，引用来源变化更新组合展示并保留本地草稿及活动输入。
 - 势力索引修改必须保留表头、行位置与业务列，只允许更新所属 ID 和引用字段。
 - 原版编辑权限必须消费持久化 `AppSettings.allowCoreEditing` 和完整设置镜像，缺省为关闭。
 - 同 session 刷新必须共同接纳内容和版本凭据；dirty 草稿共同暂存外部内容与凭据，载入外部版本共同交接。
-- 后台改名必须由所属文档接收；干净文档接纳正式身份；有草稿的文档记录待交接状态并在激活时确认保留编辑并跟随。
+- 后台改名由所属文档接收；干净文档接纳正式身份；有草稿的文档记录待交接状态并在激活时确认保留编辑并跟随。
 - 外部删除当前 dirty 目标时必须保留编辑面并呈现删除提示；确认放弃后交接到所属首项。
 - 已访问文档的全部或部分来源缺失时必须保留列表项、缺失标记与重新创建入口；明确删除合并来源、索引和放弃草稿的一次确认并释放缓存。
-- 文档缓存身份必须包含 session、Mod 根、种类及实际正式目标；选择记忆按 session 与文档种类隔离。
-- 杂项配置必须按登记顺序保持全部文件条目及 session 选择，缺文件在右侧创建；正式文档消费所属文件投影、schema、内容与版本。
+- 文档缓存身份包含 session、Mod 根、种类及实际正式目标；选择记忆按 session 与文档种类隔离。
+- 杂项配置按登记顺序保持全部文件条目及 session 选择，缺文件在右侧创建；正式文档消费所属文件投影、schema、内容与版本。
 - 来源恢复必须共同交付同一字节快照的内容、版本及所属资源引用，索引关联复用本次解析结果；返回页面、来源失效及重建接纳直接消费恢复结果中的内容、版本、资源与缺失清单。
-- 来源重建必须覆盖 Mod 信息、Variant、Skin、Faction 文件及必要索引、Mission descriptor、正文及必要索引行与已登记杂项配置文件。
+- 来源重建覆盖 Mod 信息、Variant、Skin、Faction 文件及必要索引、Mission descriptor、正文及必要索引行与已登记杂项配置文件。
 - 来源重建必须重新授权原目标并核对准备与事务内版本，缺失来源采用最后保存基线、原路径和原身份。
 - 普通保存遇到已读取来源缺失时必须确认实际缺失路径，并使用本次捕获内容完成重建及保存。
 - 皮肤引擎槽修改必须按基础船体及继承皮肤的移除顺序校验整数索引，越界修改在写盘前拒绝。
-- 结构化 JSON 保存必须使用设置快照选择原样更新或规范化写入；原样更新无法安全完成时在写入前确认影响文件。
+- 结构化 JSON 保存必须使用设置快照选择原结构或展开布局，未修改值保留源写法，表达失败交付具体位置及原因。
 - 表单双向绑定必须经统一 Draft Session setter 提交；保存动作返回已保存、无需保存或已取消；已保存结果携带正式回执；校验拒绝与保存取消时严禁提交成功基线或触发保存成功回调。
 - 装配武器组新增必须由明确槽位选择触发；主动选择其它组已有槽位携带原武器调组，并在一次草稿历史中交付。
-- 配置保存的传输内容必须消费 `IndexedConfigEntityRefresh`；编辑数据由所属投影共同接纳回执版本。
+- 配置保存的传输内容消费 `IndexedConfigEntityRefresh`；编辑数据由所属投影共同接纳回执版本。
 - 重命名必须同时更新索引行、实体文件与文件名，并保持 history 可回放。

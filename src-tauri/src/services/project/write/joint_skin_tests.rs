@@ -1,7 +1,9 @@
 use super::*;
 use crate::domain::joint_hull::hull_field_value;
+use crate::models::JointEditRecord;
 use crate::services::project::PerformanceTrace;
 use crate::services::project_sync::release_project_session;
+use crate::test_support::file_formats;
 use std::fs;
 
 pub(super) fn skin_fixture() -> (TestWorkspace, JointEditRoot) {
@@ -94,13 +96,15 @@ fn skin_root_saves_independent_layers_and_follows_skin_rename() {
         values: request.values,
     })
     .unwrap();
-    let request = JointEditSubmission {
+    let request = file_formats::joint_submission(JointEditSubmission {
+        documents: Default::default(),
+        csv_columns: Default::default(),
         base_versions: prepared.snapshot.base_versions.clone(),
         snapshot: prepared.snapshot,
         values: prepared.values,
         json_write: Default::default(),
         create_overrides: Vec::new(),
-    };
+    });
     let saved = submit(&request).unwrap().content.unwrap().value;
     assert_eq!(saved.root.id, "renamed");
     assert_eq!(

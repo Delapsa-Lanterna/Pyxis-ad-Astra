@@ -13,6 +13,7 @@
 - `src-tauri/command-macros/`：命令声明与登记的计时调用生成。
 - `src-tauri/src/commands/performance_monitor.rs`：批量交付及状态、重置、导出命令。
 - `src-tauri/src/services/performance_monitor.rs`：命令计时、环形缓冲与报告导出。
+- `src-tauri/src/services/performance_monitor/`：浏览器跟踪事件的解析、区间聚合与时间线输出。
 - `src-tauri/src/services/project/performance.rs`：ProjectSession 阶段计时。
 - `src/app/performance-monitor.ts`：窗口采集装配、批量交付与采集错误状态。
 - `src/services/performance-monitor.service.ts`：性能监视命令参数装配。
@@ -21,6 +22,7 @@
 
 - `src-tauri/src/app_data_dir.rs`：性能报告持久化的工具私有目录解析。
 - `src-tauri/src/models/performance_monitor.rs`：性能采样与报告状态协议。
+- `src-tauri/src/parsers/tool_json.rs`：浏览器跟踪内容的标准 JSON 读取。
 - `src/shared/runtime/performance.ts`：运行开关、区间计时与采样接收入口。
 - `src/shared/types/performance-monitor.types.ts`：批量交付与状态协议。
 

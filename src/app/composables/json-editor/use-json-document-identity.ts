@@ -3,7 +3,6 @@ import { onScopeDispose, shallowRef, watch, type Ref } from 'vue';
 import { listenSavedIdentity, sessionContentUpdate } from '@/orchestrators/project-sync.orchestrator';
 import { useQueryReadOwner } from '@/app/composables/use-query-read-owner';
 import type { EditTargetDraftSession, EditTargetSnapshot } from '@/app/composables/use-edit-target-draft-session';
-import type { useSnapshotHistory } from '@/app/composables/use-snapshot-history';
 import type { AppFeedback, EntityKind } from '@/shared/types';
 import { AppError } from '@/shared/lib/errors';
 
@@ -14,9 +13,11 @@ export interface JsonDocumentIdentity<TValue, TTarget, TMeta> {
   map: (value: TValue, previousId: string, nextId: string) => TValue;
 }
 export function useJsonDocumentIdentity<TValue, TTarget extends { sessionId: string; modRoot: string; id?: string }, TMeta>(
-  session: EditTargetDraftSession<TValue, TTarget, TMeta>,
+  session: Pick<
+    EditTargetDraftSession<TValue, TTarget, TMeta>,
+    'currentTarget' | 'baselineSnapshot' | 'dirty' | 'adoptIdentity' | 'acceptsSaveDelivery'
+  >,
   active: Readonly<Ref<boolean>>,
-  history: ReturnType<typeof useSnapshotHistory<TValue>>,
   identity: JsonDocumentIdentity<TValue, TTarget, TMeta> | undefined,
   feedback: AppFeedback,
 ) {
@@ -56,7 +57,6 @@ export function useJsonDocumentIdentity<TValue, TTarget extends { sessionId: str
     const target = session.currentTarget.value!;
     const map = (value: TValue) => identity!.map(value, handoff.previousId, handoff.nextId);
     if (session.adoptIdentity(target, handoff.snapshot, session.dirty.value ? map : () => handoff.snapshot.value, 'identity')) {
-      history.rebase(map);
       pending.value = null;
     }
   }

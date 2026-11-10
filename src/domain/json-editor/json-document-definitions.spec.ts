@@ -9,6 +9,8 @@ const crest: ResourceRef = { ...logo, relPath: 'graphics/crest.png', key: 'crest
 it('summarizes indexed missions before loading their document and uses the edited title after loading', () => {
   const record = jsonDocumentRecord('s1', 'M:/one', {
     kind: 'mission',
+    document: null,
+    composition: null,
     id: 'sample',
     target: entityTargetFixture('mission', 'sample'),
     baseVersions: [],
@@ -42,6 +44,8 @@ describe('faction list icon', () => {
     (resourceRefs, expected) => {
       const record = jsonDocumentRecord('s1', 'M:/one', {
         kind: 'faction',
+        document: null,
+        composition: null,
         id: 'sample',
         target: entityTargetFixture('faction', 'sample'),
         baseVersions: [],

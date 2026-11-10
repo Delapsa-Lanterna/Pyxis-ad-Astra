@@ -72,7 +72,9 @@ fn scan_game_overview_root(starsector_root: &Path) -> GameOverviewData {
                     });
                     continue;
                 }
-                match read_json_file(&mod_info_path) {
+                match read_json_file(&mod_info_path)
+                    .and_then(|source| source.content.to_json().map_err(Into::into))
+                {
                     Ok(info) => mods.push(summary_from_mod_info(&mod_root, &info)),
                     Err(error) => warnings.push(GameScanWarning {
                         code: error.code().to_string(),

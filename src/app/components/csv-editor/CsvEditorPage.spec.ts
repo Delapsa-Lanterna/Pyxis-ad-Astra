@@ -31,7 +31,6 @@ vi.mock('@/services/csv-table.service', () => ({
     sources: Object.fromEntries(request.sources.map((source) => [source, []])),
     files: {},
     classes: {},
-    stationData: {},
   }),
   queryTableRows: vi.fn(),
   queryTableRowPreviewDataUrl: async () => '',

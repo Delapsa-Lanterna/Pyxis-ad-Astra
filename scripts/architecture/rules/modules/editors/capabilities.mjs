@@ -89,7 +89,12 @@ export const editorsCapabilities = [
   ...capabilities({ role: 'service', domain: 'json-entity' }, [
     {
       capability: 'config-write',
-      names: ['saveModInfo', 'saveIndexedConfigEntity', 'createIndexedConfigEntity'],
+      names: ['saveModInfo'],
+      owners: [{ layer: 'app', role: 'composable', domain: 'json-document-capabilities' }],
+    },
+    {
+      capability: 'config-write',
+      names: ['saveIndexedConfigEntity', 'createIndexedConfigEntity'],
       owners: [{ layer: 'orchestrators', domain: 'json-save' }],
     },
     {
@@ -104,6 +109,7 @@ export const editorsCapabilities = [
     },
   ]),
   ...capabilities({ role: 'service', domain: 'json-file' }, [
+    { capability: 'config-query', names: ['readJsonDocument'], owners: readOwners },
     {
       capability: 'config-write',
       names: ['saveVariantEntity', 'createVariantEntity', 'saveSkinEntity', 'createSkinEntity'],
@@ -118,7 +124,7 @@ export const editorsCapabilities = [
   ...capabilities({ role: 'service', domain: 'spec-editor' }, [
     {
       capability: 'spec-write',
-      names: ['saveSpecEditorSpec', 'saveSpecEditorSpecByKind'],
+      names: ['saveSpecEditorSpec'],
       owners: readOwners,
     },
     {

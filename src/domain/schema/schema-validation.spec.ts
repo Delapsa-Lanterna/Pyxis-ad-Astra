@@ -26,7 +26,7 @@ const schema: FileSchema = {
             type: 'object',
             nested: [
               { key: 'count', label: 'Count', type: 'integer', required: true },
-              { key: 'value', label: 'Value', type: 'float', numberFormat: 'starsector' },
+              { key: 'value', label: 'Value', type: 'float' },
             ],
           },
         },

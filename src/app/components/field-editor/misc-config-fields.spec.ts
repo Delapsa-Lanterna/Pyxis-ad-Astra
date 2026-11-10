@@ -11,8 +11,9 @@ import { getSchema } from '@/domain/schema/config-schema-registry';
 import { miscConfigDefinition, MISC_CONFIG_DEFINITIONS } from '@/domain/misc-config';
 import { convertSchemaScalarInput, schemaFieldVariant } from '@/domain/schema/schema-values';
 import { parseFileSchema } from '@/domain/schema/schema-asset-parser';
-import { provideFieldInputs } from '@/shared/runtime/field-inputs';
-import { useEditTargetDraftSession } from '@/app/composables/use-edit-target-draft-session';
+import { provideFieldInputs, createFieldInputs } from '@/shared/runtime/field-inputs';
+import { createJsonDocument } from '@/domain/json-document';
+import { prepareValue } from '@/domain/schema/game-number';
 import { initializeSettingsStore } from '@/stores/settings.store';
 import { createSettingsFixture } from '@/test/fixtures/settings';
 import { editorUiStubs } from '@/test/unit/ui-stubs';
@@ -38,17 +39,35 @@ afterEach(() => {
 function mountConfig(kind: MiscConfigKind, realCollapse = false) {
   const field = getSchema(miscConfigDefinition(kind).schema)!.root!;
   const snapshot = { target: kind, baseVersions: [], meta: null, value: { file: miscConfigFixture(kind) } };
-  let draft!: ReturnType<typeof useEditTargetDraftSession<RowData, MiscConfigKind, null>>;
-  const value = computed({ get: () => draft.draftValue.value.file as RowData, set: (file) => draft.setDraft({ file }) });
+  const owner = createJsonDocument(null, { value: prepareValue(snapshot.value).value }),
+    revision = ref(0),
+    inputs = createFieldInputs();
+  const value = computed({
+    get: () => {
+      void revision.value;
+      return (owner.projection as RowData).file as RowData;
+    },
+    set: (file) => {
+      owner.update({ file }, (value) => prepareValue(value));
+      revision.value++;
+    },
+  });
   wrapper = mount(
     {
       setup() {
-        draft = useEditTargetDraftSession({ emptyValue: {} as RowData, targetKey: (key: string) => key, load: () => snapshot });
-        draft.loadBaseForTarget(snapshot);
-        provideFieldInputs(draft.inputs);
+        provideFieldInputs(inputs);
         return () =>
           h(SchemaFormRenderer, {
             schema: getSchema(miscConfigDefinition(kind).schema)!,
+            runtimeContext: {
+              sessionId: 'fixture',
+              modRoot: 'M:/fixture',
+              document: owner,
+              applyDocumentEdit: (edit) => {
+                owner.apply(edit);
+                revision.value++;
+              },
+            },
             modelValue: { file: value.value },
             'onUpdate:modelValue': (update: RowData) => {
               value.value = update.file as RowData;
@@ -66,7 +85,7 @@ function mountConfig(kind: MiscConfigKind, realCollapse = false) {
       attachTo: document.body,
     },
   );
-  return { value, inputs: draft.inputs, field };
+  return { value, inputs, field };
 }
 
 describe('misc config fields', () => {
@@ -107,15 +126,19 @@ describe('misc config fields', () => {
     expect(getSchema('engine-styles')!.root!.valueSchema!.nested).toHaveLength(23);
     expect(getSchema('hull-styles')!.root!.valueSchema!.nested).toHaveLength(38);
   });
-  it.each(['0.5f', '-1f', '1D', '2.5e-2F'])('retains the game numeric literal %s when committed', (raw) => {
-    expect(convertSchemaScalarInput(raw, { key: 'n', label: 'Number', type: 'float', numberFormat: 'starsector' })).toEqual({
+  it.each([
+    ['0.5f', 0.5],
+    ['-1f', -1],
+    ['1D', 1],
+    ['2.5e-2F', 0.025],
+  ] as const)('interprets game numeric input %s when committed', (raw, value) => {
+    expect(convertSchemaScalarInput(raw, { key: 'n', label: 'Number', type: 'float' })).toEqual({
       kind: 'set',
-      value: raw,
+      value,
     });
-    expect(convertSchemaScalarInput(raw, { key: 'n', label: 'Number', type: 'float' }).kind).toBe('error');
   });
   it('rejects incomplete numeric text and validates ranges after reading the suffix', () => {
-    const field: FieldSchema = { key: 'n', label: 'Number', type: 'float', numberFormat: 'starsector', min: 0, max: 1 };
+    const field: FieldSchema = { key: 'n', label: 'Number', type: 'float', min: 0, max: 1 };
     for (const raw of ['1ff', '1e', 'NaNf', '2f']) expect(convertSchemaScalarInput(raw, field).kind).toBe('error');
   });
   it('keeps game number text and focused controls across cloned style drafts', async () => {
@@ -125,10 +148,10 @@ describe('misc config fields', () => {
     input.element.focus();
     await input.setValue('-1f');
     await inputs.commit();
-    expect(value.value.SAMPLE_STYLE).toMatchObject({ contrailMaxSpeedMult: '-1f', sampleExtra: { keep: true } });
+    expect(value.value.SAMPLE_STYLE).toMatchObject({ contrailMaxSpeedMult: -1, sampleExtra: { keep: true } });
     value.value = JSON.parse(JSON.stringify(value.value)) as RowData;
     await nextTick();
-    expect(wrapper!.findAll('input').find((field) => field.element.value === '-1f')!.element).toBe(input.element);
+    expect(wrapper!.findAll('input').find((field) => field.element.value === '-1')!.element).toBe(input.element);
     expect(document.activeElement).toBe(input.element);
   });
   it.each([

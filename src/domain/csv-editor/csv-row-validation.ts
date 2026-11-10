@@ -17,7 +17,7 @@ export function csvRowProblems(
     columns = definitions.filter((column) => header.includes(column.key) || column.required);
   const add = (severity: FieldProblem['severity'], code: string, path: string, message: string) =>
     issues.push({ severity, code: `csv.${code}`, path, message });
-  const business = new Set(rows.filter((row) => isCsvBusinessRow(row, table === 'simOpponents' ? 'variant id' : 'id')));
+  const business = new Set(rows.filter((row) => isCsvBusinessRow(row, table)));
   // Each source membership set is shared by all references in this validation call.
   const referenceValues = new Map<string, Set<string>>();
   if (business.size)
@@ -110,8 +110,8 @@ export function csvRowProblems(
     if (id && context && ownKind && !spec)
       problem(
         'id',
-        `规格 ${JSON.stringify(id)} 在当前来源中未找到，请在关联规格保存中创建、导入或确认来源。`,
-        ['ships', 'skills'].includes(table) && context.complete && !deferredSpecs.has(id) ? 'error' : 'warning',
+        `规格 ${JSON.stringify(id)} 在当前来源中未找到。${table === 'skills' ? '请在关联规格保存中创建、导入或确认来源。' : '游戏会警告并跳过此行；如需启用，请补充规格。'}`,
+        table === 'skills' && context.complete && !deferredSpecs.has(id) ? 'error' : 'warning',
         'spec_missing',
       );
     if (table === 'ships') {
@@ -225,24 +225,6 @@ export function csvRowProblems(
     if (table === 'industries') {
       for (const key of ['upgrade', 'downgrade'])
         if (id && text(key) === id) problem(key, '升级或降级目标指向自身。', 'warning', 'self_reference');
-      if (context && text('plugin') === 'com.fs.starfarer.api.impl.campaign.econ.impl.OrbitalStation') {
-        const parsed = context.stationData[text('data')]!,
-          value = parsed.value;
-        if (parsed.error) problem('data', parsed.error, 'error', 'plugin_data');
-        else {
-          if (
-            !isRowData(value) ||
-            typeof value.variant !== 'string' ||
-            typeof value.fleetName !== 'string' ||
-            !['number', 'string'].includes(typeof value.radius) ||
-            String(value.radius).trim() === '' ||
-            !Number.isFinite(Number(value.radius))
-          )
-            problem('data', '原生空间站数据需要 variant、radius、fleetName。', 'error', 'plugin_data');
-          else if (!context.entities[`variant:${value.variant}`])
-            problem('data', '空间站装配引用未找到。', context.complete ? 'error' : 'warning', 'plugin_reference');
-        }
-      }
     }
     if (table === 'skills' && spec && context?.sources[`aptitudeEffect:${cell(spec.governingAptitude)}`]?.includes(id))
       for (const key of ['name', 'description', 'tier', 'reqPoints', 'reqPointsPerExtraSkill'])

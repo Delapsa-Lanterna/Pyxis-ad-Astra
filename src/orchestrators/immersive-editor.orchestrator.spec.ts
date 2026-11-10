@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { wingJointFixture } from '@/test/fixtures/joint-edit/wing-joint-edit';
 import { variantJointFixture } from '@/test/fixtures/joint-edit/variant-joint-edit';
-import type { AppFeedback, WindowContextFor } from '@/shared/types';
+import type { WindowContextFor } from '@/shared/types';
 import { openEntityImmersiveEditor, openVariantImmersiveEditor, retargetImmersiveWindow } from './immersive-editor.orchestrator';
 const mocks = vi.hoisted(() => ({ focus: vi.fn(), open: vi.fn(), retarget: vi.fn(), publish: vi.fn(), row: vi.fn(), query: vi.fn() }));
 vi.mock('@/services/window.service', () => ({ focusNativeManagedWindow: mocks.focus, retargetNativeWindow: mocks.retarget }));
@@ -32,7 +32,7 @@ describe('immersive window structured handoff', () => {
         }),
     );
     let done = false;
-    const opening = openEntityImmersiveEditor(request, {} as AppFeedback).then(() => {
+    const opening = openEntityImmersiveEditor(request).then(() => {
       done = true;
     });
     await vi.waitFor(() => expect(mocks.open).toHaveBeenCalledWith(snapshot.root, 'wing-current'));
@@ -44,7 +44,7 @@ describe('immersive window structured handoff', () => {
   });
   it('delivers the same formal focus request when reusing a variant', async () => {
     const root = variantJointFixture().root;
-    await openVariantImmersiveEditor(root, {} as AppFeedback);
+    await openVariantImmersiveEditor(root);
     expect(mocks.open).toHaveBeenCalledWith(root);
     expect(mocks.query).not.toHaveBeenCalled();
   });

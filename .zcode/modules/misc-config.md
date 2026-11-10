@@ -25,11 +25,15 @@
 - `src-tauri/src/domain/schema.rs`：字段结构、条件必填及分支约束校验。
 - `src-tauri/src/io/`：路径授权、版本、JSON 原文保留与文件变更集。
 - `src-tauri/src/models/document_identity.rs`：配置文件类别与文档来源身份。
+- `src-tauri/src/models/file_content.rs`：精确文档、原始格式、物理 CSV 行格及完整写入请求。
+- `src-tauri/src/models/file_value.rs`：64 位整数、浮点与 UTF-16 文字的精确值。
 - `src-tauri/src/models/misc_config.rs`：配置查询记录、保存与删除协议。
 - `src-tauri/src/parsers/field_schema.rs`：内嵌字段资产读取。
+- `src-tauri/src/parsers/game/`：游戏 JSON/CSV 的正式读取入口、文档方法、数值及文本格式能力。
 - `src-tauri/src/services/project/query/json_layers.rs`：会话所属的正式有序 JSON 来源组合与版本。
 - `src-tauri/src/services/project/session.rs`：会话打开、关闭、内容更新与内部登记及就绪访问能力交付。
 - `src-tauri/src/services/project/sources/core.rs`：按根共享 Core 产品、只读 CSV、单飞读取及缓存释放。
+- `src-tauri/src/services/project/write/entity_write/replace_paths.rs`：同次保存对 Mod 整体取代列表的局部写入。
 - `src-tauri/src/services/project_session.rs`：游戏根与 Mod 根授权、来源输入准备及会话范围核对。
 - `src-tauri/src/services/write_transactions.rs`：根事务、版本校验、历史及提交同步。
 - `src/services/query-cache.service.ts`：所属会话的实时读取与失效。
@@ -71,15 +75,15 @@
 - 公开请求必须按文件种类选择后端登记路径，严禁接收任意文件路径。
 - 创建必须取得目标不存在的版本凭据，初始内容消费所属文件定义；创建和主动删除保留文件条目及选择。
 - 已访问来源删除时必须保留草稿，并消费 JSON 来源缺失提示与重建动作。
-- 当前登记必须按 `strings`、`engineStyles`、`hullStyles`、`sounds`、`settings` 排序，路径与表单消费所属定义。
-- 文件身份必须独立于 JSON 内容，严禁向内容写入实体 ID。
-- 杂项配置表单必须直接展示当前 Mod 文件及草稿，文档状态由所属保存状态与来源完整性表达。
-- 新增文件种类必须分别登记用途、文件名、路径、表单、初始内容与内容校验，模块请求保持文件种类身份。
+- 当前登记按 `strings`、`engineStyles`、`hullStyles`、`sounds`、`settings` 排序，路径与表单消费所属定义。
+- 文件身份由独立目标表达，JSON 内容保留文件自身字段。
+- 杂项配置表单直接展示当前 Mod 文件及草稿，文档状态由所属保存状态与来源完整性表达。
+- 新增文件种类分别登记用途、文件名、路径、表单、初始内容与内容校验，模块请求保持文件种类身份。
 - 样式与声音保存必须按游戏同路径合并结果校验已提供内容，实际写盘保留所属草稿的局部形态。
 - 样式新增必须采用已登记的完整初值并检查保留名称；读取和保存保留合法局部覆盖及未知字段。
 - 缺失文件只允许通过创建动作建立正式文档与版本。
-- 船体样式的声音组引用与声音组的船体样式规则必须消费字段来源目录，设计类型颜色名称交付所属引用字段。
+- 船体样式的声音组引用与声音组的船体样式规则消费字段来源目录，设计类型颜色名称交付所属引用字段。
 - 表单与后端内容校验必须共同消费所属资产的 `root` 定义；表单复用字段模式的固定属性、可命名条目、列表、额外字段与编辑模式规则。
-- 配置一级对象必须分别展示为可折叠分组，设置的 `designTypeColors`、`graphics` 与 `plugins` 作为保留分组，其余值服从所属 schema 的 allowExtraFields 声明；Smart 模式只允许显式开放的扩展区展示且空内容保留入口，已登记字段使用所属控件。
+- 配置一级对象分别展示为可折叠分组，设置的 `designTypeColors`、`graphics` 与 `plugins` 作为保留分组，其余值服从所属 schema 的 allowExtraFields 声明；Smart 模式只允许显式开放的扩展区展示且空内容保留入口，已登记字段使用所属控件。
 - 音乐单文件与文件列表必须按互斥字段提交；声音选择索引按合并后音频列表的实际长度校验。
-- 音效数组、声音组对象及音乐目录必须按实际结构编辑，音频文件名消费所属 Mod 根或音乐来源的路径含义。
+- 音效数组、声音组对象及音乐目录按实际结构编辑，音频文件名消费所属 Mod 根或音乐来源的路径含义。

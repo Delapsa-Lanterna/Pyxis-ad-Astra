@@ -9,6 +9,7 @@ use crate::domain::{
 use crate::errors::{AppError, AppResult};
 use crate::io;
 use crate::io::{FsRootBoundary, file_version};
+use crate::models::file_content::JsonFileContent;
 use crate::models::*;
 use crate::services::project::model::SessionCsvRow;
 use crate::services::project::query::{
@@ -17,7 +18,7 @@ use crate::services::project::query::{
 use crate::services::project::resources::entity_references;
 use crate::services::project::resources::{resource_identity, table_references};
 use crate::services::project::sources::documents::LoadedSpecRecord;
-use crate::services::project::sources::{core, documents};
+use crate::services::project::sources::{core, documents, project_csv};
 use crate::services::project::{ensure_project_session_mod_root, resources, versions};
 use serde_json::{Map, Value};
 #[cfg(test)]
@@ -288,12 +289,21 @@ pub(in crate::services::project) fn query_joint_edit_values(
         .collect::<BTreeSet<_>>();
     let parents = session.variant_files.clone();
     for parent in parents.iter() {
-        let (parent_version, content) = if !Path::new(&parent.path).exists()
+        let (parent_version, content, document) = if !Path::new(&parent.path).exists()
             && io::source_recreation_allowed(&session.manifest.mod_root, &parent.path)
         {
-            (file_version(Path::new(&parent.path))?, parent.data.clone())
+            (
+                file_version(Path::new(&parent.path))?,
+                parent.data.clone(),
+                JsonFileContent::from(session.documents[&parent.rel_path].as_ref()),
+            )
         } else {
-            io::read_versioned_json(Path::new(&parent.path))?
+            let (version, source) = io::read_versioned_json(Path::new(&parent.path))?;
+            (
+                version,
+                source.content.to_json()?,
+                JsonFileContent::from(&source),
+            )
         };
         if !variant_modules::module_entries(content.get("modules"))
             .iter()
@@ -317,6 +327,7 @@ pub(in crate::services::project) fn query_joint_edit_values(
         }
         let source = info.target.source.clone();
         records.push(JointEditRecord {
+            document: Some(document),
             composition: None,
             key,
             target: JointRecordTarget::Spec {
@@ -462,7 +473,7 @@ fn variant_catalog(
             if let Some(source) = source {
                 spec_source = Some(source.location.clone());
                 let (version, content) =
-                    session.read_spec_source(EntityKind::Weapon, &id, &source.location)?;
+                    session.read_spec_value(EntityKind::Weapon, &id, &source.location)?;
                 spec_version = Some(version);
                 refs = entity_references::weapon_resource_refs(&id, &content);
                 for resource in refs.values_mut() {
@@ -529,7 +540,7 @@ fn variant_catalog(
                 })
                 .map(|source| -> AppResult<JointPreviewSpec> {
                     let (version, data) =
-                        session.read_spec_source(EntityKind::Projectile, &id, &source.location)?;
+                        session.read_spec_value(EntityKind::Projectile, &id, &source.location)?;
                     let mut resource_refs = entity_references::projectile_resource_refs(&id, &data);
                     for resource in resource_refs.values_mut() {
                         resource.source = source.location.source;
@@ -905,7 +916,8 @@ fn reference_settings(
         let boundary = FsRootBoundary::new(&root, "joint reference settings")?;
         let path = boundary.resolve_relative("data/config/settings.json", "reference settings")?;
         if path.exists() {
-            let (settings_version, data) = io::read_versioned_json(&path)?;
+            let (settings_version, source) = io::read_versioned_json(&path)?;
+            let data = source.content.to_json()?;
             for key in [
                 "baseSensorFrigate",
                 "baseSensorDestroyer",
@@ -1078,6 +1090,15 @@ pub fn prepare_joint_edit(draft: &JointEditDraft) -> AppResult<JointEditPrepared
     if !snapshot.new_sources.is_empty() {
         let projected =
             query_joint_edit_values(&draft.baseline.root, Some(&values), &snapshot.new_sources)?;
+        for record in projected.records {
+            if !snapshot
+                .records
+                .iter()
+                .any(|existing| existing.key == record.key)
+            {
+                snapshot.records.push(record);
+            }
+        }
         for version in projected.base_versions {
             if !snapshot
                 .base_versions
@@ -1175,6 +1196,7 @@ impl JointGraph<'_> {
             }
         }
         let record = JointEditRecord {
+            document: None,
             composition: None,
             key: key.clone(),
             target: JointRecordTarget::Csv {
@@ -1226,7 +1248,12 @@ impl JointGraph<'_> {
             .map(|source| self.session.read_spec_source(kind, id, source))
             .transpose()?;
         let source_version = source_read.as_ref().map(|(version, _)| version.clone());
-        let value = source_read.map(|(_, value)| value);
+        let document = source_read
+            .as_ref()
+            .map(|(_, source)| JsonFileContent::from(source));
+        let value = source_read
+            .map(|(_, source)| source.content.to_json())
+            .transpose()?;
         let value = self.projected_value(&key, value);
         let composition = query_entity_presentation::entity_composition(self.session, &target)?;
         let effective = value
@@ -1294,6 +1321,7 @@ impl JointGraph<'_> {
         self.records.insert(
             key,
             JointEditRecord {
+                document,
                 composition: composition.clone(),
                 key: serde_json::to_string(&("spec", kind, id))?,
                 target: JointRecordTarget::Spec { target },
@@ -1848,7 +1876,8 @@ impl JointCsvIndex {
             .try_exists()
             .map_err(|error| AppError::from(error).at_path(&path))?
         {
-            let (version, csv) = io::read_versioned_csv(&path)?;
+            let (version, source) = io::read_versioned_csv(&path)?;
+            let csv = project_csv(&source, &path);
             let (_, rows, _) = csv_tables::table_snapshot_from_csv(
                 &session.csv_tables[table.as_str()],
                 table,
@@ -1876,12 +1905,14 @@ impl JointCsvIndex {
             let source_path = core.join(relative);
             if source_path.exists() {
                 let source = location(ResourceSource::Core, &core, relative);
-                let (source_version, csv) = io::read_versioned_csv(&source_path)?;
+                let (source_version, source_csv) = io::read_versioned_csv(&source_path)?;
+                let csv = project_csv(&source_csv, &source_path);
                 let rows = csv
                     .rows
                     .into_iter()
                     .enumerate()
                     .map(|(index, row)| SessionCsvRow {
+                        source_row: Some(index),
                         row_key: format!("core:{}:row:{index}", table.as_str()),
                         data: row.data,
                         is_comment: row.is_comment,

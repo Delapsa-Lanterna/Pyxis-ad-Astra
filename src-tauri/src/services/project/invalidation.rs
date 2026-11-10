@@ -1,729 +1,503 @@
 use super::definitions::entity_definitions;
-use super::model::ProjectSession;
-use crate::domain::entity_definitions::PROJECTILE_SPEC_DEFINITION;
-use crate::errors::{AppError, AppResult};
-use crate::io::{FsRootBoundary, parse_csv_text, relative_path_contains};
+use super::model::{self, ProjectSession};
+use super::session::{csv_tables, source_versions};
+use super::sources::{SourceReader, project_csv};
+use crate::domain::entity_definitions as entity_rules;
+use crate::errors::AppError;
+use crate::errors::AppResult;
+use crate::io::{self, FsRootBoundary};
+use crate::models;
+use crate::models::EntityKind;
+use crate::models::file_content::{Record, RecordKind};
+use crate::models::file_value::Value;
 use crate::models::{
-    CsvRow, CsvTable, CsvTableKey, EntityKind, FileChangeKind, FileChangeRecord,
-    InvalidatedEntityRef, InvalidatedQueryKind, InvalidatedQueryScope, InvalidatedResourceScope,
-    ProjectInvalidation, ResourceSource, push_unique_all,
+    CsvTableKey, FileChangeKind, FileChangeRecord, InvalidatedEntityRef, InvalidatedQueryKind,
+    InvalidatedQueryScope, InvalidatedResourceScope, ProjectInvalidation, ResourceSource,
 };
-use crate::parsers::parse_starsector_json;
-use crate::services::project::model::{
-    MISSION_LIST_REL_PATH, MISSION_LIST_TABLE_KEY, SessionCsvRow,
-};
-use crate::services::project::session::csv_tables;
-use crate::services::project::session::source_versions::{
-    capture_changed_versions, retain_session_sources, source_reader_for_session,
-};
-use crate::services::project::sources::{SourceReader, core};
-use crate::services::project::{model, versions};
-use crate::{io, models};
-use serde_json::{Map, Value};
+use crate::parsers::game;
+use model::MISSION_LIST_REL_PATH;
+use model::MISSION_LIST_TABLE_KEY;
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 use std::sync::Arc;
 
+fn overlap(left: &str, right: &str) -> bool {
+    io::relative_path_contains(left, right) || io::relative_path_contains(right, left)
+}
 pub(crate) fn invalidate_session_changes(
     session: &mut ProjectSession,
     changes: &[FileChangeRecord],
 ) -> AppResult<ProjectInvalidation> {
-    let boundary = FsRootBoundary::new(Path::new(&session.manifest.mod_root), "mod root")?;
-    let files = changed_project_files(changes, &boundary)?;
-    let mut sources = source_reader_for_session(session)?;
-    sources.accept_changes(changes)?;
-    let invalidation = invalidate_files(session, files, false, &mut sources)?;
-    session.loaded_edit_targets.retain(|target| {
-        !changes.iter().any(|change| {
-            (!change.after_exists || change.before_path != change.after_path)
-                && (models::windows_path_key(&target.write.path)
-                    == models::windows_path_key(&change.before_path)
-                    || (matches!(change.kind, FileChangeKind::Directory)
-                        && models::windows_path_key(&target.write.path).starts_with(&format!(
-                            "{}/",
-                            models::windows_path_key(&change.before_path)
-                        ))))
-        })
-    });
-    sources.flush();
-    Ok(invalidation)
+    let mut candidate = session.clone();
+    let result = apply_session_changes(&mut candidate, changes)?;
+    *session = candidate;
+    Ok(result)
 }
-
-fn invalidate_files(
+fn apply_session_changes(
     session: &mut ProjectSession,
-    files: Vec<ChangedProjectFile>,
-    preserve_rows: bool,
-    sources: &mut SourceReader,
+    changes: &[FileChangeRecord],
 ) -> AppResult<ProjectInvalidation> {
-    if preserve_rows {
-        for table in session.csv_tables.values().filter(|table| {
-            table.rows.is_some()
-                && files
-                    .iter()
-                    .any(|file| relative_path_contains(&file.path, &table.path))
-        }) {
-            let path = sources.path(&table.path)?;
-            if !path
-                .try_exists()
-                .map_err(|error| AppError::from(error).at_path(&path))?
+    let boundary = FsRootBoundary::new(Path::new(&session.manifest.mod_root), "changed sources")?;
+    let mut resources = Vec::new();
+    for change in changes {
+        for path in [&change.before_path, &change.after_path] {
+            if let Some(relative) =
+                boundary.resolve_changed_path_to_relative(path, "changed source")?
             {
-                sources.tables.insert(
-                    table.path.clone(),
-                    CsvTable {
-                        path: path.to_string_lossy().into_owned(),
-                        header: table.header.clone(),
-                        rows: table
-                            .rows
-                            .as_ref()
-                            .expect("loaded CSV")
-                            .iter()
-                            .map(|row| CsvRow {
-                                data: row.data.clone(),
-                                is_comment: row.is_comment,
-                            })
-                            .collect(),
-                    },
-                );
-                sources
-                    .versions
-                    .insert(table.path.clone(), io::file_version(&path)?);
+                let scope = InvalidatedResourceScope {
+                    source: ResourceSource::Mod,
+                    rel_path: relative,
+                };
+                if !resources.contains(&scope) {
+                    resources.push(scope);
+                }
             }
         }
     }
-    let impacts = files
-        .iter()
-        .map(ChangedProjectImpact::new)
-        .collect::<Vec<_>>();
-    let mut tables = BTreeSet::new();
-    let mut entities = Vec::new();
-    let mut affected_kinds = BTreeSet::new();
-    let mut refresh_mod_info = false;
-    for impact in &impacts {
-        tables.extend(impact.target.csv_tables.iter().copied());
-        refresh_mod_info |= impact.target.refresh_mod_info;
-        affected_kinds.extend(impact.target.affected_entities.iter().copied());
-        push_unique_all(
-            &mut entities,
-            invalidated_entities_for_file(&impact.target, &impact.file)?,
-        );
-    }
-    let rebuild_kinds = affected_kinds
-        .iter()
-        .copied()
-        .filter(|kind| {
-            let definition =
-                entity_definitions::entity_definition(*kind).expect("registered impact kind");
-            !definition.csv_table.is_some_and(|table| {
-                files
-                    .iter()
-                    .all(|file| file.path == model::csv_table_spec(table).rel_path)
-            })
-        })
-        .collect::<Vec<_>>();
-    if !rebuild_kinds.is_empty() {
-        retain_session_sources(
-            sources,
-            session,
-            &files
-                .iter()
-                .map(|file| file.path.as_str())
-                .collect::<Vec<_>>(),
-        );
-    }
-    let content_tables = tables.clone();
-    let summary_tables = affected_kinds
-        .iter()
-        .filter_map(|kind| {
-            entity_definitions::entity_definition(*kind)
-                .expect("registered impact kind")
-                .csv_table
-        })
-        .chain(content_tables.iter().copied())
-        .collect::<BTreeSet<_>>();
-    let updates = rebuild_kinds
-        .into_iter()
-        .map(|kind| (entity_definitions::entity_definition(kind)?.refresh)(session, sources))
-        .collect::<AppResult<Vec<_>>>()?;
-    let mut summaries = session.manifest.entity_summaries.clone();
-    for update in &updates {
-        update.update_summary(&mut summaries);
-    }
-    let mod_info = refresh_mod_info
-        .then(|| {
-            let path = sources.path("mod_info.json")?;
-            path.exists().then(|| sources.json(&path)).transpose()
-        })
-        .transpose()?;
-    for table in content_tables
-        .iter()
-        .filter(|table| preserve_rows && session.csv_tables[table.as_str()].rows.is_none())
-    {
-        let path = sources.path(&session.csv_tables[table.as_str()].path)?;
-        if !path
-            .try_exists()
-            .map_err(|error| AppError::from(error).at_path(&path))?
-        {
-            csv_tables::read_table_snapshot(session, *table)?;
-        }
-    }
-    let refreshed_rows = if preserve_rows {
-        content_tables
-            .iter()
-            .filter(|table| session.csv_tables[table.as_str()].rows.is_some())
-            .map(|table| {
-                let state = &session.csv_tables[table.as_str()];
-                let path = sources.path(&state.path)?;
-                if !path
-                    .try_exists()
-                    .map_err(|error| AppError::from(error).at_path(&path))?
-                {
-                    return csv_tables::read_table_snapshot(session, *table)
-                        .map(|rows| (*table, rows));
+    let mut reader = source_versions::source_reader_for_session(session)?;
+    reader.accept_changes(changes)?;
+    let mut result = refresh_sources_from(session, &resources, &mut reader)?;
+    let mut files = BTreeMap::<String, (Option<String>, Option<String>)>::new();
+    for change in changes {
+        for (after, path, text, snapshots) in [
+            (
+                false,
+                &change.before_path,
+                &change.before_text,
+                &change.before_files,
+            ),
+            (
+                true,
+                &change.after_path,
+                &change.after_text,
+                &change.after_files,
+            ),
+        ] {
+            if matches!(change.kind, FileChangeKind::Directory) {
+                for file in snapshots {
+                    if let Some(relative) = boundary.resolve_changed_path_to_relative(
+                        &Path::new(path).join(&file.rel_path).to_string_lossy(),
+                        "changed file",
+                    )? {
+                        let pair = files.entry(relative).or_default();
+                        if after {
+                            pair.1 = file.text.clone();
+                        } else {
+                            pair.0 = file.text.clone();
+                        }
+                    }
                 }
-                let csv = sources.csv(&path)?;
-                csv_tables::table_snapshot_from_csv(state, *table, csv).map(|rows| (*table, rows))
-            })
-            .collect::<AppResult<Vec<_>>>()?
-    } else {
-        Vec::new()
-    };
-
-    let table_counts = summary_tables
-        .iter()
-        .map(|table| {
-            let definition = model::csv_table_spec(*table);
-            let state = &session.csv_tables[table.as_str()];
-            let accepted_rows = state.rows.as_ref().filter(|_| {
-                state.saved_text.is_some()
-                    && files
-                        .iter()
-                        .any(|file| file.path == state.path && file.after_text == state.saved_text)
-            });
-            let count = definition
-                .entity_summary
-                .map(|summary| summary(&summaries))
-                .map(Ok)
-                .unwrap_or_else(|| match accepted_rows {
-                    Some(rows) => Ok(rows
-                        .iter()
-                        .filter(|row| {
-                            !row.is_comment
-                                && model::string_from_row(&row.data, definition.entity_id_field)
-                                    .is_some()
-                        })
-                        .count()),
-                    None => sources.count(
-                        &sources.path(definition.rel_path)?,
-                        definition.entity_id_field,
-                    ),
-                });
-            count.map(|count| (*table, count))
-        })
-        .collect::<AppResult<Vec<_>>>()?;
-    let resources = impacts
-        .iter()
-        .map(|impact| InvalidatedResourceScope {
-            source: ResourceSource::Mod,
-            rel_path: impact.file.path.clone(),
-        })
-        .collect::<Vec<_>>();
-    let tables = tables.into_iter().collect::<Vec<_>>();
-    capture_changed_versions(
-        sources,
-        &files
-            .iter()
-            .map(|file| file.path.as_str())
-            .collect::<Vec<_>>(),
-    )?;
-    let invalidation = ProjectInvalidation {
-        renames: None,
-        paths: impacts
-            .iter()
-            .map(|impact| impact.file.path.clone())
-            .collect(),
-        query_scopes: query_scopes_for_invalidation(&tables, &entities, &resources)?,
-        tables,
-        entities,
-        resources,
-        session: false,
-    };
-    for table in &content_tables {
-        let state = session
-            .csv_tables
-            .get_mut(table.as_str())
-            .map(Arc::make_mut)
-            .expect("registered CSV table");
-        let retained = state.rows.is_some()
-            && state.saved_text.is_some()
-            && files
-                .iter()
-                .any(|file| file.path == state.path && file.after_text == state.saved_text);
-        if !retained {
-            state.rows = None;
-            state.row_index = None;
+            } else if let Some(relative) =
+                boundary.resolve_changed_path_to_relative(path, "changed file")?
+            {
+                let pair = files.entry(relative).or_default();
+                if after {
+                    pair.1 = text.clone();
+                } else {
+                    pair.0 = text.clone();
+                }
+            }
         }
     }
-    for (table, (header, rows, next_seq)) in refreshed_rows {
-        let state = session
-            .csv_tables
-            .get_mut(table.as_str())
-            .map(Arc::make_mut)
-            .expect("registered table");
-        state.header = header;
-        state.rows = Some(rows.into());
-        state.row_index = None;
-        state.next_row_seq = next_seq;
-        state.saved_text = None;
-        let summary = session
-            .manifest
-            .table_summaries
-            .get_mut(&table)
-            .expect("registered summary");
-        summary.header = state.header.clone();
-        summary.available = Path::new(&session.manifest.mod_root)
-            .join(&state.path)
-            .exists();
-        summary.total_rows = state.rows.as_ref().map(|rows| rows.len());
+    let mut entities = Vec::new();
+    for (path, (before, after)) in files {
+        for entity in changed_file_entities(&path, before.as_deref(), after.as_deref())? {
+            if !entities.contains(&entity) {
+                entities.push(entity);
+            }
+        }
     }
+    result.entities = entities;
+    result.query_scopes =
+        query_scopes_for_invalidation(&result.tables, &result.entities, &resources)?;
+    session.loaded_edit_targets.retain(|target| {
+        !changes.iter().any(|change| {
+            (!change.after_exists || change.before_path != change.after_path)
+                && io::relative_path_contains(
+                    &models::windows_path_key(&change.before_path),
+                    &models::windows_path_key(&target.write.path),
+                )
+        })
+    });
+    reader.flush();
+    Ok(result)
+}
+#[cfg(test)]
+pub(super) fn refresh_sources(
+    session: &mut ProjectSession,
+    resources: &[InvalidatedResourceScope],
+) -> AppResult<ProjectInvalidation> {
+    let mut candidate = session.clone();
+    let mut reader = source_versions::source_reader_for_session(&candidate)?;
+    let paths = resources
+        .iter()
+        .filter(|scope| scope.source == ResourceSource::Mod)
+        .map(|scope| scope.rel_path.as_str())
+        .collect::<Vec<_>>();
+    reader.invalidate_paths(&paths);
+    let result = refresh_sources_from(&mut candidate, resources, &mut reader)?;
+    reader.flush();
+    *session = candidate;
+    Ok(result)
+}
+fn affected_csv_tables(path: &str) -> Vec<CsvTableKey> {
+    model::csv_table_specs()
+        .iter()
+        .filter(|spec| overlap(spec.rel_path, path))
+        .map(|spec| spec.key)
+        .collect()
+}
+fn changed_file_entities(
+    path: &str,
+    before: Option<&str>,
+    after: Option<&str>,
+) -> AppResult<Vec<InvalidatedEntityRef>> {
+    let mut result = Vec::new();
+    for definition in entity_definitions::entity_definitions() {
+        if let Some(spec) = definition
+            .spec
+            .filter(|spec| spec.path_matches(path) && path.ends_with(spec.extension))
+        {
+            let parse = |text: Option<&str>| {
+                text.and_then(|text| {
+                    game::read_json(text.as_bytes())
+                        .ok()
+                        .map(|source| source.content)
+                })
+            };
+            let old = parse(before);
+            let new = parse(after);
+            if before != after
+                && (before.is_some() && old.is_none() || after.is_some() && new.is_none())
+            {
+                result.push(InvalidatedEntityRef {
+                    kind: definition.kind,
+                    id: None,
+                });
+                continue;
+            }
+            if old == new {
+                continue;
+            }
+            let ids = [old.as_ref(), new.as_ref()]
+                .into_iter()
+                .flatten()
+                .filter_map(|content| match content.get(spec.id_field) {
+                    Some(Value::Text(text)) => text.as_str().map(str::to_owned),
+                    _ => None,
+                })
+                .collect::<BTreeSet<_>>();
+            result.extend(ids.into_iter().map(|id| InvalidatedEntityRef {
+                kind: definition.kind,
+                id: Some(id),
+            }));
+        }
+        if let Some(table) = definition
+            .csv_table
+            .filter(|table| model::csv_table_spec(*table).rel_path == path)
+        {
+            let column = model::csv_table_spec(table).entity_id_field;
+            let rows = |text: Option<&str>| -> AppResult<BTreeMap<String, Vec<Record>>> {
+                let Some(text) = text else {
+                    return Ok(BTreeMap::new());
+                };
+                let content = game::read_csv_content(text.as_bytes()).map_err(AppError::from)?;
+                let mut rows = BTreeMap::<String, Vec<Record>>::new();
+                if let Some(index) = content.header.iter().rposition(|key| key == column) {
+                    for row in content
+                        .records
+                        .into_iter()
+                        .filter(|row| row.kind == RecordKind::Data)
+                    {
+                        if let Some(id) = row
+                            .cells
+                            .get(index)
+                            .filter(|id| {
+                                !id.trim().is_empty()
+                                    && entity_rules::csv_id_active(definition.kind, id)
+                            })
+                            .cloned()
+                        {
+                            rows.entry(id).or_default().push(row);
+                        }
+                    }
+                }
+                Ok(rows)
+            };
+            let old = rows(before)?;
+            let new = rows(after)?;
+            let ids = old
+                .keys()
+                .chain(new.keys())
+                .cloned()
+                .collect::<BTreeSet<_>>();
+            result.extend(
+                ids.into_iter()
+                    .filter(|id| old.get(id) != new.get(id))
+                    .map(|id| InvalidatedEntityRef {
+                        kind: definition.kind,
+                        id: Some(id),
+                    }),
+            );
+        }
+    }
+    Ok(result)
+}
+pub(super) fn refresh_sources_from(
+    session: &mut ProjectSession,
+    resources: &[InvalidatedResourceScope],
+    reader: &mut SourceReader,
+) -> AppResult<ProjectInvalidation> {
+    let local = resources
+        .iter()
+        .filter(|scope| scope.source == ResourceSource::Mod)
+        .map(|scope| scope.rel_path.as_str())
+        .collect::<Vec<_>>();
+    source_versions::retain_session_sources(reader, session, &local);
+    let mut kinds = BTreeSet::new();
+    let mut tables = BTreeSet::new();
+    for definition in entity_definitions::entity_definitions() {
+        let affected = resources.iter().any(|scope| {
+            (definition.path_matches)(definition, &scope.rel_path)
+                || definition.spec.is_some_and(|spec| {
+                    spec.source_dirs()
+                        .iter()
+                        .any(|directory| io::relative_path_contains(&scope.rel_path, directory))
+                })
+        });
+        if affected {
+            kinds.insert(definition.kind);
+        }
+    }
+    for table in resources
+        .iter()
+        .flat_map(|scope| affected_csv_tables(&scope.rel_path))
+    {
+        tables.insert(table);
+    }
+    let updates = kinds
+        .iter()
+        .map(|kind| (entity_definitions::entity_definition(*kind)?.refresh)(session, reader))
+        .collect::<AppResult<Vec<_>>>()?;
     for update in updates {
         update.apply(session);
     }
-    if files
-        .iter()
-        .any(|file| relative_path_contains(&file.path, MISSION_LIST_REL_PATH))
-        && (!preserve_rows || sources.path(MISSION_LIST_REL_PATH)?.exists())
-    {
-        let table = session
-            .csv_tables
-            .get_mut(MISSION_LIST_TABLE_KEY)
-            .map(Arc::make_mut)
-            .expect("registered mission table");
-        table.rows = None;
-        table.row_index = None;
-        table.saved_text = None;
+    if local.iter().any(|path| overlap(path, "mod_info.json")) {
+        let path = reader.path("mod_info.json")?;
+        session.manifest.mod_info = path.exists().then(|| reader.json(&path)).transpose()?;
     }
-    if let Some(csv) = sources.tables.get("data/world/factions/factions.csv") {
-        let table = session
-            .csv_tables
-            .get_mut("faction-index")
-            .map(Arc::make_mut)
-            .expect("faction index is registered");
-        table.header = csv.header.clone();
-        table.rows = Some(
-            csv.rows
-                .iter()
-                .enumerate()
-                .map(|(index, row)| SessionCsvRow {
-                    row_key: format!("faction-index:row:{index}"),
-                    data: row.data.clone(),
-                    is_comment: row.is_comment,
-                })
-                .collect::<Vec<_>>()
-                .into(),
-        );
-        table.next_row_seq = csv.rows.len() as u64;
-        table.row_index = None;
-        table.saved_text = None;
+    for table in &tables {
+        let spec = model::csv_table_spec(*table);
+        let path = reader.path(spec.rel_path)?;
+        let before = csv_tables::registered_session_table(session, *table)?;
+        let load = before.rows.is_some();
+        if !path.exists() {
+            let missing = before.missing_baseline
+                || session.manifest.table_summaries[table].available && !load;
+            csv_tables::session_table_mut(session, table.as_str())?.missing_baseline = missing;
+            let summary = session
+                .manifest
+                .table_summaries
+                .get_mut(table)
+                .expect("registered table summary");
+            summary.available = false;
+            continue;
+        }
+        let csv = reader.csv(&path)?;
+        let accepted = before.source.as_ref().is_some_and(|source| {
+            reader
+                .csv_sources
+                .get(spec.rel_path)
+                .is_some_and(|next| source.document.source == next.document.source)
+        });
+        let refreshed = if load && !accepted {
+            Some(csv_tables::table_snapshot_from_csv(
+                before,
+                *table,
+                csv.clone(),
+            )?)
+        } else {
+            None
+        };
+        let state = csv_tables::session_table_mut(session, table.as_str())?;
+        state.missing_baseline = false;
+        if let Some((header, rows, sequence)) = refreshed {
+            state.header = header;
+            state.rows = Some(Arc::new(rows));
+            state.next_row_seq = sequence;
+            state.row_index = None;
+        } else if !load {
+            state.header = csv.header.clone();
+        }
+        state.source = reader.csv_sources.get(spec.rel_path).cloned();
+        let header = state.header.clone();
+        let total = state.rows.as_ref().map(|rows| rows.len());
+        let summary = session
+            .manifest
+            .table_summaries
+            .get_mut(table)
+            .expect("registered table summary");
+        summary.header = header;
+        summary.total_rows = total;
+        summary.available = path.exists();
     }
-    if let Some(mod_info) = mod_info {
-        session.manifest.mod_info = mod_info;
+    for (key, path) in [
+        (MISSION_LIST_TABLE_KEY, MISSION_LIST_REL_PATH),
+        ("faction-index", "data/world/factions/factions.csv"),
+    ] {
+        if local.iter().any(|scope| overlap(scope, path)) {
+            if !reader.path(path)?.exists() {
+                continue;
+            }
+            let source = reader.csv_sources.get(path).cloned();
+            let csv = if let Some(source) = &source {
+                project_csv(source, &reader.path(path)?)
+            } else {
+                reader.csv(&reader.path(path)?)?
+            };
+            let state = csv_tables::session_table_mut(session, key)?;
+            state.header = csv.header;
+            state.rows = None;
+            state.row_index = None;
+            state.source = source;
+        }
     }
-    for (table, count) in table_counts {
-        session.manifest.table_entity_summaries.insert(table, count);
-    }
+    session.manifest.table_entity_summaries =
+        csv_tables::build_table_entity_summaries_from(reader, &session.manifest.entity_summaries)?;
     session.manifest.warnings = session
         .variant_warnings
         .iter()
         .chain(&session.skin_warnings)
         .cloned()
         .collect();
-    Arc::make_mut(&mut session.source_versions).extend(sources.versions.clone());
-    Arc::make_mut(&mut session.source_scopes).extend(sources.scopes.clone());
-    Arc::make_mut(&mut session.source_stamps).extend(sources.stamps.clone());
-    Ok(invalidation)
-}
-
-#[derive(Default)]
-struct ChangedProjectPath {
-    csv_tables: Vec<CsvTableKey>,
-    refresh_mod_info: bool,
-    affected_entities: Vec<EntityKind>,
-}
-
-struct ChangedProjectFile {
-    after_text: Option<String>,
-    before_text: Option<String>,
-    path: String,
-}
-
-struct ChangedProjectImpact {
-    file: ChangedProjectFile,
-    target: ChangedProjectPath,
-}
-
-impl ChangedProjectImpact {
-    fn new(file: &ChangedProjectFile) -> Self {
-        Self {
-            target: ChangedProjectPath::classify(&file.path),
-            file: ChangedProjectFile {
-                after_text: file.after_text.clone(),
-                before_text: file.before_text.clone(),
-                path: file.path.clone(),
-            },
-        }
-    }
-}
-
-impl ChangedProjectPath {
-    fn classify(changed_path: &str) -> Self {
-        let affected_entities = entity_definitions::entity_definitions()
+    source_versions::capture_changed_versions(reader, &local)?;
+    session.documents = Arc::new(reader.documents());
+    session.source_versions = Arc::new(reader.versions.clone());
+    session.source_scopes = Arc::new(reader.scopes.clone());
+    session.source_stamps = Arc::new(reader.stamps.clone());
+    kinds.extend(
+        entity_definitions::entity_definitions()
             .iter()
-            .filter(|definition| (definition.path_matches)(definition, changed_path))
-            .map(|definition| definition.kind)
-            .collect();
-        Self {
-            csv_tables: affected_csv_tables(changed_path),
-            refresh_mod_info: relative_path_contains(changed_path, "mod_info.json"),
-            affected_entities,
-        }
-    }
-}
-
-fn changed_project_files(
-    changes: &[FileChangeRecord],
-    boundary: &FsRootBoundary,
-) -> AppResult<Vec<ChangedProjectFile>> {
-    let mut files = Vec::new();
-    for change in changes {
-        match change.kind {
-            FileChangeKind::File => {
-                push_changed_project_file(
-                    &mut files,
-                    boundary,
-                    Path::new(&change.after_path),
-                    if change.before_path == change.after_path {
-                        change.before_text.clone()
-                    } else {
-                        None
-                    },
-                    change.after_text.clone(),
-                )?;
-                if change.before_path != change.after_path {
-                    push_changed_project_file(
-                        &mut files,
-                        boundary,
-                        Path::new(&change.before_path),
-                        change.before_text.clone(),
-                        None,
-                    )?;
-                }
-            }
-            FileChangeKind::Directory => {
-                changed_directory_files(&mut files, boundary, change)?;
-            }
-        }
-    }
-    Ok(files)
-}
-
-fn changed_directory_files(
-    files: &mut Vec<ChangedProjectFile>,
-    boundary: &FsRootBoundary,
-    change: &FileChangeRecord,
-) -> AppResult<()> {
-    if change.before_path != change.after_path {
-        push_changed_project_file(files, boundary, Path::new(&change.before_path), None, None)?;
-        push_changed_project_file(files, boundary, Path::new(&change.after_path), None, None)?;
-        for snapshot in &change.before_files {
-            push_changed_project_file(
-                files,
-                boundary,
-                &Path::new(&change.before_path).join(&snapshot.rel_path),
-                snapshot.text.clone(),
-                None,
-            )?;
-        }
-        for snapshot in &change.after_files {
-            push_changed_project_file(
-                files,
-                boundary,
-                &Path::new(&change.after_path).join(&snapshot.rel_path),
-                None,
-                snapshot.text.clone(),
-            )?;
-        }
-        return Ok(());
-    }
-    let mut before = BTreeMap::new();
-    let mut after = BTreeMap::new();
-    for snapshot in &change.before_files {
-        before.insert(snapshot.rel_path.clone(), snapshot);
-    }
-    for snapshot in &change.after_files {
-        after.insert(snapshot.rel_path.clone(), snapshot);
-    }
-    let paths = before
-        .keys()
-        .chain(after.keys())
-        .cloned()
-        .collect::<BTreeSet<_>>();
-    if paths.is_empty() {
-        push_changed_project_file(files, boundary, Path::new(&change.after_path), None, None)?;
-        return Ok(());
-    }
-    for rel_path in paths {
-        push_changed_project_file(
-            files,
-            boundary,
-            &Path::new(&change.after_path).join(&rel_path),
-            before
-                .get(&rel_path)
-                .and_then(|snapshot| snapshot.text.clone()),
-            after
-                .get(&rel_path)
-                .and_then(|snapshot| snapshot.text.clone()),
-        )?;
-    }
-    Ok(())
-}
-
-fn push_changed_project_file(
-    files: &mut Vec<ChangedProjectFile>,
-    boundary: &FsRootBoundary,
-    path: &Path,
-    before_text: Option<String>,
-    after_text: Option<String>,
-) -> AppResult<()> {
-    let Some(path) =
-        boundary.resolve_changed_path_to_relative(&path.to_string_lossy(), "changed path")?
-    else {
-        return Ok(());
-    };
-    if let Some(existing) = files.iter_mut().find(|file| file.path == path) {
-        if before_text.is_some() {
-            existing.before_text = before_text;
-        }
-        if after_text.is_some() {
-            existing.after_text = after_text;
-        }
-        return Ok(());
-    }
-    files.push(ChangedProjectFile {
-        after_text,
-        before_text,
-        path,
-    });
-    Ok(())
-}
-
-fn invalidated_entities_for_file(
-    target: &ChangedProjectPath,
-    file: &ChangedProjectFile,
-) -> AppResult<Vec<InvalidatedEntityRef>> {
-    let mut entities = Vec::new();
-    for kind in &target.affected_entities {
-        entities.append(&mut entity_ids_from_file(*kind, file)?);
-    }
-    for table in &target.csv_tables {
-        for definition in entity_definitions::entity_definitions()
+            .filter(|definition| {
+                definition
+                    .csv_table
+                    .is_some_and(|table| tables.contains(&table))
+            })
+            .map(|definition| definition.kind),
+    );
+    let entities = kinds
+        .into_iter()
+        .map(|kind| InvalidatedEntityRef { kind, id: None })
+        .collect::<Vec<_>>();
+    let tables = tables.into_iter().collect::<Vec<_>>();
+    let query_scopes = query_scopes_for_invalidation(&tables, &entities, resources)?;
+    Ok(ProjectInvalidation {
+        paths: resources
             .iter()
-            .filter(|definition| definition.csv_table == Some(*table))
-        {
-            push_unique_all(&mut entities, csv_entity_ids(definition.kind, *table, file));
-        }
+            .map(|scope| {
+                let root = if scope.source == ResourceSource::Core {
+                    session
+                        .manifest
+                        .starsector_root
+                        .as_ref()
+                        .map(|root| Path::new(root).join("starsector-core"))
+                } else {
+                    Some(Path::new(&session.manifest.mod_root).to_path_buf())
+                };
+                root.map_or_else(
+                    || scope.rel_path.clone(),
+                    |root| root.join(&scope.rel_path).to_string_lossy().into_owned(),
+                )
+            })
+            .collect(),
+        resources: resources.to_vec(),
+        tables,
+        entities,
+        query_scopes,
+        renames: None,
+        session: false,
+    })
+}
+fn scope(kind: InvalidatedQueryKind) -> InvalidatedQueryScope {
+    InvalidatedQueryScope {
+        kind,
+        table: None,
+        source: None,
+        entity: None,
+        resource: None,
     }
-    Ok(entities)
 }
-
-fn entity_ids_from_file(
-    kind: EntityKind,
-    file: &ChangedProjectFile,
-) -> AppResult<Vec<InvalidatedEntityRef>> {
-    if kind == EntityKind::Mission {
-        return Ok(mission_entity_ids(file));
+fn push(items: &mut Vec<InvalidatedQueryScope>, item: InvalidatedQueryScope) {
+    if !items.contains(&item) {
+        items.push(item);
     }
-    let definition = entity_definitions::entity_definition(kind)?;
-    let Some(spec) = definition.spec else {
-        return Ok(vec![invalidated_entity(kind, None)]);
-    };
-    if !is_exact_spec_path(file.path.as_str(), spec.dir, spec.extension) {
-        return Ok(vec![invalidated_entity(kind, None)]);
-    }
-    let Some(ids) = snapshot_json_ids(file, spec.id_field) else {
-        return Ok(vec![invalidated_entity(kind, None)]);
-    };
-    Ok(ids
-        .into_iter()
-        .map(|id| invalidated_entity(kind, Some(id)))
-        .collect())
 }
-
-fn mission_entity_ids(file: &ChangedProjectFile) -> Vec<InvalidatedEntityRef> {
-    let Some(rest) = file.path.strip_prefix("data/missions/") else {
-        return vec![invalidated_entity(EntityKind::Mission, None)];
-    };
-    if rest == "mission_list.csv" {
-        return vec![invalidated_entity(EntityKind::Mission, None)];
-    }
-    let id = rest.split('/').next().filter(|id| !id.is_empty());
-    vec![invalidated_entity(
-        EntityKind::Mission,
-        id.map(ToOwned::to_owned),
-    )]
-}
-
-fn csv_entity_ids(
-    kind: EntityKind,
-    table: CsvTableKey,
-    file: &ChangedProjectFile,
-) -> Vec<InvalidatedEntityRef> {
-    let id_field = model::csv_table_spec(table).entity_id_field;
-    let Some(before) = snapshot_csv_rows(file.before_text.as_deref(), &file.path, id_field) else {
-        return vec![invalidated_entity(kind, None)];
-    };
-    let Some(after) = snapshot_csv_rows(file.after_text.as_deref(), &file.path, id_field) else {
-        return vec![invalidated_entity(kind, None)];
-    };
-    before
-        .keys()
-        .chain(after.keys())
-        .cloned()
-        .collect::<BTreeSet<_>>()
-        .into_iter()
-        .filter(|id| before.get(id) != after.get(id))
-        .map(|id| invalidated_entity(kind, Some(id)))
-        .collect()
-}
-
-fn snapshot_json_ids(file: &ChangedProjectFile, id_field: &str) -> Option<Vec<String>> {
-    let texts = [file.before_text.as_deref(), file.after_text.as_deref()];
-    if texts.iter().all(Option::is_none) {
-        return None;
-    }
-    texts
-        .into_iter()
-        .flatten()
-        .map(|text| {
-            parse_starsector_json(text)
-                .ok()?
-                .get(id_field)
-                .and_then(Value::as_str)
-                .map(str::trim)
-                .filter(|id| !id.is_empty())
-                .map(ToOwned::to_owned)
-        })
-        .collect::<Option<BTreeSet<_>>>()
-        .map(|ids| ids.into_iter().collect())
-}
-
-fn snapshot_csv_rows(
-    text: Option<&str>,
-    path: &str,
-    id_field: &str,
-) -> Option<BTreeMap<String, Vec<Map<String, Value>>>> {
-    let Some(text) = text else {
-        return Some(BTreeMap::new());
-    };
-    let csv = parse_csv_text(path, text).ok()?;
-    if !csv.header.iter().any(|header| header == id_field) {
-        return None;
-    }
-    let mut rows = BTreeMap::new();
-    for row in csv.rows {
-        if row.is_comment {
-            continue;
-        }
-        let Some(id) = model::string_from_row(&row.data, id_field) else {
-            continue;
-        };
-        rows.entry(id).or_insert_with(Vec::new).push(row.data);
-    }
-    Some(rows)
-}
-
-fn invalidated_entity(kind: EntityKind, id: Option<String>) -> InvalidatedEntityRef {
-    InvalidatedEntityRef { kind, id }
-}
-
-fn is_exact_spec_path(path: &str, dir: &str, extension: &str) -> bool {
-    path.starts_with(&format!("{dir}/")) && path.ends_with(extension)
-}
-
 pub(super) fn query_scopes_for_invalidation(
     tables: &[CsvTableKey],
     entities: &[InvalidatedEntityRef],
     resources: &[InvalidatedResourceScope],
 ) -> AppResult<Vec<InvalidatedQueryScope>> {
-    let mut scopes = Vec::new();
+    let mut result = Vec::new();
+    for table in tables {
+        for kind in [
+            InvalidatedQueryKind::CsvTableWindow,
+            InvalidatedQueryKind::CsvRowPreview,
+            InvalidatedQueryKind::CsvSourceOptions,
+        ] {
+            push(
+                &mut result,
+                InvalidatedQueryScope {
+                    table: Some(*table),
+                    ..scope(kind)
+                },
+            );
+        }
+    }
+    for entity in entities {
+        for kind in [
+            InvalidatedQueryKind::EntityDetail,
+            InvalidatedQueryKind::EntityList,
+        ] {
+            push(
+                &mut result,
+                InvalidatedQueryScope {
+                    entity: Some(entity.clone()),
+                    ..scope(kind)
+                },
+            );
+        }
+        let definition = entity_definitions::entity_definition(entity.kind)?;
+        for source in entity_definitions::source_option_origin_scopes(definition) {
+            push(
+                &mut result,
+                InvalidatedQueryScope {
+                    source: Some(source),
+                    ..scope(InvalidatedQueryKind::CsvSourceOptions)
+                },
+            );
+        }
+        for kind in definition.query_impacts {
+            push(&mut result, scope(*kind));
+        }
+    }
     if tables.contains(&CsvTableKey::SpecialItems)
         || entities
             .iter()
             .any(|entity| entity.kind == EntityKind::Faction)
     {
-        for definition in model::csv_table_specs() {
-            let source = format!("{}.tags", definition.key.as_str());
-            push_source_option_query_scope(&mut scopes, source.clone());
-            push_source_option_query_scope(&mut scopes, format!("csv:{source}"));
-        }
-    }
-    for table in tables {
-        push_query_scope(
-            &mut scopes,
-            InvalidatedQueryScope {
-                kind: InvalidatedQueryKind::CsvTableWindow,
-                table: Some(*table),
-                source: None,
-                entity: None,
-                resource: None,
-            },
-        );
-        push_query_scope(
-            &mut scopes,
-            InvalidatedQueryScope {
-                kind: InvalidatedQueryKind::CsvRowPreview,
-                table: Some(*table),
-                source: None,
-                entity: None,
-                resource: None,
-            },
-        );
-        push_query_scope(
-            &mut scopes,
-            InvalidatedQueryScope {
-                kind: InvalidatedQueryKind::CsvSourceOptions,
-                table: Some(*table),
-                source: None,
-                entity: None,
-                resource: None,
-            },
-        );
-    }
-    for entity in entities {
-        push_entity_query_scope(
-            &mut scopes,
-            InvalidatedQueryKind::EntityDetail,
-            entity.clone(),
-        );
-        push_entity_query_scope(
-            &mut scopes,
-            InvalidatedQueryKind::EntityList,
-            entity.clone(),
-        );
-        let definition = entity_definitions::entity_definition(entity.kind)?;
-        for source in entity_definitions::source_option_origin_scopes(definition) {
-            push_source_option_query_scope(&mut scopes, source);
-        }
-        for impact in definition.query_impacts {
-            push_query_scope(
-                &mut scopes,
-                InvalidatedQueryScope {
-                    kind: *impact,
-                    table: None,
-                    source: None,
-                    entity: None,
-                    resource: None,
-                },
-            );
+        for table in model::csv_table_specs() {
+            for source in [
+                format!("{}.tags", table.key.as_str()),
+                format!("csv:{}.tags", table.key.as_str()),
+            ] {
+                push(
+                    &mut result,
+                    InvalidatedQueryScope {
+                        source: Some(source),
+                        ..scope(InvalidatedQueryKind::CsvSourceOptions)
+                    },
+                );
+            }
         }
     }
     for resource in resources {
@@ -731,183 +505,29 @@ pub(super) fn query_scopes_for_invalidation(
             for definition in entity_definitions::entity_definitions()
                 .iter()
                 .filter(|definition| {
-                    (definition.path_matches)(definition, &resource.rel_path)
-                        || definition.spec.is_some_and(|spec| {
-                            spec.source_dirs().iter().any(|directory| {
-                                relative_path_contains(&resource.rel_path, directory)
-                            })
-                        })
+                    resource.rel_path.is_empty()
+                        || (definition.path_matches)(definition, &resource.rel_path)
                 })
             {
                 for source in entity_definitions::source_option_origin_scopes(definition) {
-                    push_source_option_query_scope(&mut scopes, source);
+                    push(
+                        &mut result,
+                        InvalidatedQueryScope {
+                            source: Some(source),
+                            ..scope(InvalidatedQueryKind::CsvSourceOptions)
+                        },
+                    );
                 }
             }
         }
-        push_query_scope(
-            &mut scopes,
+        push(
+            &mut result,
             InvalidatedQueryScope {
-                kind: InvalidatedQueryKind::ResourceDataUrls,
-                table: None,
-                source: None,
-                entity: None,
                 resource: Some(resource.clone()),
+                ..scope(InvalidatedQueryKind::ResourceDataUrls)
             },
         );
     }
-    Ok(scopes)
-}
-
-fn push_source_option_query_scope(scopes: &mut Vec<InvalidatedQueryScope>, source: String) {
-    push_query_scope(
-        scopes,
-        InvalidatedQueryScope {
-            kind: InvalidatedQueryKind::CsvSourceOptions,
-            table: None,
-            source: Some(source),
-            entity: None,
-            resource: None,
-        },
-    );
-}
-
-fn push_entity_query_scope(
-    scopes: &mut Vec<InvalidatedQueryScope>,
-    kind: InvalidatedQueryKind,
-    entity: InvalidatedEntityRef,
-) {
-    push_query_scope(
-        scopes,
-        InvalidatedQueryScope {
-            kind,
-            table: None,
-            source: None,
-            entity: Some(entity),
-            resource: None,
-        },
-    );
-}
-
-fn push_query_scope(scopes: &mut Vec<InvalidatedQueryScope>, scope: InvalidatedQueryScope) {
-    if !scopes.contains(&scope) {
-        scopes.push(scope);
-    }
-}
-
-fn affected_csv_tables(path: &str) -> Vec<CsvTableKey> {
-    model::csv_table_specs()
-        .iter()
-        .filter_map(|definition| {
-            relative_path_contains(path, definition.rel_path).then_some(definition.key)
-        })
-        .collect()
-}
-
-#[cfg(test)]
-pub(super) fn refresh_sources(
-    session: &mut ProjectSession,
-    sources: &[InvalidatedResourceScope],
-) -> AppResult<ProjectInvalidation> {
-    let mut reader = source_reader_for_session(session)?;
-    if let Some(root) = session.manifest.starsector_root.as_deref() {
-        core::invalidate_core_sources(root, sources)?;
-    }
-    let result = refresh_sources_from(session, sources, &mut reader)?;
-    reader.flush();
-    Ok(result)
-}
-pub(super) fn refresh_sources_from(
-    session: &mut ProjectSession,
-    sources: &[InvalidatedResourceScope],
-    reader: &mut SourceReader,
-) -> AppResult<ProjectInvalidation> {
-    let mut files = Vec::new();
-    let mut paths = Vec::new();
-    for source in sources {
-        let path = match source.source {
-            ResourceSource::Reference => {
-                return Err(AppError::message(
-                    "reference.refresh_owner",
-                    "请在来源 Mod 中刷新引用内容",
-                ));
-            }
-            ResourceSource::Mod => reader.path(&source.rel_path)?,
-            ResourceSource::Core => FsRootBoundary::new(
-                &core::core_dir(session.manifest.starsector_root.as_deref().ok_or_else(|| {
-                    AppError::message("resource.core_root_required", "Core root required")
-                })?)?,
-                "core root",
-            )?
-            .resolve_relative(&source.rel_path, "refresh source")?,
-        };
-        paths.push(path.to_string_lossy().to_string());
-        if source.source == ResourceSource::Mod {
-            files.push(ChangedProjectFile {
-                path: source.rel_path.clone(),
-                before_text: None,
-                after_text: None,
-            });
-        }
-    }
-    let core_projectiles = if sources.iter().any(|source| {
-        source.source == ResourceSource::Core
-            && PROJECTILE_SPEC_DEFINITION.path_matches(&source.rel_path)
-    }) {
-        let core = core::load_core_projectile_specs(
-            session
-                .manifest
-                .starsector_root
-                .as_deref()
-                .expect("authorized core root"),
-        )?;
-        let mut records = (*core).clone();
-        records.extend(
-            session
-                .projectile_specs
-                .iter()
-                .filter(|(_, record)| record.location.source == ResourceSource::Mod)
-                .map(|(id, record)| (id.clone(), record.clone())),
-        );
-        Some(records)
-    } else {
-        None
-    };
-    let mut result = invalidate_files(session, files, true, reader)?;
-    if let Some(records) = core_projectiles {
-        session.manifest.entity_summaries.projectiles = records.len();
-        session.projectile_specs = records.into();
-        result.entities.push(InvalidatedEntityRef {
-            kind: EntityKind::Projectile,
-            id: None,
-        });
-    }
-    result.paths = paths;
-    result.resources = sources.to_vec();
-    for definition in entity_definitions::entity_definitions() {
-        if sources
-            .iter()
-            .filter(|source| source.source == ResourceSource::Core)
-            .any(|source| {
-                (definition.path_matches)(definition, &source.rel_path)
-                    || definition.spec.is_some_and(|spec| {
-                        spec.source_dirs()
-                            .iter()
-                            .any(|directory| relative_path_contains(&source.rel_path, directory))
-                    })
-            })
-        {
-            push_unique_all(
-                &mut result.entities,
-                vec![InvalidatedEntityRef {
-                    kind: definition.kind,
-                    id: None,
-                }],
-            );
-        }
-    }
-    result.query_scopes =
-        query_scopes_for_invalidation(&result.tables, &result.entities, &result.resources)?;
-    session.manifest.base_versions = vec![versions::version_for_path(session, "mod_info.json")];
     Ok(result)
 }
 
@@ -915,6 +535,7 @@ pub(super) fn refresh_sources_from(
 mod tests {
     use super::*;
     use crate::io::write_utf8_no_bom;
+    use crate::models::EntityKind;
     use crate::models::{CsvTableKey, FileChangeKind, FileChangeRecord, FileSnapshot};
     #[cfg(test)]
     #[cfg(test)]
@@ -930,6 +551,30 @@ mod tests {
     use std::fs;
     use std::path::PathBuf;
     use std::slice;
+    struct ChangedProjectPath;
+    impl ChangedProjectPath {
+        fn classify(path: &str) -> String {
+            path.into()
+        }
+    }
+    struct ChangedProjectFile {
+        path: String,
+        before_text: Option<String>,
+        after_text: Option<String>,
+    }
+    fn invalidated_entities_for_file(
+        _path: &str,
+        file: &ChangedProjectFile,
+    ) -> AppResult<Vec<InvalidatedEntityRef>> {
+        changed_file_entities(
+            &file.path,
+            file.before_text.as_deref(),
+            file.after_text.as_deref(),
+        )
+    }
+    fn invalidated_entity(kind: EntityKind, id: Option<String>) -> InvalidatedEntityRef {
+        InvalidatedEntityRef { kind, id }
+    }
 
     #[test]
     fn core_entity_refresh_invalidates_each_registered_catalog_source() {

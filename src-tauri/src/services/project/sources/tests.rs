@@ -1,11 +1,12 @@
 #![cfg(test)]
 #[cfg(test)]
 use crate::services::project_sync::release_project_session;
+use crate::test_support::file_formats::read_versioned_json_value as read_versioned_json;
 
 use super::*;
 #[cfg(test)]
 use crate::io::csv_files;
-use crate::io::{file_version, read_versioned_json, verify_versions};
+use crate::io::{file_version, verify_versions};
 #[cfg(test)]
 use crate::models::{
     InvalidatedResourceScope, JointEditKind, JointEditRoot, JointValue, ResourceOwnerKind,
@@ -66,7 +67,7 @@ fn source_reads_parses_and_directory_walks_are_reused_per_reader() {
     csv_files::take_csv_work();
     for _ in 0..2 {
         assert_eq!(sources.json(&json).unwrap()["hullId"], "sample");
-        assert_eq!(sources.count(&csv, "id").unwrap(), 1);
+        assert_eq!(sources.count(&csv, "id", |_| true).unwrap(), 1);
         assert_eq!(sources.csv(&csv).unwrap().rows.len(), 1);
         assert_eq!(sources.files("data/hulls").unwrap().len(), 2);
         assert_eq!(sources.files("data/hulls/nested").unwrap().len(), 1);
@@ -238,10 +239,10 @@ fn source_cache_partial_reuse() {
         reopened.versions["first.ship"],
         file_version(&first).unwrap()
     );
-    let cache = cache_path(&reopened.boundary).unwrap().unwrap();
-    let mut snapshot: SourceCacheSnapshot =
-        parse_persisted_json(&io::read_utf8_no_bom(&cache).unwrap()).unwrap();
-    assert_eq!(snapshot.format, 2);
+    let cache = reopened.cache_path().unwrap().unwrap();
+    let mut snapshot: SourceCache =
+        tool_json::parse_persisted_json(&io::read_utf8_no_bom(&cache).unwrap()).unwrap();
+    assert_eq!(snapshot.format, SOURCE_CACHE_FORMAT);
     snapshot.format = 0;
     fs::write(&cache, serde_json::to_string(&snapshot).unwrap()).unwrap();
     let mut uncached = SourceReader::new(&root).unwrap();
@@ -263,17 +264,17 @@ fn persisted_csv_summary_is_read_once_and_parsed_only_after_content_changes() {
     let file = root.join("table.csv");
     fs::write(&file, "id\nfirst\n").unwrap();
     let mut sources = SourceReader::new(&root).unwrap();
-    assert_eq!(sources.count(&file, "id").unwrap(), 1);
+    assert_eq!(sources.count(&file, "id", |_| true).unwrap(), 1);
     sources.flush();
     csv_files::take_csv_work();
     let mut reopened = SourceReader::new(&root).unwrap();
-    assert_eq!(reopened.count(&file, "id").unwrap(), 1);
-    assert_eq!(reopened.count(&file, "id").unwrap(), 1);
+    assert_eq!(reopened.count(&file, "id", |_| true).unwrap(), 1);
+    assert_eq!(reopened.count(&file, "id", |_| true).unwrap(), 1);
     assert_eq!(csv_files::take_csv_work(), (1, 0, 0));
     fs::write(&file, "id\nfirst\nsecond\n").unwrap();
     let mut changed = SourceReader::new(&root).unwrap();
-    assert_eq!(changed.count(&file, "id").unwrap(), 2);
-    assert_eq!(changed.count(&file, "id").unwrap(), 2);
+    assert_eq!(changed.count(&file, "id", |_| true).unwrap(), 2);
+    assert_eq!(changed.count(&file, "id", |_| true).unwrap(), 2);
     assert_eq!(csv_files::take_csv_work(), (1, 1, 0));
     root.close().unwrap();
 }
@@ -302,7 +303,7 @@ fn csv_parse_handoff() {
     let file = root.join("table.csv");
     fs::write(&file, "id,name\nitem,Example\n#note,Hidden\n,\n").unwrap();
     let mut sources = SourceReader::new(&root).unwrap();
-    assert_eq!(sources.count(&file, "id").unwrap(), 1);
+    assert_eq!(sources.count(&file, "id", |_| true).unwrap(), 1);
     let table = sources.tables.remove("table.csv").unwrap();
     assert_eq!(table.rows.len(), 3);
     assert!(table.rows[1].is_comment);

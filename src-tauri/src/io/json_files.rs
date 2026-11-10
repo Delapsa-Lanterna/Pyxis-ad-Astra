@@ -1,176 +1,57 @@
-use crate::errors::{AppError, AppResult, JsonRewriteFile};
-use crate::io::{FileChangeSetBuilder, decode_text, read_utf8_no_bom, read_versioned_bytes};
-use crate::models::{FileVersion, JsonWriteOptions};
-use crate::parsers::{PreserveResult, json_root_tail, parse_starsector_json, preserve_json_text};
+use super::read_versioned_bytes;
+use crate::errors::{AppError, AppResult};
+use crate::io::FileChangeSetBuilder;
+use crate::models::FileVersion;
+use crate::models::file_content::{JsonSource, JsonWrite};
+use crate::parsers::game;
 #[cfg(test)]
 use crate::test_support::work_counts;
-use serde_json::Value;
-use std::collections::hash_map::DefaultHasher;
-use std::hash::{Hash, Hasher};
 use std::path::Path;
 
-pub fn read_json_file(path: &Path) -> AppResult<Value> {
-    let text = read_utf8_no_bom(path)?;
-    #[cfg(test)]
-    work_counts::record("parse", path);
-    parse_starsector_json(&text).map_err(|error| {
-        AppError::context(format!("解析 JSON 文件失败 ({})", path.display()), error).at_path(path)
-    })
+/// The source is chosen by the save owner; this step stages the actual format result.
+pub(crate) fn stage_json_document(
+    builder: &mut FileChangeSetBuilder,
+    relative: &str,
+    source: Option<&JsonSource>,
+    request: &JsonWrite,
+) -> AppResult<JsonSource> {
+    let actual = match source {
+        Some(source) => source.write(request)?,
+        None => JsonSource::create(request)?,
+    };
+    builder.text_file(relative, Some(actual.text.to_string()))?;
+    Ok(actual)
 }
-
-pub fn read_versioned_json(path: &Path) -> AppResult<(FileVersion, Value)> {
+pub fn read_json_file(path: &Path) -> AppResult<JsonSource> {
+    read_versioned_json(path).map(|(_, source)| source)
+}
+pub fn read_versioned_json(path: &Path) -> AppResult<(FileVersion, JsonSource)> {
     let (version, bytes) = read_versioned_bytes(path)?;
-    let text = decode_text(path, &bytes)?;
     #[cfg(test)]
     work_counts::record("parse", path);
-    let value = parse_starsector_json(&text).map_err(|error| {
-        AppError::context(format!("解析 JSON 文件失败 ({})", path.display()), error).at_path(path)
+    let source = game::read_json(&bytes).map_err(|error| {
+        AppError::context(
+            format!("读取 JSON 失败：{}", path.display()),
+            AppError::from(error),
+        )
+        .at_path(path)
     })?;
-    Ok((version, value))
-}
-
-pub struct JsonWriteBatch {
-    options: JsonWriteOptions,
-    pending: Vec<JsonRewriteFile>,
-}
-
-impl JsonWriteBatch {
-    pub fn replaces(&self, relative: &str) -> bool {
-        self.options.replaces(relative)
-    }
-
-    pub fn keep_filename(&self) -> bool {
-        self.options.keep_filename
-    }
-    pub fn new(options: JsonWriteOptions) -> Self {
-        Self {
-            options,
-            pending: Vec::new(),
-        }
-    }
-
-    pub fn render(
-        &mut self,
-        source_path: &Path,
-        value: &Value,
-        ordered_json: Option<&str>,
-    ) -> AppResult<String> {
-        let normalized = serde_json::to_string_pretty(value)?;
-        if !self.options.preserve_original_json || !source_path.exists() {
-            return Ok(normalized);
-        }
-        let (_, bytes) = read_versioned_bytes(source_path)?;
-        let source = decode_text(source_path, &bytes)?;
-        match preserve_json_text(&source, value, ordered_json).map_err(|error| {
-            AppError::context(
-                format!("解析 JSON 文件失败 ({})", source_path.display()),
-                error,
-            )
-            .at_path(source_path)
-        })? {
-            PreserveResult::Preserved(text) => Ok(text),
-            PreserveResult::NeedsRewrite(reason) => {
-                let path = source_path.to_string_lossy().to_string();
-                let source_fingerprint = fingerprint(&bytes);
-                let confirmed =
-                    self.options.confirmed_sources.iter().any(|item| {
-                        item.path == path && item.source_fingerprint == source_fingerprint
-                    });
-                if !confirmed {
-                    self.pending.push(JsonRewriteFile {
-                        path,
-                        reason: reason.to_string(),
-                        source_fingerprint,
-                    });
-                }
-                let tail = json_root_tail(&source).ok_or_else(|| {
-                    AppError::message(
-                        "json.root_tail_unknown",
-                        format!("无法确定 JSON 根对象结束位置: {}", source_path.display()),
-                    )
-                })?;
-                let rewritten = format!("{normalized}{tail}");
-                if parse_starsector_json(&rewritten).ok().as_ref() != Some(value) {
-                    return Err(AppError::message(
-                        "json.rewrite_invalid",
-                        format!("JSON 重排结果核验失败: {}", source_path.display()),
-                    ));
-                }
-                Ok(rewritten)
-            }
-        }
-    }
-
-    /// Stages the requested `replace` entries of the root `mod_info.json` into the same changeset.
-    pub fn stage_replace_paths(&mut self, builder: &mut FileChangeSetBuilder) -> AppResult<()> {
-        if self.options.replace_paths.is_empty() {
-            return Ok(());
-        }
-        let path = builder.root().join("mod_info.json");
-        let mut info = read_json_file(&path)?;
-        let object = info.as_object_mut().ok_or_else(|| {
-            AppError::message("json.mod_info_shape", "mod_info.json 必须是 JSON 对象")
-                .at_path(&path)
-        })?;
-        let list = object
-            .entry("replace")
-            .or_insert_with(|| Value::Array(Vec::new()))
-            .as_array_mut()
-            .ok_or_else(|| {
-                AppError::message("json.mod_info_shape", "mod_info.json 的 replace 必须是数组")
-                    .at_path(&path)
-            })?;
-        let mut changed = false;
-        for relative in &self.options.replace_paths {
-            let relative = relative.replace('\\', "/");
-            if relative.ends_with("settings.json") {
-                return Err(AppError::message(
-                    "json.replace_unsupported",
-                    "settings.json 不支持整体取代",
-                ));
-            }
-            if !list.iter().any(|item| {
-                item.as_str()
-                    .is_some_and(|item| item.replace('\\', "/") == relative)
-            }) {
-                list.push(Value::String(relative));
-                changed = true;
-            }
-        }
-        if changed {
-            let text = self.render(&path, &info, None)?;
-            builder.text_file("mod_info.json", Some(text))?;
-        }
-        Ok(())
-    }
-
-    pub fn finish(self) -> AppResult<()> {
-        if self.pending.is_empty() {
-            Ok(())
-        } else {
-            Err(AppError::JsonRewriteRequired {
-                files: self.pending,
-            })
-        }
-    }
-}
-
-fn fingerprint(bytes: &[u8]) -> String {
-    let mut hasher = DefaultHasher::new();
-    bytes.hash(&mut hasher);
-    format!("{:016x}", hasher.finish())
+    Ok((version, source))
 }
 
 #[cfg(test)]
 mod tests {
+    use crate::models::file_content::PreparedValue;
+
     use super::*;
-    #[cfg(test)]
+    use crate::domain::document_edit::JsonDraft;
     use crate::io;
-    use crate::models::JsonSourceConfirmation;
-    use crate::test_support::TestWorkspace;
-    #[cfg(test)]
-    use crate::test_support::work_counts;
-    use std::fs;
+    use crate::models::file_content::DraftEdit;
+    use crate::models::file_content::{JsonSource, OutputFormat, SaveLayout};
+    use crate::models::file_value::Text;
+    use crate::test_support::{TestWorkspace, file_formats, work_counts};
+    use serde_json::json;
+    use std::{fs, path::PathBuf, sync::Arc};
 
     #[test]
     fn json_read_attaches_actual_path_to_parser_position() {
@@ -179,196 +60,104 @@ mod tests {
         io::write_utf8_no_bom(&path, "{\n\"id\":1,\"id\":2}").unwrap();
         let error = read_json_file(&path).unwrap_err();
         assert_eq!(error.code(), "json.duplicate_key");
-        assert_eq!(
-            error.location().unwrap().path.as_deref(),
-            Some(path.to_str().unwrap())
-        );
+        assert_eq!(error.location().unwrap().path.as_deref(), path.to_str());
         assert_eq!(error.location().unwrap().line, Some(2));
         dir.close().unwrap();
     }
-
     #[test]
     fn json_write_preserves_all_business_dictionary_keys() {
-        let content = serde_json::json!({"_source":"business","nested":{"_slot":"weapon"},"array":[{"_tool":1}]});
-        let mut batch = JsonWriteBatch::new(JsonWriteOptions::default());
-        let text = batch
-            .render(Path::new("business.json"), &content, None)
-            .unwrap();
-        batch.finish().unwrap();
-        assert_eq!(parse_starsector_json(&text).unwrap(), content);
+        let content =
+            json!({"_source":"business","nested":{"_slot":"weapon"},"array":[{"_tool":1}]});
+        let result = JsonSource::create(&file_formats::json_write(&content)).unwrap();
+        assert_eq!(result.content.to_json().unwrap(), content);
     }
-
     #[test]
-    fn preserves_existing_json_and_rejects_unconfirmed_rewrite() {
-        let dir = TestWorkspace::new("json_write_batch_confirmation");
-        fs::create_dir_all(&dir).unwrap();
-        let path = dir.join("demo.json");
-        io::write_utf8_no_bom(&path, "{a:[1,,2], # keep\n b:3}\nEND").unwrap();
-        let mut batch = JsonWriteBatch::new(JsonWriteOptions {
-            replace_paths: Vec::new(),
-            keep_filename: false,
-            preserve_original_json: true,
-            confirmed_sources: Vec::new(),
-        });
-        let value = serde_json::json!({"a":[1,null,2],"b":4});
-        let _ = batch.render(&path, &value, None).unwrap();
-        assert_eq!(work_counts::count("read", &path), 1);
-        let files = match batch.finish().unwrap_err() {
-            AppError::JsonRewriteRequired { files } => files,
-            error => panic!("unexpected error: {error}"),
-        };
-        assert_eq!(files.len(), 1);
-        assert_eq!(
-            fs::read_to_string(&path).unwrap(),
-            "{a:[1,,2], # keep\n b:3}\nEND"
-        );
-
-        let mut confirmed = JsonWriteBatch::new(JsonWriteOptions {
-            replace_paths: Vec::new(),
-            keep_filename: false,
-            preserve_original_json: true,
-            confirmed_sources: vec![JsonSourceConfirmation {
-                path: files[0].path.clone(),
-                source_fingerprint: files[0].source_fingerprint.clone(),
-            }],
-        });
-        let rendered = confirmed.render(&path, &value, None).unwrap();
-        assert_eq!(work_counts::count("read", &path), 2);
-        confirmed.finish().unwrap();
-        assert_eq!(parse_starsector_json(&rendered).unwrap(), value);
-        assert!(rendered.ends_with("\nEND"));
-        dir.close().unwrap();
+    fn local_array_write_keeps_comments_and_tail() {
+        let source = Arc::new(game::read_json(b"{a:[1,,2], # keep\n b:3}\nEND").unwrap());
+        let mut draft = JsonDraft::open(source);
+        draft
+            .edit(file_formats::replace_edit(vec!["b".into()], &json!(4)))
+            .unwrap();
+        let actual = draft.save(SaveLayout::PreserveStructure).unwrap();
+        assert_eq!(&*actual.text, "{a:[1,,2], # keep\n b:4}\nEND");
     }
-
     #[test]
     fn adding_a_variant_weapon_group_preserves_existing_json_text() {
-        let dir = TestWorkspace::new("json_write_batch_array_append");
-        fs::create_dir_all(&dir).unwrap();
-        let path = dir.join("demo.variant");
-        let source = "{\n  hullId: 'demo',\n  weaponGroups: [\n    { mode: 'LINKED', weapons: { A: 'one' } },\n    { mode: 'ALTERNATING', weapons: { B: 'two' } }\n  ],\n  unknown: '007'\n}";
-        io::write_utf8_no_bom(&path, source).unwrap();
-        let mut value = parse_starsector_json(source).unwrap();
-        value["weaponGroups"]
-            .as_array_mut()
-            .unwrap()
-            .push(serde_json::json!({"mode":"LINKED","weapons":{}}));
-        let ordered = serde_json::to_string(&value).unwrap();
-        let mut batch = JsonWriteBatch::new(JsonWriteOptions {
-            replace_paths: Vec::new(),
-            keep_filename: false,
-            preserve_original_json: true,
-            confirmed_sources: Vec::new(),
-        });
-        let rendered = batch.render(&path, &value, Some(&ordered)).unwrap();
-        batch.finish().unwrap();
-        assert!(rendered.contains("{ mode: 'LINKED', weapons: { A: 'one' } }"));
-        assert!(rendered.contains("{ mode: 'ALTERNATING', weapons: { B: 'two' } }"));
-        assert!(rendered.contains("unknown: '007'"));
-        assert_eq!(parse_starsector_json(&rendered).unwrap(), value);
-        dir.close().unwrap();
+        let text = "{\n  hullId: 'demo',\n  weaponGroups: [\n    { mode: 'LINKED', weapons: { A: 'one' } },\n    { mode: 'ALTERNATING', weapons: { B: 'two' } }\n  ],\n  unknown: '007'\n}";
+        let mut draft = JsonDraft::open(Arc::new(game::read_json(text.as_bytes()).unwrap()));
+        let request = file_formats::json_write(&json!({"mode":"LINKED","weapons":{}}));
+        draft
+            .edit(DraftEdit::ArraySplice {
+                path: vec![Text::new("weaponGroups")],
+                index: 2,
+                delete: 0,
+                insert: vec![PreparedValue {
+                    value: request.content,
+                    target: request.target,
+                }],
+            })
+            .unwrap();
+        let actual = draft.save(SaveLayout::PreserveStructure).unwrap();
+        assert!(
+            actual
+                .text
+                .contains("{ mode: 'LINKED', weapons: { A: 'one' } }")
+        );
+        assert!(
+            actual
+                .text
+                .contains("{ mode: 'ALTERNATING', weapons: { B: 'two' } }")
+        );
+        assert!(actual.text.contains("unknown: '007'"));
     }
-
     #[test]
     fn suffixed_numbers_survive_large_file_edit_and_disk_round_trip() {
         let dir = TestWorkspace::new("suffix_large_round_trip");
         let path = dir.join("sample.json");
         let prefix = "{value:0.625f,zero:.0F,note:'";
         let padding = "a".repeat(1048576 - prefix.len() - 1);
-        let source = format!("{prefix}{padding}\u{754c}',speed:1 # inline\n}} # tail\nEND");
-        io::write_utf8_no_bom(&path, &source).unwrap();
-        let mut value = read_json_file(&path).unwrap();
-        assert_eq!(value["value"].as_f64(), Some(0.625));
-        assert_eq!(value["zero"].as_f64(), Some(0.0));
-        assert_eq!(value["note"], format!("{padding}\u{754c}"));
-        value["zero"] = serde_json::json!(0);
-        value["speed"] = serde_json::json!(2);
-        let mut batch = JsonWriteBatch::new(JsonWriteOptions {
-            preserve_original_json: true,
-            ..Default::default()
-        });
-        let rendered = batch.render(&path, &value, None).unwrap();
-        batch.finish().unwrap();
-        assert!(rendered.contains("value:0.625f"));
-        assert!(rendered.contains("speed:2 # inline"));
-        assert!(rendered.ends_with("} # tail\nEND"));
-        io::write_utf8_no_bom(&path, &rendered).unwrap();
-        assert_eq!(read_json_file(&path).unwrap(), value);
-        assert_eq!(work_counts::count("read", &path), 3);
+        let text = format!("{prefix}{padding}界',speed:1 # inline\n}} # tail\nEND");
+        io::write_utf8_no_bom(&path, &text).unwrap();
+        let source = read_json_file(&path).unwrap();
+        let value = source.content.to_json().unwrap();
+        assert_eq!(value["value"], 0.625);
+        assert_eq!(value["zero"], 0.0);
+        assert_eq!(value["note"], format!("{padding}界"));
+        let mut draft = JsonDraft::open(Arc::new(source));
+        draft
+            .edit(file_formats::replace_edit(vec!["speed".into()], &json!(2)))
+            .unwrap();
+        let actual = draft.save(SaveLayout::PreserveStructure).unwrap();
+        assert!(actual.text.contains("value:0.625f"));
+        assert!(actual.text.contains("speed:2 # inline"));
+        assert!(actual.text.ends_with("} # tail\nEND"));
+        io::write_utf8_no_bom(&path, &actual.text).unwrap();
+        assert_eq!(read_json_file(&path).unwrap().content, actual.content);
+        assert_eq!(work_counts::count("read", &path), 2);
         dir.close().unwrap();
     }
-
     #[test]
-    fn confirmation_is_rejected_after_source_changes() {
-        let dir = TestWorkspace::new("json_write_batch_changed_source");
-        fs::create_dir_all(&dir).unwrap();
-        let path = dir.join("demo.json");
-        io::write_utf8_no_bom(&path, "{a:[1,,2]}").unwrap();
-        let value = serde_json::json!({"a":[1,null,3]});
-        let mut batch = JsonWriteBatch::new(JsonWriteOptions {
-            replace_paths: Vec::new(),
-            keep_filename: false,
-            preserve_original_json: true,
-            confirmed_sources: Vec::new(),
-        });
-        batch.render(&path, &value, None).unwrap();
-        let files = match batch.finish().unwrap_err() {
-            AppError::JsonRewriteRequired { files } => files,
-            error => panic!("unexpected error: {error}"),
-        };
-        io::write_utf8_no_bom(&path, "{a:[1,,2], b:4}").unwrap();
-        let mut retry = JsonWriteBatch::new(JsonWriteOptions {
-            replace_paths: Vec::new(),
-            keep_filename: false,
-            preserve_original_json: true,
-            confirmed_sources: vec![JsonSourceConfirmation {
-                path: files[0].path.clone(),
-                source_fingerprint: files[0].source_fingerprint.clone(),
-            }],
-        });
-        retry.render(&path, &value, None).unwrap();
-        assert!(matches!(
-            retry.finish(),
-            Err(AppError::JsonRewriteRequired { .. })
-        ));
-        dir.close().unwrap();
+    fn incompatible_requested_integer_format_is_rejected() {
+        let mut request = file_formats::json_write(&json!(1.5));
+        request.target.output = OutputFormat::Integer;
+        assert!(JsonSource::create(&request).is_err());
     }
-}
-
-/// Real-mod semantic replay fixtures (sanitised subset of a third-party mod).
-/// The contract under test: read a supported JSON spec into memory, write it
-/// back through the production JSON serialisation, and read it again — the initial and final in-memory values
-/// must be equal. Byte identity of the rewritten file is explicitly not
-/// required: pretty printing and key ordering are product normalisations.
-#[cfg(test)]
-mod fixture_replay_tests {
-    use super::*;
-    use std::fs;
-    use std::path::PathBuf;
-
-    fn fixture_dir() -> PathBuf {
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("testdata/json")
-    }
-
     #[test]
     fn collected_real_json_fixtures_round_trip_in_memory() {
-        let dir = fixture_dir();
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("testdata/json");
         let mut checked = 0;
-        for entry in fs::read_dir(&dir).expect("testdata/json must exist") {
-            let path = entry.expect("readable entry").path();
+        for entry in fs::read_dir(root).unwrap() {
+            let path = entry.unwrap().path();
             if path.is_dir() {
                 continue;
             }
-            let first = read_json_file(&path)
-                .unwrap_or_else(|error| panic!("{} must parse: {error}", path.display()));
-            let text = serde_json::to_string_pretty(&first).expect("serialisation must succeed");
-            let second = parse_starsector_json(&text)
-                .unwrap_or_else(|error| panic!("rewritten {} must parse: {error}", path.display()));
-            assert_eq!(first, second, "semantic replay drift in {}", path.display());
+            let source = read_json_file(&path).unwrap();
+            let mut request = file_formats::json_write(&source.content.to_json().unwrap());
+            request.layout = SaveLayout::Expanded;
+            let actual = JsonSource::create(&request).unwrap();
+            assert_eq!(actual.content, source.content, "{}", path.display());
             checked += 1;
         }
-        assert!(
-            checked >= 21,
-            "expected the full collected fixture set, saw {checked}"
-        );
+        assert_eq!(checked, 21);
     }
 }

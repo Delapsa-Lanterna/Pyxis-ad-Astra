@@ -20,10 +20,7 @@
 
 - `src/app/components/spec-editor/SpecFieldList.vue`：同构字段、默认值展示和辅助动作事件。
 - `src/app/components/spec-editor/SpecProblems.vue`：固定顶部红黄框及全部问题计数。
-- `src/app/composables/canvas/use-canvas-editor.ts`：指针阶段、输入适配、导航、快捷键与窗口监听。
-- `src/app/composables/canvas/use-canvas-palette.ts`：主题派生与重绘通知的装配。
-- `src/app/composables/canvas/use-canvas-runtime.ts`：完整目标身份、悬停、检查器锁定、镜像开关与候选预览。
-- `src/app/composables/canvas/use-canvas-viewport.ts`：视口缩放与平移。
+- `src/app/composables/canvas/`：画布表面、视口、导航、选择、指针与展示运行态。
 - `src/app/composables/editors/use-editor-document.ts`：工作值、动作起点、提交快照、字段与手势边界及历史交接。
 - `src/app/composables/editors/use-editor-fields.ts`：所属文档字段、颜色与对象输入的绑定入口。
 - `src/app/composables/editors/use-editor-frame-loop.ts`：帧循环的启动、停止与释放。
@@ -32,10 +29,7 @@
 - `src/app/composables/spec-editor/use-spec-editor-draft-images.ts`：草稿图像读取及接纳。
 - `src/app/composables/spec-editor/use-spec-problem-navigation.ts`：规格问题定位、所属分组展开与有效请求滚动交接。
 - `src/app/composables/spec-editor/use-spec-problems.ts`：会话问题聚合、原文优先级、失败保留及共享展示。
-- `src/app/renderers/editors/canvas-scene.ts`：共享背景、镜像轴、边界与光标场景的绘制入口。
-- `src/app/renderers/editors/canvas-styles.ts`：场景消费的标记样式投影入口。
-- `src/app/renderers/editors/canvas-visuals.ts`：消费显式样式的实体绘制原语。
-- `src/app/renderers/editors/weapon-images.ts`：武器编辑、开火预览、舰船与装配消费的共享贴图、装备阶段及光效绘制入口。
+- `src/app/renderers/editors/`：共享背景、几何标记、武器、弹体及引擎绘制。
 - `src/domain/editors/editor-types.ts`：编辑坐标、模式与悬停预览的纯数据类型。
 - `src/domain/editors/lib/editor-constants.ts`：吸附步长与选项常量。
 - `src/domain/editors/lib/geometry.ts`：舰船与武器坐标、角度、距离及边界线段纯规则。
@@ -89,16 +83,16 @@
 
 ## 规范
 
-- 光效开关必须归窗口运行态，重新打开窗口初始关闭；保存、撤销及外部载入保留当前选择。
-- 光效必须在开关开启、当前 glow 贴图就绪及 alpha 大于 0 时绘制并运行帧循环。
-- 发射点坐标必须消费所属吸附步长，角度偏移整数化。
-- 发射点显式锁定必须覆盖 T 键与列表点击，炮塔与固定发射点分别定位所选发射点的 X 坐标字段编辑区。
+- 光效开关归窗口运行态，重新打开窗口初始关闭；保存、撤销及外部载入保留当前选择。
+- 光效在开关开启、当前 glow 贴图就绪及 alpha 大于 0 时绘制并运行帧循环。
+- 发射点坐标消费所属吸附步长，角度偏移整数化。
+- 发射点显式锁定覆盖 T 键与列表点击，炮塔与固定发射点分别定位所选发射点的 X 坐标字段编辑区。
 - 发射点集合必须消费 spec-weapon 资产的共同保存约束，turretOffsets 与 hardpointOffsets 各包含至少一个发射点；前端红框与后端保存共同消费该声明。
 - 字段入口必须按规格分支展示，字段缺失保留编辑或创建入口；可选效果对象由正式模板创建，固定结构默认关闭扩展并原样保留忽略字段。
 - 弹体打开必须在输入提交后捕获当前引用；帧动画与弹体／光束分组共同提供开火预览入口，并消费同一动作交付与后续编辑独立的草稿快照。
 - 武器创建与结构化保存只允许 projectile 和 beam；pulse 原文必须保持可读，违规保存返回 spec.weapon_class_unsupported。
-- 武器初始分支必须按 10 项 projectile 字段与 3 项 beam 字段的非空原文计分；零值计分，平分选择 projectile。
+- 武器初始分支按 10 项 projectile 字段与 3 项 beam 字段的非空原文计分；零值计分，平分选择 projectile。
 - 武器改名必须消费正式身份事务，共同更新规格、关联 CSV 与 WEAPON 描述。
 - 武器规格转换必须先提交活动输入，保留业务字段并补齐目标分支缺失必读字段。
 - 贴图浏览只允许提交 Mod 根内的授权 PNG 相对路径。
-- 镜像必须按当前挂载视图运行，位置与角度共同消费领域上下镜像规则；镜像与光效按钮消费真实开关状态，适应视图消费视口状态，实际平移或缩放清除适应状态，单纯右键按下保留状态。
+- 镜像按当前挂载视图运行，位置与角度共同消费领域上下镜像规则；镜像与光效按钮消费真实开关状态，适应视图消费视口状态，实际平移或缩放清除适应状态，单纯右键按下保留状态。

@@ -10,8 +10,6 @@
 
 - `src-tauri/src/commands/directory_opening.rs`：目录打开 command 边界。
 - `src-tauri/src/services/directory_opening/`：目录检测、游戏 Mod 发现与诊断读取。
-- `src-tauri/src/services/directory_opening/detection.rs`：目录识别，判定游戏根、游戏内 Mod 与外部 Mod。
-- `src-tauri/src/services/directory_opening/overview.rs`：游戏概览扫描。
 - `src/app/components/ModOpeningFailureList.vue`：Mod 打开失败诊断与文件定位展示。
 - `src/domain/project/load-diagnostics.ts`：加载警告与打开失败的诊断投影。
 - `src/services/directory.service.ts`：目录选择、识别及概览协议。
@@ -55,7 +53,7 @@
 ## 规范
 
 - 目录识别必须交付实际授权路径和明确种类，路径错误保留原始诊断。
-- 游戏 mods 目录必须由同一游戏根判定及路径边界解析。
-- 游戏概览的 Mod 清单必须只包含 mods 目录下实际读取的 Mod 摘要，Mod 会话由工作区动作接纳。
+- 游戏 mods 目录由同一游戏根判定及路径边界解析。
+- 游戏概览的 Mod 清单只包含 mods 目录下实际读取的 Mod 摘要，Mod 会话由工作区动作接纳。
 - 文件问题必须交付结构化位置与恢复目标，恢复展示消费统一反馈文件动作。
 - 目录探测及概览扫描的路径边界错误必须保留实际路径，未识别目录交付 Unknown 结果。

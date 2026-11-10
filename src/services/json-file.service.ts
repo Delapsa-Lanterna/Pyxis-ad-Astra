@@ -1,59 +1,31 @@
-import type { SaveCommandRequest } from '@/shared/runtime/command.runtime';
-import { captureJsonEdits } from '@/shared/lib/json-edits';
-import type { RowData } from '@/shared/types';
-import type { VariantFile, SkinFile, JsonFileSave, JsonFileDelete, JsonWriteOptions, WriteResult } from '@/shared/types';
-import { invokeSaveCommand } from '@/shared/runtime/command.runtime';
+import type { DocumentEdit } from '@/shared/types';
+import { invokeCommand, invokeSaveCommand, type SaveCommandRequest } from '@/shared/runtime/command.runtime';
+import type { JsonDocumentFile, JsonDocumentRead } from '@/shared/types';
+import type { JsonFileSave, JsonFileDelete, VariantFile, SkinFile, WriteResult } from '@/shared/types';
+
+export function readJsonDocument(sessionId: string, relPath: string): Promise<JsonDocumentFile | null> {
+  return invokeCommand('read_json_document', { payload: { sessionId, relPath } satisfies JsonDocumentRead });
+}
 
 export function saveVariantEntity(
-  write: Omit<JsonFileSave, 'jsonWrite' | 'orderedJson'>,
-  jsonWrite?: JsonWriteOptions,
-  original?: RowData,
+  payload: JsonFileSave,
+  edits: DocumentEdit[],
   request?: SaveCommandRequest,
 ): Promise<WriteResult<VariantFile>> {
-  return invokeSaveCommand(
-    'save_variant_entity',
-    {
-      payload: { ...write, ...(jsonWrite ? { jsonWrite, orderedJson: JSON.stringify(write.data) } : {}) } satisfies JsonFileSave,
-    },
-    original === undefined ? [{ kind: 'set', path: [], value: write.data }] : captureJsonEdits(original, write.data),
-    request,
-  );
+  return invokeSaveCommand('save_variant_entity', { payload }, edits, request);
 }
-
-export function createVariantEntity(
-  write: Omit<JsonFileSave, 'jsonWrite' | 'orderedJson'>,
-  request?: SaveCommandRequest,
-): Promise<WriteResult<VariantFile>> {
-  return invokeSaveCommand('create_variant_entity', { payload: write satisfies JsonFileSave }, [], request);
+export function createVariantEntity(payload: JsonFileSave, request?: SaveCommandRequest): Promise<WriteResult<VariantFile>> {
+  return invokeSaveCommand('create_variant_entity', { payload }, [], request);
 }
-
-export function deleteVariantEntity(write: JsonFileDelete, request?: SaveCommandRequest): Promise<WriteResult> {
-  return invokeSaveCommand('delete_variant_entity', { payload: write satisfies JsonFileDelete }, [], request);
+export function deleteVariantEntity(payload: JsonFileDelete, request?: SaveCommandRequest): Promise<WriteResult> {
+  return invokeSaveCommand('delete_variant_entity', { payload }, [], request);
 }
-
-export function saveSkinEntity(
-  write: Omit<JsonFileSave, 'jsonWrite' | 'orderedJson'>,
-  jsonWrite?: JsonWriteOptions,
-  original?: RowData,
-  request?: SaveCommandRequest,
-): Promise<WriteResult<SkinFile>> {
-  return invokeSaveCommand(
-    'save_skin_entity',
-    {
-      payload: { ...write, ...(jsonWrite ? { jsonWrite, orderedJson: JSON.stringify(write.data) } : {}) } satisfies JsonFileSave,
-    },
-    original === undefined ? [{ kind: 'set', path: [], value: write.data }] : captureJsonEdits(original, write.data),
-    request,
-  );
+export function saveSkinEntity(payload: JsonFileSave, edits: DocumentEdit[], request?: SaveCommandRequest): Promise<WriteResult<SkinFile>> {
+  return invokeSaveCommand('save_skin_entity', { payload }, edits, request);
 }
-
-export function createSkinEntity(
-  write: Omit<JsonFileSave, 'jsonWrite' | 'orderedJson'>,
-  request?: SaveCommandRequest,
-): Promise<WriteResult<SkinFile>> {
-  return invokeSaveCommand('create_skin_entity', { payload: write satisfies JsonFileSave }, [], request);
+export function createSkinEntity(payload: JsonFileSave, request?: SaveCommandRequest): Promise<WriteResult<SkinFile>> {
+  return invokeSaveCommand('create_skin_entity', { payload }, [], request);
 }
-
-export function deleteSkinEntity(write: JsonFileDelete, request?: SaveCommandRequest): Promise<WriteResult> {
-  return invokeSaveCommand('delete_skin_entity', { payload: write satisfies JsonFileDelete }, [], request);
+export function deleteSkinEntity(payload: JsonFileDelete, request?: SaveCommandRequest): Promise<WriteResult> {
+  return invokeSaveCommand('delete_skin_entity', { payload }, [], request);
 }

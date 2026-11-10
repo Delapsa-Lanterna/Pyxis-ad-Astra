@@ -1,24 +1,14 @@
 use super::collections::push_unique_all;
-#[cfg(test)]
-use crate::models::ProjectSyncDelivery;
-use crate::models::{
+use super::{
     CsvTableKey, EntityEditTarget, EntityIdentityChange, FileChangeRecord, FileHistorySnapshot,
     FileVersion, JointEditRoot, JsonDocumentOrigin, ProjectInvalidation, SessionContentUpdate,
 };
-#[cfg(test)]
-use crate::test_support::TestWorkspace;
+use crate::models::file_content::DraftEdit;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
 use std::path::Path;
 use std::sync::Arc;
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(tag = "kind", rename_all = "camelCase")]
-pub enum SaveEdit {
-    Set { path: Vec<String>, value: Value },
-    Remove { path: Vec<String> },
-}
-
+pub type SaveEdit = DraftEdit;
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CsvRowKeyMapping {
@@ -26,8 +16,7 @@ pub struct CsvRowKeyMapping {
     pub next_key: String,
     pub row_index: usize,
 }
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum WriteContentTarget {
     Csv { table: CsvTableKey },
@@ -37,14 +26,12 @@ pub enum WriteContentTarget {
     Joint { root: JointEditRoot },
     Recovery { origin: JsonDocumentOrigin },
 }
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WriteContent<T> {
     pub target: WriteContentTarget,
     pub value: T,
 }
-
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WriteResult<T = ()> {
@@ -57,7 +44,6 @@ pub struct WriteResult<T = ()> {
     pub base_versions: Vec<FileVersion>,
     pub history: FileHistorySnapshot,
 }
-
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CommittedWriteEvent<'a, T> {
@@ -67,8 +53,64 @@ pub struct CommittedWriteEvent<'a, T> {
     pub reason: &'a str,
     pub result: &'a WriteResult<T>,
 }
-
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CommittedSessionUpdate {
+    pub session_id: String,
+    pub mod_root: String,
+    pub content: Arc<SessionContentUpdate>,
+}
 impl<T> WriteResult<T> {
+    pub fn new(
+        changes: Vec<FileChangeRecord>,
+        key_map: Vec<CsvRowKeyMapping>,
+        content: Option<WriteContent<T>>,
+    ) -> Self {
+        let mut paths = Vec::new();
+        for change in &changes {
+            push_unique_all(
+                &mut paths,
+                vec![change.before_path.clone(), change.after_path.clone()],
+            );
+            for (path, files) in [
+                (&change.before_path, &change.before_files),
+                (&change.after_path, &change.after_files),
+            ] {
+                push_unique_all(
+                    &mut paths,
+                    files
+                        .iter()
+                        .map(|file| {
+                            Path::new(path)
+                                .join(&file.rel_path)
+                                .to_string_lossy()
+                                .into_owned()
+                        })
+                        .collect(),
+                );
+            }
+        }
+        Self {
+            session_updates: Vec::new(),
+            identity_changes: Vec::new(),
+            changes,
+            invalidation: ProjectInvalidation {
+                paths,
+                ..Default::default()
+            },
+            key_map,
+            content,
+            base_versions: Vec::new(),
+            history: FileHistorySnapshot::default(),
+        }
+    }
+    pub fn from_content(
+        changes: Vec<FileChangeRecord>,
+        target: WriteContentTarget,
+        value: T,
+    ) -> Self {
+        Self::new(changes, Vec::new(), Some(WriteContent { target, value }))
+    }
     pub fn with_content<U>(self, target: WriteContentTarget, value: U) -> WriteResult<U> {
         WriteResult {
             session_updates: self.session_updates,
@@ -81,77 +123,11 @@ impl<T> WriteResult<T> {
             history: self.history,
         }
     }
-    pub fn new(
-        changes: Vec<FileChangeRecord>,
-        key_map: Vec<CsvRowKeyMapping>,
-        content: Option<WriteContent<T>>,
-    ) -> Self {
-        let invalidation = ProjectInvalidation {
-            paths: changed_paths_for_changes(&changes),
-            ..ProjectInvalidation::default()
-        };
-        Self {
-            session_updates: Vec::new(),
-            identity_changes: Vec::new(),
-            changes,
-            invalidation,
-            key_map,
-            content,
-            base_versions: Vec::new(),
-            history: FileHistorySnapshot::default(),
-        }
-    }
 }
-
 impl WriteResult<()> {
     pub fn from_changes(changes: Vec<FileChangeRecord>) -> Self {
         Self::new(changes, Vec::new(), None)
     }
-}
-
-impl<T> WriteResult<T> {
-    pub fn from_content(
-        changes: Vec<FileChangeRecord>,
-        target: WriteContentTarget,
-        value: T,
-    ) -> Self {
-        Self::new(changes, Vec::new(), Some(WriteContent { target, value }))
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct CommittedSessionUpdate {
-    pub session_id: String,
-    pub mod_root: String,
-    pub content: Arc<SessionContentUpdate>,
-}
-
-fn changed_paths_for_changes(changes: &[FileChangeRecord]) -> Vec<String> {
-    let mut paths = Vec::new();
-    for change in changes {
-        push_unique_all(
-            &mut paths,
-            vec![change.before_path.clone(), change.after_path.clone()],
-        );
-        for (path, files) in [
-            (&change.before_path, &change.before_files),
-            (&change.after_path, &change.after_files),
-        ] {
-            for file in files {
-                push_unique_all(
-                    &mut paths,
-                    vec![
-                        Path::new(path)
-                            .join(&file.rel_path)
-                            .to_string_lossy()
-                            .to_string(),
-                    ],
-                );
-            }
-        }
-    }
-    paths
 }
 
 #[cfg(test)]
@@ -161,6 +137,8 @@ mod tests {
     use crate::errors::AppError;
     #[cfg(test)]
     use crate::io;
+    use crate::models::ProjectSyncDelivery;
+    use crate::test_support::TestWorkspace;
     use serde_json::json;
     use std::fs;
 

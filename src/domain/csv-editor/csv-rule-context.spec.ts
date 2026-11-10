@@ -5,7 +5,7 @@ import { savedWriteFixture } from '@/test/fixtures/write-result';
 import type { CsvValidationRequest, EntityKind } from '@/shared/types';
 
 function request(kind: EntityKind = 'ship'): CsvValidationRequest {
-  return { entities: [{ kind, id: 'sample' }], sources: [], files: [], classes: [], stationData: [] };
+  return { entities: [{ kind, id: 'sample' }], sources: [], files: [], classes: [] };
 }
 const hasCsvValidationInvalidation = (scope: Parameters<typeof affects>[0], input: CsvValidationRequest) =>
   affects(scope, input, (source) => hasSourceInvalidation(scope, source));

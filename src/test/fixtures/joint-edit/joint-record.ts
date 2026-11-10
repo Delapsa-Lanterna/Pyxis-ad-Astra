@@ -2,6 +2,7 @@ import type { JointEditSnapshot, JointEditRecord, JointEditKind, JointValue, Csv
 import { entityContentId } from '@/domain/project/entity-definitions';
 import { immersiveEditableRecords } from '@/domain/immersive/source-records';
 import { entityTargetFixture } from '../entity-target';
+import { jsonFileFixture } from '../json-file';
 
 export const fixtureCsvPaths: Partial<Record<CsvTableKey, string>> = {
   ships: 'data/hulls/ship_data.csv',
@@ -26,6 +27,7 @@ export function fixtureSpecRecord(key: string, kind: EntityKind, data: RowData):
   return {
     key,
     target: { kind: 'spec', target },
+    document: jsonFileFixture(data),
     source: { ...target.write },
     sourceVersion: version,
     baseVersions: [{ ...version }],
@@ -47,6 +49,7 @@ export function fixtureCsvRecord(
   return {
     key,
     target: { kind: 'csv', table, rowKey, identity, write },
+    document: null,
     source: { ...write },
     sourceVersion: version,
     baseVersions: [{ ...version }],

@@ -30,7 +30,9 @@ Spec 编辑器基础模块提供规格窗口宿主、共同输入契约和业务
 ### 消费
 
 - `src-tauri/src/domain/entity_definitions.rs`：八种实体的目录、后缀、ID 字段及规格、表格关联登记。
+- `src-tauri/src/models/file_content.rs`：精确文档、原始格式、物理 CSV 行格及完整写入请求。
 - `src-tauri/src/models/spec_editor.rs`：规格种类、武器分支、保存及外部导入请求协议。
+- `src-tauri/src/parsers/game/`：游戏 JSON/CSV 的正式读取入口、文档方法、数值及文本格式能力。
 - `src/app/components/editors/common/EditorCollapse.vue`：共同分组的展开列表交接。
 - `src/app/components/editors/common/EditorCollapseItem.vue`：共同分组的标题、辅助动作与保留输入的内容展示。
 - `src/app/components/editors/common/EditorFooter.vue`：编辑与预览共用的说明及操作插槽。
@@ -46,14 +48,11 @@ Spec 编辑器基础模块提供规格窗口宿主、共同输入契约和业务
 - `src/domain/entity-write/spec-construction.ts`：规格与嵌套对象初始内容。
 - `src/domain/field-editor/field-editor-context.ts`：编辑上下文、候选展示和 CSV 选项索引。
 - `src/domain/json-composition.ts`：前端内容组合、来源定位、稀疏编辑及覆盖撤销。
+- `src/domain/json-document.ts`：精确文件基线、集合身份、局部修改、历史及实际写出结果的接纳。
 - `src/domain/project/entity-definitions.ts`：实体内容 ID 字段及字符串 ID 提取。
 - `src/domain/project/entity-versions.ts`：保存目标版本捕获与关联表凭据交接。
-- `src/domain/schema/config-schema-registry.ts`：规格内联引擎样式消费的正式对象定义。
-- `src/domain/schema/schema-validation.ts`：字段类型、结构及声明约束的共同问题投影。
-- `src/domain/schema/schema-values.ts`：字段与列资产加载、来源声明、值及结构纯规则。
-- `src/domain/schema/schema.types.ts`：对象字段与扩展权限的共同声明。
+- `src/domain/schema/`：字段与列资产加载、游戏数字解释、来源声明、校验及目标格式准备。
 - `src/orchestrators/entity-write.orchestrator.ts`：实体保存的文件名选择。
-- `src/orchestrators/json-write-confirmation.orchestrator.ts`：保存提交所属的 JSON 原文保留和逐源重排确认。
 - `src/orchestrators/project-sync.orchestrator.ts`：窗口内保存消费过程和内容维护者交接。
 - `src/orchestrators/window-target-focus.orchestrator.ts`：冲突目标、已加载路径与规格或文本窗口聚焦的动作。
 - `src/services/entity-query.service.ts`：四类查询定义、正式请求与实体失效选择。
@@ -109,15 +108,15 @@ Spec 编辑器基础模块提供规格窗口宿主、共同输入契约和业务
 ## 规范
 
 - 保存提醒必须逐项交付字段、当前值和完整原因；缺失规格确认通过下拉选择默认内容或导入来源并交付正式路径和实际类型，主按钮执行当前选择，内容沿所属会话接纳。
-- 支持组合的规格必须按本次本地身份共同交付字段标记、输入规则与保存问题；本地无 ID 时允许顶层和嵌套必填内容缺省。
+- 支持组合的规格按本次本地身份共同交付字段标记、输入规则与保存问题；本地无 ID 时允许顶层和嵌套必填内容缺省。
 - 四类规格检查必须直接向共同字段规则交付完整或局部内容，已提供字段的类型检查保持独立于展示条件，问题直接使用 FieldProblem。
 - 规格保存必须消费实体写入的统一 ID 状态变化确认；确认后提交同次捕获内容，并保留后续输入。
 - 局部规格草稿必须保留本地内容，归一化、画布与依赖预览消费合并后的展示内容；字段提交只允许写入实际修改的本地路径。
 - 保存必须在共同会话入口检查全部错误；按钮保持可点击，内容错误拒绝保存并提示解决顶部错误；编辑警告确认由当前设置控制，确认目标、内容与问题变化重新检查。
 - 可选字段的展示默认值必须保持读取性质；恢复默认删除所属键，嵌套更新保留其它业务字段。
-- 四类实现必须消费共同目标、保存及外部接纳协议；内容变化只经所属保存事件消费过程交付，目标与凭据匹配的规格回执直接接纳或暂存。
-- 四类编辑器必须经 SpecProblems 消费公共问题展示并经公共问题聚合消费各自规则；红框先于按当前设置显示的黄框固定在检查器顶部，问题区至多占用检查器高度的百分之四十，两个框各自通过内部问题列表滚动，阻断问题与建议问题分别完整列出。
-- 字段声明来源时必须消费字段模式的查询与控件，直属与嵌套引用共同取得所属目标及文档上下文，刷新覆盖引用目录的 Mod 与 Core 路径。
+- 四类实现消费共同目标、保存及外部接纳协议；内容变化只经所属保存事件消费过程交付，目标与凭据匹配的规格回执直接接纳或暂存。
+- 四类编辑器经 SpecProblems 消费公共问题展示并经公共问题聚合消费各自规则；红框先于按当前设置显示的黄框固定在检查器顶部，问题区至多占用检查器高度的百分之四十，两个框各自通过内部问题列表滚动，阻断问题与建议问题分别完整列出。
+- 字段声明来源时消费字段模式的查询与控件，直属与嵌套引用共同取得所属目标及文档上下文，刷新覆盖引用目录的 Mod 与 Core 路径。
 - 字段必填标签与缺失阻断必须以游戏加载实现中缺失即失败的读取为依据；条件必读字段按当前内容决定标签与检查，共同消费所属 schema 声明。
 - 规格窗口身份必须包含 session、Mod、种类和 ID，身份接纳共同更新窗口与会话。
 - 顶部、保存与字段必须消费同一问题结果并按错误码与字段路径去重，同字段原文错误优先；写入及同步失败进入红框，再次保存重试所属步骤，成功清除对应失败。

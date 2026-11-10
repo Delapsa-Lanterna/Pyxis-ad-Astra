@@ -1,6 +1,7 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { querySpecProjectileEditorData, querySpecProjectileEditorImages } from './spec-projectile-editor.service';
 import { entityTargetFixture } from '@/test/fixtures/entity-target';
+import { jsonFileFixture } from '@/test/fixtures/json-file';
 const mocks = vi.hoisted(() => ({ entity: vi.fn(), target: vi.fn(), resources: vi.fn(), images: vi.fn() }));
 vi.mock('@/services/entity-query.service', () => ({
   querySessionEntity: mocks.entity,
@@ -16,9 +17,10 @@ describe('projectile editor queries', () => {
     const target = entityTargetFixture('projectile', 'p');
     const data = { id: 'p', specClass: 'missile', custom: { value: 3 } };
     const baseVersions = [{ path: target.write.path, fingerprint: 'read' }];
-    mocks.entity.mockResolvedValueOnce({ target, data, baseVersions });
+    const document = jsonFileFixture(data);
+    mocks.entity.mockResolvedValueOnce({ target, data, document, baseVersions });
     const result = await querySpecProjectileEditorData('s1', 'p');
-    expect(result).toEqual({ kind: 'projectile', target, spec: data, baseVersions, isNew: false });
+    expect(result).toEqual({ kind: 'projectile', target, spec: data, document, composition: undefined, baseVersions, isNew: false });
     (result.spec.custom as { value: number }).value = 4;
     result.baseVersions[0]!.fingerprint = 'edit';
     expect(data.custom.value).toBe(3);

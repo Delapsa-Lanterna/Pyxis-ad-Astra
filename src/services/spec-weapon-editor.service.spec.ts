@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { entityTargetFixture } from '@/test/fixtures/entity-target';
+import { jsonFileFixture } from '@/test/fixtures/json-file';
 import type { EntityData, ResourceRef, RowData } from '@/shared/types/index';
 import { querySpecWeaponEditorData, querySpecWeaponEditorImages } from './spec-weapon-editor.service';
 
@@ -22,6 +23,8 @@ function weaponRecord(spec: RowData, csvRow: RowData = {}): EntityData {
     kind: 'weapon',
     id: 'railgun',
     data: { spec, csvRow },
+    document: jsonFileFixture(spec),
+    composition: null,
     resourceRefs: {},
   };
 }
@@ -32,7 +35,15 @@ describe('weapon editor queries', () => {
     const record = weaponRecord(spec);
     mocks.entity.mockResolvedValue(record);
     const result = await querySpecWeaponEditorData('s1', 'railgun');
-    expect(result).toEqual({ kind: 'weapon', spec, target: record.target, baseVersions: record.baseVersions, isNew: false });
+    expect(result).toEqual({
+      kind: 'weapon',
+      spec,
+      document: record.document,
+      target: record.target,
+      baseVersions: record.baseVersions,
+      composition: undefined,
+      isNew: false,
+    });
     (result.spec.custom as { size: number }).size = 5;
     result.baseVersions[0]!.fingerprint = 'edit';
     expect(spec.custom.size).toBe(3);

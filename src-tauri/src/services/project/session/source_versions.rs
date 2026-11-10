@@ -1,141 +1,113 @@
-use super::super::model::ProjectSession;
+use super::super::model::{self, ProjectSession};
 use super::super::sources::SourceReader;
 use crate::errors::AppResult;
 use crate::io;
-use crate::models::{CsvTableKey, ResourceSource};
-use crate::services::project::model;
-use serde_json::Value;
-use std::collections::BTreeSet;
-use std::collections::btree_map::Entry;
+use crate::models::CsvTableKey;
+use crate::models::file_content::JsonSource;
 use std::fs;
 use std::path::Path;
+use std::sync::Arc;
 
 pub(in crate::services::project) fn source_reader_for_session(
     session: &ProjectSession,
 ) -> AppResult<SourceReader> {
-    let mut sources = SourceReader::for_session(Path::new(&session.manifest.mod_root))?;
+    let mut reader = SourceReader::for_session(Path::new(&session.manifest.mod_root))?;
+    reader.versions = (*session.source_versions).clone();
+    reader.scopes = (*session.source_scopes).clone();
+    reader.stamps = (*session.source_stamps).clone();
     for (key, table) in &session.csv_tables {
-        let Some(table_key) = CsvTableKey::from_key(key) else {
-            continue;
-        };
-        let path = &table.path;
-        let Some(version) = session.source_versions.get(path) else {
-            continue;
-        };
-        let summary = &session.manifest.table_summaries[&table_key];
-        let count = session.manifest.table_entity_summaries[&table_key];
-        sources.retain_csv_summary(path, version, &summary.header, count);
+        if let (Some(kind), Some(version)) = (
+            CsvTableKey::from_key(key),
+            session.source_versions.get(&table.path),
+        ) {
+            reader.retain_csv_summary(
+                &table.path,
+                version,
+                &table.header,
+                session.manifest.table_entity_summaries[&kind],
+            );
+        }
+        if let Some(source) = &table.source {
+            reader
+                .csv_sources
+                .insert(table.path.clone(), source.clone());
+        }
     }
-    sources.versions.extend((*session.source_versions).clone());
-    sources.scopes = (*session.source_scopes).clone();
-    sources.stamps = (*session.source_stamps).clone();
-    Ok(sources)
+    retain_session_sources(&mut reader, session, &[]);
+    Ok(reader)
 }
-
 pub(in crate::services::project) fn retain_session_sources(
-    sources: &mut SourceReader,
+    reader: &mut SourceReader,
     session: &ProjectSession,
     changed: &[&str],
 ) {
-    let mut retain = |path: &str, value: &Value| {
+    let mut retain = |relative: &str, source: Arc<JsonSource>| {
         if changed
             .iter()
-            .any(|changed| io::relative_path_contains(changed, path))
+            .any(|scope| io::relative_path_contains(scope, relative))
         {
             return;
         }
-        if let Some(version) = session.source_versions.get(path) {
-            sources.retain_json(path, version, value);
+        if let Some(version) = session.source_versions.get(relative) {
+            reader.retain_json(relative, version, source);
         }
     };
-    for records in [
-        &session.ship_files,
-        &session.weapon_specs,
-        &session.projectile_specs,
-        &session.system_files,
-        &session.skill_files,
-        &session.faction_files,
-    ] {
-        for record in records
-            .values()
-            .filter(|record| record.location.source == ResourceSource::Mod)
-        {
-            retain(&record.location.rel_path, &record.data);
-        }
-    }
-    for file in session.variant_files.iter() {
-        retain(&file.rel_path, &file.data);
-    }
-    for file in session.skin_files.iter() {
-        retain(&file.rel_path, &file.data);
+    for (relative, source) in session.documents.iter() {
+        retain(relative, source.clone());
     }
 }
-
 pub(in crate::services::project) fn capture_project_versions(
-    sources: &mut SourceReader,
+    reader: &mut SourceReader,
 ) -> AppResult<()> {
     let mut paths = vec![
-        sources.path("mod_info.json")?,
-        sources.path("data/world/factions/factions.csv")?,
-        sources.path("data/missions/mission_list.csv")?,
+        "mod_info.json",
+        "data/world/factions/factions.csv",
+        "data/missions/mission_list.csv",
     ];
-    for table in model::csv_table_specs() {
-        paths.push(sources.path(table.rel_path)?);
-    }
-    // Mission saves own the complete directory; other products register their own source files.
-    paths.extend(sources.files("data/missions")?);
-    for path in paths {
-        let key = sources.key(&path);
-        if let Entry::Vacant(entry) = sources.versions.entry(key) {
-            entry.insert(io::file_version(&path)?);
+    paths.extend(model::csv_table_specs().iter().map(|spec| spec.rel_path));
+    for relative in paths {
+        if !reader.versions.contains_key(relative) {
+            reader.stage_version(&reader.path(relative)?)?;
         }
     }
-    let missions = sources.path("data/missions")?;
+    for path in reader.files("data/missions")? {
+        if !reader.versions.contains_key(&reader.key(&path)) {
+            reader.stage_version(&path)?;
+        }
+    }
+    let missions = reader.path("data/missions")?;
     if missions.is_dir() {
         for entry in fs::read_dir(&missions)? {
-            let path = entry?.path();
-            io::validate_walk_entry(&path, "mission directory")?;
-            if path.is_dir() {
-                let key = sources.key(&path);
-                sources
-                    .versions
-                    .insert(key, sources.directory_version(&path)?);
+            let entry = entry?;
+            io::validate_walk_entry(&entry.path(), "mission directory")?;
+            if entry.file_type()?.is_dir() {
+                reader.versions.insert(
+                    reader.key(&entry.path()),
+                    reader.directory_version(&entry.path())?,
+                );
             }
         }
     }
-    sources.discard_outdated_records();
+    reader.discard_outdated_records();
     Ok(())
 }
-
 pub(in crate::services::project) fn capture_changed_versions(
-    sources: &mut SourceReader,
+    reader: &mut SourceReader,
     paths: &[&str],
 ) -> AppResult<()> {
-    sources.capture_changed_versions(paths)?;
-    let mut directories = BTreeSet::new();
+    reader.capture_changed_versions(paths)?;
     for relative in paths {
         if let Some(mission) = relative
             .strip_prefix("data/missions/")
-            .and_then(|suffix| suffix.split('/').next())
+            .and_then(|path| path.split('/').next())
             .filter(|name| *name != "mission_list.csv")
         {
-            let directory = sources.path(&format!("data/missions/{mission}"))?;
-            if directory.is_dir() {
-                for file in sources.files(&format!("data/missions/{mission}"))? {
-                    let key = sources.key(&file);
-                    if let Entry::Vacant(entry) = sources.versions.entry(key) {
-                        entry.insert(io::file_version(&file)?);
-                    }
-                }
-                directories.insert(directory);
+            let directory = format!("data/missions/{mission}");
+            let path = reader.path(&directory)?;
+            if path.is_dir() {
+                reader.capture_changed_versions(&[&directory])?;
             }
         }
-    }
-    for directory in directories {
-        sources.versions.insert(
-            sources.key(&directory),
-            sources.directory_version(&directory)?,
-        );
     }
     Ok(())
 }

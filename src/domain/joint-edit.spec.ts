@@ -153,6 +153,7 @@ describe('joint edit field and physical target projection', () => {
           },
           source: null,
           sourceVersion: null,
+          document: null,
           value: present({ id: 'wing' }),
           baseVersions: [],
           resourceRefs: {},

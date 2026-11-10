@@ -28,6 +28,11 @@ function document(table: CsvTableKey = 'ships') {
 }
 
 describe('CSV table-specific validation', () => {
+  it('excludes disabled skill IDs from duplicate checks without changing other tables', () => {
+    const rows = [row('#archived', 0), row('#archived', 1)];
+    expect(csvValidationDefinitions.skills.validate(rows)).toEqual([]);
+    expect(csvValidationDefinitions.weapons.validate(rows)).toHaveLength(1);
+  });
   it.each(TABLE_KEYS.filter((table) => !['descriptions', 'simOpponents'].includes(table)))('checks exact IDs for %s', (table) => {
     const issues = csvValidationDefinitions[table].validate([
       row('sample_wing', 0),
@@ -127,7 +132,7 @@ describe('CSV table-specific validation', () => {
     setCsvCellValueDraft(state, keys[0]!, 'id', 'one');
     commitCsvTableSaveDraft(
       state,
-      [{ rowKey: keys[0]!, action: 'upsert', row: submitted, isComment: false }],
+      [{ rowKey: keys[0]!, action: 'upsert', row: submitted, columns: Object.keys(submitted), commentChanged: false, isComment: false }],
       [{ previousKey: keys[0]!, nextKey: 'saved', rowIndex: 2 }],
     );
     expect(state.rows.saved!.data.id).toBe('one');

@@ -87,7 +87,7 @@ fn ensure_mod_id_is_available(parent: &Path, id: &str) -> AppResult<()> {
         let Ok(info) = read_json_file(&info_path) else {
             continue;
         };
-        if mod_id(&info).is_some_and(|candidate| candidate == id) {
+        if mod_id(&info.content.to_json()?).is_some_and(|candidate| candidate == id) {
             return Err(AppError::message(
                 "mod_creation.id_exists",
                 format!("Mod ID 已存在于父目录: {id}"),
@@ -106,6 +106,8 @@ fn mod_id(info: &Value) -> Option<&str> {
 
 #[cfg(test)]
 mod tests {
+    use crate::test_support::file_formats::read_json_value as read_json_file;
+
     use crate::services::project_sync::release_project_session;
 
     use super::*;
@@ -114,7 +116,7 @@ mod tests {
     };
     #[cfg(test)]
     use crate::io;
-    use crate::io::{read_json_file, read_text_bytes_no_bom, write_utf8_no_bom};
+    use crate::io::{read_text_bytes_no_bom, write_utf8_no_bom};
     use crate::models::NewModTemplate;
     #[cfg(test)]
     use crate::services::project::test_support::project_workspace;

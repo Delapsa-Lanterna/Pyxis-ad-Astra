@@ -9,11 +9,11 @@ interface CsvValidationDefinition {
   columns: string[];
   validate: (rows: readonly CsvDraftRow[]) => FieldProblem[];
 }
-function uniqueIdentities(rows: readonly CsvDraftRow[], columns = ['id']): FieldProblem[] {
+function uniqueIdentities(rows: readonly CsvDraftRow[], columns = ['id'], table: CsvTableKey = 'ships'): FieldProblem[] {
   const groups = new Map<string, number[]>();
   rows.forEach((row, index) => {
     const values = columns.map((key) => cell(row.data[key]));
-    if (!isCsvBusinessRow(row)) return;
+    if (!isCsvBusinessRow(row, table)) return;
     const key = JSON.stringify(values);
     const positions = groups.get(key) ?? [];
     positions.push(index + 1);
@@ -35,7 +35,7 @@ export const csvValidationDefinitions: Record<CsvTableKey, CsvValidationDefiniti
   hullmods: uniqueId,
   shipSystems: uniqueId,
   industries: uniqueId,
-  skills: uniqueId,
+  skills: { columns: ['id'], validate: (rows) => uniqueIdentities(rows, ['id'], 'skills') },
   abilities: uniqueId,
   commodities: uniqueId,
   specialItems: uniqueId,

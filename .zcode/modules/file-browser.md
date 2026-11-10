@@ -11,20 +11,17 @@
 - `src-tauri/src/commands/file_browser.rs`：目录与文本目标查询的 IPC 装配。
 - `src-tauri/src/services/project/query/file_browser.rs`：会话根目录读取、受限条目识别与内容判定。
 - `src/app/components/file-browser/`：受控文件树、元数据列与工具栏及其测试。
-- `src/app/components/file-browser/FileBrowser.vue`：受控文件树、虚拟滚动、焦点及节点反馈展示。
 - `src/app/composables/file-browser/`：目录读取、预载、搜索和文本打开生命周期。
-- `src/app/composables/file-browser/use-directory-reads.ts`：目录读取优先队列、在途合并、并发及票据接纳。
-- `src/app/composables/file-browser/use-file-browser-view-model.ts`：刷新、显示后预载、选择、键盘导航与打开动作。
 - `src/domain/file-browser/`：文件树、同级排序与元数据展示纯投影。
-- `src/domain/file-browser/file-tree.ts`：元数据展示、同级排序、普通与搜索树、可见节点及目录影响的纯投影。
 - `src/services/file-browser.service.ts`：目录、搜索及文本目标的类型化传输入口。
 - `src/stores/file-browser.store.ts`：按 session 隔离的目录、搜索、排序及两组浏览状态。
 
 ### 消费
 
+- `src-tauri/src/io/mod.rs`：授权路径、同次字节与版本读取以及变更集能力。
 - `src-tauri/src/models/file_browser.rs`：目录条目、种类与文本窗口目标的 wire 模型。
-- `src-tauri/src/services/project/session/access.rs`：捕获引用快照后锁定并交付所属就绪会话。
-- `src-tauri/src/services/project/session/registry.rs`：会话存活登记、句柄与内容就绪门控。
+- `src-tauri/src/parsers/game/text.rs`：结构化文本替代解码、严格纯文本及明确源编码解码。
+- `src-tauri/src/services/project/session/`：会话授权、就绪访问、CSV 正式内容、引用及来源版本管理。
 - `src/app/composables/use-app-feedback.ts`：窗口反馈的提供与消费入口。
 - `src/app/composables/use-context-menu.ts`：窗口菜单状态、目标操作、事件生命周期与业务根登记。
 - `src/app/composables/use-window-shortcuts.ts`：统一窗口按键监听、菜单优先、关闭屏蔽及卸载释放。
@@ -83,9 +80,9 @@
 - 二进制结果必须结束打开动作；未命中二进制特征的解码失败保留实际路径及 text.invalid_utf8 诊断。
 - 同一次项目变化必须只计算一次受影响目录集合，每个已加载目录及当前搜索各自最多读取一次。
 - 展开、选择和滚动必须按 session 隔离并保存在本次运行的内存中，项目释放时清理所属状态。
-- 排序必须在各层同级条目内执行并保持目录优先，相等值消费名称自然排序，缺失值置于所属分组末尾。
-- 搜索必须按名称进行忽略大小写的子串匹配并返回匹配项与祖先，递归只允许遍历所属授权根。
-- 搜索输入必须按 250 ms 防抖或 Enter 立即提交，较早查询失效；清空搜索恢复普通浏览状态。
+- 排序在各层同级条目内执行并保持目录优先，相等值消费名称自然排序，缺失值置于所属分组末尾。
+- 搜索按名称进行忽略大小写的子串匹配并返回匹配项与祖先，递归只允许遍历所属授权根。
+- 搜索输入按 250 ms 防抖或 Enter 立即提交，较早查询失效；清空搜索恢复普通浏览状态。
 - 文件打开必须消费后端返回的完整 session、Mod 根及 path，严禁依据活动目录补齐已捕获目标。
 - 查询必须消费已登记 session 的根与现有路径边界；链接和重解析点作为受限条目展示。
 - 目录接纳必须清理消失条目的选择、展开及子目录结果，并结束所属在途读取。

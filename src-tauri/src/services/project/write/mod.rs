@@ -9,5 +9,6 @@ pub(in crate::services) mod json_recovery;
 #[cfg(test)]
 mod json_recovery_tests;
 
+pub(in crate::services) mod config_entity;
 #[cfg(test)]
 mod csv_first_save_tests;

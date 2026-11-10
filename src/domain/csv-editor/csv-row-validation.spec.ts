@@ -4,7 +4,6 @@ import { getCsvColumnSchemas } from '@/domain/schema/csv-schema-registry';
 import { csvRowProblems } from './csv-row-validation';
 import { csvValidationRequest } from './csv-rule-context';
 import { csvValueError } from '@/domain/schema/csv-value-validation';
-import { parseJsonInput } from '@/shared/lib/json-input';
 import { createEditorProblems } from '@/shared/runtime/editor-problems';
 import { createFieldInputs } from '@/shared/runtime/field-inputs';
 
@@ -37,15 +36,22 @@ function context(table: CsvTableKey, values: RowData): CsvValidationContext {
     ),
     files: Object.fromEntries(request.files.map((path) => [path, true])),
     classes: Object.fromEntries(request.classes.map((name) => [name, true])),
-    stationData: Object.fromEntries(
-      request.stationData.map((raw) => {
-        const result = parseJsonInput(raw, 'object');
-        return [raw, result.kind === 'error' ? { value: null, error: result.message } : { value: result.value, error: null }];
-      }),
-    ),
   };
 }
 describe('CSV declared types and complete row rules', () => {
+  it('keeps disabled skill records outside checks and dependency requests', () => {
+    const row = { rowKey: 'archived', isComment: false, data: { id: '#archived', order: '' } };
+    expect(csvRowProblems('skills', [row], ['id', 'order'], context('skills', {}))).toEqual([]);
+    expect(csvValidationRequest('skills', [row]).entities).toEqual([]);
+    expect(row.data.id).toBe('#archived');
+  });
+  it.each(['ships', 'weapons', 'shipSystems'] as const)('reports an unapplied %s row as a warning', (table) => {
+    const ctx = context(table, {});
+    ctx.entities = {};
+    expect(check(table, {}, ctx).filter((issue) => issue.code === 'csv.spec_missing')).toMatchObject([
+      { severity: 'warning', message: expect.stringContaining('游戏会警告并跳过此行') },
+    ]);
+  });
   it.each([
     ['SHIP', 'ship', 0],
     ['SHIP', 'skin', 0],
@@ -70,7 +76,7 @@ describe('CSV declared types and complete row rules', () => {
       header = columns.map((column) => column.key);
     row.data[table === 'simOpponents' ? 'variant id' : 'id'] = '';
     expect(csvRowProblems(table, [row], header, null)).toEqual([]);
-    expect(csvValidationRequest(table, [row])).toEqual({ entities: [], sources: [], files: [], classes: [], stationData: [] });
+    expect(csvValidationRequest(table, [row])).toEqual({ entities: [], sources: [], files: [], classes: [] });
   });
   it.each(TABLE_KEYS)('accepts the declared required values of %s', (table) => {
     expect(check(table, {}).filter((issue) => issue.severity === 'error')).toEqual([]);
@@ -276,9 +282,7 @@ describe('CSV declared types and complete row rules', () => {
       sources: expect.arrayContaining(['csv:wings.id']),
     });
   });
-  it('validates native station plugin data and generic item industry references', () => {
-    const station = { plugin: 'com.fs.starfarer.api.impl.campaign.econ.impl.OrbitalStation', data: 'invalid' };
-    expect(check('industries', station, context('industries', station)).some((i) => i.code === 'csv.plugin_data')).toBe(true);
+  it('validates generic item industry references', () => {
     const item = { plugin: 'com.fs.starfarer.api.campaign.impl.items.GenericSpecialItemPlugin', 'plugin params': 'missing' },
       ctx = context('specialItems', item);
     ctx.sources['csv:industries.id'] = [];

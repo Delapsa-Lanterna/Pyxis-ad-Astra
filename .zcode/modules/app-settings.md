@@ -11,14 +11,10 @@
 - `src-tauri/src/commands/app_settings.rs`：默认设置读取与字体目录 command。
 - `src-tauri/src/services/app_settings.rs`：正式快照、revision、串行写盘、目录回调结果接纳及装配传入的运行参数提交动作。
 - `src-tauri/src/services/app_settings/`：系统字体枚举及设置所属依赖。
-- `src-tauri/src/services/app_settings/system_fonts.rs`：Windows 已安装字体族枚举、去重与排序。
 - `src/app/components/SettingsPage.vue`：设置页组件，消费全局历史限制、日志留存与 accent 预设。
 - `src/app/composables/settings/use-settings-view-model.ts`：字体与日志读取、页面投影、重置确认，以及主窗口交付的来源切换动作消费。
 - `src/app/composables/settings/use-theme-dom-effect.ts`：主题与通用字体 DOM 副作用，写 root dataset、颜色变量与字体变量。
 - `src/domain/settings/`：设置校验、字体、配色与主题令牌纯规则。
-- `src/domain/settings/fonts.ts`：通用字体组合与字体族投影。
-- `src/domain/settings/rules.ts`：设置校验，拥有主题/accent/自定义色/历史上限/editMode/原样保存/日志级别/日志目录的读取校验与归一化。
-- `src/domain/settings/theme.ts`：主题令牌与色彩数学，拥有 accent 预设、light/dark 中性色、`createThemeColors` 纯函数及 `THEME_TOKEN_MAP` 的 ThemeColorTokens 与主题属性映射。
 - `src/orchestrators/settings-persistence.orchestrator.ts`：设置持久化与镜像，负责保存、接收快照及已提交设置的装配回调。
 - `src/services/app-settings.service.ts`：settings 读写、类型化快照通知与 command 参数装配。
 - `src/stores/settings.store.ts`：settings 运行态，只持状态、setter 与派生值；初始快照经统一初始化入口注入。
@@ -119,26 +115,26 @@
 ## 规范
 
 - `cacheLimits` 随完整快照持久化与镜像，正式快照接纳后立即应用；条数范围为整数 0–65536，MiB 范围为整数 0–4096，零值关闭相应闲置缓存。
-- `cacheLimits.mediaData` 必须统一表达闲置媒体条数与 MiB，默认值为 2048 与 64；活跃租约独立计量。
+- `cacheLimits.mediaData` 统一表达闲置媒体条数与 MiB，默认值为 2048 与 64；活跃租约独立计量。
 - `editHistoryLimit` 与 `fileHistoryLimit` 必须分别控制每个编辑撤销栈及每个 Mod 根的文件保存历史，默认值分别为 250 与 20，整数范围为 1–1000；设置读取和保存共同校验范围。
 - `generalFont` 必须以 `null` 表达默认字体组合，以非空且不含控制字符的单个字体族名表达选择；默认组合为 Inter、Segoe UI、Microsoft YaHei 和 sans-serif，选择随完整快照持久化及镜像。
 - `immersiveFontDirectory` 必须以 `null` 表达游戏字体来源，以绝对目录路径表达指定来源，随完整设置快照持久化、镜像及重置；目录可用性由字体加载流程处理。
-- `logBackupCount` 默认必须为 1，整数范围为 1–20；`logRotationSizeMiB` 默认为 5，整数范围为 1–1024。
-- `logLevel` 只允许 debug、info、warning 和 error，默认必须为 info；正式保存后立即更新当前进程与各窗口的记录级别。
+- `logBackupCount` 默认为 1，整数范围为 1–20；`logRotationSizeMiB` 默认为 5，整数范围为 1–1024。
+- `logLevel` 只允许 debug、info、warning 和 error，默认为 info；正式保存后立即更新当前进程与各窗口的记录级别。
 - `performanceMonitorEnabled` 必须是默认关闭的布尔值并随完整快照保存及镜像，正式快照另行交付重启前固定的 `performanceMonitorActive`。
-- `preserveOriginalJson` 必须是布尔值；缺省视为 `true`。该设置随完整 snapshot 持久化并镜像到子窗口，结构化 JSON 保存动作在开始时捕获本次使用的值。
+- `preserveStructure` 必须是布尔值；缺省视为 `true`。该设置随完整 snapshot 持久化并镜像到子窗口，结构化 JSON 保存动作在开始时捕获本次使用的值。
 - `theme` 必须以 `null` 表示默认跟随系统，以 `light` 或 `dark` 表示手动选择；手动切换持久化明确选择，显示主题由选择与系统运行态派生，系统运行态严禁写入 settings snapshot。
 - 子窗口只允许接收完整 settings 镜像，严禁发送设置广播。
 - 窗口重新获得焦点时必须补读 Rust 正式设置快照并按 revision 接纳。
 - 设置关闭交接必须先等待本轮变更进入保存队列，再完成最新完整快照的写盘；失败保留窗口与当前设置，后续关闭允许重试。
 - 设置启动必须在文件读取失败、JSON 语法错误或根结构非法时采用完整默认设置，严禁因设置文件内容阻止窗口打开；读取严禁改写原文件。
 - 设置启动必须在磁盘字段缺失、类型错误、枚举非法或范围越界时采用该字段正式默认值，保留其它有效字段；嵌套预算逐叶字段恢复。
-- 安装路径必须表达用户指定的原版覆盖目录；目录打开、扫描与刷新只允许更新所属工作区目录。
+- 安装路径表达用户指定的原版覆盖目录；目录打开、扫描与刷新只允许更新所属工作区目录。
 - 选择、清除与重置安装路径必须经显式设置动作等待保存、确认草稿、释放旧会话、提交设置并按捕获列表重开 Mod；取消保留原设置与会话，写盘失败按正式设置重开。
 - 设置持久化必须独占正式根比较、完整默认值读取、归一化及提交失败回退；来源切换消费主窗口交付的 SettingsSourceChange；设置页将该动作交给设置持久化，正式提交闭包由设置持久化捕获。
 - 相同正式根必须直接提交设置；来源切换等待重开及最终工作区快照处理完成后交付动作结果。
-- 窗口原版加载必须消费正式提交后的安装路径变化；设置编辑值严禁提前改变正式来源。
+- 窗口原版加载与正式来源切换共同消费已提交的安装路径。
 - 重置设置必须取得用户确认并消费后端完整默认值，通过正式保存队列提交；工作区记录、Mod 内容和已有日志保留。
-- settings 必须写入工具私有目录，主窗口独占编辑值与保存队列；首次加载及保存由 Rust 串行执行，保存依次确认权限、校验和规范化、写盘、更新运行参数、提交快照、通知并返回同一快照。
+- settings 写入工具私有目录，主窗口独占编辑值与保存队列；首次加载及保存由 Rust 串行执行，保存依次确认权限、校验和规范化、写盘、更新运行参数、提交快照、通知并返回同一快照。
 - 页面退出必须结束设置快照接纳和焦点刷新，原生窗口监听随窗口销毁回收；初始化失败的监听在所属页面释放。
 - `javaExecutable` 必须以 `null` 表达自动游戏 Java 路径，以经过 Java 17 验证的绝对可执行文件路径表达手动选择，随完整设置保存、镜像与重置。

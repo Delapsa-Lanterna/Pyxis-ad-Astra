@@ -1,6 +1,7 @@
 //! Pure Rust business rules and adapters live here when they do not need direct IO.
 
 pub mod csv_column_order;
+pub mod document_edit;
 pub mod entity_construction;
 pub mod entity_definitions;
 pub mod entity_identity;

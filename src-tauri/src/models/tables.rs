@@ -1,6 +1,7 @@
 use super::serde_fields::deserialize_nullable;
-use super::{CsvTableKey, EntityKind, ProjectSessionId, ResourceRef};
-use crate::models::{EntityFileLocation, FileVersion};
+use super::{
+    CsvTableKey, EntityFileLocation, EntityKind, FileVersion, ProjectSessionId, ResourceRef,
+};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use std::collections::BTreeMap;
@@ -19,14 +20,8 @@ pub struct CsvValidationPayload {
     pub sources: Vec<String>,
     pub files: Vec<String>,
     pub classes: Vec<String>,
-    pub station_data: Vec<String>,
 }
-#[derive(Debug, Serialize, Deserialize)]
-pub struct CsvStationData {
-    pub value: Option<Value>,
-    pub error: Option<String>,
-}
-#[derive(Debug, Serialize, Deserialize, Default)]
+#[derive(Debug, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CsvValidationContext {
     pub complete: bool,
@@ -34,10 +29,8 @@ pub struct CsvValidationContext {
     pub sources: BTreeMap<String, Vec<String>>,
     pub files: BTreeMap<String, bool>,
     pub classes: BTreeMap<String, bool>,
-    pub station_data: BTreeMap<String, CsvStationData>,
 }
-
-#[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "kebab-case")]
 pub enum CsvSearchField {
     IdName,
@@ -45,30 +38,26 @@ pub enum CsvSearchField {
     Name,
     Tags,
 }
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct CsvTable {
     pub header: Vec<String>,
     pub rows: Vec<CsvRow>,
     pub path: String,
 }
-
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct CsvRow {
     pub data: Map<String, Value>,
     pub is_comment: bool,
 }
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CsvRowRecord {
     pub row_key: String,
     pub data: Map<String, Value>,
     pub is_comment: bool,
 }
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CsvTableIndex {
     pub validation_rows: Vec<CsvRowRecord>,
@@ -79,19 +68,16 @@ pub struct CsvTableIndex {
     pub row_keys: Vec<String>,
     pub rows: Vec<CsvRowRecord>,
 }
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CsvTableRowsRead {
     pub base_versions: Vec<FileVersion>,
     pub table: CsvTableKey,
     pub rows: Vec<CsvRowRecord>,
 }
-
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CsvTableIndexPayload {
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub source: Option<EntityFileLocation>,
     pub session_id: ProjectSessionId,
     pub table: CsvTableKey,
@@ -101,7 +87,6 @@ pub struct CsvTableIndexPayload {
     pub search: Option<String>,
     pub search_field: CsvSearchField,
 }
-
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CsvTableRowsPayload {
@@ -109,7 +94,6 @@ pub struct CsvTableRowsPayload {
     pub table: CsvTableKey,
     pub row_keys: Vec<String>,
 }
-
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CsvRowResourcesPayload {
@@ -118,14 +102,12 @@ pub struct CsvRowResourcesPayload {
     pub row_keys: Vec<String>,
     pub drafts: Vec<CsvRowRecord>,
 }
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CsvRowPreview {
     pub resource_ref: Option<ResourceRef>,
 }
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CsvRowPreviewPayload {
     pub session_id: ProjectSessionId,
@@ -172,6 +154,7 @@ mod tests {
         let mut value = json!({"sessionId": "table-session", "table": "ships", "initialCount": 20, "validationColumns": ["id"], "searchField": "id-name"});
         assert!(serde_json::from_value::<CsvTableIndexPayload>(value.clone()).is_err());
         value["search"] = Value::Null;
+        value["source"] = Value::Null;
         let payload = serde_json::from_value::<CsvTableIndexPayload>(value.clone()).unwrap();
         assert_eq!(serde_json::to_value(payload).unwrap(), value);
     }

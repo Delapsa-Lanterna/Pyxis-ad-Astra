@@ -31,7 +31,6 @@ vi.mock('@/services/csv-table.service', () => ({
     sources: {},
     files: {},
     classes: {},
-    stationData: {},
   }),
   queryTableRows: mocks.rows,
   querySourceOptionCatalog: async () => [],

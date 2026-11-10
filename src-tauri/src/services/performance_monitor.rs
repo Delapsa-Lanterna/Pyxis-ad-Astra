@@ -1,48 +1,31 @@
 use crate::app_data_dir;
-use crate::errors::{AppError, AppResult};
+use crate::errors::AppResult;
 use crate::io::write_utf8_no_bom;
-use crate::models::performance_monitor::*;
-use crate::parsers::parse_starsector_json;
+use crate::models::performance_monitor::{
+    PerformanceBatch, PerformanceMonitorAction, PerformanceMonitorStatus, PerformanceSample,
+};
 use serde_json::{Value, json};
-use std::collections::{BTreeMap, BTreeSet, VecDeque};
+use std::collections::BTreeSet;
+use std::collections::{BTreeMap, VecDeque};
 use std::env::consts::{ARCH, OS};
 use std::fs;
-#[cfg(windows)]
-use std::fs::File;
-#[cfg(windows)]
-use std::io::Write;
-#[cfg(windows)]
-use std::mem::MaybeUninit;
-use std::path::PathBuf;
-use std::sync::mpsc::{Receiver, Sender};
-use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
-#[cfg(windows)]
-use std::sync::{LazyLock, mpsc};
-use std::thread::JoinHandle;
-#[cfg(windows)]
-use std::time::Duration;
+use std::sync::{Mutex, MutexGuard, OnceLock};
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
-#[cfg(windows)]
-use std::{mem, thread};
-#[cfg(windows)]
-use tauri::Manager;
 use tauri::ipc::{CommandArg, CommandItem, InvokeError};
 use tauri::{AppHandle, Runtime, WebviewWindow};
-#[cfg(windows)]
-use webview2_com::{
-    CallDevToolsProtocolMethodCompletedHandler, CoTaskMemPWSTR,
-    DevToolsProtocolEventReceivedEventHandler,
-};
-use webview2_com::{Microsoft, Result as WebviewResult};
 
+#[cfg(all(test, feature = "performance-monitor"))]
+#[path = "command_timing_tests.rs"]
+mod command_tests;
+#[cfg(test)]
+#[path = "performance_monitor_tests.rs"]
+mod tests;
+#[cfg(windows)]
+mod webview_trace;
+
+const RECORD_LIMIT: usize = 50_000;
 static ENABLED: OnceLock<bool> = OnceLock::new();
 static RECORDS: OnceLock<Mutex<Monitor>> = OnceLock::new();
-static TRACE: LazyLock<Mutex<Trace>> = LazyLock::new(|| Mutex::new(Trace::default()));
-#[cfg(windows)]
-static TRACE_CHANNEL: LazyLock<Mutex<Option<Sender<TraceMessage>>>> =
-    LazyLock::new(|| Mutex::new(None));
-#[cfg(windows)]
-static TRACE_WRITER: LazyLock<Mutex<Option<JoinHandle<()>>>> = LazyLock::new(|| Mutex::new(None));
 #[derive(Default)]
 struct Monitor {
     records: VecDeque<(String, PerformanceSample)>,
@@ -51,29 +34,29 @@ struct Monitor {
     started_at: f64,
     path: String,
 }
-pub fn enabled() -> bool {
-    ENABLED.get().copied().unwrap_or(false)
-}
-pub fn initialize(requested: bool) {
-    ENABLED.get_or_init(|| {
-        let active = requested && cfg!(feature = "performance-monitor");
-        if active {
-            RECORDS.get_or_init(|| {
-                Mutex::new(Monitor {
-                    started_at: now(),
-                    ..Monitor::default()
-                })
-            });
-        }
-        active
-    });
-}
 pub fn now() -> f64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .expect("system clock after epoch")
         .as_secs_f64()
         * 1000.0
+}
+pub fn enabled() -> bool {
+    ENABLED.get().copied().unwrap_or(false)
+}
+pub fn initialize(requested: bool) {
+    ENABLED.get_or_init(|| {
+        let enabled = requested && cfg!(feature = "performance-monitor");
+        if enabled {
+            RECORDS.get_or_init(|| {
+                Mutex::new(Monitor {
+                    started_at: now(),
+                    ..Default::default()
+                })
+            });
+        }
+        enabled
+    });
 }
 fn state() -> MutexGuard<'static, Monitor> {
     RECORDS
@@ -84,6 +67,20 @@ fn state() -> MutexGuard<'static, Monitor> {
 }
 pub fn record(window: String, sample: PerformanceSample) {
     state().push(window, sample);
+}
+pub fn deliver(window: &str, batch: PerformanceBatch) {
+    if !enabled() {
+        return;
+    }
+    let mut monitor = state();
+    monitor.overwritten += batch.overwritten;
+    monitor.windows.insert(
+        window.into(),
+        json!({"environment":batch.environment,"deliveredAt":now()}),
+    );
+    for sample in batch.samples {
+        monitor.push(window.into(), sample);
+    }
 }
 impl Monitor {
     fn push(&mut self, window: String, mut sample: PerformanceSample) {
@@ -97,684 +94,119 @@ impl Monitor {
                     "request" | "status" | "queryKind" | "cache" | "table"
                 )
         });
-        if self.records.len() == 50_000 {
+        if self.records.len() == RECORD_LIMIT {
             self.records.pop_front();
             self.overwritten += 1;
         }
         self.records.push_back((window, sample));
     }
-}
-pub fn deliver(window: &str, batch: PerformanceBatch) {
-    if !enabled() {
-        return;
-    }
-    {
-        let mut monitor = state();
-        monitor.overwritten += batch.overwritten;
-        monitor.windows.insert(
-            window.to_string(),
-            json!({"environment": batch.environment, "deliveredAt": now()}),
-        );
-    }
-    for sample in batch.samples {
-        record(window.to_string(), sample);
+    fn export(&self) -> Value {
+        let threads = self
+            .records
+            .iter()
+            .map(|(window, _)| window)
+            .chain(self.windows.keys())
+            .collect::<BTreeSet<_>>()
+            .into_iter()
+            .enumerate()
+            .map(|(index, name)| (name, index))
+            .collect::<BTreeMap<_, _>>();
+        let mut groups = BTreeMap::<(&str, &str), Vec<f64>>::new();
+        let mut events = threads.iter().map(|(name,index)| json!({"name":"thread_name","ph":"M","pid":1,"tid":index,"args":{"name":name}})).collect::<Vec<_>>();
+        for (window, sample) in &self.records {
+            groups
+                .entry((&sample.category, &sample.name))
+                .or_default()
+                .push(sample.duration);
+            events.push(json!({"name":sample.name,"cat":sample.category,"ph":"X","ts":sample.started_at*1000.0,"dur":sample.duration*1000.0,
+                "pid":1,"tid":threads[window],"args":sample.fields}));
+        }
+        let statistics = groups.into_iter().map(|((category,name),mut values)| {
+            values.sort_by(f64::total_cmp);let n=values.len();
+            json!({"category":category,"name":name,"n":n,"min":values[0],"max":values[n-1],"mean":values.iter().sum::<f64>()/n as f64,
+                "median":(values[(n-1)/2]+values[n/2])/2.0,"p95":values[(n*95).div_ceil(100)-1]})
+        }).collect::<Vec<_>>();
+        json!({"traceEvents":events,"displayTimeUnit":"ms","statistics":statistics,"windows":self.windows,"startedAt":self.started_at,
+            "overwritten":self.overwritten,"version":env!("CARGO_PKG_VERSION"),"platform":OS,"architecture":ARCH})
     }
 }
 pub fn report(
     app: AppHandle,
     window: WebviewWindow,
     action: PerformanceMonitorAction,
-    trace_seconds: Option<u8>,
+    seconds: Option<u8>,
 ) -> AppResult<PerformanceMonitorStatus> {
+    let mut result = PerformanceMonitorStatus {
+        enabled: enabled(),
+        records: 0,
+        overwritten: 0,
+        started_at: 0.0,
+        path: String::new(),
+        trace_available: cfg!(windows),
+        trace_state: "idle".into(),
+        trace_seconds: 15,
+        trace_started_at: 0.0,
+        trace_error: String::new(),
+    };
     if !enabled() {
-        return Ok(PerformanceMonitorStatus {
-            enabled: false,
-            records: 0,
-            overwritten: 0,
-            started_at: 0.0,
-            path: String::new(),
-            trace_available: false,
-            trace_state: "idle".into(),
-            trace_seconds: 15,
-            trace_started_at: 0.0,
-            trace_error: String::new(),
-        });
+        result.trace_available = false;
+        return Ok(result);
     }
     let mut monitor = state();
     match action {
+        PerformanceMonitorAction::Status => {}
         PerformanceMonitorAction::Reset => {
-            trace_reset()?;
+            #[cfg(windows)]
+            webview_trace::reset()?;
             *monitor = Monitor {
                 started_at: now(),
-                ..Monitor::default()
+                ..Default::default()
             };
         }
         PerformanceMonitorAction::Export => {
-            let trace = TRACE.lock().expect("trace state lock");
-            if matches!(trace.state.as_str(), "starting" | "recording" | "finishing") {
-                return Err(AppError::message(
-                    "performance_monitor.trace_active",
-                    "stop the active trace before export",
-                ));
-            }
-            let trace_path = (!trace.path.as_os_str().is_empty()).then(|| trace.path.clone());
-            drop(trace);
-            let directory = app_data_dir::data_directory(app)?.join("performance-monitor");
-            fs::create_dir_all(&directory)?;
+            #[cfg(windows)]
+            webview_trace::require_idle()?;
+            let folder = app_data_dir::data_directory(app)?.join("performance-monitor");
+            fs::create_dir_all(&folder)?;
             let timestamp = now() as u64;
-            let path = directory.join(format!("{timestamp}.json"));
+            let path = folder.join(format!("{timestamp}.json"));
             write_utf8_no_bom(&path, &serde_json::to_string(&monitor.export())?)?;
             monitor.path = path.to_string_lossy().into_owned();
-            if let Some(trace_path) = trace_path {
+            #[cfg(windows)]
+            if let Some(source) = webview_trace::snapshot().path {
                 fs::copy(
-                    trace_path,
-                    directory.join(format!("{timestamp}-webview-trace.json")),
+                    source,
+                    folder.join(format!("{timestamp}-webview-trace.json")),
                 )?;
             }
         }
-        PerformanceMonitorAction::Status => {}
         PerformanceMonitorAction::TraceStart => {
-            trace_start(app, window, trace_seconds.unwrap_or(15))?;
+            #[cfg(windows)]
+            webview_trace::start(app, window, seconds.unwrap_or(15))?;
         }
-        PerformanceMonitorAction::TraceStop => trace_stop(window)?,
-    }
-    let trace = TRACE.lock().expect("trace state lock");
-    Ok(PerformanceMonitorStatus {
-        enabled: true,
-        records: monitor.records.len(),
-        overwritten: monitor.overwritten,
-        started_at: monitor.started_at,
-        path: monitor.path.clone(),
-        trace_available: cfg!(windows),
-        trace_state: trace.state.clone(),
-        trace_seconds: trace.seconds,
-        trace_started_at: trace.started_at,
-        trace_error: trace.error.clone(),
-    })
-}
-
-struct Trace {
-    state: String,
-    seconds: u8,
-    started_at: f64,
-    generation: u64,
-    error: String,
-    path: PathBuf,
-    partial: PathBuf,
-    tokens: Option<(i64, i64)>,
-}
-impl Default for Trace {
-    fn default() -> Self {
-        Self {
-            state: "idle".into(),
-            seconds: 15,
-            started_at: 0.0,
-            generation: 0,
-            error: String::new(),
-            path: PathBuf::new(),
-            partial: PathBuf::new(),
-            tokens: None,
+        PerformanceMonitorAction::TraceStop => {
+            #[cfg(windows)]
+            webview_trace::stop(window)?;
         }
     }
-}
-#[cfg(windows)]
-enum TraceMessage {
-    Data(String),
-    Complete,
-    Failed(String),
-    Abort,
-}
-#[cfg(windows)]
-type WebView = Microsoft::Web::WebView2::Win32::ICoreWebView2;
-#[cfg(windows)]
-type ProtocolReceiver = Microsoft::Web::WebView2::Win32::ICoreWebView2DevToolsProtocolEventReceiver;
-#[cfg(windows)]
-type TraceTokens = Arc<Mutex<Option<(i64, i64)>>>;
-#[cfg(windows)]
-type TraceCompletion = (
-    WebView,
-    ProtocolReceiver,
-    ProtocolReceiver,
-    TraceTokens,
-    u64,
-);
-
-#[cfg(windows)]
-fn trace_start(app: AppHandle, window: WebviewWindow, seconds: u8) -> AppResult<()> {
-    if window.label() != "main" || !(1..=60).contains(&seconds) {
-        return Err(AppError::message(
-            "performance_monitor.trace_target",
-            "trace requires the main window and a duration from 1 to 60 seconds",
-        ));
-    }
-    let directory = app_data_dir::data_directory(app.clone())?.join("performance-monitor");
-    fs::create_dir_all(&directory)?;
-    let generation = {
-        let mut trace = TRACE.lock().expect("trace state lock");
-        if matches!(trace.state.as_str(), "starting" | "recording" | "finishing") {
-            return Err(AppError::message(
-                "performance_monitor.trace_active",
-                "a trace is already active",
-            ));
-        }
-        trace.generation += 1;
-        trace.state = "starting".into();
-        trace.seconds = seconds;
-        trace.started_at = now();
-        trace.error.clear();
-        trace.tokens = None;
-        trace.generation
-    };
-    let timestamp = now() as u64;
-    let partial = directory.join(format!("{timestamp}.{generation}.partial"));
-    let ready = directory.join(format!("{timestamp}.{generation}.webview-trace.json"));
-    TRACE.lock().expect("trace state lock").partial = partial.clone();
-    if let Some(writer) = TRACE_WRITER.lock().expect("trace writer lock").take() {
-        let _ = writer.join();
-    }
-    let (sender, receiver) = mpsc::channel();
-    *TRACE_CHANNEL.lock().expect("trace channel lock") = Some(sender.clone());
-    let frames = Arc::new(Mutex::new(BTreeSet::new()));
-    let writer_frames = frames.clone();
-    let writer_partial = partial.clone();
-    *TRACE_WRITER.lock().expect("trace writer lock") = Some(thread::spawn(move || {
-        write_trace(generation, writer_partial, ready, writer_frames, receiver)
-    }));
-    let timer_app = app.clone();
-    if let Err(error) = window.with_webview(move |platform| {
-        let core = match unsafe { platform.controller().CoreWebView2() } {
-            Ok(core) => core,
-            Err(error) => {
-                trace_failed(generation, error.to_string());
-                return;
-            }
-        };
-        let data_name = CoTaskMemPWSTR::from("Tracing.dataCollected");
-        let data =
-            match unsafe { core.GetDevToolsProtocolEventReceiver(*data_name.as_ref().as_pcwstr()) }
-            {
-                Ok(receiver) => receiver,
-                Err(error) => {
-                    trace_failed(generation, error.to_string());
-                    return;
-                }
-            };
-        let complete_name = CoTaskMemPWSTR::from("Tracing.tracingComplete");
-        let complete = match unsafe {
-            core.GetDevToolsProtocolEventReceiver(*complete_name.as_ref().as_pcwstr())
-        } {
-            Ok(receiver) => receiver,
-            Err(error) => {
-                trace_failed(generation, error.to_string());
-                return;
-            }
-        };
-        let data_token = match listen_trace(&data, sender.clone(), None) {
-            Ok(token) => token,
-            Err(error) => {
-                trace_failed(generation, error.to_string());
-                return;
-            }
-        };
-        let tokens = Arc::new(Mutex::new(None));
-        let complete_token = match listen_trace(
-            &complete,
-            sender.clone(),
-            Some((
-                core.clone(),
-                data.clone(),
-                complete.clone(),
-                tokens.clone(),
-                generation,
-            )),
-        ) {
-            Ok(token) => token,
-            Err(error) => {
-                unsafe {
-                    let _ = data.remove_DevToolsProtocolEventReceived(data_token);
-                }
-                trace_failed(generation, error.to_string());
-                return;
-            }
-        };
-        *tokens.lock().expect("trace event token lock") = Some((data_token, complete_token));
-        TRACE.lock().expect("trace state lock").tokens = Some((data_token, complete_token));
-        let frame_set = frames.clone();
-        let query_core = core.clone();
-        let started_app = timer_app.clone();
-        let started =
-            CallDevToolsProtocolMethodCompletedHandler::create(Box::new(move |result, payload| {
-                if let Err(error) = result {
-                    trace_failed_with_core(generation, &query_core, error.to_string());
-                    return Ok(());
-                }
-                let tree = match parse_starsector_json(&payload) {
-                    Ok(tree) => tree,
-                    Err(error) => {
-                        trace_failed_with_core(generation, &query_core, error.to_string());
-                        return Ok(());
-                    }
-                };
-                let mut frames = frame_set.lock().expect("frame lock");
-                collect_webview_frames(&tree["frameTree"], &mut frames);
-                if frames.is_empty() {
-                    trace_failed_with_core(
-                        generation,
-                        &query_core,
-                        "main window frame tree is empty".into(),
-                    );
-                    return Ok(());
-                }
-                drop(frames);
-                let start_core = query_core.clone();
-                let confirmed_app = started_app.clone();
-                let confirmed = CallDevToolsProtocolMethodCompletedHandler::create(Box::new(
-                    move |result, _| {
-                        if let Err(error) = result {
-                            trace_failed_with_core(generation, &start_core, error.to_string());
-                        } else {
-                            let active = {
-                                let mut trace = TRACE.lock().expect("trace state lock");
-                                if trace.generation == generation && trace.state == "starting" {
-                                    trace.state = "recording".into();
-                                    trace.started_at = now();
-                                    true
-                                } else {
-                                    false
-                                }
-                            };
-                            if active {
-                                thread::spawn(move || {
-                                    thread::sleep(Duration::from_secs(seconds.into()));
-                                    if let Some(window) = confirmed_app.get_webview_window("main") {
-                                        let _ = trace_stop_generation(window, generation);
-                                    }
-                                });
-                            }
-                        }
-                        Ok(())
-                    },
-                ));
-                let method = CoTaskMemPWSTR::from("Tracing.start");
-                let params = CoTaskMemPWSTR::from(
-                    r#"{"categories":"*,disabled-by-default-*","transferMode":"ReportEvents"}"#,
-                );
-                if let Err(error) = unsafe {
-                    query_core.CallDevToolsProtocolMethod(
-                        *method.as_ref().as_pcwstr(),
-                        *params.as_ref().as_pcwstr(),
-                        &confirmed,
-                    )
-                } {
-                    trace_failed_with_core(generation, &query_core, error.to_string());
-                }
-                Ok(())
-            }));
-        let method = CoTaskMemPWSTR::from("Page.getFrameTree");
-        let params = CoTaskMemPWSTR::from("{}");
-        if let Err(error) = unsafe {
-            core.CallDevToolsProtocolMethod(
-                *method.as_ref().as_pcwstr(),
-                *params.as_ref().as_pcwstr(),
-                &started,
-            )
-        } {
-            trace_failed_with_core(generation, &core, error.to_string());
-        }
-    }) {
-        trace_failed(generation, error.to_string());
-        return Err(error.into());
-    }
-    Ok(())
-}
-
-#[cfg(windows)]
-fn listen_trace(
-    receiver: &ProtocolReceiver,
-    sender: Sender<TraceMessage>,
-    completion: Option<TraceCompletion>,
-) -> WebviewResult<i64> {
-    let handler = DevToolsProtocolEventReceivedEventHandler::create(Box::new(move |_, args| {
-        if let Some((core, data, complete, tokens, generation)) = &completion {
-            if let Some(tokens) = tokens.lock().expect("trace event token lock").take() {
-                remove_trace_listeners(core, data, complete, tokens);
-                let mut trace = TRACE.lock().expect("trace state lock");
-                if trace.generation == *generation {
-                    trace.tokens = None;
-                    TRACE_CHANNEL.lock().expect("trace channel lock").take();
-                }
-            }
-            let _ = sender.send(TraceMessage::Complete);
-        } else if let Some(args) = args {
-            let mut output = MaybeUninit::uninit();
-            if unsafe { args.ParameterObjectAsJson(output.as_mut_ptr()) }.is_ok() {
-                let payload = CoTaskMemPWSTR::from(unsafe { output.assume_init() });
-                let _ = sender.send(TraceMessage::Data(payload.to_string()));
-            }
-        }
-        Ok(())
-    }));
-    let mut token = 0;
-    unsafe {
-        receiver.add_DevToolsProtocolEventReceived(&handler, &mut token)?;
-    }
-    Ok(token)
-}
-
-#[cfg(windows)]
-fn trace_stop(window: WebviewWindow) -> AppResult<()> {
-    trace_stop_inner(window, None)
-}
-#[cfg(windows)]
-fn trace_stop_generation(window: WebviewWindow, generation: u64) -> AppResult<()> {
-    trace_stop_inner(window, Some(generation))
-}
-#[cfg(windows)]
-fn trace_stop_inner(window: WebviewWindow, generation: Option<u64>) -> AppResult<()> {
-    if window.label() != "main" {
-        return Err(AppError::message(
-            "performance_monitor.trace_target",
-            "trace control requires the main window",
-        ));
-    }
-    let mut trace = TRACE.lock().expect("trace state lock");
-    if trace.state != "recording"
-        || generation.is_some_and(|generation| generation != trace.generation)
-    {
-        return Ok(());
-    }
-    let generation = trace.generation;
-    trace.state = "finishing".into();
-    drop(trace);
-    if let Err(error) = window.with_webview(move |platform| {
-        let core = match unsafe { platform.controller().CoreWebView2() } {
-            Ok(core) => core,
-            Err(error) => {
-                trace_failed(generation, error.to_string());
-                return;
-            }
-        };
-        let done_core = core.clone();
-        let done =
-            CallDevToolsProtocolMethodCompletedHandler::create(Box::new(move |result, _| {
-                if let Err(error) = result {
-                    trace_failed_with_core(generation, &done_core, error.to_string());
-                }
-                Ok(())
-            }));
-        let method = CoTaskMemPWSTR::from("Tracing.end");
-        let params = CoTaskMemPWSTR::from("{}");
-        if let Err(error) = unsafe {
-            core.CallDevToolsProtocolMethod(
-                *method.as_ref().as_pcwstr(),
-                *params.as_ref().as_pcwstr(),
-                &done,
-            )
-        } {
-            trace_failed_with_core(generation, &core, error.to_string());
-        }
-    }) {
-        trace_failed(generation, error.to_string());
-        return Err(error.into());
-    }
-    Ok(())
-}
-
-#[cfg(not(windows))]
-fn trace_start(_app: AppHandle, _window: WebviewWindow, _seconds: u8) -> AppResult<()> {
-    Err(AppError::message(
-        "performance_monitor.trace_unavailable",
-        "WebView trace is available only on Windows",
-    ))
-}
-#[cfg(not(windows))]
-fn trace_stop(_window: WebviewWindow) -> AppResult<()> {
-    Ok(())
-}
-
-#[cfg(windows)]
-fn remove_trace_listeners(
-    core: &WebView,
-    data: &ProtocolReceiver,
-    complete: &ProtocolReceiver,
-    tokens: (i64, i64),
-) {
-    unsafe {
-        let _ = data.remove_DevToolsProtocolEventReceived(tokens.0);
-        let _ = complete.remove_DevToolsProtocolEventReceived(tokens.1);
-    }
-    let _ = core;
-}
-#[cfg(windows)]
-fn trace_failed_with_core(generation: u64, core: &WebView, error: String) {
-    let tokens = {
-        let mut trace = TRACE.lock().expect("trace state lock");
-        if trace.generation != generation {
-            return;
-        }
-        trace.tokens.take()
-    };
-    if let Some(tokens) = tokens {
-        for (name, token) in [
-            ("Tracing.dataCollected", tokens.0),
-            ("Tracing.tracingComplete", tokens.1),
-        ] {
-            let name = CoTaskMemPWSTR::from(name);
-            if let Ok(receiver) =
-                unsafe { core.GetDevToolsProtocolEventReceiver(*name.as_ref().as_pcwstr()) }
-            {
-                unsafe {
-                    let _ = receiver.remove_DevToolsProtocolEventReceived(token);
-                }
-            }
-        }
-    }
-    trace_failed(generation, error);
-}
-#[cfg(windows)]
-#[cfg(windows)]
-fn write_trace(
-    generation: u64,
-    partial: PathBuf,
-    ready: PathBuf,
-    frames: Arc<Mutex<BTreeSet<String>>>,
-    receiver: Receiver<TraceMessage>,
-) {
-    let result = (|| -> AppResult<bool> {
-        let mut file = File::create(&partial)?;
-        file.write_all(br#"{"traceEvents":["#)?;
-        let mut first = true;
-        while let Ok(message) = receiver.recv() {
-            match message {
-                TraceMessage::Data(trace_json) => {
-                    let value = parse_starsector_json(&trace_json)?;
-                    let frames = frames.lock().expect("frame lock");
-                    for event in value["value"].as_array().into_iter().flatten() {
-                        if is_main_webview_event(event, &frames) {
-                            if !first {
-                                file.write_all(b",")?;
-                            }
-                            serde_json::to_writer(&mut file, event)?;
-                            first = false;
-                        }
-                    }
-                }
-                TraceMessage::Complete => break,
-                TraceMessage::Failed(error) => {
-                    return Err(AppError::message("performance_monitor.trace_failed", error));
-                }
-                TraceMessage::Abort => {
-                    drop(file);
-                    let _ = fs::remove_file(&partial);
-                    return Ok(false);
-                }
-            }
-        }
-        file.write_all(b"]}")?;
-        file.sync_all()?;
-        fs::rename(&partial, &ready)?;
-        Ok(true)
-    })();
-    match result {
-        Err(error) => {
-            let _ = fs::remove_file(&partial);
-            trace_failed(generation, error.to_string());
-            return;
-        }
-        Ok(false) => return,
-        Ok(true) => {}
-    }
-    let mut trace = TRACE.lock().expect("trace state lock");
-    if trace.generation != generation {
-        let _ = fs::remove_file(ready);
-        return;
-    }
-    let old = mem::replace(&mut trace.path, ready);
-    trace.partial = PathBuf::new();
-    trace.state = "ready".into();
-    trace.error.clear();
-    if !old.as_os_str().is_empty() {
-        let _ = fs::remove_file(old);
-    }
-}
-#[cfg(windows)]
-fn trace_failed(generation: u64, error: String) {
-    let mut trace = TRACE.lock().expect("trace state lock");
-    if trace.generation != generation {
-        return;
-    }
-    trace.state = "failed".into();
-    trace.error = error.clone();
-    let _ = fs::remove_file(&trace.partial);
-    trace.partial = PathBuf::new();
-    if let Some(sender) = TRACE_CHANNEL.lock().expect("trace channel lock").take() {
-        let _ = sender.send(TraceMessage::Failed(error));
-    }
-}
-fn trace_reset() -> AppResult<()> {
-    let mut trace = TRACE.lock().expect("trace state lock");
-    if matches!(trace.state.as_str(), "starting" | "recording" | "finishing") {
-        return Err(AppError::message(
-            "performance_monitor.trace_active",
-            "stop the active trace before reset",
-        ));
-    }
-    for path in [&trace.path, &trace.partial] {
-        if !path.as_os_str().is_empty() {
-            let _ = fs::remove_file(path);
-        }
-    }
-    let generation = trace.generation + 1;
-    *trace = Trace {
-        generation,
-        ..Trace::default()
-    };
-    drop(trace);
+    result.records = monitor.records.len();
+    result.overwritten = monitor.overwritten;
+    result.started_at = monitor.started_at;
+    result.path = monitor.path.clone();
     #[cfg(windows)]
-    if let Some(writer) = TRACE_WRITER.lock().expect("trace writer lock").take() {
-        let _ = writer.join();
+    {
+        let trace = webview_trace::snapshot();
+        result.trace_state = trace.state;
+        result.trace_seconds = trace.seconds;
+        result.trace_started_at = trace.started_at;
+        result.trace_error = trace.error;
     }
-    Ok(())
+    Ok(result)
 }
 pub fn shutdown() {
     #[cfg(windows)]
-    {
-        if let Some(sender) = TRACE_CHANNEL.lock().expect("trace channel lock").take() {
-            let _ = sender.send(TraceMessage::Abort);
-        }
-        if let Some(writer) = TRACE_WRITER.lock().expect("trace writer lock").take() {
-            let _ = writer.join();
-        }
-    }
-    let mut trace = TRACE.lock().expect("trace state lock");
-    for path in [&trace.path, &trace.partial] {
-        if !path.as_os_str().is_empty() {
-            let _ = fs::remove_file(path);
-        }
-    }
-    *trace = Trace::default();
+    webview_trace::shutdown();
 }
-impl Monitor {
-    fn export(&self) -> Value {
-        let threads: BTreeSet<_> = self
-            .records
-            .iter()
-            .map(|(window, _)| window)
-            .chain(self.windows.keys())
-            .collect();
-        let mut groups: BTreeMap<(&str, &str), Vec<f64>> = BTreeMap::new();
-        let mut events: Vec<_> = threads
-            .iter()
-            .enumerate()
-            .map(|(thread, window)| {
-                json!({
-                    "name": "thread_name",
-                    "ph": "M",
-                    "pid": 1,
-                    "tid": thread,
-                    "args": { "name": window }
-                })
-            })
-            .collect();
-        events.extend(self.records.iter().map(|(window, sample)| {
-            groups
-                .entry((&sample.category, &sample.name))
-                .or_default()
-                .push(sample.duration);
-            let thread = threads
-                .iter()
-                .position(|key| *key == window)
-                .expect("recorded thread");
-            json!({
-                "name": sample.name,
-                "cat": sample.category,
-                "ph": "X",
-                "ts": sample.started_at * 1000.0,
-                "dur": sample.duration * 1000.0,
-                "pid": 1,
-                "tid": thread,
-                "args": sample.fields
-            })
-        }));
-        let statistics: Vec<_> = groups
-            .into_iter()
-            .map(|((category, name), mut values)| {
-                values.sort_by(f64::total_cmp);
-                let n = values.len();
-                json!({
-                    "category": category,
-                    "name": name,
-                    "n": n,
-                    "min": values[0],
-                    "max": values[n-1],
-                    "mean": values.iter().sum::<f64>() / n as f64,
-                    "median": (values[(n-1)/2] + values[n/2]) / 2.0,
-                    "p95": values[(n*95).div_ceil(100)-1]
-                })
-            })
-            .collect();
-        json!({
-            "traceEvents": events,
-            "displayTimeUnit": "ms",
-            "statistics": statistics,
-            "windows": self.windows,
-            "startedAt": self.started_at,
-            "overwritten": self.overwritten,
-            "version": env!("CARGO_PKG_VERSION"),
-            "platform": OS,
-            "architecture": ARCH
-        })
-    }
-}
-
-#[cfg(test)]
-#[path = "performance_monitor_tests.rs"]
-mod tests;
-
-#[cfg(all(test, feature = "performance-monitor"))]
-#[path = "command_timing_tests.rs"]
-mod command_tests;
-
 pub struct CommandTiming(Option<(Instant, String, PerformanceSample)>);
 impl CommandTiming {
     fn start(active: bool, command: &str, window: &str, request: Option<&str>) -> Self {

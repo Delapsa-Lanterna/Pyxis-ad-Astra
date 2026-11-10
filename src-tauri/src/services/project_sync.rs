@@ -638,6 +638,8 @@ pub fn release_project_session(session_id: String) -> AppResult<()> {
 
 #[cfg(test)]
 mod tests {
+    use crate::test_support::file_formats;
+
     use crate::services::file_history::query_file_history;
     use crate::services::project_sync::release_project_session;
 
@@ -1018,6 +1020,7 @@ mod tests {
             .unwrap();
             manifests.push(manifest);
         }
+        source_changes::wait_source_batches(&core.to_string_lossy()).unwrap();
         let receiver = window("core-watch-first");
         let lease = io::acquire_root_write_lock(Path::new(&manifests[0].mod_root)).unwrap();
         fs::write(&path, r#"{"id":"shared","damage":2}"#).unwrap();
@@ -1975,13 +1978,15 @@ mod tests {
             values.insert(record.key.clone(), value);
         }
         assert_eq!(values.len(), 3);
-        let payload = JointEditSubmission {
+        let payload = file_formats::joint_submission(JointEditSubmission {
+            documents: Default::default(),
+            csv_columns: Default::default(),
             base_versions: snapshot.base_versions.clone(),
             snapshot,
             values,
             json_write: Default::default(),
             create_overrides: vec![],
-        };
+        });
         let first = window("multifile-first");
         let second = window("multifile-second");
         let broken = root.join("data/variants/broken.variant");

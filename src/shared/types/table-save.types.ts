@@ -43,6 +43,8 @@ export type CsvRowPatchAction = 'upsert' | 'delete';
 export type CsvRowOrderEntry = string;
 
 export interface CsvRowPatch {
+  columns: string[];
+  commentChanged: boolean;
   isComment: boolean;
   insertAt?: number | null;
   rowKey: string;

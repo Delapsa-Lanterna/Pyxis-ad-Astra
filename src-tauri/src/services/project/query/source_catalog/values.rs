@@ -8,6 +8,7 @@ use super::super::super::session::csv_tables::{
     ensure_registered_table_rows, loaded_csv_rows, loaded_registered_csv_rows,
 };
 use super::super::super::session::{lock_ready_session, session_handle};
+use crate::domain::entity_definitions as entity_rules;
 use crate::domain::schema_sources::CONFIG_FIELD_SOURCES;
 use crate::domain::well_known_labels::{WellKnownCatalog, well_known_catalog};
 use crate::errors::{AppError, AppResult};
@@ -16,6 +17,7 @@ use crate::models::{
 };
 use crate::services::project::model;
 use crate::services::project::model::EntityListEntry;
+use crate::services::project::query::entities;
 use crate::services::project::resources::{entity_references, resource_identity};
 use crate::services::project::sources::core::{
     CoreSourceData, load_core_csv_table, load_core_skin_files, load_core_source_data,
@@ -66,6 +68,25 @@ pub fn query_source_option_catalog(
         }
     }
     groups.extend(core);
+    let spec_kind = source
+        .strip_prefix("csv:")
+        .unwrap_or(source)
+        .split_once('.')
+        .filter(|(_, column)| *column == "id")
+        .and_then(|(table, _)| CsvTableKey::from_key(table))
+        .and_then(entity_rules::associated_spec_definition)
+        .map(|definition| definition.entity_kind);
+    if let Some(kind) = spec_kind {
+        let mut available = entities::entity_spec_paths(&session, kind)?;
+        if kind == EntityKind::Ship {
+            available.extend(entities::entity_spec_paths(&session, EntityKind::Skin)?);
+        }
+        for group in &mut groups {
+            group
+                .options
+                .retain(|option| available.contains_key(&option.value));
+        }
+    }
     let mut seen = BTreeSet::new();
     for group in &mut groups {
         group
@@ -535,6 +556,14 @@ fn source_options_from_rows<'a>(
     let is_id_column = column == "id";
     let mut options = Vec::new();
     for (row, _) in rows.filter(|(_, is_comment)| !is_comment) {
+        if context.resource_context.table == CsvTableKey::Skills
+            && !row
+                .get("id")
+                .and_then(Value::as_str)
+                .is_some_and(|id| entity_rules::csv_id_active(EntityKind::Skill, id))
+        {
+            continue;
+        }
         let Some(cell_value) = row.get(column).and_then(Value::as_str) else {
             continue;
         };
@@ -858,7 +887,6 @@ mod tests {
             &manifest.session_id,
             vec![],
             vec!["csv:factions.id".into()],
-            vec![],
             vec![],
             vec![],
         )
@@ -1448,6 +1476,38 @@ mod tests {
                 ..
             }
         ));
+        root.close().unwrap();
+    }
+
+    #[test]
+    fn weapon_candidates_and_validation_require_a_physical_spec() {
+        let root = project_workspace("weapon_candidate_presence");
+        fs::create_dir_all(root.join("data/weapons")).unwrap();
+        let table = root.join("data/weapons/weapon_data.csv");
+        let text = "id,name\nactive,Active\narchived,Archived\n";
+        write_utf8_no_bom(&table, text).unwrap();
+        write_utf8_no_bom(&root.join("data/weapons/active.wpn"), r#"{"id":"active"}"#).unwrap();
+        let mut trace = PerformanceTrace::new("project.openSession");
+        let manifest = open_project_session_traced(&root, None, &mut trace).unwrap();
+        let groups = query_source_option_catalog(&manifest.session_id, "csv:weapons.id").unwrap();
+        assert_eq!(
+            groups
+                .iter()
+                .flat_map(|group| &group.options)
+                .map(|option| option.value.as_str())
+                .collect::<Vec<_>>(),
+            ["active"]
+        );
+        let values = entities::query_entity_specs(
+            &manifest.session_id,
+            EntityKind::Weapon,
+            &["active".into(), "archived".into()],
+        )
+        .unwrap();
+        assert!(values[0].is_some());
+        assert!(values[1].is_none());
+        assert_eq!(fs::read_to_string(&table).unwrap(), text);
+        release_project_session(manifest.session_id).unwrap();
         root.close().unwrap();
     }
 

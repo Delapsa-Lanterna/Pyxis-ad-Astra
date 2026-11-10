@@ -15,8 +15,9 @@ export const DESCRIPTION_KINDS: Partial<Record<string, readonly EntityKind[]>> =
   SHIP_SYSTEM: ['system'],
   FACTION: ['faction'],
 };
-export function isCsvBusinessRow(row: CsvDraftRow, identityColumn = 'id'): boolean {
-  return !row.isComment && cell(row.data[identityColumn]) !== '';
+export function isCsvBusinessRow(row: CsvDraftRow, table: CsvTableKey): boolean {
+  const id = cell(row.data[table === 'simOpponents' ? 'variant id' : 'id']);
+  return !row.isComment && id !== '' && (table !== 'skills' || !id.startsWith('#'));
 }
 export function hasCsvValidationInvalidation(
   invalidation: ProjectInvalidation,
@@ -25,7 +26,6 @@ export function hasCsvValidationInvalidation(
 ): boolean {
   if (invalidation.session || request.sources.some(sourceAffected)) return true;
   const kinds = new Set(request.entities.map((entity) => entity.kind));
-  if (request.stationData.length) kinds.add('variant');
   if (kinds.has('variant')) {
     kinds.add('ship');
     kinds.add('skin');
@@ -59,13 +59,12 @@ export function csvValidationRequest(table: CsvTableKey, rows: readonly CsvDraft
   const entities = new Map<string, CsvValidationRequest['entities'][number]>(),
     sources = new Set<string>(),
     files = new Set<string>(),
-    classes = new Set<string>(),
-    stationData = new Set<string>();
+    classes = new Set<string>();
   const entity = (kind: CsvValidationRequest['entities'][number]['kind'], id: string) => {
     if (id) entities.set(`${kind}:${id}`, { kind, id });
   };
   for (const row of rows) {
-    if (!isCsvBusinessRow(row, table === 'simOpponents' ? 'variant id' : 'id')) continue;
+    if (!isCsvBusinessRow(row, table)) continue;
     const { data } = row;
     const id = cell(data.id);
     const ownKind = CSV_SPEC_KINDS[table];
@@ -87,9 +86,6 @@ export function csvValidationRequest(table: CsvTableKey, rows: readonly CsvDraft
     if (table === 'descriptions') {
       for (const kind of DESCRIPTION_KINDS[cell(data.type)] ?? []) entity(kind, id);
     }
-    if (table === 'industries' && cell(data.plugin) === 'com.fs.starfarer.api.impl.campaign.econ.impl.OrbitalStation') {
-      stationData.add(cell(data.data));
-    }
     if (table === 'specialItems' && cell(data.plugin) === 'com.fs.starfarer.api.campaign.impl.items.GenericSpecialItemPlugin')
       sources.add('csv:industries.id');
     if (table === 'specialItems' && cell(data.plugin) === 'com.fs.starfarer.api.campaign.impl.items.MultiBlueprintItemPlugin')
@@ -100,6 +96,5 @@ export function csvValidationRequest(table: CsvTableKey, rows: readonly CsvDraft
     sources: [...sources].sort(),
     files: [...files].sort(),
     classes: [...classes].sort(),
-    stationData: [...stationData].sort(),
   };
 }

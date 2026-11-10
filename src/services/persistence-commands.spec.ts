@@ -6,6 +6,8 @@ import * as editor from '@/services/spec-editor.service';
 import * as fileHistory from '@/services/file-history.service';
 import * as textEditorService from '@/services/text-editor.service';
 import { entityTargetFixture } from '@/test/fixtures/entity-target';
+import { jsonWriteFixture } from '@/test/fixtures/json-file';
+import { prepareValue } from '@/domain/schema/game-number';
 import { appLogQueue } from '@/shared/runtime/app-log-queue';
 import type { AppLogEntry, IndexedConfigDelete, JsonFileDelete, IndexedConfigSave, JsonFileSave, SaveEdit } from '@/shared/types';
 
@@ -17,7 +19,7 @@ const sessionId = 's1',
   path = 'M:/mod/demo.ship';
 const target = entityTargetFixture('ship', id);
 const data = { hullId: id, _business: { key: '0012' } };
-const jsonWrite = { preserveOriginalJson: true, confirmedSources: [] };
+const jsonWrite = { preserveStructure: true };
 const indexed: IndexedConfigSave = {
   sessionId,
   modRoot,
@@ -26,7 +28,9 @@ const indexed: IndexedConfigSave = {
   previousId: null,
   nextId: id,
   indexRow: { mission: id },
-  entityData: { descriptor: { title: 'Demo' }, text: '' },
+  document: jsonWriteFixture({ title: 'Demo' }),
+  text: '',
+  jsonWrite,
 };
 const deleteIndexed: IndexedConfigDelete = { sessionId, modRoot, baseVersions: [], kind: 'mission', id, deleteTarget: true };
 const definition: JsonFileSave = {
@@ -36,7 +40,8 @@ const definition: JsonFileSave = {
   previousId: null,
   nextId: id,
   relPath: null,
-  data,
+  document: jsonWriteFixture(data),
+  jsonWrite,
 };
 const deleteJsonEntity: JsonFileDelete = {
   sessionId,
@@ -53,11 +58,11 @@ const readCommands = new Set([
   'clear_file_history',
 ]);
 const edits: Record<string, SaveEdit[]> = {
-  save_editor_spec: [{ kind: 'set', path: [], value: data }],
-  save_mod_info: [{ kind: 'set', path: [], value: data }],
-  save_indexed_config_entity: [{ kind: 'set', path: [], value: indexed.entityData }],
-  save_variant_entity: [{ kind: 'set', path: [], value: data }],
-  save_skin_entity: [{ kind: 'set', path: [], value: data }],
+  save_editor_spec: [{ kind: 'replace', path: [], value: prepareValue(data) }],
+  save_mod_info: [{ kind: 'replace', path: [], value: prepareValue(data) }],
+  save_indexed_config_entity: [{ kind: 'replace', path: [], value: prepareValue({ title: 'Demo' }) }],
+  save_variant_entity: [{ kind: 'replace', path: [], value: prepareValue(data) }],
+  save_skin_entity: [{ kind: 'replace', path: [], value: prepareValue(data) }],
 };
 const cases: Array<[string, () => Promise<unknown>, object]> = [
   ['load_text_file', () => textEditorService.loadTextFile(null, modRoot, path), { sessionId: null, modRoot, path }],
@@ -80,13 +85,18 @@ const cases: Array<[string, () => Promise<unknown>, object]> = [
   ],
   [
     'save_editor_spec',
-    () => editor.saveSpecEditorSpec(sessionId, modRoot, target, data, jsonWrite),
-    { sessionId, modRoot, target, data, jsonWrite, orderedJson: JSON.stringify(data), baseVersions: [] },
+    () =>
+      editor.saveSpecEditorSpec(
+        { sessionId, modRoot, target, document: jsonWriteFixture(data), jsonWrite, baseVersions: [] },
+        edits.save_editor_spec!,
+      ),
+    { sessionId, modRoot, target, document: jsonWriteFixture(data), jsonWrite, baseVersions: [] },
   ],
   [
     'save_mod_info',
-    () => configEntity.saveModInfo(sessionId, modRoot, data, jsonWrite),
-    { sessionId, modRoot, data, jsonWrite, orderedJson: JSON.stringify(data), baseVersions: [] },
+    () =>
+      configEntity.saveModInfo({ sessionId, modRoot, document: jsonWriteFixture(data), jsonWrite, baseVersions: [] }, edits.save_mod_info!),
+    { sessionId, modRoot, document: jsonWriteFixture(data), jsonWrite, baseVersions: [] },
   ],
   [
     'apply_file_change_set',
@@ -95,25 +105,13 @@ const cases: Array<[string, () => Promise<unknown>, object]> = [
   ],
   ['query_file_history', () => fileHistory.loadFileHistory(sessionId, modRoot), { sessionId, modRoot }],
   ['clear_file_history', () => fileHistory.clearSavedFileHistory(sessionId, modRoot), { sessionId, modRoot }],
-  [
-    'save_indexed_config_entity',
-    () => configEntity.saveIndexedConfigEntity(indexed, jsonWrite),
-    { ...indexed, jsonWrite, orderedJson: JSON.stringify(indexed.entityData.descriptor) },
-  ],
+  ['save_indexed_config_entity', () => configEntity.saveIndexedConfigEntity(indexed, edits.save_indexed_config_entity!), indexed],
   ['create_indexed_config_entity', () => configEntity.createIndexedConfigEntity(indexed), indexed],
   ['delete_indexed_config_entity', () => configEntity.deleteIndexedConfigEntity(deleteIndexed), deleteIndexed],
-  [
-    'save_variant_entity',
-    () => jsonFileService.saveVariantEntity(definition, jsonWrite),
-    { ...definition, jsonWrite, orderedJson: JSON.stringify(data) },
-  ],
+  ['save_variant_entity', () => jsonFileService.saveVariantEntity(definition, edits.save_variant_entity!), definition],
   ['create_variant_entity', () => jsonFileService.createVariantEntity(definition), definition],
   ['delete_variant_entity', () => jsonFileService.deleteVariantEntity(deleteJsonEntity), deleteJsonEntity],
-  [
-    'save_skin_entity',
-    () => jsonFileService.saveSkinEntity(definition, jsonWrite),
-    { ...definition, jsonWrite, orderedJson: JSON.stringify(data) },
-  ],
+  ['save_skin_entity', () => jsonFileService.saveSkinEntity(definition, edits.save_skin_entity!), definition],
   ['create_skin_entity', () => jsonFileService.createSkinEntity(definition), definition],
   ['delete_skin_entity', () => jsonFileService.deleteSkinEntity(deleteJsonEntity), deleteJsonEntity],
 ];
@@ -133,6 +131,8 @@ describe('query and persistence transport protocols', () => {
       action,
       row: { id: 'next_' + row.data.id },
       isComment: false,
+      columns: ['id'],
+      commentChanged: false,
     }));
     await csvTable.saveCsvPatch(sessionId, modRoot, 'ships', patches, [], undefined, [], null, originalRows, { id: 'save-audit' });
     await appLogQueue.flush();
@@ -157,18 +157,22 @@ describe('query and persistence transport protocols', () => {
   it.each([
     [
       'save_editor_spec',
-      () => editor.saveSpecEditorSpec(sessionId, modRoot, target, data),
-      { baseVersions: [], sessionId, modRoot, target, data },
+      () =>
+        editor.saveSpecEditorSpec(
+          { baseVersions: [], sessionId, modRoot, target, document: jsonWriteFixture(data), jsonWrite: {} },
+          edits.save_editor_spec!,
+        ),
+      { baseVersions: [], sessionId, modRoot, target, document: jsonWriteFixture(data), jsonWrite: {} },
     ],
-    ['save_indexed_config_entity', () => configEntity.saveIndexedConfigEntity(indexed), indexed],
-    ['save_variant_entity', () => jsonFileService.saveVariantEntity(definition), definition],
-    ['save_skin_entity', () => jsonFileService.saveSkinEntity(definition), definition],
+    ['save_indexed_config_entity', () => configEntity.saveIndexedConfigEntity(indexed, edits.save_indexed_config_entity!), indexed],
+    ['save_variant_entity', () => jsonFileService.saveVariantEntity(definition, edits.save_variant_entity!), definition],
+    ['save_skin_entity', () => jsonFileService.saveSkinEntity(definition, edits.save_skin_entity!), definition],
     [
       'save_csv_patch',
       () => csvTable.saveCsvPatch(sessionId, modRoot, 'ships', [], []),
       { rowOrder: null, baseVersions: [], sessionId, modRoot, table: 'ships', patches: [], associatedSpecs: [] },
     ],
-  ] as const)('%s preserves omitted JSON options', async (command, action, payload) => {
+  ] as const)('%s preserves supplied output options', async (command, action, payload) => {
     await action();
     expect(invoke).toHaveBeenCalledExactlyOnceWith('save_project', {
       request: { id: expect.any(String), edits: edits[command] ?? [], action: { kind: command, input: payload } },
@@ -176,15 +180,17 @@ describe('query and persistence transport protocols', () => {
   });
 
   it('orders faction JSON from its file while preserving the complete entity input', async () => {
-    const faction: IndexedConfigSave = { ...indexed, kind: 'faction', entityData: { file: { id, name: 'Faction' } } };
-    await configEntity.saveIndexedConfigEntity(faction, jsonWrite);
+    const value = { id, name: 'Faction' };
+    const faction: IndexedConfigSave = { ...indexed, kind: 'faction', document: jsonWriteFixture(value) };
+    const changes: SaveEdit[] = [{ kind: 'replace', path: [], value: prepareValue(value) }];
+    await configEntity.saveIndexedConfigEntity(faction, changes);
     expect(invoke).toHaveBeenCalledExactlyOnceWith('save_project', {
       request: {
         id: expect.any(String),
-        edits: [{ kind: 'set', path: [], value: faction.entityData }],
+        edits: changes,
         action: {
           kind: 'save_indexed_config_entity',
-          input: { ...faction, jsonWrite, orderedJson: JSON.stringify(faction.entityData.file) },
+          input: faction,
         },
       },
     });

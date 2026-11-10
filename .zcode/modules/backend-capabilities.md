@@ -21,10 +21,7 @@
 
 ### 关联
 
-- `scripts/architecture/rules/capabilities/command-boundary.mjs`：command 调用的来源与唯一归属检查。
-- `scripts/architecture/rules/capabilities/command-policy.mjs`：原生命令与保存动作的所属能力清单。
-- `scripts/architecture/rules/capabilities/event-policy.mjs`：公共监听与原始事件 API 的能力范围。
-- `scripts/architecture/rules/capabilities/rust-command-functions.mjs`：commands 生产函数的命令声明检查。
+- `scripts/architecture/rules/capabilities/`：命令声明、权限、事件传输与原生能力边界的检查规则。
 - `scripts/shared/frontend-source.mjs`：词法调用、绑定与源码位置事实。
 
 ## 边界
@@ -55,10 +52,10 @@
 
 ## 规范
 
-- 原始事件 listen 必须归公共事件运行时，业务通知由所属 service 绑定事件名与载荷，监听接纳和解除归实际运行态。
+- 原始事件 listen 归公共事件运行时，业务通知由所属 service 绑定事件名与载荷，监听接纳和解除归实际运行态。
 - `AppError.command` 必须表达底层 command；`formatError` 透过该包装消费原始用户文案投影。
 - command 声明与登记必须消费共同命令生成规则；业务函数参数与返回值保留所属能力契约。
-- command 宏必须只处理命令声明、参数转交和执行计时；保存顺序与业务准备由所属服务维护。
+- command 宏只处理命令声明、参数转交和执行计时；保存顺序与业务准备由所属服务维护。
 - command 必须由可静态判定的字面量表达；别名、namespace、转导出和动态模块导入保留来源。
 - commands 目录中的生产函数必须声明 `#[command_macros::command]`；业务处理和执行辅助函数归所属服务维护。
 - `errorDiagnosticOf` 必须保留来源稳定码、原始消息和结构化位置；附加 payload 沿 cause 消费。

@@ -37,10 +37,10 @@ export function sessionUpdateFixture(sessionId: string, modRoot: string): Commit
   };
 }
 
-export function savedWriteFixture(
-  value: RowData | null = null,
+export function savedWriteFixture<T = RowData>(
+  value: T | null = null,
   target: WriteContentTarget = { kind: 'json', origin: { kind: 'modInfo' } },
-): WriteResult {
+): WriteResult<T> {
   return {
     sessionUpdates: [],
     baseVersions: [],

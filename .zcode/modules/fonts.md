@@ -11,15 +11,9 @@
 - `src-tauri/src/commands/font.rs`：原版字体查询 command。
 - `src-tauri/src/services/project/resources/fonts.rs`：session 来源补充、安装根授权及 FNT 图集读取。
 - `src/app/components/fonts/`：原版字体 DOM、位图画布与行为测试。
-- `src/app/components/fonts/FontText.vue`：默认 DOM、位图画布、缺字诊断与尺寸监听。
 - `src/app/composables/use-original-fonts.ts`：窗口字体运行态、读取票据、逐项接纳、日志与响应式测量。
 - `src/app/fonts/`：字体页解码、字形缓存与行为测试。
-- `src/app/fonts/font-provider.ts`：外部 FNT 接入、图集解码与字形栅格缓存。
 - `src/domain/fonts/`：FNT 解析、字形、排布与字体样式纯规则。
-- `src/domain/fonts/bitmap-font.ts`：FNT 格式解析。
-- `src/domain/fonts/font-styles.ts`：实际字体身份对应的默认字号与字重。
-- `src/domain/fonts/font.types.ts`：字体身份、文本片段、位图对象与排布结果的纯类型。
-- `src/domain/fonts/text-layout.ts`：文本分段、排布与墨迹范围计算。
 - `src/services/font.service.ts`：逐字体只读 command 的参数与结果交接。
 
 ### 消费
@@ -76,13 +70,13 @@
 
 - FNT 外部接入必须校验行高、基线、页声明、字形坐标及页引用、空格与问号字形；图集按页 ID 解码并校验声明尺寸。
 - 分段颜色必须保持文本排布连续，测量、截断与绘制消费同一排布算法。
-- 原版字体必须逐字体优先从指定目录直接读取同名 FNT，再从授权安装根的 `starsector-core/graphics/fonts` 读取；图集消费 FNT 的实际 `page` 文件声明，文件路径经所属字体目录边界授权。
+- 原版字体逐字体优先从指定目录直接读取同名 FNT，再从授权安装根的 `starsector-core/graphics/fonts` 读取；图集消费 FNT 的实际 `page` 文件声明，文件路径经所属字体目录边界授权。
 - 失败必须按字体及本次尝试记录一次实际路径与原始诊断；重试只允许由重新开启、根变化及重新打开窗口触发。
 - 字形栅格缓存必须区分图集、字形、颜色与描边，容量消费 settings 的启动预算，共享缓存只允许在所属 WebView 内维护。
 - 字素与显式换行必须保持原文对应关系，缺字提供原字符与完整 Unicode 定位。
-- 排版必须分别交付行布局与墨迹范围，画布容纳字形偏移和描边并对齐物理像素。
+- 排版分别交付行布局与墨迹范围，画布容纳字形偏移和描边并对齐物理像素。
 - 文字完成画面必须按字体、内容、颜色、容器宽度、DPR、描边与墨迹对齐参数复用；字体或画布身份变化时重新绘制，位置变化独立更新物理像素对齐。
 - 普通中文必须按字素换行，英文优先整词；超过可用宽度的连续内容按完整字素推进。
 - 相同字体的并发消费者必须共享一次读取；每种字体独立就绪和失败，关闭、不可用、加载中和失败时采用 `--font-sans`。
-- 缺失字素必须有意绘制为一个 ASCII `?`，步进与 kerning 消费问号字形；可访问原文与 Unicode 缺字诊断保留原字符。
-- 默认文字与测量必须消费设置派生的同一通用字体族；通用字体变化同步更新默认模式的宽度、截断与布局。
+- 缺失字素有意绘制为一个 ASCII `?`，步进与 kerning 消费问号字形；可访问原文与 Unicode 缺字诊断保留原字符。
+- 默认文字与测量消费设置派生的同一通用字体族；通用字体变化同步更新默认模式的宽度、截断与布局。

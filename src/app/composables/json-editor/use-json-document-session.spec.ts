@@ -1,6 +1,7 @@
 import { defineComponent } from 'vue';
 import type * as JsonSaveOrchestratorModule from '@/orchestrators/json-save.orchestrator';
 import type * as JsonRecoveryServiceModule from '@/services/json-recovery.service';
+import type * as JsonEntityServiceModule from '@/services/json-entity.service';
 import { projectChangeFixture, savedContentWorks } from '@/test/unit/project-changes';
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
@@ -17,6 +18,10 @@ import { useProjectStore } from '@/stores/project.store';
 import { initializeSettingsStore } from '@/stores/settings.store';
 import { createSettingsFixture } from '@/test/fixtures/settings';
 import { jsonEntityFixture } from '@/test/fixtures/json-editor';
+import { jsonFileFixture } from '@/test/fixtures/json-file';
+import { projectJsonValue } from '@/domain/json-document';
+import type { JsonFileSave } from '@/shared/types';
+import type { ModInfoSave } from '@/shared/types';
 import { createDefaultFaction } from '@/domain/json-editor/json-config-entities';
 import { savedWriteFixture, sessionUpdateFixture } from '@/test/fixtures/write-result';
 import {
@@ -49,9 +54,9 @@ const mocks = vi.hoisted(() => ({
   read: vi.fn<typeof EntityQueryServiceModule.querySessionEntity>(),
   saveFile: vi.fn(),
   saveIndexed: vi.fn<typeof JsonSaveOrchestratorModule.saveIndexedEntityAction>(),
-  saveMod: vi.fn<typeof JsonSaveOrchestratorModule.saveModInfoAction>(),
+  saveMod: vi.fn<typeof JsonEntityServiceModule.saveModInfo>(),
   prepare: vi.fn<typeof JsonRecoveryServiceModule.prepareJsonSourceRecovery>(),
-  recreate: vi.fn<typeof JsonSaveOrchestratorModule.recreateJsonSourcesAction>(),
+  recreate: vi.fn<typeof JsonRecoveryServiceModule.recreateJsonSources>(),
   complete: vi.fn(),
   readMisc: vi.fn<typeof MiscConfigServiceModule.queryMiscConfigFile>(),
   saveMisc: vi.fn<typeof MiscConfigServiceModule.saveMiscConfig>(),
@@ -62,7 +67,11 @@ vi.mock('@/services/entity-query.service', async (original) => ({
   querySessionEntity: mocks.read,
 }));
 vi.mock('@/app/composables/use-core-schema', () => ({ useCoreSchema: () => ({ getMergedSchema: getSchema }) }));
-vi.mock('@/services/json-recovery.service', () => ({ prepareJsonSourceRecovery: mocks.prepare }));
+vi.mock('@/services/json-recovery.service', () => ({ prepareJsonSourceRecovery: mocks.prepare, recreateJsonSources: mocks.recreate }));
+vi.mock('@/services/json-entity.service', async (original) => ({
+  ...(await original<typeof JsonEntityServiceModule>()),
+  saveModInfo: mocks.saveMod,
+}));
 vi.mock('@/services/misc-config.service', async (original) => ({
   ...(await original<typeof MiscConfigServiceModule>()),
   queryMiscConfigFile: mocks.readMisc,
@@ -71,8 +80,6 @@ vi.mock('@/services/misc-config.service', async (original) => ({
 vi.mock('@/orchestrators/json-save.orchestrator', () => ({
   saveJsonFileAction: (_kind: string, ...args: unknown[]) => mocks.saveFile(...args),
   saveIndexedEntityAction: mocks.saveIndexed,
-  saveModInfoAction: mocks.saveMod,
-  recreateJsonSourcesAction: mocks.recreate,
 }));
 vi.mock('@/orchestrators/project-sync.orchestrator', async () => ({
   ...(await import('@/test/unit/project-changes')),
@@ -95,6 +102,7 @@ function record(definition: JsonDocumentDefinition, id = 'a', sessionId = 's1', 
     return {
       target: { sessionId, modRoot, kind: definition.kind, id: 'strings', entity: null },
       value: { file: {} },
+      document: jsonFileFixture({}),
       baseVersions: [{ path: modRoot + '/data/strings/strings.json', fingerprint: 'v1' }],
       resources: {},
     };
@@ -102,6 +110,7 @@ function record(definition: JsonDocumentDefinition, id = 'a', sessionId = 's1', 
     return {
       target: { sessionId, modRoot, kind: definition.kind, id: 'mod-info', entity: null },
       value: { file: { id: 'mod', name: 'Saved', version: '1.0', gameVersion: '0.98a' } },
+      document: jsonFileFixture({ id: 'mod', name: 'Saved', version: '1.0', gameVersion: '0.98a' }),
       baseVersions: [{ path: modRoot + '/mod_info.json', fingerprint: 'v1' }],
       resources: {},
     };
@@ -162,6 +171,7 @@ async function prepare(request: JsonRecoveryRequest): Promise<JsonRecoveryPlan> 
     return {
       request,
       missingPaths: [],
+      documents: { [entity.kind === 'mission' ? 'descriptor' : 'file']: entity.document! },
       baseVersions: entity.baseVersions,
       currentSources:
         entity.kind === 'mission'
@@ -174,6 +184,7 @@ async function prepare(request: JsonRecoveryRequest): Promise<JsonRecoveryPlan> 
   return {
     request,
     missingPaths: [],
+    documents: { file: jsonFileFixture(origin.kind === 'modInfo' ? manifest.modInfo! : {}) },
     baseVersions: manifest.baseVersions,
     currentSources: { file: origin.kind === 'modInfo' ? manifest.modInfo! : {} },
     resourceRefs: {},
@@ -210,38 +221,42 @@ beforeEach(() => {
     path: 'M:/one/data/strings/strings.json',
     relPath: 'data/strings/strings.json',
     data: {},
+    document: jsonFileFixture({}),
+    composition: { layers: [], excluded: [], replace: false },
     baseVersions: [{ path: 'M:/one/data/strings/strings.json', fingerprint: 'v1' }],
   });
   mocks.saveMisc.mockImplementation(async (payload) => ({
     ...receipt(null, null),
-    content: { target: { kind: 'json', origin: { kind: 'modInfo' } }, value: payload.data },
+    content: { target: { kind: 'json', origin: { kind: 'modInfo' } }, value: jsonFileFixture(projectJsonValue(payload.document.content)) },
     baseVersions: payload.baseVersions.map((v: { path: string }) => ({ ...v, fingerprint: 'saved' })),
   }));
   mocks.read.mockImplementation(async (session: string, kind: string, id: string) => entities.get(session + ':' + kind + ':' + id) ?? null);
   mocks.prepare.mockImplementation(prepare);
-  mocks.saveFile.mockImplementation(
-    async (session: string, root: string, id: string, data: RowData, previous: string | null, relPath: string) => {
-      const kind = relPath.endsWith('.skin') ? 'skin' : 'variant';
-      const before = entities.get(session + ':' + kind + ':' + (previous ?? id))!;
-      const after = jsonEntityFixture(kind, id, '', root);
-      after.data = deepClone(data);
-      entities.delete(session + ':' + kind + ':' + before.id);
-      entities.set(session + ':' + kind + ':' + id, after);
-      const result = receipt(before, after);
-      after.baseVersions = result.baseVersions;
-      return {
-        ...result,
-        content: {
-          target: { kind: 'json', origin: { kind: 'entity', target: { kind, id, relPath: after.target.write.relPath } } },
-          value: { data },
-        },
-      };
-    },
-  );
+  mocks.saveFile.mockImplementation(async (write: JsonFileSave) => {
+    const { sessionId: session, modRoot: root, nextId: id, previousId: previous, relPath } = write;
+    const data = projectJsonValue(write.document.content) as RowData;
+    const kind = relPath!.endsWith('.skin') ? 'skin' : 'variant';
+    const before = entities.get(session + ':' + kind + ':' + (previous ?? id))!;
+    const after = jsonEntityFixture(kind, id, '', root);
+    after.data = deepClone(data);
+    entities.delete(session + ':' + kind + ':' + before.id);
+    entities.set(session + ':' + kind + ':' + id, after);
+    const result = receipt(before, after);
+    after.baseVersions = result.baseVersions;
+    return {
+      ...result,
+      content: {
+        target: { kind: 'json', origin: { kind: 'entity', target: { kind, id, relPath: after.target.write.relPath } } },
+        value: { data, document: jsonFileFixture(data) },
+      },
+    };
+  });
   mocks.saveIndexed.mockImplementation(async (write: IndexedConfigSave) => {
     const before = entities.get(write.sessionId + ':' + write.kind + ':' + write.previousId)!;
     const after = jsonEntityFixture(write.kind, write.nextId, '', write.modRoot);
-    after.data = write.kind === 'faction' ? write.entityData.file! : { ...write.entityData, list: write.indexRow };
+    const file = projectJsonValue(write.document.content) as RowData;
+    const entityData: RowData = write.kind === 'faction' ? { file } : { descriptor: file, text: write.text };
+    after.data = write.kind === 'faction' ? file : { ...entityData, list: write.indexRow };
     entities.delete(write.sessionId + ':' + write.kind + ':' + before.id);
     entities.set(write.sessionId + ':' + write.kind + ':' + write.nextId, after);
     const result = receipt(before, after);
@@ -255,7 +270,8 @@ beforeEach(() => {
         },
         value: {
           entityId: write.nextId,
-          entityData: write.entityData,
+          entityData,
+          document: jsonFileFixture(file),
           indexRows: [{ data: write.indexRow, isComment: false }],
           indexPath: '',
           indexHeader: [],
@@ -263,10 +279,10 @@ beforeEach(() => {
       },
     };
   });
-  mocks.saveMod.mockImplementation(async (_session: string, root: string, data: RowData) => ({
+  mocks.saveMod.mockImplementation(async (write) => ({
     ...receipt(null, null),
-    baseVersions: [{ path: root + '/mod_info.json', fingerprint: 'v2' }],
-    content: { target: { kind: 'json', origin: { kind: 'modInfo' } }, value: data },
+    baseVersions: [{ path: write.modRoot + '/mod_info.json', fingerprint: 'v2' }],
+    content: { target: { kind: 'json', origin: { kind: 'modInfo' } }, value: jsonFileFixture(projectJsonValue(write.document.content)) },
   }));
 });
 afterEach(() => {
@@ -296,6 +312,7 @@ describe('complete JSON document runtime', () => {
     const initial = record(JSON_DOCUMENT_DEFINITIONS.factions);
     const file = initial.value.file as RowData;
     initial.value = { file: { displayName: 'Local' } };
+    initial.document = jsonFileFixture({ displayName: 'Local' });
     initial.composition = {
       replace: false,
       excluded: [],
@@ -395,7 +412,7 @@ describe('complete JSON document runtime', () => {
     doc.setActive(true);
     doc.setActive(false);
     const request: JsonRecoveryRequest = { sessionId: 's1', modRoot: 'M:/one', origin: { kind: 'modInfo' } };
-    complete({ request, baseVersions: [], missingPaths: ['late'], currentSources: {}, resourceRefs: {} });
+    complete({ request, baseVersions: [], missingPaths: ['late'], currentSources: {}, documents: {}, resourceRefs: {} });
     await flushPromises();
     expect(doc.sourceMissing.value).toBe(false);
     expect(doc.draftValue.value.displayName).toBe('Saved');
@@ -433,16 +450,17 @@ describe('complete JSON document runtime', () => {
       finish = resolve;
     });
     const original = mocks.saveMisc.getMockImplementation()!;
-    mocks.saveMisc.mockImplementationOnce(async (payload) => {
+    mocks.saveMisc.mockImplementationOnce(async (payload, edits, request) => {
       await gate;
-      return original(payload);
+      return original(payload, edits, request);
     });
     const saving = doc.save();
     await flushPromises();
     doc.draftValue.value = { file: { 'group.一': { line: ' 123\n$token ' } } };
     finish();
     expect((await saving).status).toBe('saved');
-    expect(mocks.saveMisc.mock.lastCall![0]).toMatchObject({ kind: 'strings', data: { 'group.一': { line: '001' } } });
+    expect(mocks.saveMisc.mock.lastCall![0].kind).toBe('strings');
+    expect(projectJsonValue(mocks.saveMisc.mock.lastCall![0].document.content)).toEqual({ 'group.一': { line: '001' } });
     expect(doc.dirty.value).toBe(true);
     expect(doc.draftValue.value.file).toEqual({ 'group.一': { line: ' 123\n$token ' } });
     expect(await doc.undo()).toBe(true);
@@ -464,6 +482,7 @@ describe('complete JSON document runtime', () => {
       baseVersions: [],
       missingPaths: ['data/strings/strings.json'],
       currentSources: {},
+      documents: {},
       resourceRefs: {},
     }));
     doc.setActive(true);
@@ -493,24 +512,19 @@ describe('complete JSON document runtime', () => {
         : definition.kind === 'mod-info'
           ? mocks.saveMod.mock.lastCall!
           : mocks.saveIndexed.mock.lastCall!;
+      const write = call[0] as JsonFileSave | IndexedConfigSave | ModInfoSave;
+      expect(write).toMatchObject({ sessionId: 's1', modRoot: 'M:/one', baseVersions: initial.baseVersions });
       if (definition.file)
-        expect(call.slice(0, 4)).toEqual([
-          's1',
-          'M:/one',
-          'a',
+        expect(projectJsonValue(write.document.content)).toEqual(
           initial.target.kind === 'variant'
             ? { variantId: 'a', hullId: 'hull', displayName: 'Submitted' }
             : { skinHullId: 'a', baseHullId: 'hull', hullName: 'Submitted' },
-        ]);
-      else if (definition.kind === 'mod-info') expect(call[2]).toMatchObject({ name: 'Submitted' });
+        );
+      else if (definition.kind === 'mod-info') expect(projectJsonValue(write.document.content)).toMatchObject({ name: 'Submitted' });
       else
         expect(call[0]).toMatchObject({
           previousId: 'a',
           baseVersions: initial.baseVersions,
-          entityData:
-            definition.kind === 'faction'
-              ? { file: { id: 'a', displayName: 'Submitted' } }
-              : { descriptor: { title: 'Submitted' }, text: 'Body' },
           indexRow: definition.kind === 'mission' ? { mission: 'a' } : { faction: 'data/world/factions/a.faction' },
         });
       expect(await doc.undo()).toBe(true);
@@ -638,6 +652,7 @@ describe('complete JSON document runtime', () => {
       request: { sessionId: 's1', modRoot: 'M:/one', origin },
       baseVersions: baseline.baseVersions.map((version) => ({ ...version, fingerprint: null })),
       missingPaths: baseline.baseVersions.map((version) => version.path.slice('M:/one/'.length)),
+      documents: {},
       currentSources: {},
       resourceRefs: {},
     };
@@ -649,6 +664,7 @@ describe('complete JSON document runtime', () => {
         target: { kind: 'json', origin: { kind: 'modInfo' } },
         value: {
           ...plan,
+          documents: { [definition.kind === 'mission' ? 'descriptor' : 'file']: baseline.document! },
           missingPaths: [],
           currentSources: definition.file
             ? { file: baseline.value }
@@ -664,7 +680,7 @@ describe('complete JSON document runtime', () => {
     };
     mocks.recreate.mockResolvedValue(result);
     expect(await doc.recreateSources()).toBe(true);
-    expect(mocks.recreate.mock.lastCall!.slice(0, 2)).toEqual([plan, baseline.value]);
+    expect(mocks.recreate.mock.lastCall![0]).toMatchObject({ plan, baseline: baseline.value });
     expect(doc.target.value).toEqual(baseline.target);
     expect(doc.dirty.value).toBe(true);
     expect(doc.record.value!.value).toEqual(baseline.value);
@@ -682,6 +698,7 @@ describe('complete JSON document runtime', () => {
         baseVersions: baseline.baseVersions,
         missingPaths: ['missing.json'],
         currentSources: {},
+        documents: {},
         resourceRefs: {},
       }));
       doc.setActive(true);
@@ -743,6 +760,7 @@ describe('complete JSON document runtime', () => {
         },
         baseVersions: baseline.baseVersions.map((version) => ({ ...version, fingerprint: null })),
         missingPaths: [baseline.target.entity!.write.relPath],
+        documents: {},
         currentSources: {},
         resourceRefs: {},
       };
@@ -755,7 +773,7 @@ describe('complete JSON document runtime', () => {
           baseVersions: baseline.baseVersions,
           content: {
             target: { kind: 'json', origin: { kind: 'modInfo' } },
-            value: { ...plan, missingPaths: [], currentSources: { file: baseline.value } },
+            value: { ...plan, missingPaths: [], documents: { file: baseline.document! }, currentSources: { file: baseline.value } },
           },
         });
         mocks.complete.mockRejectedValueOnce(new Error('broadcast'));
@@ -821,7 +839,7 @@ describe('complete JSON document runtime', () => {
     const doc = useJsonDocumentSession(definition, initial, feedback);
     const writer = mocks.saveIndexed.getMockImplementation()!;
     mocks.saveIndexed.mockImplementationOnce(async (write: IndexedConfigSave) => {
-      const saved = (await writer(write))!;
+      const saved = (await writer(write, []))!;
       entities.get(write.sessionId + ':faction:' + write.nextId)!.composition = { layers: [], excluded: [], replace: false };
       if (!renamed) {
         saved.identityChanges[0]!.after.write = { ...initial.target.entity!.write };

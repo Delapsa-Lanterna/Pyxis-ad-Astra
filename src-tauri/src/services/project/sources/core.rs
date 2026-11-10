@@ -792,13 +792,18 @@ pub(crate) fn prepare_core_source_batch(
     let mut reader = entry.sources.fork_loaded();
     reader.begin_batch();
     reader.use_batch(batch);
-    let paths = if rescan {
+    let retry_failed = rescan && !entry.failed_products.is_empty();
+    let mut paths = if rescan {
         reader.rescan_paths()?
     } else {
         paths.to_vec()
     };
+    if retry_failed {
+        paths.extend(reader.versions.keys().cloned());
+        paths.sort();
+        paths.dedup();
+    }
     let versions = reader.versions.clone();
-    let retry_failed = rescan && !entry.failed_products.is_empty();
     let mut sources = Vec::new();
     let mut files = BTreeSet::new();
     let mut checked = BTreeMap::new();

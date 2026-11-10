@@ -1,10 +1,10 @@
-import type { JsonValue } from './json.types';
 import type { ErrorDiagnostic } from './error.types';
 import type { FileVersion } from './project-identity.types';
 import type { JsonWriteOptions } from './json-write.types';
 import type { MiscConfigKind } from './document-identity.types';
 import type { JsonComposition } from './json-composition.types';
-
+import type { JsonFileContent, JsonFileWrite } from './file-content.types';
+import type { JsonValue } from './json.types';
 export type { MiscConfigKind } from './document-identity.types';
 
 export interface MiscConfigScope {
@@ -22,19 +22,19 @@ export interface MiscConfigEntry {
   error: ErrorDiagnostic | null;
 }
 export interface MiscConfigFile {
-  composition?: JsonComposition;
   kind: MiscConfigKind;
   path: string;
   relPath: string;
-  data: JsonValue;
   baseVersions: FileVersion[];
+  document: JsonFileContent;
+  data: JsonValue;
+  composition: JsonComposition;
 }
 export interface MiscConfigWrite extends MiscConfigScope {
   kind: MiscConfigKind;
   baseVersions: FileVersion[];
-  data: JsonValue;
+  document: JsonFileWrite;
   jsonWrite: JsonWriteOptions;
-  orderedJson: string;
 }
 export interface MiscConfigDelete extends MiscConfigScope {
   kind: MiscConfigKind;

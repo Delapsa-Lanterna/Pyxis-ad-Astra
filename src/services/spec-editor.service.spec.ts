@@ -1,5 +1,6 @@
 import { savedWriteFixture } from '@/test/fixtures/write-result';
 import { entityTargetFixture } from '@/test/fixtures/entity-target';
+import { jsonFileFixture, jsonWriteFixture } from '@/test/fixtures/json-file';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { EntityData, ResourceRef, RowData, WriteResult, EntityKind, JointEditRoot } from '@/shared/types/index';
 import { shipJointFixture } from '@/test/fixtures/joint-edit/ship-joint-edit';
@@ -34,7 +35,7 @@ vi.mock('@/shared/runtime/command.runtime', () => ({
 }));
 vi.mock('@/services/joint-edit.service', () => ({ queryJointCandidate: mocks.queryJointCandidate }));
 
-import { saveSpecEditorSpecByKind, loadSpecEditorImport } from './spec-editor.service';
+import { saveSpecEditorSpec, loadSpecEditorImport } from './spec-editor.service';
 import { querySpecShipEditorData, querySpecShipEditorImages, querySpecShipWeaponSources } from './spec-ship-editor.service';
 import { querySpecSystemEditorData } from './spec-system-editor.service';
 
@@ -45,6 +46,8 @@ function entity(data: RowData, refs: Record<string, ResourceRef> = {}): EntityDa
     kind: 'ship',
     id: String(data.id ?? ''),
     data,
+    document: jsonFileFixture(data),
+    composition: null,
     resourceRefs: refs,
   };
 }
@@ -142,16 +145,26 @@ describe('editor dependencies', () => {
   });
 });
 
-describe('saveSpecEditorSpecByKind and import', () => {
+describe('complete spec writes and import', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it('wraps write failures with the spec save cause', async () => {
+  it('forwards write failures with their original cause', async () => {
     mocks.invokeCommand.mockRejectedValue(new Error('disk on fire'));
-    await expect(saveSpecEditorSpecByKind('s1', 'C:/mods/alpha', entityTargetFixture('ship', 'XY'), { hullId: 'XY' })).rejects.toThrow(
-      '保存 XY spec 失败',
-    );
+    await expect(
+      saveSpecEditorSpec(
+        {
+          sessionId: 's1',
+          modRoot: 'C:/mods/alpha',
+          target: entityTargetFixture('ship', 'XY'),
+          document: jsonWriteFixture({ hullId: 'XY' }),
+          baseVersions: [],
+          jsonWrite: {},
+        },
+        [],
+      ),
+    ).rejects.toThrow('disk on fire');
     expect(mocks.invokeCommand).toHaveBeenCalledWith(
       'save_editor_spec',
       {
@@ -160,7 +173,8 @@ describe('saveSpecEditorSpecByKind and import', () => {
           sessionId: 's1',
           modRoot: 'C:/mods/alpha',
           target: entityTargetFixture('ship', 'XY'),
-          data: { hullId: 'XY' },
+          document: jsonWriteFixture({ hullId: 'XY' }),
+          jsonWrite: {},
         },
       },
       expect.any(Array),
@@ -172,17 +186,41 @@ describe('saveSpecEditorSpecByKind and import', () => {
     const result = writeResultFixture();
     result.content = { target: { kind: 'spec', target: entityTargetFixture('system', 'S1') }, value: { id: 'S1' } };
     mocks.invokeCommand.mockResolvedValue(result);
-    await expect(saveSpecEditorSpecByKind('s1', 'C:/mods/alpha', entityTargetFixture('system', 'S1'), { id: 'S1' })).resolves.toEqual(
-      result,
-    );
+    await expect(
+      saveSpecEditorSpec(
+        {
+          sessionId: 's1',
+          modRoot: 'C:/mods/alpha',
+          target: entityTargetFixture('system', 'S1'),
+          document: jsonWriteFixture({ id: 'S1' }),
+          baseVersions: [],
+          jsonWrite: {},
+        },
+        [],
+      ),
+    ).resolves.toEqual(result);
   });
 
-  it('rejects saves without a mod root or id before touching the writer', async () => {
-    await expect(saveSpecEditorSpecByKind('s1', '', entityTargetFixture('ship', 'XY'), {})).rejects.toMatchObject({ action: 'save-spec' });
-    await expect(saveSpecEditorSpecByKind('s1', 'C:/mods/alpha', entityTargetFixture('ship', ''), {})).rejects.toMatchObject({
-      action: 'save-spec',
-    });
-    expect(mocks.invokeCommand).not.toHaveBeenCalled();
+  it('leaves target authorization to the backend owner', async () => {
+    mocks.invokeCommand.mockRejectedValue(new Error('invalid target'));
+    for (const [root, id] of [
+      ['', 'XY'],
+      ['C:/mods/alpha', ''],
+    ])
+      await expect(
+        saveSpecEditorSpec(
+          {
+            sessionId: 's1',
+            modRoot: root!,
+            target: entityTargetFixture('ship', id!),
+            document: jsonWriteFixture({}),
+            jsonWrite: {},
+            baseVersions: [],
+          },
+          [],
+        ),
+      ).rejects.toThrow('invalid target');
+    expect(mocks.invokeCommand).toHaveBeenCalledTimes(2);
   });
 
   it('delegates imported spec file loads', async () => {

@@ -1,101 +1,60 @@
-import type { SaveCommandRequest } from '@/shared/runtime/command.runtime';
-import { captureJsonEdits } from '@/shared/lib/json-edits';
+import type { DocumentEdit } from '@/shared/types';
+import { invokeSaveCommand, type SaveCommandRequest } from '@/shared/runtime/command.runtime';
+import { querySessionEntityEditTarget, querySessionEntityIdentityIntent } from './entity-query.service';
+import { querySessionDraftResources } from './resource-reference.service';
+import { hydrateFactionPreviewImages, hydrateMissionIcon } from './json-resource.service';
+import { cloneQuerySnapshot } from '@/shared/lib/query-snapshot';
+import type { ConfigFactionPreviewImages } from '@/domain/json-editor/json-config-records';
+import type { JsonFileContent } from '@/shared/types';
 import type {
   ModInfoSave,
-  ProjectSessionId,
-  RowData,
-  IndexedConfigDelete,
   IndexedConfigSave,
-  JsonWriteOptions,
+  IndexedConfigDelete,
+  IndexedConfigEntityRefresh,
   WriteResult,
-  FileVersion,
   EntityKind,
   EntityTargetSnapshot,
   EntityIdentityIntent,
-  IndexedConfigEntityRefresh,
+  ProjectSessionId,
+  RowData,
 } from '@/shared/types';
-import { querySessionEntityEditTarget, querySessionEntityIdentityIntent } from '@/services/entity-query.service';
-import { querySessionDraftResources } from '@/services/resource-reference.service';
-import { hydrateFactionPreviewImages, hydrateMissionIcon } from '@/services/json-resource.service';
-import type { ConfigFactionPreviewImages } from '@/domain/json-editor/json-config-records';
-
-import { cloneQuerySnapshot } from '@/shared/lib/query-snapshot';
-import { invokeSaveCommand } from '@/shared/runtime/command.runtime';
 
 export function saveModInfo(
-  sessionId: string,
-  modRoot: string,
-  data: RowData,
-  jsonWrite: JsonWriteOptions,
-  baseVersions: FileVersion[] = [],
-  original?: RowData,
+  payload: ModInfoSave,
+  edits: DocumentEdit[],
   request?: SaveCommandRequest,
-): Promise<WriteResult> {
-  return invokeSaveCommand(
-    'save_mod_info',
-    {
-      payload: { baseVersions, sessionId, modRoot, data, jsonWrite, orderedJson: JSON.stringify(data) } satisfies ModInfoSave,
-    },
-    original === undefined ? [{ kind: 'set', path: [], value: data }] : captureJsonEdits(original, data),
-    request,
-  );
+): Promise<WriteResult<JsonFileContent>> {
+  return invokeSaveCommand('save_mod_info', { payload }, edits, request);
 }
-
 export function saveIndexedConfigEntity(
-  write: Omit<IndexedConfigSave, 'jsonWrite' | 'orderedJson'>,
-  jsonWrite?: JsonWriteOptions,
-  original?: RowData,
+  payload: IndexedConfigSave,
+  edits: DocumentEdit[],
   request?: SaveCommandRequest,
 ): Promise<WriteResult<IndexedConfigEntityRefresh>> {
-  return invokeSaveCommand(
-    'save_indexed_config_entity',
-    {
-      payload: {
-        modRoot: write.modRoot,
-        baseVersions: write.baseVersions,
-        sessionId: write.sessionId,
-        kind: write.kind,
-        previousId: write.previousId,
-        nextId: write.nextId,
-        indexRow: write.indexRow,
-        entityData: write.entityData,
-        ...(jsonWrite
-          ? { jsonWrite, orderedJson: JSON.stringify(write.kind === 'faction' ? write.entityData.file : write.entityData.descriptor) }
-          : {}),
-      } satisfies IndexedConfigSave,
-    },
-    original === undefined ? [{ kind: 'set', path: [], value: write.entityData }] : captureJsonEdits(original, write.entityData),
-    request,
-  );
+  return invokeSaveCommand('save_indexed_config_entity', { payload }, edits, request);
 }
-
 export function createIndexedConfigEntity(
-  write: Omit<IndexedConfigSave, 'jsonWrite' | 'orderedJson'>,
+  payload: IndexedConfigSave,
   request?: SaveCommandRequest,
 ): Promise<WriteResult<IndexedConfigEntityRefresh>> {
-  return invokeSaveCommand('create_indexed_config_entity', { payload: { ...write } satisfies IndexedConfigSave }, [], request);
+  return invokeSaveCommand('create_indexed_config_entity', { payload }, [], request);
 }
-
-export function deleteIndexedConfigEntity(write: IndexedConfigDelete, request?: SaveCommandRequest): Promise<WriteResult> {
-  return invokeSaveCommand('delete_indexed_config_entity', { payload: write satisfies IndexedConfigDelete }, [], request);
+export function deleteIndexedConfigEntity(payload: IndexedConfigDelete, request?: SaveCommandRequest): Promise<WriteResult> {
+  return invokeSaveCommand('delete_indexed_config_entity', { payload }, [], request);
 }
-
 export async function captureConfigIdentityIntent(sessionId: string, kind: EntityKind, sourceId: string, nextId: string) {
   const snapshot = cloneQuerySnapshot<EntityTargetSnapshot>(await querySessionEntityEditTarget(sessionId, kind, sourceId));
-  const intent = await querySessionEntityIdentityIntent(sessionId, snapshot.target, nextId);
-  return { snapshot, intent: cloneQuerySnapshot<EntityIdentityIntent>(intent) };
+  const intent = cloneQuerySnapshot<EntityIdentityIntent>(await querySessionEntityIdentityIntent(sessionId, snapshot.target, nextId));
+  return { snapshot, intent };
 }
-
 export async function queryFactionPreviewImages(
   sessionId: ProjectSessionId,
   id: string,
   draft: RowData,
   signal?: AbortSignal,
 ): Promise<ConfigFactionPreviewImages> {
-  const resources = await querySessionDraftResources(sessionId, 'faction', id, draft, signal);
-  return hydrateFactionPreviewImages(sessionId, resources, signal);
+  return hydrateFactionPreviewImages(sessionId, await querySessionDraftResources(sessionId, 'faction', id, draft, signal), signal);
 }
-
 export async function queryMissionDraftIcon(
   sessionId: ProjectSessionId,
   id: string,

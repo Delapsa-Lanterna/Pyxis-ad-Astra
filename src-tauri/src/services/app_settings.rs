@@ -679,7 +679,7 @@ mod tests {
             ("logDirectory", serde_json::json!("relative")),
             ("allowCoreEditing", serde_json::json!("true")),
             ("immersiveGameFont", serde_json::json!(0)),
-            ("preserveOriginalJson", serde_json::json!(null)),
+            ("preserveStructure", serde_json::json!(null)),
         ] {
             source[key] = value;
         }

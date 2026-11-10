@@ -1,5 +1,5 @@
 import { mount, flushPromises } from '@vue/test-utils';
-import { nextTick, ref } from 'vue';
+import { nextTick, ref, shallowRef } from 'vue';
 import { describe, expect, it, vi, onTestFinished } from 'vitest';
 import { CONFIG_FIELD_SOURCES } from '@/domain/schema/schema-source-definitions';
 import { projectChangeFixture } from '@/test/unit/project-changes';
@@ -96,7 +96,7 @@ describe('schema source query lifecycle', () => {
     const query = vi.fn(async () => [
       { origin: 'mod' as const, options: [{ label: 'A', value: 'a', origin: 'mod' as const, description: null, resourceRef: null }] },
     ]);
-    const context = ref<FieldEditorContext>({ sessionId: 's1', modRoot: 'M:/A', querySourceOptions: query });
+    const context = shallowRef<FieldEditorContext>({ sessionId: 's1', modRoot: 'M:/A', querySourceOptions: query });
     let source!: ReturnType<typeof useFieldSourceOptions>;
     const wrapper = mount({
       setup() {

@@ -17,7 +17,9 @@ import SchemaFormRenderer from './SchemaFormRenderer.vue';
 import SchemaFieldRenderer from './SchemaFieldRenderer.vue';
 import { editorUiStubs } from '@/test/unit/ui-stubs';
 import { nButton, nSelect, nSwitch } from '@/test/unit/ui-stubs';
-import { h, nextTick, ref } from 'vue';
+import { h, nextTick, ref, shallowRef, watch } from 'vue';
+import { createJsonDocument } from '@/domain/json-document';
+import { prepareValue } from '@/domain/schema/game-number';
 import { useEditTargetDraftSession } from '@/app/composables/use-edit-target-draft-session';
 import { applySchemaFieldUpdate } from '@/domain/schema/schema-values';
 import type { RowData, JsonValue } from '@/shared/types';
@@ -75,20 +77,27 @@ function mountField(field: FieldSchema, value: unknown, props: Record<string, un
   return wrapper!;
 }
 
-function mountBoundField(field: FieldSchema, initial: unknown, runtimeContext?: FieldEditorContext) {
+function mountBoundField(field: FieldSchema, initial: JsonValue | undefined, runtimeContext?: FieldEditorContext) {
   const inputs = createFieldInputs();
-  const value = ref(initial);
+  const value = shallowRef(initial);
+  const owner = createJsonDocument(null, { value: prepareValue(initial === undefined ? {} : { [field.key]: initial }).value });
   wrapper = mount(
     {
       setup() {
         provideFieldInputs(inputs);
+        watch(value, (next) => owner.update(next === undefined ? {} : { [field.key]: next }, (value) => prepareValue(value)), {
+          flush: 'sync',
+        });
         return () =>
           h(SchemaFieldRenderer, {
             field,
             value: value.value,
-            runtimeContext,
+            runtimeContext: { sessionId: 'field', modRoot: 'M:/field', ...runtimeContext, document: owner },
             onUpdate: (update) => {
-              if (update.kind === 'set') value.value = update.value;
+              if (update.fileEdit) {
+                owner.apply(update.fileEdit);
+                value.value = (owner.projection as RowData)[field.key];
+              } else if (update.kind === 'set') value.value = update.value as JsonValue;
             },
           });
       },
@@ -275,7 +284,7 @@ describe('SchemaFieldRenderer smart mode', () => {
               value: value.value,
               runtimeContext: { sessionId: 's1', modRoot: 'M:/sample', querySourceOptions: query },
               onUpdate: (update) => {
-                if (update.kind === 'set') value.value = update.value;
+                if (update.kind === 'set') value.value = update.value as JsonValue;
               },
             }),
         },

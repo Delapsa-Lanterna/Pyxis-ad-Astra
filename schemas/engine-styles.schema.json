@@ -100,8 +100,7 @@
           "key": "glowSizeMult",
           "type": "float",
           "label": "发光尺寸倍数",
-          "description": "调整引擎发光部分的大小，默认 1。",
-          "numberFormat": "starsector"
+          "description": "调整引擎发光部分的大小，默认 1。"
         },
         {
           "key": "flickerWhenMissileFlamedOut",
@@ -114,7 +113,6 @@
           "type": "float",
           "label": "粒子尺寸倍数",
           "description": "PARTICLES 模式下的尾迹粒子尺寸倍数。",
-          "numberFormat": "starsector",
           "requiredWhen": {
             "mode": "PARTICLES"
           }
@@ -124,7 +122,6 @@
           "type": "float",
           "label": "粒子持续时间",
           "description": "PARTICLES 模式下的尾迹粒子持续时间，单位为秒。",
-          "numberFormat": "starsector",
           "requiredWhen": {
             "mode": "PARTICLES"
           }
@@ -133,15 +130,13 @@
           "key": "contrailParticleFinalSizeMult",
           "type": "float",
           "label": "粒子最终尺寸倍数",
-          "description": "PARTICLES 模式下粒子消失前的尺寸倍数，默认 0.5。",
-          "numberFormat": "starsector"
+          "description": "PARTICLES 模式下粒子消失前的尺寸倍数，默认 0.5。"
         },
         {
           "key": "contrailWidthMult",
           "type": "float",
           "label": "条带宽度倍数",
           "description": "QUAD_STRIP 模式下的尾迹宽度倍数。",
-          "numberFormat": "starsector",
           "requiredWhen": {
             "mode": "QUAD_STRIP"
           }
@@ -151,7 +146,6 @@
           "type": "float",
           "label": "条带持续时间",
           "description": "QUAD_STRIP 模式下的尾迹持续时间，单位为秒。",
-          "numberFormat": "starsector",
           "requiredWhen": {
             "mode": "QUAD_STRIP"
           }
@@ -160,38 +154,33 @@
           "key": "contrailWidthAddedFractionAtEnd",
           "type": "float",
           "label": "条带末端宽度变化",
-          "description": "QUAD_STRIP 模式下末端的附加宽度比例；负值使尾迹收窄。",
-          "numberFormat": "starsector"
+          "description": "QUAD_STRIP 模式下末端的附加宽度比例；负值使尾迹收窄。"
         },
         {
           "key": "contrailMinSeg",
           "type": "float",
           "label": "最短条带段",
-          "description": "QUAD_STRIP 模式下条带分段的最短长度，单位为像素，默认 5。",
-          "numberFormat": "starsector"
+          "description": "QUAD_STRIP 模式下条带分段的最短长度，单位为像素，默认 5。"
         },
         {
           "key": "contrailSpawnDistMult",
           "type": "float",
           "label": "条带生成距离倍数",
-          "description": "QUAD_STRIP 模式下条带分段生成距离的倍数，默认 0.7。",
-          "numberFormat": "starsector"
+          "description": "QUAD_STRIP 模式下条带分段生成距离的倍数，默认 0.7。"
         },
         {
           "key": "contrailMaxSpeedMult",
           "type": "float",
           "required": true,
           "label": "尾迹速度倍数",
-          "description": "控制尾迹运动速度，按引擎样式使用该倍数。",
-          "numberFormat": "starsector"
+          "description": "控制尾迹运动速度，按引擎样式使用该倍数。"
         },
         {
           "key": "contrailAngularVelocityMult",
           "type": "float",
           "required": true,
           "label": "尾迹角速度倍数",
-          "description": "控制尾迹旋转速度的倍数。",
-          "numberFormat": "starsector"
+          "description": "控制尾迹旋转速度的倍数。"
         },
         {
           "key": "type",

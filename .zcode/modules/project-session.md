@@ -10,10 +10,7 @@
 
 - `src-tauri/src/domain/entity_definitions.rs`：八种实体的目录、后缀、ID 字段及规格、表格关联登记。
 - `src-tauri/src/domain/entity_identity.rs`：跨编辑器实体 ID、路径与来源范围纯规则。
-- `src-tauri/src/services/project/definitions/entity_definitions.rs`：实体来源、读取准备、刷新与摘要的登记规则。
-- `src-tauri/src/services/project/definitions/factions.rs`：势力蓝图标签推导。
-- `src-tauri/src/services/project/definitions/mod.rs`：实体来源与资源定义的模块登记。
-- `src-tauri/src/services/project/definitions/projectiles.rs`：Mod 弹体及 Core 回退的正式读取。
+- `src-tauri/src/services/project/definitions/`：实体来源定义、弹体读取与派生摘要。
 - `src-tauri/src/services/project/invalidation.rs`：提交路径到会话正式内容、实体与资源失效的更新。
 - `src-tauri/src/services/project/mod.rs`：会话生命周期、授权、内容更新、缓存配置与性能入口。
 - `src-tauri/src/services/project/model.rs`：会话、引用视图、可编辑 CSV 行身份及表格业务元数据。
@@ -21,13 +18,7 @@
 - `src-tauri/src/services/project/query/mod.rs`：只读业务实现的服务层可见模块登记。
 - `src-tauri/src/services/project/root.rs`：任务索引统计行为验证。
 - `src-tauri/src/services/project/session.rs`：会话打开、关闭、内容更新与内部登记及就绪访问能力交付。
-- `src-tauri/src/services/project/session/access.rs`：捕获引用快照后锁定并交付所属就绪会话。
-- `src-tauri/src/services/project/session/csv_tables.rs`：正式表格内容、稳定行身份、来源保留、加载版本及实体计数构建。
-- `src-tauri/src/services/project/session/csv_writes.rs`：表格写入缓冲、最终文本与实际应用后的正式状态接纳。
-- `src-tauri/src/services/project/session/references.rs`：有序引用来源、代次、共享快照与按需表格视图。
-- `src-tauri/src/services/project/session/registry.rs`：会话存活登记、句柄与内容就绪门控。
-- `src-tauri/src/services/project/session/source_refresh.rs`：同根正式候选构造、手动及自动来源接纳、缺失路径与 Core 会话更新。
-- `src-tauri/src/services/project/session/source_versions.rs`：会话来源复用、业务文件及变化来源版本范围交接。
+- `src-tauri/src/services/project/session/`：会话授权、就绪访问、CSV 正式内容、引用及来源版本管理。
 - `src-tauri/src/services/project/test_support.rs`：项目测试工作区的会话、历史及 Core 缓存释放与异常退出验证。
 - `src-tauri/src/services/project/versions.rs`：会话已接纳来源的路径凭据投影。
 - `src-tauri/src/services/project/write/mod.rs`：写入业务实现登记及内部暂存入口。
@@ -45,17 +36,18 @@
 - `src-tauri/src/domain/json_composition.rs`：正式来源组合消费的游戏 JSON 纯规则。
 - `src-tauri/src/io/mod.rs`：底层文件、路径及 changeset 能力导出。
 - `src-tauri/src/models/collections.rs`：内容更新和失效范围的稳定去重追加。
+- `src-tauri/src/models/file_content.rs`：精确文档、原始格式、物理 CSV 行格及完整写入请求。
+- `src-tauri/src/models/file_value.rs`：64 位整数、浮点与 UTF-16 文字的精确值。
 - `src-tauri/src/models/mod.rs`：正式模型登记及聚合导出。
 - `src-tauri/src/models/project_identity.rs`：会话、实体、表、资源、目标及版本身份与 session 范围实现宏。
 - `src-tauri/src/models/project_session.rs`：会话请求、清单、摘要与正式失效结果。
 - `src-tauri/src/models/serde_fields.rs`：会话输入字段的空值转换与非空字符串归一化。
+- `src-tauri/src/parsers/alex_csv.rs`：game 公开入口所导出的 CSV 内容读取与简单写出实现。
+- `src-tauri/src/parsers/game/`：游戏 JSON/CSV 的正式读取入口、文档方法、数值及文本格式能力。
 - `src-tauri/src/services/app_settings.rs`：正式快照、revision、串行写盘、目录回调结果接纳及装配传入的运行参数提交动作。
 - `src-tauri/src/services/project/performance.rs`：ProjectSession 阶段计时。
-- `src-tauri/src/services/project/query/entities.rs`：实际实体详情与列表查询。
-- `src-tauri/src/services/project/query/entity_targets.rs`：实体查询交付实际编辑目标、身份意图与版本范围。
 - `src-tauri/src/services/project/sources/`：成套来源内容、版本与解析成果读取。
 - `src/domain/project/entity-definitions.ts`：共享实体内容 ID 字段、可用 ID 规则与目标身份投影。
-- `src/services/entity-query.service.ts`：实体查询能力交接。
 - `src/shared/types/project-identity.types.ts`：会话、实体、表、资源与文件版本身份的基础协议。
 - `src/shared/types/project-session.types.ts`：会话请求、清单、摘要与正式失效结果。
 - `src/shared/types/write-commit.types.ts`：公共保存回执、提交同步、行键映射与正式内容交付。
@@ -68,6 +60,9 @@
 
 ### 关联
 
+- `src-tauri/src/services/project/query/entities.rs`：实际实体详情与列表查询。
+- `src-tauri/src/services/project/query/entity_targets.rs`：实体查询交付实际编辑目标、身份意图与版本范围。
+- `src/services/entity-query.service.ts`：实体查询能力交接。
 - `src/shared/lib/paths.ts`：文件系统、资源及游戏目录的路径纯规则。
 
 ## 边界
@@ -132,20 +127,20 @@
 ## 规范
 
 - 会话注册表必须在同一锁内移除登记并核对同根剩余 session，历史释放由项目同步消费注销结果。
-- 表格路径、身份列、摘要来源与 Core 要求必须消费唯一正式表定义，正式表状态严禁依赖 CSV 编辑实现。
-- 实体定义必须分别登记默认目录与来源目录；默认目录用于新建目标，全部来源目录共同参与首次装载、刷新、版本捕获与实体失效。
+- 表格路径、身份列、摘要来源与 Core 要求消费唯一正式表定义，正式表状态由项目会话维护。
+- 实体定义分别登记默认目录与来源目录；默认目录用于新建目标，全部来源目录共同参与首次装载、刷新、版本捕获与实体失效。
 - 引用来源必须来自已打开会话，来源快照在锁定接收方前取得，只读视图按引用范围版本共享，严禁交叉持有多个会话的可变锁。
 - 会话存活与内容就绪必须归会话登记维护，引用来源交付独立快照，会话读取先捕获引用快照再锁定接收方并交付就绪内容。
-- 会话建立必须消费统一原版根解析结果；`manifest.starsectorRoot` 与 `coreAvailable` 表达该会话实际采用的原版来源及可用性。
+- 会话建立消费统一原版根解析结果；`manifest.starsectorRoot` 与 `coreAvailable` 表达该会话实际采用的原版来源及可用性。
 - CSV 写后 refresh 必须保留当前缓存与 changeset after 文本一致的行身份和键分配序列；重新读取的外部版本按正式加载入口建立行身份。
-- CSV 查询必须显式投影 `isComment` 与 `sourceRowIndex`；搜索消费 CsvSearchField，ID 归表注册的 entity_id_field，名称与标签分别归 name 与 tags。
-- Core 弹体必须保留 Core 实际来源，同时声明当前 Mod 的覆盖创建目标；失效重建消费相同来源组合。
-- ID 归属的实体视图、关联目标、来源目录、表计数、行预览与失效快照必须消费解析器 `isComment`；实体登记只允许枚举非注释且实体 ID 非空的行。
-- Variant 与 Skin 的业务输出必须是文件内容；加载身份、文件目标、版本与资源分别归正式记录。
-- detail、list 与编辑目标查询必须消费同一目标定义；规格目标承载实际来源、所属根、写入目标、加载身份及关联行。
+- CSV 查询显式投影 `isComment` 与 `sourceRowIndex`；搜索消费 CsvSearchField，ID 归表注册的 entity_id_field，名称与标签分别归 name 与 tags。
+- Core 弹体保留 Core 实际来源，同时声明当前 Mod 的覆盖创建目标；失效重建消费相同来源组合。
+- ID 归属的实体视图、关联目标、来源目录、表计数、行预览与失效快照必须消费解析器 `isComment`；实体登记枚举非注释且实体 ID 非空的行，技能 ID 与任务名以 # 开头时按所属游戏加载规则跳过；物理记录及原文保留。
+- Variant 与 Skin 的业务输出是文件内容；加载身份、文件目标、版本与资源分别归正式记录。
+- detail、list 与编辑目标查询消费同一目标定义；规格目标承载实际来源、所属根、写入目标、加载身份及关联行。
 - session 注册表只允许短暂访问句柄，锁序必须为根事务租约、session 状态与缓存；query 严禁写盘，write 更新现有会话正式内容。
-- 会话 CSV 必须保存稳定行键、业务 data 与 `isComment`，Core 来源交付只读解析行；业务内容中的同名字段保留。
-- 会话根入口必须只交付生命周期、授权、内容更新及缓存配置，严禁转导出查询、资源和业务保存函数。
+- 会话 CSV 保存稳定行键、业务 data 与 `isComment`，Core 来源交付只读解析行；业务内容中的同名字段保留。
+- 会话根入口交付生命周期、授权、内容更新及缓存配置，查询、资源和业务保存函数由所属服务装配导出。
 - 写后失效对无法解析的实体只发出该实体种类的 `id: null` scope，严禁阻断其它实体或扩大失效范围。
 - 初始化、缓存恢复和失效重建必须消费同一所属来源构造；每次内容更新中的受影响族去重且各构造一次。
 - 多文件版本必须覆盖实际规格与所属 CSV、势力索引与授权规格、任务索引与任务目录；新建携带目标不存在凭据。
@@ -162,5 +157,5 @@
 - 正式内容构造必须先完成全部受影响索引、诊断、统计与版本，再原子发布；失败保留原正式内容并登记 `pending`。
 - 来源指纹、缓存恢复与目录加载必须经同一根边界授权实际文件及父链；索引引用纳入源指纹与版本范围。
 - 编辑 query 必须随数据返回 `baseVersions`；派生信息刷新保留 CSV 行身份，内容刷新按实际写盘方向处理。
-- 船体引用查询的指定 ID 结果必须包含内置武器槽目录，并按当前 Mod 优先、原版补集与皮肤继承规则计算。
+- 船体引用查询的指定 ID 结果包含内置武器槽目录，并按当前 Mod 优先、原版补集与皮肤继承规则计算。
 - 重命名的失效必须同时携带旧 ID 与新 ID。

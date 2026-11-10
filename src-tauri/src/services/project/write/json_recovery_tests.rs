@@ -1,6 +1,8 @@
 #![cfg(test)]
+use crate::models::IndexedConfigContent;
 #[cfg(test)]
 use crate::services::project_sync::release_project_session;
+use crate::test_support::file_formats;
 
 use crate::commands::prepare_json_source_recovery;
 use crate::errors::AppError;
@@ -9,9 +11,8 @@ use crate::io;
 #[cfg(test)]
 use crate::models::FileChangeReplayDirection;
 use crate::models::{
-    EntityKind, IndexedConfigKind, IndexedConfigSave, JsonDocumentOrigin, JsonFileSave,
-    JsonRecoveryPlan, JsonRecoveryRequest, JsonSourceIdentity, JsonSourceRestore, SaveAction,
-    WriteResult,
+    EntityKind, IndexedConfigSave, JsonDocumentOrigin, JsonFileSave, JsonRecoveryPlan,
+    JsonRecoveryRequest, JsonSourceIdentity, JsonSourceRestore, SaveAction, WriteResult,
 };
 use crate::services::project::PerformanceTrace;
 use crate::services::project::test_support::project_workspace;
@@ -120,12 +121,14 @@ other,unrelated
     }
     fn restore(&self, plan: JsonRecoveryPlan) -> Result<WriteResult<JsonRecoveryPlan>, AppError> {
         project_save::execute_typed_save::<JsonRecoveryPlan>(SaveAction::RecreateJsonSources(
-            JsonSourceRestore {
+            file_formats::recovery_request(JsonSourceRestore {
+                documents: Default::default(),
+                originals: Default::default(),
                 session_id: self.request.session_id.clone(),
                 mod_root: self.request.mod_root.clone(),
                 plan,
                 baseline: self.baseline.clone(),
-            },
+            }),
         ))
     }
 }
@@ -182,7 +185,7 @@ fn restore_sources_and_history() {
             for (index, path) in fixture.paths.iter().enumerate() {
                 assert!(fixture.root.join(path).is_file(), "{path}");
                 if path.ends_with(".csv") {
-                    let table = io::read_csv_data(&fixture.root.join(path)).unwrap();
+                    let table = file_formats::read_csv_table(&fixture.root.join(path)).unwrap();
                     assert_eq!(table.rows.len(), 2, "{kind}: shared index");
                     assert!(
                         table
@@ -434,13 +437,13 @@ fn directory_sources_preserve_registration_and_sparse_identity() {
                             session_id: manifest.session_id.clone(),
                             mod_root: manifest.mod_root.clone(),
                             base_versions: plan.base_versions,
-                            kind: IndexedConfigKind::Faction,
                             previous_id: Some("sample".into()),
                             next_id: "sample".into(),
                             index_row: Default::default(),
-                            entity_data: json!({"file":data}),
+                            content: IndexedConfigContent::Faction {
+                                document: file_formats::json_write(&(json!({"file":data}))["file"]),
+                            },
                             json_write: Default::default(),
-                            ordered_json: None,
                         })
                     } else {
                         SaveAction::SaveSkinEntity(JsonFileSave {
@@ -449,14 +452,13 @@ fn directory_sources_preserve_registration_and_sparse_identity() {
                             base_versions: plan.base_versions,
                             previous_id: Some("sample".into()),
                             next_id: "sample".into(),
-                            data: data.clone(),
+                            document: file_formats::json_write(&(data.clone())),
                             rel_path: Some(relative.into()),
                             json_write: Default::default(),
-                            ordered_json: None,
                         })
                     };
                     project_save::execute_save_action(action).unwrap();
-                    assert_eq!(io::read_json_file(&file).unwrap(), data);
+                    assert_eq!(file_formats::read_json_value(&file).unwrap(), data);
                     fs::remove_file(&file).unwrap();
                     let plan = prepare_json_source_recovery(request.clone()).unwrap();
                     assert_eq!(plan.missing_paths, [relative]);
@@ -466,17 +468,21 @@ fn directory_sources_preserve_registration_and_sparse_identity() {
                         data.clone()
                     };
                     let restored = project_save::execute_typed_save::<JsonRecoveryPlan>(
-                        SaveAction::RecreateJsonSources(JsonSourceRestore {
-                            session_id: manifest.session_id.clone(),
-                            mod_root: manifest.mod_root.clone(),
-                            plan,
-                            baseline,
-                        }),
+                        SaveAction::RecreateJsonSources(file_formats::recovery_request(
+                            JsonSourceRestore {
+                                documents: Default::default(),
+                                originals: Default::default(),
+                                session_id: manifest.session_id.clone(),
+                                mod_root: manifest.mod_root.clone(),
+                                plan,
+                                baseline,
+                            },
+                        )),
                     )
                     .unwrap();
                     assert_eq!(restored.changes.len(), 1);
                     assert!(restored.content.unwrap().value.missing_paths.is_empty());
-                    assert_eq!(io::read_json_file(&file).unwrap(), data);
+                    assert_eq!(file_formats::read_json_value(&file).unwrap(), data);
                     assert_eq!(fs::read(&index_path).ok(), index_before);
                     assert_eq!(
                         query_entity(&manifest.session_id, kind, "sample")
@@ -486,7 +492,7 @@ fn directory_sources_preserve_registration_and_sparse_identity() {
                         data
                     );
                     if foundation != "local" {
-                        assert_eq!(io::read_json_file(&base_file).unwrap(), base);
+                        assert_eq!(file_formats::read_json_value(&base_file).unwrap(), base);
                     }
                     if reference.is_some() {
                         project::set_reference_sources(Vec::new()).unwrap();

@@ -7,7 +7,7 @@ const cases = [
     'src/services/joint-edit.service.ts',
     'queryJointEditPreview',
   ],
-  ['config-write', 'src/orchestrators/json-save.orchestrator.ts', 'src/services/json-entity.service.ts', 'saveModInfo'],
+  ['config-write', 'src/app/composables/json-editor/json-document-capabilities.ts', 'src/services/json-entity.service.ts', 'saveModInfo'],
   ['definition-write', 'src/orchestrators/json-save.orchestrator.ts', 'src/services/json-file.service.ts', 'saveVariantEntity'],
   ['table-write', 'src/orchestrators/csv-save.orchestrator.ts', 'src/services/csv-table.service.ts', 'saveCsvPatch'],
   [

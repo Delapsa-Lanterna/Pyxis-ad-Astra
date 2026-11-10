@@ -1,18 +1,52 @@
 use super::super::definitions::entity_definitions::entity_definition;
+use super::super::model::ProjectSession;
+use super::super::resources::entity_references::entity_list_resource_refs;
 use super::super::session::{lock_ready_session, session_handle};
+use super::{entity_presentation, entity_targets, json_layers};
+use crate::domain::{entity_definitions, json_composition};
 use crate::errors::AppResult;
-use crate::models::{EntityData, EntityKind};
-use crate::services::project::query::{
-    entity_presentation as query_entity_presentation, entity_targets,
-};
-use crate::services::project::resources::entity_references::entity_list_resource_refs;
+use crate::models::file_content::JsonFileContent;
+use crate::models::{EntityData, EntityKind, ResourceSource};
+use crate::services::project::sources::core;
+use crate::services::project::sources::documents::LoadedSpecRecord;
+use serde_json::Value;
+use std::collections::BTreeMap;
 
-pub fn query_entity(session_id: &str, kind: EntityKind, id: &str) -> AppResult<Option<EntityData>> {
-    Ok(query_entity_batch(session_id, kind, &[id.to_string()])?
-        .pop()
-        .expect("one requested entity"))
+fn document(session: &ProjectSession, kind: EntityKind, id: &str) -> Option<JsonFileContent> {
+    if let Some(record) = session
+        .spec_records(kind)
+        .and_then(|records| records.get(id))
+    {
+        return Some(JsonFileContent::from(record.document.as_ref()));
+    }
+    let local = match kind {
+        EntityKind::Variant => session
+            .variant_files
+            .iter()
+            .find(|file| file.variant_id == id)
+            .and_then(|file| session.documents.get(&file.rel_path))
+            .map(|source| JsonFileContent::from(source.as_ref())),
+        EntityKind::Skin => session
+            .skin_files
+            .iter()
+            .find(|file| file.skin_hull_id == id)
+            .and_then(|file| session.documents.get(&file.rel_path))
+            .map(|source| JsonFileContent::from(source.as_ref())),
+        EntityKind::Mission => session
+            .documents
+            .get(&format!("data/missions/{id}/descriptor.json"))
+            .map(|source| JsonFileContent::from(source.as_ref())),
+        _ => None,
+    };
+    local.or_else(|| {
+        session
+            .reference_spec(kind, id)
+            .map(|record| JsonFileContent::from(record.document.as_ref()))
+    })
 }
-
+pub fn query_entity(session_id: &str, kind: EntityKind, id: &str) -> AppResult<Option<EntityData>> {
+    query_entity_batch(session_id, kind, &[id.into()]).map(|mut records| records.remove(0))
+}
 pub(in crate::services::project) fn query_entity_batch(
     session_id: &str,
     kind: EntityKind,
@@ -25,89 +59,195 @@ pub(in crate::services::project) fn query_entity_batch(
     let targets = entity_targets::prepare_entity_targets(&mut session, kind)?;
     ids.iter()
         .map(|id| {
-            let info = targets.describe(&session, id);
-            let data = if let Some(source) = &info.target.source
-                && let Some(reference) = source.reference.as_deref()
-            {
-                let view = session
+            let target = targets.describe(&session, id);
+            let reference = target
+                .target
+                .source
+                .as_ref()
+                .filter(|source| source.source == ResourceSource::Reference)
+                .and_then(|source| source.reference.as_deref());
+            let data = if let Some(reference) = reference {
+                session
                     .references
                     .iter()
-                    .find(|view| &view.identity == reference)
-                    .expect("reference record owner");
-                view.read(|snapshot| {
-                    (definition.prepare)(snapshot)?;
-                    (definition.detail)(snapshot, id)
-                })?
+                    .find(|view| view.identity == *reference)
+                    .expect("registered reference source")
+                    .read(|session| {
+                        (definition.prepare)(session)?;
+                        (definition.detail)(session, id)
+                    })?
             } else {
                 (definition.detail)(&mut session, id)?
             };
             let Some(data) = data else {
                 return Ok(None);
             };
-            let (composition, resource_refs) = query_entity_presentation::entity_presentation(
-                &session,
-                &info.target,
-                &data,
-                None,
-            )?;
-            entity_targets::remember_edit_target(&mut session, &info.target);
+            let (composition, resource_refs) =
+                entity_presentation::entity_presentation(&session, &target.target, &data, None)?;
+            let document = document(&session, kind, id);
+            entity_targets::remember_edit_target(&mut session, &target.target);
             Ok(Some(EntityData {
-                composition,
-                target: info.target,
-                base_versions: info.base_versions,
-                resource_refs,
-                kind: definition.kind,
-                id: id.to_string(),
+                kind,
+                id: id.clone(),
+                target: target.target,
+                base_versions: target.base_versions,
                 data,
+                document,
+                composition,
+                resource_refs,
             }))
         })
         .collect()
 }
-
 pub fn query_entity_list(session_id: &str, kind: EntityKind) -> AppResult<Vec<EntityData>> {
     let handle = session_handle(session_id)?;
     let mut session = lock_ready_session(&handle)?;
     let definition = entity_definition(kind)?;
     (definition.prepare)(&mut session)?;
-    let entries = (definition.list)(&mut session)?
-        .into_iter()
-        .map(|entry| {
-            let resources =
-                entity_list_resource_refs(&session, entry.kind, &entry.id, &entry.data)?;
-            Ok((entry, resources))
-        })
-        .collect::<AppResult<Vec<_>>>()?;
+    let entries = (definition.list)(&mut session)?;
     let targets = entity_targets::prepare_entity_targets(&mut session, kind)?;
-    let records: Vec<EntityData> = entries
-        .into_iter()
-        .map(|(entry, resources)| {
-            let info = targets.describe(&session, &entry.id);
-            let (composition, resource_refs) = query_entity_presentation::entity_presentation(
-                &session,
-                &info.target,
-                &entry.data,
-                Some(resources),
-            )?;
-            Ok(EntityData {
-                composition,
-                target: info.target,
-                base_versions: info.base_versions,
-                kind: entry.kind,
-                id: entry.id,
-                data: entry.data,
-                resource_refs,
-            })
-        })
-        .collect::<AppResult<_>>()?;
-    for record in &records {
+    let mut records = Vec::with_capacity(entries.len());
+    for entry in entries {
+        let target = targets.describe(&session, &entry.id);
+        let resources = entity_list_resource_refs(&session, kind, &entry.id, &entry.data)?;
+        let (composition, resource_refs) = entity_presentation::entity_presentation(
+            &session,
+            &target.target,
+            &entry.data,
+            Some(resources),
+        )?;
+        let document = None;
         if matches!(
             kind,
             EntityKind::Variant | EntityKind::Skin | EntityKind::Faction | EntityKind::Mission
         ) {
-            entity_targets::remember_edit_target(&mut session, &record.target);
+            entity_targets::remember_edit_target(&mut session, &target.target);
         }
+        records.push(EntityData {
+            kind,
+            id: entry.id,
+            target: target.target,
+            base_versions: target.base_versions,
+            data: entry.data,
+            document,
+            composition,
+            resource_refs,
+        });
     }
     Ok(records)
+}
+
+fn local_spec_paths(session: &ProjectSession, kind: EntityKind) -> BTreeMap<String, String> {
+    if let Some(records) = session.spec_records(kind) {
+        return records
+            .iter()
+            .filter(|(_, record)| record.location.source == ResourceSource::Mod)
+            .map(|(id, record)| (id.clone(), record.location.rel_path.clone()))
+            .collect();
+    }
+    match kind {
+        EntityKind::Variant => session
+            .variant_files
+            .iter()
+            .map(|file| (file.variant_id.clone(), file.rel_path.clone()))
+            .collect(),
+        EntityKind::Skin => session
+            .skin_files
+            .iter()
+            .map(|file| (file.skin_hull_id.clone(), file.rel_path.clone()))
+            .collect(),
+        _ => BTreeMap::new(),
+    }
+}
+
+/// Returns physical spec identities across the session's authorized sources.
+pub(in crate::services::project) fn entity_spec_paths(
+    session: &ProjectSession,
+    kind: EntityKind,
+) -> AppResult<BTreeMap<String, String>> {
+    let paths = |records: &BTreeMap<String, LoadedSpecRecord>| {
+        records
+            .iter()
+            .map(|(id, record)| (id.clone(), record.location.rel_path.clone()))
+            .collect::<BTreeMap<_, _>>()
+    };
+    let mut available = if let Some(root) = &session.manifest.starsector_root {
+        match kind {
+            EntityKind::Ship => paths(core::load_core_ship_files(root)?.as_ref()),
+            EntityKind::Weapon => paths(core::load_core_weapon_specs(root)?.as_ref()),
+            EntityKind::Projectile => paths(core::load_core_projectile_specs(root)?.as_ref()),
+            EntityKind::System => paths(core::load_core_system_files(root)?.as_ref()),
+            EntityKind::Skill => paths(core::load_core_skill_files(root)?.as_ref()),
+            EntityKind::Faction => paths(core::load_core_faction_files(root)?.as_ref()),
+            EntityKind::Variant => core::load_core_variant_files(root)?
+                .iter()
+                .map(|file| (file.variant_id.clone(), file.rel_path.clone()))
+                .collect(),
+            EntityKind::Skin => core::load_core_skin_files(root)?
+                .iter()
+                .map(|file| (file.skin_hull_id.clone(), file.rel_path.clone()))
+                .collect(),
+            EntityKind::Mission => BTreeMap::new(),
+        }
+    } else {
+        BTreeMap::new()
+    };
+
+    for view in session.references.iter().rev() {
+        available.extend(local_spec_paths(&view.session, kind));
+    }
+    available.extend(local_spec_paths(session, kind));
+    available.retain(|id, _| entity_definitions::csv_id_active(kind, id));
+    Ok(available)
+}
+
+pub(in crate::services::project) fn query_entity_specs(
+    session_id: &str,
+    kind: EntityKind,
+    ids: &[String],
+) -> AppResult<Vec<Option<Value>>> {
+    let handle = session_handle(session_id)?;
+    let session = lock_ready_session(&handle)?;
+    let available = entity_spec_paths(&session, kind)?;
+    ids.iter()
+        .map(|id| {
+            let local = session
+                .spec_records(kind)
+                .and_then(|records| records.get(id))
+                .filter(|record| record.location.source == ResourceSource::Mod)
+                .map(|record| (record.location.rel_path.clone(), record.data.clone()))
+                .or_else(|| match kind {
+                    EntityKind::Variant => session
+                        .variant_files
+                        .iter()
+                        .find(|file| &file.variant_id == id)
+                        .map(|file| (file.rel_path.clone(), file.data.clone())),
+                    EntityKind::Skin => session
+                        .skin_files
+                        .iter()
+                        .find(|file| &file.skin_hull_id == id)
+                        .map(|file| (file.rel_path.clone(), file.data.clone())),
+                    _ => None,
+                });
+            // Only physical records establish existence; CSV registration supplies no spec content.
+            let owns_file = local.is_some();
+            let record = available.get(id).map(|relative| {
+                (
+                    relative.clone(),
+                    local
+                        .map(|(_, data)| data)
+                        .unwrap_or_else(|| Value::Object(Default::default())),
+                )
+            });
+            record
+                .map(|(relative, local)| {
+                    let mut composition = json_layers::json_composition(&session, &relative)?;
+                    composition.replace &= owns_file;
+                    json_composition::compose_game_json(&composition, &local)
+                })
+                .transpose()
+        })
+        .collect()
 }
 
 #[cfg(test)]
@@ -142,7 +282,7 @@ mod tests {
         let root = project_workspace("faction_list_target_projection");
         fs::create_dir_all(root.join("data/world/factions/nested")).unwrap();
         write_utf8_no_bom(&root.join("data/world/factions/factions.csv"),
-            "faction,file,custom\r\nalias,data/world/factions/nested/one.faction,kept\r\ntwo,data/world/factions/two.faction,other\r\n").unwrap();
+                "faction,file,custom\r\nalias,data/world/factions/nested/one.faction,kept\r\ntwo,data/world/factions/two.faction,other\r\n").unwrap();
         write_utf8_no_bom(
             &root.join("data/world/factions/nested/one.faction"),
             r#"{"id":"one","displayName":"One"}"#,
@@ -268,15 +408,17 @@ mod tests {
         csv_tables.insert(
             MISSION_LIST_TABLE_KEY.to_string(),
             SessionCsvTable {
+                missing_baseline: false,
                 row_index: None,
                 header: vec!["mission".to_string()],
                 path: "data/missions/mission_list.csv".to_string(),
                 rows: None,
                 next_row_seq: 0,
-                saved_text: None,
+                source: None,
             },
         );
         let session = ProjectSession {
+            documents: Default::default(),
             reference_revision: 0,
             references: Vec::new(),
             loaded_edit_targets: Vec::new(),
@@ -471,10 +613,10 @@ mod tests {
         let root = project_workspace("skill_entity_list_csv_boundary");
         fs::create_dir_all(root.join("data/characters/skills")).unwrap();
         write_utf8_no_bom(
-            &root.join("data/characters/skills/skill_data.csv"),
-            "id,name,icon\r\nskill_one,Skill One,graphics/icons/skill_one.png\r\n#comment,,\r\n,,\r\n",
-        )
-        .unwrap();
+                &root.join("data/characters/skills/skill_data.csv"),
+                "id,name,icon\r\nskill_one,Skill One,graphics/icons/skill_one.png\r\n#comment,,\r\n,,\r\n",
+            )
+            .unwrap();
         write_utf8_no_bom(
             &root.join("data/characters/skills/skill_one.skill"),
             r#"{"id":"skill_one","effect":"demo"}"#,

@@ -10,6 +10,7 @@ use crate::services::project::test_support::project_workspace;
 use crate::services::project_sync::release_project_session;
 #[cfg(test)]
 use crate::services::{project, project_save};
+use crate::test_support::file_formats;
 use serde_json::json;
 #[cfg(test)]
 use std::fs;
@@ -45,8 +46,9 @@ fn skin_engine_index_save() {
         next_id: "sample".into(),
         rel_path: None,
         json_write: Default::default(),
-        ordered_json: None,
-        data: json!({"skinHullId":"sample","baseHullId":"middle","removeEngineSlots":[0],"engineSlotChanges":{index:{"width":2.5}}}),
+        document: file_formats::json_write(
+            &(json!({"skinHullId":"sample","baseHullId":"middle","removeEngineSlots":[0],"engineSlotChanges":{index:{"width":2.5}}})),
+        ),
     };
     assert_eq!(
         project_save::execute_save_action(SaveAction::CreateSkinEntity(write("1")))

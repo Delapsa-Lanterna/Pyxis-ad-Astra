@@ -177,6 +177,7 @@ pub fn run() {
                     commands::query_hull_references,
                     commands::query_entity,
                     commands::query_misc_config_files,
+                    commands::read_json_document,
                     commands::query_misc_config_file,
                     commands::query_file_directory,
                     commands::query_file_search,

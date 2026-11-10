@@ -1,83 +1,38 @@
-import type { SpecSave, LoadImportedEditorSpecPayload } from '@/shared/types/index';
-import { querySessionEntityIdentityIntent } from '@/services/entity-query.service';
-import { AppError, withCause } from '@/shared/lib/errors';
+import type { DocumentEdit } from '@/shared/types';
 import { invokeCommand, invokeSaveCommand, type SaveCommandRequest } from '@/shared/runtime/command.runtime';
-import { entityContentId, entityContentIdField } from '@/domain/project/entity-definitions';
-import { requireRowData } from '@/shared/lib/row-data';
+import { querySessionEntityIdentityIntent } from './entity-query.service';
 import { cloneQuerySnapshot } from '@/shared/lib/query-snapshot';
-import { captureJsonEdits } from '@/shared/lib/json-edits';
-import type { EntityEditTarget, SpecEditorKind, RowData, WriteResult } from '@/shared/types/index';
-import type { JsonWriteOptions, FileVersion, EntityIdentityIntent } from '@/shared/types/index';
-
-export async function saveSpecEditorSpecByKind(
-  sessionId: string,
-  modRoot: string,
-  target: EntityEditTarget,
-  data: RowData,
-  jsonWrite?: JsonWriteOptions,
-  baseVersions: FileVersion[] = [],
-  original?: RowData,
-  request?: SaveCommandRequest,
-): Promise<WriteResult> {
-  ensureSpecContext(modRoot, target.id);
-  try {
-    const result = await saveSpecEditorSpec(sessionId, modRoot, target, data, jsonWrite, baseVersions, original, request);
-    return { ...result, content: { target: result.content!.target, value: requireRowData(result.content?.value, '规格保存返回内容无效') } };
-  } catch (error) {
-    throw withCause(`保存 ${target.id} spec 失败`, error, `save-${target.kind}-spec`);
-  }
-}
+import { entityContentId, entityContentIdField } from '@/domain/project/entity-definitions';
+import type { JsonFileContent } from '@/shared/types';
+import type {
+  SpecSave,
+  SpecEditorKind,
+  EntityEditTarget,
+  EntityIdentityIntent,
+  LoadImportedEditorSpecPayload,
+  RowData,
+  WriteResult,
+} from '@/shared/types';
 
 export function saveSpecEditorSpec(
-  sessionId: string,
-  modRoot: string,
-  target: EntityEditTarget,
-  data: RowData,
-  jsonWrite?: JsonWriteOptions,
-  baseVersions: FileVersion[] = [],
-  original?: RowData,
+  payload: SpecSave,
+  edits: DocumentEdit[],
   request?: SaveCommandRequest,
-): Promise<WriteResult> {
-  return invokeSaveCommand(
-    'save_editor_spec',
-    {
-      payload: {
-        baseVersions,
-        sessionId,
-        modRoot,
-        target,
-        data,
-        ...(jsonWrite ? { jsonWrite, orderedJson: JSON.stringify(data) } : {}),
-      } satisfies SpecSave,
-    },
-    original === undefined ? [{ kind: 'set', path: [], value: data }] : captureJsonEdits(original, data),
-    request,
-  );
+): Promise<WriteResult<JsonFileContent>> {
+  return invokeSaveCommand('save_editor_spec', { payload }, edits, request);
 }
-
-export function querySpecEditorIdentityIntent(sessionId: string, source: EntityEditTarget, content: RowData, signal?: AbortSignal) {
-  return querySessionEntityIdentityIntent(
-    sessionId,
-    source,
-    content[entityContentIdField(source.kind)] === undefined
-      ? source.write.relPath
+export function querySpecEditorIdentityIntent(sessionId: string, target: EntityEditTarget, content: RowData, signal?: AbortSignal) {
+  const identity =
+    content[entityContentIdField(target.kind)] === undefined
+      ? target.write.relPath
           .split('/')
           .at(-1)!
           .replace(/\.[^.]+$/, '')
-      : entityContentId(source.kind, content),
-    signal,
-  ).then((intent) => cloneQuerySnapshot<EntityIdentityIntent>(intent));
+      : entityContentId(target.kind, content);
+  return querySessionEntityIdentityIntent(sessionId, target, identity, signal).then((value) =>
+    cloneQuerySnapshot<EntityIdentityIntent>(value),
+  );
 }
-
-export async function loadSpecEditorImport(kind: SpecEditorKind, path: string): Promise<RowData> {
+export function loadSpecEditorImport(kind: SpecEditorKind, path: string): Promise<JsonFileContent> {
   return invokeCommand('load_imported_editor_spec_file', { payload: { kind, path } satisfies LoadImportedEditorSpecPayload });
-}
-
-function ensureSpecContext(modRoot: string, id: string) {
-  if (!modRoot) {
-    throw new AppError('缺少 spec 保存的 mod 根目录', { action: 'save-spec' });
-  }
-  if (!id) {
-    throw new AppError('缺少 spec 保存 id', { action: 'save-spec' });
-  }
 }

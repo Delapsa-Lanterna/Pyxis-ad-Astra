@@ -210,6 +210,8 @@ describe('CSV keyed baseline, order and draft acceptance', () => {
       rowKey,
       action: 'upsert' as const,
       row: { ...document.rows[rowKey]!.data },
+      columns: Object.keys(document.rows[rowKey]!.data),
+      commentChanged: false,
       isComment: false,
     }));
     setCsvCellValueDraft(document, keys[1]!, 'name', 'Later');
@@ -269,6 +271,8 @@ describe('CSV keyed baseline, order and draft acceptance', () => {
       rowKey,
       action: 'upsert' as const,
       row: { ...document.rows[rowKey]!.data },
+      columns: Object.keys(document.rows[rowKey]!.data),
+      commentChanged: false,
       isComment: true,
     }));
     const mapping = [first, second].map((previousKey, rowIndex) => ({ previousKey, nextKey: key(8 + rowIndex), rowIndex }));
@@ -406,7 +410,16 @@ describe('CSV keyed baseline, order and draft acceptance', () => {
     const row = state.documents.ships.rows[created.rowKey]!,
       data = row.data;
     const order = [...state.documents.ships.rowOrder];
-    const patches = [{ rowKey: created.rowKey, action: 'upsert' as const, row: { ...data }, isComment: false }];
+    const patches = [
+      {
+        rowKey: created.rowKey,
+        action: 'upsert' as const,
+        row: { ...data },
+        columns: Object.keys(data),
+        commentChanged: false,
+        isComment: false,
+      },
+    ];
     commitCsvTableSaveDraft(state.documents.ships, patches, [{ previousKey: created.rowKey, nextKey: key(9), rowIndex: 1 }], order);
     expect(state.documents.ships.rows[key(9)]).toBe(row);
     expect(row.data).toBe(data);
@@ -421,7 +434,16 @@ describe('CSV keyed baseline, order and draft acceptance', () => {
     applyCsvDraftEdit(state.documents.ships, created, 'undo');
     commitCsvTableSaveDraft(
       state.documents.ships,
-      [{ rowKey: created.rowKey, action: 'upsert', row: created.row.data, isComment: false }],
+      [
+        {
+          rowKey: created.rowKey,
+          action: 'upsert',
+          row: created.row.data,
+          columns: Object.keys(created.row.data),
+          commentChanged: false,
+          isComment: false,
+        },
+      ],
       [{ previousKey: created.rowKey, nextKey: key(9), rowIndex: 1 }],
       order,
     );
@@ -436,7 +458,12 @@ describe('CSV keyed baseline, order and draft acceptance', () => {
     const order = [...state.documents.ships.rowOrder];
     applyCsvDraftEdit(state.documents.ships, deletion, 'undo');
     const mapped: CsvRowKeyMapping[] = [];
-    commitCsvTableSaveDraft(state.documents.ships, [{ rowKey: key(1), action: 'delete', row: {}, isComment: false }], mapped, order);
+    commitCsvTableSaveDraft(
+      state.documents.ships,
+      [{ rowKey: key(1), action: 'delete', row: {}, columns: [], commentChanged: false, isComment: false }],
+      mapped,
+      order,
+    );
     expect(state.documents.ships.rowOrder[1]).toContain(':new:');
     expect(state.documents.ships.rows[state.documents.ships.rowOrder[1]!]!.data.id).toBe('row-1');
     expect(mapped).toEqual([{ previousKey: key(1), nextKey: state.documents.ships.rowOrder[1], rowIndex: 1 }]);
@@ -466,7 +493,16 @@ describe('CSV keyed baseline, order and draft acceptance', () => {
     expect(getAssociatedSpecCandidates(state.documents.ships, ['ships'])).toEqual([]);
     commitCsvTableSaveDraft(
       state.documents.ships,
-      [{ rowKey: key(0), action: 'upsert', row: { id: '#quoted', name: 'Name' }, isComment: false }],
+      [
+        {
+          rowKey: key(0),
+          action: 'upsert',
+          row: { id: '#quoted', name: 'Name' },
+          columns: ['id', 'name'],
+          commentChanged: false,
+          isComment: false,
+        },
+      ],
       [],
     );
     expect(state.documents.ships.rows[key(0)]!.isComment).toBe(true);

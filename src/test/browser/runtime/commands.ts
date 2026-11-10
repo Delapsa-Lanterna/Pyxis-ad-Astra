@@ -22,6 +22,8 @@ import type {
   SourceRefresh,
 } from '@/shared/types';
 import { createSettingsFixture } from '../../fixtures/settings';
+import { jsonFileFixture } from '../../fixtures/json-file';
+import { projectJsonValue } from '@/domain/json-document';
 import { windowsPathCaseFixture } from '../../fixtures/windows-path-case';
 import { sessionUpdateFixture, savedWriteFixture } from '../../fixtures/write-result';
 import { createBrowserModel, type BrowserModel } from '../model';
@@ -176,7 +178,6 @@ export async function dispatch(command: string, args: Record<string, unknown>, m
         sources: Object.fromEntries(request.sources.map((source) => [source, []])),
         files: Object.fromEntries(request.files.map((path) => [path, true])),
         classes: Object.fromEntries(request.classes.map((name) => [name, true])),
-        stationData: {},
       };
     }
     case 'query_csv_table_index': {
@@ -243,7 +244,9 @@ export async function dispatch(command: string, args: Record<string, unknown>, m
     case 'save_misc_config':
     case 'delete_misc_config': {
       const payload = args.payload as MiscConfigWrite;
-      const result = model.receipt(command === 'save_misc_config' ? payload.data : null, {
+      const data = command === 'save_misc_config' ? projectJsonValue(payload.document.content) : null;
+      const document = data === null ? null : jsonFileFixture(data);
+      const result = model.receipt(document, {
         kind: 'json',
         origin: { kind: 'miscConfig', file: payload.kind },
       });
@@ -260,7 +263,9 @@ export async function dispatch(command: string, args: Record<string, unknown>, m
           kind: payload.kind,
           path,
           relPath: definition.path,
-          data: payload.data,
+          data: data!,
+          document: document!,
+          composition: { layers: [], excluded: [], replace: false },
           baseVersions: result.baseVersions,
         });
       return result;

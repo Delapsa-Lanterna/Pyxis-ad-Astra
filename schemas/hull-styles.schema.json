@@ -296,7 +296,6 @@
           "type": "float",
           "label": "槽盖偏色程度",
           "description": "武器槽盖板向船体颜色偏移的程度，范围为 0～1。",
-          "numberFormat": "starsector",
           "min": 0,
           "max": 1
         }

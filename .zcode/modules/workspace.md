@@ -14,9 +14,7 @@
 - `src/app/components/ModNavigation.vue`：当前 Mod 的页面与业务导航。
 - `src/app/components/ModTabsBar.vue`：Mod 页签选择与移除动作展示。
 - `src/app/components/OverviewPage.vue`：工作区概览、已载入 Mod 与游戏扫描组合。
-- `src/app/components/workspace/WorkspaceFileHistory.vue`：当前 Mod 的历史摘要、双栈及回放动作展示。
-- `src/app/components/workspace/WorkspaceGameOverview.vue`：游戏概览与当前工作区 Mod 状态、导航及用户动作。
-- `src/app/components/workspace/WorkspaceModOverview.vue`：Mod 信息、目录、资源和数据摘要展示。
+- `src/app/components/workspace/`：工作区游戏与 Mod 概览、文件历史及所属动作展示。
 - `src/app/composables/use-main-window-shortcuts.ts`：主窗口保存与工作区历史命令装配。
 - `src/app/composables/use-mod-navigation-panel.ts`：Mod 导航面板的宽窄布局、展开、焦点和监听释放。
 - `src/app/composables/use-workspace-csv-editor-host.ts`：当前 CSV 完整目标、有效游戏根、持久列宽与实体定位交接。
@@ -26,10 +24,7 @@
 - `src/app/composables/use-workspace-navigation-actions.ts`：导航输入提交、保存等待和存活草稿交接。
 - `src/app/composables/use-workspace-shell-actions.ts`：主窗口工作区动作、当前窗口关闭与来源切换绑定、打开结果及失败反馈。
 - `src/app/composables/use-workspace-shell-lifecycle.ts`：主窗口恢复、工作区持久化及保存事件生命周期。
-- `src/domain/workspace/mod-navigation.ts`：每个 Mod 的页面状态与导航投影。
-- `src/domain/workspace/mod-overview.ts`：正式 manifest 的 Mod 概览统计投影。
-- `src/domain/workspace/mod-status.ts`：Mod 展示状态的纯投影。
-- `src/domain/workspace/project-kind.ts`：正式项目清单的 Core 身份判断。
+- `src/domain/workspace/`：工作区项目身份、导航、概览及状态的纯投影。
 - `src/orchestrators/workspace-core-source.orchestrator.ts`：原版来源切换，拥有关闭、设置提交交接、Mod 重开及最终快照的完整等待。
 - `src/orchestrators/workspace-history.orchestrator.ts`：当前编辑面草稿历史选择、文件回放确认与展示交接。
 - `src/orchestrators/workspace-lifecycle.orchestrator.ts`：生命周期，拥有关闭目标捕获、所属模块清理用例与工作区关闭。
@@ -45,8 +40,7 @@
 - `src-tauri/src/models/workspace_persistence.rs`：工作区持久化 wire 契约。
 - `src/app/components/FeedbackFileActions.vue`：消费窗口反馈交付的文件动作并渲染列表按钮。
 - `src/app/components/ModOpeningFailureList.vue`：Mod 打开失败诊断与文件定位展示。
-- `src/app/composables/csv-editor/csv-editor-context.ts`：CSV 查询、输入、动作装配与保存参与者。
-- `src/app/composables/csv-editor/use-csv-save-participants.ts`：CSV 查询、输入、动作装配与保存参与者。
+- `src/app/composables/csv-editor/`：CSV 页面上下文、输入交接与保存参与者装配。
 - `src/app/composables/json-editor/json-editor-context.ts`：JSON 页面所需的目标、定位输入及具体宿主动作契约。
 - `src/app/composables/use-app-feedback.ts`：窗口反馈的提供与消费入口。
 - `src/app/composables/use-context-menu.ts`：窗口菜单状态、目标操作、事件生命周期与业务根登记。
@@ -157,19 +151,19 @@
 - manifest 登记、编辑初始化与失败清理必须服从发起代次；移除或关闭后到达的 session 经正式关闭入口释放。
 - CSV 与 JSON 历史动作必须分别返回已处理、输入拒绝或草稿耗尽；只有草稿耗尽才允许进入文件历史。
 - 工作区历史动作必须捕获 Mod、session、页面、当前表及 JSON 页面；输入提交后的目标变化结束本次草稿分派。
-- 新打开的 Mod 必须默认自动引用；自动状态按全部已就绪 Mod 正式清单的依赖 ID 匹配已就绪来源，全部已打开 Mod 共用按标签顺序排列的可引用来源。
-- 引用设置必须以 `referenceable` 的 `true` 表示手动开启、`false` 表示手动关闭、字段缺省表示自动；手动设置优先于自动结果，保存只写入手动值，恢复按正式清单派生实际状态并保留标签顺序。
+- 新打开的 Mod 默认自动引用；自动状态按全部已就绪 Mod 正式清单的依赖 ID 匹配已就绪来源，全部已打开 Mod 共用按标签顺序排列的可引用来源。
+- 引用设置以 `referenceable` 的 `true` 表示手动开启、`false` 表示手动关闭、字段缺省表示自动；手动设置优先于自动结果，保存只写入手动值，恢复按正式清单派生实际状态并保留标签顺序。
 - 标签右键必须操作命中的 Mod，拖动在放下时提交顺序并保留当前页面、草稿和会话身份。
-- Mod 标签菜单必须按引用开关、手动设置存在时的恢复自动引用、分隔线、刷新的顺序展示；引用开关按实际状态写入手动值，恢复自动引用移除手动值；标签刷新读取该 Mod 信息、data 和 graphics，标签栏空白刷新只读取实际 Mod 标签的名称和版本。
-- 工作区刷新必须复用总览刷新入口并更新游戏扫描和已打开项目，原版图标刷新按有效游戏根更新关联项目与原版来源；全部刷新保留页面、草稿、标签身份和顺序。
+- Mod 标签菜单按引用开关、手动设置存在时的恢复自动引用、分隔线、刷新的顺序展示；引用开关按实际状态写入手动值，恢复自动引用移除手动值；标签刷新读取该 Mod 信息、data 和 graphics，标签栏空白刷新只读取实际 Mod 标签的名称和版本。
+- 工作区刷新复用总览刷新入口并更新游戏扫描和已打开项目，原版图标刷新按有效游戏根更新关联项目与原版来源；全部刷新保留页面、草稿、标签身份和顺序。
 - 原版来源切换必须捕获游戏目录、Mod 列表与列宽，并复用正式关闭及恢复流程；切换期间暂停快照保存，结束后保存最终列表，重开失败按 Mod 登记。
 - JSON 与 CSV 草稿必须随所属 session 保留；导航提交活动输入并等待保存，移除 session 按最新 dirty 确认放弃。
-- Core 导航必须隐藏 Mod 信息入口；直接进入 Mod 信息页及恢复到该页时必须切换到 Core 概览。
+- Core 导航隐藏 Mod 信息入口；直接进入 Mod 信息页及恢复到该页时切换到 Core 概览。
 - Mod 代次必须在注册时分配、移除时撤销，并且只允许保存在当前运行的内存中；恢复响应沿用捕获的代次。
 - workspace 缺失返回空默认；损坏时报错且严禁立即用空态覆盖。
 - 主窗口导航必须等待全部已登记保存及同步，连续请求只执行最新导航意图；输入失败保留原字段和焦点。
 - 关闭工作区必须先捕获全部 session 并完成子窗口交接，再清理各 Mod 运行态；关闭范围由统一执行入口捕获并持有至所属关闭、移除或主窗口销毁动作结束，释放在同一入口完成。
-- 列宽必须使用结构化 `modRoot/table/column`，严禁拼接 key。
+- 列宽以结构化 `modRoot/table/column` 标识。
 - 启动恢复期间必须暂停自动保存，恢复结束后恢复所属持久化。
 - 来源切换与启动恢复必须将最终快照处理纳入实际关闭任务；切换任务在关闭准备完成后登记。
 - 来源切换的成功、取消及关闭错误必须各完成一次最终快照；写盘错误交付正在等待该任务的关闭。
@@ -177,8 +171,8 @@
 - 实体定位请求必须由工作区持有并消费完整 session、Mod、种类、实体 ID 和所属行键，目标页面在读取、精确选择和滚动时消费请求；导航离开或 session 变化释放请求。
 - 导航、窗口关闭、Mod 移除及工作区关闭必须先重试所属待同步结果；失败保持当前编辑面，成功后重新判定 dirty。
 - 工作区恢复必须同时核对工作区代次及窗口壳接纳权；关闭撤销所属代次，迟到快照严禁建立运行态，迟到 session 由目录打开 owner 清理。
-- 当前 Mod 根必须唯一归工作区，当前清单与 session 由项目清单按根派生；清单替换或移除直接更新所属投影。
+- 当前 Mod 根唯一归工作区，当前清单与 session 由项目清单按根派生；清单替换或移除直接更新所属投影。
 - 工作区快照必须写入工具私有目录，只允许保存可恢复的目录、Mod 与列宽投影，严禁保存活动页签、全局视图或旧侧栏展开态。
 - 概览成功打开 Mod 后进入该 Mod 的概览页；恢复流程严禁作为页面导航入口。
-- 游戏概览、ProjectSession 与 Mod 打开失败状态必须分离并按 `modRoot` 隔离；同一 Mod 只保留最新一条失败。
+- 游戏概览、ProjectSession 与 Mod 打开失败状态分离并按 `modRoot` 隔离；同一 Mod 只保留最新一条失败。
 - 返回目标 Mod 的当前表必须保留搜索文本、搜索项与选择；切换该 Mod 的表清空搜索文本与选择并恢复默认搜索项；列宽按所属 Mod 与表恢复。

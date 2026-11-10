@@ -2,6 +2,11 @@ use super::*;
 #[cfg(test)]
 use crate::domain::{entity_construction, entity_definitions};
 use crate::io::{read_utf8_no_bom, write_utf8_no_bom};
+use crate::models::{
+    AssociatedSpecCreateParams, AssociatedSpecMode, AssociatedSpecResolution, AssociatedSpecWrite,
+    CsvRowPatch, CsvRowPatchAction, CsvSave, CsvSearchField, EntityTargetState,
+    FileChangeReplayDirection, ProjectManifest, SaveAction, WeaponSpecClass,
+};
 #[cfg(test)]
 use crate::services::file_history;
 use crate::services::project::PerformanceTrace;
@@ -12,6 +17,7 @@ use crate::services::project::test_support::project_workspace;
 #[cfg(test)]
 use crate::services::project_sync::release_project_session;
 use crate::services::{project, project_save, write_transactions};
+use crate::test_support::file_formats;
 #[cfg(test)]
 use crate::test_support::work_counts;
 #[cfg(test)]
@@ -83,6 +89,15 @@ fn request(
         table,
         base_versions,
         patches: vec![CsvRowPatch {
+            columns: (json!({"id":id,"name":"CSV name","unknown":"007"})
+                .as_object()
+                .unwrap()
+                .clone())
+            .keys()
+            .cloned()
+            .collect(),
+            comment_changed: true,
+
             row_key,
             insert_at: None,
             action: CsvRowPatchAction::Upsert,
@@ -150,7 +165,7 @@ fn weapon_source_directory_survives_rename_delete_and_default_creation() {
     );
     let saved = project_save::execute_save_action(SaveAction::SaveCsvPatch(input)).unwrap();
     assert_eq!(
-        io::read_json_file(&root.join(format!("{directory}/next.wpn"))).unwrap()["id"],
+        file_formats::read_json_value(&root.join(format!("{directory}/next.wpn"))).unwrap()["id"],
         "next"
     );
     assert_eq!(saved.changes.len(), 2);
@@ -213,7 +228,7 @@ fn weapon_source_directory_survives_rename_delete_and_default_creation() {
     );
     project_save::execute_save_action(SaveAction::SaveCsvPatch(creation)).unwrap();
     assert_eq!(
-        io::read_json_file(&root.join("data/weapons/fresh.wpn")).unwrap()["id"],
+        file_formats::read_json_value(&root.join("data/weapons/fresh.wpn")).unwrap()["id"],
         "fresh"
     );
     release_project_session(manifest.session_id).unwrap();
@@ -304,7 +319,7 @@ fn all_formats_read_and_replace_existing_targets_with_one_reversible_save() {
                     if mode == AssociatedSpecMode::Read {
                         assert_eq!(read_utf8_no_bom(&destination).unwrap(), target_text);
                     } else {
-                        let actual = io::read_json_file(&destination).unwrap();
+                        let actual = file_formats::read_json_value(&destination).unwrap();
                         assert_eq!(actual[definition.id_field], "next");
                         assert_eq!(actual.get("custom"), rename.then(|| &data["custom"]));
                     }
@@ -381,7 +396,10 @@ fn preparation_shares_actual_reads_and_keeps_invalid_files_as_choices() {
     let input = request(&manifest, change, AssociatedSpecMode::Overwrite);
     let result = project_save::execute_save_action(SaveAction::SaveCsvPatch(input)).unwrap();
     assert_eq!(result.changes.len(), 2);
-    assert_eq!(io::read_json_file(&path).unwrap()["hullId"], "next");
+    assert_eq!(
+        file_formats::read_json_value(&path).unwrap()["hullId"],
+        "next"
+    );
     release_project_session(manifest.session_id).unwrap();
     root.close().unwrap();
 }
@@ -483,7 +501,8 @@ fn inherited_originals_supply_all_formats_without_changing_their_sources() {
             project_save::execute_save_action(SaveAction::SaveCsvPatch(input)).unwrap();
             assert_eq!(read_utf8_no_bom(&source).unwrap(), text);
             assert_eq!(
-                io::read_json_file(&local.join(definition.default_rel_path("next"))).unwrap()["custom"],
+                file_formats::read_json_value(&local.join(definition.default_rel_path("next")))
+                    .unwrap()["custom"],
                 data["custom"]
             );
             project::set_reference_sources(Vec::new()).unwrap();
@@ -580,7 +599,7 @@ fn invalid_originals_allow_target_reuse_template_replacement_and_csv_only() {
         assert_eq!(source.exists(), choice == "csv");
         if choice == "overwrite" {
             assert!(
-                io::read_json_file(&destination)
+                file_formats::read_json_value(&destination)
                     .unwrap()
                     .get("custom")
                     .is_none()
