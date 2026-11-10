@@ -141,6 +141,7 @@ export function useTextEditorViewModel(params: TextEditorViewModelParams) {
     () => {
       if (pendingIdentity) void followPendingIdentity();
     },
+    currentPath,
   );
   const unregisterSave = useSaveCommandStore().registerSaveParticipant({
     targetKey: draftSession.currentTargetKey,

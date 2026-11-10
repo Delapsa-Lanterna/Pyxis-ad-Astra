@@ -1,6 +1,10 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { shallowRef } from 'vue';
 import { Transaction } from '@codemirror/state';
+import { Text } from '@codemirror/state';
+import { ensureSyntaxTree, foldEffect, foldedRanges, indentUnit, language } from '@codemirror/language';
+import { SearchQuery, getSearchQuery, setSearchQuery } from '@codemirror/search';
+import { textIndentation } from './text-features';
 import type { EditContext } from '@/shared/types';
 import { createFieldInputs } from './field-inputs';
 import { createTextDocument, readTextContent, sameTextContent, writeTextContent, type TextDocument } from './text-document';
@@ -9,15 +13,62 @@ const documents: TextDocument[] = [];
 afterEach(() => {
   for (const doc of documents.splice(0)) doc.dispose();
 });
-function open(source: string) {
+function open(source: string, file = 'Sample.txt') {
   const value = shallowRef(readTextContent(source));
   const context = shallowRef<EditContext | null>({ targetKey: 'sample', baselineGeneration: 1, handoff: 'load' });
   const limit = shallowRef(100);
-  const doc = createTextDocument(value, context, limit, createFieldInputs());
+  const path = shallowRef<string | null>(file);
+  const doc = createTextDocument(value, context, limit, createFieldInputs(), undefined, path);
   documents.push(doc);
-  return { value, context, limit, doc, raw: () => writeTextContent(value.value) };
+  return { value, context, limit, path, doc, raw: () => writeTextContent(value.value) };
 }
 describe('immutable text documents', () => {
+  it.each([
+    ['class Sample {\n  void run() {}\n}', '  '],
+    ['class Sample {\n\tvoid run() {}\n}', '\t'],
+    ['', '    '],
+    ['x'.repeat(10485760), '    '],
+  ])('detects bounded indentation for a document', (source, expected) => {
+    expect(textIndentation(Text.of(source.split('\n')))).toBe(expected);
+  });
+  it('keeps language, search and folds with the document across save and surface rebinding', () => {
+    const { doc, context, path } = open('class Sample {\n  void run() {\n    int value = 1;\n  }\n}', 'Sample.java');
+    doc.configureSurface([]);
+    expect(doc.state.value.facet(language)?.name).toBe('java');
+    expect(doc.state.value.facet(indentUnit)).toBe('  ');
+    const errors: number[] = [];
+    ensureSyntaxTree(doc.state.value, doc.state.value.doc.length, 1000)!.iterate({
+      enter(node) {
+        if (node.type.isError) errors.push(node.from);
+      },
+    });
+    expect(errors).toEqual([]);
+    doc.dispatch(
+      doc.state.value.update({
+        effects: [setSearchQuery.of(new SearchQuery({ search: 'value', replace: 'next' })), foldEffect.of({ from: 14, to: 50 })],
+      }),
+    );
+    context.value = { ...context.value!, handoff: 'save', baselineGeneration: 2 };
+    doc.configureSurface([]);
+    expect(getSearchQuery(doc.state.value).search).toBe('value');
+    expect(foldedRanges(doc.state.value).size).toBe(1);
+    path.value = 'Moved.java';
+    expect(foldedRanges(doc.state.value).size).toBe(1);
+    path.value = 'Moved.txt';
+    expect(doc.state.value.facet(language)).toBeNull();
+    expect(getSearchQuery(doc.state.value).search).toBe('value');
+  });
+  it('pauses long-line syntax before parsing and restores it after deletion without losing history', () => {
+    const { doc, raw } = open('class Sample {}', 'Sample.java');
+    doc.configureSurface([]);
+    doc.dispatch(doc.state.value.update({ changes: { from: 0, insert: 'x'.repeat(20001) } }));
+    expect(doc.lightweight.value).toBe(true);
+    expect(doc.state.value.facet(language)).toBeNull();
+    doc.undo();
+    expect(doc.lightweight.value).toBe(false);
+    expect(doc.state.value.facet(language)?.name).toBe('java');
+    expect(raw()).toBe('class Sample {}');
+  });
   it('uses the current first newline for insertion and LF after the last newline is removed', () => {
     const { doc, raw } = open('a\r\nb\nc');
     doc.dispatch(doc.state.value.update({ changes: { from: 1, to: 2 } }));

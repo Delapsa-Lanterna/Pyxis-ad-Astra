@@ -35,7 +35,7 @@
 - `src/orchestrators/project-sync.orchestrator.ts`：窗口内保存消费过程和内容维护者交接。
 - `src/orchestrators/window-identity.orchestrator.ts`：正式文件身份预约及窗口交接。
 - `src/services/window.service.ts`：窗口 command 的类型化签名与参数装配。
-- `src/shared/runtime/text-document.ts`：不可变文本、原始换行、选区及原生历史。
+- `src/shared/runtime/text-document.ts`：不可变文本、原始换行、历史、当前文件搜索及按文件启用的语言能力。
 - `src/shared/types/text-editor.types.ts`：文本读取、保存、转码与身份请求协议。
 - `src/shared/types/write-commit.types.ts`：公共保存回执、提交同步、行键映射与正式内容交付。
 - `src/shared/ui/TextEditorSurface.vue`：文本输入、可视行号、错误行和滚动定位。
@@ -118,3 +118,5 @@
 - 文本窗口必须登记所属文件及实体关联的版本范围；联合准备消费原文输入、保存等待与正式文本保存，错误保留原文。
 - 窗口复用必须经正式请求接纳最新行列并重读文件，文本、历史和 dirty 继续由原文本会话拥有；磁盘差异经外部版本接纳流程处理。
 - 错误恢复窗口必须以 nullable session 身份发布完整提交结果；恢复入口消费后端返回的实际关联会话集合。
+- Java 文件必须启用高亮、所属缩进及折叠；搜索替换必须只处理当前文档并进入所属历史与保存流程。
+- 单行超过 20,000 个 UTF-16 字符时必须提示轻量显示并暂停 Java 语法功能，内容恢复后重新启用。

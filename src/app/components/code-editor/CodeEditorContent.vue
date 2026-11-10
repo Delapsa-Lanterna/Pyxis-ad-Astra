@@ -36,6 +36,7 @@
     <div class="code-editor-tools ui-control-row">
       <span class="ui-text-path ui-text-truncate" :title="active?.path.value">{{ active?.path.value ?? '请选择要打开的文件' }}</span>
       <div class="action-group ui-layout-row">
+        <n-button size="small" :disabled="!active" @click="surface?.search()">查找与替换</n-button>
         <n-button size="small" :disabled="!active?.session.dirty.value" @click="run(() => save())">保存</n-button
         ><n-button size="small" :disabled="!dirty" @click="run(saveAll)">保存全部</n-button>
       </div>
@@ -46,7 +47,7 @@
       </div>
       <div v-if="active.problem.value" class="ui-notice" role="status">{{ active.problem.value.message }}</div>
     </div>
-    <TextEditorSurface v-if="active" ref="surface" :document="active.document" @position="position = $event" />
+    <TextEditorSurface v-if="active" ref="surface" :document="active.document" line-numbers @position="position = $event" />
     <section v-else class="empty-state ui-content-grid">
       <h1 class="page-title">代码编辑器</h1>
       <p class="ui-text-muted">文件将在独立标签中打开。</p>

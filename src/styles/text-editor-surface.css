@@ -1,6 +1,11 @@
 .text-editor-surface {
+  display: flex;
+  flex-direction: column;
   min-width: 0;
   min-height: 0;
+}
+.text-editor-view {
+  flex: 1;
 }
 .text-editor-surface .cm-editor {
   height: 100%;
@@ -32,4 +37,55 @@
 .text-editor-surface .text-editor-error-gutter {
   color: var(--color-danger);
   background: var(--color-danger-highlight-soft);
+}
+.text-editor-surface .text-token-keyword {
+  color: var(--color-primary);
+  font-weight: 600;
+}
+.text-editor-surface .text-token-string {
+  color: var(--color-success);
+}
+.text-editor-surface .text-token-value {
+  color: var(--color-warning);
+}
+.text-editor-surface .text-token-type {
+  color: var(--color-primary);
+}
+.text-editor-surface .text-token-comment {
+  color: var(--color-text-soft);
+  font-style: italic;
+}
+.text-editor-surface .cm-panels {
+  color: var(--color-text);
+  background: var(--color-panel-muted);
+  border-color: var(--color-border);
+}
+.text-editor-surface .cm-search {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  padding: 8px;
+}
+.text-editor-surface .cm-search br {
+  flex-basis: 100%;
+}
+.text-editor-surface .cm-textfield,
+.text-editor-surface .cm-button {
+  color: var(--color-text);
+  background: var(--color-panel);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  font: inherit;
+}
+.text-editor-surface .cm-searchMatch {
+  background: var(--color-warning-bg);
+}
+.text-editor-surface .cm-searchMatch-selected {
+  outline: 1px solid var(--color-primary);
+}
+.text-editor-surface .cm-foldPlaceholder {
+  color: var(--color-text-soft);
+  background: var(--color-panel-muted);
+  border-color: var(--color-border);
 }

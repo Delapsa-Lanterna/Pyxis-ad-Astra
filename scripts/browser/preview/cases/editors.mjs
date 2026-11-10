@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
+import { verifyTextFeatures } from './text-features.mjs';
 
 /** @param {import('playwright').Page} page */
 export async function openEditorSample(page) {
@@ -35,11 +36,12 @@ export async function verifyEditors(page, output) {
   assert.equal((await surface.locator('.cm-line').allTextContents()).join('\n'), 'modified third\n');
   await editor.getByRole('button', { name: '保存全部', exact: true }).click();
   await editor.locator('footer').filter({ hasText: '已保存' }).waitFor();
+  const features = await verifyTextFeatures(editor);
   assert.equal(await page.evaluate(() => Reflect.get(globalThis, 'browserWorkspace').codeEditor.pending), 0);
-  const checks = [{ name: 'open, reuse, independent drafts and save all', pass: true }];
+  const checks = [{ name: 'open, reuse, independent drafts and save all', pass: true }, features];
   const beforeComposition = (await surface.locator('.cm-line').allTextContents()).join('\n');
   await surface.focus();
-  await surface.press('End');
+  await surface.press('Control+End');
   const inputSession = await page.context().newCDPSession(page);
   try {
     await inputSession.send('Input.imeSetComposition', { text: '中', selectionStart: 1, selectionEnd: 1 });
@@ -63,7 +65,9 @@ export async function verifyEditors(page, output) {
     for (const theme of ['light', 'dark']) {
       await page.setViewportSize({ width, height: 900 });
       await page.evaluate((theme) => Reflect.get(globalThis, 'browserWorkspace').setAppearance({ theme }), theme);
+      await editor.getByRole('button', { name: '查找与替换', exact: true }).click();
       await editor.locator('.code-editor').screenshot({ path: join(output, 'code-editor-' + theme + '-' + width + '.png') });
+      await editor.getByRole('textbox', { name: '查找', exact: true }).press('Escape');
       checks.push({ name: theme + '-' + width, pass: true });
     }
   await surface.fill(Array.from({ length: 100 }, (_, index) => String(index) + ' ' + 'x'.repeat(1000)).join('\n'));
@@ -97,7 +101,7 @@ async function verifyTextEditor(page, output) {
       project = workspace.projects.find((/** @type {{manifest:{modRoot:string}}} */ entry) =>
         entry.manifest.modRoot.endsWith('/code_sample'),
       );
-    const path = project.manifest.modRoot + '/sample-text.txt';
+    const path = project.manifest.modRoot + '/sample-text.java';
     project.textFiles.set(path, 'first\r\nsecond\nthird\rfinal');
     const result = await workspace.invoke('main', 'request_window', {
       payload: {
@@ -147,13 +151,16 @@ async function verifyTextEditor(page, output) {
   assert.equal((await input.locator('.cm-line').allTextContents()).join('\n'), 'first\n中文 second\nthird\nfinal中文');
   await input.press('Control+z');
   assert.equal((await input.locator('.cm-line').allTextContents()).join('\n'), 'first\n中文 second\nthird\nfinal');
+  const features = await verifyTextFeatures(frame);
   for (const theme of ['light', 'dark'])
     for (const width of [1280, 800]) {
       await page.setViewportSize({ width, height: 900 });
       await page.evaluate((theme) => Reflect.get(globalThis, 'browserWorkspace').setAppearance({ theme }), theme);
+      await frame.getByRole('button', { name: '查找与替换', exact: true }).click();
       await frame.locator('.text-editor-page').screenshot({ path: join(output, 'text-editor-' + theme + '-' + width + '.png') });
+      await frame.getByRole('textbox', { name: '查找', exact: true }).press('Escape');
     }
   await frame.getByTitle('关闭', { exact: true }).click();
   await frame.owner().waitFor({ state: 'detached' });
-  return [{ name: 'text editor mixed newlines, save boundary, native undo/redo and release', pass: true }];
+  return [{ name: 'text editor mixed newlines, save boundary, native undo/redo and release', pass: true }, features];
 }

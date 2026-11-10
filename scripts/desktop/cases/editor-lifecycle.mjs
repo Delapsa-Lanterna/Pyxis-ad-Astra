@@ -101,6 +101,35 @@ async function crossEditorLifecycle(app, fixture, check) {
     return page;
   }
   for (const kind of ['text', 'code']) {
+    await check(kind + ' Java highlighting, fold, current-file replace and saved bytes', async () => {
+      const path = join(fixture.mod, 'Language-' + kind + '.java');
+      const source = 'class Sample {\r\n\tvoid run() {\r\n\t\tint value = 1;\r\n\t}\r\n}';
+      await writeFile(path, source, 'utf8');
+      const page = await open(kind, [path]),
+        input = surface(page);
+      await page.locator('.text-token-keyword').first().waitFor();
+      await input.press('Control+Home');
+      await input.press('ArrowDown');
+      await input.press('End');
+      await input.press('Enter');
+      assert.equal((await input.locator('.cm-line').allTextContents())[2], '\t\t');
+      await input.press('Control+z');
+      await page.getByTitle('折叠代码', { exact: true }).last().click();
+      await page.locator('.cm-foldPlaceholder').click();
+      await input.press('Control+h');
+      const find = page.getByRole('textbox', { name: '查找', exact: true });
+      await find.fill('value');
+      await find.press('Enter');
+      await page.getByRole('textbox', { name: '替换', exact: true }).fill('count');
+      await page.getByRole('button', { name: '替换全部', exact: true }).click();
+      await find.press('Escape');
+      await save(page);
+      assert.equal(await readFile(path, 'utf8'), source.replace('value', 'count'));
+      await input.press('Control+z');
+      await save(page);
+      assert.equal(await readFile(path, 'utf8'), source);
+      await close(page);
+    });
     const path = join(fixture.mod, 'Composition-' + kind + '.txt');
     await writeFile(path, 'sample\r\n', 'utf8');
     const page = await open(kind, [path]);

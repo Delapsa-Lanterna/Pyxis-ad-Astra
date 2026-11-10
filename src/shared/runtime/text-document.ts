@@ -4,6 +4,7 @@ import { history, invertedEffects, isolateHistory, redo, redoDepth, undo, undoDe
 import type { EditorView } from '@codemirror/view';
 import type { EditContext } from '@/shared/types';
 import type { FieldInputs } from './field-inputs';
+import { hasLongTextLine, isJavaText, javaTextFeatures, textSearchFeatures } from './text-features';
 
 export interface TextContent {
   readonly text: Text;
@@ -64,15 +65,30 @@ export function createTextDocument(
   limit: Readonly<Ref<number>>,
   inputs: FieldInputs,
   changed?: () => void,
+  path?: Readonly<Ref<string | null>>,
 ) {
   const capacity = new Compartment(),
-    surface = new Compartment();
+    surface = new Compartment(),
+    language = new Compartment();
   let extensions: Extension = [];
+  let languageAttached = false;
   const createState = () =>
     EditorState.create({
       doc: value.value.text,
       extensions: [
         contentField.init(() => value.value),
+        textSearchFeatures,
+        language.of(languageAttached ? javaTextFeatures(path?.value, value.value.text) : []),
+        EditorState.transactionExtender.of((transaction) => {
+          if (!languageAttached || !transaction.docChanged || !isJavaText(path?.value)) return null;
+          let replaced = false;
+          transaction.changes.iterChangedRanges((from, to) => {
+            replaced ||= from === 0 && to === transaction.startState.doc.length;
+          });
+          return replaced || hasLongTextLine(transaction.startState.doc) !== hasLongTextLine(transaction.newDoc)
+            ? { effects: language.reconfigure(javaTextFeatures(path?.value, transaction.newDoc)) }
+            : null;
+        }),
         surface.of(extensions),
         capacity.of(history({ minDepth: limit.value, newGroupDelay: 500 })),
         invertedEffects.of((transaction) => {
@@ -132,8 +148,19 @@ export function createTextDocument(
     (minDepth) => dispatch(state.value.update({ effects: capacity.reconfigure(history({ minDepth, newGroupDelay: 500 })) })),
     { flush: 'sync' },
   );
+  const stopLanguage =
+    path &&
+    watch(
+      () => isJavaText(path.value),
+      () => {
+        if (languageAttached)
+          dispatch(state.value.update({ effects: language.reconfigure(javaTextFeatures(path.value, state.value.doc)) }));
+      },
+      { flush: 'sync' },
+    );
   return {
     state,
+    lightweight: computed(() => isJavaText(path?.value) && hasLongTextLine(state.value.doc)),
     dispatch,
     startComposition() {
       if (pendingInput) return;
@@ -167,7 +194,12 @@ export function createTextDocument(
     },
     configureSurface(next: Extension) {
       extensions = next;
-      dispatch(state.value.update({ effects: surface.reconfigure(next) }));
+      const effects = [surface.reconfigure(next)];
+      if (!languageAttached) {
+        languageAttached = true;
+        effects.push(language.reconfigure(javaTextFeatures(path?.value, state.value.doc)));
+      }
+      dispatch(state.value.update({ effects }));
     },
     replaceSource(source: string) {
       const next = readTextContent(source);
@@ -199,6 +231,7 @@ export function createTextDocument(
       stopValue();
       stopContext();
       stopLimit();
+      stopLanguage?.();
       scroll = undefined;
       transaction = null;
       state.value = EditorState.create();

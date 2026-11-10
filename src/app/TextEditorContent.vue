@@ -38,6 +38,7 @@
         </div>
       </div>
       <div class="text-editor-actions action-group">
+        <n-button :disabled="!contentReady || loading" @click="surface?.search()">查找与替换</n-button>
         <n-button v-if="hasPendingExternalText" secondary type="warning" @click="loadExternalText">载入外部文本</n-button>
         <n-button v-if="isErrorContext && !contentReady" @click="retryFile">重试</n-button>
         <n-button :disabled="!dirty || saving" @click="cancelFileChanges">取消</n-button>

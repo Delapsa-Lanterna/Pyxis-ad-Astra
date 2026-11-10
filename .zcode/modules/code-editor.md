@@ -34,7 +34,7 @@
 - `src/shared/lib/errors.ts`：原始错误和位置转换。
 - `src/shared/lib/paths.ts`：文件路径比较及范围。
 - `src/shared/runtime/read-request.ts`：读取寿命等待。
-- `src/shared/runtime/text-document.ts`：不可变文本、原始换行、选区及原生历史。
+- `src/shared/runtime/text-document.ts`：不可变文本、原始换行、历史、当前文件搜索及按文件启用的语言能力。
 - `src/shared/types/code-editor.types.ts`：多文件请求和单文件结果。
 - `src/shared/ui/TextEditorSurface.vue`：共享活动文本视图与滚动交接。
 - `src/stores/save-command.store.ts`：多文档保存与编辑目标登记。
@@ -83,6 +83,8 @@
 - 文件保存必须捕获原目标，保存期间的新输入必须继续保留。
 - 改名接纳必须更新标签、文档和编辑目标，窗口身份必须保持所属 Mod。
 - 文本输入必须保留未修改范围的原始换行和空白，输入法组词只登记一次提交历史。
+- Java 文件必须按文档持有高亮、缩进与折叠，搜索替换限定当前文件；标签切换保留所属查询及折叠状态。
+- 单行超过 20,000 个 UTF-16 字符的 Java 文件必须提示轻量显示并暂停语法功能，内容恢复后重新启用。
 - 保存捕获必须等待组词提交并分隔前后输入历史，保留较早历史与保存期间的新文本。
 - 标签关闭必须等待所属保存，dirty 选择必须绑定所属文档。
 - 文档释放必须结束历史、读取与保存登记，窗口释放必须结束全部待交付回执。

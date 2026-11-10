@@ -130,6 +130,9 @@ export async function* measureEditor(entry, options, runs) {
       assert.equal(await page.locator('iframe[data-window]').count(), 0);
       await cdp.send('HeapProfiler.collectGarbage');
       run.resources.heapAfterClose = await cdp.send('Runtime.getHeapUsage');
+      await page.waitForTimeout(500);
+      await cdp.send('HeapProfiler.collectGarbage');
+      run.resources.heapAfterIdle = await cdp.send('Runtime.getHeapUsage');
       await processes('rendererAfterClose');
       run.resources.released = true;
     } finally {

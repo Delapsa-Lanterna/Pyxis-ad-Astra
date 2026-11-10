@@ -1,9 +1,17 @@
-<template><div ref="host" class="text-editor-surface ui-content-contained" /></template>
+<template>
+  <div class="text-editor-surface ui-content-contained" @keydown="searchInputKey">
+    <div v-if="document.lightweight.value" class="ui-notice" role="status">
+      轻量显示：文件含超过 20,000 个字符的单行，Java 高亮、语法缩进和折叠已暂停。
+    </div>
+    <div ref="host" class="text-editor-view ui-content-contained" />
+  </div>
+</template>
 <script setup lang="ts">
 import { onMounted, onBeforeUnmount, useTemplateRef, watch } from 'vue';
 import { EditorState, RangeSet, type Extension } from '@codemirror/state';
 import { Decoration, EditorView, GutterMarker, gutterLineClass, keymap, lineNumbers as numberedGutter } from '@codemirror/view';
 import { defaultKeymap } from '@codemirror/commands';
+import { openSearchPanel } from '@codemirror/search';
 import type { TextDocument } from '@/shared/runtime/text-document';
 const props = defineProps<{ document: TextDocument; disabled?: boolean; lineNumbers?: boolean; line?: number }>();
 const emit = defineEmits<{ position: [value: { line: number; column: number }] }>();
@@ -12,6 +20,14 @@ const errorGutter = new (class extends GutterMarker {
   override elementClass = 'text-editor-error-gutter';
 })();
 let view: EditorView | undefined, bound: TextDocument | undefined, stop: (() => void) | undefined;
+function searchInputKey(event: KeyboardEvent) {
+  if (
+    (event.ctrlKey || event.metaKey) &&
+    ['z', 'y'].includes(event.key.toLowerCase()) &&
+    (event.target as HTMLElement).closest('.cm-search input')
+  )
+    event.stopPropagation();
+}
 function position() {
   const state = bound!.state.value,
     offset = state.selection.main.head,
@@ -94,6 +110,7 @@ onBeforeUnmount(() => {
   view?.destroy();
 });
 defineExpose({
+  search: () => view && openSearchPanel(view),
   focus: () => view?.focus(),
   locate: (line: number, column = 1) => {
     props.document.locate(line, column);
