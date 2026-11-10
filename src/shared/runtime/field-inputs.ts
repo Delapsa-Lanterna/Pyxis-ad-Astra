@@ -98,7 +98,9 @@ export function createFieldInputs(targetKey: Readonly<Ref<string | null>> = ref(
     }
     if (generation !== started || targetKey.value !== key) return false;
     for (const finalize of finish) {
-      if (generation !== started || targetKey.value !== key || (await finalize()) === false) return false;
+      if (generation !== started || targetKey.value !== key) return false;
+      const result = await finalize();
+      if (result === false || generation !== started || targetKey.value !== key) return false;
       accepted?.();
     }
     if (generation !== started || targetKey.value !== key) return false;

@@ -95,7 +95,7 @@ describe('automatic action logging', () => {
     await handler('disk full');
     expect(queue.status()).toMatchObject({ error: 'disk full', dropped: 1, pending: 0 });
     window.dispatchEvent(new Event('pagehide'));
-    expect(api.stop).toHaveBeenCalledOnce();
+    expect(api.stop).toHaveBeenCalledTimes(0);
   });
   it('waits for an accepted in-flight batch before counting queued losses', async () => {
     const { queue } = await boot();
@@ -145,7 +145,7 @@ describe('automatic action logging', () => {
     finish();
     await pending;
     await api.listen.mock.calls[0]![0]('late notification');
-    expect(api.stop).toHaveBeenCalledOnce();
+    expect(api.stop).toHaveBeenCalledTimes(0);
     expect(install).not.toHaveBeenCalled();
     expect(applicationLogError.value).toBe('');
     expect(appLogQueue.status().error).toBe('');
@@ -167,6 +167,6 @@ describe('automatic action logging', () => {
     fail(new Error('late fixture'));
     await settled;
     expect(applicationLogError.value).toBe('');
-    expect(api.stop).toHaveBeenCalledTimes(stage === 'status' ? 1 : 0);
+    expect(api.stop).toHaveBeenCalledTimes(0);
   });
 });

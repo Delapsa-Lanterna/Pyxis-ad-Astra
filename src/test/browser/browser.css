@@ -112,7 +112,6 @@ body.browser-benchmark #app {
 .browser-preview #app,
 body.browser-benchmark #app {
   border-top: 8px solid var(--color-surface-active);
-  background: var(--color-surface-active);
 }
 .browser-window-grid.has-child-windows {
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -230,7 +229,7 @@ body.browser-benchmark #app {
   font-size: 14px;
   margin: 8px 0;
 }
-.testbed-parameters label:not(.testbed-toggle),
+.testbed-parameters label:not(.testbed-toggle):not([hidden]),
 .testbed-variant label {
   display: grid;
   gap: 4px;

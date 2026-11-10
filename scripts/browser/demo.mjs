@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
 import { mkdir, writeFile } from 'node:fs/promises';
+import { markdown } from '../shared/test-report.mjs';
 
 const url = process.argv[2] ?? 'http://127.0.0.1:1463/Pyxis-ad-Astra/';
 const output = 'node_modules/.cache/browser/demo';
@@ -131,9 +132,26 @@ try {
   errors.push(String(error));
   await page.screenshot({ path: output + '/failure.png' });
 } finally {
-  const report = { url, pass: errors.length === 0, readyMs, downloadBytes, checks, errors };
+  let released = true;
+  try {
+    await browser.close();
+  } catch (error) {
+    released = false;
+    errors.push('Browser release: ' + String(error));
+  }
+  const report = {
+    kind: /** @type {const} */ ('preview'),
+    runs: [],
+    url,
+    pass: errors.length === 0,
+    readyMs,
+    downloadBytes,
+    checks: checks.map((name) => ({ name, pass: true })),
+    errors,
+    resourcesReleased: released,
+  };
   await writeFile(output + '/report.json', JSON.stringify(report, null, 2));
+  await writeFile(output + '/report.md', markdown(report), 'utf8');
   console.log(JSON.stringify(report));
-  await browser.close();
   if (errors.length) process.exitCode = 1;
 }

@@ -60,7 +60,7 @@
 
 ## 公共文件
 
-- `scripts/shared/`：工程检查、浏览器与桌面验收共享的仓库遍历、语言解析、位置及样本统计工具。
+- `scripts/shared/`：工程检查、浏览器与桌面验收共享的仓库遍历、语言解析、位置、样本统计及测试报告工具。
 - `src-tauri/src/app_data_dir.rs`：Tauri 工具私有数据目录解析。
 - `src-tauri/src/diagnostics.rs`：跨层诊断写入接口。
 - `src-tauri/src/domain/variant_modules.rs`：装配模块格式的纯读取与引用替换。

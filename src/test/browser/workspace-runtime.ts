@@ -1,13 +1,14 @@
 import type * as T from '@/shared/types';
 import { reactive } from 'vue';
-import { createWorkspaceProject, workspaceRoots, coreRoot, gameRoot } from './workspace-project';
+import { createWorkspaceProject } from './project';
+import { workspaceRoots, coreRoot, gameRoot } from './sample-data';
 import { dispatch as dispatchScene } from './runtime/commands';
 import { createSettingsFixture } from '../fixtures/settings';
 import { entityTargetFixture } from '../fixtures/entity-target';
 import { buildModNavigationSections } from '@/domain/workspace/mod-navigation';
-import { gameQuery, gameCatalog } from './game-queries';
-import { gameImages, gameAudio } from './game-files';
-import { gameCommands } from './game-queries';
+import { gameQuery, gameCatalog } from './queries';
+import { gameImages, gameAudio } from './sample-data';
+import { gameCommands } from './queries';
 import { normalizeFsPath } from '@/shared/lib/paths';
 import { initializeWindowsPathCase } from '@/shared/lib/paths';
 import { windowsPathCaseFixture } from '../fixtures/windows-path-case';
@@ -18,18 +19,20 @@ import { composeJson } from '@/domain/json-composition';
 import { isRowData } from '@/shared/lib/row-data';
 import { createJavaComponentPreview } from './java-analysis';
 import { createCodeEditorPreview } from './code-editor';
-import { gameFiles } from './game-files';
+import { gameFiles } from './sample-data';
 
 type Handler = (event: { event: string; id: number; payload: unknown }) => void | Promise<void>;
 type DeliveryChannel = { onmessage: (delivery: T.ProjectSyncDelivery) => void };
-export function createBrowserWorkspace(systemTheme: T.AppTheme = 'light') {
+export function createBrowserWorkspace(
+  systemTheme: T.AppTheme = 'light',
+  buildProjects = () => [coreRoot, ...workspaceRoots].map((root, index) => createWorkspaceProject(root, index)),
+) {
   const javaAnalysis = createJavaComponentPreview();
   const codeEditor = createCodeEditorPreview(
     (owner, request) => invoke(owner, 'request_window', { payload: request }) as Promise<T.WindowRequestReceipt>,
   );
   initializeWindowsPathCase(windowsPathCaseFixture);
   let references: T.ReferenceSource[] = [];
-  const buildProjects = () => [coreRoot, ...workspaceRoots].map(createWorkspaceProject);
   let projects = buildProjects();
   function connectProjectSources() {
     projects.forEach((entry) => entry.setSources(() => sourceList(entry)));

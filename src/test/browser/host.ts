@@ -24,7 +24,7 @@ import { startPerformanceMonitor, flushPerformanceMonitor } from '@/app/performa
 import { installBrowserModel } from './runtime/commands';
 import { emit } from './runtime/events';
 import { provideFieldInputs } from '@/shared/runtime/field-inputs';
-import type { BrowserModel } from './scenarios/model';
+import type { BrowserModel } from './model';
 import type { AppSettings } from '@/shared/types';
 import '@/styles/style.css';
 import './browser.css';
@@ -91,9 +91,9 @@ export function createBrowserHost(element: HTMLElement) {
     stopMonitor = startPerformanceMonitor(pinia, monitor);
     model.monitor.enabled = monitor;
     const SceneContent = await (async () => {
-      if (model.scene === 'fields') return (await import('./FieldGallery.vue')).default;
-      if (model.scene === 'resources') return (await import('./ResourceGallery.vue')).default;
-      if (model.scene === 'feedback') return (await import('./FeedbackGallery.vue')).default;
+      if (model.scene === 'fields') return (await import('./preview/FieldGallery.vue')).default;
+      if (model.scene === 'resources') return (await import('./preview/ResourceGallery.vue')).default;
+      if (model.scene === 'feedback') return (await import('./preview/FeedbackGallery.vue')).default;
       if (model.scene === 'csv') return (await import('@/app/components/csv-editor/CsvEditorPage.vue')).default;
       if (immersiveKinds.includes(model.scene as (typeof immersiveKinds)[number]))
         return (await import('@/app/ImmersiveEditorContent.vue')).default;

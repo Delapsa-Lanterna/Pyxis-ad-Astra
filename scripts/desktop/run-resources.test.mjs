@@ -8,7 +8,7 @@ import { promisify } from 'node:util';
 import { test } from 'node:test';
 import { TestWorkspace } from '../shared/test-workspace.mjs';
 import { desktopConfiguration } from './config.mjs';
-import { reserveReport } from './report.mjs';
+import { reserveReport } from '../shared/test-output.mjs';
 import { startProcessSampler } from './process-sampler.mjs';
 import { delay, until } from './runtime.mjs';
 import { connectDesktopCdp } from './cdp-client.mjs';
@@ -234,9 +234,11 @@ test('desktop reports retain results and failed checks while preserving existing
     const output = work.path('report.json');
     const report = await reserveReport(output);
     await report.finish({
+      kind: 'desktop',
+      runs: [],
       suite: 'sources',
       pass: true,
-      checks: [{ name: 'Sample', milliseconds: 12.5 }],
+      checks: [{ name: 'Sample', milliseconds: 12.5, pass: true }],
       errors: [],
       resourcesReleased: true,
     });
@@ -244,6 +246,8 @@ test('desktop reports retain results and failed checks while preserving existing
     assert.match(await readFile(work.path('report.md'), 'utf8'), /12\.50/);
     const failed = await reserveReport(work.path('failed.json'));
     await failed.finish({
+      kind: 'desktop',
+      runs: [],
       suite: 'csv',
       pass: false,
       checks: [{ name: 'Performance budget', milliseconds: 0.5, pass: false }],

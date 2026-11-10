@@ -137,6 +137,7 @@ export function useTextEditorViewModel(params: TextEditorViewModelParams) {
     draftSession.draftValue,
     draftSession.context,
     computed(() => settings.editHistoryLimit),
+    draftSession.inputs,
     () => {
       if (pendingIdentity) void followPendingIdentity();
     },
@@ -483,6 +484,11 @@ export function useTextEditorViewModel(params: TextEditorViewModelParams) {
     isErrorContext,
     isWarningContext,
     initialize,
+    retry: () =>
+      initialize().then(
+        () => true,
+        () => false,
+      ),
     dispose,
     saveFile,
     cancelChanges,

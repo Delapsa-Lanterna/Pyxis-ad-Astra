@@ -7,7 +7,7 @@ import { browserTestPlugin, root } from './vite-plugin.mjs';
 import { TestWorkspace } from '../shared/test-workspace.mjs';
 import { buildBrowser } from './build.mjs';
 
-/** @param {{ mode?: 'browser' | 'testbed', production?: boolean, directory?: string, port?: number, rebuild?: boolean, monitorCode?: boolean, base?: string }} options */
+/** @param {{ mode?: 'preview' | 'testbed', production?: boolean, directory?: string, port?: number, rebuild?: boolean, monitorCode?: boolean, base?: string }} options */
 export async function serve({
   mode = 'testbed',
   production = false,
@@ -94,7 +94,7 @@ export async function serve({
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
-  const mode = process.argv[2] === 'browser' ? 'browser' : 'testbed';
+  const mode = process.argv[2] === 'preview' ? 'preview' : 'testbed';
   const production = process.argv.includes('--production');
   const directoryFlag = process.argv.indexOf('--directory');
   const baseFlag = process.argv.indexOf('--base');
@@ -102,7 +102,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
   const server = await serve({
     mode,
     production,
-    port: portFlag < 0 ? (production ? 0 : mode === 'browser' ? 1461 : 1462) : Number(process.argv[portFlag + 1]),
+    port: portFlag < 0 ? (production ? 0 : mode === 'preview' ? 1461 : 1462) : Number(process.argv[portFlag + 1]),
     base: baseFlag < 0 ? '/' : process.argv[baseFlag + 1],
     directory: directoryFlag < 0 ? undefined : process.argv[directoryFlag + 1],
     rebuild: !process.argv.includes('--existing'),

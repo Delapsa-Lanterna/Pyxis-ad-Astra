@@ -4,8 +4,8 @@ import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { browserTestPlugin, root } from './vite-plugin.mjs';
 
-/** @param {{mode?: 'browser' | 'testbed', directory: string, base?: string, demo?: boolean, monitorCode?: boolean}} options */
-export function buildBrowser({ mode = 'browser', directory, base = '/', demo = false, monitorCode = true }) {
+/** @param {{mode?: 'preview' | 'testbed', directory: string, base?: string, demo?: boolean, monitorCode?: boolean}} options */
+export function buildBrowser({ mode = 'preview', directory, base = '/', demo = false, monitorCode = true }) {
   return build({
     configFile: resolve(root, 'vite.config.ts'),
     base,
@@ -18,7 +18,7 @@ export function buildBrowser({ mode = 'browser', directory, base = '/', demo = f
       outDir: directory,
       emptyOutDir: true,
       rolldownOptions: {
-        input: resolve(root, 'src/test/browser/' + (mode === 'browser' ? 'entry.ts' : 'testbed.ts')),
+        input: resolve(root, 'src/test/browser/' + mode + '/entry.ts'),
         output: {
           codeSplitting: {
             groups: [

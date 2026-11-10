@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { flushPromises } from '@vue/test-utils';
 import { listenAppEvent } from './event.runtime';
 
@@ -9,7 +9,41 @@ beforeEach(() => {
   api.listen.mockResolvedValue(api.stop);
 });
 
+afterEach(() => window.dispatchEvent(new Event('pagehide')));
 describe('application event transport', () => {
+  it.each(['registered', 'registering'] as const)('ends %s subscriptions before pagehide consumers release them', async (stage) => {
+    let finish!: (stop: () => void) => void;
+    if (stage === 'registering')
+      api.listen.mockReturnValueOnce(
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+      );
+    const received = vi.fn(),
+      failed = vi.fn();
+    const pending = listenAppEvent('sample', received, failed);
+    const stop = stage === 'registered' ? await pending : undefined;
+    const release = () => stop?.();
+    window.addEventListener('pagehide', release, { once: true });
+    window.dispatchEvent(new Event('pagehide'));
+    if (stage === 'registering') finish(api.stop);
+    (await pending)();
+    api.listen.mock.calls[0]![1]({ payload: 'late' });
+    await flushPromises();
+    expect(api.stop).toHaveBeenCalledTimes(0);
+    expect(received).toHaveBeenCalledTimes(0);
+    expect(failed).toHaveBeenCalledTimes(0);
+  });
+  it('ends delivery after normal scope release', async () => {
+    const received = vi.fn(),
+      failed = vi.fn();
+    const stop = await listenAppEvent('sample', received, failed);
+    stop();
+    api.listen.mock.calls[0]![1]({ payload: 'late' });
+    await flushPromises();
+    expect(received).toHaveBeenCalledTimes(0);
+    expect(api.stop).toHaveBeenCalledTimes(1);
+  });
   it.each([undefined, 'target-window'])('forwards target %s and the original payload and release', async (target) => {
     const received = vi.fn();
     const failed = vi.fn();
@@ -20,7 +54,7 @@ describe('application event transport', () => {
     await flushPromises();
     expect(received).toHaveBeenCalledExactlyOnceWith(payload);
     expect(failed).not.toHaveBeenCalled();
-    expect(stop).toBe(api.stop);
+    stop();
     stop();
     expect(api.stop).toHaveBeenCalledOnce();
   });

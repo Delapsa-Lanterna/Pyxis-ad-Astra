@@ -259,13 +259,14 @@ export function useEditTargetDraftSession<TValue, TTarget, TMeta = unknown>(
   function saveDraft(write = options.save, preserveDraft = false): Promise<Snapshot | null> {
     if (pendingSave) return pendingSave;
     if (!write || !ready.value || disposed) return Promise.resolve(null);
-    options.captureSave?.();
     saving.value = true;
     const life = lifetime;
     let submitted = clone(draftValue.value);
     const committed = inputs.commit(undefined, true, () => {
+      options.captureSave?.();
       submitted = clone(draftValue.value);
     });
+    if (!committed) options.captureSave?.();
     const versions = deepClone(baselineSnapshot.value!.baseVersions);
     const original = clone(baselineSnapshot.value!.value);
     const capturedTarget = deepClone(currentTarget.value!);

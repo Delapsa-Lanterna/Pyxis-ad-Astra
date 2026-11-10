@@ -559,8 +559,21 @@ it('renders reading, encoding failure, and a successful retry with line navigati
   expect(wrapper.get('.text-editor-message.danger').text()).toContain('请选择文件当前使用的编码');
   expect(wrapper.findAll('button').map((button) => button.text())).toContain('重试');
   expect(mocks.feedback.error).toHaveBeenLastCalledWith(error, '读取文件失败');
+  mocks.loadTextFile.mockRejectedValueOnce(error);
+  await wrapper
+    .findAll('button')
+    .find((button) => button.text() === '重试')!
+    .trigger('click');
+  await flushPromises();
+  expect(mocks.feedback.error).toHaveBeenCalledTimes(2);
+  expect(wrapper.get('.text-editor-status').text()).toBe('读取失败');
   mocks.loadTextFile.mockResolvedValueOnce(textFileFixture('first\nsecond'));
-  await mocks.request!(request);
+  await wrapper
+    .findAll('button')
+    .find((button) => button.text() === '重试')!
+    .trigger('click');
+  await flushPromises();
+  expect(mocks.loadTextFile).toHaveBeenCalledTimes(3);
   expect(wrapper.find('.text-editor-message').exists()).toBe(false);
   expect(wrapper.getComponent(TextEditorSurface).props('document').state.value.doc.toString()).toBe('first\nsecond');
   expect(wrapper.getComponent(TextEditorSurface).props('document').state.value.selection.main.head).toBe(6);

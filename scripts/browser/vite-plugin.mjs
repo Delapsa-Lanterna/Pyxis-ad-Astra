@@ -5,9 +5,9 @@ import { createHash } from 'node:crypto';
 const OPERATION_VERSION = 1;
 
 export const root = fileURLToPath(new URL('../../', import.meta.url));
-/** @param {'browser' | 'testbed'} mode */
-export function browserTestPlugin(mode = 'browser') {
-  const entry = 'src/test/browser/' + (mode === 'browser' ? 'entry.ts' : 'testbed.ts');
+/** @param {'preview' | 'testbed'} mode */
+export function browserTestPlugin(mode = 'preview') {
+  const entry = 'src/test/browser/' + mode + '/entry.ts';
   /** @type {Record<string, string>} */
   let metadata;
   let base = '/';
@@ -99,7 +99,7 @@ export function browserTestPlugin(mode = 'browser') {
 function html(script, styles, mode) {
   return (
     '<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>' +
-    (mode === 'browser' ? '前端测试工作区' : '性能测试台') +
+    (mode === 'preview' ? '前端测试工作区' : '性能测试台') +
     '</title>' +
     styles +
     '</head><body><div id="controls"></div><div id="app"></div><script type="module" src="' +

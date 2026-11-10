@@ -74,93 +74,82 @@ npm.cmd run build
 
 ### 模块入口
 
-`scripts/browser/` 提供服务、生产构建、浏览器执行及报告；`src/test/browser/` 提供浏览器模拟、场景、操作和基准。共享基础位于 `src/test/`：`fixtures/` 提供数据工厂，`unit/` 提供单元测试辅助。
+`src/test/browser/preview/` 提供功能工作区、展示样本与正确性场景；`src/test/browser/testbed/` 提供规模、压力与性能场景。`scripts/browser/` 提供服务、构建与外部驱动，公共报告与统计位于 `scripts/shared/`。
 
 ### 构建与启动
 
-#### 预览与测试台
+#### 功能预览与测试台
 
-- 浏览器测试工作区：`npm.cmd run dev:browser`，默认地址为 `http://127.0.0.1:1461`。
-- 性能测试台：`npm.cmd run dev:testbed`，默认地址为 `http://127.0.0.1:1462`。
+```powershell
+npm.cmd run dev:browser-preview
+npm.cmd run dev:browser-testbed
+```
 
-地址参数 `?scene=csv&count=300&theme=dark` 选择独立场景、规模和主题。测试台提供各类候选列表的规模基准、重复使用压力和资源压力，点击预览或执行后加载样本。
+功能预览默认地址为 `http://127.0.0.1:1461`，测试台为 `http://127.0.0.1:1462`。功能预览的子窗口目录提供代码编辑器体验入口。测试台提供 CSV、选择列表及两类文本编辑器的参数、样本、测量和报告导出。
 
 #### 公开演示
 
 ```powershell
 npm.cmd run build:demo -- --base /Pyxis-ad-Astra/
-npm.cmd run dev:browser -- --production --existing --directory dist/browser-demo --base /Pyxis-ad-Astra/ --port 1463
+npm.cmd run dev:browser-preview -- --production --existing --directory dist/browser-demo --base /Pyxis-ad-Astra/ --port 1463
 ```
 
 演示产物位于 `dist/browser-demo/`。
 
 #### 比较两份构建
 
-先分别准备两份生产构建，再使用各自服务输出的端口填写测量命令：
-
 ```powershell
-npm.cmd run dev:testbed -- --production --directory node_modules/.cache/browser/A
-npm.cmd run dev:testbed -- --production --directory node_modules/.cache/browser/B
-npm.cmd run test:browser -- --url http://127.0.0.1:端口A --variant A,http://127.0.0.1:端口A,off,code --variant B,http://127.0.0.1:端口B,off,code
+npm.cmd run dev:browser-testbed -- --production --directory node_modules/.cache/browser/A
+npm.cmd run dev:browser-testbed -- --production --directory node_modules/.cache/browser/B
+npm.cmd run test:browser-testbed -- --variant A,http://127.0.0.1:端口A,off,code --variant B,http://127.0.0.1:端口B,off,code --scene csv
 ```
 
 ### 自动执行
 
-正式性能采样必须使用生产构建。以下命令连接已运行的浏览器服务、启动 Edge、执行测试，并保存 JSON 与 Markdown 报告。
-
-基础采样与界面验收：
+功能正确性及体验验收连接已运行的 preview：
 
 ```powershell
-npm.cmd run test:browser -- --suite smoke
-npm.cmd run test:browser -- --suite ui
-npm.cmd run test:browser -- --suite browser-ui
-npm.cmd run test:browser -- --suite code-editor
-npm.cmd run test:browser -- --suite java-analysis
+npm.cmd run test:browser-preview
+npm.cmd run test:browser-preview -- --scene workspace
+npm.cmd run test:browser-preview -- --scene editors
+npm.cmd run test:browser-preview -- --scene java-analysis
 ```
 
-列表及代码编辑器基准、重复使用压力与资源压力：
+规模与压力测量连接已运行的 testbed，正式采样使用生产构建：
 
 ```powershell
-npm.cmd run test:browser -- --suite lists
-npm.cmd run test:browser -- --suite stress
-npm.cmd run test:browser -- --suite resources
-npm.cmd run test:browser -- --suite code-editor-performance
-```
-
-指定场景与对照测量：
-
-```powershell
-npm.cmd run test:browser -- --suite smoke --scene weapons --aa
-npm.cmd run test:browser -- --suite lists --scene csv --count 50 --monitor-compare
+npm.cmd run test:browser-testbed -- --scene csv
+npm.cmd run test:browser-testbed -- --scene weapons --workload stress
+npm.cmd run test:browser-testbed -- --scene weapons --workload resources
+npm.cmd run test:browser-testbed -- --scene code-editor
+npm.cmd run test:browser-testbed -- --scene text-editor
+npm.cmd run test:browser-testbed -- --check-ui
 ```
 
 资源寿命检查：`npm.cmd run test:resources`。
 
 ### 执行参数
 
-- `--warmup 2 --rounds 30`：指定预热 2 次、测量 30 次。
-- `--first-open`：为每次首次打开创建新浏览器上下文并单独记录。
-- `--output <report.json>`：指定报告位置，默认位于 `node_modules/.cache/browser/reports/`。
-- `--url <地址>`：指定已运行服务；工作区界面、代码编辑器及 Java 卡片场景默认连接 1461，testbed 场景连接 1462。
+- `--url <地址>`：指定已运行服务，preview 默认连接 1461，testbed 默认连接 1462。
+- `--scene <名称>`：选择所属场景，preview 默认执行全部功能场景，testbed 默认执行全部测量场景。
+- `--rows 300`、`--entries 100`、`--files 50`：分别指定表格行数、列表条目数和编辑器文件数。
+- `--bytes 10485760 --shape multiline`：指定文件字节数和文本形态，超长行采用 `long-line`。
+- `--execution page|keyboard`：编辑器采用页面内操作或真实按键，自动测量默认真实按键；测试台页面执行页面内操作。
+- `--workload benchmark|stress|resources`：选择基准、重复使用压力或资源压力；资源压力采用武器列表。
+- `--warmup 2 --rounds 30`：指定预热及正式轮次；重复使用压力默认测量 100 次。
+- `--first-open`：使用独立浏览器上下文记录首次打开。
+- `--aa`、`--monitor-compare`：执行同对象双组对照或性能监视开关对照。
+- `--output <report.json>`：排他预留 JSON、Markdown 与附件目录。
 
-构建参数：
+构建参数：`--production` 使用生产构建，`--existing --directory <目录>` 使用指定产物，`--no-monitor-code` 构建移除前端监视代码的样本。
 
-- `--existing`：使用指定目录中的已构建产物。
-- `--no-monitor-code`：构建移除前端监视代码的对照样本。
-
-比较策略：
-
-- `disabled`：增量上限取 1% 与 1 ms 中的较大值。
-- `enabled`：增量上限取 10% 与 5 ms 中的较大值。
-- `code`：记录代码构建间差异。
-
-行为失败和已有预算超限必须返回失败退出码。
+比较策略：`disabled` 的增量上限取 1% 与 1 ms 较大值，`enabled` 取 10% 与 5 ms 较大值，`code` 记录构建差异。
 
 ### 报告与资源管理
 
-报告包含完整构建哈希、样本参数、运行设置、浏览器、视口、DPR、缓存条件、逐轮顺序、预热及正式样本，以及最小值、最大值、均值、中位数和 nearest-rank P95。首次打开与预热后结果请分别判读。
+功能结果进入 `checks`，测量结果进入 `runs`。报告包含场景、参数及单位、实际采样次数、操作方式与完成条件、构建、浏览器、视口、DPR、原始样本、统计、断言及释放结果。浏览器样本保存和原生磁盘保存分别记录。
 
-报告与截图位于 `node_modules/.cache/browser/reports/`。每次运行排他持有输出文件与截图目录，执行结束释放所属浏览器连接与上下文。测试服务器启停必须取得明确授权，已有可用服务必须持续保留并复用。
+报告默认位于 `node_modules/.cache/browser/preview/reports/` 或 `node_modules/.cache/browser/testbed/reports/`。每次运行排他持有报告及附件，失败保留已完成的样本与原始错误。执行结束释放所属浏览器连接与上下文，测试服务按独立寿命管理并持续复用。
 
 - CPU 采样：`node scripts/performance/profile.mjs <DevTools地址> <输出.cpuprofile> <毫秒>`。
 
@@ -168,7 +157,7 @@ npm.cmd run test:browser -- --suite lists --scene csv --count 50 --monitor-compa
 
 ### 模块入口
 
-`scripts/desktop/` 提供独立应用构建、真实窗口驱动、来源同步验收与 CSV 显示性能测量；`src/test/desktop/` 提供页面探针。
+`scripts/desktop/` 提供独立应用构建、真实窗口驱动、来源同步、编辑器验收与性能测量；`src/test/desktop/` 提供页面探针。
 
 ### 构建与启动
 
@@ -186,6 +175,7 @@ npm.cmd run build:desktop
 npm.cmd run test:desktop -- --suite sources
 npm.cmd run test:desktop -- --suite sources --isolated-desktop
 npm.cmd run test:desktop -- --suite code-editor
+npm.cmd run test:desktop -- --suite editor-performance --count 50 --rounds 30
 npm.cmd run test:desktop -- --suite csv --rounds 30
 npm.cmd run test:desktop -- --suite source-performance --mod D:/game/mods/sample --game D:/game --rounds 30 --soak 600
 ```
@@ -200,7 +190,7 @@ npm.cmd run test:desktop -- --suite source-performance --mod D:/game/mods/sample
 - `--game <目录>`：来源性能测量使用的原版游戏根。
 - `--soak 600`：来源性能测量在固定轮次之后执行 600 秒混合负载；`0` 表示仅测固定轮次。
 - `--phase cold|warm|all`：选择首次进入、返回与滚动或完整测量。
-- `--count 50 --rounds 30`：指定生成样本行数与测量次数。
+- `--count 50 --warmup 2 --rounds 30`：指定生成样本规模、预热及正式测量次数。
 - `--screenshots`：保存 CSV 测量窗口的明暗与宽窄截图。
 - `--output <report.json>`：排他预留 JSON、Markdown 与附件目录。
 - `--dry-run`：输出实际配置。

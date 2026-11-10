@@ -8,7 +8,12 @@ import { initializeSettingsStore } from '@/stores/settings.store';
 import { useSaveCommandStore } from '@/stores/save-command.store';
 import { createSettingsFixture } from '@/test/fixtures/settings';
 import { savedWriteFixture } from '@/test/fixtures/write-result';
-import { projectChangeFixture, projectChangeListeners } from '@/test/unit/project-changes';
+import {
+  projectChangeFixture,
+  projectChangeListeners,
+  committedChangeFixture,
+  dispatchProjectChangeFixture,
+} from '@/test/unit/project-changes';
 import type { loadTextFile, saveTextFile } from '@/services/text-editor.service';
 import type { AppFeedback, CodeEditorDelivery, CodeEditorFileResult, TextFileData } from '@/shared/types';
 import TextEditorSurface from '@/shared/ui/TextEditorSurface.vue';
@@ -16,6 +21,7 @@ import { textEditorSurface } from '@/test/unit/text-editor-surface';
 import { writeTextContent } from '@/shared/runtime/text-document';
 import * as textDocument from '@/shared/runtime/text-document';
 import { useCodeEditor } from './use-code-editor';
+import { Transaction } from '@codemirror/state';
 
 const mocks = vi.hoisted(() => ({
   load: vi.fn<typeof loadTextFile>(),
@@ -59,6 +65,80 @@ beforeEach(() => {
   mocks.feedback.choose.mockResolvedValue(null);
 });
 describe('code editor document host', () => {
+  it('accepts one changed file without rereading the other 49 documents or changing their histories', async () => {
+    const { value: host } = mountSetup(() => useCodeEditor(owner));
+    await host.ready;
+    await host.openFiles(Array.from({ length: 50 }, (_, index) => ({ path: `M:/sample/File${index}.txt` })));
+    const first = host.documents[0]!,
+      other = host.documents[1]!;
+    other.setText('local draft');
+    const states = host.documents.slice(1).map((file) => file.document.state.value);
+    mocks.load.mockClear();
+    const result = savedWriteFixture({ text: 'peer saved' }, { kind: 'text', path: first.path.value });
+    result.baseVersions = [{ path: first.path.value, fingerprint: 'peer' }];
+    result.invalidation = { ...result.invalidation, paths: [first.path.value], session: false };
+    await dispatchProjectChangeFixture(committedChangeFixture(result, owner.sessionId, owner.modRoot));
+    expect(writeTextContent(first.session.draftValue.value)).toBe('peer saved');
+    expect(mocks.load).toHaveBeenCalledTimes(0);
+    expect(host.documents.slice(1).map((file) => file.document.state.value)).toEqual(states);
+    other.undo();
+    expect(writeTextContent(other.session.draftValue.value)).toBe('class Sample {}\r\n');
+    await projectChangeFixture(owner.sessionId, { ...result.invalidation, paths: ['M:/sample/File2.txt'] }, owner.modRoot);
+    expect(mocks.load).toHaveBeenCalledTimes(1);
+    await projectChangeFixture(owner.sessionId, { ...result.invalidation, paths: [], session: true }, owner.modRoot);
+    expect(mocks.load).toHaveBeenCalledTimes(51);
+  });
+  it.each(['finish', 'dispose'] as const)('settles composition before save capture and releases on %s', async (outcome) => {
+    const { value: host, wrapper } = mountSetup(() => useCodeEditor(owner));
+    await host.ready;
+    await host.openFiles([{ path: 'M:/sample/Composition.java' }]);
+    const file = host.documents[0]!,
+      document = file.document;
+    document.startComposition();
+    document.dispatch(
+      document.state.value.update({
+        changes: { from: 0, insert: '中' },
+        annotations: Transaction.userEvent.of('input.type.compose.start'),
+      }),
+    );
+    const saving = host.save(file),
+      repeated = host.save(file);
+    expect(mocks.write).toHaveBeenCalledTimes(0);
+    if (outcome === 'dispose') {
+      wrapper.unmount();
+      expect(await saving).toBe(false);
+      expect(await repeated).toBe(false);
+      expect(mocks.write).toHaveBeenCalledTimes(0);
+      return;
+    }
+    document.dispatch(
+      document.state.value.update({
+        changes: { from: 0, to: 1, insert: '中文' },
+        annotations: Transaction.userEvent.of('input.type.compose'),
+      }),
+    );
+    document.finishComposition();
+    await Promise.all([saving, repeated]);
+    expect(mocks.write).toHaveBeenCalledTimes(1);
+    expect(mocks.write.mock.calls[0]![3]).toBe('中文class Sample {}\r\n');
+    document.dispatch(
+      document.state.value.update({ changes: { from: 0, insert: 'next' }, annotations: Transaction.userEvent.of('input.type') }),
+    );
+    file.undo();
+    expect(writeTextContent(file.session.draftValue.value)).toBe('中文class Sample {}\r\n');
+  });
+  it('captures a save immediately when no composition is pending', async () => {
+    const { value: host } = mountSetup(() => useCodeEditor(owner));
+    await host.ready;
+    await host.openFiles([{ path: 'M:/sample/Capture.java' }]);
+    const file = host.documents[0]!;
+    file.setText('submitted');
+    const saving = host.save(file);
+    file.setText('later');
+    await saving;
+    expect(mocks.write.mock.calls[0]![3]).toBe('submitted');
+    expect(writeTextContent(file.session.draftValue.value)).toBe('later');
+  });
   it('generates full text only on save, including large edits, switches and close capture', async () => {
     const { value: host } = mountSetup(() => useCodeEditor(owner));
     await host.ready;

@@ -24,7 +24,7 @@ import type {
 import { createSettingsFixture } from '../../fixtures/settings';
 import { windowsPathCaseFixture } from '../../fixtures/windows-path-case';
 import { sessionUpdateFixture, savedWriteFixture } from '../../fixtures/write-result';
-import { createBrowserModel, type BrowserModel } from '../scenarios/model';
+import { createBrowserModel, type BrowserModel } from '../model';
 import { emit } from './events';
 import { MISC_CONFIG_DEFINITIONS, miscConfigDefinition } from '@/domain/misc-config';
 import { CONFIG_FIELD_SOURCES, isConfigFieldSource } from '@/domain/schema/schema-source-definitions';

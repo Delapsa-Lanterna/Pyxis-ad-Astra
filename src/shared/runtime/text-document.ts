@@ -3,6 +3,7 @@ import { Compartment, EditorSelection, EditorState, StateEffect, StateField, Tex
 import { history, invertedEffects, isolateHistory, redo, redoDepth, undo, undoDepth } from '@codemirror/commands';
 import type { EditorView } from '@codemirror/view';
 import type { EditContext } from '@/shared/types';
+import type { FieldInputs } from './field-inputs';
 
 export interface TextContent {
   readonly text: Text;
@@ -61,6 +62,7 @@ export function createTextDocument(
   value: Ref<TextContent>,
   context: Readonly<Ref<EditContext | null>>,
   limit: Readonly<Ref<number>>,
+  inputs: FieldInputs,
   changed?: () => void,
 ) {
   const capacity = new Compartment(),
@@ -83,6 +85,14 @@ export function createTextDocument(
   const state = shallowRef(createState());
   let transaction: Transaction | null = null,
     scroll: ReturnType<EditorView['scrollSnapshot']> | undefined;
+  let pendingInput: Promise<void> | undefined, releaseInput: (() => void) | undefined, stopInput: (() => void) | undefined;
+  function finishComposition() {
+    stopInput?.();
+    stopInput = undefined;
+    releaseInput?.();
+    pendingInput = undefined;
+    releaseInput = undefined;
+  }
   function dispatch(next: Transaction) {
     transaction = next;
     state.value = next.state;
@@ -125,6 +135,17 @@ export function createTextDocument(
   return {
     state,
     dispatch,
+    startComposition() {
+      if (pendingInput) return;
+      pendingInput = new Promise((resolve) => {
+        releaseInput = resolve;
+      });
+      stopInput = inputs.registerFinalizer(() => pendingInput);
+    },
+    finishComposition,
+    async waitForInput() {
+      await pendingInput;
+    },
     dispatchTransactions(transactions: readonly Transaction[]) {
       dispatch(transactions[transactions.length - 1]!);
     },
@@ -174,6 +195,7 @@ export function createTextDocument(
       return () => sameTextContent(captured, value.value);
     },
     dispose() {
+      finishComposition();
       stopValue();
       stopContext();
       stopLimit();

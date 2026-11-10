@@ -1,7 +1,6 @@
 import { createApp, h, watch, type CSSProperties } from 'vue';
 import { ACCENT_PRESETS, createThemeColors, THEME_TOKEN_MAP } from '@/domain/settings/theme';
 import BrowserAppearance, { type BrowserAppearanceState } from './BrowserAppearance.vue';
-import type { createBrowserHost } from './host';
 
 export function browserThemeStyle(settings: BrowserAppearanceState): CSSProperties {
   const accent = settings.accent === 'custom' ? settings.customAccent : ACCENT_PRESETS.find(({ value }) => value === settings.accent)!.hex;
@@ -9,7 +8,10 @@ export function browserThemeStyle(settings: BrowserAppearanceState): CSSProperti
   return Object.fromEntries(Object.entries(THEME_TOKEN_MAP).map(([key, field]) => [key, colors[field]]));
 }
 
-export function mountSceneAppearance(element: HTMLElement, host: ReturnType<typeof createBrowserHost>) {
+export function mountSceneAppearance(
+  element: HTMLElement,
+  host: { settings: BrowserAppearanceState; setAppearance(patch: Partial<BrowserAppearanceState>): void | Promise<unknown> },
+) {
   return createApp({
     setup() {
       const settings = host.settings;

@@ -3,6 +3,43 @@ import { describe, expect, it, vi } from 'vitest';
 import { createReadTicket, createReadOwner, waitForRead } from './read-request';
 
 describe('read request ownership', () => {
+  it.each([undefined, 'text'])('releases revoked replay callbacks for lane %s', async (lane) => {
+    const owner = createReadOwner(),
+      load = vi.fn(async () => 'source');
+    await owner.consume('text', {}, load, { ready: () => owner.revoke('consumer', lane) });
+    owner.pause();
+    owner.resume();
+    await flushPromises();
+    expect(load).toHaveBeenCalledTimes(1);
+  });
+  it('replays pending reads and scheduled work once after pause', async () => {
+    const owner = createReadOwner(),
+      ready = vi.fn(),
+      scheduled = vi.fn();
+    let finish!: (value: string) => void;
+    const load = vi.fn(
+      () =>
+        new Promise<string>((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const pending = owner.consume('text', {}, load, { ready });
+    owner.schedule('list', scheduled);
+    owner.pause();
+    expect(await pending).toBe(false);
+    finish('old');
+    owner.resume();
+    await flushPromises();
+    expect(load).toHaveBeenCalledTimes(2);
+    expect(scheduled).toHaveBeenCalledTimes(1);
+    finish('current');
+    await flushPromises();
+    expect(ready).toHaveBeenCalledExactlyOnceWith('current');
+    owner.pause();
+    owner.resume();
+    await flushPromises();
+    expect(load).toHaveBeenCalledTimes(2);
+  });
   it('rejects a resolved ticket replaced before acceptance runs', async () => {
     let finish!: (value: number) => void;
     const owner = createReadOwner();

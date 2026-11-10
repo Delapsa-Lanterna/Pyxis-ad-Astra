@@ -39,7 +39,7 @@
       </div>
       <div class="text-editor-actions action-group">
         <n-button v-if="hasPendingExternalText" secondary type="warning" @click="loadExternalText">载入外部文本</n-button>
-        <n-button v-if="isErrorContext && !contentReady" @click="reloadCurrentWindow">重试</n-button>
+        <n-button v-if="isErrorContext && !contentReady" @click="retryFile">重试</n-button>
         <n-button :disabled="!dirty || saving" @click="cancelFileChanges">取消</n-button>
         <n-button type="primary" :loading="saving" :disabled="!canSave" @click="saveFile">保存</n-button>
       </div>
@@ -77,7 +77,7 @@ import { useTextEditorViewModel } from '@/app/composables/editors/use-text-edito
 import { useWindowShortcuts } from '@/app/composables/use-window-shortcuts';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
 import { useSettingsStore } from '@/stores/settings.store';
-import { closeCurrentWindow, reloadCurrentWindow } from '@/windows/current.window';
+import { closeCurrentWindow } from '@/windows/current.window';
 import { useWindowContext } from '@/windows/window-context.window';
 import { useManagedWindowRequests } from '@/app/composables/use-managed-window-requests';
 import { pathBasename, pathBelongsToRoot, relativePathFromRoot } from '@/shared/lib/paths';
@@ -122,6 +122,7 @@ const {
   isErrorContext,
   isWarningContext,
   initialize,
+  retry,
   dispose,
   saveFile,
   cancelChanges,
@@ -161,6 +162,12 @@ const fileStatusText = computed(() => {
 
 function scrollToTargetLine() {
   if (targetLine.value) surface.value?.locate(targetLine.value, targetColumn.value ?? 1);
+}
+async function retryFile() {
+  if (await retry()) {
+    await nextTick();
+    scrollToTargetLine();
+  }
 }
 
 function restoreEditorFocus() {

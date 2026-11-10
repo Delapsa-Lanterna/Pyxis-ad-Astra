@@ -13,19 +13,33 @@ const errorGutter = new (class extends GutterMarker {
 })();
 let view: EditorView | undefined, bound: TextDocument | undefined, stop: (() => void) | undefined;
 function position() {
-  const state = props.document.state.value,
+  const state = bound!.state.value,
     offset = state.selection.main.head,
     line = state.doc.lineAt(offset);
   emit('position', { line: line.number, column: offset - line.from + 1 });
 }
 function bind() {
   if (!host.value) return;
+  if (view?.composing) {
+    void bound!.waitForInput().then(bind);
+    return;
+  }
   stop?.();
   if (view && bound) bound.scroll = view.scrollSnapshot();
   bound = props.document;
   const line = props.line;
   const marker = (state: EditorState) => (line && line <= state.doc.lines ? state.doc.line(line).from : null);
   const extensions: Extension = [
+    // Native composition mutations settle before the application's input finalizer captures text.
+    EditorView.domEventHandlers({
+      compositionstart() {
+        bound!.startComposition();
+      },
+      compositionend() {
+        const document = bound!;
+        setTimeout(() => document.finishComposition(), 0);
+      },
+    }),
     keymap.of(defaultKeymap),
     EditorState.readOnly.of(Boolean(props.disabled)),
     EditorView.editable.of(!props.disabled),
@@ -52,7 +66,7 @@ function bind() {
       state: bound.state.value,
       dispatchTransactions(transactions, editor) {
         editor.update(transactions);
-        props.document.dispatchTransactions(transactions);
+        bound!.dispatchTransactions(transactions);
         position();
       },
     });
@@ -62,7 +76,7 @@ function bind() {
     bound.state,
     (state) => {
       if (view!.state !== state) {
-        const transaction = props.document.transaction;
+        const transaction = bound!.transaction;
         if (transaction?.startState === view!.state) view!.update([transaction]);
         else view!.setState(state);
       }

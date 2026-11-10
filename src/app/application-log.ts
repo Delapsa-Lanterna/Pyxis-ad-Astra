@@ -6,10 +6,12 @@ import { errorMessageOf } from '@/shared/lib/errors';
 
 export async function startApplicationLog(pinia: Pinia): Promise<void> {
   let active = true;
+  let leaving = false;
   let stop: (() => void) | null = null;
-  const release = () => {
+  const release = (event?: Event) => {
+    leaving ||= event?.type === 'pagehide';
     active = false;
-    stop?.();
+    if (!leaving) stop?.();
     stop = null;
     window.removeEventListener('pagehide', release);
   };

@@ -9,6 +9,28 @@ function field(key: string, commit: FieldInput['commit']): FieldInput {
 }
 
 describe('target field input lifecycle', () => {
+  it.each(['cancel', 'release', 'retarget'] as const)(
+    'rejects a settled finalizer after %s before accepting its contents',
+    async (action) => {
+      const key = ref('sample'),
+        inputs = createFieldInputs(key),
+        accepted = vi.fn();
+      let finish!: () => void;
+      inputs.registerFinalizer(
+        () =>
+          new Promise((resolve) => {
+            finish = resolve;
+          }),
+      );
+      const pending = inputs.commit(undefined, true, accepted);
+      if (action === 'retarget') key.value = 'other';
+      else inputs[action]();
+      finish();
+      expect(await pending).toBe(false);
+      expect(accepted).toHaveBeenCalledTimes(0);
+      inputs.release();
+    },
+  );
   it('focuses the registered path without committing raw input and stops locating released fields', async () => {
     const inputs = createFieldInputs();
     const registered = {

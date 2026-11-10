@@ -12,10 +12,9 @@ test('an unmatched performance selection fails with an explicit report', async (
   const root = await TestWorkspace.create(tmpdir(), 'pyxis-browser-empty');
   try {
     const output = root.path('empty.json');
-    await assert.rejects(
-      execute(process.execPath, ['scripts/browser/run.mjs', '--suite', 'lists', '--scene', 'settings', '--output', output]),
-      { code: 1 },
-    );
+    await assert.rejects(execute(process.execPath, ['scripts/browser/testbed.mjs', '--scene', 'settings', '--output', output]), {
+      code: 1,
+    });
     const report = /** @type {{pass:boolean, errors:string[]}} */ (JSON.parse(await readFile(output, 'utf8')));
     assert.equal(report.pass, false);
     assert.ok(report.errors.some((error) => error.includes('没有匹配的性能项目')));
@@ -30,11 +29,9 @@ test('browser connection failures retain reports without changing the test works
     const output = root.path('failed.json');
     await assert.rejects(
       execute(process.execPath, [
-        'scripts/browser/run.mjs',
+        'scripts/browser/testbed.mjs',
         '--url',
         'http://127.0.0.1:1',
-        '--suite',
-        'smoke',
         '--scene',
         'csv',
         '--rounds',
@@ -48,7 +45,7 @@ test('browser connection failures retain reports without changing the test works
     assert.equal(report.pass, false);
     assert.ok(report.errors.some((error) => error.includes('ERR_UNSAFE_PORT') || error.includes('ERR_CONNECTION_REFUSED')));
     const before = await readFile(output);
-    await assert.rejects(execute(process.execPath, ['scripts/browser/run.mjs', '--url', 'http://127.0.0.1:1', '--output', output]), {
+    await assert.rejects(execute(process.execPath, ['scripts/browser/testbed.mjs', '--url', 'http://127.0.0.1:1', '--output', output]), {
       code: 1,
     });
     assert.deepEqual(await readFile(output), before);
@@ -63,9 +60,9 @@ test('parallel browser runs report an unavailable shared service independently',
     const results = await Promise.allSettled(
       [0, 1].map((index) =>
         execute(process.execPath, [
-          'scripts/browser/run.mjs',
-          '--suite',
-          'browser-ui',
+          'scripts/browser/preview.mjs',
+          '--scene',
+          'editors',
           '--url',
           'http://127.0.0.1:1',
           '--output',

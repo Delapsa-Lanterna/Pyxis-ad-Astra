@@ -495,7 +495,7 @@ describe('formal settings commits', () => {
     window.dispatchEvent(new Event('focus'));
     await api.listen.mock.calls[0]![0](settingsSnapshot(later, 10));
     expect(api.read).toHaveBeenCalledTimes(reads);
-    expect(api.stop).toHaveBeenCalledOnce();
+    expect(api.stop).toHaveBeenCalledTimes(0);
     expect(windowCacheLimits()).toBe(before);
   });
   it.each(['registration', 'read'] as const)('cleans up a failed initial %s', async (stage) => {
@@ -532,6 +532,6 @@ describe('formal settings commits', () => {
     await ended;
     await flushPromises();
     expect(recordLogBestEffort).not.toHaveBeenCalled();
-    expect(api.stop).toHaveBeenCalledOnce();
+    expect(api.stop).toHaveBeenCalledTimes(0);
   });
 });

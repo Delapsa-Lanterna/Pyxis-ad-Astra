@@ -48,6 +48,7 @@ function accept(snapshot: SettingsSnapshot) {
 }
 export async function initializeSettings(): Promise<SettingsSnapshot> {
   let active = true;
+  let leaving = false;
   let stop: (() => void) | null = null;
   const acceptCurrent = (snapshot: SettingsSnapshot) => {
     if (active) accept(snapshot);
@@ -58,9 +59,10 @@ export async function initializeSettings(): Promise<SettingsSnapshot> {
   const refresh = () => {
     void readSettings().then(acceptCurrent).catch(reportCurrent);
   };
-  const release = () => {
+  const release = (event?: Event) => {
+    leaving ||= event?.type === 'pagehide';
     active = false;
-    stop?.();
+    if (!leaving) stop?.();
     stop = null;
     window.removeEventListener('pagehide', release);
     window.removeEventListener('focus', refresh);

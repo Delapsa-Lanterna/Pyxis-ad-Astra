@@ -70,8 +70,13 @@ export function createReadOwner() {
       ticket?.invalidate(reason);
       requests.delete(key);
     }
-    if (lane) scheduled.delete(lane);
-    else scheduled.clear();
+    if (lane) {
+      scheduled.delete(lane);
+      replay.delete(lane);
+    } else {
+      scheduled.clear();
+      replay.clear();
+    }
   }
   function schedule(lane: string, callback: () => void) {
     const queued = scheduled.has(lane);

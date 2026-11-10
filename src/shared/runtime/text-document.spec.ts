@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { shallowRef } from 'vue';
 import { Transaction } from '@codemirror/state';
 import type { EditContext } from '@/shared/types';
+import { createFieldInputs } from './field-inputs';
 import { createTextDocument, readTextContent, sameTextContent, writeTextContent, type TextDocument } from './text-document';
 
 const documents: TextDocument[] = [];
@@ -12,7 +13,7 @@ function open(source: string) {
   const value = shallowRef(readTextContent(source));
   const context = shallowRef<EditContext | null>({ targetKey: 'sample', baselineGeneration: 1, handoff: 'load' });
   const limit = shallowRef(100);
-  const doc = createTextDocument(value, context, limit);
+  const doc = createTextDocument(value, context, limit, createFieldInputs());
   documents.push(doc);
   return { value, context, limit, doc, raw: () => writeTextContent(value.value) };
 }

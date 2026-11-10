@@ -1,6 +1,21 @@
 import type { AccentPreset } from '../../shared/types/app-settings.types.js';
+import type { TestRun } from '../../../scripts/shared/test-report.mjs';
 export interface ScenarioOptions {
-  scene: 'csv' | 'ship' | 'skin' | 'weapon' | 'wing' | 'variant' | 'weapons' | 'wings' | 'hullmods' | 'fields' | 'resources' | 'feedback';
+  scene:
+    | 'csv'
+    | 'ship'
+    | 'skin'
+    | 'weapon'
+    | 'wing'
+    | 'variant'
+    | 'weapons'
+    | 'wings'
+    | 'hullmods'
+    | 'fields'
+    | 'resources'
+    | 'feedback'
+    | 'code-editor'
+    | 'text-editor';
   source?: 'mod' | 'core' | 'all';
   count: number;
   resourceSize: number;
@@ -11,10 +26,12 @@ export interface ScenarioOptions {
 }
 
 export interface RunOptions extends ScenarioOptions {
-  scene: 'csv' | 'weapons' | 'wings' | 'hullmods';
+  scene: 'csv' | 'weapons' | 'wings' | 'hullmods' | 'code-editor' | 'text-editor';
   workload: 'benchmark' | 'stress' | 'resources';
   warmup: number;
   rounds: number;
+  fileBytes?: number;
+  textShape?: 'multiline' | 'long-line';
 }
 export interface Assertion {
   name: string;
@@ -29,11 +46,6 @@ export interface RoundResult {
   assertions: Assertion[];
   error?: string;
 }
-export interface RunResult {
+export interface RunResult extends TestRun {
   options: RunOptions;
-  environment: Record<string, unknown>;
-  samples: RoundResult[];
-  metrics: Record<string, { n: number; min: number | undefined; max: number | undefined; mean: number; median: number; p95: number }>;
-  budgets: { metric: string; statistic: string; actual: number; maximum: number; pass: boolean }[];
-  pass: boolean;
 }

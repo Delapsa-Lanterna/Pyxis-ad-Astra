@@ -55,6 +55,7 @@ export function createCodeDocument(owner: Pick<CodeEditorOpen, 'sessionId' | 'mo
       session.draftValue,
       session.context,
       computed(() => settings.editHistoryLimit),
+      session.inputs,
     );
     const participant = {
       targetKey: session.currentTargetKey,
