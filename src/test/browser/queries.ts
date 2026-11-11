@@ -8,6 +8,8 @@ import { createWeaponSpec } from '@/domain/entity-write/spec-construction';
 import { miscConfigDefinition } from '@/domain/misc-config';
 import { entityTargetFixture } from '../fixtures/entity-target';
 import { composeJson } from '@/domain/json-composition';
+import { jsonFileFixture } from '../fixtures/json-file';
+import { projectJsonValue } from '@/domain/json-document';
 const iconFields: Partial<Record<T.CsvTableKey, string>> = {
   hullmods: 'sprite',
   shipSystems: 'icon',
@@ -20,6 +22,7 @@ const iconFields: Partial<Record<T.CsvTableKey, string>> = {
   marketConditions: 'icon',
 };
 export const gameCommands = new Set([
+  'read_json_document',
   'query_csv_table_index',
   'query_csv_validation',
   'query_csv_table_rows',
@@ -127,13 +130,24 @@ export function gameCatalog(project: WorkspaceProject, kind: T.JointVariantCatal
 }
 
 export function gameQuery(project: WorkspaceProject, command: string, payload: Record<string, unknown>): unknown {
+  if (command === 'read_json_document') {
+    const path = project.manifest.modRoot + '/' + String(payload.relPath),
+      text = project.textFiles.get(path);
+    return text === undefined
+      ? null
+      : ({
+          document: jsonFileFixture(JSON.parse(text) as T.JsonValue),
+          baseVersions: [project.version(path)],
+        } satisfies T.JsonDocumentFile);
+  }
   if (command === 'save_misc_config' || command === 'delete_misc_config') {
     const file = project.model.miscFiles.find((file) => file.kind === payload.kind);
     const path = file?.path ?? project.manifest.modRoot + '/' + miscConfigDefinition(String(payload.kind)).path;
+    const data = command === 'save_misc_config' ? projectJsonValue((payload.document as T.JsonFileWrite).content) : null;
     if (command === 'delete_misc_config') project.textFiles.delete(path);
-    else project.textFiles.set(path, JSON.stringify(payload.data, null, 2) + '\n');
+    else project.textFiles.set(path, JSON.stringify(data, null, 2) + '\n');
     return project.write(
-      payload.data as T.RowData,
+      data === null ? null : jsonFileFixture(data),
       { kind: 'json', origin: { kind: 'miscConfig', file: payload.kind as T.MiscConfigKind } },
       [path],
     );

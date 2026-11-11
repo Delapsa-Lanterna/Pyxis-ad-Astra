@@ -10,8 +10,77 @@ import { jsonDocumentMedia, jsonDocumentRecord, jsonDocumentSummary } from '@/do
 import { composeJson } from '@/domain/json-composition';
 import { jsonEntitySavedData } from '@/domain/json-editor/json-file-records';
 import { jsonFileFixture, jsonWriteFixture } from '@/test/fixtures/json-file';
+import { projectJsonValue } from '@/domain/json-document';
 
 describe('complete browser workspace fixtures', () => {
+  it.each(['modInfo', 'miscConfig', 'faction', 'mission', 'variant', 'skin'] as const)(
+    'reads and refreshes %s documents from current files with their versions',
+    async (kind) => {
+      const workspace = createBrowserWorkspace(),
+        project = workspace.projects[2]!;
+      const entity = [...project.entities.values()].find((entry) => entry.kind === kind);
+      const origin: T.JsonDocumentOrigin =
+        kind === 'modInfo'
+          ? { kind }
+          : kind === 'miscConfig'
+            ? { kind, file: 'settings' }
+            : { kind: 'entity', target: { kind, id: entity!.id, relPath: entity!.target.write.relPath } };
+      const relPath =
+        kind === 'modInfo'
+          ? 'mod_info.json'
+          : kind === 'miscConfig'
+            ? 'data/config/settings.json'
+            : entity!.target.write.relPath + (kind === 'mission' ? '/descriptor.json' : '');
+      const path = project.manifest.modRoot + '/' + relPath,
+        key = kind === 'mission' ? 'descriptor' : 'file';
+      const payload = { sessionId: project.manifest.sessionId, modRoot: project.manifest.modRoot, origin };
+      const read = () =>
+        workspace.invoke('main', 'read_json_document', { payload: { ...payload, relPath } }) as Promise<T.JsonDocumentFile | null>;
+      const refresh = () => workspace.invoke('main', 'prepare_json_source_recovery', { payload }) as Promise<T.JsonRecoveryPlan>;
+      const file = (await read())!;
+      expect(projectJsonValue(file.document.content)).toEqual(JSON.parse(project.textFiles.get(path)!));
+      expect(file.baseVersions).toEqual([project.version(path)]);
+      const changed = { ...(projectJsonValue(file.document.content) as T.RowData), fixtureRefresh: true };
+      project.textFiles.set(path, JSON.stringify(changed));
+      project.versions.set(path, 'external');
+      const plan = await refresh();
+      expect(projectJsonValue(plan.documents[key]!.content)).toEqual(changed);
+      expect(plan.currentSources[key]).toEqual(changed);
+      expect(plan.baseVersions).toEqual([project.version(path)]);
+      expect(plan.missingPaths).toEqual([]);
+      if (kind === 'mission') {
+        expect(plan.currentSources.text).toBe((entity!.data as T.RowData).text);
+        expect(plan.currentSources.index).toEqual({ rows: [{ data: (entity!.data as T.RowData).list, isComment: false }] });
+      }
+      project.textFiles.delete(path);
+      expect(await read()).toBeNull();
+      expect(await refresh()).toMatchObject({
+        documents: {},
+        currentSources: {},
+        missingPaths: [path],
+        baseVersions: [{ path, fingerprint: null }],
+      });
+    },
+  );
+  it('saves and refreshes miscellaneous JSON through the document protocol', async () => {
+    const workspace = createBrowserWorkspace(),
+      project = workspace.projects[1]!;
+    const data = { fixtureSaved: true },
+      relPath = 'data/config/settings.json';
+    const payload = {
+      sessionId: project.manifest.sessionId,
+      modRoot: project.manifest.modRoot,
+      kind: 'settings',
+      document: jsonWriteFixture(data),
+    };
+    const result = (await workspace.invoke('main', 'save_misc_config', { payload })) as T.WriteResult<T.JsonFileContent>;
+    expect(projectJsonValue(result.content!.value.content)).toEqual(data);
+    const file = (await workspace.invoke('main', 'read_json_document', {
+      payload: { sessionId: payload.sessionId, relPath },
+    })) as T.JsonDocumentFile;
+    expect(projectJsonValue(file.document.content)).toEqual(data);
+    expect(file.baseVersions).toEqual(result.baseVersions);
+  });
   it('delivers a text write with its own path, version and reusable receipt', async () => {
     const workspace = createBrowserWorkspace(),
       project = workspace.projects[1]!;
@@ -327,6 +396,11 @@ describe('complete browser workspace fixtures', () => {
       owner = workspace.projects[1]!,
       original = structuredClone(owner.manifest.modInfo!);
     const scan = async () => (await workspace.invoke('main', 'scan_game_overview')) as T.GameOverviewData;
+    const read = async () =>
+      (await workspace.invoke('main', 'read_json_document', {
+        payload: { sessionId: owner.manifest.sessionId, relPath: 'mod_info.json' },
+      })) as T.JsonDocumentFile;
+    expect(projectJsonValue((await read()).document.content)).toEqual(original);
     expect((await scan()).mods[0]).toMatchObject({
       id: original.id,
       name: original.name,
@@ -341,6 +415,7 @@ describe('complete browser workspace fixtures', () => {
     });
     workspace.reopen();
     expect((await scan()).mods[0]).toMatchObject({ name: 'Edited metadata', version: '2.4', description: 'Saved description' });
+    expect(projectJsonValue((await read()).document.content)).toMatchObject({ name: 'Edited metadata', version: '2.4' });
     workspace.restoreSample();
     expect((await scan()).mods[0]).toMatchObject({
       name: original.name,

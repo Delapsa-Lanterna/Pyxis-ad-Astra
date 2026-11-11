@@ -520,35 +520,41 @@ export function createBrowserWorkspace(
         break;
       case 'prepare_json_source_recovery': {
         const input = args.payload as T.JsonRecoveryRequest;
-        if (input.origin.kind === 'miscConfig') {
-          const path = receiver.manifest.modRoot + '/' + miscConfigDefinition(input.origin.file).path;
-          return {
-            request: input,
-            baseVersions: [receiver.version(path)],
-            missingPaths: receiver.textFiles.has(path) ? [] : [path],
-            currentSources: receiver.textFiles.has(path) ? { file: JSON.parse(receiver.textFiles.get(path)!) } : {},
-            resourceRefs: {},
-          };
+        const origin = input.origin,
+          mission = origin.kind === 'entity' && origin.target.kind === 'mission';
+        const relPath =
+          origin.kind === 'modInfo'
+            ? 'mod_info.json'
+            : origin.kind === 'miscConfig'
+              ? miscConfigDefinition(origin.file).path
+              : origin.target.relPath + (mission ? '/descriptor.json' : '');
+        const path = receiver.manifest.modRoot + '/' + relPath;
+        const file = gameQuery(receiver, 'read_json_document', { relPath }) as T.JsonDocumentFile | null;
+        const entity = origin.kind === 'entity' ? findEntity(receiver, origin.target.kind, origin.target.id) : null;
+        const currentSources: T.JsonRecoveryPlan['currentSources'] = file
+          ? { [mission ? 'descriptor' : 'file']: projectJsonValue(file.document.content) }
+          : {};
+        if (file && mission) {
+          const data = entity!.data as T.RowData;
+          Object.assign(currentSources, {
+            text: receiver.textFiles.get(path.replace(/descriptor\.json$/, 'mission_text.txt'))!,
+            index: { rows: [{ data: data.list, isComment: false }] },
+          });
         }
-        const entity = input.origin.kind === 'entity' ? findEntity(receiver, input.origin.target.kind, input.origin.target.id)! : null;
-        const data = entity?.data as T.RowData;
         return {
           request: input,
-          missingPaths: [],
-          currentSources: entity
-            ? entity.kind === 'mission'
-              ? { descriptor: data.descriptor, text: data.text, index: { rows: [{ data: data.list, isComment: false }] } }
-              : { file: data }
-            : { file: receiver.manifest.modInfo },
-          baseVersions: entity?.baseVersions ?? [{ path: receiver.manifest.modRoot + '/mod_info.json', fingerprint: '1' }],
+          documents: file ? { [mission ? 'descriptor' : 'file']: file.document } : {},
+          missingPaths: file ? [] : [path],
+          currentSources,
+          baseVersions: file?.baseVersions ?? [receiver.version(path)],
           resourceRefs: entity?.resourceRefs ?? {},
-        };
+        } satisfies T.JsonRecoveryPlan;
       }
       case 'recreate_json_sources': {
         const input = payload as unknown as T.JsonSourceRestore,
           origin = input.plan.request.origin,
           baseline = input.baseline;
-        if (origin.kind === 'miscConfig') gameQuery(receiver, 'save_misc_config', { kind: origin.file, data: baseline.file });
+        if (origin.kind === 'miscConfig') gameQuery(receiver, 'save_misc_config', { kind: origin.file, document: input.documents.file });
         else if (origin.kind === 'modInfo') {
           const path = receiver.manifest.modRoot + '/mod_info.json';
           receiver.textFiles.set(path, JSON.stringify(baseline.file, null, 2));
@@ -565,8 +571,8 @@ export function createBrowserWorkspace(
               nextId: origin.target.id,
               previousId: null,
               relPath: origin.target.relPath,
-              data: baseline,
-              entityData: origin.target.kind === 'mission' ? { ...baseline, text: (baseline.text as T.RowData).content } : baseline,
+              document: input.documents[origin.target.kind === 'mission' ? 'descriptor' : 'file'],
+              text: origin.target.kind === 'mission' ? (baseline.text as T.RowData).content : undefined,
               indexRow: baseline.list,
             } as unknown as Parameters<typeof receiver.document>[1],
           );

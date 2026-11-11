@@ -5,9 +5,30 @@ import { listen, emitTo, eventListenerCount } from './runtime/events';
 import { resourceImage } from '../fixtures/resources';
 import { jointObject } from '@/domain/joint-edit';
 import { createSettingsFixture } from '../fixtures/settings';
+import { jsonWriteFixture } from '../fixtures/json-file';
+import { projectJsonValue } from '@/domain/json-document';
+import type { JsonRecoveryPlan } from '@/shared/types';
 import type { CsvTableIndex, JointEditKind, CsvSave, SettingsSnapshot, PerformanceMonitorStatus } from '@/shared/types';
 
 describe('browser sample service', () => {
+  it.each([false, true])('delivers complete miscellaneous recovery documents, present=%s', async (present) => {
+    const model = createBrowserModel('csv');
+    installBrowserModel(model);
+    const data = { fixtureRecovery: true };
+    if (present) await invoke('save_misc_config', { payload: { kind: 'settings', document: jsonWriteFixture(data) } });
+    const plan = await invoke<JsonRecoveryPlan>('prepare_json_source_recovery', {
+      payload: { sessionId: model.sessionId, modRoot: sampleRoot, origin: { kind: 'miscConfig', file: 'settings' } },
+    });
+    if (present) {
+      expect(projectJsonValue(plan.documents.file!.content)).toEqual(data);
+      expect(plan.currentSources.file).toEqual(data);
+      expect(plan.missingPaths).toEqual([]);
+    } else {
+      expect(plan.documents).toEqual({});
+      expect(plan.currentSources).toEqual({});
+      expect(plan.missingPaths).toEqual(['data/config/settings.json']);
+    }
+  });
   it('routes targeted events and releases their listeners', async () => {
     const received: string[] = [];
     const first = await listen(

@@ -16,6 +16,7 @@ import type {
   AppLogStatus,
   MiscConfigWrite,
   JsonRecoveryRequest,
+  JsonRecoveryPlan,
   ProjectSyncDelivery,
   SaveRequest,
   WriteResult,
@@ -235,11 +236,12 @@ export async function dispatch(command: string, args: Record<string, unknown>, m
       const file = model.miscFiles.find((file) => file.kind === definition.kind);
       return {
         request,
+        documents: file ? { file: file.document } : {},
         baseVersions: file?.baseVersions ?? [{ path: model.manifest.modRoot + '/' + definition.path, fingerprint: null }],
         missingPaths: file ? [] : [definition.path],
         currentSources: file ? { file: file.data } : {},
         resourceRefs: {},
-      };
+      } satisfies JsonRecoveryPlan;
     }
     case 'save_misc_config':
     case 'delete_misc_config': {
