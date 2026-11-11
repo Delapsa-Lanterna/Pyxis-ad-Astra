@@ -1,6 +1,5 @@
 {
   "$schema": "pyxis-ad-astra/well-known-labels/v2",
-  "gameVersion": "0.98a-RC8",
   "groups": [
     {
       "sources": ["ships.tags"],
@@ -406,6 +405,10 @@
         "PLAY_FIGHTER_OVERLOAD_SOUNDS": {
           "label": "战机播放舰船过载音效",
           "description": "战机过载时播放舰船使用的过载音效。"
+        },
+        "DO_NOT_TURN_TO_ARMOR": {
+          "label": "保持装甲朝向",
+          "description": "舰船 AI 保持正常战斗朝向；失去作战能力时允许转向尚完整的装甲。"
         }
       }
     },
@@ -495,6 +498,10 @@
         "overseer_charge_fighter": {
           "label": "战机督战单元充能武器",
           "description": "当武器属于战机时，督战单元的集群模式会按此标记为武器恢复弹药。"
+        },
+        "codex_require_related": {
+          "label": "数据百科关联解锁",
+          "description": "数据百科按关联条目的可见及解锁状态决定此条目的可见与锁定状态。"
         }
       }
     },
@@ -890,6 +897,14 @@
         "do_not_apply_hullmod_during_autofit": {
           "label": "自动装配时不应用插件效果",
           "description": "玩家在装配界面使用自动装配时，不会应用该插件的效果。"
+        },
+        "DO_can_not_add": {
+          "label": "损伤控制排除新增",
+          "description": "损伤控制技能的战后修复替换 D 类损伤时，将此插件排除在新增候选之外。"
+        },
+        "DO_can_not_remove": {
+          "label": "损伤控制保留损伤",
+          "description": "损伤控制技能的战后修复替换 D 类损伤时，保留此插件。"
         }
       }
     },

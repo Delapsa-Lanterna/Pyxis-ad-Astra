@@ -28,6 +28,13 @@
       "step": 1
     },
     {
+      "key": "sell price mult",
+      "label": "出售价格倍率",
+      "control": "number",
+      "step": 0.01,
+      "description": "玩家出售该商品时使用的价格倍率，默认 1；购买价格使用商品的购买定价。"
+    },
+    {
       "key": "export value",
       "label": "出口价值",
       "control": "number",
@@ -181,7 +188,8 @@
       "stack size": 5e-324,
       "cargo space": 0,
       "econUnit": 5e-324,
-      "iconWidthMult": 5e-324
+      "iconWidthMult": 5e-324,
+      "sell price mult": 0
     },
     "integer": [
       "stack size"

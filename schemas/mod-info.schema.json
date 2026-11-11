@@ -100,7 +100,7 @@
           "description": "Mod 适用的 Starsector 游戏版本",
           "required": true,
           "editable": true,
-          "default": "0.98a",
+          "default": "0.98.5a-RC3",
           "variants": [
             {
               "type": "string"

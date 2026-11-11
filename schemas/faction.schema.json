@@ -143,6 +143,21 @@
           "max": 255
         },
         {
+          "key": "file.secondaryUIColor",
+          "type": "color-rgba",
+          "label": "次要界面颜色",
+          "description": "势力标记交替分段使用的次要界面颜色。"
+        },
+        {
+          "key": "file.secondarySegments",
+          "type": "integer",
+          "label": "次要颜色分段数",
+          "description": "势力标记的颜色分段数量。",
+          "default": 8,
+          "min": -2147483648,
+          "max": 2147483647
+        },
+        {
           "key": "file.darkUIColor",
           "type": "color-rgba",
           "label": "深色 UI 颜色",
@@ -903,6 +918,20 @@
               "required": false,
               "editable": true,
               "default": []
+            },
+            {
+              "key": "player_male",
+              "type": "string-array",
+              "label": "玩家男性头像",
+              "description": "新建角色时可选的男性头像图片路径列表。",
+              "default": []
+            },
+            {
+              "key": "player_female",
+              "type": "string-array",
+              "label": "玩家女性头像",
+              "description": "新建角色时可选的女性头像图片路径列表。",
+              "default": []
             }
           ]
         },
@@ -1158,6 +1187,13 @@
               "description": "势力是否不发布悬赏任务",
               "required": false,
               "editable": true,
+              "default": false
+            },
+            {
+              "key": "noBountyForDefeating",
+              "type": "boolean",
+              "label": "击败后免除悬赏结算",
+              "description": "击败该势力舰队时，雇佣协议和星系悬赏的结算跳过该舰队。",
               "default": false
             },
             {

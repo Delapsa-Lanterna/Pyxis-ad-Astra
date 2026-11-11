@@ -7,6 +7,7 @@ import { variantJointFixture } from '@/test/fixtures/joint-edit/variant-joint-ed
 import { jointObject } from '@/domain/joint-edit';
 import { projectVariantPanel } from '../variant/variant-panel';
 import type { JsonValue } from '@/shared/types';
+import { skinJointFixture } from '@/test/fixtures/joint-edit/skin-joint-edit';
 
 describe('ship original configuration projection', () => {
   it('tracks system and defense references independently of ship statistics', () => {
@@ -148,5 +149,63 @@ describe('ship original configuration projection', () => {
       diagnostic: 'hitpoints 不是有效数字',
     });
     expect(panel.logistics[1]!.find((stat) => stat.id === 'sensor-strength')!.display).toBe('来源未提供');
+  });
+  it('calculates economic defaults from current settings and preserves independent source edits', () => {
+    const graph = skinJointFixture(),
+      values = jointFixtureValues(graph);
+    graph.referenceSettings.values = {
+      defaultDModRepairPartsBaseValueDivisor: 10000,
+      minDModRepairCostInParts: [2, 4, 6, 8],
+      shipSalaryBySize: [10, 20, 30, 40],
+    };
+    values['hull-csv'] = {
+      state: 'present',
+      value: { ...jointObject(values['hull-csv']), 'base value': '16000', 'supplies/mo': '4', salMult: '1.5' },
+    };
+    values.skin = { state: 'present', value: { ...jointObject(values.skin), salMult: 0.5, suppliesPerMonth: 6 } };
+    const panel = projectShipPanel(graph, values);
+    const stat = (key: string) => panel.allStats.find((stat) => stat.id === key)!;
+    expect(stat('parts/dmod').display).toBe('2');
+    expect(stat('salary').display).toBe('300');
+    expect(stat('salMult').display).toBe('0.5');
+    const field = stat('salary').fields.find((field) => field.recordKey === 'skin')!;
+    const record = graph.records.find((record) => record.key === 'skin')!;
+    const edited = updateImmersiveField(values, record, field, { kind: 'set', value: 77 });
+    expect(projectShipPanel(graph, edited).allStats.find((stat) => stat.id === 'salary')!.display).toBe('77');
+    const cleared = updateImmersiveField(edited, record, field, { kind: 'remove' });
+    expect(projectShipPanel(graph, cleared).allStats.find((stat) => stat.id === 'salary')!.display).toBe('300');
+    expect(jointObject(values.skin).salary).toBeUndefined();
+  });
+  it('keeps explicit parts and salary inherited until the loader replaces them', () => {
+    const graph = skinJointFixture(),
+      values = jointFixtureValues(graph);
+    graph.referenceSettings.values = {
+      defaultDModRepairPartsBaseValueDivisor: 10000,
+      minDModRepairCostInParts: [1, 2, 4, 8],
+      shipSalaryBySize: [10, 20, 30, 40],
+    };
+    values['hull-csv'] = {
+      state: 'present',
+      value: {
+        ...jointObject(values['hull-csv']),
+        'base value': '32000',
+        'parts/dmod': '9',
+        salary: '81',
+        salMult: '2',
+        'supplies/mo': '3',
+      },
+    };
+    values.skin = { state: 'present', value: { ...jointObject(values.skin), 'parts/dmod': 0, salaryMult: 0.25 } };
+    let panel = projectShipPanel(graph, values);
+    expect(panel.allStats.find((stat) => stat.id === 'parts/dmod')!.display).toBe('0');
+    expect(panel.allStats.find((stat) => stat.id === 'salary')!.display).toBe('81');
+    expect(panel.allStats.find((stat) => stat.id === 'salMult')!.display).toBe('2');
+    const base = { ...jointObject(values['hull-csv']) };
+    delete base['parts/dmod'];
+    values['hull-csv'] = { state: 'present', value: base };
+    panel = projectShipPanel(graph, values);
+    expect(panel.allStats.find((stat) => stat.id === 'parts/dmod')!.display).toBe('1');
+    values.skin = { state: 'present', value: { ...jointObject(values.skin), salMult: 0.5 } };
+    expect(projectShipPanel(graph, values).allStats.find((stat) => stat.id === 'salary')!.display).toBe('150');
   });
 });

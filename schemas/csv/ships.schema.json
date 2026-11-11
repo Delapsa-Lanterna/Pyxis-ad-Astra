@@ -218,6 +218,13 @@
       "step": 1
     },
     {
+      "key": "parts/dmod",
+      "label": "单项 D 类损伤修复零件",
+      "control": "number",
+      "step": 1,
+      "description": "每项 D 类损伤消耗的零件数。空白时，按基础价值除以 defaultDModRepairPartsBaseValueDivisor 四舍五入，并应用对应舰级的最低费用；加载后的基础船体至少为 1。"
+    },
+    {
       "key": "cr %/day",
       "label": "战备恢复速率 (每天)",
       "control": "number",
@@ -253,6 +260,20 @@
       "label": "维护消耗 (补给/月)",
       "control": "number",
       "step": 1
+    },
+    {
+      "key": "salary",
+      "label": "固定船员月薪",
+      "control": "number",
+      "step": 1,
+      "description": "整艘舰船的固定基础船员月薪。空白时，按 shipSalaryBySize 对应舰级的数值 × supplies/mo × salMult 四舍五入计算。"
+    },
+    {
+      "key": "salMult",
+      "label": "船员工资倍率",
+      "control": "number",
+      "step": 0.05,
+      "description": "自动计算基础船员月薪时使用的倍率，默认 1。salary 显式填写时采用该固定工资。"
     },
     {
       "key": "c/s",
@@ -392,7 +413,9 @@
       "max speed",
       "acceleration",
       "deceleration",
-      "base value"
+      "base value",
+      "parts/dmod",
+      "salary"
     ],
     "warningMin": {
       "fleet pts": 0,
@@ -436,7 +459,10 @@
       "rarity": 0,
       "breakProb": 0,
       "minPieces": 0,
-      "maxPieces": 0
+      "maxPieces": 0,
+      "parts/dmod": 0,
+      "salary": 0,
+      "salMult": 0
     },
     "required": [
       "mass",

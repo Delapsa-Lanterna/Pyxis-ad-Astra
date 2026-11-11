@@ -983,6 +983,9 @@ fn reference_settings(
                 "baseSensorCapital",
                 "fluxPerCapacitor",
                 "dissipationPerVent",
+                "defaultDModRepairPartsBaseValueDivisor",
+                "minDModRepairCostInParts",
+                "shipSalaryBySize",
             ] {
                 if let Some(value) = data.get(key) {
                     result.values.insert(key.into(), value.clone());

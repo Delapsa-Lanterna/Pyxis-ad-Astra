@@ -119,7 +119,10 @@ export function projectShipPanel(
   function number(key: string, fallback: number): number {
     if (variant && key === 'max flux') return variant.capacity;
     if (variant && key === 'flux dissipation') return variant.dissipation;
-    const raw = schemaStringValue(value(key));
+    return sourceNumber(key, value(key), fallback);
+  }
+  function sourceNumber(key: string, content: unknown, fallback: number): number {
+    const raw = schemaStringValue(content);
     if (!raw.trim()) return fallback;
     const parsed = parseCsvValue(columns.find((column) => column.key === key) ?? { key, control: 'number', valueType: 'float' }, raw);
     return parsed.kind === 'value' && typeof parsed.value === 'number' ? parsed.value : NaN;
@@ -219,6 +222,43 @@ export function projectShipPanel(
     formula: `${sensorKey} · ${referenceSettings.versions.map((version) => version.path).join(' → ')}`,
     diagnostic: typeof sensorValue === 'number' ? undefined : '当前船体级别的传感器配置来源未提供',
   });
+
+  const settingArrayNumber = (key: string, fallback: number) => {
+    const values = referenceSettings.values[key];
+    return Array.isArray(values) ? Math.trunc(Number(values[hullOrdinal - 2] ?? fallback)) : fallback;
+  };
+  const defaultParts = () =>
+    Math.max(
+      1,
+      Math.round(number('base value', 100) / Number(referenceSettings.values.defaultDModRepairPartsBaseValueDivisor)),
+      settingArrayNumber('minDModRepairCostInParts', 1),
+    );
+  let partsExplicit = schemaStringValue(csv['parts/dmod']).trim() !== '';
+  let parts = Math.max(1, sourceNumber('parts/dmod', csv['parts/dmod'], defaultParts()));
+  let salaryMult = sourceNumber('salMult', csv.salMult, 1);
+  let monthlySupplies = sourceNumber('supplies/mo', csv['supplies/mo'], 0);
+  const automaticSalary = () => Math.round(settingArrayNumber('shipSalaryBySize', 100) * monthlySupplies * salaryMult);
+  let salary = sourceNumber('salary', csv.salary, automaticSalary());
+  // Skin salaries remain inherited until maintenance or the multiplier is overridden.
+  for (const key of effectiveHull?.skinKeys ?? []) {
+    const skin = data(key);
+    if (skin['parts/dmod'] !== undefined) {
+      parts = sourceNumber('parts/dmod', skin['parts/dmod'], NaN);
+      if (!partsExplicit) parts = Math.max(1, parts);
+      partsExplicit = true;
+    }
+    if (skin.suppliesPerMonth !== undefined) monthlySupplies = sourceNumber('supplies/mo', skin.suppliesPerMonth, NaN);
+    if (skin.salMult !== undefined) salaryMult = sourceNumber('salMult', skin.salMult, NaN);
+    if (schemaStringValue(skin.salary).trim()) salary = sourceNumber('salary', skin.salary, NaN);
+    else if (skin.suppliesPerMonth !== undefined || skin.salMult !== undefined) salary = automaticSalary();
+  }
+  if (!partsExplicit) parts = defaultParts();
+  const economicStat = (key: string, label: string, amount: number, formula: string): ImmersiveStat => ({
+    ...numeric(key, label, amount),
+    display: format(amount),
+    formula,
+    diagnostic: Number.isFinite(amount) ? undefined : '请检查数值输入及原版设置来源',
+  });
   const logistics = [
     [
       numeric('CR to deploy', '作战后消耗的战备值 (CR)', 25, '%', 'normal'),
@@ -241,6 +281,19 @@ export function projectShipPanel(
     ],
     [
       numeric('supplies/mo', '维护消耗 (补给/月)', 0),
+      economicStat(
+        'parts/dmod',
+        '单项损伤修复零件',
+        parts,
+        '显式修复费用按来源继承；自动费用按基础价值除以零件费用除数四舍五入，并应用对应舰级的最低费用。',
+      ),
+      economicStat(
+        'salary',
+        '基础船员月薪 (星币)',
+        salary,
+        '基础月薪 = 对应舰级的工资系数 × 每月维护补给 × 工资倍率，结果四舍五入；显式固定工资优先。皮肤覆盖维护消耗或倍率时重新计算。',
+      ),
+      economicStat('salMult', '船员工资倍率', salaryMult, '基础工资倍率默认为 1，皮肤按来源顺序覆盖。'),
       numeric('cargo', '载货量', 0),
       numeric('max crew', '最大载员', 1, '', 'crew'),
       numeric('min crew', '必要船员', 1, '', 'crew'),

@@ -259,3 +259,31 @@ fn partial_and_complete_branches() {
         assert!(validate_document("sounds", &json!({"music":{"sample":[track]}})).is_err());
     }
 }
+
+#[test]
+fn game_integer_fields_keep_signed_32_bit_bounds() {
+    for (id, key) in [
+        ("skin", "parts/dmod"),
+        ("skin", "salary"),
+        ("faction", "file.secondarySegments"),
+    ] {
+        let field = bundled_schema(id)["sections"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .flat_map(|section| section["fields"].as_array().unwrap())
+            .find(|field| field["key"] == key)
+            .unwrap();
+        for value in [i32::MIN as i64, 0, i32::MAX as i64] {
+            validate_field(field, &json!(value), key, true).unwrap();
+            validate_field(field, &json!(value.to_string()), key, true).unwrap();
+        }
+        for value in [i32::MIN as i64 - 1, i32::MAX as i64 + 1] {
+            assert!(validate_field(field, &json!(value), key, true).is_err());
+            assert!(validate_field(field, &json!(value.to_string()), key, true).is_err());
+        }
+        assert!(validate_field(field, &json!(1.5), key, true).is_err());
+        assert!(validate_field(field, &json!("1.5"), key, true).is_err());
+        schema::validate_partial_document(bundled_schema(id), &json!({})).unwrap();
+    }
+}

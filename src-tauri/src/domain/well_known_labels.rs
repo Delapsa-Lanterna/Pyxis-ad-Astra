@@ -12,8 +12,6 @@ use std::sync::LazyLock;
 struct LabelAsset {
     #[serde(rename = "$schema")]
     schema: String,
-    #[serde(rename = "gameVersion")]
-    game_version: String,
     groups: Vec<LabelGroup>,
     patterns: Vec<NumericLabel>,
 }
@@ -79,7 +77,6 @@ static CATALOGS: LazyLock<BTreeMap<String, WellKnownCatalog>> = LazyLock::new(||
         serde_json::from_str(include_str!("../../../schemas/well-known-labels.json"))
             .expect("embedded original label catalog must parse");
     assert_eq!(asset.schema, "pyxis-ad-astra/well-known-labels/v2");
-    assert_eq!(asset.game_version, "0.98a-RC8");
     let mut catalogs: BTreeMap<String, WellKnownCatalog> = BTreeMap::new();
     for group in asset.groups {
         for source in group.sources {
@@ -122,7 +119,7 @@ mod tests {
     fn original_hint_domains_are_complete_and_separate() {
         let ships = well_known_catalog(CsvTableKey::Ships, "hints").unwrap();
         let weapons = well_known_catalog(CsvTableKey::Weapons, "hints").unwrap();
-        let ship_values = "FREIGHTER TANKER LINER TRANSPORT CIVILIAN CARRIER COMBAT NO_AUTO_ESCORT UNBOARDABLE STATION SHIP_WITH_MODULES MODULE HIDE_IN_CODEX UNDER_PARENT INDEPENDENT_ROTATION ALWAYS_PANIC WEAPONS_FRONT_TO_BACK WEAPONS_BACK_TO_FRONT DO_NOT_SHOW_MODULES_IN_FLEET_LIST RENDER_ENGINES_BELOW_HULL NEVER_DODGE_MISSILES MISSILE_HARDPOINTS_ROTATE NO_NEURAL_LINK PHASE PLAY_FIGHTER_OVERLOAD_SOUNDS";
+        let ship_values = "FREIGHTER TANKER LINER TRANSPORT CIVILIAN CARRIER COMBAT NO_AUTO_ESCORT UNBOARDABLE STATION SHIP_WITH_MODULES MODULE HIDE_IN_CODEX UNDER_PARENT INDEPENDENT_ROTATION ALWAYS_PANIC WEAPONS_FRONT_TO_BACK WEAPONS_BACK_TO_FRONT DO_NOT_SHOW_MODULES_IN_FLEET_LIST RENDER_ENGINES_BELOW_HULL NEVER_DODGE_MISSILES MISSILE_HARDPOINTS_ROTATE NO_NEURAL_LINK PHASE PLAY_FIGHTER_OVERLOAD_SOUNDS DO_NOT_TURN_TO_ARMOR";
         let weapon_values = "PD PD_ONLY PD_ALSO USE_VS_FRIGATES STRIKE DANGEROUS BOMB GUIDED_POOR DO_NOT_AIM ANTI_FTR HEATSEEKER SYSTEM SHOW_IN_CODEX AUTOZOOM DO_NOT_CONSERVE CONSERVE_1 CONSERVE_2 CONSERVE_3 CONSERVE_4 CONSERVE_5 CONSERVE_ALL CONSERVE_FOR_ANTI_ARMOR FIRE_WHEN_INEFFICIENT EXTRA_RANGE_ON_FIGHTER IGNORES_FLARES GROUP_LINKED GROUP_ALTERNATING MISSILE_SPREAD DIRECT_AIM NO_TURN_RATE_BOOST_WHEN_IDLE RESET_BARREL_INDEX_ON_BURST USE_LESS_VS_SHIELDS RANGE_FROM_TARGETING_OVAL RANGE_FROM_SHIP_RADIUS IMPORTANT NO_MANUAL_FIRE";
         for (catalog, values) in [(ships, ship_values), (weapons, weapon_values)] {
             assert_eq!(

@@ -109,4 +109,22 @@ describe('document schema problems', () => {
     };
     expect(schemaDocumentIssues(root, { file: { 'group.a/b': 'invalid' } }).map((issue) => issue.path)).toEqual(['file["group.a/b"]']);
   });
+  it.each([
+    ['skin', 'parts/dmod'],
+    ['skin', 'salary'],
+    ['faction', 'file.secondarySegments'],
+  ])('keeps %s.%s inside the game integer range', (id, key) => {
+    const field = getSchema(id)!
+      .sections!.flatMap((section) => section.fields)
+      .find((field) => field.key === key)!;
+    for (const value of [-2147483648, 0, 2147483647]) {
+      expect(schemaFieldIssues(field, value)).toEqual([]);
+      expect(schemaFieldIssues(field, String(value))).toEqual([]);
+    }
+    for (const value of [-2147483649, 2147483648, 1.5]) {
+      expect(schemaFieldIssues(field, value)).toHaveLength(1);
+      expect(schemaFieldIssues(field, String(value))).toHaveLength(1);
+    }
+    expect(schemaFieldIssues(field, undefined)).toEqual([]);
+  });
 });

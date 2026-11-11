@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { CSV_COLUMN_CONTROLS, FIELD_TYPE_SET, type FileSchema } from './schema.types';
 import { getSchema } from './config-schema-registry';
 import { getCsvColumnSchemas } from './csv-schema-registry';
+import { parseCsvValue } from './csv-value-validation';
 import { TABLE_KEYS } from '@/shared/types';
 
 const CONFIG_SCHEMA_IDS = Object.keys(import.meta.glob('../../../schemas/*.schema.json')).map((path) =>
@@ -110,7 +111,7 @@ describe('schema asset registries', () => {
       expect(getCsvColumnSchemas(table).map(({ key }) => key)).toEqual(declared);
       columnCount += declared.length;
     }
-    expect(columnCount).toBe(285);
+    expect(columnCount).toBe(289);
   });
 
   it('keeps fixed CSV value sets distinct from dynamic references and open tag fields', () => {
@@ -120,5 +121,16 @@ describe('schema asset registries', () => {
         if (column.control === 'reference') expect(column.source, `${table}.${column.key}`).toBeTruthy();
         if (column.control === 'tags' && !column.options) expect(column.source, `${table}.${column.key}`).toBeTruthy();
       }
+  });
+  it.each([
+    ['ships', 'parts/dmod', '7', '7.5'],
+    ['ships', 'salary', '450', '450.5'],
+    ['ships', 'salMult', '0.375', 'unfinished'],
+    ['commodities', 'sell price mult', '0.025', 'unfinished'],
+  ] as const)('validates %s.%s through its declared numeric rule', (table, key, valid, invalid) => {
+    const column = getCsvColumnSchemas(table).find((column) => column.key === key)!;
+    expect(parseCsvValue(column, valid)).toMatchObject({ kind: 'value', value: Number(valid) });
+    expect(parseCsvValue(column, invalid).kind).toBe('error');
+    expect(parseCsvValue(column, '').kind).toBe('empty');
   });
 });

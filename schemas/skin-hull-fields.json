@@ -10,5 +10,8 @@
   "supplies/mo": ["suppliesPerMonth"],
   "fighter bays": ["fighterBays"],
   "max speed": ["maxSpeed"],
-  "shield efficiency": ["shieldEfficiency"]
+  "shield efficiency": ["shieldEfficiency"],
+  "parts/dmod": ["parts/dmod"],
+  "salary": ["salary"],
+  "salMult": ["salMult"]
 }

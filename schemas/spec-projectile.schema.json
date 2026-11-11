@@ -447,6 +447,18 @@
           "default": false
         },
         {
+          "key": "explodesWhenHittingFlares",
+          "type": "boolean",
+          "label": "撞击诱饵时爆炸",
+          "description": "导弹与诱饵碰撞时触发爆炸，默认启用。",
+          "default": true,
+          "visibleWhen": {
+            "specClass": [
+              "missile"
+            ]
+          }
+        },
+        {
           "key": "passThroughFighters",
           "label": "穿透战机",
           "type": "boolean",

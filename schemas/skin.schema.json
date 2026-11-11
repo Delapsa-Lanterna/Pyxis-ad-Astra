@@ -132,6 +132,29 @@
           "step": 0.05
         },
         {
+          "key": "parts/dmod",
+          "type": "integer",
+          "label": "单项 D 类损伤修复零件",
+          "description": "覆盖每项 D 类损伤的修复零件数。继承链尚未显式设置费用时，费用按当前基础价值重新计算，首次显式设置至少为 1。",
+          "min": -2147483648,
+          "max": 2147483647
+        },
+        {
+          "key": "salary",
+          "type": "integer",
+          "label": "固定船员月薪",
+          "description": "覆盖整艘舰船的固定基础船员月薪。此层同时设置维护消耗或工资倍率时，优先采用此固定工资。",
+          "min": -2147483648,
+          "max": 2147483647
+        },
+        {
+          "key": "salMult",
+          "type": "float",
+          "label": "船员工资倍率",
+          "step": 0.05,
+          "description": "覆盖基础工资倍率。此层设置 salMult 或 suppliesPerMonth 时，工资按对应舰级的工资系数、维护消耗和倍率重新计算；salary 具有优先权。"
+        },
+        {
           "key": "suppliesToRecover",
           "type": "integer",
           "label": "战备恢复成本 (补给)",
