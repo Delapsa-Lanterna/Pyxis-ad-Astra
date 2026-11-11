@@ -30,7 +30,13 @@ export async function javaQueries(
   }, options.game);
   /** @param {import('playwright').Page} page @param {Record<string,unknown>} action */
   const action = (page, action) =>
-    page.evaluate((action) => Reflect.get(globalThis, '__TAURI_INTERNALS__').invoke('java_editor', { action }), action);
+    page.evaluate(async (action) => {
+      try {
+        return await Reflect.get(globalThis, '__TAURI_INTERNALS__').invoke('java_editor', { action });
+      } catch (error) {
+        throw Error(JSON.stringify(error), { cause: error });
+      }
+    }, action);
   /** @param {string} root */
   const open = (root) =>
     app.main.evaluate(
@@ -119,6 +125,7 @@ export async function javaQueries(
     await page.mouse.move(point.x, point.y);
     await page.locator('.cm-tooltip').filter({ hasText: 'java.lang.String' }).waitFor();
     await page.mouse.click(point.x, point.y);
+    await page.getByRole('button', { name: 'Java 操作', exact: true }).click();
     await page.getByRole('button', { name: '查找引用', exact: true }).click();
     await page.getByRole('region', { name: '诊断与引用' }).waitFor();
     await page.getByRole('button', { name: '跳转声明', exact: true }).click();
@@ -158,11 +165,14 @@ export async function javaQueries(
     await rename(file, moved);
     await page.getByRole('button', { name: '保留文本并跟随', exact: true }).click();
     await page.getByRole('tab').filter({ hasText: 'Moved.java' }).waitFor();
-    await until(
-      async () =>
-        (await action(page, { kind: 'inspect', file: moved, offset: 0, purpose: 'source' })).result.source.includes('String run()'),
-      'renamed draft submitted',
-    );
+    await until(async () => {
+      try {
+        return (await action(page, { kind: 'inspect', file: moved, offset: 0, purpose: 'source' })).result.source.includes('String run()');
+      } catch (error) {
+        if (String(error).includes('engine.source_unavailable')) return false;
+        throw error;
+      }
+    }, 'renamed draft submitted');
     await page.screenshot({ path: join(artifacts, 'java-native.png') });
   });
   await page.getByTitle('关闭', { exact: true }).click();

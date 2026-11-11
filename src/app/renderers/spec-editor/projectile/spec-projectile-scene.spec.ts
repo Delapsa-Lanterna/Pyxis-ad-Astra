@@ -12,7 +12,7 @@ const base = {
   height: 400,
   center: { x: 250, y: 200 },
   scale: 2,
-  palette: createCanvasPalette(createThemeColors('#2563eb', 'light')),
+  palette: createCanvasPalette(createThemeColors('#2563eb', 'light'), 'sans-serif'),
   mirrorY: null,
   cursor: null,
 };

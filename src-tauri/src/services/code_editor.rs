@@ -1,14 +1,10 @@
 use crate::errors::{AppError, AppResult};
-use crate::io::{self, FsRootBoundary};
-use crate::models::code_editor::{
-    CodeEditorDelivery, CodeEditorFile, CodeEditorFileResult, CodeEditorOpen, CodeEditorSource,
-    CodeEditorSources,
-};
+use crate::models::code_editor::{CodeEditorDelivery, CodeEditorOpen};
 use crate::models::{ManagedWindowInput, ManagedWindowRequest, WindowIdentity};
+use crate::models::{TextFileOpen, TextFileOpenResult};
+use crate::services::windows;
 use crate::services::windows::OpenedWindow;
-use crate::services::{project, windows};
 use std::collections::{BTreeMap, VecDeque};
-use std::path::Path;
 use std::sync::{Arc, Condvar, LazyLock, Mutex, MutexGuard};
 use tauri::AppHandle;
 use tauri::ipc::Channel;
@@ -20,11 +16,11 @@ struct Lane {
 }
 pub struct OpenTask {
     delivery: CodeEditorDelivery,
-    result: Mutex<Option<Vec<CodeEditorFileResult>>>,
+    result: Mutex<Option<Vec<TextFileOpenResult>>>,
     changed: Condvar,
 }
 impl OpenTask {
-    pub fn wait(&self) -> AppResult<Vec<CodeEditorFileResult>> {
+    pub fn wait(&self) -> AppResult<Vec<TextFileOpenResult>> {
         let mut result = self.result.lock().map_err(|_| lock_error())?;
         while result.is_none() {
             result = self.changed.wait(result).map_err(|_| lock_error())?;
@@ -34,7 +30,7 @@ impl OpenTask {
             .expect("file queue delivered a receipt")
             .clone())
     }
-    fn complete(&self, result: Vec<CodeEditorFileResult>) -> AppResult<()> {
+    fn complete(&self, result: Vec<TextFileOpenResult>) -> AppResult<()> {
         *self.result.lock().map_err(|_| lock_error())? = Some(result);
         self.changed.notify_all();
         Ok(())
@@ -43,74 +39,6 @@ impl OpenTask {
 static LANES: LazyLock<Mutex<BTreeMap<String, Lane>>> = LazyLock::new(Default::default);
 static OPENING: Mutex<()> = Mutex::new(());
 
-pub fn sources(identity: WindowIdentity) -> AppResult<CodeEditorSources> {
-    let WindowIdentity::CodeEditor {
-        session_id,
-        mod_root,
-    } = identity
-    else {
-        return Err(AppError::message(
-            "code_editor.window_identity",
-            "Code editor window required",
-        ));
-    };
-    project::ensure_project_session_mod_root(&session_id, &mod_root)?;
-    let references = project::reference_sources()?;
-    let mut sessions = vec![session_id.clone()];
-    sessions.extend(
-        references
-            .sources
-            .into_iter()
-            .map(|source| source.session_id)
-            .filter(|id| id != &session_id),
-    );
-    let mut result = CodeEditorSources {
-        revision: references.revision,
-        sources: Vec::new(),
-        analysis_roots: Vec::new(),
-    };
-    for id in sessions {
-        let manifest = project::current_project_manifest(&id)?;
-        let boundary = FsRootBoundary::new(Path::new(&manifest.mod_root), "Code project")?;
-        let source = boundary.resolve_relative("src", "Code source root")?;
-        let read_only = id != session_id;
-        if source.is_dir() {
-            result.analysis_roots.push(io::forward_slash_path(&source));
-        }
-        if read_only && !source.is_dir() {
-            continue;
-        }
-        let label = manifest
-            .mod_info
-            .as_ref()
-            .and_then(|info| info.get("name"))
-            .and_then(|name| name.as_str())
-            .map(str::to_owned)
-            .unwrap_or_else(|| {
-                if boundary
-                    .root()
-                    .file_name()
-                    .is_some_and(|name| name == "starsector-core")
-                {
-                    return "Core".into();
-                }
-                boundary
-                    .root()
-                    .file_name()
-                    .expect("project root name")
-                    .to_string_lossy()
-                    .into_owned()
-            });
-        result.sources.push(CodeEditorSource {
-            session_id: id,
-            mod_root: io::forward_slash_path(boundary.root()),
-            label,
-            directory: read_only.then(|| "src".into()),
-            read_only,
-        });
-    }
-    Ok(result)
-}
 pub(crate) fn open_window(
     app: &AppHandle,
     owner: &str,
@@ -156,7 +84,7 @@ fn publish(lane: &mut Lane) -> AppResult<()> {
                     .delivery
                     .files
                     .iter()
-                    .map(|file| CodeEditorFileResult {
+                    .map(|file| TextFileOpenResult {
                         path: file.path.clone(),
                         diagnostic: Some(diagnostic.clone()),
                     })
@@ -168,17 +96,13 @@ fn publish(lane: &mut Lane) -> AppResult<()> {
     }
     Ok(())
 }
-pub fn enqueue(label: &str, key: String, files: Vec<CodeEditorFile>) -> AppResult<Arc<OpenTask>> {
+pub fn enqueue(label: &str, key: String, files: Vec<TextFileOpen>) -> AppResult<Arc<OpenTask>> {
     let mut lanes = lanes()?;
     windows::current_window_context(label)?;
     let lane = lanes.entry(label.into()).or_default();
     enqueue_in(lane, key, files)
 }
-fn enqueue_in(
-    lane: &mut Lane,
-    key: String,
-    files: Vec<CodeEditorFile>,
-) -> AppResult<Arc<OpenTask>> {
+fn enqueue_in(lane: &mut Lane, key: String, files: Vec<TextFileOpen>) -> AppResult<Arc<OpenTask>> {
     let task = Arc::new(OpenTask {
         delivery: CodeEditorDelivery { key, files },
         result: Mutex::new(None),
@@ -205,7 +129,7 @@ pub fn subscribe(label: &str, channel: Channel<CodeEditorDelivery>) -> AppResult
     lane.channel = Some(channel);
     publish(lane)
 }
-pub fn finish(label: &str, key: &str, results: Vec<CodeEditorFileResult>) -> AppResult<()> {
+pub fn finish(label: &str, key: &str, results: Vec<TextFileOpenResult>) -> AppResult<()> {
     let mut lanes = lanes()?;
     let lane = lanes
         .get_mut(label)
@@ -231,7 +155,7 @@ pub fn release_window(label: &str) -> AppResult<()> {
                 .delivery
                 .files
                 .iter()
-                .map(|file| CodeEditorFileResult {
+                .map(|file| TextFileOpenResult {
                     path: file.path.clone(),
                     diagnostic: Some(
                         AppError::message("code_editor.released", "Code editor window released")
@@ -248,3 +172,6 @@ pub fn release_window(label: &str) -> AppResult<()> {
 #[cfg(test)]
 #[path = "code_editor_tests.rs"]
 mod tests;
+
+mod sources;
+pub use sources::sources;

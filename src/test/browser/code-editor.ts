@@ -1,7 +1,7 @@
-import type { CodeEditorDelivery, CodeEditorFileResult, CodeEditorOpen, NativeWindowRequest, WindowRequestReceipt } from '@/shared/types';
+import type { CodeEditorDelivery, TextFileOpenResult, CodeEditorOpen, NativeWindowRequest, WindowRequestReceipt } from '@/shared/types';
 
 export function createCodeEditorPreview(openWindow: (owner: string, request: NativeWindowRequest) => Promise<WindowRequestReceipt>) {
-  type Task = { delivery: CodeEditorDelivery; resolve: (results: CodeEditorFileResult[]) => void };
+  type Task = { delivery: CodeEditorDelivery; resolve: (results: TextFileOpenResult[]) => void };
   const queues = new Map<string, Task[]>();
   const channels = new Map<string, { onmessage: (delivery: CodeEditorDelivery) => void }>();
   function publish(label: string) {
@@ -22,7 +22,7 @@ export function createCodeEditorPreview(openWindow: (owner: string, request: Nat
           minWidth: 800,
           minHeight: 520,
         });
-        return new Promise<CodeEditorFileResult[]>((resolve) => {
+        return new Promise<TextFileOpenResult[]>((resolve) => {
           const queue = queues.get(opened.label) ?? [];
           queue.push({ delivery: { key: String(args.key), files: input.files }, resolve });
           queues.set(opened.label, queue);
@@ -37,7 +37,7 @@ export function createCodeEditorPreview(openWindow: (owner: string, request: Nat
       const queue = queues.get(label)!;
       const task = queue.shift()!;
       if (task.delivery.key !== args.key) throw new Error('Code editor queue owner mismatch');
-      task.resolve(args.results as CodeEditorFileResult[]);
+      task.resolve(args.results as TextFileOpenResult[]);
       publish(label);
       return undefined;
     },

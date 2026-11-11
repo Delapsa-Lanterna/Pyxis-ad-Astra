@@ -27,7 +27,7 @@ for (const [command, backend] of [
   ['save_indexed_config_entity', 'config_entity'],
   ['create_skin_entity', 'json_file'],
   ['save_variant_entity', 'project'],
-  ['save_text_file', 'text_editor'],
+  ['save_text_file', 'text_file_editing'],
   ['apply_file_change_set', 'write_transactions'],
   ['save_csv_patch', 'project'],
   ['save_joint_edit', 'project'],
@@ -45,7 +45,7 @@ for (const [command, backend] of [
 test('each command retains its own backend when several commands share a file', () => {
   const files = architectureFixtures({
     'src-tauri/src/commands/example.rs':
-      'use crate::services; pub fn save_mod_info() { services::text_editor::run(); } pub fn save_text_file() { services::text_editor::run(); }',
+      'use crate::services; pub fn save_mod_info() { services::text_editor::run(); } pub fn save_text_file() { services::text_file_editing::run(); }',
   });
   const failures = messages(saveBackendBoundaryRule.check(files));
   assert.equal(failures.length, 1);

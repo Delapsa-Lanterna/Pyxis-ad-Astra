@@ -7,6 +7,6 @@ export function queryFileTextTarget(sessionId: string, relPath: string): Promise
   return invokeCommand('query_file_text_target', { payload: { sessionId, relPath } });
 }
 
-export function queryFileSearch(sessionId: string, query: string): Promise<FileSearch> {
-  return invokeCommand('query_file_search', { payload: { sessionId, query } });
+export function queryFileSearch(sessionId: string, query: string, directory: string | null = null): Promise<FileSearch> {
+  return invokeCommand('query_file_search', { payload: { sessionId, query, directory } });
 }

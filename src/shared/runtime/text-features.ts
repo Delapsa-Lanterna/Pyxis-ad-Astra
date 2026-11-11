@@ -2,7 +2,8 @@ import { EditorState, type Text } from '@codemirror/state';
 import { keymap } from '@codemirror/view';
 import { indentWithTab } from '@codemirror/commands';
 import { java } from '@codemirror/lang-java';
-import { foldGutter, foldKeymap, HighlightStyle, indentOnInput, indentUnit, syntaxHighlighting } from '@codemirror/language';
+import { codeFolding, foldGutter, foldKeymap, HighlightStyle, indentOnInput, indentUnit, syntaxHighlighting } from '@codemirror/language';
+import { createTextSearchPanel, textFoldMarker, textFoldPlaceholder } from '@/shared/ui/text-editor-controls';
 import { tags } from '@lezer/highlight';
 import { openSearchPanel, search, searchKeymap } from '@codemirror/search';
 
@@ -40,11 +41,19 @@ export function hasLongTextLine(text: Text): boolean {
 }
 export function javaTextFeatures(path: string | null | undefined, text: Text) {
   return isJavaText(path) && !hasLongTextLine(text)
-    ? [java(), highlighting, indentOnInput(), indentUnit.of(textIndentation(text)), foldGutter(), keymap.of([...foldKeymap, indentWithTab])]
+    ? [
+        java(),
+        highlighting,
+        indentOnInput(),
+        indentUnit.of(textIndentation(text)),
+        codeFolding({ placeholderDOM: textFoldPlaceholder }),
+        foldGutter({ markerDOM: textFoldMarker }),
+        keymap.of([...foldKeymap, indentWithTab]),
+      ]
     : [];
 }
 export const textSearchFeatures = [
-  search({ top: true }),
+  search({ top: true, createPanel: createTextSearchPanel }),
   keymap.of([...searchKeymap, { key: 'Mod-h', run: openSearchPanel, scope: 'editor search-panel' }]),
   EditorState.phrases.of({
     Find: '查找',

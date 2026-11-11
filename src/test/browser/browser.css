@@ -19,7 +19,7 @@ body.browser-benchmark #app {
 .browser-chrome {
   color: var(--color-text);
   background: var(--color-surface-active);
-  font: 12px/1.4 var(--font-sans);
+  font: 12px/1.4 var(--font-interface);
 }
 .browser-chrome :is(button, select, input, summary, a):not(.n-switch) {
   padding: 4px 8px;

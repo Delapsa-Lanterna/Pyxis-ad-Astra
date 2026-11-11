@@ -1,4 +1,5 @@
 use super::super::session::{lock_ready_session, session_handle};
+use crate::domain::text_file;
 use crate::errors::{AppError, AppResult};
 use crate::io::{self, FsRootBoundary};
 use crate::models::{FileDirectory, FileEntry, FileKind, FileSearch, FileTextTarget};
@@ -69,14 +70,29 @@ fn read_directory(root: &FsRootBoundary, directory: Option<&str>) -> AppResult<F
 pub fn query_file_directory(session: &str, directory: Option<&str>) -> AppResult<FileDirectory> {
     read_directory(&boundary(session)?, directory)
 }
-fn search_files(root: &FsRootBoundary, query: &str) -> AppResult<FileSearch> {
+fn search_files(
+    root: &FsRootBoundary,
+    query: &str,
+    directory: Option<&str>,
+) -> AppResult<FileSearch> {
     let query = query.trim().to_owned();
     let needle = query.to_lowercase();
-    let mut walker = WalkDir::new(root.root())
+    let scope = directory
+        .map(|path| root.resolve_relative(path, "search directory"))
+        .transpose()?
+        .unwrap_or_else(|| root.root().to_path_buf());
+    let mut walker = WalkDir::new(&scope)
         .min_depth(1)
         .follow_links(false)
         .into_iter();
     let mut parents = BTreeMap::new();
+    for parent in scope
+        .ancestors()
+        .take_while(|parent| *parent != root.root())
+    {
+        let parent = entry(root, parent)?;
+        parents.insert(parent.rel_path.clone(), parent);
+    }
     let mut result = BTreeMap::new();
     let mut matches = Vec::new();
     while let Some(item) = walker.next() {
@@ -110,41 +126,16 @@ fn search_files(root: &FsRootBoundary, query: &str) -> AppResult<FileSearch> {
         matched_paths: matches,
     })
 }
-pub fn query_file_search(session: &str, query: &str) -> AppResult<FileSearch> {
-    search_files(&boundary(session)?, query)
-}
-fn binary(bytes: &[u8]) -> bool {
-    const SIGNATURES: &[&[u8]] = &[
-        b"\x89PNG\r\n\x1a\n",
-        b"\xff\xd8\xff",
-        b"GIF87a",
-        b"GIF89a",
-        b"BM",
-        b"DDS ",
-        b"RIFF",
-        b"OggS",
-        b"fLaC",
-        b"ID3",
-        b"PK\x03\x04",
-        b"PK\x05\x06",
-        b"PK\x07\x08",
-        b"\x1f\x8b",
-        b"7z\xbc\xaf\x27\x1c",
-        b"Rar!\x1a\x07",
-        b"MZ",
-        b"\xca\xfe\xba\xbe",
-    ];
-    SIGNATURES
-        .iter()
-        .any(|signature| bytes.starts_with(signature))
-        || bytes.starts_with(&[0xff]) && bytes.get(1).is_some_and(|byte| byte & 0xe0 == 0xe0)
-        || bytes.iter().any(|byte| {
-            *byte == 0x7f || *byte < 0x20 && !matches!(byte, b'\t' | b'\n' | b'\r' | 0x0c)
-        })
+pub fn query_file_search(
+    session: &str,
+    query: &str,
+    directory: Option<&str>,
+) -> AppResult<FileSearch> {
+    search_files(&boundary(session)?, query, directory)
 }
 fn is_text_file(path: &Path) -> AppResult<bool> {
     let (_, bytes) = io::read_versioned_bytes(path)?;
-    if binary(&bytes) {
+    if text_file::binary(&bytes) {
         return Ok(false);
     }
     text::decode_plain(&bytes, "utf-8").map_err(|error| AppError::from(error).at_path(path))?;
@@ -167,8 +158,8 @@ pub fn query_file_text_target(session: &str, relative: &str) -> AppResult<Option
 mod tests {
     use crate::services::project_sync::release_project_session;
 
-    use super::binary as binary_content;
     use super::*;
+    use crate::domain::text_file::binary as binary_content;
     use crate::io::forward_slash_path;
     #[cfg(test)]
     use crate::services::project::performance::PerformanceTrace;
@@ -176,7 +167,7 @@ mod tests {
     use crate::services::project::session;
     use crate::services::project::test_support::project_workspace;
     #[cfg(test)]
-    use crate::services::text_editor;
+    use crate::services::text_file_editing;
     use crate::test_support::TestWorkspace;
     #[cfg(test)]
     use encoding_rs::GB18030;
@@ -207,6 +198,27 @@ mod tests {
                 .is_empty()
         );
         assert!(read_directory(&boundary, Some("../outside")).is_err());
+        root.close().unwrap();
+    }
+    #[test]
+    fn searches_only_the_authorized_directory_and_returns_its_ancestors() {
+        let root = project_workspace("scoped_file_search");
+        fs::create_dir_all(root.join("src/pkg")).unwrap();
+        fs::create_dir_all(root.join("assets")).unwrap();
+        fs::write(root.join("src/pkg/Match.java"), "class Match {}").unwrap();
+        fs::write(root.join("assets/Match.txt"), "outside source").unwrap();
+        let boundary = FsRootBoundary::new(&root, "search root").unwrap();
+        let result = search_files(&boundary, "Match", Some("src")).unwrap();
+        assert_eq!(result.matched_paths, ["src/pkg/Match.java"]);
+        assert_eq!(
+            result
+                .entries
+                .iter()
+                .map(|entry| entry.rel_path.as_str())
+                .collect::<Vec<_>>(),
+            ["src", "src/pkg", "src/pkg/Match.java"]
+        );
+        assert!(search_files(&boundary, "Match", Some("../external")).is_err());
         root.close().unwrap();
     }
     #[test]
@@ -306,7 +318,7 @@ mod tests {
             target.mod_root,
             forward_slash_path(FsRootBoundary::new(&root, "mod root").unwrap().root())
         );
-        let loaded = text_editor::load_project_text_file(
+        let loaded = text_file_editing::load_project_text_file(
             Some(&target.session_id),
             &target.mod_root,
             target.path.clone(),
@@ -345,7 +357,7 @@ mod tests {
         fs::write(root.join("data/hulls/skip.txt"), "skip").unwrap();
         fs::write(root.join("empty.txt"), []).unwrap();
         let boundary = FsRootBoundary::new(&root, "mod root").unwrap();
-        let result = search_files(&boundary, "  测试  ").unwrap();
+        let result = search_files(&boundary, "  测试  ", None).unwrap();
         assert_eq!(result.query, "测试");
         assert_eq!(result.matched_paths, vec!["data/hulls/测试.SHIP"]);
         assert_eq!(
@@ -360,15 +372,15 @@ mod tests {
         assert!(result.entries[2].modified_at.is_some());
         assert_eq!(result.entries[0].size_bytes, None);
         assert_eq!(
-            search_files(&boundary, "ship").unwrap().matched_paths,
+            search_files(&boundary, "ship", None).unwrap().matched_paths,
             vec!["data/hulls/测试.SHIP"]
         );
         assert_eq!(
-            search_files(&boundary, "匹配").unwrap().matched_paths,
+            search_files(&boundary, "匹配", None).unwrap().matched_paths,
             vec!["匹配目录"]
         );
         assert!(
-            search_files(&boundary, "unknown")
+            search_files(&boundary, "unknown", None)
                 .unwrap()
                 .entries
                 .is_empty()
@@ -391,13 +403,13 @@ mod tests {
         fs::write(outside.join("secret.txt"), "secret").unwrap();
         let boundary = FsRootBoundary::new(&root, "mod root").unwrap();
         assert!(
-            search_files(&boundary, "secret")
+            search_files(&boundary, "secret", None)
                 .unwrap()
                 .entries
                 .is_empty()
         );
         assert_eq!(
-            search_files(&boundary, "linked").unwrap().entries[0].kind,
+            search_files(&boundary, "linked", None).unwrap().entries[0].kind,
             FileKind::Restricted
         );
         root.close().unwrap();

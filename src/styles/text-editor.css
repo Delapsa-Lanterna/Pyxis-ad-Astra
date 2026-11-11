@@ -13,7 +13,7 @@
   font-weight: 600;
 }
 .text-editor-message .text-editor-message-description {
-  font-family: var(--font-mono);
+  font-family: var(--font-field);
 }
 .text-editor-body {
   flex: 1;
@@ -33,7 +33,7 @@
 .text-editor-meta {
   flex-wrap: wrap;
   gap: 8px;
-  font: 400 10px/12px var(--font-sans);
+  font: 400 10px/12px var(--font-interface);
 }
 
 .text-editor-message.info {

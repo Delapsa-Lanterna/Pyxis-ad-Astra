@@ -203,14 +203,7 @@ export type {
 
 export type { SourceOption, SourceOptionGroup, SourceCatalogPayload, ImageSourceOptionsPayload } from '@/shared/types/source-catalog.types';
 
-export type {
-  TextFileData,
-  TextSave,
-  TextBatchSave,
-  TextTranscode,
-  LoadTextFilePayload,
-  FollowTextIdentityPayload,
-} from '@/shared/types/text-editor.types';
+export type { TextTranscode, FollowTextIdentityPayload } from '@/shared/types/text-editor.types';
 export { SPEC_EDITOR_KINDS } from '@/shared/types/spec-editor.types';
 export type {
   JsonEditorPageId,
@@ -256,13 +249,8 @@ export type * from '@/shared/types/misc-config.types';
 export type { PerformanceBatch, PerformanceMonitorStatus } from './performance-monitor.types';
 export type { JsonComposition, JsonSourceLayer } from './json-composition.types';
 export type * from './java-analysis.types';
-export type {
-  CodeEditorFile,
-  CodeEditorOpen,
-  CodeEditorDelivery,
-  CodeEditorFileResult,
-  CodeEditorSource,
-  CodeEditorSources,
-} from './code-editor.types';
+export type { CodeEditorOpen, CodeEditorDelivery, CodeEditorSource, CodeEditorSources } from './code-editor.types';
 export type * from './file-content.types';
 export type { JsonDocumentFile, JsonDocumentRead } from './json-file.types';
+
+export * from './text-file-editing.types';

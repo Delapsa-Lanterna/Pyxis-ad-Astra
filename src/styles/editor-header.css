@@ -1,7 +1,7 @@
 .mod-opening-failure-content .mod-opening-failure-content-label,
 .game-warning-content .game-warning-content-label,
 .page-path {
-  font: 400 10px/14px var(--font-mono);
+  font: 400 10px/14px var(--font-field);
 }
 .editor-title-row,
 .text-editor-title-row,
@@ -13,11 +13,11 @@
 .view-title,
 .text-editor-title,
 .editor-title > .editor-title-value {
-  font: 650 18px/24px var(--font-sans);
+  font: 650 18px/24px var(--font-interface);
 }
 .page-description,
 .view-meta {
-  font: 400 11px/16px var(--font-sans);
+  font: 400 11px/16px var(--font-interface);
 }
 .page-header {
   flex-wrap: wrap;

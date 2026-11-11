@@ -8,13 +8,13 @@
       <template v-if="candidate.preparation">
         <template v-if="candidate.change.action === 'delete'">
           <p>
-            <code>{{ candidate.preparation.target.write.path }}</code>
+            <code class="ui-code">{{ candidate.preparation.target.write.path }}</code>
           </p>
         </template>
         <template v-else>
           <p>保存到：</p>
           <p>
-            <code>{{ candidate.preparation.destination.location.path }}</code>
+            <code class="ui-code">{{ candidate.preparation.destination.location.path }}</code>
           </p>
           <p v-if="candidate.preparation.destination.version.fingerprint && candidate.preparation.destination.problem">
             {{ candidate.preparation.destination.problem }}
@@ -33,10 +33,10 @@
               candidate.mode !== 'read' && candidate.preparation.original?.version.fingerprint && !candidate.preparation.original.problem
             "
           >
-            内容来自：<br /><code>{{ candidate.preparation.original.location.path }}</code>
+            内容来自：<br /><code class="ui-code">{{ candidate.preparation.original.location.path }}</code>
           </p>
           <p v-if="candidate.preparation.original?.problem">
-            <code>{{ candidate.preparation.original.location.path }}</code
+            <code class="ui-code">{{ candidate.preparation.original.location.path }}</code
             ><br />{{ candidate.preparation.original.problem }}
           </p>
           <p>
@@ -50,7 +50,7 @@
           </p>
           <p v-if="candidate.mode !== 'read' && candidate.preparation.destination.version.fingerprint">目标文件的现有内容将被覆盖。</p>
           <p v-if="removesOriginal(candidate)">
-            同步更新 CSV，保存后移除旧文件：<br /><code>{{ candidate.preparation.original!.location.path }}</code>
+            同步更新 CSV，保存后移除旧文件：<br /><code class="ui-code">{{ candidate.preparation.original!.location.path }}</code>
           </p>
         </template>
       </template>

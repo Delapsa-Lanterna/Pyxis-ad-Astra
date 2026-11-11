@@ -5,6 +5,7 @@ import * as jsonFileService from '@/services/json-file.service';
 import * as editor from '@/services/spec-editor.service';
 import * as fileHistory from '@/services/file-history.service';
 import * as textEditorService from '@/services/text-editor.service';
+import * as textFilesService from '@/services/text-file-editing.service';
 import { entityTargetFixture } from '@/test/fixtures/entity-target';
 import { jsonWriteFixture } from '@/test/fixtures/json-file';
 import { prepareValue } from '@/domain/schema/game-number';
@@ -65,7 +66,7 @@ const edits: Record<string, SaveEdit[]> = {
   save_skin_entity: [{ kind: 'replace', path: [], value: prepareValue(data) }],
 };
 const cases: Array<[string, () => Promise<unknown>, object]> = [
-  ['load_text_file', () => textEditorService.loadTextFile(null, modRoot, path), { sessionId: null, modRoot, path }],
+  ['load_text_file', () => textFilesService.loadTextFile(null, modRoot, path), { sessionId: null, modRoot, path }],
   ['load_imported_editor_spec_file', () => editor.loadSpecEditorImport('ship', path), { kind: 'ship', path }],
   ['follow_text_identity', () => textEditorService.followTextIdentity('ship', '{}', id), { kind: 'ship', text: '{}', nextId: id }],
   [
@@ -75,7 +76,7 @@ const cases: Array<[string, () => Promise<unknown>, object]> = [
   ],
   [
     'save_text_file',
-    () => textEditorService.saveTextFile(null, modRoot, path, '0012', []),
+    () => textFilesService.saveTextFile(null, modRoot, path, '0012', []),
     { sessionId: null, modRoot, path, text: '0012', baseVersions: [] },
   ],
   [
@@ -198,7 +199,7 @@ describe('query and persistence transport protocols', () => {
 
   it.each([null, sessionId])('text commands preserve session %s and loaded versions', async (session) => {
     const baseVersions = [{ path, fingerprint: 'loaded' }];
-    await textEditorService.saveTextFile(session, modRoot, path, '{}', baseVersions);
+    await textFilesService.saveTextFile(session, modRoot, path, '{}', baseVersions);
     expect(invoke).toHaveBeenLastCalledWith('save_project', {
       request: {
         id: expect.any(String),
@@ -217,7 +218,7 @@ describe('query and persistence transport protocols', () => {
         },
       },
     });
-    await textEditorService.loadTextFile(session, modRoot, path);
+    await textFilesService.loadTextFile(session, modRoot, path);
     expect(invoke).toHaveBeenLastCalledWith('load_text_file', { payload: { sessionId: session, modRoot, path } });
   });
 });

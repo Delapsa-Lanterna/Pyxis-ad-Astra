@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia';
 import { reactive } from 'vue';
 import type { FileDirectory, FileBrowserState, FileDirectoryState } from '@/shared/types';
-export const useFileBrowserStore = defineStore('file-browser', () => {
+export function createFileBrowserState() {
   const sessions = reactive(new Map<string, FileBrowserState>());
   function establish(sessionId: string, root: string) {
     if (!sessions.has(sessionId))
@@ -61,4 +61,5 @@ export const useFileBrowserStore = defineStore('file-browser', () => {
     for (const [id, state] of sessions) if (state.root === root) sessions.delete(id);
   }
   return { sessions, establish, directoryState, acceptDirectory, releaseProjectState };
-});
+}
+export const useFileBrowserStore = defineStore('file-browser', createFileBrowserState);

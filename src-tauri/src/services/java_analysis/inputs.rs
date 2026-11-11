@@ -56,11 +56,18 @@ fn require_referenceable_mod(path: &Path, manifests: &[ProjectManifest]) -> AppR
     Ok(())
 }
 
-fn add_manifest(input: &mut AnalysisInputs, manifest: &ProjectManifest) -> AppResult<()> {
+pub(crate) fn source_root(manifest: &ProjectManifest) -> AppResult<Option<String>> {
     let boundary = FsRootBoundary::new(Path::new(&manifest.mod_root), "Java Mod root")?;
     let source = boundary.resolve_relative("src", "Java source root")?;
-    if source.is_dir() {
-        append(&mut input.sources, &source);
+    Ok(source
+        .is_dir()
+        .then(|| java_path(&source).to_string_lossy().into_owned()))
+}
+
+fn add_manifest(input: &mut AnalysisInputs, manifest: &ProjectManifest) -> AppResult<()> {
+    let boundary = FsRootBoundary::new(Path::new(&manifest.mod_root), "Java Mod root")?;
+    if let Some(source) = source_root(manifest)? {
+        append(&mut input.sources, Path::new(&source));
     }
     if let Some(jars) = manifest.mod_info.as_ref().and_then(|info| info.get("jars")) {
         for value in jars.as_array().ok_or_else(|| {

@@ -9,7 +9,9 @@ describe('file browser transport', () => {
     await queryFileDirectory('s', 'data/hulls');
     expect(invoke).toHaveBeenLastCalledWith('query_file_directory', { payload: { sessionId: 's', directory: 'data/hulls' } });
     await queryFileSearch('s', '中文');
-    expect(invoke).toHaveBeenLastCalledWith('query_file_search', { payload: { sessionId: 's', query: '中文' } });
+    expect(invoke).toHaveBeenLastCalledWith('query_file_search', { payload: { sessionId: 's', query: '中文', directory: null } });
+    await queryFileSearch('s', 'sample', 'src');
+    expect(invoke).toHaveBeenLastCalledWith('query_file_search', { payload: { sessionId: 's', query: 'sample', directory: 'src' } });
     await queryFileTextTarget('s', 'README');
     expect(invoke).toHaveBeenLastCalledWith('query_file_text_target', { payload: { sessionId: 's', relPath: 'README' } });
   });

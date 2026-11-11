@@ -64,6 +64,10 @@ export async function sourceActions(context) {
         (input) => Reflect.get(globalThis, '__TAURI_INTERNALS__').invoke('open_code_editor', { input, key: crypto.randomUUID() }),
         { ...manifest, files: [{ path: file }] },
       );
+      await until(
+        async () => (await surface.locator('.cm-line').allTextContents()).join('\n') === original.replace(/\r\n?/g, '\n'),
+        'reopened file view',
+      );
     };
     /** @param {string} value */
     const select = async (value) => {
@@ -72,6 +76,15 @@ export async function sourceActions(context) {
       await input.fill(value);
       await input.press('Enter');
       await input.press('Escape');
+      const source = (await surface.locator('.cm-line').allTextContents()).join('\n');
+      const before = source.slice(0, source.indexOf(value)).split('\n');
+      await surface.press('Control+Home');
+      for (let line = 1; line < before.length; line++) await surface.press('ArrowDown');
+      await surface.press('Home');
+      for (let column = 0; column < Array.from(before.at(-1) ?? '').length; column++) await surface.press('ArrowRight');
+      await page.evaluate(
+        () => new Promise((resolve) => globalThis.requestAnimationFrame(() => globalThis.requestAnimationFrame(resolve))),
+      );
       const point = await page.evaluate((token) => {
         const { document, NodeFilter } = globalThis;
         const root = /** @type {HTMLElement} */ (document.querySelector('.cm-content'));
@@ -88,7 +101,6 @@ export async function sourceActions(context) {
         }
         throw Error('Expected source token: ' + token);
       }, value);
-      await page.mouse.click(point.x, point.y);
       return point;
     };
     const save = async () => {
@@ -101,10 +113,20 @@ export async function sourceActions(context) {
     };
     /** @param {string} token @param {string} name */
     const rename = async (token, name) => {
-      await select(token);
+      const point = await select(token);
+      const selected = await page.locator('footer').innerText();
+      await page.getByRole('button', { name: 'Java 操作', exact: true }).click();
       await page.getByRole('textbox', { name: '重命名的新名称' }).fill(name);
+      const prepared = await page.locator('footer').innerText();
       await page.getByRole('button', { name: '预览重命名', exact: true }).click();
-      await page.getByRole('region', { name: '修改预览' }).waitFor();
+      await until(async () => {
+        const notices = await page.locator('[role=dialog], .n-message-container, .n-notification-container').allTextContents();
+        if (notices.some((text) => text.includes('失败'))) {
+          await page.screenshot({ path: join(context.artifacts, 'rename-failed.png') });
+          throw Error(JSON.stringify({ token, point, selected, prepared, current: await page.locator('footer').innerText(), notices }));
+        }
+        return page.getByRole('region', { name: '修改预览' }).isVisible();
+      }, 'rename preview');
       await page.getByRole('button', { name: '接纳整批修改', exact: true }).click();
       await page.screenshot({ path: join(context.artifacts, 'accepted-' + name + '.png') });
       const errors = await page.locator('[role=dialog], .n-message-container, .n-notification-container').allTextContents();
@@ -119,6 +141,7 @@ export async function sourceActions(context) {
       await page.getByRole('option').filter({ hasText: 'value' }).first().click();
       await until(async () => (await surface.innerText()).includes('Library.value()'), 'completion inserted');
       await select('value');
+      await page.getByRole('button', { name: 'Java 操作', exact: true }).click();
       await page.getByRole('button', { name: '参数提示', exact: true }).click();
       await page.locator('.code-signature').waitFor();
       assert.match(await page.locator('.code-signature').innerText(), /value/);
@@ -126,6 +149,7 @@ export async function sourceActions(context) {
     });
     await context.check('native import choices produce versioned draft edits', async () => {
       await surface.fill('import java.util.Set;\r\nclass Orbit {List<String> values; Object run(){return Library.value();}}\r\n');
+      await page.getByRole('button', { name: 'Java 操作', exact: true }).click();
       await page.getByRole('button', { name: '整理导入', exact: true }).click();
       await page.locator('.code-analysis-results .n-select').click();
       await page.getByText('java.util.List', { exact: true }).click();

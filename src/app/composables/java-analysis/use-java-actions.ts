@@ -2,9 +2,9 @@ import { computed, shallowRef, ref } from 'vue';
 import { autocompletion, completionKeymap } from '@codemirror/autocomplete';
 import type { Completion } from '@codemirror/autocomplete';
 import { EditorView, keymap, showTooltip } from '@codemirror/view';
-import { useCodeBatch } from './use-code-batch';
-import type { useCodeEditor } from './use-code-editor';
-import type { useCodeAnalysis } from './use-code-analysis';
+import type { JavaEditorFiles } from './java-editor-files';
+import type { TextFileEdits } from '@/shared/types';
+import type { useJavaEditor } from '@/app/composables/java-analysis/use-java-editor';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
 import { displayOffset } from '@/shared/runtime/text-document';
 import { AppError } from '@/shared/lib/errors';
@@ -21,13 +21,12 @@ const conflictLabels: Record<string, string> = {
   method_binding_changed: '修改会改变已有调用的方法选择',
 };
 
-export function useCodeActions(
-  host: ReturnType<typeof useCodeEditor>,
-  analysis: ReturnType<typeof useCodeAnalysis>,
-  owner: { sessionId: string; modRoot: string },
+export function useJavaActions(
+  host: JavaEditorFiles,
+  analysis: ReturnType<typeof useJavaEditor>,
+  applyEdits: (plan: TextFileEdits, validate: () => Promise<unknown>) => Promise<void>,
 ) {
   const feedback = useAppFeedback(),
-    batch = useCodeBatch(host, owner),
     plan = shallowRef<JavaAssistance | null>(null);
   const name = shallowRef(''),
     choices = ref<Record<string, string>>({}),
@@ -43,15 +42,27 @@ export function useCodeActions(
   async function apply() {
     const captured = plan.value;
     if (!captured) return;
-    await batch.apply(captured, async () => {
+    await applyEdits({ files: captured.files }, async () => {
       const checked = await analysis.assist('validate', undefined, null, {}, captured.revision);
       if (!checked) throw new AppError('预览来源已变化，请重新生成修改', { action: 'code-refactor' });
     });
     plan.value = null;
   }
   async function parameters(view?: EditorView) {
-    const result = await analysis.assist('signature', view?.state.selection.main.head);
-    signaturePosition.value = host.active.value?.document.state.value.selection.main.head ?? 0;
+    const document = host.active.value;
+    if (!document) return;
+    const content = document.document.content.value,
+      path = document.path.value;
+    const position = view?.state.selection.main.head ?? document.document.state.value.selection.main.head;
+    const result = await analysis.assist('signature', position);
+    if (
+      host.active.value !== document ||
+      content !== document.document.content.value ||
+      path !== document.path.value ||
+      position !== document.document.state.value.selection.main.head
+    )
+      return;
+    signaturePosition.value = position;
     signature.value = result;
   }
   const extensions = computed(() => [
@@ -122,5 +133,20 @@ export function useCodeActions(
     ),
   ]);
   const conflicts = computed(() => plan.value?.conflicts.map((code) => conflictLabels[code]) ?? []);
-  return { plan, name, choices, conflicts, extensions, prepare, apply, parameters };
+  return {
+    plan,
+    name,
+    choices,
+    conflicts,
+    extensions,
+    prepare,
+    apply,
+    parameters,
+    chooseImport: (name: string, value: string) => {
+      choices.value[name] = value;
+    },
+    cancel: () => {
+      plan.value = null;
+    },
+  };
 }

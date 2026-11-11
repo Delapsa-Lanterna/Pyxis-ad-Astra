@@ -182,13 +182,19 @@ export async function verifyBrowserUI(browser, url, output) {
     assert.equal(await page.locator('a[href*="1462"]').count(), 0);
     await page.locator('.workbench-catalog > summary').click();
     assert.equal(await page.locator('[data-scene-id]').count(), 7);
-    assert.equal(await page.locator('[data-navigation-id]').count(), 31);
+    assert.equal(await page.locator('[data-navigation-id]').count(), 32);
     await page.locator('.workbench-catalog > summary').click();
     for (const button of await main.locator('.mod-navigation-button').all()) {
+      const previous = await main.locator('.mod-navigation-button.active').allTextContents();
       await button.click();
-      assert.match((await button.getAttribute('class')) ?? '', /\bactive\b/);
+      if ((await button.innerText()) === '代码编辑器') {
+        await page.waitForFunction(() =>
+          [...Reflect.get(globalThis, 'browserWorkspace').windows.values()].some((entry) => entry.context?.kind === 'code-editor'),
+        );
+        assert.deepEqual(await main.locator('.mod-navigation-button.active').allTextContents(), previous);
+      } else assert.match((await button.getAttribute('class')) ?? '', /\bactive\b/);
     }
-    checks.push({ formalNavigation: 23 });
+    checks.push({ formalNavigation: 24 });
     /** @type {{variantId:string,index:number,slot:{id:string,type:string,size:string,mount:string},weaponId:string,weaponName:string,originalEntries:number}} */
     const variantPlan = await page.evaluate(() => {
       const workspace =
@@ -289,8 +295,10 @@ export async function verifyBrowserUI(browser, url, output) {
     );
     for (const route of routes) {
       await page.goto(new URL(route.href, url).href);
-      if (route.id.startsWith('navigation-'))
-        await main.locator('.mod-navigation-button.active .mod-navigation-button-label').filter({ hasText: route.label }).waitFor();
+      if (route.id === 'navigation-code-editor')
+        await page.frameLocator('iframe[data-window^="window-"]').locator('.code-editor').waitFor();
+      else if (route.id.startsWith('navigation-'))
+        await main.locator('.mod-navigation-button.active').filter({ hasText: route.label }).waitFor();
       else if (route.id.startsWith('global-'))
         await main.getByRole('heading', { name: route.id === 'global-settings' ? '设置' : '关于', exact: true }).waitFor();
       else if (route.id.endsWith('-window')) await page.frameLocator('iframe[data-window^="window-"]').locator('.titlebar').waitFor();

@@ -42,7 +42,10 @@ export function assertValidSettings(settings: AppSettings): void {
   readShowCoreFeedback(settings.showCoreFeedback);
   readAccent(settings.accent);
   readCustomAccent(settings.customAccent);
-  readGeneralFont(settings.generalFont);
+  readFont(settings.interfaceFont);
+  readFont(settings.fieldFont);
+  readFont(settings.textEditorFont);
+  readFont(settings.canvasEditorFont);
   readHistoryLimit(settings.fileHistoryLimit);
   readHistoryLimit(settings.editHistoryLimit);
   readLogRotationSizeMiB(settings.logRotationSizeMiB);
@@ -135,9 +138,9 @@ export function readExpandFieldDescriptions(value: boolean): boolean {
   return value;
 }
 
-export function readGeneralFont(value: string | null): string | null {
+export function readFont(value: string | null): string | null {
   if (value === null) return null;
-  if (typeof value !== 'string' || !value.trim() || /\p{Cc}/u.test(value)) throw new Error(`Invalid general font: ${value}`);
+  if (typeof value !== 'string' || !value.trim() || /\p{Cc}/u.test(value)) throw new Error(`Invalid font: ${value}`);
   return value;
 }
 

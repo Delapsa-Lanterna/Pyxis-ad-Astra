@@ -1,0 +1,11 @@
+.code-editor-tabs {
+  height: 32px;
+  min-width: 0;
+  padding: 0 4px;
+  border-bottom: 1px solid var(--color-border);
+}
+.code-readonly {
+  flex-shrink: 0;
+  color: var(--color-text-soft);
+  font: 400 10px/14px var(--font-interface);
+}

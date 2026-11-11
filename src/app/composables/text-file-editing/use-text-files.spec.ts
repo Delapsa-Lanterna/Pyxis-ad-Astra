@@ -1,3 +1,5 @@
+import { useTextFileBatch } from '@/app/composables/text-file-editing/use-text-file-batch';
+import { useCodeFileRequests } from '@/app/composables/code-editor/use-code-file-requests';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils';
 import { ref, watch } from 'vue';
@@ -14,22 +16,22 @@ import {
   committedChangeFixture,
   dispatchProjectChangeFixture,
 } from '@/test/unit/project-changes';
-import type { loadTextFile, saveTextFile } from '@/services/text-editor.service';
-import type { AppFeedback, CodeEditorDelivery, CodeEditorFileResult, TextFileData } from '@/shared/types';
+import type { loadTextFile, saveTextFile } from '@/services/text-file-editing.service';
+import type { AppFeedback, CodeEditorDelivery, TextFileOpenResult, TextFileData } from '@/shared/types';
 import TextEditorSurface from '@/shared/ui/TextEditorSurface.vue';
 import { textEditorSurface } from '@/test/unit/text-editor-surface';
 import { writeTextContent } from '@/shared/runtime/text-document';
 import * as textDocument from '@/shared/runtime/text-document';
-import { useCodeEditor } from './use-code-editor';
-import { useCodeAnalysis } from './use-code-analysis';
-import { useCodeActions } from './use-code-actions';
+import { useTextFiles } from '@/app/composables/text-file-editing/use-text-files';
+import { useJavaEditor } from '@/app/composables/java-analysis/use-java-editor';
+import { useJavaActions } from '@/app/composables/java-analysis/use-java-actions';
 import { Transaction } from '@codemirror/state';
 
 const mocks = vi.hoisted(() => ({
   load: vi.fn<typeof loadTextFile>(),
   write: vi.fn<typeof saveTextFile>(),
   receive: null as ((delivery: CodeEditorDelivery) => void) | null,
-  receipts: vi.fn<(key: string, results: CodeEditorFileResult[]) => Promise<void>>(async () => {}),
+  receipts: vi.fn<(key: string, results: TextFileOpenResult[]) => Promise<void>>(async () => {}),
   feedback: {
     success: vi.fn(),
     error: vi.fn(),
@@ -37,7 +39,7 @@ const mocks = vi.hoisted(() => ({
     confirmWarning: vi.fn<AppFeedback['confirmWarning']>(),
   },
 }));
-vi.mock('@/services/text-editor.service', () => ({ loadTextFile: mocks.load, saveTextFile: mocks.write }));
+vi.mock('@/services/text-file-editing.service', () => ({ loadTextFile: mocks.load, saveTextFile: mocks.write }));
 vi.mock('@/app/composables/use-app-feedback', () => ({ useAppFeedback: () => mocks.feedback }));
 vi.mock('@/services/code-editor.service', () => ({
   subscribeCodeEditor: async (receive: (delivery: CodeEditorDelivery) => void) => {
@@ -48,9 +50,15 @@ vi.mock('@/services/code-editor.service', () => ({
 vi.mock('@/orchestrators/project-sync.orchestrator', async () => await import('@/test/unit/project-changes'));
 vi.mock('@/app/composables/code-editor/use-code-editor-window', () => ({
   useCodeEditorWindow: () => {
-    const host = useCodeEditor(owner);
-    const analysis = useCodeAnalysis(host, owner.modRoot);
-    return { ...host, analysis, actions: useCodeActions(host, analysis, owner), closing: ref(false), project: undefined };
+    const host = createHost();
+    const analysis = useJavaEditor(host, owner.modRoot);
+    return {
+      ...host,
+      analysis,
+      actions: useJavaActions(host, analysis, useTextFileBatch(host, owner).apply),
+      closing: ref(false),
+      project: undefined,
+    };
   },
 }));
 vi.mock('@/services/java-analysis.service', () => ({
@@ -61,6 +69,7 @@ vi.mock('@/services/java-analysis.service', () => ({
 }));
 vi.mock('@/app/composables/use-window-shortcuts', () => ({ useWindowShortcuts: () => {} }));
 enableAutoUnmount(afterEach);
+afterEach(() => vi.unstubAllGlobals());
 const owner = { sessionId: 'sample-session', modRoot: 'M:/sample' };
 function loaded(path: string, text = 'class Sample {}\r\n'): TextFileData {
   return { path, text, entity: null, baseVersions: [{ path, fingerprint: 'sample-version' }] };
@@ -78,7 +87,7 @@ beforeEach(() => {
 });
 describe('code editor document host', () => {
   it('accepts one changed file without rereading the other 49 documents or changing their histories', async () => {
-    const { value: host } = mountSetup(() => useCodeEditor(owner));
+    const { value: host } = mountSetup(() => createHost());
     await host.ready;
     await host.openFiles(Array.from({ length: 50 }, (_, index) => ({ path: `M:/sample/File${index}.txt` })));
     const first = host.documents[0]!,
@@ -101,7 +110,7 @@ describe('code editor document host', () => {
     expect(mocks.load).toHaveBeenCalledTimes(51);
   });
   it.each(['finish', 'dispose'] as const)('settles composition before save capture and releases on %s', async (outcome) => {
-    const { value: host, wrapper } = mountSetup(() => useCodeEditor(owner));
+    const { value: host, wrapper } = mountSetup(() => createHost());
     await host.ready;
     await host.openFiles([{ path: 'M:/sample/Composition.java' }]);
     const file = host.documents[0]!,
@@ -140,7 +149,7 @@ describe('code editor document host', () => {
     expect(writeTextContent(file.session.draftValue.value)).toBe('中文class Sample {}\r\n');
   });
   it('captures a save immediately when no composition is pending', async () => {
-    const { value: host } = mountSetup(() => useCodeEditor(owner));
+    const { value: host } = mountSetup(() => createHost());
     await host.ready;
     await host.openFiles([{ path: 'M:/sample/Capture.java' }]);
     const file = host.documents[0]!;
@@ -152,7 +161,7 @@ describe('code editor document host', () => {
     expect(writeTextContent(file.session.draftValue.value)).toBe('later');
   });
   it('generates full text only on save, including large edits, switches and close capture', async () => {
-    const { value: host } = mountSetup(() => useCodeEditor(owner));
+    const { value: host } = mountSetup(() => createHost());
     await host.ready;
     mocks.load.mockImplementation(async (_s, _r, path) => loaded(path, 'x'.repeat(path.endsWith('0.java') ? 10485760 : 102400)));
     await host.openFiles(Array.from({ length: 50 }, (_, index) => ({ path: `M:/sample/${index}.java` })));
@@ -176,7 +185,7 @@ describe('code editor document host', () => {
     }
   });
   it('selects once after a multi-file batch and clears the view before releasing its documents', async () => {
-    const { value: host, wrapper } = mountSetup(() => useCodeEditor(owner));
+    const { value: host, wrapper } = mountSetup(() => createHost());
     await host.ready;
     const selected: Array<string | null> = [];
     const stop = watch(host.active, (document) => selected.push(document?.path.value ?? null), { flush: 'sync' });
@@ -191,9 +200,23 @@ describe('code editor document host', () => {
     }
   });
   it('binds independent document states to one input surface across tab switches', async () => {
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        observe() {}
+        disconnect() {}
+      },
+    );
     const wrapper = mount(CodeEditorContent, {
       global: {
-        stubs: { NButton: { template: '<button><slot /></button>' }, NInput: true, NSelect: true, TextEditorSurface: textEditorSurface },
+        stubs: {
+          NButton: { template: '<button><slot /></button>' },
+          NInput: true,
+          NSelect: true,
+          NPopover: { template: '<div><slot name="trigger"/><slot /></div>' },
+          NSplit: { template: '<div><slot name="1"/><slot name="2"/></div>' },
+          TextEditorSurface: textEditorSurface,
+        },
       },
     });
     await flushPromises();
@@ -212,8 +235,22 @@ describe('code editor document host', () => {
     expect(state.selection.main.head).toBe(1);
     expect(mocks.load).toHaveBeenCalledTimes(2);
   });
+  it('reopens the same file after discarding and replaces its released text state', async () => {
+    const { value: host } = mountSetup(() => createHost());
+    await host.ready;
+    await host.openFiles([{ path: 'M:/sample/Neighbor.java' }, { path: 'M:/sample/Reopen.java' }]);
+    const old = host.active.value!;
+    old.setText('changed');
+    mocks.feedback.choose.mockResolvedValueOnce('discard');
+    await host.close(old);
+    await host.openFiles([{ path: 'M:/sample/Reopen.java' }]);
+    expect(host.active.value).not.toBe(old);
+    expect(host.active.value!.document.state.value.doc.toString()).toBe('class Sample {}\n');
+    host.active.value!.document.locate(1, 7);
+    expect(host.active.value!.document.state.value.selection.main.head).toBe(6);
+  });
   it('releases an in-flight document read when the window is destroyed', async () => {
-    const { value: host, wrapper } = mountSetup(() => useCodeEditor(owner));
+    const { value: host, wrapper } = mountSetup(() => createHost());
     await host.ready;
     let complete!: (value: TextFileData) => void;
     mocks.load.mockImplementationOnce(
@@ -233,7 +270,7 @@ describe('code editor document host', () => {
     expect(host.documents).toHaveLength(0);
   });
   it('reuses loaded documents and keeps independent history and view across switches', async () => {
-    const { value: host, wrapper } = mountSetup(() => useCodeEditor(owner));
+    const { value: host, wrapper } = mountSetup(() => createHost());
     await host.ready;
     await host.openFiles([{ path: 'M:/sample/a/Entry.java' }, { path: 'M:/sample/b/Entry.java' }]);
     const [first, second] = host.documents;
@@ -253,7 +290,7 @@ describe('code editor document host', () => {
     expect(projectChangeListeners.size).toBe(0);
   });
   it('delivers queued batches in order and continues after a failed file', async () => {
-    const { value: host } = mountSetup(() => useCodeEditor(owner));
+    const { value: host } = mountSetup(() => createHost());
     await host.ready;
     mocks.load.mockImplementation(async (_s, _r, path) => {
       if (path.endsWith('Missing.java')) throw new Error('sample read failed');
@@ -268,7 +305,7 @@ describe('code editor document host', () => {
     expect(mocks.receipts.mock.calls[0]![1][1]!.diagnostic!.message).toContain('sample read failed');
   });
   it('saves the original document once and retains later input after switching tabs', async () => {
-    const { value: host } = mountSetup(() => useCodeEditor(owner));
+    const { value: host } = mountSetup(() => createHost());
     await host.ready;
     await host.openFiles([{ path: 'M:/sample/A.java' }, { path: 'M:/sample/B.java' }]);
     const first = host.documents[0]!;
@@ -298,7 +335,7 @@ describe('code editor document host', () => {
     expect(first.session.dirty.value).toBe(true);
   });
   it('accepts background external updates, retains dirty drafts and follows a moved file', async () => {
-    const { value: host } = mountSetup(() => useCodeEditor(owner));
+    const { value: host } = mountSetup(() => createHost());
     await host.ready;
     await host.openFiles([{ path: 'M:/sample/A.java' }, { path: 'M:/sample/B.java' }]);
     const first = host.documents[0]!;
@@ -337,7 +374,7 @@ describe('code editor document host', () => {
     expect(first.problem.value).toBeNull();
   });
   it('closes adjacent tabs, preserves canceled or failed saves and ends at an empty view', async () => {
-    const { value: host } = mountSetup(() => useCodeEditor(owner));
+    const { value: host } = mountSetup(() => createHost());
     await host.ready;
     await host.openFiles(['A', 'B', 'C'].map((name) => ({ path: `M:/sample/${name}.java` })));
     const [first, middle, last] = host.documents;
@@ -358,3 +395,8 @@ describe('code editor document host', () => {
     expect(host.active.value).toBeNull();
   });
 });
+
+function createHost() {
+  const host = useTextFiles(owner);
+  return { ...host, ready: useCodeFileRequests(host, host.ready) };
+}

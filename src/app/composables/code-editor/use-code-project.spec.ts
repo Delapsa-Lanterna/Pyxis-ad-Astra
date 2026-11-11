@@ -5,7 +5,7 @@ import { mountSetup } from '@/test/unit/mount-setup';
 import { initializeSettingsStore } from '@/stores/settings.store';
 import { createSettingsFixture } from '@/test/fixtures/settings';
 import { projectChangeFixture } from '@/test/unit/project-changes';
-import { useCodeEditor } from './use-code-editor';
+import { useTextFiles } from '@/app/composables/text-file-editing/use-text-files';
 import { useCodeProject } from './use-code-project';
 import type { CodeEditorSources, FileDirectory } from '@/shared/types';
 
@@ -39,7 +39,7 @@ vi.mock('@/services/file-browser.service', () => ({
     matchedPaths: ['src/Entry.java'],
   }),
 }));
-vi.mock('@/services/text-editor.service', () => ({
+vi.mock('@/services/text-file-editing.service', () => ({
   loadTextFile: async (_s: string, _r: string, path: string) => ({ path, text: 'sample', entity: null, baseVersions: [] }),
 }));
 vi.mock('@/orchestrators/project-sync.orchestrator', async () => await import('@/test/unit/project-changes'));
@@ -66,8 +66,8 @@ beforeEach(() => {
 });
 async function setup() {
   const mounted = mountSetup(() => {
-    const host = useCodeEditor(owner);
-    return { host, project: useCodeProject(host, mocks.snapshot) };
+    const host = useTextFiles(owner);
+    return { host, project: useCodeProject(async (path, readOnly) => (readOnly ? mocks.snapshot(path) : host.openFiles([{ path }]))) };
   });
   await mounted.value.host.ready;
   await mounted.value.project.ready;
@@ -77,29 +77,34 @@ it('loads only the current root and merges repeated expansions while preserving 
   const { project } = await setup();
   expect(mocks.directory.mock.calls).toEqual([['sample', null]]);
   const branch = project.branches[0]!;
-  project.expand(branch, ['src']);
-  project.expand(branch, ['src']);
+  branch.browser.actions.setExpanded(['src']);
+  branch.browser.actions.setExpanded(['src']);
   await flushPromises();
   expect(mocks.directory.mock.calls).toEqual([
     ['sample', null],
     ['sample', 'src'],
   ]);
-  const nodes = project.nodes(branch);
-  project.expand(branch, []);
-  project.expand(branch, ['src']);
-  expect(project.nodes(branch)).toBe(nodes);
+  const nodes = branch.browser.view.nodes;
+  branch.browser.actions.setExpanded([]);
+  branch.browser.actions.setExpanded(['src']);
+  expect(branch.browser.view.nodes).toBe(nodes);
   expect(mocks.directory).toHaveBeenCalledTimes(2);
 });
 it('opens owned text through the file queue and references through the snapshot reader', async () => {
   const { project, host } = await setup();
-  await project.open(project.branches[0]!, 'src/Entry.java');
+  project.branches[0]!.browser.actions.setExpanded(['src']);
+  await flushPromises();
+  await project.branches[0]!.browser.actions.activate('src/Entry.java');
   host.active.value!.setText('draft');
-  await project.open(project.branches[0]!, 'src/Entry.java');
+  project.branches[0]!.browser.actions.setExpanded(['src']);
+  await flushPromises();
+  await project.branches[0]!.browser.actions.activate('src/Entry.java');
   expect(host.documents).toHaveLength(1);
   expect(host.active.value!.document.state.value.doc.toString()).toBe('draft');
-  await project.open(project.branches[1]!, 'src/Library.java');
-  expect(mocks.snapshot).toHaveBeenCalledExactlyOnceWith('M:/reference/src/Library.java');
-  await project.open(project.branches[0]!, 'archive.jar');
+  await project.toggle(project.branches[1]!);
+  await project.branches[1]!.browser.actions.activate('src/Entry.java');
+  expect(mocks.snapshot).toHaveBeenCalledExactlyOnceWith('M:/reference/src/Entry.java');
+  await project.branches[0]!.browser.actions.activate('archive.jar');
   expect(host.documents).toHaveLength(1);
 });
 it('refreshes affected directories, searches files and releases removed references', async () => {
@@ -113,12 +118,9 @@ it('refreshes affected directories, searches files and releases removed referenc
   expect(mocks.directory.mock.calls.filter(([id, path]) => id === 'sample' && path === null)).toHaveLength(2);
   project.setSearch('Entry');
   await project.search();
-  expect(
-    project
-      .nodes(project.branches[0]!)
-      .flatMap((file) => file.children ?? [])
-      .some((file) => file.label === 'Entry.java'),
-  ).toBe(true);
+  expect(project.branches[0]!.browser.view.nodes.flatMap((file) => file.children ?? []).some((file) => file.label === 'Entry.java')).toBe(
+    true,
+  );
   mocks.sources.mockResolvedValue({ revision: 2, sources: [source], analysisRoots: ['M:/sample/src'] });
   await project.refresh();
   expect(project.branches).toHaveLength(1);
@@ -127,10 +129,10 @@ it('retains an actionable directory failure and prevents late reads after dispos
   const { project, wrapper } = await setup();
   mocks.directory.mockRejectedValueOnce(new Error('sample read failure'));
   const branch = project.branches[0]!;
-  await project.load(branch, 'src');
-  expect(branch.directories.get('src')!.error).toBe('sample read failure');
-  await project.load(branch, 'src', true);
-  expect(branch.directories.get('src')!.error).toBe('');
+  await branch.browser.actions.load('src');
+  expect(branch.browser.view.directories.get('src')!.error).toBe('sample read failure');
+  await branch.browser.actions.load('src', true);
+  expect(branch.browser.view.directories.get('src')!.error).toBe('');
   let release!: (value: FileDirectory) => void;
   mocks.directory.mockImplementationOnce(
     () =>
@@ -138,10 +140,48 @@ it('retains an actionable directory failure and prevents late reads after dispos
         release = done;
       }),
   );
-  const pending = project.load(branch, 'other');
+  const pending = branch.browser.actions.load('other');
   wrapper.unmount();
   await pending;
   release({ directory: 'other', entries: [] });
   await flushPromises();
   expect(project.branches).toHaveLength(0);
+});
+
+it('replaces an in-flight directory read after a committed change and excludes its old result', async () => {
+  const { project } = await setup();
+  const branch = project.branches[0]!;
+  let finish!: (result: FileDirectory) => void;
+  mocks.directory.mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+  );
+  const pending = branch.browser.actions.load(null, true);
+  await flushPromises();
+  const update = projectChangeFixture(
+    'sample',
+    { paths: ['New.java'], entities: [], resources: [], tables: [], queryScopes: [], session: false },
+    owner.modRoot,
+  );
+  await flushPromises();
+  expect(mocks.directory.mock.calls.filter(([session, path]) => session === 'sample' && path === null)).toHaveLength(3);
+  expect(await pending).toBe(false);
+  finish({ directory: null, entries: [{ name: 'Old.java', relPath: 'Old.java', kind: 'file', sizeBytes: 1, modifiedAt: null }] });
+  await update;
+  await flushPromises();
+  expect(branch.browser.view.nodes.map((node) => node.key)).toEqual(['src']);
+});
+
+it('keeps browsing and searching scroll positions separate within the project window', async () => {
+  const { project } = await setup();
+  project.setScroll(120);
+  project.setSearch('Entry');
+  expect(project.scrollTop.value).toBe(0);
+  project.setScroll(40);
+  project.setSearch('');
+  expect(project.scrollTop.value).toBe(120);
+  project.setSearch('Entry');
+  expect(project.scrollTop.value).toBe(40);
 });

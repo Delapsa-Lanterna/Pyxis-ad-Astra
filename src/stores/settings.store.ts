@@ -3,7 +3,13 @@ import { defineStore } from 'pinia';
 import { darkTheme, lightTheme } from 'naive-ui/es/themes';
 import type { AccentPreset, AppSettings, AppTheme, EditMode, FeedbackLevel, LogLevel } from '@/shared/types';
 import { ACCENT_PRESETS, createThemeColors } from '@/domain/settings/theme';
-import { generalFontFamily } from '@/domain/settings/fonts';
+import {
+  DEFAULT_INTERFACE_FONT_FAMILY,
+  DEFAULT_FIELD_FONT_FAMILY,
+  DEFAULT_TEXT_EDITOR_FONT_FAMILY,
+  DEFAULT_CANVAS_EDITOR_FONT_FAMILY,
+  fontFamily,
+} from '@/domain/settings/fonts';
 import { initializeCacheLimits } from '@/shared/runtime/cache-limits';
 import { readCacheLimits } from '@/domain/cache-limits';
 import { deepClone } from '@/shared/lib/starsector';
@@ -12,7 +18,7 @@ import {
   assertValidSettings,
   readAccent,
   readCustomAccent,
-  readGeneralFont,
+  readFont,
   readEditMode,
   readExpandFieldDescriptions,
   readIgnoreEditorWarnings,
@@ -53,8 +59,14 @@ export const useSettingsStore = defineStore('settings', () => {
   const theme = computed(() => themePreference.value ?? systemTheme.value);
   const accent = ref<AccentPreset>(readAccent(initialSettings.accent));
   const customAccent = ref(readCustomAccent(initialSettings.customAccent));
-  const generalFont = ref(initialSettings.generalFont);
-  const fontFamily = computed(() => generalFontFamily(generalFont.value));
+  const interfaceFont = ref(initialSettings.interfaceFont);
+  const interfaceFontFamily = computed(() => fontFamily(interfaceFont.value, DEFAULT_INTERFACE_FONT_FAMILY));
+  const fieldFont = ref(initialSettings.fieldFont);
+  const fieldFontFamily = computed(() => fontFamily(fieldFont.value, DEFAULT_FIELD_FONT_FAMILY));
+  const textEditorFont = ref(initialSettings.textEditorFont);
+  const textEditorFontFamily = computed(() => fontFamily(textEditorFont.value, DEFAULT_TEXT_EDITOR_FONT_FAMILY));
+  const canvasEditorFont = ref(initialSettings.canvasEditorFont);
+  const canvasEditorFontFamily = computed(() => fontFamily(canvasEditorFont.value, DEFAULT_CANVAS_EDITOR_FONT_FAMILY));
   const fileHistoryLimit = ref(initialSettings.fileHistoryLimit);
   const editHistoryLimit = ref(initialSettings.editHistoryLimit);
   const logRotationSizeMiB = ref(initialSettings.logRotationSizeMiB);
@@ -155,8 +167,20 @@ export const useSettingsStore = defineStore('settings', () => {
     immersiveGameFont.value = readImmersiveGameFont(value);
   }
 
-  function setGeneralFont(value: string | null) {
-    generalFont.value = readGeneralFont(value);
+  function setInterfaceFont(value: string | null) {
+    interfaceFont.value = readFont(value);
+  }
+
+  function setFieldFont(value: string | null) {
+    fieldFont.value = readFont(value);
+  }
+
+  function setTextEditorFont(value: string | null) {
+    textEditorFont.value = readFont(value);
+  }
+
+  function setCanvasEditorFont(value: string | null) {
+    canvasEditorFont.value = readFont(value);
   }
 
   function setImmersiveFontDirectory(path: string | null) {
@@ -199,7 +223,10 @@ export const useSettingsStore = defineStore('settings', () => {
       theme: themePreference.value,
       accent: accent.value,
       customAccent: customAccent.value,
-      generalFont: generalFont.value,
+      interfaceFont: interfaceFont.value,
+      fieldFont: fieldFont.value,
+      textEditorFont: textEditorFont.value,
+      canvasEditorFont: canvasEditorFont.value,
       fileHistoryLimit: fileHistoryLimit.value,
       editHistoryLimit: editHistoryLimit.value,
       logRotationSizeMiB: logRotationSizeMiB.value,
@@ -224,7 +251,10 @@ export const useSettingsStore = defineStore('settings', () => {
     const nextCacheLimits = readCacheLimits(settings.cacheLimits);
     const nextToastDurations = readToastDurations(settings.toastDurations);
     const nextShowCoreFeedback = readShowCoreFeedback(settings.showCoreFeedback);
-    const nextGeneralFont = readGeneralFont(settings.generalFont);
+    const nextInterfaceFont = readFont(settings.interfaceFont);
+    const nextFieldFont = readFont(settings.fieldFont);
+    const nextTextEditorFont = readFont(settings.textEditorFont);
+    const nextCanvasEditorFont = readFont(settings.canvasEditorFont);
     const nextExpandFieldDescriptions = readExpandFieldDescriptions(settings.expandFieldDescriptions);
     const nextIgnoreEditorWarnings = readIgnoreEditorWarnings(settings.ignoreEditorWarnings);
     const nextImmersiveGameFont = readImmersiveGameFont(settings.immersiveGameFont);
@@ -236,7 +266,10 @@ export const useSettingsStore = defineStore('settings', () => {
     themePreference.value = readTheme(settings.theme);
     accent.value = readAccent(settings.accent);
     customAccent.value = readCustomAccent(settings.customAccent);
-    generalFont.value = nextGeneralFont;
+    interfaceFont.value = nextInterfaceFont;
+    fieldFont.value = nextFieldFont;
+    textEditorFont.value = nextTextEditorFont;
+    canvasEditorFont.value = nextCanvasEditorFont;
     cacheLimits.value = structuredClone(nextCacheLimits);
     toastDurations.value = structuredClone(nextToastDurations);
     showCoreFeedback.value = structuredClone(nextShowCoreFeedback);
@@ -276,8 +309,14 @@ export const useSettingsStore = defineStore('settings', () => {
     accent,
     activeAccentHex,
     customAccent,
-    generalFont,
-    fontFamily,
+    interfaceFont,
+    interfaceFontFamily,
+    fieldFont,
+    fieldFontFamily,
+    textEditorFont,
+    textEditorFontFamily,
+    canvasEditorFont,
+    canvasEditorFontFamily,
     editMode,
     expandFieldDescriptions,
     ignoreEditorWarnings,
@@ -306,7 +345,10 @@ export const useSettingsStore = defineStore('settings', () => {
     themeColors,
     setAccent,
     setCustomAccent,
-    setGeneralFont,
+    setInterfaceFont,
+    setFieldFont,
+    setTextEditorFont,
+    setCanvasEditorFont,
     setEditMode,
     setExpandFieldDescriptions,
     setIgnoreEditorWarnings,

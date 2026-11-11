@@ -4,7 +4,7 @@ import { useSettingsStore } from '@/stores/settings.store';
 
 export function useCanvasPalette(draw: () => void) {
   const settings = useSettingsStore();
-  const palette = computed(() => createCanvasPalette(settings.themeColors));
+  const palette = computed(() => createCanvasPalette(settings.themeColors, settings.canvasEditorFontFamily));
   watch(palette, draw, { flush: 'post' });
   return palette;
 }

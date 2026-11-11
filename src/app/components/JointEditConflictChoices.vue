@@ -6,7 +6,7 @@
       :key="JSON.stringify([conflict.recordKey, conflict.path])"
       class="joint-conflict-row ui-control-border"
     >
-      <code>{{ sourcePath(conflict.recordKey) }}</code>
+      <code class="ui-code">{{ sourcePath(conflict.recordKey) }}</code>
       <strong>字段：{{ conflict.path.join('.') || '整条记录' }}</strong>
       <span>采用内容</span>
       <n-select :value="choices[index]?.choice" :options="choiceOptions" aria-label="采用内容" @update:value="choose(index, $event)" />

@@ -17,13 +17,13 @@ import {
 } from './canvas-visuals';
 
 const point: Point = { x: 10, y: 20 };
-const palette = createCanvasPalette(createThemeColors('#2563eb', 'light'));
+const palette = createCanvasPalette(createThemeColors('#2563eb', 'light'), 'sans-serif');
 
 describe('canvas theme projection', () => {
   it.each([...ACCENT_PRESETS.map((preset) => preset.hex), '#123456'])('consumes existing theme tokens for %s', (accent) => {
     for (const theme of ['light', 'dark'] as const) {
       const tokens = createThemeColors(accent, theme);
-      const colors = createCanvasPalette(tokens);
+      const colors = createCanvasPalette(tokens, 'sans-serif');
       expect(colors.background).toBe(tokens.panelMuted);
       expect(colors.grid).toBe(tokens.border);
       expect(colors.highlight).toBe(tokens.primary);
@@ -104,7 +104,7 @@ describe('markers and control points', () => {
 
   it('outlines ordinary white markers on either theme', () => {
     for (const theme of ['light', 'dark'] as const) {
-      const colors = createCanvasPalette(createThemeColors('#ea580c', theme));
+      const colors = createCanvasPalette(createThemeColors('#ea580c', theme), 'sans-serif');
       const recorder = createCanvasRecorder();
       drawCrossMarker(recorder.ctx, point, centerMarkerStyle(colors, false, false));
       expect(recorder.calls('stroke').map((entry) => entry.args)).toEqual([

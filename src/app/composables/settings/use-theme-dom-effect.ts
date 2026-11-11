@@ -14,8 +14,18 @@ export function useThemeDomEffect(source?: () => { colors: ThemeColorTokens; the
   systemTheme.addEventListener('change', updateSystemTheme);
   onUnmounted(() => systemTheme.removeEventListener('change', updateSystemTheme));
   watch(
-    () => settings.fontFamily,
-    (family) => document.documentElement.style.setProperty('--font-sans', family),
+    () => settings.interfaceFontFamily,
+    (family) => document.documentElement.style.setProperty('--font-interface', family),
+    { immediate: true, flush: 'sync' },
+  );
+  watch(
+    () => settings.fieldFontFamily,
+    (family) => document.documentElement.style.setProperty('--font-field', family),
+    { immediate: true, flush: 'sync' },
+  );
+  watch(
+    () => settings.textEditorFontFamily,
+    (family) => document.documentElement.style.setProperty('--font-text-editor', family),
     { immediate: true, flush: 'sync' },
   );
   watch(

@@ -154,8 +154,16 @@ export const editorsCapabilities = [
   ]),
   ...capabilities({ role: 'service', domain: 'text-editor' }, [
     {
+      capability: 'text-transcode',
+      names: ['transcodeFileToUtf8'],
+      owners: [...readOwners, { path: 'src/app/app-feedback-assembly.ts', layer: 'app' }],
+    },
+    { capability: 'text-identity', names: ['followTextIdentity'], owners: readOwners },
+  ]),
+  ...capabilities({ role: 'service', domain: 'text-file-editing' }, [
+    {
       capability: 'text-write',
-      names: ['saveTextFile', 'transcodeFileToUtf8', 'saveTextBatch'],
+      names: ['saveTextFile', 'saveTextBatch'],
       owners: [
         { layer: 'services' },
         { layer: 'orchestrators' },
@@ -165,7 +173,7 @@ export const editorsCapabilities = [
     },
     {
       capability: 'text-read',
-      names: ['loadTextFile', 'followTextIdentity'],
+      names: ['loadTextFile'],
       owners: readOwners,
     },
   ]),

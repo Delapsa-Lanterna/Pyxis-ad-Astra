@@ -15,6 +15,8 @@ export async function verifyTextFeatures(editor) {
   await input.press('Control+z');
   await editor.getByTitle('折叠代码', { exact: true }).last().click();
   await editor.locator('.cm-foldPlaceholder').waitFor();
+  assert.equal(await editor.locator('.cm-foldPlaceholder').innerText(), '');
+  assert.equal(await editor.locator('.cm-foldPlaceholder svg').count(), 1);
   const tabs = editor.getByRole('tab');
   if ((await tabs.count()) > 1) {
     await tabs.first().click();
@@ -26,6 +28,7 @@ export async function verifyTextFeatures(editor) {
   await input.press('Control+f');
   const find = editor.getByRole('textbox', { name: '查找', exact: true });
   await find.fill('value');
+  assert.equal(await editor.getByRole('button', { name: '关闭查找', exact: true }).locator('svg').count(), 1);
   await find.press('Enter');
   if ((await tabs.count()) > 1) {
     await tabs.first().click();

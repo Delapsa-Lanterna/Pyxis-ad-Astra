@@ -1,6 +1,6 @@
 import { computed, onScopeDispose, shallowRef, watch, type Ref } from 'vue';
-import { ChangeSet, type Extension } from '@codemirror/state';
-import { Decoration, EditorView, hoverTooltip, keymap } from '@codemirror/view';
+import { ChangeSet } from '@codemirror/state';
+import { javaEditorExtensions } from './java-editor-extensions';
 import { startJavaEditor, closeJavaEditor, syncJavaEditor, inspectJavaEditor } from '@/services/java-analysis.service';
 import { assistJavaEditor } from '@/services/java-analysis.service';
 import {
@@ -11,22 +11,20 @@ import {
   sameTextContent,
   type TextContent,
 } from '@/shared/runtime/text-document';
-import { errorDiagnosticOf } from '@/shared/lib/errors';
+import { AppError, errorDiagnosticOf } from '@/shared/lib/errors';
 import { normalizeFsPath, pathBelongsToRoot } from '@/shared/lib/paths';
 import type { JavaInspection, JavaLocation, JavaQueryPurpose, JavaAssistPurpose } from '@/shared/types';
-import type { useCodeEditor } from './use-code-editor';
-import type { CodeDocument } from './use-code-document';
-import { listenSavedContent } from '@/orchestrators/project-sync.orchestrator';
+import type { JavaEditorFile, JavaEditorFiles } from './java-editor-files';
 import { debugLog, recordQueuedLog } from '@/shared/runtime/app-log-queue';
 
-export function useCodeAnalysis(host: ReturnType<typeof useCodeEditor>, modRoot: string, roots?: Readonly<Ref<string[]>>) {
+export function useJavaEditor(host: JavaEditorFiles, modRoot: string, roots?: Readonly<Ref<string[]>>) {
   const status = shallowRef('打开 Java 文件后启动分析'),
     problem = shallowRef(''),
-    results = shallowRef(new Map<CodeDocument, JavaInspection>());
+    results = shallowRef(new Map<JavaEditorFile, JavaInspection>());
   const locations = shallowRef<JavaLocation[]>([]),
     detail = shallowRef('');
   const versions = new Map<string, number>();
-  const tracked = new Map<CodeDocument, { source: TextContent; changes: ChangeSet; path: string; full: boolean; stop: () => void }>();
+  const tracked = new Map<JavaEditorFile, { source: TextContent; changes: ChangeSet; path: string; full: boolean; stop: () => void }>();
   let queue = Promise.resolve(),
     available = false,
     disposed = false,
@@ -54,7 +52,7 @@ export function useCodeAnalysis(host: ReturnType<typeof useCodeEditor>, modRoot:
       });
     }
   }
-  const java = (document: CodeDocument) =>
+  const java = (document: JavaEditorFile) =>
     /\.java$/i.test(document.path.value) && (!roots || roots.value.some((root) => pathBelongsToRoot(document.path.value, root)));
   function schedule() {
     clearTimeout(timer);
@@ -66,6 +64,7 @@ export function useCodeAnalysis(host: ReturnType<typeof useCodeEditor>, modRoot:
   const stopDocuments = watch(
     () => host.documents.filter(java),
     (documents) => {
+      results.value = new Map([...results.value].filter(([file]) => documents.includes(file)));
       for (const document of documents) {
         if (document.readOnly || !java(document) || tracked.has(document)) continue;
         const entry = {
@@ -122,10 +121,10 @@ export function useCodeAnalysis(host: ReturnType<typeof useCodeEditor>, modRoot:
     { flush: 'sync', immediate: true },
   );
   async function flush() {
-    clearTimeout(timer);
     const batch = [];
     for (const [document, entry] of tracked) {
       await document.document.waitForInput();
+      if (disposed || !tracked.has(document)) continue;
       if (!entry.full && entry.changes.empty && entry.path === document.path.value) continue;
       const source = document.document.content.value,
         changes = entry.changes,
@@ -201,6 +200,7 @@ export function useCodeAnalysis(host: ReturnType<typeof useCodeEditor>, modRoot:
       await startJavaEditor();
       available = true;
       versions.clear();
+      results.value = new Map();
       for (const entry of tracked.values()) {
         entry.full = true;
       }
@@ -217,13 +217,21 @@ export function useCodeAnalysis(host: ReturnType<typeof useCodeEditor>, modRoot:
     if (!document || !java(document)) return Promise.resolve(null);
     const file = document.path.value;
     const captured = document.document.content.value;
+    const selected = position ?? document.document.state.value.selection.main.from;
     return serialize(async () => {
-      if (!available) return null;
+      if (
+        !available ||
+        disposed ||
+        host.active.value !== document ||
+        captured !== document.document.content.value ||
+        document.path.value !== file
+      )
+        return null;
       await flush();
       if (document.path.value !== file) return null;
       const source = document.document.content.value;
-      if (position !== undefined && captured !== source) return null;
-      const offset = sourceOffset(source, position ?? document.document.state.value.selection.main.from);
+      if (captured !== source || !host.documents.includes(document)) return null;
+      const offset = sourceOffset(source, selected);
       const result = await inspectJavaEditor(file, offset, purpose);
       return !disposed &&
         host.active.value === document &&
@@ -233,7 +241,7 @@ export function useCodeAnalysis(host: ReturnType<typeof useCodeEditor>, modRoot:
         ? result
         : null;
     }).catch((error) => {
-      fail(error);
+      if (host.active.value === document && captured === document.document.content.value && file === document.path.value) fail(error);
       return null;
     });
   }
@@ -242,8 +250,9 @@ export function useCodeAnalysis(host: ReturnType<typeof useCodeEditor>, modRoot:
     let document = host.documents.find((file) => normalizeFsPath(file.path.value) === normalizeFsPath(location.file));
     if (!document) {
       if (pathBelongsToRoot(location.file, modRoot)) {
-        await host.openFiles([{ path: location.file }]);
-        document = host.active.value ?? undefined;
+        const opened = await host.openFiles([{ path: location.file }]);
+        if (opened[0]?.diagnostic) throw new AppError(opened[0].diagnostic.message, { cause: opened[0].diagnostic });
+        document = host.documents.find((file) => normalizeFsPath(file.path.value) === normalizeFsPath(location.file));
       } else {
         if (!available) await start();
         if (!available || disposed) return;
@@ -252,11 +261,11 @@ export function useCodeAnalysis(host: ReturnType<typeof useCodeEditor>, modRoot:
         document = (await host.openSnapshot(location.file, result.source!)) ?? undefined;
         if (!document) return;
         const projection = await serialize(() => inspectJavaEditor(location.file, 0, 'document'));
-        if (!disposed) results.value = new Map(results.value).set(document, projection);
+        if (!disposed && host.documents.includes(document)) results.value = new Map(results.value).set(document, projection);
       }
     }
-    if (document) {
-      host.active.value = document;
+    if (document && host.documents.includes(document)) {
+      host.activate(document.path.value);
       const offset = displayOffset(document.document.content.value, location.range.start),
         line = document.document.state.value.doc.lineAt(offset);
       document.document.locate(line.number, offset - line.from + 1);
@@ -287,98 +296,40 @@ export function useCodeAnalysis(host: ReturnType<typeof useCodeEditor>, modRoot:
     const document = host.active.value;
     if (!document || !java(document)) return Promise.resolve(null);
     const file = document.path.value,
-      captured = document.document.content.value;
+      captured = document.document.content.value,
+      selected = position ?? document.document.state.value.selection.main.from;
     return serialize(async () => {
       if (!available) throw new Error('Java analysis is not ready');
+      if (disposed || host.active.value !== document || captured !== document.document.content.value || file !== document.path.value)
+        return null;
       if (purpose !== 'validate') await flush();
-      if ((position !== undefined && captured !== document.document.content.value) || file !== document.path.value) return null;
+      if (captured !== document.document.content.value || file !== document.path.value || !host.documents.includes(document)) return null;
       const submitted = document.document.content.value;
       const result = await assistJavaEditor(
         file,
-        sourceOffset(document.document.content.value, position ?? document.document.state.value.selection.main.from),
+        sourceOffset(document.document.content.value, selected),
         purpose,
         name,
         choices,
         revision,
       );
-      return submitted === document.document.content.value && host.active.value === document ? result : null;
+      return !disposed &&
+        file === document.path.value &&
+        submitted === document.document.content.value &&
+        host.active.value === document &&
+        (purpose === 'validate' || [...tracked.values()].every((entry) => !entry.full && entry.changes.empty))
+        ? result
+        : null;
     });
   }
   const diagnostics = computed(() => [...results.value.values()].flatMap((result) => result.diagnostics));
-  let unlisten: (() => void) | undefined;
-  void listenSavedContent(() => [
-    async () => {
-      if (available) {
-        locations.value = [];
-        detail.value = '';
-        await serialize(refresh);
-      }
-    },
-  ])
-    .then((stop) => {
-      if (disposed) stop();
-      else unlisten = stop;
-    })
-    .catch(fail);
-  const extensions = computed<Extension>(() => {
-    const document = host.active.value,
-      result = current.value;
-    return [
-      keymap.of([
-        {
-          key: 'F12',
-          run: () => {
-            void navigate('declaration').catch(fail);
-            return true;
-          },
-        },
-        {
-          key: 'Shift-F12',
-          run: () => {
-            void navigate('references').catch(fail);
-            return true;
-          },
-        },
-      ]),
-      hoverTooltip(async (_view, position) => {
-        const result = await inspect('hover', position);
-        return result?.binding
-          ? {
-              pos: position,
-              create() {
-                const dom = window.document.createElement('div');
-                dom.textContent = signature(result);
-                return { dom };
-              },
-            }
-          : null;
-      }),
-      EditorView.decorations.of(
-        Decoration.set(
-          document && result
-            ? result.diagnostics
-                .map((diagnostic) => {
-                  const from = displayOffset(document.document.content.value, diagnostic.start),
-                    to = displayOffset(document.document.content.value, diagnostic.end);
-                  return to > from
-                    ? Decoration.mark({ class: `code-diagnostic-${diagnostic.severity}`, attributes: { title: diagnostic.message } }).range(
-                        from,
-                        to,
-                      )
-                    : null;
-                })
-                .filter((range) => range !== null)
-                .sort((a, b) => a.from - b.from)
-            : [],
-        ),
-      ),
-    ];
-  });
+  const extensions = computed(() =>
+    javaEditorExtensions({ document: host.active.value, result: current.value, inspect, navigate, signature, fail }),
+  );
   onScopeDispose(() => {
     disposed = true;
     clearTimeout(timer);
     stopDocuments();
-    unlisten?.();
     for (const entry of tracked.values()) entry.stop();
     tracked.clear();
     results.value = new Map();
@@ -398,6 +349,11 @@ export function useCodeAnalysis(host: ReturnType<typeof useCodeEditor>, modRoot:
     assist,
     supports: java,
     isStarted: () => available || !!preparing,
+    refresh: () => {
+      locations.value = [];
+      detail.value = '';
+      return serialize(refresh);
+    },
     settle: () => queue,
   };
 }

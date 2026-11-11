@@ -10,7 +10,7 @@
   gap: 4px;
 }
 .file-history-summary .file-history-summary-value {
-  font: 600 20px/24px var(--font-sans);
+  font: 600 20px/24px var(--font-interface);
 }
 .file-history-panel {
   align-self: start;

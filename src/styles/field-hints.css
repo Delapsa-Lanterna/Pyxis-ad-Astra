@@ -2,7 +2,7 @@
 .field-warning,
 .field-danger {
   margin: 0;
-  font: 400 11px/16px var(--font-sans);
+  font: 400 11px/16px var(--font-interface);
 }
 .field-warning {
   color: var(--color-warning);

@@ -53,12 +53,22 @@ describe('useThemeDomEffect', () => {
     initializeSettingsStore(createSettingsFixture());
     const wrapper = mountEffect();
     const settings = useSettingsStore();
-    expect(document.documentElement.style.getPropertyValue('--font-sans')).toBe(settings.fontFamily);
-    settings.replaceSettings(createSettingsFixture({ generalFont: 'Microsoft YaHei' }));
-    expect(document.documentElement.style.getPropertyValue('--font-sans')).toBe(settings.fontFamily);
-    expect(buildThemeOverrides(settings.themeColors, settings.fontFamily).common?.fontFamily).toBe(settings.fontFamily);
-    settings.setGeneralFont(null);
-    expect(document.documentElement.style.getPropertyValue('--font-sans')).toBe(settings.fontFamily);
+    expect(document.documentElement.style.getPropertyValue('--font-interface')).toBe(settings.interfaceFontFamily);
+    expect(document.documentElement.style.getPropertyValue('--font-field')).toBe(settings.fieldFontFamily);
+    expect(document.documentElement.style.getPropertyValue('--font-text-editor')).toBe(settings.textEditorFontFamily);
+    settings.replaceSettings(createSettingsFixture({ interfaceFont: 'Microsoft YaHei', fieldFont: 'Consolas', textEditorFont: 'Arial' }));
+    expect(document.documentElement.style.getPropertyValue('--font-interface')).toBe(settings.interfaceFontFamily);
+    expect(buildThemeOverrides(settings.themeColors, settings.interfaceFontFamily).common?.fontFamily).toBe(settings.interfaceFontFamily);
+    expect(document.documentElement.style.getPropertyValue('--font-field')).toBe(settings.fieldFontFamily);
+    settings.setInterfaceFont(null);
+    expect(document.documentElement.style.getPropertyValue('--font-field')).toContain('"Consolas"');
+    expect(document.documentElement.style.getPropertyValue('--font-text-editor')).toBe(settings.textEditorFontFamily);
+    settings.setFieldFont(null);
+    expect(document.documentElement.style.getPropertyValue('--font-text-editor')).toContain('"Arial"');
+    settings.setTextEditorFont(null);
+    expect(document.documentElement.style.getPropertyValue('--font-text-editor')).toBe(settings.textEditorFontFamily);
+    expect(document.documentElement.style.getPropertyValue('--font-field')).toBe(settings.fieldFontFamily);
+    expect(document.documentElement.style.getPropertyValue('--font-interface')).toBe(settings.interfaceFontFamily);
     wrapper.unmount();
   });
   beforeEach(() => {

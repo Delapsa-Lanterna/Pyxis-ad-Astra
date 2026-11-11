@@ -330,13 +330,21 @@ fn validate_settings(settings: &AppSettings) -> AppResult<()> {
             ));
         }
     }
-    if let Some(font) = &settings.general_font
-        && (font.trim().is_empty() || font.chars().any(char::is_control))
+    for font in [
+        &settings.interface_font,
+        &settings.field_font,
+        &settings.text_editor_font,
+        &settings.canvas_editor_font,
+    ]
+    .into_iter()
+    .flatten()
     {
-        return Err(AppError::message(
-            "settings.font_invalid",
-            "Invalid general font family",
-        ));
+        if font.trim().is_empty() || font.chars().any(char::is_control) {
+            return Err(AppError::message(
+                "settings.font_invalid",
+                "Invalid font family",
+            ));
+        }
     }
     for (name, value, maximum) in [
         ("fileHistoryLimit", settings.file_history_limit, 1000),
@@ -566,7 +574,10 @@ mod tests {
     fn settings_values_roundtrip() {
         let dir = TestWorkspace::new("settings_fonts");
         let settings = AppSettings {
-            general_font: Some("Microsoft YaHei".into()),
+            interface_font: Some("Microsoft YaHei".into()),
+            field_font: Some("Consolas".into()),
+            text_editor_font: Some("Courier New".into()),
+            canvas_editor_font: Some("Arial".into()),
             java_executable: Some(
                 dir.join("runtime/bin/java.exe")
                     .to_string_lossy()
@@ -589,18 +600,27 @@ mod tests {
         };
         save_settings(&dir, &settings).unwrap();
         assert_eq!(load_settings(&dir).unwrap(), settings);
-        for family in ["", " ", "Arial\n"] {
-            let invalid = AppSettings {
-                general_font: Some(family.into()),
-                ..AppSettings::default()
-            };
-            assert_eq!(
-                save_settings(&dir, &invalid).unwrap_err().code(),
-                "settings.font_invalid"
-            );
-            let text = serde_json::to_string(&invalid).unwrap();
-            write_utf8_no_bom(&settings_path(&dir), &text).unwrap();
-            assert_eq!(load_settings(&dir).unwrap().general_font, None);
+        for name in [
+            "interfaceFont",
+            "fieldFont",
+            "textEditorFont",
+            "canvasEditorFont",
+        ] {
+            for family in ["", " ", "Arial\n"] {
+                let mut wire = serde_json::to_value(AppSettings::default()).unwrap();
+                wire[name] = json!(family);
+                let invalid: AppSettings = serde_json::from_value(wire).unwrap();
+                assert_eq!(
+                    save_settings(&dir, &invalid).unwrap_err().code(),
+                    "settings.font_invalid"
+                );
+                let text = serde_json::to_string(&invalid).unwrap();
+                write_utf8_no_bom(&settings_path(&dir), &text).unwrap();
+                assert_eq!(
+                    serde_json::to_value(load_settings(&dir).unwrap()).unwrap()[name],
+                    json!(null)
+                );
+            }
         }
         dir.close().unwrap();
     }
@@ -625,7 +645,7 @@ mod tests {
         valid["editHistoryLimit"] = serde_json::json!(321);
         valid["cacheLimits"]["mediaData"]["entries"] = serde_json::json!(17);
         let paths = setting_paths(&defaults, "");
-        assert_eq!(paths.len(), 56);
+        assert_eq!(paths.len(), 59);
         for pointer in paths.into_iter().skip(1) {
             for missing in [false, true] {
                 let mut source = valid.clone();
@@ -673,7 +693,10 @@ mod tests {
             ("editMode", serde_json::json!("unknown")),
             ("customAccent", serde_json::json!("#xyzxyz")),
             ("logLevel", serde_json::json!("invalid")),
-            ("generalFont", serde_json::json!("A\nB")),
+            ("interfaceFont", serde_json::json!("A\nB")),
+            ("fieldFont", serde_json::json!("A\nB")),
+            ("textEditorFont", serde_json::json!("A\nB")),
+            ("canvasEditorFont", serde_json::json!("A\nB")),
             ("starsectorRoot", serde_json::json!("relative")),
             ("immersiveFontDirectory", serde_json::json!("relative")),
             ("logDirectory", serde_json::json!("relative")),

@@ -13,8 +13,8 @@ Java 分析模块管理 Java 17 语法与语义分析、固定第三方依赖、
 - `src-tauri/src/commands/java_analysis.rs`：组件状态、任务、取消与目录管理的命令边界。
 - `src-tauri/src/services/java_analysis.rs`：运行态装配、配置根、诊断与应用关闭交接。
 - `src-tauri/src/services/java_analysis/`：类型化请求路径、正式会话输入和寿命、组件后台队列及 Java 环境。
-- `src/app/components/java-analysis/`：设置中的 Java 分析组件管理卡片。
-- `src/app/composables/java-analysis/`：管理状态订阅、用户动作、自检与 Java 路径选择。
+- `src/app/components/java-analysis/`：组件管理卡片及 Java 大纲、查询结果和修改预览。
+- `src/app/composables/java-analysis/`：组件管理、Java 会话交接、查询动作及 CodeMirror 扩展。
 - `src/services/java-analysis.service.ts`：Java 组件管理命令的类型化交接。
 
 ### 消费
@@ -34,6 +34,7 @@ Java 分析模块管理 Java 17 语法与语义分析、固定第三方依赖、
 - `src-tauri/src/services/windows.rs`：命令边界取得实际调用窗口的所属 Mod 身份。
 - `src/app/composables/use-app-feedback.ts`：组件动作的确认与一次最终反馈。
 - `src/shared/runtime/dialog.runtime.ts`：Java 可执行文件及离线 ZIP 的选择能力。
+- `src/shared/runtime/text-document.ts`：原始换行位置与修改范围转换。
 - `src/shared/types/java-analysis.types.ts`：组件管理、环境、源码范围与按用途查询的结果协议。
 - `src/stores/settings.store.ts`：自定义 Java 路径的正式保存输入。
 
@@ -42,9 +43,10 @@ Java 分析模块管理 Java 17 语法与语义分析、固定第三方依赖、
 - `src-tauri/Cargo.toml`：独立 workspace 成员及应用依赖装配。
 - `src-tauri/src/lib.rs`：运行态初始化及退出资源交接。
 - `src-tauri/src/services/app_lifecycle.rs`：应用确认关闭后的实例等待与释放。
+- `src-tauri/src/services/code_editor/sources.rs`：正式来源浏览消费共同源码根描述。
 - `src-tauri/src/services/project_sync.rs`：引用集合发布后刷新及 Mod 注销前释放 Java 项目。
 - `src/app/AppContent.vue`：向设置页的固定槽位装配 Java 分析卡片。
-- `src/app/composables/code-editor/use-code-analysis.ts`：代码窗口的草稿范围、按用途查询和快照接纳。
+- `src/app/composables/code-editor/use-code-editor-window.ts`：连接文件集合、分析项目和整批修改动作。
 
 ## 边界
 
@@ -88,6 +90,13 @@ Java 分析模块管理 Java 17 语法与语义分析、固定第三方依赖、
 4. Java 路径选择先验证版本再提交设置，自检独占短时 JVM 并等待所属资源释放。
 5. 停止动作释放全部分析，移除动作清理所属依赖和暂存，应用关闭先取消并等待管理任务。
 
+### 编辑交接
+
+1. 文件快照与输入完成状态进入所属 Java 会话，范围修改合并后顺序提交。
+2. 正式会话填入项目修订，JDT 交付带文件版本的语义结果及修改方案。
+3. 前端按当前内容与路径接纳结果，扩展绘制诊断、悬停、补全和参数提示。
+4. 大纲与结果面板交付定位，修改方案经窗口装配交给文本文件编辑核对及接纳。
+
 ## 规范
 
 - 最低 Java 开发及运行基线为 17，自有资源构建与第三方字节码按该基线验收。
@@ -97,6 +106,8 @@ Java 分析模块管理 Java 17 语法与语义分析、固定第三方依赖、
 - JDT 锁定记录中的版本占位符必须由构建入口解析，实际依赖继续按固定大小及 SHA-256 校验；格式化器版本与校验和归检查入口共同维护。
 - 自有宿主、依赖清单和实际文件必须在启动前核对匹配关系。
 - 源码范围必须采用 UTF-16 半开区间，节点与绑定结果必须绑定所属项目及分析版本。
+- 前端排队查询必须绑定捕获的文字、路径和位置，等待后及结果发布前复核所属文件寿命。
+- 只读引用标签关闭必须结束所属投影持有，输入等待结束后只允许提交仍登记的文件。
 - 同一分析版本必须复用已建立的 AST，更新必须推进版本并失效所属结果。
 - 文件和 JAR 变化必须按声明、使用及反向影响范围失效，无法确定范围时交付完整重建原因。
 - 同版本引用位置复用按文件维护的绑定索引，变更只替换受影响文件的索引条目。

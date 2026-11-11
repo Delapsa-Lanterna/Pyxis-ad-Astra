@@ -11,7 +11,7 @@
 }
 .mod-card-path {
   margin-bottom: 0;
-  font: 10px/14px var(--font-mono);
+  font: 10px/14px var(--font-field);
 }
 .mod-card-description {
   display: -webkit-box;

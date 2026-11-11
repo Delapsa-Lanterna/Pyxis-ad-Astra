@@ -17,6 +17,7 @@ import type { NRadioButton, NRadioGroup } from 'naive-ui/es/radio';
 import type AppSelect from './components/AppSelect.vue';
 import type { NSlider } from 'naive-ui/es/slider';
 import type { NSpin } from 'naive-ui/es/spin';
+import type { NSplit } from 'naive-ui/es/split';
 import type { NSwitch } from 'naive-ui/es/switch';
 import type { NTree } from 'naive-ui/es/tree';
 
@@ -42,6 +43,7 @@ declare module 'vue' {
     NSelect: typeof AppSelect;
     NSlider: typeof NSlider;
     NSpin: typeof NSpin;
+    NSplit: typeof NSplit;
     NSwitch: typeof NSwitch;
     NTree: typeof NTree;
   }

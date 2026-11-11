@@ -1,7 +1,10 @@
+import { useTextFileBatch } from '@/app/composables/text-file-editing/use-text-file-batch';
 import { onMounted, watch } from 'vue';
-import { useCodeEditor } from './use-code-editor';
-import { useCodeAnalysis } from './use-code-analysis';
-import { useCodeActions } from './use-code-actions';
+import { useCodeFileRequests } from './use-code-file-requests';
+import { useCodeAnalysisSync } from './use-code-analysis-sync';
+import { useTextFiles } from '@/app/composables/text-file-editing/use-text-files';
+import { useJavaEditor } from '@/app/composables/java-analysis/use-java-editor';
+import { useJavaActions } from '@/app/composables/java-analysis/use-java-actions';
 import { useCodeProject } from './use-code-project';
 import { useWindowContext } from '@/windows/window-context.window';
 import { useManagedWindowRequests } from '@/app/composables/use-managed-window-requests';
@@ -10,13 +13,18 @@ import { useAppFeedback } from '@/app/composables/use-app-feedback';
 
 export function useCodeEditorWindow() {
   const context = useWindowContext('code-editor').value;
-  const host = useCodeEditor(context.identity);
-  const project = useCodeProject(host, (file) => analysis.locate({ file, version: 1, range: { start: 0, end: 0 } }));
-  const analysis = useCodeAnalysis(host, context.identity.modRoot, project.analysisRoots);
-  const actions = useCodeActions(host, analysis, context.identity);
+  const host = useTextFiles(context.identity);
+  const project = useCodeProject(async (path, readOnly) => {
+    if (readOnly) return analysis.locate({ file: path, version: 1, range: { start: 0, end: 0 } });
+    for (const result of await host.openFiles([{ path }])) if (result.diagnostic) feedback.error(result.diagnostic, '打开文件失败');
+  });
+  const analysis = useJavaEditor(host, context.identity.modRoot, project.analysisRoots);
+  useCodeAnalysisSync(analysis.refresh);
+  const actions = useJavaActions(host, analysis, useTextFileBatch(host, context.identity).apply);
   const feedback = useAppFeedback();
   const closing = useWindowCloseState();
-  useManagedWindowRequests(() => host.ready);
+  const ready = useCodeFileRequests(host, host.ready);
+  useManagedWindowRequests(() => ready);
   let requested = false;
   watch(
     () => host.documents.some((file) => !file.readOnly && analysis.supports(file)),
@@ -41,5 +49,5 @@ export function useCodeEditorWindow() {
   onMounted(() => {
     void participant.install().catch((error) => feedback.error(error, '代码编辑器操作失败'));
   });
-  return { ...host, analysis, actions, closing, project };
+  return { ...host, ready, analysis, actions, closing, project };
 }

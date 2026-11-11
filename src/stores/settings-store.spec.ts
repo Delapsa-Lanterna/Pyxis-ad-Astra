@@ -106,22 +106,27 @@ describe('settings integer limits', () => {
     expect(() => settings.setCacheLimit('thumbnails', 'MiB', 4097)).toThrow();
     expect(settings.cacheLimits.thumbnails.MiB).toBe(64);
   });
-  it('publishes and mirrors a general font while preserving the default combination', () => {
+  it.each([
+    ['interfaceFont', 'setInterfaceFont', 'interfaceFontFamily', "Inter, 'Segoe UI', 'Microsoft YaHei', sans-serif"],
+    ['fieldFont', 'setFieldFont', 'fieldFontFamily', "'Cascadia Mono', Consolas, 'Courier New', monospace"],
+    ['textEditorFont', 'setTextEditorFont', 'textEditorFontFamily', "'Cascadia Mono', Consolas, 'Courier New', monospace"],
+    ['canvasEditorFont', 'setCanvasEditorFont', 'canvasEditorFontFamily', 'sans-serif'],
+  ] as const)('publishes and mirrors %s while preserving its default combination', (field, setter, family, defaults) => {
     const settings = useSettingsStore();
-    expect(settings.generalFont).toBeNull();
-    settings.setGeneralFont('Microsoft YaHei');
-    expect(settings.settingsSnapshot().generalFont).toBe('Microsoft YaHei');
-    expect(settings.fontFamily).toBe("\"Microsoft YaHei\", Inter, 'Segoe UI', 'Microsoft YaHei', sans-serif");
-    settings.replaceSettings(createSettingsFixture({ generalFont: 'Arial' }));
-    expect(settings.generalFont).toBe('Arial');
-    settings.setGeneralFont(null);
-    expect(settings.fontFamily).toBe("Inter, 'Segoe UI', 'Microsoft YaHei', sans-serif");
+    expect(settings[field]).toBeNull();
+    settings[setter]('Microsoft YaHei');
+    expect(settings.settingsSnapshot()[field]).toBe('Microsoft YaHei');
+    expect(settings[family]).toBe('"Microsoft YaHei", ' + defaults);
+    settings.replaceSettings(createSettingsFixture({ [field]: 'Arial' }));
+    expect(settings[field]).toBe('Arial');
+    settings[setter](null);
+    expect(settings[family]).toBe(defaults);
     for (const value of ['', ' ', 'Arial\n', 1]) {
-      const generalFont = value as string;
-      expect(() => initializeSettingsStore(createSettingsFixture({ generalFont }))).toThrow();
-      expect(() => settings.setGeneralFont(generalFont)).toThrow();
-      expect(() => settings.replaceSettings(createSettingsFixture({ generalFont }))).toThrow();
-      expect(settings.generalFont).toBeNull();
+      const font = value as string;
+      expect(() => initializeSettingsStore(createSettingsFixture({ [field]: font }))).toThrow();
+      expect(() => settings[setter](font)).toThrow();
+      expect(() => settings.replaceSettings(createSettingsFixture({ [field]: font }))).toThrow();
+      expect(settings[field]).toBeNull();
     }
   });
   it('validates and adopts the original-font switch through initialization and mirrors', () => {

@@ -90,7 +90,13 @@ pub struct AppSettings {
     #[serde(default = "default_custom_accent")]
     pub custom_accent: String,
     #[serde(default)]
-    pub general_font: Option<String>,
+    pub interface_font: Option<String>,
+    #[serde(default)]
+    pub field_font: Option<String>,
+    #[serde(default)]
+    pub text_editor_font: Option<String>,
+    #[serde(default)]
+    pub canvas_editor_font: Option<String>,
     #[serde(default = "default_file_history_limit")]
     pub file_history_limit: u32,
     #[serde(default = "default_edit_history_limit")]
@@ -137,7 +143,10 @@ impl Default for AppSettings {
             theme: None,
             accent: default_accent(),
             custom_accent: default_custom_accent(),
-            general_font: None,
+            interface_font: None,
+            field_font: None,
+            text_editor_font: None,
+            canvas_editor_font: None,
             file_history_limit: default_file_history_limit(),
             edit_history_limit: default_edit_history_limit(),
             log_rotation_size_mib: default_log_rotation_size_mib(),
@@ -302,19 +311,21 @@ mod tests {
     }
 
     #[test]
-    fn general_font_roundtrip() {
-        assert_eq!(AppSettings::default().general_font, None);
-        let settings: AppSettings =
-            serde_json::from_value(json!({"generalFont": "Microsoft YaHei"})).unwrap();
-        assert_eq!(settings.general_font.as_deref(), Some("Microsoft YaHei"));
-        let wire = serde_json::to_value(&settings).unwrap();
-        assert_eq!(wire["generalFont"], "Microsoft YaHei");
-        assert!(wire["immersiveGameFont"].as_bool().unwrap());
-        assert_eq!(
-            serde_json::from_value::<AppSettings>(wire).unwrap(),
-            settings
-        );
-        assert!(serde_json::from_value::<AppSettings>(json!({"generalFont": 1})).is_err());
+    fn font_settings_roundtrip() {
+        for name in [
+            "interfaceFont",
+            "fieldFont",
+            "textEditorFont",
+            "canvasEditorFont",
+        ] {
+            let mut wire = serde_json::to_value(AppSettings::default()).unwrap();
+            assert_eq!(wire[name], json!(null));
+            wire[name] = json!("Microsoft YaHei");
+            let settings: AppSettings = serde_json::from_value(wire.clone()).unwrap();
+            assert_eq!(serde_json::to_value(settings).unwrap(), wire);
+            wire[name] = json!(1);
+            assert!(serde_json::from_value::<AppSettings>(wire).is_err());
+        }
     }
 
     #[test]

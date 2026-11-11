@@ -8,11 +8,11 @@
 
 ### 拥有
 
-- `src-tauri/src/commands/text_editor.rs`：文本编辑 command 边界。
-- `src-tauri/src/services/text_editor.rs`：后端编辑 service，消费 IO 路径授权并交付文本读写。
+- `src-tauri/src/commands/text_editor.rs`：明确实体身份跟随的命令边界。
+- `src-tauri/src/services/text_editor.rs`：文本转码及明确实体身份跟随。
 - `src/app/TextEditorContent.vue`：窗口内容，装配文本视图、行号、快捷键与外部文本呈现。
-- `src/app/composables/editors/use-text-editor-view-model.ts`：编辑 ViewModel，拥有文本 Draft Session、加载、保存、undo/redo 与行列聚焦。
-- `src/services/text-editor.service.ts`：文本读取、身份交接、保存与转码的 IPC 参数装配。
+- `src/app/composables/editors/use-text-editor-view-model.ts`：独立窗口、加载反馈、错误恢复、定位与身份跟随。
+- `src/services/text-editor.service.ts`：转码和实体身份跟随的类型化传输。
 - `src/windows/text-editor.window.ts`：消费完整文件请求并交付常规与恢复模式窗口身份。
 
 ### 消费
@@ -23,14 +23,15 @@
 - `src-tauri/src/io/mod.rs`：授权路径、同次字节与版本读取以及变更集能力。
 - `src-tauri/src/models/file_content.rs`：精确文档、原始格式、物理 CSV 行格及完整写入请求。
 - `src-tauri/src/models/file_value.rs`：64 位整数、浮点与 UTF-16 文字的精确值。
-- `src-tauri/src/models/text_editor.rs`：文本读取、保存、转码与身份请求协议。
+- `src-tauri/src/models/text_editor.rs`：转码与身份跟随请求协议。
 - `src-tauri/src/parsers/game/`：游戏 JSON/CSV 的正式读取入口、文档方法、数值及文本格式能力。
 - `src-tauri/src/services/project/query/entity_targets.rs`：实际编辑目标、身份意图及正式版本范围。
 - `src-tauri/src/services/project/session.rs`：会话打开、关闭、内容更新与内部登记及就绪访问能力交付。
 - `src-tauri/src/services/project/write/entity_write.rs`：已识别实体文本的身份及关联写入。
+- `src-tauri/src/services/text_file_editing.rs`：正式文本读取、原文写入及来源版本。
+- `src/app/composables/text-file-editing/use-text-file-state.ts`：共同文件草稿、文本历史和输入状态。
 - `src/app/composables/use-app-feedback.ts`：窗口反馈的提供与消费入口。
 - `src/app/composables/use-context-menu.ts`：窗口菜单状态、目标操作、事件生命周期与业务根登记。
-- `src/app/composables/use-edit-target-draft-session.ts`：完整目标快照、读取票据、保存 Promise 与接纳上下文。
 - `src/app/composables/use-field-input-actions.ts`：所属输入集合登记、活动输入提交与释放。
 - `src/app/composables/use-managed-window-requests.ts`：组件作用域内请求接纳及释放适配。
 - `src/app/composables/use-window-close-state.ts`：窗口内容关闭登记及操作锁。
@@ -39,9 +40,11 @@
 - `src/domain/project/entity-versions.ts`：保存目标版本捕获与关联表凭据交接。
 - `src/orchestrators/project-sync.orchestrator.ts`：窗口内保存消费过程和内容维护者交接。
 - `src/orchestrators/window-identity.orchestrator.ts`：正式文件身份预约及窗口交接。
+- `src/services/text-file-editing.service.ts`：文本加载及单文件保存的正式入口。
 - `src/services/window.service.ts`：窗口 command 的类型化签名与参数装配。
 - `src/shared/runtime/text-document.ts`：不可变文本、原始换行、历史、当前文件搜索及按文件启用的语言能力。
-- `src/shared/types/text-editor.types.ts`：文本读取、保存、转码与身份请求协议。
+- `src/shared/types/text-editor.types.ts`：转码与身份跟随请求协议。
+- `src/shared/types/text-file-editing.types.ts`：共同读取及保存协议。
 - `src/shared/types/write-commit.types.ts`：公共保存回执、提交同步、行键映射与正式内容交付。
 - `src/shared/ui/TextEditorSurface.vue`：文本输入、可视行号、错误行和滚动定位。
 - `src/stores/project-sync.store.ts`：当前待办、错误和项目等待状态。
@@ -125,4 +128,3 @@
 - 错误恢复窗口必须以 nullable session 身份发布完整提交结果；恢复入口消费后端返回的实际关联会话集合。
 - Java 文件启用高亮、所属缩进及折叠；搜索替换只处理当前文档并进入所属历史与保存流程。
 - 单行超过 20,000 个 UTF-16 字符时必须提示轻量显示并暂停 Java 语法功能，内容恢复后重新启用。
-- 文本批量保存接纳明确的内容、目标和来源版本，在同根 changeset 中提交并共同交付实际写入结果。

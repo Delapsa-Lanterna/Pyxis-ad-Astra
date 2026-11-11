@@ -1,6 +1,6 @@
 use super::{enqueue_in, finish, lanes, publish, release_window, sources};
 use crate::models::WindowIdentity;
-use crate::models::code_editor::{CodeEditorFile, CodeEditorFileResult};
+use crate::models::{TextFileOpen, TextFileOpenResult};
 use crate::services::project::PerformanceTrace;
 use crate::services::{project, project_sync};
 use crate::test_support::TestWorkspace;
@@ -55,8 +55,8 @@ fn project_sources_describe_ready_references_without_starting_java() {
     work.close().unwrap();
 }
 
-fn file(path: &str) -> CodeEditorFile {
-    CodeEditorFile {
+fn file(path: &str) -> TextFileOpen {
+    TextFileOpen {
         path: path.into(),
         line: None,
         column: None,
@@ -83,7 +83,7 @@ fn code_editor_queue_keeps_fifo_receipts_and_releases_pending_files() {
     finish(
         label,
         "first",
-        vec![CodeEditorFileResult {
+        vec![TextFileOpenResult {
             path: "A.java".into(),
             diagnostic: None,
         }],

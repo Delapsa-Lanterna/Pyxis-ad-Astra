@@ -77,24 +77,24 @@
     </section>
     <section class="panel-card ui-layout-shrink ui-control-border ui-content-surface ui-layout-grid ui-layout-stretch">
       <h3 class="panel-section-title">字体</h3>
-      <FieldRow label="通用字体"
+      <FieldRow v-for="(row, key) in FONT_FIELDS" :key="key" :label="row[0]"
         ><div class="ui-field-actions ui-layout-stretch action-group">
           <n-select
-            :value="settings.generalFont ?? ''"
+            :value="settings[key] ?? ''"
             :options="fontOptions"
             :loading="fontsLoading"
             filterable
             size="small"
-            @update:value="settings.setGeneralFont($event || null)"
+            @update:value="settings[row[2]]($event || null)"
           />
         </div>
-        <template #hint><FieldHints description="选择本机已安装字体。默认字体组合为 Inter、Segoe UI、Microsoft YaHei。" /></template
+        <template #hint><FieldHints :description="row[1]" /></template
       ></FieldRow>
 
       <FieldRow label="沉浸式编辑器字体"
         ><n-switch class="tool-switch" :value="settings.immersiveGameFont" @update:value="settings.setImmersiveGameFont" /><template #hint
           ><FieldHints
-            description="优先从指定目录加载字体，再尝试游戏原版字体，最后使用通用字体。位图字体缺字时，以英文问号代替。" /></template
+            description="优先从指定目录加载字体，再尝试游戏原版字体，最后使用界面字体。位图字体缺字时，以英文问号代替。" /></template
       ></FieldRow>
       <FieldRow label="沉浸式字体路径">
         <div class="ui-field-actions ui-layout-stretch action-group">
@@ -379,6 +379,16 @@ const LOG_LEVEL_OPTIONS: { label: string; value: LogLevel }[] = [
   { label: '警告（WARNING）', value: 'warning' },
   { label: '错误（ERROR）', value: 'error' },
 ];
+const FONT_FIELDS = {
+  interfaceFont: ['界面字体', '选择本机已安装字体。默认字体组合为 Inter、Segoe UI、Microsoft YaHei。', 'setInterfaceFont'],
+  fieldFont: ['字段字体', '用于字段键、路径、ID、代码及悬浮提示。默认字体组合为 Cascadia Mono、Consolas、Courier New。', 'setFieldFont'],
+  textEditorFont: [
+    '文本编辑器字体',
+    '用于文本编辑器和代码编辑器的主编辑区。默认字体组合为 Cascadia Mono、Consolas、Courier New。',
+    'setTextEditorFont',
+  ],
+  canvasEditorFont: ['画布编辑器字体', '用于画布内的文字。默认使用系统 sans-serif 字体。', 'setCanvasEditorFont'],
+} as const;
 const HISTORY_FIELDS = {
   fileHistoryLimit: [
     '文件保存历史步数',

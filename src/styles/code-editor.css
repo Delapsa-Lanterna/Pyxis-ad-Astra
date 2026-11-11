@@ -1,116 +1,105 @@
 .code-editor {
-  grid-template-rows: auto auto auto minmax(0, 1fr) auto;
+  grid-template-rows: auto auto auto minmax(0, 1fr) auto auto;
   height: 100%;
   background: var(--color-bg);
 }
-.code-editor-tabs {
-  height: 32px;
-  min-width: 0;
-  padding: 0 4px;
+.code-editor-header {
+  padding: 8px 12px;
   border-bottom: 1px solid var(--color-border);
 }
-.code-editor-tabs .mod-tab-activate {
-  min-width: 0;
+.code-editor-identity,
+.code-editor-tools,
+.code-project-heading,
+.code-editor-status {
+  gap: 8px;
+}
+.code-editor-identity {
+  margin-bottom: 8px;
 }
 .code-editor-tools {
-  justify-content: space-between;
-  gap: 8px;
-  padding: 8px 12px;
-}
-.code-editor-tools .action-group {
   flex-wrap: wrap;
-  justify-content: end;
+  justify-content: space-between;
 }
-.code-editor-tools .n-input {
-  width: 130px;
+.code-java-tools {
+  width: 520px;
+  max-width: calc(100vw - 32px);
 }
-.code-signature {
-  white-space: pre-wrap;
-  padding: 6px 10px;
+.code-java-tools .n-input {
+  width: 160px;
 }
-.code-editor .cm-tooltip {
-  background: var(--color-panel);
-  color: var(--color-text);
-  border-color: var(--color-border);
-}
-.code-editor .cm-tooltip-autocomplete li[aria-selected] {
-  background: var(--color-primary);
-  color: var(--color-on-primary);
-}
-.code-editor-tools > span {
-  min-width: 0;
-  flex: 1;
-}
-.code-analysis-body {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  grid-template-rows: minmax(0, 1fr) auto;
+.code-workspace {
+  grid-row: 4;
   min-height: 0;
+  min-width: 0;
 }
-.code-outline,
-.code-analysis-results {
+.code-workspace .n-split,
+.code-analysis-body,
+.code-project-tree {
+  height: 100%;
+  min-height: 0;
+  min-width: 0;
+}
+.code-workspace .n-split-pane-1,
+.code-workspace .n-split-pane-2 {
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+.code-text-area {
+  height: 100%;
+}
+.code-project-tree {
   overflow: auto;
   padding: 8px;
 }
-.code-outline {
-  grid-column: 2;
-  grid-row: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: start;
-  border-left: 1px solid var(--color-border);
+.code-project-tools {
+  gap: 8px;
 }
-.code-analysis-results {
-  grid-column: 1 / -1;
-  max-height: 180px;
-  border-top: 1px solid var(--color-border);
+.code-project-heading {
+  color: var(--color-text);
+  width: 100%;
+  text-align: left;
+  padding: 8px 0;
 }
-.code-analysis-results .n-button {
-  display: flex;
+.code-project-chevron {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  transition: transform var(--ui-motion-duration) var(--ui-motion-easing);
 }
-.code-diagnostic-error,
-.code-diagnostic-warning {
-  text-decoration: underline wavy;
+.code-project-chevron.opened {
+  transform: rotate(90deg);
 }
-.code-diagnostic-error {
-  text-decoration-color: var(--color-danger);
+.code-resize {
+  width: 100%;
+  height: 100%;
+  cursor: col-resize;
+  background: var(--color-border);
 }
-.code-diagnostic-warning {
-  text-decoration-color: var(--color-warning);
+.code-resize-horizontal {
+  cursor: row-resize;
+}
+.code-resize:hover,
+.code-resize:focus-visible {
+  background: var(--color-primary);
+}
+.code-resize:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: -2px;
 }
 .code-editor-status {
   grid-row: 5;
   padding: 4px 12px;
   border-top: 1px solid var(--color-border);
 }
-.code-workspace {
-  grid-row: 4;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  min-height: 0;
-  min-width: 0;
+.code-editor-status > [role='status'] {
+  flex: 1;
 }
-.code-tree-open {
-  grid-template-columns: 220px minmax(0, 1fr);
+.code-editor-status > span:last-child {
+  flex-shrink: 0;
 }
-.code-outline-open .code-analysis-body {
-  grid-template-columns: minmax(0, 1fr) 160px;
-}
-.code-analysis-body > .text-editor-surface {
-  grid-column: 1;
-  grid-row: 1;
-  min-width: 0;
-}
-.code-project-tree {
-  overflow: auto;
-  padding: 8px;
-  border-right: 1px solid var(--color-border);
-}
-.code-project-heading {
-  color: var(--color-text);
-  display: block;
-  width: 100%;
-  text-align: left;
-  overflow-wrap: anywhere;
-  padding: 8px 0;
+@media (prefers-reduced-motion: reduce) {
+  .code-project-chevron {
+    transition: none;
+  }
 }

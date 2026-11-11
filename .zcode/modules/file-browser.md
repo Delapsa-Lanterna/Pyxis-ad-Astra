@@ -14,10 +14,11 @@
 - `src/app/composables/file-browser/`：目录读取、预载、搜索和文本打开生命周期。
 - `src/domain/file-browser/`：文件树、同级排序与元数据展示纯投影。
 - `src/services/file-browser.service.ts`：目录、搜索及文本目标的类型化传输入口。
-- `src/stores/file-browser.store.ts`：按 session 隔离的目录、搜索、排序及两组浏览状态。
+- `src/stores/file-browser.store.ts`：目录、搜索、排序及两组浏览状态的实例工厂和页面状态。
 
 ### 消费
 
+- `src-tauri/src/domain/text_file.rs`：字节内容的文本分类。
 - `src-tauri/src/io/mod.rs`：授权路径、同次字节与版本读取以及变更集能力。
 - `src-tauri/src/models/file_browser.rs`：目录条目、种类与文本窗口目标的 wire 模型。
 - `src-tauri/src/parsers/game/text.rs`：结构化文本替代解码、严格纯文本及明确源编码解码。
@@ -33,12 +34,14 @@
 
 - `src-tauri/src/services/mod.rs`：直接从所属实现交付正式业务函数入口。
 - `src/app/AppContent.vue`：交付工作区当前正式浏览目标。
-- `src/app/composables/code-editor/use-code-project.ts`：消费目录读取队列及树投影，持有独立代码窗口浏览状态。
+- `src/app/components/code-editor/CodeProjectTree.vue`：来源分组消费共同树节点展示。
+- `src/app/composables/code-editor/use-code-project.ts`：为当前项目和引用来源创建所属浏览实例。
 
 ## 边界
 
 - ProjectSession 提供授权根，目录查询拥有实际条目及文本内容判定。
 - ViewModel 拥有读取接纳与用户动作，组件绑定展示、滚动及焦点。
+- 共同树节点交付文件种类及读取状态，文件概览页独立装配元数据列。
 - store 拥有本次运行的浏览状态，工作区拥有页面及项目身份。
 - 文本窗口拥有文本、dirty、历史、保存和身份交接，浏览器交付正式打开目标。
 - 普通浏览与搜索结果分别拥有展开、选择和滚动，搜索文本及排序归所属 session 运行态。
@@ -80,9 +83,9 @@
 
 - 二进制结果必须结束打开动作；未命中二进制特征的解码失败保留实际路径及 text.invalid_utf8 诊断。
 - 同一次项目变化必须只计算一次受影响目录集合，每个已加载目录及当前搜索各自最多读取一次。
-- 展开、选择和滚动必须按 session 隔离并保存在本次运行的内存中，项目释放时清理所属状态。
+- 展开、选择和滚动必须按实例及 session 隔离，实例释放结束接纳，项目释放清理页面保留状态。
 - 排序在各层同级条目内执行并保持目录优先，相等值消费名称自然排序，缺失值置于所属分组末尾。
-- 搜索按名称进行忽略大小写的子串匹配并返回匹配项与祖先，递归只允许遍历所属授权根。
+- 搜索按名称进行忽略大小写的子串匹配并返回匹配项与祖先，递归只允许遍历请求交付的授权目录范围。
 - 搜索输入按 250 ms 防抖或 Enter 立即提交，较早查询失效；清空搜索恢复普通浏览状态。
 - 文件打开必须消费后端返回的完整 session、Mod 根及 path，严禁依据活动目录补齐已捕获目标。
 - 查询必须消费已登记 session 的根与现有路径边界；链接和重解析点作为受限条目展示。

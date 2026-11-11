@@ -15,6 +15,7 @@ mod inputs;
 pub mod management;
 mod requests;
 mod sessions;
+pub(crate) use inputs::source_root;
 pub use inputs::{AnalysisExtras, AnalysisInputs, inputs_for_session};
 use management::ComponentManagement;
 pub use requests::request;

@@ -9,7 +9,8 @@ use crate::services::project::write::{
     config_entity, csv_patch, entity_write::content, joint_edit, json_recovery,
 };
 use crate::services::{
-    json_file, misc_config, project, project_sync, text_editor, write_transactions,
+    json_file, misc_config, project, project_sync, text_editor, text_file_editing,
+    write_transactions,
 };
 use serde::Serialize;
 #[cfg(test)]
@@ -93,7 +94,7 @@ fn prepare_save_action(
 ) -> AppResult<()> {
     match action {
         SaveAction::SaveEditorSpec(input) => content::prepare_spec_save(input, edits, identities),
-        SaveAction::SaveTextFile(input) => text_editor::prepare_text_save(input, identities),
+        SaveAction::SaveTextFile(input) => text_file_editing::prepare_text_save(input, identities),
         SaveAction::SaveCsvPatch(input) => csv_patch::prepare_csv_save(input, edits),
         SaveAction::SaveJointEdit(input) => {
             joint_edit::prepare_joint_save(input, edits, identities)
@@ -144,11 +145,11 @@ pub(crate) fn execute_save_action(mut action: SaveAction) -> AppResult<WriteResu
             "保存编辑器规格",
         ),
         SaveAction::SaveTextFile(input) => (
-            text_editor::save_project_text_file(&input.mod_root, &input.path, input.text)?,
+            text_file_editing::save_project_text_file(&input.mod_root, &input.path, input.text)?,
             "保存文本",
         ),
         SaveAction::SaveTextBatch(input) => (
-            json_result(text_editor::save_text_batch(input)?)?,
+            json_result(text_file_editing::save_text_batch(input)?)?,
             "保存文本批次",
         ),
         SaveAction::TranscodeFileToUtf8(input) => (

@@ -53,6 +53,6 @@
   overflow: auto;
   overflow-wrap: anywhere;
   white-space: pre-wrap;
-  font: 11px/18px var(--font-mono);
+  font: 11px/18px var(--font-field);
   color: var(--color-text-soft);
 }

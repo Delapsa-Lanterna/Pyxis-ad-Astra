@@ -11,7 +11,7 @@ body .window-runtime-overlays {
   border-radius: 4px;
   background: var(--color-panel);
   color: var(--color-text-soft);
-  font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;
+  font-family: var(--font-field);
   font-weight: 400;
   line-height: 16px;
   white-space: pre-wrap;

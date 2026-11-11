@@ -61,7 +61,36 @@ export async function verifyEditors(page, output) {
   await editor.getByRole('tab').first().dragTo(editor.getByRole('tab').last());
   assert.notDeepEqual(await editor.getByRole('tab').allTextContents(), originalOrder);
   checks.push({ name: 'tab drag preserves native text view', pass: true });
-  for (const width of [1280, 800])
+  await page.setViewportSize({ width: 2242, height: 900 });
+  for (const label of ['展开项目树', '展开大纲']) {
+    const button = editor.getByRole('button', { name: label, exact: true });
+    if (await button.count()) await button.click();
+  }
+  await editor.getByRole('button', { name: '诊断与引用', exact: true }).click();
+  const treeHandle = editor.getByRole('separator', { name: '调整项目树宽度' });
+  const originalTree = await treeHandle.getAttribute('aria-valuenow'),
+    bounds = await treeHandle.boundingBox();
+  assert.ok(bounds);
+  await page.mouse.move(bounds.x + bounds.width / 2, bounds.y + 60);
+  await page.mouse.down();
+  await page.mouse.move(bounds.x + 64, bounds.y + 60, { steps: 4 });
+  await page.mouse.up();
+  assert.notEqual(await treeHandle.getAttribute('aria-valuenow'), originalTree);
+  const resizedTree = await treeHandle.getAttribute('aria-valuenow');
+  await editor.getByRole('button', { name: '收起项目树', exact: true }).click();
+  await editor.getByRole('button', { name: '展开项目树', exact: true }).click();
+  assert.equal(await treeHandle.getAttribute('aria-valuenow'), resizedTree);
+  for (const label of ['调整大纲宽度', '调整结果面板高度']) {
+    const handle = editor.getByRole('separator', { name: label });
+    const before = await handle.getAttribute('aria-valuenow');
+    await handle.press(label.includes('大纲') ? 'ArrowLeft' : 'ArrowUp');
+    assert.notEqual(await handle.getAttribute('aria-valuenow'), before);
+  }
+  await editor.getByText('当前项目没有诊断', { exact: true }).waitFor();
+  await editor.getByRole('button', { name: '关闭结果面板', exact: true }).click();
+  assert.equal(await editor.locator('.cm-editor').count(), 1);
+  checks.push({ name: 'pointer resize, keyboard resize, collapse restoration and single text view', pass: true });
+  for (const width of [1602, 2242, 2882])
     for (const theme of ['light', 'dark']) {
       await page.setViewportSize({ width, height: 900 });
       await page.evaluate((theme) => Reflect.get(globalThis, 'browserWorkspace').setAppearance({ theme }), theme);
@@ -88,6 +117,19 @@ export async function verifyEditors(page, output) {
   await editor.getByRole('button', { name: '保存', exact: true }).click();
   await editor.locator('footer').filter({ hasText: '已保存' }).waitFor();
   checks.push({ name: 'selection and horizontal/vertical scroll survive a document switch', pass: true });
+  await page.evaluate(async () => {
+    const workspace = Reflect.get(globalThis, 'browserWorkspace'),
+      project = workspace.projects.find(
+        /** @param {{manifest:{modRoot:string}}} entry */ (entry) => entry.manifest.modRoot.endsWith('/code_sample'),
+      );
+    const files = Array.from({ length: 50 }, (_, index) => ({ path: project.manifest.modRoot + `/notes/Item${index}.txt` }));
+    for (const file of files) project.textFiles.set(file.path, 'Sample text');
+    await workspace.invoke('main', 'open_code_editor', { input: { ...project.manifest, files }, key: crypto.randomUUID() });
+  });
+  await editor.getByRole('tab', { name: 'Item49.txt', exact: true }).waitFor();
+  assert.equal(await editor.getByRole('tab', { name: 'Item49.txt', exact: true }).getAttribute('aria-selected'), 'true');
+  assert.equal(await editor.getByRole('button', { name: '跳转声明', exact: true }).count(), 0);
+  checks.push({ name: '50 sequential file tabs activate the final file and ordinary text exposes text operations', pass: true });
   await closeEditorDocuments(editor);
   checks.push({ name: 'all documents released', pass: true });
   checks.push(...(await verifyTextEditor(page, output)));

@@ -69,7 +69,7 @@ export function drawCrossMarker(ctx: CanvasRenderingContext2D, point: Point, sty
   ctx.lineTo(point.x, point.y + style.radius);
   strokeCanvasOutline(ctx, style);
   if (label) {
-    ctx.font = '18px sans-serif';
+    ctx.font = `18px ${style.fontFamily}`;
     ctx.fillStyle = style.color;
     ctx.strokeStyle = style.outline;
     ctx.lineWidth = 1;
@@ -139,7 +139,7 @@ export function drawBarrelVisual(ctx: CanvasRenderingContext2D, options: BarrelV
   strokeCanvasOutline(ctx, options.style.line);
   drawControlPoint(ctx, options.point, options.style.control);
   ctx.globalAlpha = options.style.label.alpha;
-  ctx.font = '11px sans-serif';
+  ctx.font = `11px ${options.style.label.fontFamily}`;
   ctx.fillStyle = options.style.label.color;
   ctx.strokeStyle = options.style.label.outline;
   ctx.lineWidth = options.style.label.width;

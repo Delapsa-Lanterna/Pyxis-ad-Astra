@@ -111,7 +111,7 @@
 - `src/app/composables/immersive-editor/variant/use-immersive-variant-editor.ts`：装配动作、确认、在途状态及动作历史。
 - `src/app/composables/immersive-editor/weapon/use-immersive-weapon-editor.ts`：分支覆盖、弹体及开火预览动作。
 - `src/app/composables/immersive-editor/wing/use-immersive-wing-editor.ts`：按 rowKey 读取、来源补全、身份跟随及关联编辑器打开。
-- `src/app/composables/settings/use-theme-dom-effect.ts`：主题与通用字体 DOM 副作用，写 root dataset、颜色变量与字体变量。
+- `src/app/composables/settings/use-theme-dom-effect.ts`：主题与字体 DOM 副作用，写 root dataset、颜色变量与字体变量。
 - `src/app/composables/spec-editor/spec-editor.types.ts`：目标、响应式输入及规格定义契约。
 - `src/app/composables/spec-editor/spec-schema-context.ts`：所属规格目标的字段来源上下文交付。
 - `src/app/composables/spec-editor/use-spec-editor-draft-images.ts`：草稿图像读取及接纳。

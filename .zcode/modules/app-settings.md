@@ -13,7 +13,7 @@
 - `src-tauri/src/services/app_settings/`：系统字体枚举及设置所属依赖。
 - `src/app/components/SettingsPage.vue`：设置页组件，消费全局历史限制、日志留存与 accent 预设。
 - `src/app/composables/settings/use-settings-view-model.ts`：字体与日志读取、页面投影、重置确认，以及主窗口交付的来源切换动作消费。
-- `src/app/composables/settings/use-theme-dom-effect.ts`：主题与通用字体 DOM 副作用，写 root dataset、颜色变量与字体变量。
+- `src/app/composables/settings/use-theme-dom-effect.ts`：主题与字体 DOM 副作用，写 root dataset、颜色变量与字体变量。
 - `src/domain/settings/`：设置校验、字体、配色与主题令牌纯规则。
 - `src/orchestrators/settings-persistence.orchestrator.ts`：设置持久化与镜像，负责保存、接收快照及已提交设置的装配回调。
 - `src/services/app-settings.service.ts`：settings 读写、类型化快照通知与 command 参数装配。
@@ -63,7 +63,7 @@
 - `watchFileChanges` 默认开启，随完整设置快照保存、镜像及重置，正式提交后立即应用到已打开的来源。
 - 领域拥有输入校验与主题算法，store 持有设置运行态、setter 和派生结果。
 - `ignoreEditorWarnings` 默认关闭，随完整设置快照保存、镜像及重置；编辑器按当前值隐藏黄色问题列表并跳过编辑警告确认。
-- 领域拥有通用字体组合，主题 effect 与 Naive provider 消费 store 派生的同一字体族。
+- 领域拥有界面字体、字段字体、文本编辑器字体与画布编辑器字体组合，主题 effect 消费对应派生值，Naive provider 消费界面字体族。
 
 ## 链路
 
@@ -98,13 +98,13 @@
 3. 主题 effect 把 root dataset 主题名与全部主题变量写入 document。
 4. 唯一窗口壳的 Naive provider 消费同一份令牌派生的覆盖对象。
 
-### 通用字体选择
+### 字体选择
 
 1. 设置页 ViewModel 通过设置 service 请求本机已安装字体族。
 2. 后端 Windows 枚举去重并排序，读取票据接纳所属设置页的字体选项。
-3. 用户选择字体族或默认组合，store 发布完整设置快照并派生字体族。
-4. 主题 effect 更新 `--font-sans`，Naive provider 消费相同字体族。
-5. 默认文字测量消费响应式字体族并更新截断与布局。
+3. 用户分别选择界面字体、字段字体、文本编辑器字体与画布编辑器字体的字体族或默认组合，store 发布完整设置快照并派生各自字体族。
+4. 主题 effect 发布三种字体变量，普通文字、字段文字与主编辑区正文分别消费所属字体族，Naive provider 消费界面字体族。
+5. 默认文字测量消费响应式字体族并更新截断与布局，画布场景消费画布编辑器字体并重绘文字。
 
 ### 重置设置
 
@@ -117,7 +117,10 @@
 - `cacheLimits` 随完整快照持久化与镜像，正式快照接纳后立即应用；条数范围为整数 0–65536，MiB 范围为整数 0–4096，零值关闭相应闲置缓存。
 - `cacheLimits.mediaData` 统一表达闲置媒体条数与 MiB，默认值为 2048 与 64；活跃租约独立计量。
 - `editHistoryLimit` 与 `fileHistoryLimit` 必须分别控制每个编辑撤销栈及每个 Mod 根的文件保存历史，默认值分别为 250 与 20，整数范围为 1–1000；设置读取和保存共同校验范围。
-- `generalFont` 必须以 `null` 表达默认字体组合，以非空且不含控制字符的单个字体族名表达选择；默认组合为 Inter、Segoe UI、Microsoft YaHei 和 sans-serif，选择随完整快照持久化及镜像。
+- `interfaceFont` 必须以 `null` 表达默认字体组合，以非空且不含控制字符的单个字体族名表达选择；默认组合为 Inter、Segoe UI、Microsoft YaHei 和 sans-serif，选择随完整快照持久化及镜像。
+- `fieldFont` 必须以 `null` 表达默认字体组合，以非空且不含控制字符的单个字体族名表达选择；默认组合为 Cascadia Mono、Consolas、Courier New 和 monospace，作用于字段文字与窗口悬浮提示，并随完整快照持久化及镜像。
+- `textEditorFont` 必须以 `null` 表达默认字体组合，以非空且不含控制字符的单个字体族名表达选择；默认组合为 Cascadia Mono、Consolas、Courier New 和 monospace，作用于文本编辑器与代码编辑器的主编辑区正文，并随完整快照持久化及镜像。
+- `canvasEditorFont` 必须以 `null` 表达默认 sans-serif 字体，以非空且不含控制字符的单个字体族名表达选择；作用于画布内文字，并随完整快照持久化、镜像及重置。
 - `immersiveFontDirectory` 必须以 `null` 表达游戏字体来源，以绝对目录路径表达指定来源，随完整设置快照持久化、镜像及重置；目录可用性由字体加载流程处理。
 - `logBackupCount` 默认为 1，整数范围为 1–20；`logRotationSizeMiB` 默认为 5，整数范围为 1–1024。
 - `logLevel` 只允许 debug、info、warning 和 error，默认为 info；正式保存后立即更新当前进程与各窗口的记录级别。

@@ -324,7 +324,7 @@ body.csv-column-resizing {
 }
 .csv-cell-picker-list .n-collapse .n-collapse-item .n-collapse-item__header .n-collapse-item__header-main {
   color: var(--color-muted);
-  font: 600 10px/14px var(--font-sans);
+  font: 600 10px/14px var(--font-interface);
 }
 .csv-cell-picker-list .n-collapse .n-collapse-item .n-collapse-item__content-wrapper .n-collapse-item__content-inner {
   padding: 0;

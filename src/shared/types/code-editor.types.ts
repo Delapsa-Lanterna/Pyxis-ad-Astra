@@ -1,4 +1,4 @@
-import type { ErrorDiagnostic } from './error.types';
+import type { TextFileOpen } from './text-file-editing.types';
 
 export interface CodeEditorSource {
   sessionId: string;
@@ -13,21 +13,12 @@ export interface CodeEditorSources {
   analysisRoots: string[];
 }
 
-export interface CodeEditorFile {
-  path: string;
-  line?: number;
-  column?: number;
-}
 export interface CodeEditorOpen {
   sessionId: string;
   modRoot: string;
-  files: CodeEditorFile[];
+  files: TextFileOpen[];
 }
 export interface CodeEditorDelivery {
   key: string;
-  files: CodeEditorFile[];
-}
-export interface CodeEditorFileResult {
-  path: string;
-  diagnostic: ErrorDiagnostic | null;
+  files: TextFileOpen[];
 }

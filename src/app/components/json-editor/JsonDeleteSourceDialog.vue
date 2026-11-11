@@ -10,11 +10,11 @@
       }}，并放弃当前草稿和草稿历史。
     </p>
     <p>
-      <code>{{ indexPath }}</code>
+      <code class="ui-code">{{ indexPath }}</code>
     </p>
     <p v-if="!checked">{{ label === '战役' ? '战役目录保留：' : '势力文件保留：' }}</p>
     <p>
-      <code>{{ path }}</code>
+      <code class="ui-code">{{ path }}</code>
     </p>
   </div>
 </template>

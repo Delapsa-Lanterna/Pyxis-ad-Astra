@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { capabilityBoundaryRule } from './capability-boundary.mjs';
 
 test('file commands use the service capability boundary', () => {
-  for (const owner of ['src/services/text-editor.service.ts', 'src/shared/wire.ts']) {
+  for (const owner of ['src/services/text-file-editing.service.ts', 'src/shared/wire.ts']) {
     const files = architectureFixtures({
       [owner]: "import { invokeCommand } from '@/shared/runtime/command.runtime'; invokeCommand('load_text_file');",
       'src/shared/runtime/command.runtime.ts': 'export function invokeCommand() {}',

@@ -18,7 +18,7 @@
 - `src/app/renderers/editors/`：背景、几何标记、武器贴图及最终样式绘制原语。
 - `src/assets/engines/`：提供光柱、火焰与喷口辉光的 SVG 回退资产。
 - `src/domain/editors/editor-types.ts`：编辑坐标、模式与悬停预览的纯数据类型。
-- `src/domain/editors/lib/canvas-palette.ts`：应用主题到画布配色的纯投影。
+- `src/domain/editors/lib/canvas-palette.ts`：应用主题与字体到画布外观的纯投影。
 - `src/domain/editors/lib/editor-constants.ts`：吸附步长与选项常量。
 - `src/domain/editors/lib/geometry.ts`：舰船与武器坐标、角度、距离及边界线段纯规则。
 - `src/domain/editors/lib/mirror.ts`：镜像规则，拥有对称判定、镜像角度与成对新增。
@@ -107,7 +107,7 @@
 
 ### 场景与渲染运行态
 
-1. 编辑 ViewModel 接纳草稿、视口与选区，消费主题派生和当前可用资源。
+1. 编辑 ViewModel 接纳草稿、视口与选区，消费主题、画布字体派生和当前可用资源。
 2. 指针、字段、主题、资源或动画通知进入重绘回调。
 3. 场景计算视觉样式并调用应用渲染层的绘制原语。
 4. 窗口释放交互监听、贴图加载回调、着色缓存与帧循环。
@@ -133,3 +133,4 @@
 - 输入交接期间的短点击必须保留按下、最新位置与释放状态；指针动作沿同一上下文完成。
 - 选区状态必须以完整目标身份表达，起降口包含所属战机甲板与起降口下标，命中判定按距离与半径排序。
 - 画布骨架仅处理通用坐标、选区、指针与绘制契约。
+- 画布文字必须消费画布编辑器字体，字体变化沿所属场景重绘流程即时生效。

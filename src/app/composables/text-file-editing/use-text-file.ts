@@ -1,16 +1,14 @@
 import { computed, effectScope, shallowRef } from 'vue';
-import { useEditTargetDraftSession, type EditTargetDraftSession } from '@/app/composables/use-edit-target-draft-session';
-import { createTextDocument, readTextContent, sameTextContent, writeTextContent, type TextContent } from '@/shared/runtime/text-document';
+import { useTextFileState, type TextFileState } from './use-text-file-state';
+import { readTextContent } from '@/shared/runtime/text-document';
 import { useSaveCommandStore } from '@/stores/save-command.store';
-import { useSettingsStore } from '@/stores/settings.store';
-import { loadTextFile, saveTextFile } from '@/services/text-editor.service';
-import { beginSavedWrite } from '@/orchestrators/project-sync.orchestrator';
 import { normalizeFsPath } from '@/shared/lib/paths';
-import type { CodeEditorOpen, EntityTargetSnapshot, ErrorDiagnostic, WriteResult } from '@/shared/types';
-import { waitForRead } from '@/shared/runtime/read-request';
+import type { FileTextTarget, ErrorDiagnostic } from '@/shared/types';
 import type { DocumentSaveResult } from '@/shared/runtime/document-editor';
 
-export interface CodeDocumentGroup {
+export interface TextFileGroup {
+  dirty: () => boolean;
+  paths: () => string[];
   release: () => void;
   capture: () => () => boolean;
   save: () => Promise<DocumentSaveResult>;
@@ -20,59 +18,22 @@ export interface CodeDocumentGroup {
   discard: () => void;
 }
 
-export function createCodeDocument(owner: Pick<CodeEditorOpen, 'sessionId' | 'modRoot'>, path: string, source?: string) {
+export function createTextFile(owner: Pick<FileTextTarget, 'sessionId' | 'modRoot'>, path: string, source?: string) {
   const readOnly = source !== undefined;
   const scope = effectScope();
   let released = false;
   const document = scope.run(() => {
     type Target = typeof owner & { path: string };
-    type Meta = { entity: EntityTargetSnapshot | null; receipt: WriteResult | null };
-    const settings = useSettingsStore();
     const commands = useSaveCommandStore();
-    const group = shallowRef<CodeDocumentGroup | null>(null);
+    const group = shallowRef<TextFileGroup | null>(null);
     const pendingPath = shallowRef<string | null>(null);
-    const session: EditTargetDraftSession<TextContent, Target, Meta> = useEditTargetDraftSession<TextContent, Target, Meta>({
-      emptyValue: readTextContent(''),
-      clone: (text) => text,
-      equals: sameTextContent,
-      mapSavedDraft: (draft) => draft,
-      captureSave: () => document.separateHistory(),
-      targetKey: (target) => `${target.sessionId}\n${normalizeFsPath(target.path)}`,
-      beginSave: beginSavedWrite,
-      savedContent: (snapshot) => ({ ...snapshot, meta: { ...snapshot.meta, receipt: null } }),
-      load: async (target, signal) => {
-        const loaded = await waitForRead(loadTextFile(target.sessionId, target.modRoot, target.path), target, signal);
-        signal!.throwIfAborted();
-        return {
-          target: { ...target, path: loaded.path },
-          value: readTextContent(loaded.text),
-          baseVersions: loaded.baseVersions,
-          meta: { entity: loaded.entity, receipt: null },
-        };
+    const fileState: TextFileState<Target> = useTextFileState<Target>(
+      {
+        targetKey: (target) => `${target.sessionId}\n${normalizeFsPath(target.path)}`,
       },
-      save: async (target, draft, versions, _original, request) => {
-        const text = writeTextContent(draft);
-        const result = await saveTextFile(target.sessionId, target.modRoot, target.path, text, versions, request);
-        return {
-          target,
-          value:
-            typeof result.content?.value?.text === 'string' && result.content.value.text !== text
-              ? readTextContent(result.content.value.text)
-              : draft,
-          baseVersions: result.baseVersions,
-          requestId: result.requestId,
-          meta: { entity: session.baselineSnapshot.value!.meta.entity, receipt: result },
-        };
-      },
-    });
-    const document = createTextDocument(
-      session.draftValue,
-      session.context,
-      computed(() => settings.editHistoryLimit),
-      session.inputs,
-      undefined,
-      computed(() => session.currentTarget.value?.path ?? path),
+      (target) => target?.path ?? path,
     );
+    const { session, document } = fileState;
     const participant = {
       targetKey: session.currentTargetKey,
       modRoot: computed(() => owner.modRoot),
@@ -138,4 +99,4 @@ export function createCodeDocument(owner: Pick<CodeEditorOpen, 'sessionId' | 'mo
   })!;
   return document;
 }
-export type CodeDocument = ReturnType<typeof createCodeDocument>;
+export type TextFile = ReturnType<typeof createTextFile>;

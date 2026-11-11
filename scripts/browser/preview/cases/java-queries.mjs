@@ -58,10 +58,13 @@ export async function verifyJavaQueries(page, output) {
   const surface = editor.getByRole('textbox', { name: '文件内容' });
   await surface.fill(source);
   await editor.getByRole('status').filter({ hasText: 'Java 分析就绪' }).waitFor();
+  const expandOutline = editor.getByRole('button', { name: '展开大纲', exact: true });
+  if (await expandOutline.count()) await expandOutline.click();
   await editor.getByRole('button', { name: 'run', exact: true }).waitFor();
   await editor.getByRole('button', { name: '诊断与引用', exact: true }).click();
   await editor.getByRole('button', { name: /示例警告/ }).waitFor();
   assert.equal(await editor.locator('.code-diagnostic-warning').count(), 1);
+  await editor.getByRole('button', { name: 'Java 操作', exact: true }).click();
   await editor.getByRole('button', { name: '查找引用', exact: true }).click();
   await editor.getByText('fixture-api.jar', { exact: false }).waitFor();
   await editor.getByRole('button', { name: '跳转声明', exact: true }).click();

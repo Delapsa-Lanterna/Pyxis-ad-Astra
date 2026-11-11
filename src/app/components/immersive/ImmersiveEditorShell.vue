@@ -4,7 +4,7 @@
       <div v-if="!ready" class="immersive-editor-placeholder immersive-scene-grid">
         <header>
           <h1 class="page-title">{{ label }}编辑器</h1>
-          <code class="ui-text-wrap">{{ objectId }}</code>
+          <code class="ui-code ui-text-wrap">{{ objectId }}</code>
         </header>
       </div>
       <slot v-else />

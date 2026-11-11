@@ -1,5 +1,5 @@
 :root {
-  --font-sans: Inter, 'Segoe UI', 'Microsoft YaHei', sans-serif;
+  --font-interface: Inter, 'Segoe UI', 'Microsoft YaHei', sans-serif;
   --color-bg: #f7f7f5;
   --color-panel: #ffffff;
   --color-overlay: rgba(15, 23, 42, 0.42);
@@ -46,7 +46,8 @@
   --ui-feedback-duration: 80ms;
   --ui-motion-easing: cubic-bezier(0.4, 0, 0.2, 1);
   --ui-feedback-easing: ease-out;
-  --font-mono: 'Cascadia Mono', Consolas, 'Courier New', monospace;
+  --font-field: 'Cascadia Mono', Consolas, 'Courier New', monospace;
+  --font-text-editor: 'Cascadia Mono', Consolas, 'Courier New', monospace;
 }
 .ui-layout-contained {
   min-width: 0;
@@ -135,7 +136,7 @@ body,
 #app {
   margin: 0;
   overflow: hidden;
-  font-family: var(--font-sans);
+  font-family: var(--font-interface);
   background: var(--color-bg);
 }
 body {
@@ -240,7 +241,7 @@ body,
 .ui-input,
 .ui-textarea,
 .ui-select {
-  font-family: var(--font-sans);
+  font-family: var(--font-interface);
 }
 .ui-button:focus-visible {
   outline: 1px solid var(--color-primary);
@@ -264,7 +265,7 @@ body,
   padding: 4px 8px;
   border-radius: 4px;
   text-align: left;
-  font: 400 12px/18px var(--font-sans);
+  font: 400 12px/18px var(--font-interface);
 }
 .titlebar-workspace-menu .titlebar-workspace-menu-button:hover,
 .titlebar-workspace-menu .active {
@@ -378,7 +379,7 @@ body,
   display: grid;
   gap: 8px;
   color: var(--color-text-soft);
-  font: 400 12px/18px var(--font-sans);
+  font: 400 12px/18px var(--font-interface);
 }
 .rich-text-node {
   max-width: 100%;
@@ -391,7 +392,7 @@ body,
 .rich-text-h3,
 .rich-text-h4 {
   color: var(--color-text);
-  font: 600 12px/16px var(--font-sans);
+  font: 600 12px/16px var(--font-interface);
 }
 .rich-text-ul,
 .rich-text-ol {
@@ -409,7 +410,7 @@ body,
 .rich-text-code {
   padding: 1px 4px;
   color: var(--color-text);
-  font-family: var(--font-mono);
+  font-family: var(--font-field);
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);

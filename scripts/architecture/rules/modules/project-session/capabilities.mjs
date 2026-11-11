@@ -44,7 +44,7 @@ export const projectCapabilities = [
     {
       capability: 'saved-content-wait',
       names: ['settleSavedContent'],
-      owners: [{ path: 'src/app/composables/code-editor/use-code-batch.ts', layer: 'app' }],
+      owners: [{ path: 'src/app/composables/text-file-editing/use-text-file-batch.ts', layer: 'app' }],
     },
     {
       capability: 'session-release',
@@ -101,7 +101,7 @@ export const projectCapabilities = [
       names: ['queryFileDirectory', 'queryFileSearch', 'queryFileTextTarget'],
       owners: [
         { layer: 'app', role: 'composable', domain: 'file-browser-view-model' },
-        { path: 'src/app/composables/code-editor/use-code-project.ts', layer: 'app' },
+        { path: 'src/app/composables/file-browser/use-file-browser.ts', layer: 'app' },
       ],
     },
   ]),

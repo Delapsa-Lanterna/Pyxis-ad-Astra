@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { tabLabel } from './documents';
+import { tabLabel } from './file-tabs';
 
 it('distinguishes same-name file tabs', () => {
   expect(tabLabel('M:/src/a/Entry.java', ['M:/src/a/Entry.java', 'M:/src/b/Entry.java'], 'M:/src')).toBe('a/Entry.java');

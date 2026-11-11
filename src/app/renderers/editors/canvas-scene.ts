@@ -28,7 +28,7 @@ export function renderCanvasBase(ctx: CanvasRenderingContext2D, scene: CanvasSce
   ctx.lineTo(scene.width, scene.mirrorY);
   ctx.stroke();
   ctx.setLineDash([]);
-  ctx.font = '11px sans-serif';
+  ctx.font = `11px ${scene.palette.fontFamily}`;
   ctx.textBaseline = 'bottom';
   ctx.fillText('镜像中轴', 8, scene.mirrorY - 4);
   ctx.restore();
@@ -45,7 +45,7 @@ export function renderCanvasCursor(ctx: CanvasRenderingContext2D, scene: CanvasS
   ctx.moveTo(marker.point.x, marker.point.y - 16);
   ctx.lineTo(marker.point.x, marker.point.y + 16);
   strokeCanvasOutline(ctx, outlineStyle(scene.palette, 1.5));
-  ctx.font = '11px sans-serif';
+  ctx.font = `11px ${scene.palette.fontFamily}`;
   ctx.textBaseline = 'top';
   ctx.strokeStyle = scene.palette.outline;
   ctx.lineWidth = 1;

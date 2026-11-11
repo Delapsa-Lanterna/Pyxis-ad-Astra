@@ -8,7 +8,7 @@
   display: block;
 }
 .font-text.font-default {
-  font-family: var(--font-sans);
+  font-family: var(--font-interface);
   white-space: pre-wrap;
   line-height: 1.2;
 }

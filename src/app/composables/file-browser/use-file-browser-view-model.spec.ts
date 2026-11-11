@@ -439,10 +439,10 @@ describe('full Mod search state and input boundary', () => {
     await vi.advanceTimersByTimeAsync(249);
     expect(mocks.search).not.toHaveBeenCalled();
     await vi.advanceTimersByTimeAsync(1);
-    expect(mocks.search).toHaveBeenCalledExactlyOnceWith('s1', 'one');
+    expect(mocks.search).toHaveBeenCalledExactlyOnceWith('s1', 'one', null);
     vm.actions.setSearch('two');
     await vm.actions.submitSearch();
-    expect(mocks.search).toHaveBeenLastCalledWith('s1', 'two');
+    expect(mocks.search).toHaveBeenLastCalledWith('s1', 'two', null);
     await vi.advanceTimersByTimeAsync(300);
     expect(mocks.search).toHaveBeenCalledTimes(2);
   });
@@ -543,7 +543,7 @@ describe('full Mod search state and input boundary', () => {
     await flushPromises();
     expect(vm.view.searchText).toBe('find');
     expect(vm.view.sort).toEqual({ key: 'size', ascending: false });
-    expect(mocks.search).toHaveBeenLastCalledWith('s1', 'find');
+    expect(mocks.search).toHaveBeenLastCalledWith('s1', 'find', null);
   });
   it('refreshes an active full-tree query after committed changes', async () => {
     const { vm } = await open();
@@ -560,7 +560,7 @@ describe('full Mod search state and input boundary', () => {
       session: false,
     });
     await flushPromises();
-    expect(mocks.search).toHaveBeenCalledExactlyOnceWith('s1', 'find');
+    expect(mocks.search).toHaveBeenCalledExactlyOnceWith('s1', 'find', null);
     expect(mocks.directory).toHaveBeenCalledOnce();
   });
   it('releases a queued debounce when clearing search or leaving its page', async () => {
@@ -584,4 +584,25 @@ it('reads the explicitly delivered target independently of workspace selection',
   expect(useWorkspaceStore().activeManifest!.sessionId).toBe('other');
   expect(mocks.directory).toHaveBeenCalledWith('s1', null);
   expect(vm.view.title).toBe('M:/A');
+});
+
+it.each(['resolve', 'reject'])('ends an older file-open decision on search before its late %s', async (outcome) => {
+  const { vm } = await open();
+  let finish!: (value: { sessionId: string; modRoot: string; path: string }) => void;
+  let fail!: (error: Error) => void;
+  mocks.file.mockImplementationOnce(
+    () =>
+      new Promise((resolve, reject) => {
+        finish = resolve;
+        fail = reject;
+      }),
+  );
+  const pending = vm.actions.activate('README');
+  await flushPromises();
+  vm.actions.setSearch('new search');
+  if (outcome === 'resolve') finish({ sessionId: 's1', modRoot: 'M:/A', path: 'M:/A/README' });
+  else fail(new Error('superseded file decision'));
+  await pending;
+  expect(mocks.open).not.toHaveBeenCalled();
+  expect(mocks.error).not.toHaveBeenCalled();
 });

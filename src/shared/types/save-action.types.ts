@@ -1,6 +1,7 @@
 import type { SaveEdit } from './write-commit.types';
 import type { SpecSave } from './spec-editor.types';
-import type { TextSave, TextTranscode, TextBatchSave } from './text-editor.types';
+import type { TextTranscode } from './text-editor.types';
+import type { TextSave, TextBatchSave } from './text-file-editing.types';
 import type { CsvSave } from './table-save.types';
 import type { SaveJointEditPayload } from './joint-edit.types';
 import type { ModInfoSave, IndexedConfigSave, IndexedConfigDelete } from './config-entity.types';

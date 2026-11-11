@@ -1,10 +1,21 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_FONT_FAMILY, generalFontFamily } from './fonts';
+import {
+  DEFAULT_INTERFACE_FONT_FAMILY,
+  DEFAULT_FIELD_FONT_FAMILY,
+  DEFAULT_TEXT_EDITOR_FONT_FAMILY,
+  DEFAULT_CANVAS_EDITOR_FONT_FAMILY,
+  fontFamily,
+} from './fonts';
 
-describe('general font family', () => {
-  it('retains the default stack and quotes selected family names as one CSS family', () => {
-    expect(generalFontFamily(null)).toBe(DEFAULT_FONT_FAMILY);
-    expect(generalFontFamily('Example, Font')).toBe(`"Example, Font", ${DEFAULT_FONT_FAMILY}`);
-    expect(generalFontFamily('Example "Font"')).toBe(`"Example \\"Font\\"", ${DEFAULT_FONT_FAMILY}`);
+describe('font families', () => {
+  it.each([
+    [DEFAULT_INTERFACE_FONT_FAMILY, "Inter, 'Segoe UI', 'Microsoft YaHei', sans-serif"],
+    [DEFAULT_FIELD_FONT_FAMILY, "'Cascadia Mono', Consolas, 'Courier New', monospace"],
+    [DEFAULT_TEXT_EDITOR_FONT_FAMILY, "'Cascadia Mono', Consolas, 'Courier New', monospace"],
+    [DEFAULT_CANVAS_EDITOR_FONT_FAMILY, 'sans-serif'],
+  ])('retains %s and quotes selected family names as one CSS family', (defaults, expected) => {
+    expect(fontFamily(null, defaults)).toBe(expected);
+    expect(fontFamily('Example, Font', defaults)).toBe('"Example, Font", ' + expected);
+    expect(fontFamily('Example "Font"', defaults)).toBe('"Example \\"Font\\"", ' + expected);
   });
 });

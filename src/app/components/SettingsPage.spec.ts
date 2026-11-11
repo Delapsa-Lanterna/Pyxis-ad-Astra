@@ -231,7 +231,7 @@ describe('settings limit controls', () => {
     ).toBe(true);
     wrapper.unmount();
   });
-  it('places general and immersive fonts below appearance and applies both controls', async () => {
+  it('places font settings below appearance and applies their controls', async () => {
     const wrapper = mount(SettingsPage, {
       props: { changeSource: logUi.changeSource },
       global: {
@@ -272,15 +272,40 @@ describe('settings limit controls', () => {
     expect(sections[0]!.get('.field-description').text()).toBe('已设置: D:/fixture');
     const immersive = sections[2]!;
     expect(immersive.findAll('.schema-field > .field-label').map((label) => label.text())).toEqual([
-      '通用字体',
+      '界面字体',
+      '字段字体',
+      '文本编辑器字体',
+      '画布编辑器字体',
       '沉浸式编辑器字体',
       '沉浸式字体路径',
     ]);
-    expect(useSettingsStore().generalFont).toBeNull();
+    expect(useSettingsStore().interfaceFont).toBeNull();
     await immersive.get('select').setValue('"Microsoft YaHei"');
-    expect(useSettingsStore().generalFont).toBe('Microsoft YaHei');
+    expect(useSettingsStore().interfaceFont).toBe('Microsoft YaHei');
     await immersive.get('select').setValue('""');
-    expect(useSettingsStore().generalFont).toBeNull();
+    expect(useSettingsStore().interfaceFont).toBeNull();
+    expect(useSettingsStore().fieldFont).toBeNull();
+    const fieldFont = immersive.findAll('select')[1]!;
+    await fieldFont.setValue('"Microsoft YaHei"');
+    expect(useSettingsStore().fieldFont).toBe('Microsoft YaHei');
+    expect(useSettingsStore().interfaceFont).toBeNull();
+    await fieldFont.setValue('""');
+    expect(useSettingsStore().fieldFont).toBeNull();
+    expect(useSettingsStore().textEditorFont).toBeNull();
+    const editorFont = immersive.findAll('select')[2]!;
+    await editorFont.setValue('"Microsoft YaHei"');
+    expect(useSettingsStore().textEditorFont).toBe('Microsoft YaHei');
+    expect(useSettingsStore().fieldFont).toBeNull();
+    await editorFont.setValue('""');
+    expect(useSettingsStore().textEditorFont).toBeNull();
+    expect(useSettingsStore().canvasEditorFont).toBeNull();
+    const canvasFont = immersive.findAll('select')[3]!;
+    await canvasFont.setValue('"Microsoft YaHei"');
+    expect(useSettingsStore().canvasEditorFont).toBe('Microsoft YaHei');
+    expect(useSettingsStore().textEditorFont).toBeNull();
+    await canvasFont.setValue('""');
+    expect(useSettingsStore().canvasEditorFont).toBeNull();
+    expect(immersive.text()).toContain('默认字体组合为 Cascadia Mono、Consolas、Courier New。');
     expect(immersive.text()).toContain('再尝试游戏原版字体');
     expect(useSettingsStore().immersiveGameFont).toBe(true);
     await immersive.get('button').trigger('click');

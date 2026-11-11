@@ -18,6 +18,7 @@ pub mod source_watch;
 pub mod spec_editor;
 pub mod system_open;
 pub mod text_editor;
+pub mod text_file_editing;
 pub mod windows;
 pub mod workspace_persistence;
 pub mod write_transactions;

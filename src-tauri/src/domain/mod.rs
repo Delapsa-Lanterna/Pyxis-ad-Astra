@@ -15,3 +15,5 @@ pub mod schema;
 pub mod schema_sources;
 pub mod variant_modules;
 pub mod well_known_labels;
+
+pub mod text_file;

@@ -48,7 +48,7 @@
   padding: 0 8px;
   border-radius: 6px;
   color: inherit;
-  font: 400 12px/18px var(--font-sans);
+  font: 400 12px/18px var(--font-interface);
 }
 .mod-tab-close,
 .mod-tabs-overview {

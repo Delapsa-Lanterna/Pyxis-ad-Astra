@@ -319,7 +319,7 @@
   gap: var(--space-1);
 }
 .immersive-meta-status {
-  font-family: var(--font-sans);
+  font-family: var(--font-interface);
   white-space: nowrap;
 }
 .immersive-disclosure-summary {
@@ -455,7 +455,7 @@ details[open] > .immersive-disclosure-summary::before {
 .immersive-actions {
   gap: 8px;
   flex-wrap: wrap;
-  font-family: var(--font-sans);
+  font-family: var(--font-interface);
 }
 .immersive-buttons {
   gap: 8px;

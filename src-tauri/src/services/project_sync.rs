@@ -652,7 +652,9 @@ mod tests {
     use crate::services::project::PerformanceTrace;
     use crate::services::project::test_support::{project_workspace, release_workspace};
     #[cfg(test)]
-    use crate::services::{file_history, project, project_save, text_editor, write_transactions};
+    use crate::services::{
+        file_history, project, project_save, text_file_editing, write_transactions,
+    };
     use crate::test_support::work_counts;
     use crate::test_support::{self, SOURCE_WATCH_TEST_QUEUE as TEST_QUEUE};
     #[cfg(test)]
@@ -1026,15 +1028,12 @@ mod tests {
         fs::write(&path, r#"{"id":"shared","damage":2}"#).unwrap();
         loop {
             let delivery = receiver.recv_timeout(Duration::from_secs(15)).unwrap();
-            if delivery["kind"] != "saved"
-                || !manifests
-                    .iter()
-                    .any(|manifest| delivery["event"]["sessionId"] == manifest.session_id)
+            // Independent progress is established while the first root remains leased.
+            if delivery["kind"] == "saved"
+                && delivery["event"]["sessionId"] == manifests[1].session_id
             {
-                continue;
+                break;
             }
-            assert_eq!(delivery["event"]["sessionId"], manifests[1].session_id);
-            break;
         }
         assert_eq!(
             services::query_entity(&manifests[1].session_id, EntityKind::Projectile, "shared")
@@ -1541,7 +1540,7 @@ mod tests {
                 &[],
             )
             .unwrap();
-            let result = text_editor::save_text_file(
+            let result = text_file_editing::save_text_file(
                 &manifest.mod_root,
                 &root.join("notes.txt").to_string_lossy(),
                 "after".into(),

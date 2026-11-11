@@ -1,7 +1,7 @@
 .ui-code,
 .field-json-input .n-input__textarea-el,
 .field-json-input .n-input__textarea-mirror {
-  font-family: var(--font-mono);
+  font-family: var(--font-field);
 }
 .schema-field {
   display: grid;
@@ -18,7 +18,7 @@
   min-width: 0;
   min-height: 30px;
   color: var(--color-text);
-  font: 500 12px/18px var(--font-sans);
+  font: 500 12px/18px var(--font-interface);
   overflow-wrap: anywhere;
 }
 .field-readonly > .field-label,
@@ -31,11 +31,11 @@
 .field-label-required {
   margin-left: 2px;
   color: #e5484d;
-  font: 600 12px/18px var(--font-sans);
+  font: 600 12px/18px var(--font-interface);
 }
 .field-label-key {
   margin-top: 2px;
-  font: 400 10px/12px var(--font-mono);
+  font: 400 10px/12px var(--font-field);
 }
 .field-control {
   display: flex;
@@ -122,11 +122,11 @@
   min-height: 32px;
   padding: 6px 12px;
   color: var(--color-text-soft);
-  font: 600 12px/16px var(--font-sans);
+  font: 600 12px/16px var(--font-interface);
 }
 .section-header-meta {
   padding-right: 12px;
-  font: 400 10px/12px var(--font-sans);
+  font: 400 10px/12px var(--font-interface);
 }
 .editor-collapse .schema-section.n-collapse-item .n-collapse-item__header .n-collapse-item-arrow {
   flex: 0 0 16px;

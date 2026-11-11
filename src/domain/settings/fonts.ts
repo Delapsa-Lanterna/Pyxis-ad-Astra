@@ -1,5 +1,11 @@
-export const DEFAULT_FONT_FAMILY = "Inter, 'Segoe UI', 'Microsoft YaHei', sans-serif";
+export const DEFAULT_INTERFACE_FONT_FAMILY = "Inter, 'Segoe UI', 'Microsoft YaHei', sans-serif";
 
-export function generalFontFamily(font: string | null): string {
-  return font === null ? DEFAULT_FONT_FAMILY : `"${font.replaceAll('\\', '\\\\').replaceAll('"', '\\"')}", ${DEFAULT_FONT_FAMILY}`;
+export const DEFAULT_FIELD_FONT_FAMILY = "'Cascadia Mono', Consolas, 'Courier New', monospace";
+
+export const DEFAULT_TEXT_EDITOR_FONT_FAMILY = "'Cascadia Mono', Consolas, 'Courier New', monospace";
+
+export const DEFAULT_CANVAS_EDITOR_FONT_FAMILY = 'sans-serif';
+
+export function fontFamily(font: string | null, defaults: string): string {
+  return font === null ? defaults : `"${font.replaceAll('\\', '\\\\').replaceAll('"', '\\"')}", ${defaults}`;
 }

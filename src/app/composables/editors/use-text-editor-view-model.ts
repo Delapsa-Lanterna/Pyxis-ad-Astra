@@ -1,6 +1,5 @@
 import { releaseNativeWindowTargets } from '@/services/window.service';
 import { useProjectSyncStore } from '@/stores/project-sync.store';
-import { beginSavedWrite } from '@/orchestrators/project-sync.orchestrator';
 import { useContextMenuScope } from '@/app/composables/use-context-menu';
 import {
   refreshProjectSourcePaths,
@@ -10,20 +9,19 @@ import {
 } from '@/orchestrators/project-sync.orchestrator';
 import { computed, ref, watch } from 'vue';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
-import { loadTextFile, saveTextFile, followTextIdentity } from '@/services/text-editor.service';
+import { loadTextFile } from '@/services/text-file-editing.service';
+import { followTextIdentity } from '@/services/text-editor.service';
 import { committedFileText } from '@/domain/project-sync/committed-text';
 import { isAbsoluteFsPath, joinRootRelativePath, normalizeFsPath, pathBelongsToRoot, relativePathFromRoot } from '@/shared/lib/paths';
-import { useEditTargetDraftSession, type EditTargetDraftSession } from '@/app/composables/use-edit-target-draft-session';
-import { createTextDocument, readTextContent, sameTextContent, writeTextContent, type TextContent } from '@/shared/runtime/text-document';
-import { useSettingsStore } from '@/stores/settings.store';
+import { useTextFileState, type TextFileState } from '@/app/composables/text-file-editing/use-text-file-state';
+import { readTextContent, writeTextContent } from '@/shared/runtime/text-document';
 import { useFieldInputActions } from '@/app/composables/use-field-input-actions';
 import { useSaveCommandStore } from '@/stores/save-command.store';
 import { retargetTextEditorWindow } from '@/orchestrators/window-identity.orchestrator';
 
 import type { CommittedWriteEvent, TextWindowLocation } from '@/shared/types';
-import type { EntityIdentityChange, WriteResult, EntityTargetSnapshot } from '@/shared/types';
+import type { EntityIdentityChange } from '@/shared/types';
 import { formatError, errorDiagnosticOf, errorCodeOf, AppError } from '@/shared/lib/errors';
-import { waitForRead } from '@/shared/runtime/read-request';
 
 export interface TextEditorViewModelParams {
   mode: 'session' | 'recovery';
@@ -36,14 +34,13 @@ export interface TextEditorViewModelParams {
 }
 
 interface TextEditorTarget {
-  filePath: string;
+  path: string;
   mode: 'session' | 'recovery';
   modRoot: string;
   sessionId: string | null;
 }
 
 export function useTextEditorViewModel(params: TextEditorViewModelParams) {
-  const settings = useSettingsStore();
   const feedback = useAppFeedback();
   const currentPath = ref(params.filePath);
   let pendingIdentity: {
@@ -55,7 +52,6 @@ export function useTextEditorViewModel(params: TextEditorViewModelParams) {
   } | null = null;
   const identityNotice = ref('');
   let identitySequence = 0;
-  type TextMeta = { entity: EntityTargetSnapshot | null; receipt: WriteResult<unknown> | null };
 
   const title = ref(params.title);
   const contextLabel = ref('错误');
@@ -63,85 +59,43 @@ export function useTextEditorViewModel(params: TextEditorViewModelParams) {
   const contextMessage = ref('');
   const targetLine = ref(normalizeEventLine(params.line));
   const targetColumn = ref(normalizeEventLine(params.column));
-  const draftSession: EditTargetDraftSession<TextContent, TextEditorTarget, TextMeta> = useEditTargetDraftSession<
-    TextContent,
-    TextEditorTarget,
-    TextMeta
-  >({
-    emptyValue: readTextContent(''),
-    clone: (text) => text,
-    equals: sameTextContent,
-    mapSavedDraft: (draft) => draft,
-    captureSave: () => document.separateHistory(),
-    beginSave: beginSavedWrite,
-    savedContent: (snapshot) => ({ ...snapshot, meta: { ...snapshot.meta, receipt: null } }),
-    load: async (target, signal) => {
-      try {
-        const loaded = await waitForRead(loadTextFile(target.sessionId, target.modRoot, target.filePath), target, signal);
-        signal!.throwIfAborted();
+  const fileState: TextFileState<TextEditorTarget> = useTextFileState<TextEditorTarget>(
+    {
+      readCompleted: () => {
         contextMessage.value = '';
-        return {
-          target,
-          value: readTextContent(loaded.text),
-          baseVersions: loaded.baseVersions,
-          meta: { entity: loaded.entity, receipt: null },
-        };
-      } catch (error) {
-        if (!signal!.aborted) {
-          contextMessage.value =
-            errorCodeOf(error) === 'text.invalid_utf8'
-              ? '无法读取文件：请选择文件当前使用的编码，将其转换为 UTF-8 后重试。'
-              : formatError(error);
-          feedback.error(error, '读取文件失败');
+      },
+      readFailed: (error) => {
+        contextMessage.value =
+          errorCodeOf(error) === 'text.invalid_utf8'
+            ? '无法读取文件：请选择文件当前使用的编码，将其转换为 UTF-8 后重试。'
+            : formatError(error);
+        feedback.error(error, '读取文件失败');
+      },
+      acceptSaved: async (snapshot) => {
+        const target = snapshot.target;
+        if (target.sessionId) {
+          if (snapshot.meta.entity) await retargetTextEditorWindow(target.sessionId, target.modRoot, target.path, title.value);
+          await releaseNativeWindowTargets();
         }
-        throw error;
-      }
-    },
-    // Text saves write the file in place; entity identity is re-read like an external modification.
-    save: async (target, draft, baseVersions, _original, request) => {
-      const text = writeTextContent(draft);
-      const result = await saveTextFile(target.sessionId, target.modRoot, target.filePath, text, baseVersions, request);
-      return {
-        target,
-        value:
-          typeof result.content?.value?.text === 'string' && result.content.value.text !== text
-            ? readTextContent(result.content.value.text)
-            : draft,
-        baseVersions: result.baseVersions,
-        meta: { entity: draftSession.baselineSnapshot.value!.meta.entity, receipt: result },
-        requestId: result.requestId,
-      };
-    },
+      },
 
-    acceptSaved: async (snapshot) => {
-      const target = snapshot.target;
-      if (target.sessionId) {
-        if (snapshot.meta.entity) await retargetTextEditorWindow(target.sessionId, target.modRoot, target.filePath, title.value);
-        await releaseNativeWindowTargets();
-      }
+      targetKey: (target) => textEditorTargetKey(target),
     },
-
-    targetKey: (target) => textEditorTargetKey(target),
-  });
+    () => currentPath.value ?? '',
+    () => {
+      if (pendingIdentity) void followPendingIdentity();
+    },
+  );
+  const { session: draftSession, document } = fileState;
   watch(
     draftSession.baselineSnapshot,
     (snapshot) => {
       if (snapshot) {
-        currentPath.value = snapshot.target.filePath;
+        currentPath.value = snapshot.target.path;
         contextMessage.value = '';
       }
     },
     { flush: 'sync' },
-  );
-  const document = createTextDocument(
-    draftSession.draftValue,
-    draftSession.context,
-    computed(() => settings.editHistoryLimit),
-    draftSession.inputs,
-    () => {
-      if (pendingIdentity) void followPendingIdentity();
-    },
-    currentPath,
   );
   const unregisterSave = useSaveCommandStore().registerSaveParticipant({
     targetKey: draftSession.currentTargetKey,
@@ -193,9 +147,6 @@ export function useTextEditorViewModel(params: TextEditorViewModelParams) {
     if (!disposed) await loadFile();
   }
   async function setupFile() {
-    disposed = false;
-    if (disposed) return;
-    if (disposed) return;
     unlistenIdentity = await listenSavedIdentity(handleIdentityApplied);
     if (disposed) {
       unlistenIdentity();
@@ -246,7 +197,7 @@ export function useTextEditorViewModel(params: TextEditorViewModelParams) {
       }
       const saved = await draftSession.saveDraft();
       if (!saved || disposed) return;
-      feedback.success('文件已保存', { paths: [target.filePath] });
+      feedback.success('文件已保存', { paths: [target.path] });
     } catch (error) {
       const location = errorDiagnosticOf(error).location;
       if (location?.line) {
@@ -272,7 +223,7 @@ export function useTextEditorViewModel(params: TextEditorViewModelParams) {
     canRefresh: () => Boolean(currentPath.value),
     refresh: async (current) => {
       const target = textEditorTarget()!;
-      if (target.sessionId) await refreshProjectSourcePaths(target.sessionId, target.modRoot, [target.filePath]);
+      if (target.sessionId) await refreshProjectSourcePaths(target.sessionId, target.modRoot, [target.path]);
       if (current()) await draftSession.refreshTarget(target);
     },
   });
@@ -290,7 +241,7 @@ export function useTextEditorViewModel(params: TextEditorViewModelParams) {
         },
         draftSession.dirty.value,
         () => draftSession.currentTargetKey.value,
-        [draftSession.currentTarget.value!.filePath],
+        [draftSession.currentTarget.value!.path],
       );
     };
     if (draftSession.saving.value)
@@ -310,7 +261,7 @@ export function useTextEditorViewModel(params: TextEditorViewModelParams) {
       normalizeFsPath(target.modRoot) !== normalizeFsPath(event.modRoot)
     )
       return;
-    const reference = pendingIdentity?.nextPath ?? target.filePath;
+    const reference = pendingIdentity?.nextPath ?? target.path;
     const change = event.result.identityChanges.find(
       (change) =>
         normalizeFsPath(change.before.write.path) === normalizeFsPath(reference) &&
@@ -351,8 +302,8 @@ export function useTextEditorViewModel(params: TextEditorViewModelParams) {
         : null;
       const loaded = await loadTextFile(pending.target.sessionId, pending.target.modRoot, pending.nextPath);
       if (disposed || sequence !== identitySequence || pending !== pendingIdentity || raw !== text.value) return;
-      const target = { ...pending.target, filePath: pending.nextPath };
-      await retargetTextEditorWindow(pending.target.sessionId!, pending.event.modRoot, target.filePath, title.value);
+      const target = { ...pending.target, path: pending.nextPath };
+      await retargetTextEditorWindow(pending.target.sessionId!, pending.event.modRoot, target.path, title.value);
       if (disposed || sequence !== identitySequence || pending !== pendingIdentity || raw !== text.value) return;
       draftSession.adoptIdentity(
         pending.target,
@@ -391,20 +342,20 @@ export function useTextEditorViewModel(params: TextEditorViewModelParams) {
     if (!target || disposed || pendingIdentity || update.manifest.sessionId !== target.sessionId) return undefined;
 
     if (normalizeFsPath(update.manifest.modRoot) !== normalizeFsPath(target.modRoot)) return undefined;
-    const renamed = update.invalidation.renames?.find(([before]) => pathBelongsToRoot(target.filePath, before));
+    const renamed = update.invalidation.renames?.find(([before]) => pathBelongsToRoot(target.path, before));
     if (renamed)
       return [
         async () => {
           const [before, after] = renamed;
           const nextPath =
-            normalizeFsPath(target.filePath) === normalizeFsPath(before)
+            normalizeFsPath(target.path) === normalizeFsPath(before)
               ? after
-              : joinRootRelativePath(after, relativePathFromRoot(before, target.filePath));
+              : joinRootRelativePath(after, relativePathFromRoot(before, target.path));
           const preserve = draftSession.dirty.value;
           if (preserve) {
             const choice = await feedback.choose({
               title: '跟随文件改名？',
-              content: `原文件：\n${target.filePath}\n\n新文件：\n${nextPath}\n\n跟随后保留当前文本。`,
+              content: `原文件：\n${target.path}\n\n新文件：\n${nextPath}\n\n跟随后保留当前文本。`,
               choices: [{ label: '保留文本并跟随', value: 'follow', type: 'primary' }],
               cancelText: '稍后处理',
             });
@@ -420,19 +371,19 @@ export function useTextEditorViewModel(params: TextEditorViewModelParams) {
     if (
       receipt?.identityChanges.some(
         (identity) =>
-          normalizeFsPath(identity.after.write.path) === normalizeFsPath(target.filePath) &&
+          normalizeFsPath(identity.after.write.path) === normalizeFsPath(target.path) &&
           (identity.before.id !== identity.after.id ||
             normalizeFsPath(identity.before.write.path) !== normalizeFsPath(identity.after.write.path)),
       )
     )
       return undefined;
     const entity = draftSession.baselineSnapshot.value?.meta.entity ?? null;
-    const identity = receipt?.identityChanges.find((entry) => normalizeFsPath(entry.after.write.path) === normalizeFsPath(target.filePath));
-    const content = receipt ? committedFileText(receipt, target.filePath) : undefined;
+    const identity = receipt?.identityChanges.find((entry) => normalizeFsPath(entry.after.write.path) === normalizeFsPath(target.path));
+    const content = receipt ? committedFileText(receipt, target.path) : undefined;
     if (
       content !== undefined &&
       (!entity || identity) &&
-      receipt!.baseVersions.some((version) => normalizeFsPath(version.path) === normalizeFsPath(target.filePath))
+      receipt!.baseVersions.some((version) => normalizeFsPath(version.path) === normalizeFsPath(target.path))
     ) {
       draftSession.applyExternalForTarget(
         {
@@ -447,7 +398,7 @@ export function useTextEditorViewModel(params: TextEditorViewModelParams) {
       return undefined;
     }
     const affected = update.invalidation.paths.some((path) =>
-      pathBelongsToRoot(target.filePath, isAbsoluteFsPath(path) ? path : joinRootRelativePath(target.modRoot, path)),
+      pathBelongsToRoot(target.path, isAbsoluteFsPath(path) ? path : joinRootRelativePath(target.modRoot, path)),
     );
     if (affected || update.invalidation.session) return draftSession.refreshTarget(target, true).then(() => {});
     return undefined;
@@ -513,12 +464,12 @@ export function useTextEditorViewModel(params: TextEditorViewModelParams) {
       feedback.error('缺少文本编辑器 session');
       return null;
     }
-    return { filePath: currentPath.value, mode: params.mode, modRoot: params.modRoot, sessionId: params.sessionId };
+    return { path: currentPath.value, mode: params.mode, modRoot: params.modRoot, sessionId: params.sessionId };
   }
 }
 
 function textEditorTargetKey(target: TextEditorTarget): string {
-  return `${target.mode}\n${target.sessionId ?? ''}\n${normalizeFsPath(target.modRoot)}\n${normalizeFsPath(target.filePath)}`;
+  return `${target.mode}\n${target.sessionId ?? ''}\n${normalizeFsPath(target.modRoot)}\n${normalizeFsPath(target.path)}`;
 }
 
 function normalizeEventLine(value: number | null): number | undefined {

@@ -31,7 +31,7 @@
 }
 .n-dialog .n-dialog__title,
 .n-modal.n-card .n-card-header .n-card-header__main {
-  font: 600 16px/22px var(--font-sans);
+  font: 600 16px/22px var(--font-interface);
 }
 .n-button__content {
   line-height: 18px;

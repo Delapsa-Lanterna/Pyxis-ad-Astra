@@ -1,25 +1,5 @@
-import type { LoadTextFilePayload, TextSave, TextTranscode, FollowTextIdentityPayload, EntityKind } from '@/shared/types';
-import { invokeCommand, invokeSaveCommand, type SaveCommandRequest } from '@/shared/runtime/command.runtime';
-import type { TextFileData, FileVersion, WriteResult } from '@/shared/types';
-import type { TextBatchSave } from '@/shared/types';
-
-export function loadTextFile(sessionId: string | null, modRoot: string, path: string): Promise<TextFileData> {
-  return invokeCommand('load_text_file', { payload: { sessionId, modRoot, path } satisfies LoadTextFilePayload });
-}
-export function saveTextBatch(payload: TextBatchSave, request?: SaveCommandRequest): Promise<WriteResult> {
-  return invokeSaveCommand('save_text_batch', { payload }, [], request);
-}
-
-export function saveTextFile(
-  sessionId: string | null,
-  modRoot: string,
-  path: string,
-  text: string,
-  baseVersions: FileVersion[],
-  request?: SaveCommandRequest,
-): Promise<WriteResult> {
-  return invokeSaveCommand('save_text_file', { payload: { baseVersions, sessionId, modRoot, path, text } satisfies TextSave }, [], request);
-}
+import type { TextTranscode, FollowTextIdentityPayload, EntityKind, FileVersion, WriteResult } from '@/shared/types';
+import { invokeCommand, invokeSaveCommand } from '@/shared/runtime/command.runtime';
 
 export function transcodeFileToUtf8(
   sessionId: string | null,

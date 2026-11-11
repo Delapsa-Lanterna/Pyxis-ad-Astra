@@ -77,7 +77,7 @@ async function setup() {
 describe('formal settings commits', () => {
   it('releases persistence when its operation fails and ignores subsequent changes', async () => {
     const { runtime, settings, stopPersistence } = await setup();
-    settings.setGeneralFont('Active fixture font');
+    settings.setInterfaceFont('Active fixture font');
     await runtime.flushSettings();
     expect(api.save).toHaveBeenCalledOnce();
     api.save.mockClear();
@@ -91,7 +91,7 @@ describe('formal settings commits', () => {
         }
       })(),
     ).rejects.toBe(failure);
-    settings.setGeneralFont('Released fixture font');
+    settings.setInterfaceFont('Released fixture font');
     await nextTick();
     await flushPromises();
     expect(api.save).toHaveBeenCalledTimes(0);
@@ -190,13 +190,13 @@ describe('formal settings commits', () => {
 
   it.each(['save', 'reset'] as const)('commits a %s with the same formal root directly', async (action) => {
     const { runtime, settings } = await setup();
-    settings.setGeneralFont('Direct Font');
+    settings.setInterfaceFont('Direct Font');
     await runtime.flushSettings();
     const changeSource = vi.fn();
     if (action === 'save') await runtime.saveStarsectorRoot(null, changeSource);
     else await runtime.resetSettings(changeSource);
     expect(changeSource).not.toHaveBeenCalled();
-    expect(settings.generalFont).toBe(action === 'save' ? 'Direct Font' : createSettingsFixture().generalFont);
+    expect(settings.interfaceFont).toBe(action === 'save' ? 'Direct Font' : createSettingsFixture().interfaceFont);
     expect(api.workspaceSave).not.toHaveBeenCalled();
   });
   it('waits for existing actions and actual directory openings before changing the source', async () => {
@@ -315,8 +315,11 @@ describe('formal settings commits', () => {
   });
   it('saves the complete official defaults and applies committed budgets', async () => {
     const { runtime, settings } = await setup();
-    settings.setGeneralFont('Fixture Font');
+    settings.setInterfaceFont('Fixture Font');
     settings.setCacheLimit('mediaData', 'entries', 17);
+    settings.setFieldFont('Fixture Field Font');
+    settings.setTextEditorFont('Fixture Editor Font');
+    settings.setCanvasEditorFont('Fixture Canvas Font');
     settings.setImmersiveFontDirectory('F:/fonts');
     settings.setLogDirectory('D:/fixture');
     await runtime.flushSettings();
@@ -330,7 +333,7 @@ describe('formal settings commits', () => {
   });
   it.each(['read', 'save'] as const)('reports a reset %s failure and allows retry', async (stage) => {
     const { runtime, settings } = await setup();
-    settings.setGeneralFont('Fixture Font');
+    settings.setInterfaceFont('Fixture Font');
     await runtime.flushSettings();
     const before = settings.settingsSnapshot();
     api.save.mockClear();
@@ -343,7 +346,7 @@ describe('formal settings commits', () => {
   });
   it('keeps edits made while the default snapshot is saving', async () => {
     const { runtime, settings } = await setup();
-    settings.setGeneralFont('Fixture Font');
+    settings.setInterfaceFont('Fixture Font');
     await runtime.flushSettings();
     let finish!: (snapshot: SettingsSnapshot) => void;
     api.save.mockImplementationOnce(
@@ -358,11 +361,11 @@ describe('formal settings commits', () => {
       await resetting;
     });
     await vi.waitFor(() => expect(finish).toBeDefined());
-    settings.setGeneralFont('Later Font');
+    settings.setInterfaceFont('Later Font');
     finish(settingsSnapshot(createSettingsFixture(), 3));
     await resetting;
-    expect(settings.generalFont).toBe('Later Font');
-    expect(api.save.mock.calls.at(-1)![0].generalFont).toBe('Later Font');
+    expect(settings.interfaceFont).toBe('Later Font');
+    expect(api.save.mock.calls.at(-1)![0].interfaceFont).toBe('Later Font');
   });
   it('listens before reading and flushes a same-turn edit once', async () => {
     const { runtime, settings } = await setup();
@@ -370,13 +373,23 @@ describe('formal settings commits', () => {
     settings.setCacheLimit('mediaData', 'entries', 17);
     expect(windowCacheLimits().mediaData.entries).toBe(2048);
     expect(api.listen.mock.invocationCallOrder[0]).toBeLessThan(api.read.mock.invocationCallOrder[0]!);
-    settings.setGeneralFont('Fixture Font');
+    settings.setInterfaceFont('Fixture Font');
     settings.setExpandFieldDescriptions(true);
+    settings.setFieldFont('Fixture Field Font');
+    settings.setTextEditorFont('Fixture Editor Font');
+    settings.setCanvasEditorFont('Fixture Canvas Font');
     settings.setImmersiveFontDirectory('F:/fonts');
     await runtime.flushSettings();
     expect(windowCacheLimits().mediaData.entries).toBe(17);
     expect(api.save).toHaveBeenCalledExactlyOnceWith(
-      expect.objectContaining({ generalFont: 'Fixture Font', expandFieldDescriptions: true, immersiveFontDirectory: 'F:/fonts' }),
+      expect.objectContaining({
+        interfaceFont: 'Fixture Font',
+        fieldFont: 'Fixture Field Font',
+        textEditorFont: 'Fixture Editor Font',
+        canvasEditorFont: 'Fixture Canvas Font',
+        expandFieldDescriptions: true,
+        immersiveFontDirectory: 'F:/fonts',
+      }),
     );
     await runtime.flushSettings();
     expect(api.save).toHaveBeenCalledOnce();
@@ -398,10 +411,10 @@ describe('formal settings commits', () => {
     await nextTick();
     await vi.waitFor(() => expect(finish).toBeDefined());
     const submitted = api.save.mock.calls[0]![0];
-    settings.setGeneralFont('Later Font');
+    settings.setInterfaceFont('Later Font');
     finish(settingsSnapshot({ ...submitted, logDirectory: 'D:/Fixture' }, 2));
     await runtime.flushSettings();
-    expect(settings.generalFont).toBe('Later Font');
+    expect(settings.interfaceFont).toBe('Later Font');
     expect(settings.logDirectory).toBe('D:/Fixture');
     expect(api.save).toHaveBeenCalledTimes(2);
     expect(api.save.mock.calls[1]![0].logDirectory).toBe('D:/Fixture');
@@ -410,10 +423,10 @@ describe('formal settings commits', () => {
     const { runtime, settings } = await setup();
     api.save.mockRejectedValue(new Error('disk failure'));
     const { windowCacheLimits } = await import('@/shared/runtime/cache-limits');
-    settings.setGeneralFont('Retry Font');
+    settings.setInterfaceFont('Retry Font');
     settings.setCacheLimit('thumbnails', 'MiB', 8);
     await expect(runtime.flushSettings()).rejects.toThrow('disk failure');
-    expect(settings.generalFont).toBe('Retry Font');
+    expect(settings.interfaceFont).toBe('Retry Font');
     expect(windowCacheLimits().thumbnails.MiB).toBe(32);
     expect(api.save).toHaveBeenCalledOnce();
     api.save.mockImplementation(async (value: AppSettings) => settingsSnapshot(value, 2));
@@ -426,7 +439,10 @@ describe('formal settings commits', () => {
     onTestFinished(runtime.startSettingsMirror());
     const receive = api.listen.mock.calls[0]![0];
     const next = createSettingsFixture({
-      generalFont: 'Latest Font',
+      interfaceFont: 'Latest Font',
+      fieldFont: 'Latest Field Font',
+      textEditorFont: 'Latest Editor Font',
+      canvasEditorFont: 'Latest Canvas Font',
       ignoreEditorWarnings: true,
       expandFieldDescriptions: true,
       immersiveFontDirectory: 'F:/fonts',
@@ -435,8 +451,11 @@ describe('formal settings commits', () => {
     next.cacheLimits.decodedImages.entries = 7;
     next.toastDurations = { success: 0, info: 3600, warning: 8, error: 9 };
     await receive(settingsSnapshot(next, 4));
-    await receive(settingsSnapshot(createSettingsFixture({ generalFont: 'Earlier Font' }), 3));
-    expect(useSettingsStore().generalFont).toBe('Latest Font');
+    await receive(settingsSnapshot(createSettingsFixture({ interfaceFont: 'Earlier Font' }), 3));
+    expect(useSettingsStore().interfaceFont).toBe('Latest Font');
+    expect(useSettingsStore().fieldFont).toBe('Latest Field Font');
+    expect(useSettingsStore().textEditorFont).toBe('Latest Editor Font');
+    expect(useSettingsStore().canvasEditorFont).toBe('Latest Canvas Font');
     expect(useSettingsStore().ignoreEditorWarnings).toBe(true);
     expect(useSettingsStore().watchFileChanges).toBe(true);
     expect(useSettingsStore().toastDurations).toEqual(next.toastDurations);
@@ -451,7 +470,7 @@ describe('formal settings commits', () => {
   it('separates committed settings from history refresh diagnostics', async () => {
     const { runtime, settings } = await setup();
     api.history.mockRejectedValue(new Error('history failure'));
-    settings.setGeneralFont('Committed Font');
+    settings.setInterfaceFont('Committed Font');
     await runtime.flushSettings();
     expect(api.save).toHaveBeenCalledOnce();
   });

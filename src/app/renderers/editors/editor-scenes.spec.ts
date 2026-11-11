@@ -2,7 +2,9 @@ import { describe, expect, it, vi } from 'vitest';
 import { createCanvasRecorder } from '@/test/unit/canvas-recorder';
 import { createCanvasPalette } from '@/domain/editors/lib/canvas-palette';
 import { createThemeColors } from '@/domain/settings/theme';
-import { renderCanvasCursor, type CanvasScene } from './canvas-scene';
+import { renderCanvasBase, renderCanvasCursor, type CanvasScene } from './canvas-scene';
+import { drawBarrelVisual, drawCrossMarker } from './canvas-visuals';
+import { barrelStyle, centerMarkerStyle } from './canvas-styles';
 import { renderSpecShipEditorScene, type SpecShipEditorScene } from '../spec-editor/ship/spec-ship-scene';
 import { renderSpecWeaponEditorScene, type SpecWeaponEditorScene } from '../spec-editor/weapon/spec-weapon-scene';
 import { renderWeaponImages } from './weapon-images';
@@ -13,7 +15,7 @@ function canvasScene(): CanvasScene {
     height: 500,
     center: { x: 250, y: 250 },
     scale: 1,
-    palette: createCanvasPalette(createThemeColors('#2563eb', 'light')),
+    palette: createCanvasPalette(createThemeColors('#2563eb', 'light'), 'sans-serif'),
     mirrorY: null,
     cursor: null,
   };
@@ -310,6 +312,32 @@ describe('editor scene rendering', () => {
     expect(recording.calls('lineTo').map((op) => op.args)).toEqual([
       [66, 60],
       [50, 76],
+    ]);
+  });
+});
+
+describe('canvas font selection', () => {
+  it.each(['sans-serif', '"Arial", sans-serif'])('uses %s for every canvas text role', (family) => {
+    const recording = createCanvasRecorder();
+    const scene = {
+      ...canvasScene(),
+      palette: createCanvasPalette(createThemeColors('#2563eb', 'light'), family),
+      mirrorY: 100,
+      cursor: { point: { x: 50, y: 60 }, label: 'Position' },
+    };
+    const drawn: Array<{ text: string; font: string }> = [];
+    vi.spyOn(recording.ctx, 'fillText').mockImplementation((text) => {
+      drawn.push({ text, font: recording.ctx.font });
+    });
+    renderCanvasBase(recording.ctx, scene);
+    renderCanvasCursor(recording.ctx, scene);
+    drawCrossMarker(recording.ctx, scene.center, centerMarkerStyle(scene.palette, false), 'Origin');
+    drawBarrelVisual(recording.ctx, { angle: 0, index: 0, point: scene.center, style: barrelStyle(scene.palette, false) });
+    expect(drawn).toEqual([
+      { text: '镜像中轴', font: '11px ' + family },
+      { text: 'Position', font: '11px ' + family },
+      { text: 'Origin', font: '18px ' + family },
+      { text: '1', font: '11px ' + family },
     ]);
   });
 });

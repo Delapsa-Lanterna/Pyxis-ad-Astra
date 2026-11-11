@@ -1,5 +1,6 @@
 import type { TextFileData, RowData } from '@/shared/types';
-import type * as TextEditorServiceModule from '@/services/text-editor.service';
+import type * as TextEditorServiceModule from '@/services/text-file-editing.service';
+import type { followTextIdentity } from '@/services/text-editor.service';
 import { projectChangeFixture, committedChangeFixture, dispatchProjectChangeFixture } from '@/test/unit/project-changes';
 import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -40,7 +41,7 @@ vi.mock('@/services/window.service', () => ({ releaseNativeWindowTargets: vi.fn(
 const mocks = vi.hoisted(() => ({
   request: null as null | ((request: ManagedWindowContext) => Promise<void>),
   identityHandler: null as null | ((event: CommittedWriteEvent) => Promise<void>),
-  followIdentity: vi.fn<typeof TextEditorServiceModule.followTextIdentity>(),
+  followIdentity: vi.fn<typeof followTextIdentity>(),
   loadTextFile: vi.fn<typeof TextEditorServiceModule.loadTextFile>(),
   saveTextFile: vi.fn<typeof TextEditorServiceModule.saveTextFile>(),
   publishCommittedWrite: vi.fn<(...args: unknown[]) => Promise<void>>(async () => {}),
@@ -55,8 +56,7 @@ const mocks = vi.hoisted(() => ({
   },
 }));
 
-vi.mock('@/services/text-editor.service', () => ({
-  followTextIdentity: mocks.followIdentity,
+vi.mock('@/services/text-file-editing.service', () => ({
   loadTextFile: mocks.loadTextFile,
   saveTextFile: mocks.saveTextFile,
 }));
@@ -225,7 +225,7 @@ describe('useTextEditorViewModel loading', () => {
     vm.dispose();
   });
   it('loads the file text into the draft and tracks the line count', async () => {
-    mocks.loadTextFile.mockResolvedValue(textFileFixture('line1\nline2', { path: 'x' }));
+    mocks.loadTextFile.mockResolvedValue(textFileFixture('line1\nline2'));
     const viewModel = await initializeViewModel(paramsFixture());
     expect(viewModel.text.value).toBe('line1\nline2');
     expect(viewModel.lineCount.value).toBe(2);
@@ -245,7 +245,7 @@ describe('useTextEditorViewModel loading', () => {
 
 describe('useTextEditorViewModel editing', () => {
   async function loadedViewModel() {
-    mocks.loadTextFile.mockResolvedValue(textFileFixture('base', { path: 'x' }));
+    mocks.loadTextFile.mockResolvedValue(textFileFixture('base'));
     return initializeViewModel(paramsFixture());
   }
 
@@ -316,7 +316,7 @@ describe('useTextEditorViewModel editing', () => {
   });
 
   it('writes recovery credentials and publishes their actual associated session updates', async () => {
-    mocks.loadTextFile.mockResolvedValue(textFileFixture('base', { path: 'x' }));
+    mocks.loadTextFile.mockResolvedValue(textFileFixture('base'));
     const viewModel = await initializeViewModel(paramsFixture({ mode: 'recovery', sessionId: null }));
     mocks.saveTextFile.mockResolvedValue(savedWriteFixture());
     viewModel.updateText('recovered');
@@ -408,7 +408,7 @@ describe('useTextEditorViewModel external text', () => {
   });
   it.each([true, false])('uses a text receipt once with complete entity metadata=%s', async (complete) => {
     const target = entityTargetFixture('ship', 'probe', 'existing', 'C:/mods/alpha');
-    const loaded = textFileFixture('base', { entity: { target, baseVersions: [] } });
+    const loaded = textFileFixture('base', { path: target.write.path, entity: { target, baseVersions: [] } });
     mocks.loadTextFile.mockResolvedValue(loaded);
     const vm = await initializeViewModel(paramsFixture({ filePath: target.write.path }));
     mocks.loadTextFile.mockClear();
@@ -482,10 +482,10 @@ describe('useTextEditorViewModel external text', () => {
   it.each(['data/hulls/test.file', 'data/hulls', 'C:/mods/alpha/data/hulls/test.file'])(
     'stages a dirty file version from the invalidation path %s',
     async (path) => {
-      mocks.loadTextFile.mockResolvedValueOnce(textFileFixture('base', { path: 'x' }));
+      mocks.loadTextFile.mockResolvedValueOnce(textFileFixture('base'));
       const viewModel = await initializeViewModel(paramsFixture({ filePath: 'C:/mods/alpha/data/hulls/test.file' }));
       viewModel.updateText('local');
-      mocks.loadTextFile.mockResolvedValueOnce(textFileFixture('external', { path: 'x' }));
+      mocks.loadTextFile.mockResolvedValueOnce(textFileFixture('external'));
       await projectChangeFixture('s1', { ...savedWriteFixture().invalidation, ...{ paths: [path] } }, 'C:/mods/alpha');
       await flushPromises();
       expect(mocks.loadTextFile).toHaveBeenLastCalledWith('s1', 'C:/mods/alpha', 'C:/mods/alpha/data/hulls/test.file');
@@ -499,7 +499,7 @@ describe('useTextEditorViewModel external text', () => {
   );
 
   it('stages external text while dirty and shows the notice', async () => {
-    mocks.loadTextFile.mockResolvedValue(textFileFixture('base', { path: 'x' }));
+    mocks.loadTextFile.mockResolvedValue(textFileFixture('base'));
     const viewModel = await initializeViewModel(paramsFixture());
     viewModel.updateText('local edit');
     textApplied!({ sessionId: 's1', modRoot: 'C:/mods/alpha', path: 'data/hulls/test.file', text: 'external', baseVersions: [] });
@@ -517,7 +517,7 @@ describe('useTextEditorViewModel external text', () => {
   });
 
   it('applies external text directly when clean and filters foreign targets', async () => {
-    mocks.loadTextFile.mockResolvedValue(textFileFixture('base', { path: 'x' }));
+    mocks.loadTextFile.mockResolvedValue(textFileFixture('base'));
     const viewModel = await initializeViewModel(paramsFixture());
     textApplied!({ sessionId: 'other', modRoot: 'C:/mods/alpha', path: 'data/hulls/test.file', text: 'foreign', baseVersions: [] });
     expect(viewModel.text.value).toBe('base');
@@ -529,7 +529,7 @@ describe('useTextEditorViewModel external text', () => {
   });
 
   it('updates location independently of the current text and errors', async () => {
-    mocks.loadTextFile.mockResolvedValue(textFileFixture('base', { path: 'x' }));
+    mocks.loadTextFile.mockResolvedValue(textFileFixture('base'));
     const viewModel = await initializeViewModel(paramsFixture());
     viewModel.applyLocation({ message: 'parse error', contextLabel: '错误', contextSeverity: 'error', line: 3, column: 2 });
     expect(viewModel.contextSeverity.value).toBe('error');
@@ -579,3 +579,5 @@ it('renders reading, encoding failure, and a successful retry with line navigati
   expect(wrapper.getComponent(TextEditorSurface).props('document').state.value.selection.main.head).toBe(6);
   expect(wrapper.getComponent(TextEditorSurface).props('line')).toBe(2);
 });
+
+vi.mock('@/services/text-editor.service', () => ({ followTextIdentity: mocks.followIdentity }));

@@ -16,6 +16,7 @@ export interface PointStyle {
 
 export interface MarkerStyle extends OutlineStyle {
   radius: number;
+  fontFamily: string;
 }
 
 export function outlineStyle(palette: CanvasPalette, width: number, color = palette.marker): OutlineStyle {
@@ -35,6 +36,7 @@ export function centerMarkerStyle(palette: CanvasPalette, selected: boolean, hov
   return {
     ...outlineStyle(palette, selected ? 3 : 2, selected || hovered ? palette.highlight : palette.marker),
     radius: selected || hovered ? 16 : 13,
+    fontFamily: palette.fontFamily,
   };
 }
 
@@ -43,6 +45,6 @@ export function barrelStyle(palette: CanvasPalette, selected: boolean, hovered =
     alpha: selected || hovered || mirrored ? 0.8 : 0.5,
     line: outlineStyle(palette, 2, selected || hovered ? palette.highlight : palette.marker),
     control: controlPointStyle(palette, selected, hovered),
-    label: { color: palette.marker, outline: palette.outline, width: 1, alpha: 1 },
+    label: { color: palette.marker, outline: palette.outline, width: 1, alpha: 1, fontFamily: palette.fontFamily },
   };
 }

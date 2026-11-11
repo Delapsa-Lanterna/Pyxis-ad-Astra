@@ -43,14 +43,17 @@ export async function verifySourceActions(page, output) {
       choices: [{ name: 'List', candidates: ['java.util.List', 'java.awt.List'] }],
     });
   });
+  await editor.getByRole('button', { name: 'Java 操作', exact: true }).click();
   await editor.getByRole('button', { name: '参数提示', exact: true }).click();
   await editor.locator('.code-signature').waitFor();
   await surface.fill('class Orbit {List<String> values;}');
+  await editor.getByRole('button', { name: 'Java 操作', exact: true }).click();
   await editor.getByRole('button', { name: '整理导入', exact: true }).click();
   await editor.getByRole('region', { name: '修改预览' }).locator('.n-select').click();
   await editor.getByText('java.util.List', { exact: true }).click();
   await editor.getByRole('button', { name: '取消', exact: true }).click();
   await surface.fill('class Orbit {}\r\n');
+  await editor.getByRole('button', { name: 'Java 操作', exact: true }).click();
   await editor.getByRole('textbox', { name: '重命名的新名称' }).fill('Beacon');
   await editor.getByRole('button', { name: '预览重命名', exact: true }).click();
   await editor.getByRole('region', { name: '修改预览' }).waitFor();

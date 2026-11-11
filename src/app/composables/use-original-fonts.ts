@@ -140,7 +140,7 @@ export function useFontMeasurement(id: FontId) {
   const context = canvas.getContext('2d')!;
   return (runs: readonly TextRun[]): number => {
     if (font.value) return layoutText(font.value.definition, runs).width;
-    context.font = `${style.weight} ${style.size}px ${settings.fontFamily}`;
+    context.font = `${style.weight} ${style.size}px ${settings.interfaceFontFamily}`;
     return Math.max(
       ...runs
         .map((run) => run.text)

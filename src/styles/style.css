@@ -17,6 +17,8 @@
 @import './text-editor.css';
 @import './text-editor-surface.css';
 @import './code-editor.css';
+@import './text-file-editing.css';
+@import './java-editor.css';
 @import './overview-page.css';
 @import './game-overview.css';
 @import './create-mod.css';

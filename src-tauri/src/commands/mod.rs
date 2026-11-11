@@ -26,6 +26,7 @@ mod source_catalog;
 mod spec_editor;
 mod tables;
 mod text_editor;
+mod text_file_editing;
 mod windows;
 mod workspace_persistence;
 
@@ -55,6 +56,7 @@ pub use source_catalog::*;
 pub use spec_editor::*;
 pub use tables::*;
 pub use text_editor::*;
+pub use text_file_editing::*;
 pub use windows::*;
 pub use workspace_persistence::*;
 

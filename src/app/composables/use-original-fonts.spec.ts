@@ -94,7 +94,7 @@ describe('independent original font lifecycle', () => {
     if (failure !== 'unavailable') expect(mocks.log.mock.calls[0]![0].fields?.root).toBe('F:/fonts');
     wrapper.unmount();
   });
-  it('selects custom, game and general fonts independently', async () => {
+  it('selects custom, game and interface fonts independently', async () => {
     useSettingsStore().setImmersiveFontDirectory('F:/fonts');
     mocks.query.mockImplementation(async (_session: string, id: FontId, directory: string | null) => {
       if (id === 'victor14' || (id === 'orbitron20aa' && directory)) throw new Error('font missing');
@@ -262,7 +262,7 @@ describe('independent original font lifecycle', () => {
     expect(wrapper.text()).toBe('10');
     wrapper.unmount();
   });
-  it('recomputes default widths when the general font changes', async () => {
+  it('recomputes default widths when the interface font changes', async () => {
     useSettingsStore().setImmersiveGameFont(false);
     const fonts: string[] = [];
     vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({
@@ -280,7 +280,7 @@ describe('independent original font lifecycle', () => {
     });
     const wrapper = mount(Consumer);
     expect(wrapper.text()).toBe('8');
-    useSettingsStore().setGeneralFont('Arial');
+    useSettingsStore().setInterfaceFont('Arial');
     await flushPromises();
     expect(wrapper.text()).toBe('12');
     expect(fonts.at(-1)).toContain('"Arial"');

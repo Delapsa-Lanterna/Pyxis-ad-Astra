@@ -18,5 +18,9 @@ pub fn query_file_text_target(
 
 #[command_macros::command(async)]
 pub fn query_file_search(payload: FileSearchPayload) -> Result<FileSearch, AppError> {
-    services::query_file_search(&payload.session_id, &payload.query)
+    services::query_file_search(
+        &payload.session_id,
+        &payload.query,
+        payload.directory.as_deref(),
+    )
 }

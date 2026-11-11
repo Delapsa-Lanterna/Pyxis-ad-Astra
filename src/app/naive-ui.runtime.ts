@@ -25,6 +25,7 @@ export function installNaiveUi(app: App): void {
   registerAsyncNaiveComponent(app, 'NSelect', async () => (await import('./components/AppSelect.vue')).default);
   registerAsyncNaiveComponent(app, 'NSlider', async () => (await import('naive-ui/es/slider')).NSlider);
   registerAsyncNaiveComponent(app, 'NSpin', async () => (await import('naive-ui/es/spin')).NSpin);
+  registerAsyncNaiveComponent(app, 'NSplit', async () => (await import('naive-ui/es/split')).NSplit);
   registerAsyncNaiveComponent(app, 'NTree', async () => (await import('naive-ui/es/tree')).NTree);
   registerAsyncNaiveComponent(app, 'NSwitch', async () => (await import('naive-ui/es/switch')).NSwitch);
 }

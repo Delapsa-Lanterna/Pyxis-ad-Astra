@@ -85,7 +85,8 @@
 
 ### 正式模块
 
-- [代码编辑器](modules/code-editor.md)：说明每 Mod 独立窗口、多文件标签、文档状态、打开队列及保存关闭。
+- [代码编辑器](modules/code-editor.md)：说明项目独立窗口、来源分组、文件请求与文本及 Java 能力装配。
+- [文本文件编辑](modules/text-file-editing.md)：说明文件草稿、标签、关联修改、保存、外部文本和释放。
 - [Java 分析](modules/java-analysis.md)：说明 Java 17 分析、自有宿主、固定依赖、配置根及分析实例资源寿命。
 - [实体文件写入与身份联动](modules/entity-write.md)：说明实体内容构造、实际文件写入、关联表、描述、父引用与身份结果。
 - [统一右键菜单](modules/context-menu.md)：说明业务根登记、选区操作、刷新回调与标题栏动作。

@@ -1,7 +1,6 @@
 use crate::errors::{AppError, AppResult};
-use crate::models::code_editor::{
-    CodeEditorDelivery, CodeEditorFileResult, CodeEditorOpen, CodeEditorSources,
-};
+use crate::models::TextFileOpenResult;
+use crate::models::code_editor::{CodeEditorDelivery, CodeEditorOpen, CodeEditorSources};
 use crate::services::{code_editor, windows};
 use tauri::ipc::Channel;
 use tauri::{AppHandle, WebviewWindow, async_runtime};
@@ -17,7 +16,7 @@ pub async fn open_code_editor(
     window: WebviewWindow,
     key: String,
     input: CodeEditorOpen,
-) -> AppResult<Vec<CodeEditorFileResult>> {
+) -> AppResult<Vec<TextFileOpenResult>> {
     let (opened, task) = code_editor::open_window(&app, window.label(), key, input)?;
     let owner = window.label().to_string();
     async_runtime::spawn_blocking(move || {
@@ -41,7 +40,7 @@ pub fn subscribe_code_editor(
 pub fn finish_code_editor_open(
     window: WebviewWindow,
     key: String,
-    results: Vec<CodeEditorFileResult>,
+    results: Vec<TextFileOpenResult>,
 ) -> AppResult<()> {
     code_editor::finish(window.label(), &key, results)
 }

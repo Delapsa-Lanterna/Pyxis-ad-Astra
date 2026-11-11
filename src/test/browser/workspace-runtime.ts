@@ -628,7 +628,11 @@ export function createBrowserWorkspace(
       case 'query_file_search': {
         const query = String(payload.query).trim();
         const files = [...new Set([...receiver.textFiles.keys(), ...gameImages.keys(), ...gameAudio.keys()])]
-          .filter((path) => path.startsWith(receiver.manifest.modRoot + '/'))
+          .filter(
+            (path) =>
+              path.startsWith(receiver.manifest.modRoot + '/') &&
+              (!payload.directory || path.startsWith(receiver.manifest.modRoot + '/' + String(payload.directory) + '/')),
+          )
           .map((path) => path.slice(receiver.manifest.modRoot.length + 1));
         const paths = new Set<string>(),
           matchedPaths: string[] = [];

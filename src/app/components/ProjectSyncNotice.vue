@@ -9,7 +9,7 @@
       <div>{{ issue.path }}：{{ issue.message }}</div>
       <details>
         <summary>详细诊断</summary>
-        <pre>{{ issue.diagnostic }}</pre>
+        <pre class="ui-code">{{ issue.diagnostic }}</pre>
       </details>
     </div>
     <n-button size="small" :loading="retrying" @click="retry">重试</n-button>

@@ -1,28 +1,26 @@
 import { computed, onScopeDispose, shallowReactive, shallowRef } from 'vue';
-import { createCodeDocument, type CodeDocument } from './use-code-document';
+import { createTextFile, type TextFile } from '@/app/composables/text-file-editing/use-text-file';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
 import { useFieldInputActions } from '@/app/composables/use-field-input-actions';
 import { useSaveCommandStore } from '@/stores/save-command.store';
-import { finishCodeEditorOpen, subscribeCodeEditor } from '@/services/code-editor.service';
 import { committedFileText } from '@/domain/project-sync/committed-text';
 import { listenSavedContent, sessionContentUpdate } from '@/orchestrators/project-sync.orchestrator';
-import { loadTextFile } from '@/services/text-editor.service';
+import { loadTextFile } from '@/services/text-file-editing.service';
 import { errorDiagnosticOf } from '@/shared/lib/errors';
 import { isAbsoluteFsPath, joinRootRelativePath, normalizeFsPath, pathBelongsToRoot, relativePathFromRoot } from '@/shared/lib/paths';
 import { readTextContent } from '@/shared/runtime/text-document';
-import { tabLabel } from '@/domain/code-editor/documents';
-import type { CodeEditorDelivery, CodeEditorFile, CodeEditorFileResult, CodeEditorOpen, CommittedWriteEvent } from '@/shared/types';
+import { tabLabel } from '@/domain/text-file-editing/file-tabs';
+import type { TextFileOpen, TextFileOpenResult, FileTextTarget, CommittedWriteEvent } from '@/shared/types';
 
-export function useCodeEditor(owner: Pick<CodeEditorOpen, 'sessionId' | 'modRoot'>) {
+export function useTextFiles(owner: Pick<FileTextTarget, 'sessionId' | 'modRoot'>) {
   const feedback = useAppFeedback();
   const commands = useSaveCommandStore();
-  const documents = shallowReactive<CodeDocument[]>([]);
-  const active = shallowRef<CodeDocument | null>(null);
-  const location = shallowRef<CodeEditorFile | null>(null);
+  const documents = shallowReactive<TextFile[]>([]);
+  const active = shallowRef<TextFile | null>(null);
+  const location = shallowRef<TextFileOpen | null>(null);
   let disposed = false;
   let queue: Promise<void> = Promise.resolve();
-  const deliveries = new Set<string>();
-  const opening = new Set<CodeDocument>();
+  const opening = new Set<TextFile>();
   function serialize<T>(operation: () => Promise<T>): Promise<T> {
     const pending = queue.then(operation);
     // The caller owns failure feedback; the queue continues with the next request.
@@ -32,18 +30,18 @@ export function useCodeEditor(owner: Pick<CodeEditorOpen, 'sessionId' | 'modRoot
     );
     return pending;
   }
-  function locate(document: CodeDocument, file: CodeEditorFile) {
+  function locate(document: TextFile, file: TextFileOpen) {
     if (file.line !== undefined) document.document.locate(file.line, file.column);
   }
-  async function openFiles(files: CodeEditorFile[]) {
-    const results: CodeEditorFileResult[] = [];
-    let selected: { document: CodeDocument; file: CodeEditorFile } | null = null;
+  async function openFiles(files: TextFileOpen[]) {
+    const results: TextFileOpenResult[] = [];
+    let selected: { document: TextFile; file: TextFileOpen } | null = null;
     for (const file of files) {
       if (disposed) break;
       let document = documents.find((entry) => normalizeFsPath(entry.path.value) === normalizeFsPath(file.path));
       try {
         if (!document) {
-          document = createCodeDocument(owner, file.path);
+          document = createTextFile(owner, file.path);
           opening.add(document);
           try {
             await document.load();
@@ -74,15 +72,6 @@ export function useCodeEditor(owner: Pick<CodeEditorOpen, 'sessionId' | 'modRoot
     }
     return results;
   }
-  async function delivery(message: CodeEditorDelivery) {
-    if (disposed || deliveries.has(message.key)) return;
-    deliveries.add(message.key);
-    await serialize(async () => {
-      const results = await openFiles(message.files);
-      if (!disposed) await finishCodeEditorOpen(message.key, results);
-      deliveries.delete(message.key);
-    });
-  }
   async function save(document = active.value) {
     if (!document) return true;
     const result = await document.save();
@@ -92,24 +81,27 @@ export function useCodeEditor(owner: Pick<CodeEditorOpen, 'sessionId' | 'modRoot
     const results = await Promise.all([...documents].map((document) => save(document)));
     return results.every(Boolean);
   }
-  function close(document: CodeDocument) {
+  function close(document: TextFile) {
     return serialize(async () => {
       if (!(await commands.waitForParticipant(document.participant))) return;
-      if (document.dirty.value) {
+      const dirty = () => document.dirty.value || !!document.group.value?.dirty();
+      if (dirty()) {
         const before = document.session.draftValue.value;
+        const path = document.path.value;
         const unchanged = document.group.value?.capture();
         const choice = await feedback.choose({
           title: '关闭文件？',
-          content: document.path.value,
+          content:
+            (document.group.value?.paths() ?? [document.path.value]).join('\n') + '\n保存或放弃操作将共同处理以上文件的全部未保存修改。',
           choices: [
             { label: '保存并关闭', value: 'save', type: 'primary' },
             { label: '放弃修改并关闭', value: 'discard', type: 'warning' },
           ],
           cancelText: '继续编辑',
         });
-        if (!choice) return;
+        if (!choice || path !== document.path.value) return;
         if (unchanged && !unchanged()) return;
-        if (choice === 'save' && (!(await save(document)) || document.dirty.value)) return;
+        if (choice === 'save' && (!(await save(document)) || dirty())) return;
         if (choice === 'discard' && before !== document.session.draftValue.value) return;
         if (choice === 'discard') document.group.value?.discard();
       }
@@ -121,7 +113,7 @@ export function useCodeEditor(owner: Pick<CodeEditorOpen, 'sessionId' | 'modRoot
       document.dispose();
     });
   }
-  function move(document: CodeDocument, target: CodeDocument, after: boolean) {
+  function move(document: TextFile, target: TextFile, after: boolean) {
     if (document === target) return;
     documents.splice(documents.indexOf(document), 1);
     documents.splice(documents.indexOf(target) + Number(after), 0, document);
@@ -207,11 +199,6 @@ export function useCodeEditor(owner: Pick<CodeEditorOpen, 'sessionId' | 'modRoot
       return;
     }
     stop = unlisten;
-    await subscribeCodeEditor((message) => {
-      void delivery(message).catch((error) => {
-        if (!disposed) feedback.error(error, '打开文件失败');
-      });
-    });
   });
   const activeSave = () => save().then(() => {});
   commands.registerActiveSaveHandler(activeSave);
@@ -227,16 +214,19 @@ export function useCodeEditor(owner: Pick<CodeEditorOpen, 'sessionId' | 'modRoot
     isDisposed: () => disposed,
     documents,
     active,
+    activate: (path: string) => {
+      active.value = documents.find((file) => normalizeFsPath(file.path.value) === normalizeFsPath(path))!;
+    },
     location,
     ready,
     settle: () => queue,
-    openFiles: (files: CodeEditorFile[]) => serialize(() => openFiles(files)),
+    openFiles: (files: TextFileOpen[]) => serialize(() => openFiles(files)),
     openSnapshot: (path: string, source: string) =>
       serialize(async () => {
         if (disposed) return null;
         let document = documents.find((entry) => normalizeFsPath(entry.path.value) === normalizeFsPath(path));
         if (!document) {
-          document = createCodeDocument(owner, path, source);
+          document = createTextFile(owner, path, source);
           await document.load();
           documents.push(document);
         }
@@ -248,13 +238,13 @@ export function useCodeEditor(owner: Pick<CodeEditorOpen, 'sessionId' | 'modRoot
     close,
     move,
     dirty: computed(() => documents.some((document) => document.dirty.value)),
-    label: (document: CodeDocument) =>
+    label: (document: TextFile) =>
       tabLabel(
         document.path.value,
         documents.map((entry) => entry.path.value),
         owner.modRoot,
       ),
-    loadExternal(document: CodeDocument) {
+    loadExternal(document: TextFile) {
       useFieldInputActions(document.session.inputs, feedback).confirmDiscard(
         () => document.session.loadPendingExternal(),
         document.session.dirty.value,

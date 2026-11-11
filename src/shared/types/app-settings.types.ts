@@ -25,7 +25,10 @@ export interface AppSettings {
   theme: AppTheme | null;
   accent: AccentPreset;
   customAccent: string;
-  generalFont: string | null;
+  interfaceFont: string | null;
+  fieldFont: string | null;
+  textEditorFont: string | null;
+  canvasEditorFont: string | null;
   fileHistoryLimit: number;
   editHistoryLimit: number;
   logRotationSizeMiB: number;

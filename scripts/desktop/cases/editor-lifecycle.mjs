@@ -235,7 +235,7 @@ async function crossEditorLifecycle(app, fixture, check) {
       decisions.push('follow');
       await until(async () => {
         return (
-          String(await code.locator('.code-editor-tools > span').getAttribute('title')).endsWith('Moved-shared.txt') &&
+          String(await code.locator('.code-editor-path').getAttribute('title')).endsWith('Moved-shared.txt') &&
           String(await code.locator('footer').textContent()).includes('未保存')
         );
       }, 'save and identity handoff settled');
@@ -383,7 +383,7 @@ export async function editorLifecycle(app, fixture, check, artifacts) {
     const relocated = join(fixture.mod, 'archive');
     await rename(folder, relocated);
     await until(
-      async () => String(await editor.locator('.code-editor-tools > span').getAttribute('title')).includes('archive'),
+      async () => String(await editor.locator('.code-editor-path').getAttribute('title')).includes('archive'),
       'directory rename mapped to file',
     );
     await editor.getByRole('tab', { name: 'Moved.java', exact: true }).click();

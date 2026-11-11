@@ -26,7 +26,8 @@
 - `src-tauri/src/services/project/write/joint_edit.rs`：联合当前来源图准备、身份与修改接纳及实际保存。
 - `src-tauri/src/services/project/write/json_recovery.rs`：缺失基线渲染、必要索引修复和实际 changeset。
 - `src-tauri/src/services/project_sync.rs`：项目队列、来源确认、恢复等待和结果发布。
-- `src-tauri/src/services/text_editor.rs`：文本内容准备与实际写入。
+- `src-tauri/src/services/text_editor.rs`：明确源编码的文本转码。
+- `src-tauri/src/services/text_file_editing.rs`：文本来源准备、单文件原文与同根文本批次的实际写入。
 - `src-tauri/src/services/write_transactions.rs`：根租约、版本核对、实际提交及文件回放。
 - `src/services/window.service.ts`：保存接收登记、目标拥有窗口查询、请求与代次绑定回执。
 - `src/stores/project.store.ts`：捕获 Mod 的正式 session 与清单复核。

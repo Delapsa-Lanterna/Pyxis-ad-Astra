@@ -8,6 +8,8 @@ use crate::models::{
 };
 use crate::services;
 use crate::services::project::PerformanceTrace;
+#[cfg(test)]
+use crate::services::text_file_editing;
 use std::collections::BTreeMap;
 use std::path::Path;
 
@@ -223,10 +225,10 @@ mod tests {
         CsvTableKey, JsonFileSave,
     };
     use crate::models::{EntityKind, IndexedConfigKind, IndexedConfigSave, SaveAction, TextSave};
+    #[cfg(test)]
+    use crate::services::app_settings;
     use crate::services::project::PerformanceTrace;
     use crate::services::project::test_support::project_workspace;
-    #[cfg(test)]
-    use crate::services::{app_settings, text_editor};
     use crate::services::{project, project_save};
     use crate::{io, services};
     use std::fs;
@@ -542,9 +544,12 @@ mod tests {
             base_versions: vec![file_version(&path).unwrap()],
         };
         let transaction = begin(&payload, &payload.base_versions).unwrap();
-        let result =
-            text_editor::save_text_file(&payload.mod_root, &payload.path, payload.text.clone())
-                .unwrap();
+        let result = text_file_editing::save_text_file(
+            &payload.mod_root,
+            &payload.path,
+            payload.text.clone(),
+        )
+        .unwrap();
         let saved = transaction.commit(result, "save notes").unwrap();
         assert_eq!(saved.history.undo_stack.len(), 1);
         assert!(begin(&payload, &payload.base_versions).is_err());
@@ -608,9 +613,12 @@ mod tests {
                 .is_empty()
         );
         let transaction = begin(&payload, &payload.base_versions).unwrap();
-        let result =
-            text_editor::save_text_file(&payload.mod_root, &payload.path, payload.text.clone())
-                .unwrap();
+        let result = text_file_editing::save_text_file(
+            &payload.mod_root,
+            &payload.path,
+            payload.text.clone(),
+        )
+        .unwrap();
         assert_eq!(
             transaction
                 .commit(result, "saved")

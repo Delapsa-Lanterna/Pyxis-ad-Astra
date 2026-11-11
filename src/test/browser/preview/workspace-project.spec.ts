@@ -398,7 +398,8 @@ describe('complete browser workspace fixtures', () => {
       expect(project.tables.get('ships')!.header).not.toEqual(project.tables.get('weapons')!.header);
       expect(project.tables.size).toBe(14);
     }
-    expect(workspace.navigation).toHaveLength(23);
+    expect(workspace.navigation).toHaveLength(24);
+    expect(workspace.navigation.at(-1)!.id).toBe('code-editor');
     expect(new Set(workspace.projects.map(({ manifest }) => manifest.sessionId)).size).toBe(4);
   });
 

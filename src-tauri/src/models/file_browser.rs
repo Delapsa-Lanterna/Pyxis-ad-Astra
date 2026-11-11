@@ -55,4 +55,5 @@ pub struct FileSearch {
 pub struct FileSearchPayload {
     pub session_id: String,
     pub query: String,
+    pub directory: Option<String>,
 }

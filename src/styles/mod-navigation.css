@@ -26,7 +26,7 @@
   border: 1px solid transparent;
   border-radius: 4px;
   background: transparent;
-  font: 400 12px/18px var(--font-sans);
+  font: 400 12px/18px var(--font-interface);
   text-align: left;
 }
 .mod-navigation-button > .mod-navigation-button-label:first-child {
@@ -43,7 +43,7 @@
   font-weight: 500;
 }
 .mod-navigation-count {
-  font: 400 10px/12px var(--font-sans);
+  font: 400 10px/12px var(--font-interface);
 }
 .mod-navigation-separator {
   flex: 0 0 1px;

@@ -74,6 +74,8 @@ export async function* measureEditor(entry, options, runs) {
     await surface.waitFor();
     await memory('opened');
     for (let iteration = 0; iteration < options.warmup + options.rounds; iteration++) {
+      // Acquiring window focus refreshes settings before local file-switch measurements begin.
+      await surface.focus();
       await page.evaluate(async () => {
         const workspace = Reflect.get(globalThis, 'browserWorkspace');
         for (const label of workspace.windows.keys()) await workspace.emit('browser-measurement-ready', null, label);

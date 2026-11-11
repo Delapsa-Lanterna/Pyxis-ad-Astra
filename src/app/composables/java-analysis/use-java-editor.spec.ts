@@ -1,3 +1,5 @@
+import { useCodeAnalysisSync } from '@/app/composables/code-editor/use-code-analysis-sync';
+import { useTextFileBatch } from '@/app/composables/text-file-editing/use-text-file-batch';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { enableAutoUnmount, flushPromises } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
@@ -6,11 +8,12 @@ import { ref } from 'vue';
 import { mountSetup } from '@/test/unit/mount-setup';
 import { createSettingsFixture } from '@/test/fixtures/settings';
 import { initializeSettingsStore } from '@/stores/settings.store';
-import { useCodeEditor } from './use-code-editor';
-import { useCodeAnalysis } from './use-code-analysis';
-import { useCodeActions } from './use-code-actions';
+import { useTextFiles } from '@/app/composables/text-file-editing/use-text-files';
+import { useJavaEditor } from '@/app/composables/java-analysis/use-java-editor';
+import { useJavaActions } from '@/app/composables/java-analysis/use-java-actions';
 import type { startJavaEditor, syncJavaEditor, inspectJavaEditor, assistJavaEditor } from '@/services/java-analysis.service';
-import type { JavaInspection } from '@/shared/types';
+import type { JavaInspection, JavaAssistance } from '@/shared/types';
+import { showTooltip } from '@codemirror/view';
 import type * as AppLogQueueModule from '@/shared/runtime/app-log-queue';
 import { projectChangeFixture } from '@/test/unit/project-changes';
 
@@ -33,13 +36,16 @@ vi.mock('@/services/java-analysis.service', () => ({
   assistJavaEditor: mocks.assist,
   closeJavaEditor: mocks.close,
 }));
-vi.mock('@/services/text-editor.service', () => ({
-  loadTextFile: async (_session: string, _root: string, path: string) => ({
-    path,
-    text: '// 星🪐\r\nclass Orbit {}',
-    entity: null,
-    baseVersions: [],
-  }),
+vi.mock('@/services/text-file-editing.service', () => ({
+  loadTextFile: async (_session: string, _root: string, path: string) => {
+    if (path.endsWith('/Absent.java')) throw Error('sample file unavailable');
+    return {
+      path,
+      text: '// 星🪐\r\nclass Orbit {}',
+      entity: null,
+      baseVersions: [],
+    };
+  },
 }));
 vi.mock('@/services/code-editor.service', () => ({ subscribeCodeEditor: async () => {}, finishCodeEditorOpen: async () => {} }));
 vi.mock('@/orchestrators/project-sync.orchestrator', async () => await import('@/test/unit/project-changes'));
@@ -70,9 +76,14 @@ afterEach(() => {
 });
 async function open() {
   const mounted = mountSetup(() => {
-    const host = useCodeEditor({ sessionId: 'sample', modRoot: 'M:/sample' });
-    const analysis = useCodeAnalysis(host, 'M:/sample');
-    return { host, analysis, actions: useCodeActions(host, analysis, { sessionId: 'sample', modRoot: 'M:/sample' }) };
+    const host = useTextFiles({ sessionId: 'sample', modRoot: 'M:/sample' });
+    const analysis = useJavaEditor(host, 'M:/sample');
+    useCodeAnalysisSync(analysis.refresh);
+    return {
+      host,
+      analysis,
+      actions: useJavaActions(host, analysis, useTextFileBatch(host, { sessionId: 'sample', modRoot: 'M:/sample' }).apply),
+    };
   });
   await mounted.value.host.ready;
   await mounted.value.host.openFiles([{ path: 'M:/sample/src/Orbit.java' }]);
@@ -95,8 +106,8 @@ it('records one failed startup with the original diagnostic and window scope', a
 });
 it('keeps files outside the registered roots out of analysis and coalesces startup requests', async () => {
   const mounted = mountSetup(() => {
-    const host = useCodeEditor({ sessionId: 'sample', modRoot: 'M:/sample' });
-    return { host, analysis: useCodeAnalysis(host, 'M:/sample', ref(['M:/sample/src'])) };
+    const host = useTextFiles({ sessionId: 'sample', modRoot: 'M:/sample' });
+    return { host, analysis: useJavaEditor(host, 'M:/sample', ref(['M:/sample/src'])) };
   });
   const { host, analysis } = mounted.value;
   await host.ready;
@@ -143,6 +154,40 @@ it('keeps signature extensions stable across view configuration transactions', a
   document.document.configureSurface(extensions);
   expect(actions.extensions.value).toBe(extensions);
 });
+it('keeps the scheduled document projection after completion synchronizes a draft', async () => {
+  const { analysis, document } = await open();
+  await analysis.start();
+  vi.useFakeTimers();
+  mocks.inspect.mockClear();
+  document.setText('class Orbit { int updated; }');
+  await analysis.assist('complete', 6);
+  expect(mocks.inspect).not.toHaveBeenCalled();
+  await vi.advanceTimersByTimeAsync(300);
+  await analysis.settle();
+  expect(mocks.inspect).toHaveBeenCalledExactlyOnceWith(document.path.value, 0, 'document');
+  expect(analysis.current.value).toBeDefined();
+});
+
+it('captures the requested source position before waiting for draft submission', async () => {
+  const { analysis, document } = await open();
+  await analysis.start();
+  document.setText('class Orbit { int value; }');
+  document.document.locate(1, 7);
+  let release!: () => void;
+  mocks.sync.mockImplementationOnce(
+    () =>
+      new Promise<void>((resolve) => {
+        release = resolve;
+      }),
+  );
+  const requested = analysis.assist('rename', undefined, 'Renamed');
+  await flushPromises();
+  document.document.locate(1, 1);
+  release();
+  await requested;
+  expect(mocks.assist).toHaveBeenLastCalledWith(document.path.value, 6, 'rename', 'Renamed', {}, 0);
+});
+
 it('hands off the latest startup draft, then combines edits into raw UTF-16 ranges before a query', async () => {
   const { analysis, document } = await open();
   let release!: () => void;
@@ -188,6 +233,8 @@ it('waits for composition, preserves edits during IPC, and rejects an out-of-dat
   expect(mocks.inspect).toHaveBeenCalledTimes(1);
   document.setText('class Orbit { int value=2; }');
   document.document.finishComposition();
+  await pending;
+  const inFlight = analysis.navigate('references');
   let release!: (value: JavaInspection) => void;
   const stale: JavaInspection = {
     purpose: 'references',
@@ -211,7 +258,7 @@ it('waits for composition, preserves edits during IPC, and rejects an out-of-dat
   await flushPromises();
   document.setText('class Orbit { int value=3; }');
   release(stale);
-  await pending;
+  await inFlight;
   expect(analysis.locations.value).toEqual([]);
   await analysis.navigate('references');
   expect(mocks.sync.mock.calls.at(-1)![0][0]!.source).toBeNull();
@@ -265,4 +312,144 @@ it('submits a newly opened file before inspecting it during an existing analysis
   await analysis.navigate('references');
   expect(mocks.sync.mock.calls.at(-1)![0][0]!.file).toBe('M:/sample/src/Second.java');
   expect(mocks.sync.mock.invocationCallOrder.at(-1)!).toBeLessThan(mocks.inspect.mock.invocationCallOrder.at(-1)!);
+});
+
+it('preserves the current location and delivers the original failed declaration load', async () => {
+  const { host, analysis, document } = await open();
+  document.document.locate(2, 7);
+  const selection = document.document.state.value.selection;
+  await expect(analysis.locate({ file: 'M:/sample/src/Absent.java', version: 1, range: { start: 0, end: 1 } })).rejects.toThrow(
+    'sample file unavailable',
+  );
+  expect(host.active.value).toBe(document);
+  expect(document.document.state.value.selection).toBe(selection);
+});
+
+it('releases a closed read-only reference projection and its diagnostics', async () => {
+  const { host, analysis } = await open();
+  await analysis.start();
+  const inspect = mocks.inspect.getMockImplementation()!;
+  mocks.inspect.mockImplementation(async (file, offset, purpose) => ({
+    ...(await inspect(file, offset, purpose)),
+    source: purpose === 'source' ? 'class Reference {}' : null,
+    diagnostics: file.includes('/reference/')
+      ? [{ file, version: 2, start: 6, end: 15, line: 1, message: 'reference warning', severity: 'warning' }]
+      : [],
+  }));
+  await analysis.locate({ file: 'M:/reference/src/Reference.java', version: 2, range: { start: 6, end: 15 } });
+  expect(analysis.diagnostics.value).toHaveLength(1);
+  await host.close(host.active.value!);
+  expect(host.documents).toHaveLength(1);
+  expect(analysis.diagnostics.value).toEqual([]);
+});
+
+it.each(['rename', 'signature'] as const)('discards a queued %s after text changes', async (purpose) => {
+  const { analysis, document } = await open();
+  await analysis.start();
+  let release!: () => void;
+  mocks.inspect.mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        release = () =>
+          resolve({
+            purpose: 'hover',
+            project: 'sample',
+            revision: 2,
+            version: 2,
+            file: document.path.value,
+            source: null,
+            origin: null,
+            binding: null,
+            diagnostics: [],
+            outline: [],
+            locations: [],
+          });
+      }),
+  );
+  const blocking = analysis.navigate('references');
+  await flushPromises();
+  const queued = analysis.assist(purpose);
+  document.setText('class Different {}');
+  release();
+  await blocking;
+  expect(await queued).toBeNull();
+  expect(mocks.assist).not.toHaveBeenCalled();
+});
+
+it('ends a document input wait without analyzing its disposed state', async () => {
+  const { host, analysis, document } = await open();
+  await analysis.start();
+  document.document.startComposition();
+  document.setText('class Changed {}');
+  const pending = analysis.navigate('references');
+  await flushPromises();
+  await host.close(document);
+  await pending;
+  await analysis.settle();
+  expect(analysis.problem.value).toBe('');
+  expect(mocks.log).not.toHaveBeenCalled();
+  expect(host.documents).toEqual([]);
+});
+
+it('discards a parameter tooltip when the cursor moves during its query', async () => {
+  const { analysis, actions, document } = await open();
+  await analysis.start();
+  document.document.locate(2, 7);
+  let release!: (result: JavaAssistance) => void;
+  mocks.assist.mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        release = resolve;
+      }),
+  );
+  const pending = actions.parameters();
+  await flushPromises();
+  document.document.locate(2, 8);
+  release({
+    assistance: true,
+    purpose: 'signature',
+    project: 'sample',
+    revision: 2,
+    file: document.path.value,
+    version: 2,
+    argument: 0,
+    files: [],
+    choices: [],
+    conflicts: [],
+    candidates: [{ label: 'sample(int)', text: '', detail: 'int', from: 0, to: 0, relevance: 0 }],
+  });
+  await pending;
+  document.document.configureSurface(actions.extensions.value);
+  expect(document.document.state.value.facet(showTooltip).filter(Boolean)).toEqual([]);
+});
+
+it('discards completion from a project whose other source has pending edits', async () => {
+  const { host, analysis, document } = await open();
+  await host.openFiles([{ path: 'M:/sample/src/Other.java' }]);
+  host.activate(document.path.value);
+  await analysis.start();
+  let release!: (result: JavaAssistance) => void;
+  mocks.assist.mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        release = resolve;
+      }),
+  );
+  const pending = analysis.assist('complete', 6);
+  await flushPromises();
+  host.documents[1]!.setText('class Other {int changed;}');
+  release({
+    assistance: true,
+    purpose: 'complete',
+    project: 'sample',
+    revision: 2,
+    version: 2,
+    file: document.path.value,
+    argument: 0,
+    candidates: [],
+    files: [],
+    choices: [],
+    conflicts: [],
+  });
+  expect(await pending).toBeNull();
 });
