@@ -24,7 +24,7 @@
   >
     <EditorProblems
       :ignore-warnings="settings.ignoreEditorWarnings"
-      :issues="joint.problems.issues.value"
+      :issues="vm.visibleProblems.value"
       :is-blocking="joint.isBlocking"
       @locate="locateProblem"
     />

@@ -232,6 +232,10 @@ describe('complete browser workspace fixtures', () => {
             },
           })) as T.WriteResult;
           expect(saved.history.undoStack).toHaveLength(beforeHistory + 1);
+          expect(saved.content).toMatchObject({
+            target: { kind: 'csv', table },
+            value: { table, baseVersions: saved.baseVersions, rows: project.tables.get(table)!.rows },
+          });
           if (mode === 'read') expect(project.textFiles.get(destination)).toBe(targetText);
           else expect(JSON.parse(project.textFiles.get(destination)!)[field]).toBe('prepared');
           if (rename) expect(project.textFiles.has(old)).toBe(false);

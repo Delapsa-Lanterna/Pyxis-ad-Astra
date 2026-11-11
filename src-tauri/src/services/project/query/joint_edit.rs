@@ -296,16 +296,17 @@ pub(in crate::services::project) fn query_joint_edit_values(
         }
     }
     let mut variants = BTreeMap::new();
-    if root.kind == JointEditKind::Variant {
-        let mut pending = records.iter().filter(|record| matches!(&record.target, JointRecordTarget::Spec { target } if target.kind == EntityKind::Variant)).map(|record| record.key.clone()).collect::<Vec<_>>();
-        let mut visited = BTreeSet::new();
-        while let Some(key) = pending.pop() {
-            if !visited.insert(key.clone()) {
-                continue;
-            }
-            if let Some(hull) = joint_hull::project_joint_hull(&records, &key)? {
-                pending.extend(hull.modules.iter().map(|module| module.variant_key.clone()));
-                variants.insert(key, hull);
+    for record in &records {
+        if matches!(&record.target, JointRecordTarget::Spec { target } if target.kind == EntityKind::Variant)
+        {
+            let projected =
+                if let Some(hull) = hull.as_ref().filter(|hull| hull.variant_key == record.key) {
+                    Some(hull.clone())
+                } else {
+                    joint_hull::project_joint_hull(&records, &record.key)?
+                };
+            if let Some(hull) = projected {
+                variants.insert(record.key.clone(), hull);
             }
         }
     }

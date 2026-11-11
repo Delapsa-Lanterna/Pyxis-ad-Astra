@@ -34,6 +34,18 @@ beforeEach(() => {
   );
 });
 describe('joint file validation', () => {
+  it('maps a used duplicate identity even when the first duplicate is another row', async () => {
+    reads.index.mockResolvedValue(
+      csvTableIndex(
+        [csvDraftRow({ id: 'one', name: 'First', OPs: '2' }, 'first'), csvDraftRow({ id: 'one', name: 'Used', OPs: '2' }, 'csv')],
+        { table: 'weapons' },
+      ),
+    );
+    const issues = await validateJointFiles(fixture(), {});
+    expect(issues.filter((issue) => issue.code === 'csv.identity_duplicate')).toMatchObject([
+      { path: JSON.stringify(['csv', 'id']), location: { rowKey: 'csv', field: 'id', path: 'M:/mod/data/weapons/weapon_data.csv' } },
+    ]);
+  });
   it('rechecks complete table references when another row spec changes', async () => {
     const snapshot = fixture();
     const validation = createJointFileValidation();

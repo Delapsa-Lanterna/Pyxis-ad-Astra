@@ -1242,6 +1242,10 @@ fn wing_sources_and_fitted_weapons() {
     let snapshot = query_joint_edit(&root).unwrap();
     let hull = snapshot.hull.as_ref().unwrap();
     assert_eq!(
+        snapshot.variants[&snapshot.bindings["variant"]].weapons,
+        hull.weapons
+    );
+    assert_eq!(
         hull.weapons,
         BTreeMap::from([
             ("one".into(), "weapon".into()),
@@ -2152,6 +2156,20 @@ fn builtin_wings_and_single_user() {
         hull.referenced_by,
         vec!["Ship:a", "Variant:var", "Wing:wing"]
     );
+    for (kind, id) in [
+        (JointEditKind::Ship, "a"),
+        (JointEditKind::Wing, "wing"),
+        (JointEditKind::Variant, "var"),
+    ] {
+        let graph = query_joint_edit(&JointEditRoot {
+            kind,
+            id: id.into(),
+            ..root.clone()
+        })
+        .unwrap();
+        let variant = graph.records.iter().find(|record| matches!(&record.target, JointRecordTarget::Spec { target } if target.kind == EntityKind::Variant && target.id == "var")).unwrap();
+        assert!(graph.variants.contains_key(&variant.key));
+    }
     cleanup(dir, &root);
 }
 

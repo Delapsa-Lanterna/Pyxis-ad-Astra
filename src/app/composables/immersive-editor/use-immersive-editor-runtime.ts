@@ -1,4 +1,4 @@
-import { dialogBody, dialogFiles } from '@/shared/ui/dialog-content';
+import { dialogBody, dialogFiles, dialogGroup } from '@/shared/ui/dialog-content';
 import { useProjectSyncStore } from '@/stores/project-sync.store';
 import { isExternalSource } from '@/shared/lib/resource-ref';
 import { hasSourceInvalidation } from '@/services/source-catalog.service';
@@ -31,7 +31,7 @@ import { retargetImmersiveWindow } from '@/orchestrators/immersive-editor.orches
 import { cloneQuerySnapshot } from '@/shared/lib/query-snapshot';
 import { deepClone } from '@/shared/lib/starsector';
 import { stableDeepEqual } from '@/shared/lib/stable-compare';
-import { AppError, formatError, warningNotice } from '@/shared/lib/errors';
+import { AppError, errorDiagnosticOf, formatError, warningNotice } from '@/shared/lib/errors';
 import { normalizeFsPath } from '@/shared/lib/paths';
 import { querySessionHullReferences } from '@/services/hull-reference.service';
 import { hullReferenceSourceGroups } from '@/domain/resources/hull-references';
@@ -96,6 +96,31 @@ export function useImmersiveEditorRuntime<TPanel extends ImmersivePanel>(
       history.rebase((value) => mapJointDraftIdentity(value, previous, snapshot, receipt.identityChanges, receipt.keyMap));
       await refreshPreview(true);
     },
+  });
+  watch(joint.saveProblems, (issues) => {
+    if (!issues.length) return;
+    void feedback
+      .choose({
+        title: '保存检查',
+        type: 'error',
+        content: () =>
+          dialogBody(
+            ...issues.map((issue) =>
+              dialogGroup(
+                issue.message,
+                issue.location?.path ? dialogFiles([issue.location.path]) : null,
+                issue.location?.rowKey ? '记录：' + issue.location.rowKey : null,
+                issue.location?.field ? '字段：' + issue.location.field : null,
+              ),
+            ),
+          ),
+        choices: [],
+        cancelText: '返回编辑',
+      })
+      .then(() => {
+        if (joint.saveProblems.value === issues) joint.dismissSaveProblems();
+      })
+      .catch((error: unknown) => feedback.error(error, '展示保存检查失败'));
   });
   const history = useSnapshotHistory<Record<string, JointValue>>(
     joint.context,
@@ -290,8 +315,20 @@ export function useImmersiveEditorRuntime<TPanel extends ImmersivePanel>(
       const result = await joint.saveDraft();
       if (result) feedback.success(`${definition.label}联合保存完成`);
     } catch (error) {
-      feedback.error(error);
+      reportSaveError(error);
     }
+  }
+  function reportSaveError(error: unknown, contextMessage?: string) {
+    if (!(error instanceof AppError && error.issues?.length)) return feedback.error(error, contextMessage);
+    const diagnostic = errorDiagnosticOf(error);
+    recordLogBestEffort({
+      level: 'error',
+      code: diagnostic.code,
+      message: diagnostic.message,
+      path: diagnostic.location?.path ?? null,
+      line: diagnostic.location?.line ?? null,
+      fields: logFields({ ...root, action: error.action, issues: JSON.stringify(error.issues) }),
+    });
   }
   async function createOverrides(selected?: string[]) {
     const target = joint.currentTarget.value;
@@ -301,7 +338,7 @@ export function useImmersiveEditorRuntime<TPanel extends ImmersivePanel>(
       if (!active || !admitted() || joint.currentTarget.value !== target) return;
       await joint.createOverrides(keys);
     } catch (error) {
-      feedback.error(error);
+      reportSaveError(error);
     }
   }
   async function switchReference(changes: ImmersiveFieldChange[], inputCommitted = false) {
@@ -363,7 +400,7 @@ export function useImmersiveEditorRuntime<TPanel extends ImmersivePanel>(
       }
     } catch (error) {
       if (previous && active && joint.currentTargetKey.value === key && !joint.saving.value) joint.setDraft(previous);
-      feedback.error(error, '切换关联来源失败');
+      reportSaveError(error, '切换关联来源失败');
     } finally {
       referenceChanging.value = false;
     }

@@ -1399,3 +1399,156 @@ describe('immersive ship lifecycle and reference channels', () => {
     wrapper.unmount();
   });
 });
+
+describe('immersive problem presentation', () => {
+  it.each(['ship', 'skin', 'weapon', 'wing', 'variant'] as const)('filters %s table rows without extra reads', async (kind) => {
+    const snapshot =
+      kind === 'weapon'
+        ? weaponJointFixture()
+        : kind === 'wing'
+          ? wingJointFixture()
+          : kind === 'variant'
+            ? variantJointFixture()
+            : shipJointFixture();
+    snapshot.root.kind = kind;
+    const row = snapshot.records.find((record) => record.target.kind === 'csv')!;
+    const issue = {
+      severity: 'warning' as const,
+      code: 'fixture.warning',
+      path: row.key,
+      message: 'Used component',
+      location: {
+        path: row.source!.path,
+        rowKey: row.target.kind === 'csv' ? row.target.rowKey : '',
+        field: 'id',
+        line: null,
+        column: null,
+      },
+    };
+    mocks.query.mockResolvedValue(snapshot);
+    mocks.validate.mockResolvedValue([issue, { ...issue, message: 'Another row', location: { ...issue.location, rowKey: 'other-row' } }]);
+    let vm!: ReturnType<typeof useImmersiveEditorViewModel>;
+    const wrapper = mount({
+      setup() {
+        vm = useImmersiveEditorViewModel(snapshot.root);
+        return () => null;
+      },
+    });
+    try {
+      await vm.initialize();
+      await flushPromises();
+      const reads = [mocks.query.mock.calls.length, mocks.preview.mock.calls.length, mocks.validate.mock.calls.length];
+      expect(vm.visibleProblems.value).toEqual([issue]);
+      const current = vm.visibleProblems.value;
+      for (let i = 0; i < 10; i++) expect(vm.visibleProblems.value).toBe(current);
+      expect([mocks.query.mock.calls.length, mocks.preview.mock.calls.length, mocks.validate.mock.calls.length]).toEqual(reads);
+    } finally {
+      wrapper.unmount();
+    }
+  });
+  it('shows a complete save failure once and closes its owned problems', async () => {
+    const { AppError } = await import('@/shared/lib/errors');
+    const issue = {
+      severity: 'error' as const,
+      code: 'csv.value_invalid',
+      path: 'other-row/OPs',
+      message: 'Invalid cost',
+      location: { path: 'M:/mod/data/hulls/ship_data.csv', rowKey: 'other-row', field: 'OPs', line: null, column: null },
+    };
+    const failure = new AppError('Save check', { action: 'joint-validation', issues: [issue] });
+    mocks.save.mockRejectedValueOnce(failure);
+    let close!: (value: string | null) => void;
+    mocks.choose.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          close = resolve;
+        }),
+    );
+    const { vm, wrapper } = editor();
+    try {
+      await vm.initialize();
+      await vm.save();
+      await flushPromises();
+      expect(vm.joint.saveProblems.value).toEqual([issue]);
+      const options = mocks.choose.mock.calls[0]![0];
+      expect(options.title).toBe('保存检查');
+      const text = dialogText(options);
+      expect(text).toContain('other-row');
+      expect(text).toContain('OPs');
+      expect(text).toContain(issue.location.path);
+      expect(mocks.choose).toHaveBeenCalledTimes(1);
+      expect(mocks.error).not.toHaveBeenCalled();
+      expect(mocks.log).toHaveBeenCalledTimes(1);
+      close(null);
+      await flushPromises();
+      expect(vm.joint.saveProblems.value).toEqual([]);
+    } finally {
+      close?.(null);
+      wrapper.unmount();
+      await flushPromises();
+    }
+  });
+});
+
+it('admits problem membership with the accepted graph and restores it through undo and redo', async () => {
+  const baseline = variantJointFixture(),
+    changed = structuredClone(baseline);
+  const oldRow = baseline.records.find((record) => record.key === 'mod')!;
+  const nextRow = structuredClone(oldRow);
+  nextRow.key = 'new-mod';
+  if (nextRow.target.kind !== 'csv') throw new Error('Hullmod fixture');
+  nextRow.target.identity.id = 'new-mod';
+  nextRow.target.rowKey = 'new-mod-row';
+  nextRow.value = { state: 'present', value: { id: 'new-mod', name: 'New module', cost_cruiser: '2' } };
+  changed.records.push(nextRow);
+  changed.records.find((record) => record.key === 'variant')!.value = {
+    state: 'present',
+    value: { ...jointObject(baseline.records.find((record) => record.key === 'variant')!.value), hullMods: ['new-mod'] },
+  };
+  const issues = [oldRow, nextRow].map((record) => ({
+    severity: 'warning' as const,
+    code: 'fixture.mod',
+    path: record.key,
+    message: record.key,
+    location: {
+      path: record.source!.path,
+      rowKey: record.target.kind === 'csv' ? record.target.rowKey : '',
+      field: 'id',
+      line: null,
+      column: null,
+    },
+  }));
+  mocks.query.mockResolvedValue(baseline);
+  mocks.validate.mockResolvedValue(issues);
+  let finish!: (value: JointEditSnapshot) => void;
+  mocks.preview.mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+  );
+  const { vm, wrapper } = editor('variant');
+  try {
+    await vm.initialize();
+    await flushPromises();
+    expect(vm.visibleProblems.value.map((issue) => issue.message)).toEqual(['mod']);
+    await vm.variant!.updateVariant('variant', (data) => ({ ...data, hullMods: ['new-mod'] }));
+    await flushPromises();
+    expect(vm.visibleProblems.value.map((issue) => issue.message)).toEqual(['mod']);
+    finish(changed);
+    await flushPromises();
+    expect(vm.visibleProblems.value.map((issue) => issue.message)).toEqual(['new-mod']);
+    await vm.undo();
+    await flushPromises();
+    expect(vm.visibleProblems.value.map((issue) => issue.message)).toEqual(['mod']);
+    mocks.preview.mockResolvedValueOnce(changed);
+    await vm.redo();
+    await flushPromises();
+    expect(vm.visibleProblems.value.map((issue) => issue.message)).toEqual(['new-mod']);
+    expect(mocks.preview).toHaveBeenCalledTimes(2);
+  } finally {
+    finish?.(changed);
+    wrapper.unmount();
+    await flushPromises();
+  }
+});

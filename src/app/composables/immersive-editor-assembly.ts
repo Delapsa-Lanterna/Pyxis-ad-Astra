@@ -1,5 +1,10 @@
 import type { ImmersiveEditorDefinition } from '@/domain/immersive/fields';
-import { immersiveEditableRecords, variantEditableRecords } from '@/domain/immersive/source-records';
+import {
+  immersiveEditableRecords,
+  variantEditableRecords,
+  immersiveUsedRecords,
+  immersiveRecordProblems,
+} from '@/domain/immersive/source-records';
 import { projectShipPanel, shipPreviewInputs, type ShipImmersivePanel } from '@/domain/immersive/ship/ship-panel';
 import {
   projectWeaponPanel,
@@ -82,11 +87,14 @@ export function useImmersiveEditorViewModel(root: JointEditRoot & { rowKey?: str
     readSnapshot: root.kind === 'wing' ? (target, signal) => wing!.readSnapshot(target, signal) : undefined,
     onContentUpdate: root.kind === 'wing' ? (target) => wing!.refreshWingBaseline(target) : undefined,
   });
+  const usedRecords = computed(() => (runtime.displaySnapshot.value ? immersiveUsedRecords(runtime.displaySnapshot.value) : []));
+  const visibleProblems = computed(() => immersiveRecordProblems(usedRecords.value, runtime.joint.problems.issues.value));
   const variant = root.kind === 'variant' ? useImmersiveVariantEditor(runtime) : null;
   const wing: ReturnType<typeof useImmersiveWingEditor> | null = root.kind === 'wing' ? useImmersiveWingEditor(runtime) : null;
   const weapon = root.kind === 'weapon' ? useImmersiveWeaponEditor(runtime) : null;
   return {
     ...runtime,
+    visibleProblems,
     variant,
     wing,
     variantActionPending: computed(() => variant?.variantActionPending.value ?? false),

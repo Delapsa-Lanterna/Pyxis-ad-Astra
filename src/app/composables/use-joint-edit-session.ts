@@ -45,6 +45,10 @@ export function useJointEditSession(
 ) {
   let finalCheck: { values: Record<string, JointValue>; issues: FieldProblem[] } | null = null;
   let acceptingSave = false;
+  const saveProblems = shallowRef<readonly FieldProblem[]>([]);
+  const dismissSaveProblems = () => {
+    saveProblems.value = [];
+  };
   const actions = useJointEditActions(
     options.validate &&
       (async (snapshot, values, signal, overrides, prepared) => {
@@ -104,10 +108,8 @@ export function useJointEditSession(
                 return record && issue.location?.field ? { ...issue, path: JSON.stringify([record.key, issue.location.field]) } : issue;
               })
             : undefined;
-        problems.recordFailure(
-          mapped ? new AppError('联合文件检查失败', { cause: error, issues: mapped }) : error,
-          record && location?.field ? JSON.stringify([record.key, location.field]) : undefined,
-        );
+        if (mapped) saveProblems.value = mapped;
+        else problems.recordFailure(error, record && location?.field ? JSON.stringify([record.key, location.field]) : undefined);
       }
       return error;
     },
@@ -117,6 +119,7 @@ export function useJointEditSession(
       return true;
     },
     save: async (_root, values, _versions, _original, request) => {
+      dismissSaveProblems();
       finalCheck = null;
       acceptingSave = true;
       const baseline = session.baselineSnapshot.value!;
@@ -185,6 +188,7 @@ export function useJointEditSession(
     Boolean(options.validate),
   );
   function refreshProblems() {
+    dismissSaveProblems();
     problems.clearFailure();
     checkProblems();
   }
@@ -293,6 +297,7 @@ export function useJointEditSession(
   onScopeDispose(() => {
     stopChanges();
     unregister();
+    dismissSaveProblems();
     session.dispose();
   });
   function createOverrides(keys: string[], values?: Record<string, JointValue>) {
@@ -304,5 +309,14 @@ export function useJointEditSession(
       overrideValues = undefined;
     });
   }
-  return { ...session, problems, isBlocking, open, createOverrides, handoffLocked: computed(() => false) };
+  return {
+    ...session,
+    problems,
+    saveProblems,
+    dismissSaveProblems,
+    isBlocking,
+    open,
+    createOverrides,
+    handoffLocked: computed(() => false),
+  };
 }

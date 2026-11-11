@@ -414,7 +414,7 @@ export function gameQuery(project: WorkspaceProject, command: string, payload: R
           descriptions.rows.map((row) => Object.fromEntries(Object.entries(row.data).map(([key, value]) => [key, String(value ?? '')]))),
         ),
       );
-    const result = project.write(null, { kind: 'csv', table: input.table }, [
+    const result = project.write<T.CsvTableRowsRead | null>(null, { kind: 'csv', table: input.table }, [
       path,
       ...(input.associatedSpecs ?? []).flatMap(({ target, resolution }) =>
         resolution
@@ -426,6 +426,10 @@ export function gameQuery(project: WorkspaceProject, command: string, payload: R
       ),
     ]);
     result.keyMap = keyMap;
+    result.content = {
+      target: { kind: 'csv', table: input.table },
+      value: { table: input.table, rows: structuredClone(project.tables.get(input.table)!.rows), baseVersions: result.baseVersions },
+    };
     return result;
   }
   if (command === 'query_hull_references') {

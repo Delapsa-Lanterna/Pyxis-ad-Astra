@@ -424,3 +424,36 @@ describe('joint snapshot session acceptance', () => {
     wrapper.unmount();
   });
 });
+
+describe('joint save problem ownership', () => {
+  it.each(['dismiss', 'edit', 'target', 'release', 'save'] as const)('clears save problems on %s', async (action) => {
+    let session!: ReturnType<typeof useJointEditSession>;
+    const wrapper = mount({
+      setup() {
+        session = useJointEditSession();
+        return () => null;
+      },
+    });
+    try {
+      await session.loadTarget(root);
+      const issue: FieldProblem = { severity: 'error', code: 'fixture.save', path: 'other', message: 'Other row' };
+      const error = new AppError('Save check', { issues: [issue] });
+      mocks.save.mockRejectedValueOnce(error);
+      await expect(session.saveDraft()).rejects.toBe(error);
+      expect(session.saveProblems.value).toEqual([issue]);
+      expect(session.problems.issues.value).toEqual([]);
+      if (action === 'dismiss') session.dismissSaveProblems();
+      if (action === 'edit') session.setDraft({ ship: { state: 'present', value: 'next' } });
+      if (action === 'target') session.clearTarget();
+      if (action === 'release') wrapper.unmount();
+      if (action === 'save') {
+        mocks.save.mockResolvedValueOnce(null);
+        await session.saveDraft();
+      }
+      await flushPromises();
+      expect(session.saveProblems.value).toEqual([]);
+    } finally {
+      if (action !== 'release') wrapper.unmount();
+    }
+  });
+});
