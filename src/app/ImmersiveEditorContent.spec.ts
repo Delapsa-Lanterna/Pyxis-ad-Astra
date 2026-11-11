@@ -65,6 +65,7 @@ function fixture() {
     panel: ref(panel),
     snapshot: ref(snapshot),
     selectedStatId: selected,
+    visibleProblems: problems.issues,
     joint: {
       currentTarget: ref(snapshot.root),
       currentTargetKey: key,
