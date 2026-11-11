@@ -31,6 +31,7 @@ import type {
   RowData,
   WeaponSpecClass,
   JointEditRecord,
+  JsonValue,
 } from '@/shared/types';
 
 export async function resolveWingReference(root: JointEditRoot, destination: 'hull' | 'variant', signal?: AbortSignal) {
@@ -68,7 +69,9 @@ export async function submitJointEdit(
     values: Record<string, JointValue>,
     signal?: AbortSignal,
     createOverrides?: readonly string[],
+    preparedSnapshot?: JointEditSnapshot,
   ) => Promise<FieldProblem[]>,
+  previewInputs?: (snapshot: JointEditSnapshot, values: Record<string, JointValue>) => JsonValue,
 ): Promise<JointEditWriteResult | null> {
   const replacement = takeJointReplaceBase(draft.baseline, draft.values);
   const prepared = cloneQuerySnapshot<JointEditPrepared>(await prepareJointEdit({ ...draft, values: replacement.values }));
@@ -140,8 +143,13 @@ export async function submitJointEdit(
       state: 'present',
       value: changeWeaponSpecClass(jointObject(values[branch.record.key]), branch.selected.value),
     };
+  let preview: JointEditSnapshot | undefined;
   if (validate) {
-    const preview = await queryJointEditPreview({ baseline: snapshot, values });
+    const original = Object.fromEntries(snapshot.records.map((record) => [record.key, record.value]));
+    preview =
+      previewInputs && stableDeepEqual(previewInputs(snapshot, values), previewInputs(snapshot, original))
+        ? snapshot
+        : cloneQuerySnapshot<JointEditSnapshot>(await queryJointEditPreview({ baseline: snapshot, values }));
     for (const record of preview.records)
       if (!snapshot.records.some((current) => current.key === record.key))
         snapshot.records.push(cloneQuerySnapshot<JointEditRecord>(record));
@@ -149,7 +157,7 @@ export async function submitJointEdit(
       if (!snapshot.baseVersions.some((current) => current.path === version.path)) snapshot.baseVersions.push({ ...version });
   }
   const issues = validate
-    ? (await validate(snapshot, values, undefined, createOverrides)).filter((issue) =>
+    ? (await validate(snapshot, values, undefined, createOverrides, preview)).filter((issue) =>
         jointProblemBlocks(snapshot, values, issue, createOverrides),
       )
     : jointCsvProblems(snapshot, values);

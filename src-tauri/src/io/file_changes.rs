@@ -1,10 +1,12 @@
 use crate::errors::{AppError, AppResult};
-#[cfg(test)]
-use crate::io::csv_files;
 use crate::io::{
-    FsRootBoundary, validate_safe_relative_path, validate_walk_entry, write_utf8_no_bom,
+    FsRootBoundary, PathReadBatch, validate_safe_relative_path, validate_walk_entry,
+    write_utf8_no_bom,
 };
-use crate::models::{FileChangeKind, FileChangeRecord, FileChangeReplayDirection, FileSnapshot};
+use crate::models::file_content::{CsvSource, JsonSource};
+use crate::models::{
+    FileChangeKind, FileChangeRecord, FileChangeReplayDirection, FileSnapshot, FileVersion,
+};
 use crate::{io, models};
 use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD;
@@ -13,7 +15,7 @@ use std::cell::RefCell;
 use std::collections::BTreeMap;
 use std::fs;
 use std::io::{Error, ErrorKind};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Condvar, LazyLock, Mutex, Weak};
 use walkdir::WalkDir;
 
@@ -37,9 +39,124 @@ thread_local! {
 
 struct RootWriteLease {
     root: String,
+    boundary: FsRootBoundary,
+    paths: PathReadBatch,
+    files: Mutex<BTreeMap<PathBuf, CapturedFile>>,
     recreated_sources: Mutex<Vec<String>>,
     coordinator: Arc<RootWriteCoordinator>,
     retry: Option<WriteRetry>,
+}
+struct CapturedFile {
+    version: FileVersion,
+    bytes: Option<Arc<[u8]>>,
+    json: Option<Arc<JsonSource>>,
+    csv: Option<Arc<CsvSource>>,
+}
+pub(crate) fn active_root_boundary(root: &Path) -> Option<FsRootBoundary> {
+    ACTIVE_WRITES.with(|active| {
+        active
+            .borrow()
+            .values()
+            .filter_map(Weak::upgrade)
+            .find(|lease| same_physical_path(root, lease.boundary.root()))
+            .map(|lease| lease.boundary.clone())
+    })
+}
+fn source_lease(path: &Path) -> Option<Arc<RootWriteLease>> {
+    ACTIVE_WRITES.with(|active| {
+        active
+            .borrow()
+            .values()
+            .rev()
+            .filter_map(Weak::upgrade)
+            .find(|lease| path.starts_with(lease.boundary.root()))
+    })
+}
+pub(crate) fn captured_file(path: &Path) -> Option<(FileVersion, Vec<u8>)> {
+    source_lease(path).and_then(|lease| {
+        let files = lease.files.lock().expect("owned source capture");
+        let file = files.get(path)?;
+        Some((file.version.clone(), file.bytes.as_ref()?.to_vec()))
+    })
+}
+pub(crate) fn capture_file(version: &FileVersion, bytes: &[u8]) {
+    let path = Path::new(&version.path);
+    if let Some(lease) = source_lease(path) {
+        let mut files = lease.files.lock().expect("owned source capture");
+        let file = files
+            .entry(path.to_path_buf())
+            .or_insert_with(|| CapturedFile {
+                version: version.clone(),
+                bytes: None,
+                json: None,
+                csv: None,
+            });
+        if file.version != *version {
+            file.version = version.clone();
+            file.json = None;
+            file.csv = None;
+        }
+        file.bytes = Some(Arc::from(bytes));
+    }
+}
+pub(crate) fn captured_json(version: &FileVersion) -> Option<Arc<JsonSource>> {
+    source_lease(Path::new(&version.path)).and_then(|lease| {
+        lease
+            .files
+            .lock()
+            .expect("owned source capture")
+            .get(Path::new(&version.path))
+            .filter(|file| file.version == *version)
+            .and_then(|file| file.json.clone())
+    })
+}
+pub(crate) fn capture_json(version: &FileVersion, source: Arc<JsonSource>) {
+    if let Some(lease) = source_lease(Path::new(&version.path))
+        && let Some(file) = lease
+            .files
+            .lock()
+            .expect("owned source capture")
+            .get_mut(Path::new(&version.path))
+            .filter(|file| file.version == *version)
+    {
+        file.json = Some(source);
+    }
+}
+pub(crate) fn captured_csv(version: &FileVersion) -> Option<Arc<CsvSource>> {
+    source_lease(Path::new(&version.path)).and_then(|lease| {
+        lease
+            .files
+            .lock()
+            .expect("owned source capture")
+            .get(Path::new(&version.path))
+            .filter(|file| file.version == *version)
+            .and_then(|file| file.csv.clone())
+    })
+}
+pub(crate) fn capture_csv(version: &FileVersion, source: Arc<CsvSource>) {
+    if let Some(lease) = source_lease(Path::new(&version.path))
+        && let Some(file) = lease
+            .files
+            .lock()
+            .expect("owned source capture")
+            .get_mut(Path::new(&version.path))
+            .filter(|file| file.version == *version)
+    {
+        file.csv = Some(source);
+    }
+}
+pub(crate) fn reset_write_reads(root: &str) {
+    if let Some(lease) = active_write_lease(root) {
+        lease.paths.clear();
+        for file in lease
+            .files
+            .lock()
+            .expect("owned source capture")
+            .values_mut()
+        {
+            file.bytes = None;
+        }
+    }
 }
 
 type WriteRetry = Arc<dyn Fn(&AppError) -> AppResult<()> + Send + Sync>;
@@ -151,13 +268,20 @@ pub fn source_recreation_allowed(root: &str, path: &str) -> bool {
 }
 
 fn acquire_root_write_lock_with_retry(
-    root: &Path,
+    directory: &Path,
     retry: Option<WriteRetry>,
 ) -> AppResult<RootWriteLock> {
-    let canonical_root = FsRootBoundary::new(root, "write root")?
-        .root()
-        .to_string_lossy()
-        .to_string();
+    if let Some(lease) = ACTIVE_WRITES.with(|active| {
+        active
+            .borrow()
+            .values()
+            .filter_map(Weak::upgrade)
+            .find(|lease| same_physical_path(directory, lease.boundary.root()))
+    }) {
+        return Ok(RootWriteLock { _lease: lease });
+    }
+    let boundary = FsRootBoundary::new(directory, "write root")?;
+    let canonical_root = boundary.root().to_string_lossy().to_string();
     #[cfg(windows)]
     let canonical_root = models::windows_path_key(&canonical_root);
     // Nested synchronous services share the transaction's lease.
@@ -199,6 +323,9 @@ fn acquire_root_write_lock_with_retry(
     drop(turns);
     let lease = Arc::new(RootWriteLease {
         root: canonical_root.clone(),
+        paths: PathReadBatch::new(boundary.root()),
+        boundary,
+        files: Mutex::new(BTreeMap::new()),
         recreated_sources: Mutex::new(Vec::new()),
         coordinator,
         retry,
@@ -511,6 +638,8 @@ fn apply_transaction_changes(
                 }
                 Ok::<(), AppError>(())
             })?;
+            // Each actual file step rechecks links after all business preparation.
+            lease.paths.clear();
             validate_change_boundary(&lease.root, change)?;
             if change.before_exists
                 && !Path::new(&change.before_path)
@@ -526,6 +655,8 @@ fn apply_transaction_changes(
             apply_one(change)
         })();
         if let Err(error) = applied {
+            lease.files.lock().expect("owned source capture").clear();
+            lease.paths.clear();
             let total = rollback[..=index].iter().map(Vec::len).sum::<usize>();
             let mut restore_errors = Vec::new();
             for (completed_steps, original) in rollback[..=index]
@@ -536,6 +667,8 @@ fn apply_transaction_changes(
             {
                 loop {
                     let restored = (|| {
+                        lease.files.lock().expect("owned source capture").clear();
+                        lease.paths.clear();
                         validate_change_boundary(&lease.root, original)?;
                         let current = build_current_state(Path::new(&original.after_path))?;
                         if current.after_exists == original.after_exists
@@ -587,13 +720,24 @@ fn apply_transaction_changes(
                     }
                 }
             }
+            lease.files.lock().expect("owned source capture").clear();
+            lease.paths.clear();
             return Err(changeset_apply_error(error, restore_errors));
         }
     }
+    lease.files.lock().expect("owned source capture").clear();
+    lease.paths.clear();
     Ok(())
 }
 
 fn validate_change_boundary(root: &str, change: &FileChangeRecord) -> AppResult<()> {
+    let root_path = Path::new(root);
+    let metadata = fs::symlink_metadata(root_path)
+        .map_err(|error| AppError::from(error).at_path(root_path))?;
+    io::validate_walk_metadata(root_path, &metadata, "save root")?;
+    if !metadata.is_dir() {
+        return Err(AppError::message("path.not_directory", "保存根目录已变化").at_path(root_path));
+    }
     let boundary = FsRootBoundary::new(Path::new(root), "save root")?;
     boundary.resolve_absolute(Path::new(&change.before_path), "save source")?;
     if change.before_path != change.after_path {
@@ -787,9 +931,7 @@ fn snapshot_file(path: &Path, rel_path: String) -> AppResult<FileSnapshot> {
 }
 
 fn snapshot_file_content(path: &Path) -> AppResult<(Option<String>, Option<String>)> {
-    let bytes = fs::read(path).map_err(|error| AppError::from(error).at_path(path))?;
-    #[cfg(test)]
-    csv_files::record_csv_disk_read(path);
+    let (_, bytes) = io::read_authorized_bytes(path)?;
     match String::from_utf8(bytes) {
         Ok(text) => Ok((Some(text), None)),
         Err(error) => Ok((None, Some(STANDARD.encode(error.into_bytes())))),
@@ -864,6 +1006,32 @@ mod tests {
     #[cfg(test)]
     use std::time::Instant;
     use std::{fs, thread};
+
+    #[test]
+    fn creating_a_file_rechecks_the_root_after_preparation() {
+        let root = project_workspace("create_vanished_root");
+        let held = root.with_extension("held");
+        let removed = root.clone();
+        let moved = held.clone();
+        FILE_STEP.with(|step| {
+            *step.borrow_mut() = Some(Box::new(move |_, _| {
+                fs::rename(&removed, &moved)?;
+                Ok(())
+            }))
+        });
+        let result = (|| {
+            let mut builder = FileChangeSetBuilder::new(&root)?;
+            builder.text_file("created.txt", Some("Written".into()))?;
+            builder.apply()
+        })();
+        FILE_STEP.with(|step| *step.borrow_mut() = None);
+        assert!(result.is_err());
+        assert!(!root.exists());
+        assert!(held.is_dir());
+        fs::rename(&held, &root).unwrap();
+        assert!(!root.join("created.txt").exists());
+        root.close().unwrap();
+    }
 
     #[test]
     fn failed_file_step_restores_all_previous_bytes_and_partial_output() {

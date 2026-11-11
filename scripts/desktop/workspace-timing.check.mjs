@@ -1,6 +1,44 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { readFile } from 'node:fs/promises';
+import ts from 'typescript';
 import { installWorkspaceTiming, summarizeWorkspaceTiming } from './workspace-timing.mjs';
+
+test('CSV readiness observes real IPC requests with a frozen Tauri invoke', async () => {
+  const source = await readFile(new URL('../../src/test/desktop/csv-audit.ts', import.meta.url), 'utf8');
+  const compiled = ts.transpileModule(source, {
+    compilerOptions: { target: ts.ScriptTarget.ES2023, module: ts.ModuleKind.ESNext },
+  }).outputText;
+  const { installCsvAudit } = await import('data:text/javascript;base64,' + Buffer.from(compiled).toString('base64'));
+  const previous = Object.getOwnPropertyDescriptor(globalThis, 'window');
+  const response = new Response('{}');
+  const invoke = Object.freeze({
+    invoke() {
+      throw Error('Unexpected invoke replacement');
+    },
+  });
+  const host = {
+    fetch: (/** @type {string} */ url) => {
+      assert.equal(url, 'http://ipc.localhost/query_csv_source_options');
+      return Promise.resolve(response);
+    },
+    __TAURI_INTERNALS__: invoke,
+  };
+  Object.defineProperty(globalThis, 'window', { value: host, configurable: true });
+  try {
+    const audit = installCsvAudit();
+    const result = Reflect.get(host, 'fetch')('http://ipc.localhost/query_csv_source_options');
+    assert.equal(audit.calls.length, 1);
+    assert.equal(audit.calls[0].command, 'query_csv_source_options');
+    assert.equal(audit.calls[0].end, null);
+    assert.equal(await result, response);
+    assert.equal(typeof audit.calls[0].end, 'number');
+    assert.equal(host.__TAURI_INTERNALS__, invoke);
+  } finally {
+    if (previous) Object.defineProperty(globalThis, 'window', previous);
+    else Reflect.deleteProperty(globalThis, 'window');
+  }
+});
 
 test('request identities correlate timings and concurrent backend intervals count once', () => {
   const phase = { name: 'workspace', start: 100, action: 110, ready: 200, painted: 230, observed: 250 };

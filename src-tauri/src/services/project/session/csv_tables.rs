@@ -9,7 +9,7 @@ use crate::models::file_content::{CsvContent, CsvSource};
 use crate::models::{CsvRow, CsvTable, CsvTableKey, EntitySummaries};
 use crate::parsers::game;
 use serde_json::Value;
-use std::collections::{BTreeMap, VecDeque};
+use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::path::Path;
 use std::sync::Arc;
 
@@ -29,6 +29,26 @@ pub(in crate::services::project) fn build_table_entity_summaries_from(
             Ok((spec.key, count))
         })
         .collect()
+}
+pub(in crate::services::project) fn refresh_table_entity_summaries(
+    reader: &mut SourceReader,
+    session: &mut ProjectSession,
+    tables: &BTreeSet<CsvTableKey>,
+) -> AppResult<()> {
+    for spec in model::csv_table_specs() {
+        let count = if let Some(count) = spec.entity_summary {
+            count(&session.manifest.entity_summaries)
+        } else if tables.contains(&spec.key) {
+            reader.count(&reader.path(spec.rel_path)?, spec.entity_id_field, |_| true)?
+        } else {
+            continue;
+        };
+        session
+            .manifest
+            .table_entity_summaries
+            .insert(spec.key, count);
+    }
+    Ok(())
 }
 pub(crate) fn session_table<'a>(
     session: &'a ProjectSession,

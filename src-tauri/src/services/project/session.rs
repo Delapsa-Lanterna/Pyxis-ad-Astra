@@ -296,7 +296,6 @@ pub(super) fn build_project_session(
             if sources.reused() { "reused" } else { "parsed" }.into(),
         )]
     });
-    sources.flush();
     let documents = Arc::new(sources.documents());
     Ok(ProjectSession {
         documents,
@@ -331,26 +330,51 @@ pub(super) fn load_spec_bundle(
     trace: &mut PerformanceTrace,
 ) -> AppResult<SpecBundle> {
     let timer = trace.timer();
-    let mut load = |definition: &EntitySpecDefinition| {
-        documents::load_spec_records_from(
+    let mut load = |name: &'static str, definition: &EntitySpecDefinition| {
+        let timer = trace.timer();
+        let records = documents::load_spec_records_from(
             sources,
             definition.source_dirs(),
             definition.extension_without_dot(),
             definition.id_field,
             ResourceSource::Mod,
-        )
+        )?;
+        trace.record_stage(name, timer, || vec![("files", records.len().to_string())]);
+        Ok::<_, AppError>(records)
     };
-    let ship_files = load(&SHIP_SPEC_DEFINITION)?;
-    let weapon_specs = load(&WEAPON_SPEC_DEFINITION)?;
-    let system_files = load(&SYSTEM_SPEC_DEFINITION)?;
-    let skill_files = load(&SKILL_SPEC_DEFINITION)?;
+    let ship_files = load("spec_ships", &SHIP_SPEC_DEFINITION)?;
+    let weapon_specs = load("spec_weapons", &WEAPON_SPEC_DEFINITION)?;
+    let system_files = load("spec_systems", &SYSTEM_SPEC_DEFINITION)?;
+    let skill_files = load("spec_skills", &SKILL_SPEC_DEFINITION)?;
+    let stage = trace.timer();
     let (variant_files, variant_warnings) = json_documents::load_variant_files_from(sources)?;
+    trace.record_stage("spec_variants", stage, || {
+        vec![("files", variant_files.len().to_string())]
+    });
+    let stage = trace.timer();
     let (skin_files, skin_warnings) = json_documents::load_skin_files_from(sources)?;
+    trace.record_stage("spec_skins", stage, || {
+        vec![("files", skin_files.len().to_string())]
+    });
+    let stage = trace.timer();
     let core_projectiles = game
         .map(|root| core::load_core_projectile_specs(&root.to_string_lossy()))
         .transpose()?;
+    trace.record_stage("spec_core_projectiles", stage, || {
+        vec![(
+            "files",
+            core_projectiles
+                .as_ref()
+                .map_or(0, |files| files.len())
+                .to_string(),
+        )]
+    });
+    let stage = trace.timer();
     let projectile_specs =
         projectiles::load_projectile_specs_from(sources, core_projectiles.as_deref())?;
+    trace.record_stage("spec_projectiles", stage, || {
+        vec![("files", projectile_specs.len().to_string())]
+    });
     trace.record_stage("spec_bundle", timer, || {
         vec![(
             "files",
@@ -627,6 +651,74 @@ mod tests {
     }
 
     #[test]
+    fn specification_stages_report_each_loaded_family_and_keep_single_source_reads() {
+        let root = project_workspace("specification_stages");
+        let files = [
+            (
+                "data/hulls/sample.ship",
+                r#"{"hullId":"sample"}"#,
+                "spec_ships",
+            ),
+            (
+                "data/weapons/sample.wpn",
+                r#"{"id":"sample"}"#,
+                "spec_weapons",
+            ),
+            (
+                "data/shipsystems/sample.system",
+                r#"{"id":"sample"}"#,
+                "spec_systems",
+            ),
+            (
+                "data/characters/skills/sample.skill",
+                r#"{"id":"sample"}"#,
+                "spec_skills",
+            ),
+            (
+                "data/variants/sample.variant",
+                r#"{"variantId":"sample","hullId":"sample"}"#,
+                "spec_variants",
+            ),
+            (
+                "data/hulls/skins/sample.skin",
+                r#"{"skinHullId":"sample"}"#,
+                "spec_skins",
+            ),
+            (
+                "data/weapons/proj/sample.proj",
+                r#"{"id":"sample"}"#,
+                "spec_projectiles",
+            ),
+        ];
+        for (relative, content, _) in &files {
+            let path = root.join(relative);
+            fs::create_dir_all(path.parent().unwrap()).unwrap();
+            fs::write(path, content).unwrap();
+        }
+        let mut trace = PerformanceTrace::new("specification.stages");
+        let manifest = open_project_session_traced(&root, None, &mut trace).unwrap();
+        let entries = trace.log_entries(&[]);
+        for (relative, _, stage) in files {
+            let entry = entries.iter().find(|entry| entry.stage == stage).unwrap();
+            assert_eq!(entry.fields, vec![("files".into(), "1".into())]);
+            assert_eq!(work_counts::count("read", &root.join(relative)), 1);
+            assert_eq!(work_counts::count("parse", &root.join(relative)), 1);
+        }
+        let core = entries
+            .iter()
+            .find(|entry| entry.stage == "spec_core_projectiles")
+            .unwrap();
+        assert_eq!(core.fields, vec![("files".into(), "0".into())]);
+        let bundle = entries
+            .iter()
+            .find(|entry| entry.stage == "spec_bundle")
+            .unwrap();
+        assert_eq!(bundle.fields, vec![("files".into(), "7".into())]);
+        release_project_session(manifest.session_id).unwrap();
+        root.close().unwrap();
+    }
+
+    #[test]
     fn open_project_session_warns_and_keeps_first_duplicate_skin_hull_id() {
         let root = project_workspace("skin_duplicate_id");
         fs::create_dir_all(root.join("data/hulls/skins/a")).unwrap();
@@ -686,7 +778,8 @@ mod tests {
 
         let mut initial_trace = PerformanceTrace::new("project.openSession");
         take_load_counts();
-        let _ = build_project_session(&root, None, &mut initial_trace).unwrap();
+        let initial = build_project_session(&root, None, &mut initial_trace).unwrap();
+        source_versions::persist_session_sources(&initial).unwrap();
         assert_eq!(take_load_counts(), (1, 1));
         let mut cached_trace = PerformanceTrace::new("project.openSession");
         let cached = build_project_session(&root, None, &mut cached_trace).unwrap();

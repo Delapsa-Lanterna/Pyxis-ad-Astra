@@ -9,11 +9,12 @@ import { immersiveTargets } from '../../shared/performance-scenarios.mjs';
 /** @typedef {{command:string,start:number,duration:number}} CommandSample */
 /** @typedef {{root:{id:string},bindings:Record<string,string>,records:{key:string,target:{kind:string,rowKey:string,write:{path:string},target:{write:{path:string}}}}[]}} JointSnapshot */
 
-/** @param {import('./registry.mjs').DesktopCase} context */
-export async function immersivePerformance({ launch, fixture, check, options, artifacts, runs }) {
+/** @param {import('./registry.mjs').DesktopCase} context @param {{core?:boolean,observers?:boolean}} mode */
+export async function immersivePerformance({ launch, fixture, check, options, artifacts, runs }, mode = {}) {
   assert.equal(options.mod, undefined, 'Immersive measurements use generated samples');
   const mod = fixture.mod;
   await prepareImmersiveSample(fixture, options.count);
+  if (mode.core) await prepareImmersiveSample({ ...fixture, mod: fixture.core }, options.count, undefined, undefined, 'core_');
   const app = await launch();
   await app.main.evaluate(async () => {
     const invoke = Reflect.get(globalThis, '__TAURI_INTERNALS__').invoke;
@@ -25,11 +26,10 @@ export async function immersivePerformance({ launch, fixture, check, options, ar
     });
   });
   const manifest = /** @type {{sessionId:string,modRoot:string}} */ (
-    await app.main.evaluate(
-      (modRoot) =>
-        Reflect.get(globalThis, '__TAURI_INTERNALS__').invoke('open_project_session', { payload: { modRoot, starsectorRoot: null } }),
-      mod,
-    )
+    await app.main.evaluate((payload) => Reflect.get(globalThis, '__TAURI_INTERNALS__').invoke('open_project_session', { payload }), {
+      modRoot: mod,
+      starsectorRoot: mode.core ? fixture.game : null,
+    })
   );
   await app.main.evaluate(
     'document.querySelector("#app").__vue_app__.config.globalProperties.$pinia._s.get("project").registerProjectManifest(' +
@@ -58,13 +58,26 @@ export async function immersivePerformance({ launch, fixture, check, options, ar
       target.kind === 'wing' ? (row?.target.rowKey ?? null) : null,
     );
     const commandSamples = /** @type {{iteration:number,calls:CommandSample[]}[]} */ ([]);
+    const observerTarget = immersiveTargets.find((entry) => entry.kind === (target.kind === 'weapon' ? 'ship' : 'weapon'));
+    const observer =
+      mode.observers && observerTarget
+        ? await openImmersiveWindow(app, { ...query.root, kind: observerTarget.kind, id: observerTarget.id })
+        : null;
+    const observerSamples = /** @type {{iteration:number,calls:CommandSample[]}[]} */ ([]);
     const run = createTestRun({
       scenario: 'immersive-' + target.kind,
       parameters: { unrelatedVariants: options.count, operation: 'read-save' },
       units: { unrelatedVariants: 'files', read: 'ms', save: 'ms', commands: 'calls' },
       execution: 'native',
       completion: '正式联合读取返回；字段输入提交后保存，磁盘包含提交值、已保存状态及随后绘制帧',
-      environment: { ...app.environment, ...viewport, monitor: false, cache: 'application default', core: false },
+      environment: {
+        ...app.environment,
+        ...viewport,
+        monitor: false,
+        cache: 'application default',
+        core: mode.core ?? false,
+        windows: observer ? 2 : 1,
+      },
       warmup: options.warmup,
       rounds: options.rounds,
       samples: [],
@@ -76,6 +89,7 @@ export async function immersivePerformance({ launch, fixture, check, options, ar
         snapshotRecords: firstRead.snapshot.records.length,
         snapshotBytes: Buffer.byteLength(JSON.stringify(firstRead.snapshot), 'utf8'),
         commands: commandSamples,
+        observerCommands: observerSamples,
       },
     });
     runs.push(run);
@@ -101,6 +115,10 @@ export async function immersivePerformance({ launch, fixture, check, options, ar
           await editor.evaluate(() => {
             Reflect.get(globalThis, '__immersiveCalls').length = 0;
           });
+          if (observer)
+            await observer.editor.evaluate(() => {
+              Reflect.get(globalThis, '__immersiveCalls').length = 0;
+            });
           const save = /** @type {{milliseconds:number,calls:CommandSample[]}} */ (
             await editor.evaluate(async () => {
               const { document, requestAnimationFrame } = globalThis;
@@ -132,6 +150,18 @@ export async function immersivePerformance({ launch, fixture, check, options, ar
           if (!target.file.endsWith('.csv')) assert.equal(JSON.parse(disk)[target.field], next);
           const writes = save.calls.filter((call) => call.command === 'save_project');
           assert.equal(writes.length, 1, 'One project save command: ' + JSON.stringify(save.calls));
+          if (observer) {
+            await observer.editor.evaluate(() => new Promise((done) => setTimeout(done, 100)));
+            const calls = /** @type {CommandSample[]} */ (
+              await observer.editor.evaluate(() => Reflect.get(globalThis, '__immersiveCalls'))
+            );
+            observerSamples.push({ iteration, calls });
+            assert.equal(
+              calls.filter((call) => ['query_joint_edit', 'query_csv_validation'].includes(call.command)).length,
+              0,
+              'Independent editor retains its content: ' + JSON.stringify(calls),
+            );
+          }
           commandSamples.push({ iteration, calls: save.calls });
           run.samples.push({
             iteration,
@@ -154,6 +184,11 @@ export async function immersivePerformance({ launch, fixture, check, options, ar
       await editor.screenshot({ path: join(artifacts, 'immersive-' + target.kind + '.png') });
     } finally {
       await session.detach();
+      if (observer) {
+        await observer.session.detach();
+        await observer.editor.locator('.immersive-actions').getByRole('button', { name: '关闭', exact: true }).click();
+        await until(() => observer.editor.isClosed(), 'observer window released');
+      }
     }
     await editor.locator('.immersive-actions').getByRole('button', { name: '关闭', exact: true }).click();
     await until(() => editor.isClosed(), 'immersive window released');

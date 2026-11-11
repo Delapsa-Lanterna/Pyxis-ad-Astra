@@ -2,7 +2,7 @@ use crate::diagnostics;
 use crate::errors::{AppError, AppResult};
 use crate::io::{self, FsRootBoundary};
 use crate::models::file_content::{CsvContent, CsvSource, JsonSource, RecordKind};
-use crate::models::{self, CsvRow, CsvTable, FileChangeRecord, FileVersion};
+use crate::models::{self, CsvRow, CsvTable, FileChangeKind, FileChangeRecord, FileVersion};
 use crate::parsers::game;
 use crate::parsers::tool_json;
 #[cfg(test)]
@@ -60,6 +60,7 @@ pub(super) struct SourceScope {
     extensions: BTreeSet<String>,
     content: bool,
     entries: BTreeMap<String, Option<(u64, SystemTime)>>,
+    directories: BTreeMap<String, Option<(u64, SystemTime)>>,
 }
 
 pub(super) struct SourceReader {
@@ -73,6 +74,7 @@ pub(super) struct SourceReader {
     pub csv_sources: BTreeMap<String, Arc<CsvSource>>,
     pub scopes: BTreeMap<String, SourceScope>,
     pub stamps: BTreeMap<String, Option<(u64, SystemTime)>>,
+    changed: BTreeSet<String>,
     batch: Option<SourceReadBatch>,
     reused: usize,
     dirty: bool,
@@ -131,6 +133,7 @@ impl SourceReader {
             csv_sources: BTreeMap::new(),
             scopes: BTreeMap::new(),
             stamps: BTreeMap::new(),
+            changed: BTreeSet::new(),
             batch: None,
             reused: 0,
             dirty: false,
@@ -169,6 +172,7 @@ impl SourceReader {
             csv_sources: self.csv_sources.clone(),
             scopes: self.scopes.clone(),
             stamps: self.stamps.clone(),
+            changed: self.changed.clone(),
             batch: self.batch.clone(),
             reused: self.reused,
             dirty: false,
@@ -292,17 +296,9 @@ impl SourceReader {
                 source.clone()
             }
             _ => {
-                #[cfg(test)]
-                work_counts::record("parse", &path);
-                let source = game::read_json(&file.bytes).map_err(|error| {
-                    AppError::context(
-                        format!("读取 JSON 失败：{}", path.display()),
-                        AppError::from(error),
-                    )
-                    .at_path(&path)
-                })?;
+                let source = io::parse_json_data(&file.version, &file.bytes)?;
                 self.dirty = true;
-                Arc::new(source)
+                source
             }
         };
         self.records.insert(
@@ -312,6 +308,7 @@ impl SourceReader {
                 product: SourceProduct::Json(source.clone()),
             },
         );
+        io::capture_json(&file.version, source.clone());
         self.stamps.insert(key.clone(), stamp(&path)?);
         self.versions.insert(key.clone(), file.version);
         self.loaded.insert(key);
@@ -361,6 +358,7 @@ impl SourceReader {
             },
         );
         self.versions.insert(relative.into(), version.clone());
+        self.loaded.insert(relative.into());
     }
     pub fn csv_source(&mut self, path: &Path) -> AppResult<Arc<CsvSource>> {
         let path = self.boundary.resolve_absolute(path, "source file")?;
@@ -401,6 +399,32 @@ impl SourceReader {
         field: &str,
         accepts: fn(&str) -> bool,
     ) -> AppResult<usize> {
+        let key = self.key(path);
+        if self.loaded.contains(&key)
+            && let Some(SourceRecord {
+                product: SourceProduct::Csv { count, .. },
+                ..
+            }) = self.records.get(&key)
+        {
+            return Ok(*count);
+        }
+        if let Some(source) = self.csv_sources.get(&key) {
+            let content = &source.document.content;
+            let column = content.header.iter().rposition(|key| key == field);
+            let count = content
+                .records
+                .iter()
+                .filter(|row| {
+                    row.kind == RecordKind::Data
+                        && column
+                            .and_then(|i| row.cells.get(i))
+                            .is_some_and(|id| !id.trim().is_empty() && accepts(id))
+                })
+                .count();
+            let header = content.header.clone();
+            self.retain_csv_summary(&key, &self.versions[&key].clone(), &header, count);
+            return Ok(count);
+        }
         let path = self.boundary.resolve_absolute(path, "source file")?;
         let key = self.key(&path);
         if !path.exists() {
@@ -488,6 +512,7 @@ impl SourceReader {
                 .collect());
         }
         let mut paths = Vec::new();
+        let mut directories = BTreeMap::new();
         if directory_path.exists() {
             #[cfg(test)]
             work_counts::record("walk", &directory_path);
@@ -498,10 +523,13 @@ impl SourceReader {
                 io::validate_walk_entry(entry.path(), "source directory")?;
                 if entry.file_type().is_file() {
                     paths.push(entry.into_path());
+                } else if entry.file_type().is_dir() {
+                    directories.insert(self.key(entry.path()), stamp(entry.path())?);
                 }
             }
         }
         paths.sort();
+        self.scopes.entry(directory.into()).or_default().directories = directories;
         if let Some(batch) = &self.batch {
             batch
                 .paths
@@ -576,6 +604,8 @@ impl SourceReader {
         Ok(self.stamps.insert(relative.into(), current) != Some(current))
     }
     pub fn invalidate_paths(&mut self, scopes: &[&str]) {
+        self.changed
+            .extend(scopes.iter().map(|path| (*path).to_owned()));
         let affected = |path: &str| {
             scopes
                 .iter()
@@ -672,11 +702,17 @@ impl SourceReader {
     }
     pub fn absorb(&mut self, next: Self) {
         self.dirty |= next.dirty;
-        for key in next.loaded {
-            self.bytes.remove(&key);
-            self.loaded.insert(key);
+        for key in &next.loaded {
+            self.bytes.remove(key);
+            self.loaded.insert(key.clone());
         }
-        self.records.extend(next.records);
+        // A fork may still carry persisted records it never validated or consumed.
+        self.records.extend(
+            next.records
+                .into_iter()
+                .filter(|(key, _)| next.loaded.contains(key)),
+        );
+        self.paths.extend(next.paths);
         self.versions.extend(next.versions);
         self.tables.extend(next.tables);
         self.csv_sources.extend(next.csv_sources);
@@ -684,48 +720,146 @@ impl SourceReader {
         self.stamps.extend(next.stamps);
     }
     pub fn accept_changes(&mut self, changes: &[FileChangeRecord]) -> AppResult<()> {
+        // A committed changeset supplies the complete membership delta for this capture.
+        for (directory, scope) in &self.scopes {
+            let membership_matches = scope
+                .directories
+                .iter()
+                .map(|(path, expected)| {
+                    stamp(&self.root().join(path)).map(|actual| actual == *expected)
+                })
+                .collect::<AppResult<Vec<_>>>()?
+                .into_iter()
+                .all(|same| same);
+            if membership_matches {
+                self.paths.insert(
+                    directory.clone(),
+                    self.records
+                        .keys()
+                        .filter(|path| io::relative_path_contains(directory, path))
+                        .map(|path| self.root().join(path))
+                        .collect(),
+                );
+            }
+        }
         for change in changes {
-            let version = io::version_after_change(change)?;
-            let Some(relative) = self
-                .boundary
-                .resolve_changed_path_to_relative(&version.path, "saved source")?
-            else {
-                continue;
-            };
-            self.loaded.remove(&relative);
-            self.tables.remove(&relative);
-            self.csv_sources.remove(&relative);
-            self.versions.insert(relative.clone(), version.clone());
-            if let Some(text) = &change.after_text {
-                match extension(&relative) {
-                    Some(
-                        "json" | "ship" | "wpn" | "proj" | "system" | "skill" | "variant" | "skin"
-                        | "faction",
-                    ) => match game::read_json(text.as_bytes()) {
-                        Ok(source) => self.retain_json(&relative, &version, Arc::new(source)),
-                        Err(_) => {
-                            self.records.remove(&relative);
-                        }
-                    },
-                    Some("csv") => {
-                        if let Ok(source) = game::read_csv(text.as_bytes()) {
-                            self.csv_sources.insert(relative.clone(), Arc::new(source));
-                        }
-                        self.records.remove(&relative);
+            if matches!(change.kind, FileChangeKind::Directory) {
+                for path in [&change.before_path, &change.after_path] {
+                    let Some(relative) = self
+                        .boundary
+                        .resolve_changed_path_to_relative(path, "saved directory")?
+                    else {
+                        continue;
+                    };
+                    self.records
+                        .retain(|key, _| !io::relative_path_contains(&relative, key));
+                    self.loaded
+                        .retain(|key| !io::relative_path_contains(&relative, key));
+                    self.versions
+                        .retain(|key, _| !io::relative_path_contains(&relative, key));
+                    let absolute = self.root().join(&relative);
+                    for paths in self.paths.values_mut() {
+                        paths.retain(|known| !known.starts_with(&absolute));
                     }
-                    _ => {}
+                    self.changed.insert(relative);
+                }
+                for file in &change.after_files {
+                    let path = Path::new(&change.after_path).join(&file.rel_path);
+                    let nested = FileChangeRecord {
+                        kind: FileChangeKind::File,
+                        before_path: path.to_string_lossy().into_owned(),
+                        after_path: path.to_string_lossy().into_owned(),
+                        before_exists: false,
+                        before_text: None,
+                        before_data_base64: None,
+                        before_files: Vec::new(),
+                        after_exists: true,
+                        after_text: file.text.clone(),
+                        after_data_base64: file.data_base64.clone(),
+                        after_files: Vec::new(),
+                    };
+                    self.accept_file_change(&nested)?;
                 }
             } else {
-                self.records.remove(&relative);
+                self.accept_file_change(change)?;
             }
-            self.dirty = true;
         }
         Ok(())
+    }
+    fn accept_file_change(&mut self, change: &FileChangeRecord) -> AppResult<()> {
+        if change.before_path != change.after_path {
+            let Some(key) = self
+                .boundary
+                .resolve_changed_path_to_relative(&change.before_path, "saved source")?
+            else {
+                return Ok(());
+            };
+            self.records.remove(&key);
+            self.loaded.remove(&key);
+            self.versions.remove(&key);
+            self.changed.insert(key);
+        }
+        let mut version = io::version_after_change(change)?;
+        let Some(relative) = self
+            .boundary
+            .resolve_changed_path_to_relative(&version.path, "saved source")?
+        else {
+            return Ok(());
+        };
+        let before = self
+            .boundary
+            .resolve_changed_path_to_relative(&change.before_path, "saved source")?
+            .map(|path| self.root().join(path));
+        let after = self.root().join(&relative);
+        version.path = after.to_string_lossy().into_owned();
+        self.changed.insert(relative.clone());
+        for (directory, paths) in &mut self.paths {
+            paths.retain(|path| Some(path) != before.as_ref() && path != &after);
+            if change.after_exists && io::relative_path_contains(directory, &relative) {
+                paths.push(after.clone());
+                paths.sort();
+            }
+        }
+        self.loaded.remove(&relative);
+        self.tables.remove(&relative);
+        self.csv_sources.remove(&relative);
+        self.versions.insert(relative.clone(), version.clone());
+        if let Some(text) = &change.after_text {
+            io::capture_file(&version, text.as_bytes());
+            match extension(&relative) {
+                Some(
+                    "json" | "ship" | "wpn" | "proj" | "system" | "skill" | "variant" | "skin"
+                    | "faction",
+                ) => match io::parse_json_data(&version, text.as_bytes()) {
+                    Ok(source) => self.retain_json(&relative, &version, source),
+                    Err(_) => {
+                        self.records.remove(&relative);
+                    }
+                },
+                Some("csv") => {
+                    if let Ok(source) = io::parse_csv_data(&version.path, text.as_bytes()) {
+                        self.csv_sources.insert(relative.clone(), Arc::new(source));
+                    }
+                    self.records.remove(&relative);
+                }
+                _ => {}
+            }
+        } else {
+            self.records.remove(&relative);
+        }
+        self.dirty = true;
+        Ok(())
+    }
+    pub fn changed_paths(&self) -> &BTreeSet<String> {
+        &self.changed
     }
     pub fn reused(&self) -> bool {
         self.reused > 0
     }
     fn cache_path(&self) -> AppResult<Option<PathBuf>> {
+        Self::cache_path_for(&self.root().to_string_lossy())
+    }
+    fn cache_path_for(canonical_root: &str) -> AppResult<Option<PathBuf>> {
         Ok(CACHE_ROOT
             .lock()
             .map_err(|_| lock_error())?
@@ -733,10 +867,8 @@ impl SourceReader {
             .map(|root| {
                 root.join(format!(
                     "{}.json",
-                    io::fingerprint(
-                        models::windows_path_key(&self.root().to_string_lossy()).as_bytes()
-                    )
-                    .replace(':', "-")
+                    io::fingerprint(models::windows_path_key(canonical_root).as_bytes())
+                        .replace(':', "-")
                 ))
             }))
     }
@@ -744,11 +876,47 @@ impl SourceReader {
         if !self.dirty {
             return;
         }
+        self.persist();
+    }
+    pub fn persist(&self) {
+        Self::persist_records(self.root(), &self.records);
+    }
+    pub fn persist_project_sources(
+        root: &Path,
+        documents: BTreeMap<String, (FileVersion, Arc<JsonSource>)>,
+        tables: Vec<(String, FileVersion, Vec<String>, usize)>,
+    ) {
+        let mut records = documents
+            .into_iter()
+            .map(|(path, (version, source))| {
+                (
+                    path,
+                    SourceRecord {
+                        version,
+                        product: SourceProduct::Json(source),
+                    },
+                )
+            })
+            .collect::<BTreeMap<_, _>>();
+        records.extend(tables.into_iter().map(|(path, version, header, count)| {
+            (
+                path,
+                SourceRecord {
+                    version,
+                    product: SourceProduct::Csv { header, count },
+                },
+            )
+        }));
+        Self::persist_records(root, &records);
+    }
+    fn persist_records(root: &Path, records: &BTreeMap<String, SourceRecord>) {
         let persist = || -> AppResult<()> {
-            let Some(path) = self.cache_path()? else {
+            let Some(path) = Self::cache_path_for(&root.to_string_lossy())? else {
                 return Ok(());
             };
             fs::create_dir_all(path.parent().expect("source cache parent"))?;
+            #[cfg(test)]
+            work_counts::record("cache-write", &path);
             #[derive(Serialize)]
             struct Cache<'a> {
                 format: u32,
@@ -759,17 +927,13 @@ impl SourceReader {
                 &path,
                 &serde_json::to_string(&Cache {
                     format: SOURCE_CACHE_FORMAT,
-                    root: self.root(),
-                    records: &self.records,
+                    root,
+                    records,
                 })?,
             )
         };
         if let Err(error) = persist() {
-            diagnostics::failure(
-                "cache.source_save_failed",
-                error,
-                json!({"root":self.root()}),
-            );
+            diagnostics::failure("cache.source_save_failed", error, json!({"root":root}));
         }
     }
 }

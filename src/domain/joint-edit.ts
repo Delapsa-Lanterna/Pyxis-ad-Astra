@@ -11,6 +11,10 @@ import type {
   CsvRowKeyMapping,
   JointEditRecord,
   FieldProblem,
+  ProjectInvalidation,
+  JointVariantCatalogKind,
+  CsvTableKey,
+  EntityKind,
 } from '@/shared/types';
 import { deepClone, cell } from '@/shared/lib/starsector';
 import { AppError } from '@/shared/lib/errors';
@@ -22,7 +26,67 @@ import { renameVariantModules } from '@/shared/lib/starsector/variant-modules';
 import { composeJson, editComposedJson, takeReplaceBase } from '@/domain/json-composition';
 import { getCsvColumnSchemas } from '@/domain/schema/csv-schema-registry';
 import { csvValueError } from '@/domain/schema/csv-value-validation';
-import { normalizeFsPath } from '@/shared/lib/paths';
+import { normalizeFsPath, normalizeRelPath, isAbsoluteFsPath, pathBelongsToRoot } from '@/shared/lib/paths';
+
+export function jointCatalogAffected(invalidation: ProjectInvalidation, kind: JointVariantCatalogKind): boolean {
+  if (invalidation.session) return true;
+  const tables: Record<JointVariantCatalogKind, CsvTableKey[]> = {
+    weapons: ['weapons', 'descriptions'],
+    wings: ['wings', 'ships', 'weapons', 'descriptions', 'hullmods', 'shipSystems'],
+    hullmods: ['hullmods'],
+    variants: ['ships'],
+  };
+  const entities: Record<JointVariantCatalogKind, EntityKind[]> = {
+    weapons: ['weapon', 'projectile'],
+    wings: ['ship', 'skin', 'variant', 'weapon', 'projectile', 'system'],
+    hullmods: [],
+    variants: ['variant', 'ship', 'skin'],
+  };
+  const roots: Record<JointVariantCatalogKind, string[]> = {
+    weapons: ['data/weapons', 'data/shipsystems/wpn', 'data/strings/descriptions.csv'],
+    wings: ['data/hulls', 'data/variants', 'data/weapons', 'data/hullmods', 'data/shipsystems', 'data/strings/descriptions.csv'],
+    hullmods: ['data/hullmods'],
+    variants: ['data/variants', 'data/hulls'],
+  };
+  return (
+    invalidation.tables.some((table) => tables[kind].includes(table)) ||
+    invalidation.entities.some((entity) => entities[kind].includes(entity.kind)) ||
+    invalidation.paths.some((path) => {
+      const changed = `/${normalizeRelPath(path)}`;
+      return (
+        /(?:^|\/)mod_info\.json$|\/data\/config(?:\/|$)/.test(changed) ||
+        roots[kind].some((root) => changed.endsWith(`/${root}`) || changed.includes(`/${root}/`))
+      );
+    })
+  );
+}
+
+export function jointSnapshotAffected(snapshot: DeepReadonly<JointEditSnapshot>, invalidation: ProjectInvalidation): boolean {
+  if (invalidation.session) return true;
+  const paths = [
+    ...snapshot.baseVersions.map((version) => version.path),
+    ...snapshot.referenceSettings.versions.map((version) => version.path),
+    ...snapshot.records.flatMap((record) => [
+      record.target.kind === 'spec' ? record.target.target.write.path : record.target.write.path,
+      ...(record.source ? [record.source.path] : []),
+      ...(record.composition?.layers.map((layer) => layer.source.path) ?? []),
+    ]),
+  ];
+  return (
+    invalidation.paths.some((path) => {
+      const changed = isAbsoluteFsPath(path) ? path : `${snapshot.root.modRoot}/${path}`;
+      return paths.some((source) => pathBelongsToRoot(source, changed) || pathBelongsToRoot(changed, source));
+    }) ||
+    invalidation.entities.some((entity) =>
+      snapshot.records.some(
+        (record) =>
+          record.target.kind === 'spec' &&
+          record.target.target.kind === entity.kind &&
+          (entity.id === null || record.target.target.id === entity.id),
+      ),
+    )
+  );
+}
 
 export function jointProblemBlocks(
   snapshot: JointEditSnapshot,

@@ -1,5 +1,6 @@
 use super::read_versioned_bytes;
 use crate::errors::{AppError, AppResult};
+use crate::io;
 use crate::io::FileChangeSetBuilder;
 use crate::models::FileVersion;
 use crate::models::file_content::{JsonSource, JsonWrite};
@@ -7,6 +8,7 @@ use crate::parsers::game;
 #[cfg(test)]
 use crate::test_support::work_counts;
 use std::path::Path;
+use std::sync::Arc;
 
 /// The source is chosen by the save owner; this step stages the actual format result.
 pub(crate) fn stage_json_document(
@@ -27,16 +29,25 @@ pub fn read_json_file(path: &Path) -> AppResult<JsonSource> {
 }
 pub fn read_versioned_json(path: &Path) -> AppResult<(FileVersion, JsonSource)> {
     let (version, bytes) = read_versioned_bytes(path)?;
+    let source = parse_json_data(&version, &bytes).map_err(|error| error.at_path(path))?;
+    Ok((version, source.as_ref().clone()))
+}
+pub(crate) fn parse_json_data(version: &FileVersion, bytes: &[u8]) -> AppResult<Arc<JsonSource>> {
+    if let Some(source) = io::captured_json(version) {
+        return Ok(source);
+    }
+    let path = Path::new(&version.path);
     #[cfg(test)]
     work_counts::record("parse", path);
-    let source = game::read_json(&bytes).map_err(|error| {
+    let source = Arc::new(game::read_json(bytes).map_err(|error| {
         AppError::context(
             format!("读取 JSON 失败：{}", path.display()),
             AppError::from(error),
         )
         .at_path(path)
-    })?;
-    Ok((version, source))
+    })?);
+    io::capture_json(version, source.clone());
+    Ok(source)
 }
 
 #[cfg(test)]

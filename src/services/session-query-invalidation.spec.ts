@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 import { queryMiscConfigFiles, queryMiscConfigFile } from './misc-config.service';
 import {
   querySessionEntity,
@@ -149,13 +149,20 @@ const cases: Array<{
   },
   { name: 'joint-edit', read: () => queryJointEdit(root), matching: changed, unrelated: detail, value: snapshot },
   { name: 'joint-edit-candidate', read: () => queryJointCandidate(root), matching: changed, unrelated: detail, value: snapshot },
-  {
-    name: 'joint-edit-catalog',
-    read: () => queryJointVariantCatalog(root, 'weapons'),
-    matching: changed,
-    unrelated: detail,
-    value: { root, referenceSettings: snapshot.referenceSettings, catalog: { kind: 'weapons', entries: [] } },
-  },
+  ...(
+    [
+      ['weapons', 'data/weapons/demo.wpn', 'data/hulls/demo.ship'],
+      ['wings', 'data/hulls/demo.ship', 'data/characters/skills/demo.skill'],
+      ['hullmods', 'data/hullmods/hull_mods.csv', 'data/hulls/demo.ship'],
+      ['variants', 'data/variants/demo.variant', 'data/weapons/demo.wpn'],
+    ] as const
+  ).map(([kind, matching, unrelated]) => ({
+    name: 'joint-edit-catalog:' + kind,
+    read: () => queryJointVariantCatalog(root, kind),
+    matching: { ...empty, paths: [matching] },
+    unrelated: { ...empty, paths: [unrelated] },
+    value: { root, referenceSettings: snapshot.referenceSettings, catalog: { kind, entries: [] } },
+  })),
   { name: 'joint-edit-candidate', read: () => queryJointEditPreview(draft), matching: changed, unrelated: detail, value: snapshot },
   {
     name: 'joint-edit-prepare',
@@ -168,11 +175,20 @@ const cases: Array<{
 beforeEach(() => invoke.mockReset());
 afterEach(() => invalidateQueryCacheForSession(session));
 
+function releasePendingQueries(finish: () => void, reads: Promise<unknown>[]) {
+  const completed = Promise.allSettled(reads);
+  onTestFinished(async () => {
+    finish();
+    await completed;
+  });
+}
+
 describe('business-owned query invalidation', () => {
   it.each(
     cases.filter(
       ({ name }) =>
         name.startsWith('config:') ||
+        name.startsWith('joint-edit-catalog:') ||
         ['entity-detail', 'entity-list', 'csv-table-window', 'csv-row-preview', 'csv-source-options', 'hull-references'].includes(name),
     ),
   )('$name shares pending and ready results and reloads once after invalidation', async ({ read, matching, unrelated, value }) => {
@@ -185,6 +201,7 @@ describe('business-owned query invalidation', () => {
     );
     const first = read(),
       second = read();
+    releasePendingQueries(() => finish(value), [first, second]);
     expect(invoke).toHaveBeenCalledTimes(1);
     finish(value);
     await Promise.all([first, second]);
@@ -207,6 +224,7 @@ describe('business-owned query invalidation', () => {
         }),
     );
     const pending = read();
+    releasePendingQueries(() => finish(value), [pending]);
     const ended = expect(pending).rejects.toMatchObject({ code: 'query.invalidated', cause: { reason: 'project' } });
     invalidateQueryCacheByProject(session, matching);
     await ended;
@@ -224,6 +242,7 @@ describe('business-owned query invalidation', () => {
     const pending = read().finally(() => {
       settled = true;
     });
+    releasePendingQueries(() => finish(value), [pending]);
     invalidateQueryCacheByProject(session, unrelated);
     await Promise.resolve();
     expect(settled).toBe(false);

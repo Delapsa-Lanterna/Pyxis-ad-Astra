@@ -312,8 +312,7 @@ where
     let mut load = Some(load);
     // Source products hand off parsed files before the next product forks them.
     let lane = match product {
-        "fields" | "ships" | "factions" | "weapons" | "projectiles" | "variants" | "skins"
-        | "csv" => "sources",
+        "fields" | "ships" | "factions" | "weapons" | "variants" | "skins" | "csv" => "sources",
         _ => product,
     };
     let flight_key = format!("{:p}:{lane}", Arc::as_ptr(&cache));
@@ -1312,7 +1311,83 @@ mod tests {
         });
         assert_eq!(work_counts::count("read", &path), 1);
         assert_eq!(work_counts::count("parse", &path), 1);
+        assert_eq!(
+            work_counts::count("walk", &root.join("starsector-core/data/hulls")),
+            1
+        );
+        let second = root.join("starsector-core/data/hulls/added.ship");
+        fs::write(&second, r#"{"hullId":"added"}"#).unwrap();
+        invalidate_core_sources(
+            &root.to_string_lossy(),
+            &[InvalidatedResourceScope {
+                source: ResourceSource::Core,
+                rel_path: "data/hulls".into(),
+            }],
+        )
+        .unwrap();
+        assert_eq!(
+            load_core_ship_files(&root.to_string_lossy()).unwrap().len(),
+            2
+        );
+        load_core_fields(&root.to_string_lossy()).unwrap();
+        assert_eq!(
+            work_counts::count("walk", &root.join("starsector-core/data/hulls")),
+            2
+        );
+        assert_eq!(work_counts::count("read", &second), 1);
+        assert_eq!(work_counts::count("parse", &second), 1);
         invalidate_core_cache(&root.to_string_lossy()).unwrap();
+        root.close().unwrap();
+    }
+
+    #[test]
+    fn projectiles_complete_while_fields_wait_and_reuse_cached_access() {
+        let root = project_workspace("core_observation");
+        let path = root.join("starsector-core/data/weapons/proj/sample.proj");
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        fs::write(&path, r#"{"id":"sample"}"#).unwrap();
+        let game = root.to_string_lossy().into_owned();
+        let worker_game = game.clone();
+        let (started, ready) = mpsc::channel();
+        let (release, released) = mpsc::channel();
+        let worker = thread::spawn(move || {
+            get_or_load_core(
+                &worker_game,
+                "fields",
+                |cache| cache.fields.as_ref(),
+                |cache, fields| cache.fields = Some(fields),
+                |_| {
+                    started.send(()).unwrap();
+                    released.recv_timeout(Duration::from_secs(30)).unwrap();
+                    Ok(BTreeMap::new())
+                },
+            )
+        });
+        if let Err(error) = ready.recv_timeout(Duration::from_secs(30)) {
+            drop(release);
+            let result = worker.join();
+            panic!("Core leader unavailable: {error}; worker={result:?}");
+        }
+        let projectile_game = game.clone();
+        let (completed, completion) = mpsc::channel();
+        let projectiles = thread::spawn(move || {
+            completed
+                .send(load_core_projectile_specs(&projectile_game))
+                .unwrap();
+        });
+        let result = completion.recv_timeout(Duration::from_secs(5));
+        release.send(()).unwrap();
+        worker.join().unwrap().unwrap();
+        projectiles.join().unwrap();
+        let loaded = result.unwrap().unwrap();
+        assert_eq!(loaded.len(), 1);
+        assert!(Arc::ptr_eq(
+            &loaded,
+            &load_core_projectile_specs(&game).unwrap()
+        ));
+        assert_eq!(work_counts::count("read", &path), 1);
+        assert_eq!(work_counts::count("parse", &path), 1);
+        invalidate_core_cache(&game).unwrap();
         root.close().unwrap();
     }
 

@@ -431,6 +431,14 @@ export function variantPreviewInputs(_snapshot: JointEditSnapshot, values: Recor
           .filter((id): id is string => typeof id === 'string'),
       ),
     ].sort();
-    return { record: key, hullId: data.hullId ?? null, modules: data.modules ?? null, weapons, wings: data.wings ?? null, hullmods: mods };
+    return {
+      record: key,
+      variantId: data.variantId ?? null,
+      hullId: data.hullId ?? null,
+      modules: data.modules ?? null,
+      weapons,
+      wings: data.wings ?? null,
+      hullmods: mods,
+    };
   });
 }

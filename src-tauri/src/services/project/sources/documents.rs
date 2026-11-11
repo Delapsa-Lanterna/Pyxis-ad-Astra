@@ -63,6 +63,23 @@ pub(in crate::services::project) fn load_spec_records_from(
     id_field: &str,
     source: ResourceSource,
 ) -> AppResult<BTreeMap<String, LoadedSpecRecord>> {
+    refresh_spec_records_from(
+        reader,
+        directories,
+        extension,
+        id_field,
+        source,
+        &BTreeMap::new(),
+    )
+}
+pub(in crate::services::project) fn refresh_spec_records_from(
+    reader: &mut SourceReader,
+    directories: &[&str],
+    extension: &str,
+    id_field: &str,
+    source: ResourceSource,
+    previous: &BTreeMap<String, LoadedSpecRecord>,
+) -> AppResult<BTreeMap<String, LoadedSpecRecord>> {
     let mut paths = Vec::new();
     for directory in directories {
         paths.extend(reader.discover(directory, &[extension], true)?);
@@ -70,8 +87,22 @@ pub(in crate::services::project) fn load_spec_records_from(
     paths.sort();
     paths.dedup();
     let mut records = BTreeMap::new();
+    let previous = previous
+        .values()
+        .map(|record| (record.location.rel_path.as_str(), record))
+        .collect::<BTreeMap<_, _>>();
     for path in paths {
-        let record = LoadedSpecRecord::read(reader, &path, id_field, source)?;
+        let relative = reader.key(&path);
+        let record = if let Some(record) = previous.get(relative.as_str()).filter(|_| {
+            !reader
+                .changed_paths()
+                .iter()
+                .any(|changed| io::relative_path_contains(changed, &relative))
+        }) {
+            (*record).clone()
+        } else {
+            LoadedSpecRecord::read(reader, &path, id_field, source)?
+        };
         records.insert(record.id.clone(), record);
     }
     Ok(records)

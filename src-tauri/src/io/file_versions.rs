@@ -29,10 +29,7 @@ fn version_from_path(
     known: &[FileVersion],
 ) -> AppResult<FileVersion> {
     let fingerprint = if path.is_file() {
-        let bytes = fs::read(path).map_err(|error| AppError::from(error).at_path(path))?;
-        #[cfg(test)]
-        csv_files::record_csv_disk_read(path);
-        Some(fingerprint(&bytes))
+        read_authorized_bytes(path)?.0.fingerprint
     } else if path.is_dir() {
         let mut files = Vec::new();
         for entry in WalkDir::new(path) {
@@ -143,6 +140,9 @@ pub fn read_versioned_bytes(path: &Path) -> AppResult<(FileVersion, Vec<u8>)> {
 }
 
 pub(crate) fn read_authorized_bytes(path: &Path) -> AppResult<(FileVersion, Vec<u8>)> {
+    if let Some(file) = io::captured_file(path) {
+        return Ok(file);
+    }
     let bytes = fs::read(path).map_err(|error| {
         AppError::context(
             format!("读取文本文件失败 ({})", path.display()),
@@ -156,6 +156,7 @@ pub(crate) fn read_authorized_bytes(path: &Path) -> AppResult<(FileVersion, Vec<
         path: path.to_string_lossy().to_string(),
         fingerprint: Some(fingerprint(&bytes)),
     };
+    io::capture_file(&version, &bytes);
     Ok((version, bytes))
 }
 
@@ -197,13 +198,47 @@ mod tests {
     #[cfg(windows)]
     #[cfg(test)]
     use crate::io::file_versions::{file_version, verify_versions};
+    use crate::io::{
+        acquire_root_write_lock, read_json_file, read_versioned_bytes, reset_write_reads,
+    };
     #[cfg(windows)]
     #[cfg(test)]
     use crate::test_support;
     use crate::test_support::TestWorkspace;
+    use crate::test_support::work_counts;
     #[cfg(windows)]
     #[cfg(test)]
     use std::{fs, slice};
+
+    #[test]
+    fn write_capture_reads_once_and_final_verification_observes_external_bytes() {
+        let root = TestWorkspace::new("write_source_capture");
+        let path = root.join("source.txt");
+        fs::write(&path, r#"{"value":"Before"}"#).unwrap();
+        {
+            let _lease = acquire_root_write_lock(&root).unwrap();
+            let (expected, first) = read_versioned_bytes(&path).unwrap();
+            assert_eq!(read_versioned_bytes(&path).unwrap().1, first);
+            assert_eq!(
+                read_json_file(&path).unwrap().content.to_json().unwrap()["value"],
+                "Before"
+            );
+            read_json_file(&path).unwrap();
+            assert_eq!(work_counts::count("read", &path), 1);
+            assert_eq!(work_counts::count("parse", &path), 1);
+            fs::write(&path, r#"{"value":"External"}"#).unwrap();
+            reset_write_reads(&root.to_string_lossy());
+            let failure = verify_versions(&root.to_string_lossy(), &[expected]).unwrap_err();
+            assert_eq!(failure.code(), "write.version_conflict");
+            assert_eq!(work_counts::count("read", &path), 2);
+        }
+        assert_eq!(
+            read_versioned_bytes(&path).unwrap().1,
+            br#"{"value":"External"}"#
+        );
+        assert_eq!(work_counts::count("read", &path), 3);
+        root.close().unwrap();
+    }
 
     #[test]
     #[cfg(windows)]

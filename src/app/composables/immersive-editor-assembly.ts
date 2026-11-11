@@ -8,6 +8,7 @@ import {
   type WeaponPanel,
 } from '@/domain/immersive/weapon/weapon-panel';
 import { projectWingPanel, type WingPanel } from '@/domain/immersive/wing/wing-panel';
+import { jointObject } from '@/domain/joint-edit';
 import { projectVariantPanel, variantPreviewInputs, type VariantPanel } from '@/domain/immersive/variant/variant-panel';
 import { computed } from 'vue';
 import type { JointEditRoot } from '@/shared/types';
@@ -15,7 +16,7 @@ import { useImmersiveEditorRuntime } from './immersive-editor/use-immersive-edit
 import { useImmersiveVariantEditor } from './immersive-editor/variant/use-immersive-variant-editor';
 import { useImmersiveWingEditor } from './immersive-editor/wing/use-immersive-wing-editor';
 import { useImmersiveWeaponEditor } from './immersive-editor/weapon/use-immersive-weapon-editor';
-import { validateJointFiles } from './joint-editor-validation';
+import { createJointFileValidation } from './joint-editor-validation';
 
 type ImmersivePanel = ShipImmersivePanel | WeaponPanel | WingPanel | VariantPanel;
 const immersiveEditorDefinitions: Record<JointEditRoot['kind'], ImmersiveEditorDefinition<ImmersivePanel>> = {
@@ -32,7 +33,11 @@ const immersiveEditorDefinitions: Record<JointEditRoot['kind'], ImmersiveEditorD
     label: '战机联队',
     editableRecords: immersiveEditableRecords,
     project: projectWingPanel,
-    previewInputs: (_snapshot, values) => ({ records: Object.entries(values) }),
+    previewInputs: (snapshot, values) => ({
+      variant: jointObject(values[snapshot.bindings.csv!]).variant ?? null,
+      hull: shipPreviewInputs(snapshot, values),
+      equipment: variantPreviewInputs(snapshot, values),
+    }),
     displayResources: (panel) => (panel.kind === 'wing' && panel.sprite ? [panel.sprite] : []),
   },
   skin: {
@@ -40,7 +45,7 @@ const immersiveEditorDefinitions: Record<JointEditRoot['kind'], ImmersiveEditorD
     label: '舰船皮肤',
     editableRecords: immersiveEditableRecords,
     project: projectShipPanel,
-    previewInputs: (_snapshot, values) => ({ records: Object.entries(values) }),
+    previewInputs: shipPreviewInputs,
     displayResources: (panel) => (panel.kind === 'ship' && panel.sprite ? [panel.sprite] : []),
   },
   ship: {
@@ -70,8 +75,10 @@ const immersiveEditorDefinitions: Record<JointEditRoot['kind'], ImmersiveEditorD
 };
 
 export function useImmersiveEditorViewModel(root: JointEditRoot & { rowKey?: string }) {
+  const validation = createJointFileValidation();
   const runtime = useImmersiveEditorRuntime(root, immersiveEditorDefinitions[root.kind], {
-    validate: validateJointFiles,
+    validate: validation.validate,
+    validationAffected: validation.affected,
     readSnapshot: root.kind === 'wing' ? (target, signal) => wing!.readSnapshot(target, signal) : undefined,
     onContentUpdate: root.kind === 'wing' ? (target) => wing!.refreshWingBaseline(target) : undefined,
   });

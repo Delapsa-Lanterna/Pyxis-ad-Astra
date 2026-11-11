@@ -1,5 +1,6 @@
 use super::read_versioned_bytes;
 use crate::errors::{AppError, AppResult};
+use crate::io;
 use crate::models::FileVersion;
 use crate::models::file_content::CsvSource;
 use crate::parsers::game;
@@ -8,6 +9,7 @@ use crate::test_support::work_counts;
 #[cfg(test)]
 use std::cell::Cell;
 use std::path::Path;
+use std::sync::Arc;
 
 #[cfg(test)]
 thread_local! { static CSV_WORK: Cell<(usize,usize,usize)> = const { Cell::new((0,0,0)) }; }
@@ -43,11 +45,20 @@ pub fn read_versioned_csv(path: &Path) -> AppResult<(FileVersion, CsvSource)> {
     parse_csv_data(&version.path, &bytes).map(|source| (version, source))
 }
 pub fn parse_csv_data(path: &str, bytes: &[u8]) -> AppResult<CsvSource> {
+    let version = FileVersion {
+        path: path.to_owned(),
+        fingerprint: Some(io::fingerprint(bytes)),
+    };
+    if let Some(source) = io::captured_csv(&version) {
+        return Ok(source.as_ref().clone());
+    }
     #[cfg(test)]
     record_csv_parse(Path::new(path));
-    game::read_csv(bytes).map_err(|error| {
+    let source = game::read_csv(bytes).map_err(|error| {
         AppError::context(format!("读取 CSV 失败：{path}"), AppError::from(error)).at_path(path)
-    })
+    })?;
+    io::capture_csv(&version, Arc::new(source.clone()));
+    Ok(source)
 }
 #[cfg(test)]
 pub(crate) fn record_csv_parse(path: &Path) {

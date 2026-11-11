@@ -345,12 +345,23 @@ export async function workspaceOpening({ launch, close, fixture, check, runs, op
             'first table received',
           );
           const rows = await page.evaluate(() => Reflect.get(globalThis, '__workspaceOpening').index.totalRows);
-          if (rows) await page.evaluate((label) => Reflect.get(globalThis, '__csvBench').measure(label, 'observe', 0), label);
-          else {
+          await finish('firstTable');
+          if (rows) {
+            const visible = await page.evaluate((label) => Reflect.get(globalThis, '__csvBench').measure(label, 'observe', 0), label);
+            const calls = await page.evaluate(() => Reflect.get(globalThis, '__csvBench').calls);
+            assert.ok(calls.some((/** @type {{command:string}} */ call) => call.command === 'query_csv_table_index'));
+            assert.ok(
+              calls
+                .filter((/** @type {{command:string}} */ call) => call.command === 'query_csv_source_options')
+                .every((/** @type {{end:number|null}} */ call) => call.end !== null),
+            );
+            const run = routeRuns.at(-1);
+            assert.ok(run);
+            run.resources.firstTable = { visible, calls };
+          } else {
             await page.locator('.csv-editor-page').waitFor();
             assert.equal(await page.locator('.csv-grid-row[data-row-key]').count(), 0);
           }
-          await finish('firstTable');
           metrics.firstTable = performance.now() - tableBegan;
         }
         await page.getByRole('button', { name: '打开工作区总览', exact: true }).click();

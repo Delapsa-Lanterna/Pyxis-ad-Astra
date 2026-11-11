@@ -736,27 +736,36 @@ pub fn prepare_joint_save(
             input.snapshot.root.id = identity.after.id.clone();
         }
     }
-    let mut retained = joint_edit::retained_joint_sources(&input.snapshot)?;
-    retained.extend(
-        input
-            .values
-            .iter()
-            .filter(|(key, value)| {
-                input
-                    .snapshot
-                    .records
-                    .iter()
-                    .find(|record| record.key == **key)
-                    .is_none_or(|record| record.value != **value)
-            })
-            .map(|(key, value)| (key.clone(), value.clone())),
-    );
-    let current = joint_edit::query_joint_edit_values(
-        &input.snapshot.root,
-        Some(&retained),
-        &input.snapshot.new_sources,
-        &parent_ids,
-    )?;
+    let current = if identities.is_empty()
+        && parent_ids.is_empty()
+        && input.snapshot.new_sources.is_empty()
+        && input.base_versions == input.snapshot.base_versions
+    {
+        // Verified credentials make the confirmed source graph authoritative for this transaction.
+        input.snapshot.clone()
+    } else {
+        let mut retained = joint_edit::retained_joint_sources(&input.snapshot)?;
+        retained.extend(
+            input
+                .values
+                .iter()
+                .filter(|(key, value)| {
+                    input
+                        .snapshot
+                        .records
+                        .iter()
+                        .find(|record| record.key == **key)
+                        .is_none_or(|record| record.value != **value)
+                })
+                .map(|(key, value)| (key.clone(), value.clone())),
+        );
+        joint_edit::query_joint_edit_values(
+            &input.snapshot.root,
+            Some(&retained),
+            &input.snapshot.new_sources,
+            &parent_ids,
+        )?
+    };
     for record in &current.records {
         if !parent_ids.is_empty()
             && !input

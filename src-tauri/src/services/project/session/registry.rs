@@ -1,4 +1,5 @@
 use super::super::model::ProjectSession;
+use super::source_versions;
 use crate::errors::{AppError, AppResult};
 use crate::models::ProjectSessionId;
 use crate::models::windows_path_key;
@@ -76,13 +77,28 @@ pub(super) fn lock_content_ready_session(
 
 /// Unregister a session and return its root only when no same-root registrations remain.
 pub(crate) fn unregister_project_session(session_id: &str) -> AppResult<Option<String>> {
+    let captured = lock_registry()?.get(session_id).cloned();
+    let snapshot = captured
+        .as_ref()
+        .map(|entry| lock_session(entry).map(|session| session.clone()))
+        .transpose()?;
     let mut registered = lock_registry()?;
     let removed = registered.remove(session_id);
     let last_for_root = removed
         .as_ref()
         .is_some_and(|removed| !registered.values().any(|entry| entry.root == removed.root));
     drop(registered);
-    Ok(removed.filter(|_| last_for_root).map(|entry| entry.root))
+    if let Some(entry) = removed.filter(|_| last_for_root) {
+        // The final same-root session owns the latest accepted source snapshot.
+        source_versions::persist_session_sources(
+            snapshot
+                .as_ref()
+                .expect("removed session has a captured snapshot"),
+        )?;
+        Ok(Some(entry.root))
+    } else {
+        Ok(None)
+    }
 }
 
 #[cfg(test)]

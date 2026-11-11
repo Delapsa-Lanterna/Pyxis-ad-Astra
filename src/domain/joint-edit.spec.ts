@@ -1,10 +1,45 @@
 import { describe, expect, it } from 'vitest';
-import { applyJointConflictChoices, conflictValueText, jointWriteTargets, rebaseJointDraft, jointCsvProblems } from './joint-edit';
+import {
+  applyJointConflictChoices,
+  conflictValueText,
+  jointWriteTargets,
+  rebaseJointDraft,
+  jointCsvProblems,
+  jointSnapshotAffected,
+  jointCatalogAffected,
+} from './joint-edit';
 import { shipJointFixture } from '@/test/fixtures/joint-edit/ship-joint-edit';
 import { jointFixtureValues } from '@/test/fixtures/joint-edit/joint-record';
 import type { JointEditPrepared, JointValue, JointEditSnapshot, JsonValue } from '@/shared/types';
+import { sessionUpdateFixture } from '@/test/fixtures/write-result';
 const present = (value: JsonValue): JointValue => ({ state: 'present', value });
 describe('joint edit field and physical target projection', () => {
+  it('tracks loaded, missing and base-layer files while preserving independent roots', () => {
+    const snapshot = shipJointFixture();
+    const invalidation = sessionUpdateFixture('s', snapshot.root.modRoot).content.invalidation;
+    invalidation.paths = ['M:/mod/data/variants/unrelated.variant'];
+    expect(jointSnapshotAffected(snapshot, invalidation)).toBe(false);
+    invalidation.paths = [snapshot.records[0]!.target.kind === 'spec' ? snapshot.records[0]!.target.target.write.path : ''];
+    expect(jointSnapshotAffected(snapshot, invalidation)).toBe(true);
+    snapshot.referenceSettings.versions.push({ path: 'G:/core/data/config/settings.json', fingerprint: 'v' });
+    invalidation.paths = ['G:/core/data/config'];
+    expect(jointSnapshotAffected(snapshot, invalidation)).toBe(true);
+    invalidation.paths = [];
+    invalidation.entities = [{ kind: 'ship', id: snapshot.root.id }];
+    expect(jointSnapshotAffected(snapshot, invalidation)).toBe(true);
+  });
+  it('updates each catalog for its actual table, entity and configuration dependencies', () => {
+    const invalidation = sessionUpdateFixture('s', 'M:/mod').content.invalidation;
+    invalidation.paths = ['data/variants/edited.variant'];
+    invalidation.entities = [{ kind: 'variant', id: 'edited' }];
+    expect(jointCatalogAffected(invalidation, 'weapons')).toBe(false);
+    expect(jointCatalogAffected(invalidation, 'hullmods')).toBe(false);
+    expect(jointCatalogAffected(invalidation, 'variants')).toBe(true);
+    expect(jointCatalogAffected(invalidation, 'wings')).toBe(true);
+    invalidation.paths = ['M:/mod/mod_info.json'];
+    invalidation.entities = [];
+    for (const kind of ['weapons', 'wings', 'hullmods', 'variants'] as const) expect(jointCatalogAffected(invalidation, kind)).toBe(true);
+  });
   it('checks every submitted CSV record with its declared rule and keeps same-file rows distinct', () => {
     const snapshot = shipJointFixture();
     const first = snapshot.records.find((record) => record.key === 'csv')!;

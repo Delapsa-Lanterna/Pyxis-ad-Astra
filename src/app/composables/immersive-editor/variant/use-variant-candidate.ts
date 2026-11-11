@@ -11,6 +11,7 @@ import { useQueryReadOwner } from '@/app/composables/use-query-read-owner';
 import { useResourceMediaRegistry } from '@/app/composables/use-resource-media-registry';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
 import { formatError, warningNotice } from '@/shared/lib/errors';
+import { jointSnapshotAffected } from '@/domain/joint-edit';
 
 export async function readModuleCandidateIssue(root: JointEditRoot, id: string, signal: AbortSignal) {
   const candidate = await queryJointCandidate({ ...root, kind: 'variant', id }, signal);
@@ -76,7 +77,7 @@ export function useVariantCandidate(root: () => JointEditRoot, kind: () => 'weap
     });
   }
   watch(
-    () => [id(), kind(), root()],
+    () => JSON.stringify([id(), kind(), root()]),
     () => {
       void load();
     },
@@ -87,7 +88,11 @@ export function useVariantCandidate(root: () => JointEditRoot, kind: () => 'weap
       (event) => {
         const update = sessionContentUpdate(event, root().sessionId);
         if (!update) return undefined;
-        if (update.manifest.sessionId !== root().sessionId || !hasJointEditInvalidation(update.invalidation)) return undefined;
+        if (
+          update.manifest.sessionId !== root().sessionId ||
+          (snapshot.value ? !jointSnapshotAffected(snapshot.value, update.invalidation) : !hasJointEditInvalidation(update.invalidation))
+        )
+          return undefined;
         if (id()) return load(true);
         return undefined;
       },

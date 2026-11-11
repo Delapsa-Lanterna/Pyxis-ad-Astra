@@ -5,7 +5,8 @@ import { getCsvColumnSchemas } from '@/domain/schema/csv-schema-registry';
 import { fixtureCsvRecord, fixtureJointSnapshot, fixtureSpecRecord } from '@/test/fixtures/joint-edit/joint-record';
 import { csvDraftRow, csvTableIndex } from '@/test/fixtures/csv-row';
 import { jointProblemBlocks } from '@/domain/joint-edit';
-import { validateJointFiles } from './joint-editor-validation';
+import { validateJointFiles, createJointFileValidation } from './joint-editor-validation';
+import { sessionUpdateFixture } from '@/test/fixtures/write-result';
 
 const reads = vi.hoisted(() => ({ index: vi.fn(), context: vi.fn(), graph: vi.fn() }));
 vi.mock('@/services/csv-table.service', () => ({ queryTableIndex: reads.index, queryCsvValidation: reads.context }));
@@ -33,6 +34,30 @@ beforeEach(() => {
   );
 });
 describe('joint file validation', () => {
+  it('rechecks complete table references when another row spec changes', async () => {
+    const snapshot = fixture();
+    const validation = createJointFileValidation();
+    await validation.validate(snapshot, {}, undefined, [], snapshot);
+    const invalidation = sessionUpdateFixture('s', 'M:/mod').content.invalidation;
+    invalidation.entities = [{ kind: 'variant', id: 'unrelated' }];
+    expect(validation.affected(snapshot, invalidation)).toBe(false);
+    invalidation.entities = [{ kind: 'weapon', id: 'two' }];
+    invalidation.resources = [{ source: 'mod', relPath: 'data/weapons/two.wpn' }];
+    expect(validation.affected(snapshot, invalidation)).toBe(true);
+    invalidation.entities = [{ kind: 'projectile', id: 'shot' }];
+    invalidation.resources = [{ source: 'mod', relPath: 'data/weapons/proj/shot.proj' }];
+    expect(validation.affected(snapshot, invalidation)).toBe(true);
+  });
+  it('validates the complete prepared graph without another source query', async () => {
+    const snapshot = fixture();
+    const issues = await validateJointFiles(snapshot, {}, undefined, [], snapshot);
+    expect(reads.graph).not.toHaveBeenCalled();
+    expect(reads.index).toHaveBeenCalledTimes(1);
+    expect(reads.context).toHaveBeenCalledTimes(1);
+    expect(issues).toContainEqual(
+      expect.objectContaining({ code: 'csv.value_invalid', location: expect.objectContaining({ rowKey: 'other', field: 'OPs' }) }),
+    );
+  });
   it.each([false, true])('shares all table references and retains file results when the reference read fails=%s', async (failed) => {
     const tables: CsvTableKey[] = ['ships', 'wings', 'descriptions', 'shipSystems'];
     const rows: { id: string; [key: string]: string }[] = [

@@ -1202,17 +1202,7 @@ struct JointGraph<'a> {
 }
 
 fn joint_sources(session: &ProjectSession) -> AppResult<SourceReader> {
-    let mut sources = SourceReader::for_session(Path::new(&session.manifest.mod_root))?;
-    for (relative, document) in session.documents.iter() {
-        sources.retain_json(
-            relative,
-            &session.source_versions[relative],
-            document.clone(),
-        );
-    }
-    // Queries verify current bytes while retaining matching parsed documents.
-    sources.invalidate_paths(&["data"]);
-    Ok(sources)
+    SourceReader::for_session(Path::new(&session.manifest.mod_root))
 }
 
 impl JointGraph<'_> {
@@ -1325,6 +1315,14 @@ impl JointGraph<'_> {
             .filter(|source| source.reference.is_some() || Path::new(&source.path).exists())
             .map(|source| {
                 if source.reference.is_none() && source.source == ResourceSource::Mod {
+                    let version = self.sources.stage_version(Path::new(&source.path))?;
+                    if self.session.source_versions.get(&source.rel_path) == Some(&version)
+                        && let Some(document) = self.session.documents.get(&source.rel_path)
+                    {
+                        // Only graph members retain a matching parsed document in this capture.
+                        self.sources
+                            .retain_json(&source.rel_path, &version, document.clone());
+                    }
                     let document = self.sources.json_source(Path::new(&source.path))?;
                     Ok((
                         self.sources.versions[&source.rel_path].clone(),

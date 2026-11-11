@@ -14,6 +14,7 @@ import type {
   ProjectInvalidation,
   DocumentEdit,
 } from '@/shared/types';
+import { jointCatalogAffected } from '@/domain/joint-edit';
 import { invokeCommand, invokeSaveCommand, type SaveCommandRequest } from '@/shared/runtime/command.runtime';
 import { readLiveSessionQuery, type SessionQueryDefinition, CachedSessionQuery } from '@/services/query-cache.service';
 
@@ -36,7 +37,7 @@ const readJointCandidate = new CachedSessionQuery<JointEditQuery, JointEditSnaps
 const readJointCatalog = new CachedSessionQuery<JointEditQuery, JointVariantCatalogRead>({
   queryKind: 'joint-edit-catalog',
   load: ({ parameters }) => invokeCommand<JointVariantCatalogRead>('query_joint_edit', { payload: parameters }),
-  invalidates: (_parameters, invalidation) => hasJointEditInvalidation(invalidation),
+  invalidates: (parameters, invalidation) => jointCatalogAffected(invalidation, parameters.catalog!),
 });
 
 const readJointPreparation = {

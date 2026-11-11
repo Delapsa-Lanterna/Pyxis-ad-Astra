@@ -8,7 +8,8 @@ import type {
   DeepReadonly,
   ResourceSource,
 } from '@/shared/types';
-import { queryJointVariantCatalog, hasJointEditInvalidation } from '@/services/joint-edit.service';
+import { queryJointVariantCatalog } from '@/services/joint-edit.service';
+import { jointCatalogAffected } from '@/domain/joint-edit';
 import { useQueryReadOwner } from '@/app/composables/use-query-read-owner';
 import { formatError } from '@/shared/lib/errors';
 
@@ -47,7 +48,7 @@ export function useVariantCatalog(
     );
   }
   watch(
-    () => (enabled() ? [root(), kind(), source()] : null),
+    () => (enabled() ? JSON.stringify([root(), kind(), source()]) : null),
     () => {
       entries.value = [];
       snapshot.value = null;
@@ -66,7 +67,7 @@ export function useVariantCatalog(
         const update = sessionContentUpdate(event, root().sessionId);
         if (!update) return undefined;
         if (!enabled() || update.manifest.sessionId !== root().sessionId) return undefined;
-        if (hasJointEditInvalidation(update.invalidation)) return load(true);
+        if (jointCatalogAffected(update.invalidation, kind())) return load(true);
         return undefined;
       },
       (sessionId) => {

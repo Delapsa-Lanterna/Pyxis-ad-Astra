@@ -434,5 +434,22 @@ export function projectShipPanel(
 
 export function shipPreviewInputs(snapshot: JointEditSnapshot, values: Record<string, JointValue>): RowData {
   const csv = jointObject(values[immersiveSourceRecords(snapshot).csv.key]);
-  return { systemId: csv['system id'] ?? null, shieldType: csv['shield type'] ?? null, defenseId: csv['defense id'] ?? null };
+  const references = snapshot.records
+    .filter((record) => record.target.kind === 'spec')
+    .map((record) => {
+      const data = jointObject(values[record.key] ?? record.value);
+      return {
+        record: record.key,
+        hullId: data.hullId ?? null,
+        baseHullId: data.baseHullId ?? null,
+        skinHullId: data.skinHullId ?? null,
+        descriptionId: data.descriptionId ?? null,
+        builtInWeapons: data.builtInWeapons ?? null,
+        builtInMods: data.builtInMods ?? null,
+        builtInWings: data.builtInWings ?? null,
+        weaponSlotChanges: data.weaponSlotChanges ?? null,
+        removeWeaponSlots: data.removeWeaponSlots ?? null,
+      };
+    });
+  return { systemId: csv['system id'] ?? null, shieldType: csv['shield type'] ?? null, defenseId: csv['defense id'] ?? null, references };
 }

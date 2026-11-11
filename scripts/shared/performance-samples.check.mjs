@@ -44,3 +44,19 @@ test('immersive samples contain all five targets and the requested unrelated var
       if (kind === 'weapons') assert.equal([...sample.keys()].filter((path) => path.endsWith('.wpn')).length, count);
     }
 });
+test('Core immersive samples retain distinct identities and complete internal references', () => {
+  const defaults = JSON.parse(readFileSync(new URL('../../schemas/spec-defaults.json', import.meta.url), 'utf8'));
+  const local = immersiveFiles(defaults, 10),
+    core = immersiveFiles(defaults, 1000, undefined, undefined, 'core_');
+  assert.equal([...core.keys()].filter((path) => path.endsWith('.variant')).length, 1002);
+  for (const [path, text] of core) {
+    if (path.endsWith('.csv') || path === 'mod_info.json') continue;
+    assert.equal(local.has(path), false);
+    const value = JSON.parse(text);
+    for (const field of ['id', 'hullId', 'baseHullId', 'skinHullId', 'variantId', 'projectileSpecId'])
+      if (typeof value[field] === 'string') assert.ok(value[field].startsWith('core_'), field);
+  }
+  const wingTable = core.get('data/hulls/wing_data.csv');
+  assert.ok(wingTable);
+  assert.match(wingTable, /core_sample_wing,core_sample_fighter/);
+});

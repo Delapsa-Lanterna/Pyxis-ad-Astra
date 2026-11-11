@@ -37,6 +37,7 @@ pub fn begin(
     versions: &[FileVersion],
 ) -> AppResult<WriteTransaction> {
     let mut transaction = acquire(scope.mod_root(), scope.session_id().map(String::as_str))?;
+    io::reset_write_reads(&transaction.root);
     app_settings::ensure_core_editing_allowed(&transaction.root)?;
     io::verify_versions(&transaction.root, versions)?;
     transaction.base = versions.to_vec();

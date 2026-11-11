@@ -36,6 +36,33 @@ pub(in crate::services::project) fn source_reader_for_session(
     retain_session_sources(&mut reader, session, &[]);
     Ok(reader)
 }
+pub(super) fn persist_session_sources(session: &ProjectSession) -> AppResult<()> {
+    let documents = session
+        .documents
+        .iter()
+        .map(|(path, source)| {
+            (
+                path.clone(),
+                (session.source_versions[path].clone(), source.clone()),
+            )
+        })
+        .collect();
+    let tables = session
+        .csv_tables
+        .iter()
+        .filter_map(|(key, table)| {
+            let kind = CsvTableKey::from_key(key)?;
+            Some((
+                table.path.clone(),
+                session.source_versions.get(&table.path)?.clone(),
+                table.header.clone(),
+                session.manifest.table_entity_summaries[&kind],
+            ))
+        })
+        .collect();
+    SourceReader::persist_project_sources(Path::new(&session.manifest.mod_root), documents, tables);
+    Ok(())
+}
 pub(in crate::services::project) fn retain_session_sources(
     reader: &mut SourceReader,
     session: &ProjectSession,

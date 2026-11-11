@@ -39,10 +39,10 @@ export async function prepareSample(work, source, count) {
   };
 }
 
-/** @param {Awaited<ReturnType<typeof prepareSample>>} fixture @param {number} count @param {'weapons'|'wings'|'hullmods'} [catalog] @param {number} [entries] */
-export async function prepareImmersiveSample(fixture, count, catalog, entries) {
+/** @param {Awaited<ReturnType<typeof prepareSample>>} fixture @param {number} count @param {'weapons'|'wings'|'hullmods'} [catalog] @param {number} [entries] @param {string} [prefix] */
+export async function prepareImmersiveSample(fixture, count, catalog, entries, prefix = '') {
   const defaults = JSON.parse(await readFile(new URL('../../schemas/spec-defaults.json', import.meta.url), 'utf8'));
-  for (const [relative, content] of immersiveFiles(defaults, count, catalog, entries)) {
+  for (const [relative, content] of immersiveFiles(defaults, count, catalog, entries, prefix)) {
     const path = join(fixture.mod, relative);
     await mkdir(dirname(path), { recursive: true });
     await writeFile(path, content, 'utf8');

@@ -6,7 +6,14 @@ import { useEditTargetDraftSession, type EditTargetDraftSession } from '@/app/co
 import { useJointEditActions } from '@/app/composables/use-joint-edit-actions';
 import { useSaveCommandStore } from '@/stores/save-command.store';
 import { observeSavedContent, sessionContentUpdate } from '@/orchestrators/project-sync.orchestrator';
-import { jointWriteTargets, rebaseJointDraft, jointCsvProblems, jointProblemBlocks, type JointIdentitySnapshot } from '@/domain/joint-edit';
+import {
+  jointWriteTargets,
+  rebaseJointDraft,
+  jointCsvProblems,
+  jointProblemBlocks,
+  jointSnapshotAffected,
+  type JointIdentitySnapshot,
+} from '@/domain/joint-edit';
 import type {
   JointEditRoot,
   JointEditSnapshot,
@@ -15,6 +22,7 @@ import type {
   WriteContent,
   DeepReadonly,
   FieldProblem,
+  ProjectInvalidation,
 } from '@/shared/types';
 import { queryJointEdit } from '@/services/joint-edit.service';
 import { cloneQuerySnapshot } from '@/shared/lib/query-snapshot';
@@ -31,9 +39,21 @@ export function useJointEditSession(
     readSnapshot?: (root: JointEditRoot, signal?: AbortSignal) => Promise<DeepReadonly<JointEditSnapshot>>;
     onContentUpdate?: (root: JointEditRoot) => Promise<void>;
     validate?: Parameters<typeof useJointEditActions>[0];
+    previewInputs?: Parameters<typeof useJointEditActions>[1];
+    validationAffected?: (snapshot: JointEditSnapshot, invalidation: ProjectInvalidation) => boolean;
   } = {},
 ) {
-  const actions = useJointEditActions(options.validate);
+  let finalCheck: { values: Record<string, JointValue>; issues: FieldProblem[] } | null = null;
+  let acceptingSave = false;
+  const actions = useJointEditActions(
+    options.validate &&
+      (async (snapshot, values, signal, overrides, prepared) => {
+        const issues = await options.validate!(snapshot, values, signal, overrides, prepared);
+        finalCheck = { values: cloneQuerySnapshot(values), issues };
+        return issues;
+      }),
+    options.previewInputs,
+  );
   const commands = useSaveCommandStore();
   const reads = useQueryReadOwner();
   let overrideIntent: string[] = [];
@@ -97,13 +117,23 @@ export function useJointEditSession(
       return true;
     },
     save: async (_root, values, _versions, _original, request) => {
+      finalCheck = null;
+      acceptingSave = true;
       const baseline = session.baselineSnapshot.value!;
-      const result = await actions.save(
-        { baseline: baseline.meta.snapshot, values: overrideValues ? { ...values, ...overrideValues } : values },
-        overrideIntent,
-        request,
-      );
-      if (!result) return;
+      const result = await actions
+        .save(
+          { baseline: baseline.meta.snapshot, values: overrideValues ? { ...values, ...overrideValues } : values },
+          overrideIntent,
+          request,
+        )
+        .catch((error) => {
+          acceptingSave = false;
+          throw error;
+        });
+      if (!result) {
+        acceptingSave = false;
+        return;
+      }
       const snapshot = result.content?.value;
       return {
         target: snapshot.root,
@@ -130,8 +160,16 @@ export function useJointEditSession(
         submitted,
       ),
     acceptSaved: async (snapshot) => {
+      acceptingSave = false;
+      if (finalCheck && stableDeepEqual(finalCheck.values, snapshot.value))
+        checked.value = {
+          snapshot: session.baselineSnapshot.value!.meta.snapshot,
+          values: cloneQuerySnapshot(snapshot.value),
+          issues: finalCheck.issues,
+        };
       if (snapshot.meta.receipt && snapshot.meta.previous)
         await options.afterBaseline?.(snapshot.meta.snapshot, snapshot.meta.receipt, snapshot.meta.previous);
+      checkProblems();
     },
   });
   const checked = shallowRef<{ snapshot: JointEditSnapshot; values: Record<string, JointValue>; issues: FieldProblem[] } | null>(null);
@@ -153,7 +191,8 @@ export function useJointEditSession(
   function checkProblems() {
     reads.revoke('consumer', 'validation');
     const snapshot = session.baselineSnapshot.value?.meta.snapshot;
-    if (!snapshot || !options.validate || session.saving.value) return;
+    if (!snapshot || !options.validate || session.saving.value || acceptingSave) return;
+    if (checked.value?.snapshot === snapshot && stableDeepEqual(checked.value.values, session.draftValue.value)) return;
     const values = cloneQuerySnapshot(session.draftValue.value);
     reads.schedule('validation', () => {
       void reads.consume('validation', { root: snapshot.root, values }, (signal) => options.validate!(snapshot, values, signal), {
@@ -198,9 +237,15 @@ export function useJointEditSession(
       if (!root || update.manifest.sessionId !== root.sessionId) return undefined;
 
       if (normalizeFsPath(update.manifest.modRoot) !== normalizeFsPath(root.modRoot)) return undefined;
-      refreshProblems();
       const receipt = change.reason === 'refresh' ? null : change.result;
       if (receipt && !session.acceptsSaveDelivery(root, receipt.requestId)) return undefined;
+      const baseline = session.baselineSnapshot.value?.meta.snapshot;
+      if (!baseline) return undefined;
+      const contentAffected = jointSnapshotAffected(baseline, update.invalidation);
+      if (!contentAffected && !options.validationAffected?.(baseline, update.invalidation)) return undefined;
+      checked.value = null;
+      refreshProblems();
+      if (!contentAffected) return undefined;
       if (
         receipt?.identityChanges.some(
           (identity) => identity.after.kind === root.kind && identity.after.id === root.id && identity.before.id !== identity.after.id,

@@ -346,6 +346,5 @@ fn refresh_candidates(
     for (handle, candidate) in handles.iter().zip(candidates) {
         *lock_ready_session(handle)? = candidate;
     }
-    reader.flush();
     Ok(result)
 }

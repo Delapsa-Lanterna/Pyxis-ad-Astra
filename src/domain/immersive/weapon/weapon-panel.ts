@@ -391,6 +391,7 @@ export function weaponPreviewInputs(snapshot: JointEditSnapshot, values: Record<
     spec = jointObject(values[records.spec.key]),
     csv = jointObject(values[records.csv.key]);
   return {
+    id: spec.id ?? null,
     projectileId: spec.projectileSpecId ?? null,
     specClass: spec.specClass ?? null,
     sprites: Object.fromEntries(Object.entries(spec).filter(([key]) => key.endsWith('Sprite'))),

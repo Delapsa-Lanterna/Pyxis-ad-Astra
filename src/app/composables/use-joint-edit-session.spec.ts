@@ -4,17 +4,28 @@ import { mount, flushPromises } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { savedWriteFixture, sessionUpdateFixture } from '@/test/fixtures/write-result';
-import type { JointEditSnapshot, JointEditWriteResult, FieldProblem } from '@/shared/types';
+import type { JointEditSnapshot, JointEditWriteResult, JointValue, FieldProblem } from '@/shared/types';
 import { AppError } from '@/shared/lib/errors';
 import { shipJointFixture } from '@/test/fixtures/joint-edit/ship-joint-edit';
 
-const mocks = vi.hoisted(() => ({ open: vi.fn(), save: vi.fn(), complete: vi.fn<() => Promise<void>>(), error: vi.fn() }));
+const mocks = vi.hoisted(() => ({
+  open: vi.fn(),
+  save: vi.fn(),
+  complete: vi.fn<() => Promise<void>>(),
+  error: vi.fn(),
+  actions: vi.fn(),
+}));
 vi.mock('@/orchestrators/project-sync.orchestrator', async () => ({
   ...(await import('@/test/unit/project-changes')),
   beginSavedWrite: (await import('@/test/unit/project-changes')).withSavedCompletion(() => mocks.complete()),
 }));
 
-vi.mock('@/app/composables/use-joint-edit-actions', () => ({ useJointEditActions: () => ({ open: mocks.open, save: mocks.save }) }));
+vi.mock('@/app/composables/use-joint-edit-actions', () => ({
+  useJointEditActions: (validate: unknown) => {
+    mocks.actions(validate);
+    return { open: mocks.open, save: mocks.save };
+  },
+}));
 vi.mock('@/services/joint-edit.service', () => ({ queryJointEdit: (root: unknown) => mocks.open(root) }));
 vi.mock('@/app/composables/use-app-feedback', () => ({ useAppFeedback: () => ({ error: mocks.error }) }));
 
@@ -50,6 +61,70 @@ beforeEach(() => {
   mocks.complete.mockResolvedValue(undefined);
 });
 describe('joint snapshot session acceptance', () => {
+  it('retains the final validation while the saved content is accepted', async () => {
+    const validate = vi.fn(async () => [] as FieldProblem[]);
+    let session!: ReturnType<typeof useJointEditSession>;
+    const wrapper = mount({
+      setup() {
+        session = useJointEditSession({ validate });
+        return () => null;
+      },
+    });
+    try {
+      await session.loadTarget(root);
+      await flushPromises();
+      session.setDraft({ ship: { state: 'present', value: 'next' } });
+      await flushPromises();
+      expect(validate).toHaveBeenCalledTimes(2);
+      const check = mocks.actions.mock.lastCall![0] as (
+        snapshot: JointEditSnapshot,
+        values: Record<string, JointValue>,
+      ) => Promise<FieldProblem[]>;
+      const actual = structuredClone(snapshot);
+      actual.records[0]!.value = { state: 'present', value: 'next' };
+      mocks.save.mockImplementationOnce(async (draft) => {
+        await check(draft.baseline, draft.values);
+        return { ...savedWriteFixture(), content: { target: { kind: 'joint', root }, value: actual } };
+      });
+      await session.saveDraft();
+      await flushPromises();
+      expect(validate).toHaveBeenCalledTimes(3);
+      expect(session.dirty.value).toBe(false);
+    } finally {
+      wrapper.unmount();
+    }
+  });
+  it('keeps the current snapshot and completed checks for unrelated saved files', async () => {
+    const validate = vi.fn(async () => [] as FieldProblem[]);
+    let session!: ReturnType<typeof useJointEditSession>;
+    const wrapper = mount({
+      setup() {
+        session = useJointEditSession({ validate });
+        return () => null;
+      },
+    });
+    try {
+      await session.loadTarget(root);
+      await flushPromises();
+      expect(validate).toHaveBeenCalledTimes(1);
+      const update = sessionUpdateFixture('s', 'M:/mod').content.invalidation;
+      update.paths = ['M:/mod/data/variants/another.variant'];
+      await projectChangeFixture('s', update);
+      await flushPromises();
+      expect(mocks.open).toHaveBeenCalledTimes(1);
+      expect(validate).toHaveBeenCalledTimes(1);
+      update.paths = ['M:/mod/a.txt'];
+      const changed = structuredClone(snapshot);
+      changed.records[0]!.value = { state: 'present', value: 'External' };
+      mocks.open.mockResolvedValueOnce(changed);
+      await projectChangeFixture('s', update);
+      await flushPromises();
+      expect(mocks.open).toHaveBeenCalledTimes(2);
+      expect(validate.mock.calls.length).toBeGreaterThan(1);
+    } finally {
+      wrapper.unmount();
+    }
+  });
   it('hands background validation to the explicit save and resumes after acceptance', async () => {
     const validate = vi.fn(async () => [] as FieldProblem[]);
     let session!: ReturnType<typeof useJointEditSession>;

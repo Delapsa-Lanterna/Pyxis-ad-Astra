@@ -11,6 +11,7 @@ import type {
   JointEditRecord,
   JointValue,
   RowData,
+  ProjectInvalidation,
 } from '@/shared/types';
 import { getSchema } from '@/domain/schema/config-schema-registry';
 import { schemaDocumentIssues } from '@/domain/schema/schema-validation';
@@ -18,7 +19,7 @@ import { composeJson } from '@/domain/json-composition';
 import { entityContentIdField } from '@/domain/project/entity-definitions';
 import { jointObject } from '@/domain/joint-edit';
 import { csvTableProblems } from '@/domain/csv-editor/csv-validation';
-import { CSV_SPEC_KINDS, csvValidationRequest } from '@/domain/csv-editor/csv-rule-context';
+import { CSV_SPEC_KINDS, csvValidationRequest, hasCsvValidationInvalidation } from '@/domain/csv-editor/csv-rule-context';
 import { cell } from '@/shared/lib/starsector';
 import { queryCsvValidation, queryTableIndex } from '@/services/csv-table.service';
 import { shipSpecIssues } from '@/domain/spec-editor/ship/spec-ship-fields';
@@ -33,6 +34,35 @@ import { fieldProblemKey } from '@/shared/runtime/editor-problems';
 import { normalizeFsPath } from '@/shared/lib/paths';
 import { queryJointEditPreview } from '@/services/joint-edit.service';
 
+export function createJointFileValidation() {
+  let dependencies: CsvValidationRequest | null = null;
+  return {
+    validate: async (
+      snapshot: JointEditSnapshot,
+      values: Record<string, JointValue>,
+      signal?: AbortSignal,
+      overrides?: readonly string[],
+      prepared?: JointEditSnapshot,
+    ) => {
+      let captured: CsvValidationRequest | null = null;
+      const issues = await validateJointFiles(snapshot, values, signal, overrides, prepared, (request) => {
+        captured = request;
+      });
+      if (!signal?.aborted) dependencies = captured;
+      return issues;
+    },
+    affected: (snapshot: JointEditSnapshot, invalidation: ProjectInvalidation) =>
+      invalidation.session ||
+      snapshot.records.some((record) => record.target.kind === 'csv' && invalidation.tables.includes(record.target.table)) ||
+      Boolean(
+        dependencies &&
+        hasCsvValidationInvalidation(invalidation, dependencies, (source) =>
+          invalidation.queryScopes.some((scope) => scope.kind === 'csv-source-options' && scope.source === source),
+        ),
+      ),
+  };
+}
+
 const specChecks: Partial<Record<EntityKind, (value: RowData, partial: boolean) => FieldProblem[]>> = {
   ship: shipSpecIssues,
   weapon: weaponSpecIssues,
@@ -45,9 +75,11 @@ export async function validateJointFiles(
   values: Record<string, JointValue>,
   signal?: AbortSignal,
   createOverrides: readonly string[] = [],
+  preparedSnapshot?: JointEditSnapshot,
+  referencesRead?: (request: CsvValidationRequest) => void,
 ): Promise<FieldProblem[]> {
   const issues: FieldProblem[] = [];
-  const snapshot = cloneQuerySnapshot<JointEditSnapshot>(await queryJointEditPreview({ baseline, values }, signal));
+  const snapshot = cloneQuerySnapshot<JointEditSnapshot>(preparedSnapshot ?? (await queryJointEditPreview({ baseline, values }, signal)));
   for (const record of baseline.records)
     if (Object.hasOwn(values, record.key) && !snapshot.records.some((entry) => entry.key === record.key))
       snapshot.records.push(cloneQuerySnapshot(record));
@@ -222,6 +254,7 @@ export async function validateJointFiles(
       files: [...new Set(requests.flatMap((request) => request.files))],
       classes: [...new Set(requests.flatMap((request) => request.classes))],
     };
+    referencesRead?.(request);
     try {
       context = cloneQuerySnapshot<CsvValidationContext>(await queryCsvValidation(snapshot.root.sessionId, request, signal));
     } catch (error) {

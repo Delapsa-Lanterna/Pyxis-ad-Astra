@@ -54,7 +54,10 @@ vi.mock('@/services/joint-edit.service', () => ({
   queryJointVariantCatalog: mocks.catalog,
   queryJointCandidate: mocks.candidate,
 }));
-vi.mock('./joint-editor-validation', () => ({ validateJointFiles: mocks.validate }));
+vi.mock('./joint-editor-validation', () => ({
+  validateJointFiles: mocks.validate,
+  createJointFileValidation: () => ({ validate: mocks.validate, affected: () => false }),
+}));
 vi.mock('@/app/composables/use-joint-edit-actions', () => ({ useJointEditActions: () => ({ open: mocks.query, save: mocks.save }) }));
 vi.mock('@/app/composables/use-app-feedback', () => ({
   useAppFeedback: () => ({ error: mocks.error, success: vi.fn(), choose: mocks.choose }),
@@ -90,6 +93,7 @@ vi.mock('@/app/composables/use-resource-media-registry', () => ({
   useResourceMediaRegistry: () => ({ dataUrl: () => '', replaceCollection: mocks.media }),
 }));
 import { useImmersiveEditorViewModel } from './immersive-editor-assembly';
+import { useVariantCatalog } from './immersive-editor/variant/use-variant-catalog';
 import type * as QueryCacheServiceModule from '@/services/query-cache.service';
 
 function editor(kind: 'ship' | 'weapon' | 'wing' | 'variant' = 'ship') {
@@ -128,6 +132,40 @@ beforeEach(() => {
 });
 
 describe('variant joint actions', () => {
+  it('reuses the catalog for equivalent targets and reloads its actual dependencies', async () => {
+    const baseline = variantJointFixture();
+    const target = ref(baseline.root);
+    mocks.catalog.mockResolvedValue({
+      root: baseline.root,
+      referenceSettings: baseline.referenceSettings,
+      catalog: { kind: 'weapons', entries: [] },
+    });
+    const wrapper = mount({
+      setup() {
+        useVariantCatalog(
+          () => target.value,
+          () => 'weapons',
+        );
+        return () => null;
+      },
+    });
+    try {
+      await flushPromises();
+      expect(mocks.catalog).toHaveBeenCalledTimes(1);
+      target.value = { ...baseline.root };
+      await flushPromises();
+      expect(mocks.catalog).toHaveBeenCalledTimes(1);
+      const update = sessionUpdateFixture('s', 'M:/mod').content.invalidation;
+      update.paths = ['M:/mod/data/variants/other.variant'];
+      await projectChangeFixture('s', update);
+      expect(mocks.catalog).toHaveBeenCalledTimes(1);
+      update.paths = ['M:/mod/data/weapons/other.wpn'];
+      await projectChangeFixture('s', update);
+      expect(mocks.catalog).toHaveBeenCalledTimes(2);
+    } finally {
+      wrapper.unmount();
+    }
+  });
   it('keeps an accepted graph through delayed removal and accepts new equipment in one display update', async () => {
     const baseline = variantJointFixture();
     const graph = structuredClone(baseline);

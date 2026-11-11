@@ -3,10 +3,12 @@ use crate::errors::{AppError, AppResult, ErrorLocation};
 use crate::io;
 use crate::models::file_content::{JsonFileContent, JsonSource};
 use crate::models::{self, GameScanWarning, GameWarningEditTarget, SkinFile, VariantFile};
+#[cfg(test)]
+use crate::test_support::work_counts;
 use serde_json::Value;
 #[cfg(test)]
 use std::cell::Cell;
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
 #[cfg(test)]
@@ -40,6 +42,12 @@ fn duplicate(root: &Path, path: &Path, field: &str, id: &str, code: &str) -> Gam
 pub(in crate::services::project) fn load_variant_files_from(
     reader: &mut SourceReader,
 ) -> AppResult<(Vec<VariantFile>, Vec<GameScanWarning>)> {
+    refresh_variant_files_from(reader, &[])
+}
+pub(in crate::services::project) fn refresh_variant_files_from(
+    reader: &mut SourceReader,
+    previous: &[VariantFile],
+) -> AppResult<(Vec<VariantFile>, Vec<GameScanWarning>)> {
     #[cfg(test)]
     LOAD_COUNTS.with(|counts| {
         let (a, b) = counts.get();
@@ -48,12 +56,27 @@ pub(in crate::services::project) fn load_variant_files_from(
     let mut files = Vec::new();
     let mut warnings = Vec::new();
     let mut seen = BTreeSet::new();
+    let previous = previous
+        .iter()
+        .map(|file| (file.rel_path.as_str(), file))
+        .collect::<BTreeMap<_, _>>();
     for path in reader.discover("data/variants", &["variant"], true)? {
-        let source = reader.json_source(&path)?;
         let relative = reader.key(&path);
-        let file = variant_summary(reader.root(), &relative, &source).map_err(|error| {
-            AppError::context(format!("读取装配失败：{}", path.display()), error).at_path(&path)
-        })?;
+        let file = if let Some(file) = previous.get(relative.as_str()).filter(|_| {
+            !reader
+                .changed_paths()
+                .iter()
+                .any(|changed| io::relative_path_contains(changed, &relative))
+        }) {
+            (*file).clone()
+        } else {
+            let source = reader.json_source(&path)?;
+            #[cfg(test)]
+            work_counts::record("variant-summary", &path);
+            variant_summary(reader.root(), &relative, &source).map_err(|error| {
+                AppError::context(format!("读取装配失败：{}", path.display()), error).at_path(&path)
+            })?
+        };
         if !seen.insert(file.variant_id.clone()) {
             warnings.push(duplicate(
                 reader.root(),
@@ -76,6 +99,12 @@ pub(in crate::services::project) fn load_variant_files_from(
 pub(in crate::services::project) fn load_skin_files_from(
     reader: &mut SourceReader,
 ) -> AppResult<(Vec<SkinFile>, Vec<GameScanWarning>)> {
+    refresh_skin_files_from(reader, &[])
+}
+pub(in crate::services::project) fn refresh_skin_files_from(
+    reader: &mut SourceReader,
+    previous: &[SkinFile],
+) -> AppResult<(Vec<SkinFile>, Vec<GameScanWarning>)> {
     #[cfg(test)]
     LOAD_COUNTS.with(|counts| {
         let (a, b) = counts.get();
@@ -84,10 +113,23 @@ pub(in crate::services::project) fn load_skin_files_from(
     let mut files = Vec::new();
     let mut warnings = Vec::new();
     let mut seen = BTreeSet::new();
+    let previous = previous
+        .iter()
+        .map(|file| (file.rel_path.as_str(), file))
+        .collect::<BTreeMap<_, _>>();
     for path in reader.discover("data/hulls/skins", &["skin"], true)? {
-        let source = reader.json_source(&path)?;
         let relative = reader.key(&path);
-        let file = skin_summary(reader.root(), &relative, &source)?;
+        let file = if let Some(file) = previous.get(relative.as_str()).filter(|_| {
+            !reader
+                .changed_paths()
+                .iter()
+                .any(|changed| io::relative_path_contains(changed, &relative))
+        }) {
+            (*file).clone()
+        } else {
+            let source = reader.json_source(&path)?;
+            skin_summary(reader.root(), &relative, &source)?
+        };
         if !seen.insert(file.skin_hull_id.clone()) {
             warnings.push(duplicate(
                 reader.root(),

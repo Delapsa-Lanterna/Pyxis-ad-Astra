@@ -12,6 +12,7 @@ use crate::models::{
     InvalidatedResourceScope, JointEditDraft, JointEditKind, JointEditRoot, JointValue,
     ResourceOwnerKind, ResourceSource,
 };
+use crate::models::{SaveAction, TextSave};
 #[cfg(test)]
 use crate::services::project::query::{hull_references, joint_edit, resources as query_resources};
 #[cfg(test)]
@@ -22,6 +23,7 @@ use crate::services::project::test_support::project_workspace;
 use crate::services::project::{
     PerformanceTrace, open_project_session_traced, refresh_project_sources, resources,
 };
+use crate::services::project_save;
 #[cfg(test)]
 use crate::test_support::work_counts;
 #[cfg(test)]
@@ -29,6 +31,80 @@ use crate::test_support::{self, TestWorkspace};
 #[cfg(test)]
 use std::fs;
 use std::slice;
+
+#[test]
+fn concurrent_source_forks_preserve_each_others_updated_cached_documents() {
+    let root = project_workspace("source_fork_acceptance");
+    let first = root.join("first.ship");
+    let second = root.join("second.proj");
+    fs::write(&first, r#"{"id":"first","value":1}"#).unwrap();
+    fs::write(&second, r#"{"id":"second","value":1}"#).unwrap();
+    let mut reader = SourceReader::new(&root).unwrap();
+    reader.json(&first).unwrap();
+    reader.loaded.clear();
+    let mut ships = reader.fork_loaded();
+    let mut projectiles = reader.fork_loaded();
+    fs::write(&first, r#"{"id":"first","value":2}"#).unwrap();
+    ships.json(&first).unwrap();
+    reader.absorb(ships);
+    projectiles.json(&second).unwrap();
+    reader.absorb(projectiles);
+    let value = reader.json(&first).unwrap()["value"].clone();
+    assert_eq!(work_counts::count("read", &first), 2);
+    assert_eq!(work_counts::count("parse", &first), 2);
+    assert_eq!(work_counts::count("read", &second), 1);
+    assert_eq!(work_counts::count("parse", &second), 1);
+    root.close().unwrap();
+    assert_eq!(value, 2);
+}
+
+#[test]
+fn repeated_saves_persist_sources_at_the_final_same_root_close() {
+    if test_support::isolated_test() {
+        return;
+    }
+    let root = project_workspace("source_cache_final_close");
+    let cache = root.outer().join("cache");
+    configure_persistent_index_cache(&cache).unwrap();
+    fs::create_dir_all(root.join("data/variants")).unwrap();
+    let variant = root.join("data/variants/demo.variant");
+    fs::write(&variant, r#"{"variantId":"demo","hullId":"hull"}"#).unwrap();
+    let first = open_project_session_traced(&root, None, &mut PerformanceTrace::new("cache.first"))
+        .unwrap();
+    let second =
+        open_project_session_traced(&root, None, &mut PerformanceTrace::new("cache.second"))
+            .unwrap();
+    let notes = root.join("notes.txt");
+    fs::write(&notes, "Original").unwrap();
+    for iteration in 0..20 {
+        project_save::execute_save_action(SaveAction::SaveTextFile(TextSave {
+            session_id: Some(first.session_id.clone()),
+            mod_root: first.mod_root.clone(),
+            path: notes.to_string_lossy().into_owned(),
+            text: format!("Saved {iteration}"),
+            base_versions: vec![file_version(&notes).unwrap()],
+        }))
+        .unwrap();
+        assert!(!cache.join("source-record-cache").exists());
+    }
+    release_project_session(first.session_id).unwrap();
+    assert!(!cache.join("source-record-cache").exists());
+    release_project_session(second.session_id).unwrap();
+    let files = fs::read_dir(cache.join("source-record-cache"))
+        .unwrap()
+        .map(|entry| entry.unwrap().path())
+        .collect::<Vec<_>>();
+    assert_eq!(files.len(), 1);
+    assert_eq!(work_counts::count("cache-write", &files[0]), 1);
+    let parses = work_counts::count("parse", &variant);
+    let reopened =
+        open_project_session_traced(&root, None, &mut PerformanceTrace::new("cache.reopened"))
+            .unwrap();
+    assert_eq!(work_counts::count("parse", &variant), parses);
+    assert_eq!(fs::read_to_string(&notes).unwrap(), "Saved 19");
+    release_project_session(reopened.session_id).unwrap();
+    root.close().unwrap();
+}
 
 #[test]
 fn directory_staging_retains_only_changed_bytes_and_hands_off_the_same_snapshot() {

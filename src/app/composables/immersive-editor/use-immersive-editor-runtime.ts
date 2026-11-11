@@ -46,7 +46,10 @@ function jointValueData(value: JointValue | undefined) {
 export function useImmersiveEditorRuntime<TPanel extends ImmersivePanel>(
   root: JointEditRoot & { rowKey?: string },
   definition: ImmersiveEditorDefinition<TPanel>,
-  hooks: Pick<NonNullable<Parameters<typeof useJointEditSession>[0]>, 'readSnapshot' | 'onContentUpdate' | 'validate'>,
+  hooks: Pick<
+    NonNullable<Parameters<typeof useJointEditSession>[0]>,
+    'readSnapshot' | 'onContentUpdate' | 'validate' | 'validationAffected'
+  >,
 ) {
   const feedback = useAppFeedback(() => ({
     paths: [root.modRoot, ...(snapshot.value?.baseVersions.map((version) => version.path) ?? [])],
@@ -67,6 +70,18 @@ export function useImmersiveEditorRuntime<TPanel extends ImmersivePanel>(
   const joint = useJointEditSession({
     editableRecords: definition.editableRecords,
     ...hooks,
+    previewInputs: definition.previewInputs,
+    validate:
+      hooks.validate &&
+      ((baseline, values, signal, overrides, prepared) => {
+        const original = Object.fromEntries(baseline.records.map((record) => [record.key, record.value]));
+        const graph =
+          prepared ??
+          (stableDeepEqual(definition.previewInputs(baseline, values), definition.previewInputs(baseline, original))
+            ? baseline
+            : undefined);
+        return hooks.validate!(baseline, values, signal, overrides, graph);
+      }),
     readSnapshot: async (target, signal) => {
       errorText.value = '';
       try {

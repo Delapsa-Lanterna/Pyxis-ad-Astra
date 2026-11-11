@@ -1,9 +1,62 @@
 use crate::errors::{AppError, AppResult};
+use crate::io::file_changes;
+use std::cell::RefCell;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::fs::Metadata;
 #[cfg(windows)]
 use std::os::windows::fs::MetadataExt;
 use std::path::{Component, Path, PathBuf};
+use std::sync::{Arc, Mutex, Weak};
+
+#[derive(Default)]
+struct AuthorizedPaths {
+    root: PathBuf,
+    resolved: BTreeMap<PathBuf, PathBuf>,
+    checked: BTreeSet<PathBuf>,
+}
+thread_local! {
+    static PATH_CAPTURES: RefCell<Vec<Weak<Mutex<AuthorizedPaths>>>> = const { RefCell::new(Vec::new()) };
+}
+pub(crate) struct PathReadBatch(Arc<Mutex<AuthorizedPaths>>);
+impl Drop for PathReadBatch {
+    fn drop(&mut self) {
+        PATH_CAPTURES.with(|captures| {
+            captures
+                .borrow_mut()
+                .retain(|capture| !Weak::ptr_eq(capture, &Arc::downgrade(&self.0)))
+        });
+    }
+}
+impl PathReadBatch {
+    pub(crate) fn new(root: &Path) -> Self {
+        let state = Arc::new(Mutex::new(AuthorizedPaths {
+            root: root.to_path_buf(),
+            ..Default::default()
+        }));
+        PATH_CAPTURES.with(|captures| {
+            let mut captures = captures.borrow_mut();
+            captures.retain(|capture| capture.strong_count() > 0);
+            captures.push(Arc::downgrade(&state));
+        });
+        Self(state)
+    }
+    pub(crate) fn clear(&self) {
+        let mut state = self.0.lock().expect("owned path capture");
+        state.resolved.clear();
+        state.checked.clear();
+    }
+}
+fn path_capture(path: &Path) -> Option<Arc<Mutex<AuthorizedPaths>>> {
+    PATH_CAPTURES.with(|captures| {
+        captures
+            .borrow()
+            .iter()
+            .rev()
+            .filter_map(Weak::upgrade)
+            .find(|capture| path.starts_with(&capture.lock().expect("owned path capture").root))
+    })
+}
 
 #[derive(Debug, Clone)]
 pub struct FsRootBoundary {
@@ -12,6 +65,9 @@ pub struct FsRootBoundary {
 
 impl FsRootBoundary {
     pub fn new(root: &Path, label: &str) -> AppResult<Self> {
+        if let Some(boundary) = file_changes::active_root_boundary(root) {
+            return Ok(boundary);
+        }
         validate_safe_absolute_path(root, label)?;
         reject_existing_path_links(root, label)?;
         let root = root.canonicalize().map_err(|error| {
@@ -108,7 +164,17 @@ impl FsRootBoundary {
 
 pub fn canonical_path(path: &Path, label: &str) -> AppResult<PathBuf> {
     validate_safe_absolute_path(path, label)?;
-    reject_existing_path_links(path, label)?;
+    let capture = path_capture(path);
+    if let Some(capture) = &capture
+        && let Some(resolved) = capture
+            .lock()
+            .expect("owned path capture")
+            .resolved
+            .get(path)
+    {
+        return Ok(resolved.clone());
+    }
+    reject_existing_path_links_in(path, label, capture.as_ref())?;
     let existing = nearest_existing_path(path).ok_or_else(|| {
         AppError::message(
             "path.no_existing_parent",
@@ -122,14 +188,22 @@ pub fn canonical_path(path: &Path, label: &str) -> AppResult<PathBuf> {
         )
         .at_path(path)
     })?;
-    if existing == path {
-        Ok(canonical)
+    let resolved = if existing == path {
+        canonical
     } else {
-        Ok(canonical.join(
+        canonical.join(
             path.strip_prefix(&existing)
                 .expect("nearest existing path is an ancestor"),
-        ))
+        )
+    };
+    if let Some(capture) = capture {
+        let mut capture = capture.lock().expect("owned path capture");
+        capture
+            .resolved
+            .insert(path.to_path_buf(), resolved.clone());
+        capture.resolved.insert(resolved.clone(), resolved.clone());
     }
+    Ok(resolved)
 }
 
 pub fn validate_walk_entry(path: &Path, label: &str) -> AppResult<()> {
@@ -191,9 +265,32 @@ fn nearest_existing_path(path: &Path) -> Option<PathBuf> {
 }
 
 fn reject_existing_path_links(path: &Path, label: &str) -> AppResult<()> {
+    reject_existing_path_links_in(path, label, path_capture(path).as_ref())
+}
+fn reject_existing_path_links_in(
+    path: &Path,
+    label: &str,
+    capture: Option<&Arc<Mutex<AuthorizedPaths>>>,
+) -> AppResult<()> {
     for ancestor in path.ancestors() {
+        if capture.is_some_and(|capture| {
+            capture
+                .lock()
+                .expect("owned path capture")
+                .checked
+                .contains(ancestor)
+        }) {
+            continue;
+        }
         if ancestor.exists() {
             reject_link_path(ancestor, label)?;
+            if let Some(capture) = capture {
+                capture
+                    .lock()
+                    .expect("owned path capture")
+                    .checked
+                    .insert(ancestor.to_path_buf());
+            }
         }
     }
     Ok(())

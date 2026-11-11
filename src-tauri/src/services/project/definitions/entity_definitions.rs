@@ -28,7 +28,7 @@ use crate::services::project::session::source_versions::capture_changed_versions
 use crate::services::project::sources::core::{load_core_faction_files, load_core_variant_files};
 use crate::services::project::sources::documents::LoadedSpecRecord;
 use crate::services::project::sources::json_documents::{
-    load_skin_files_from, load_variant_files_from,
+    refresh_skin_files_from, refresh_variant_files_from,
 };
 use crate::services::project::sources::{SourceReader, core, documents};
 use serde_json::{Map, Value};
@@ -674,7 +674,7 @@ impl EntityRefresh {
 }
 
 fn refresh_spec_records(
-    _session: &ProjectSession,
+    session: &ProjectSession,
     kind: EntityKind,
     directories: &[&str],
     extension: &str,
@@ -683,12 +683,15 @@ fn refresh_spec_records(
 ) -> AppResult<EntityRefresh> {
     Ok(EntityRefresh::Specs {
         kind,
-        records: documents::load_spec_records_from(
+        records: documents::refresh_spec_records_from(
             sources,
             directories,
             extension,
             id_field,
             ResourceSource::Mod,
+            session
+                .spec_records(kind)
+                .expect("registered specification kind"),
         )?,
     })
 }
@@ -773,14 +776,14 @@ fn refresh_mission(
     )?))
 }
 fn refresh_variant(
-    _session: &ProjectSession,
+    session: &ProjectSession,
     sources: &mut SourceReader,
 ) -> AppResult<EntityRefresh> {
-    let (files, warnings) = load_variant_files_from(sources)?;
+    let (files, warnings) = refresh_variant_files_from(sources, &session.variant_files)?;
     Ok(EntityRefresh::Variant { files, warnings })
 }
-fn refresh_skin(_session: &ProjectSession, sources: &mut SourceReader) -> AppResult<EntityRefresh> {
-    let (files, warnings) = load_skin_files_from(sources)?;
+fn refresh_skin(session: &ProjectSession, sources: &mut SourceReader) -> AppResult<EntityRefresh> {
+    let (files, warnings) = refresh_skin_files_from(sources, &session.skin_files)?;
     Ok(EntityRefresh::Skin { files, warnings })
 }
 

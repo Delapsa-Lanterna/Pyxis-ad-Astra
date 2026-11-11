@@ -119,7 +119,6 @@ fn apply_session_changes(
                 )
         })
     });
-    reader.flush();
     Ok(result)
 }
 #[cfg(test)]
@@ -136,7 +135,6 @@ pub(super) fn refresh_sources(
         .collect::<Vec<_>>();
     reader.invalidate_paths(&paths);
     let result = refresh_sources_from(&mut candidate, resources, &mut reader)?;
-    reader.flush();
     *session = candidate;
     Ok(result)
 }
@@ -362,8 +360,7 @@ pub(super) fn refresh_sources_from(
             state.source = source;
         }
     }
-    session.manifest.table_entity_summaries =
-        csv_tables::build_table_entity_summaries_from(reader, &session.manifest.entity_summaries)?;
+    csv_tables::refresh_table_entity_summaries(reader, session, &tables)?;
     session.manifest.warnings = session
         .variant_warnings
         .iter()
@@ -548,9 +545,61 @@ mod tests {
     #[cfg(test)]
     use crate::services::project::sources::json_documents::take_load_counts;
     use crate::services::project::test_support::project_workspace;
+    use crate::test_support::work_counts;
     use std::fs;
     use std::path::PathBuf;
     use std::slice;
+
+    #[test]
+    fn committed_text_and_variant_reuse_unaffected_sources() {
+        let root = project_workspace("commit_scoped_sources");
+        fs::create_dir_all(root.join("data/variants")).unwrap();
+        fs::create_dir_all(root.join("data/campaign")).unwrap();
+        let variant = root.join("data/variants/edited.variant");
+        let unrelated = root.join("data/variants/other.variant");
+        let table = root.join("data/campaign/commodities.csv");
+        fs::write(&variant, r#"{"variantId":"edited","hullId":"hull"}"#).unwrap();
+        fs::write(&unrelated, r#"{"variantId":"other","hullId":"hull"}"#).unwrap();
+        fs::write(&table, "id,name\none,One\n").unwrap();
+        let mut session =
+            session::build_project_session(&root, None, &mut PerformanceTrace::new("commit.scope"))
+                .unwrap();
+        let table_reads = work_counts::count("read", &table);
+        let variant_reads = work_counts::count("read", &unrelated);
+        let scans = work_counts::count("walk", &root.join("data/variants"));
+        for (path, before, after) in [
+            (root.join("notes.txt"), None, "Written"),
+            (
+                variant,
+                Some(r#"{"variantId":"edited","hullId":"hull"}"#),
+                r#"{"variantId":"edited","hullId":"hull","displayName":"Written"}"#,
+            ),
+        ] {
+            fs::write(&path, after).unwrap();
+            invalidate_session_changes(&mut session, &[file_change(path, before, Some(after))])
+                .unwrap();
+            assert_eq!(work_counts::count("read", &table), table_reads);
+            assert_eq!(work_counts::count("read", &unrelated), variant_reads);
+            assert_eq!(
+                work_counts::count("walk", &root.join("data/variants")),
+                scans
+            );
+            assert_eq!(
+                session.manifest.table_entity_summaries[&CsvTableKey::Commodities],
+                1
+            );
+        }
+        assert_eq!(
+            session
+                .variant_files
+                .iter()
+                .find(|file| file.variant_id == "edited")
+                .unwrap()
+                .data["displayName"],
+            "Written"
+        );
+        root.close().unwrap();
+    }
     struct ChangedProjectPath;
     impl ChangedProjectPath {
         fn classify(path: &str) -> String {

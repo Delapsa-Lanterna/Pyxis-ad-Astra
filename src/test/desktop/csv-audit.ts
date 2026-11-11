@@ -1,21 +1,20 @@
 import type { ComponentInternalInstance, VNode } from 'vue';
 import type { CsvGridModel } from '@/domain/csv-editor/csv-grid-model';
 
-type AuditWindow = Window &
-  typeof globalThis & {
-    __TAURI_INTERNALS__: { invoke(command: string, args: unknown, ...rest: unknown[]): Promise<unknown> };
-  };
 type AppHost = HTMLElement & { __vue_app__: { _container: { _vnode: VNode } } };
 
 export function installCsvAudit() {
-  const targetWindow = window as AuditWindow;
   const frame = () => new Promise((done) => requestAnimationFrame(done));
   const calls: { command: string; start: number; end: number | null }[] = [],
-    invoke = targetWindow.__TAURI_INTERNALS__.invoke;
-  targetWindow.__TAURI_INTERNALS__.invoke = function (command, args, ...rest) {
+    fetch = window.fetch;
+  // Tauri freezes invoke; observe the actual IPC fetch instead.
+  window.fetch = async function (input, init) {
+    const url = new URL(input instanceof Request ? input.url : String(input));
+    if (url.hostname !== 'ipc.localhost') return fetch.call(this, input, init);
+    const command = decodeURIComponent(url.pathname.slice(1));
     const record: (typeof calls)[number] = { command, start: performance.now(), end: null };
     if (/^query_csv_|^query_resource_/.test(command)) calls.push(record);
-    return invoke.call(this, command, args, ...rest).finally(() => {
+    return fetch.call(this, input, init).finally(() => {
       record.end = performance.now();
     });
   };
@@ -115,7 +114,7 @@ export function installCsvAudit() {
   async function auxiliary(label: string, start: number) {
     for (let attempt = 0; attempt < 600; attempt++) {
       await frame();
-      if (calls.some((call) => call.command === 'query_csv_source_options' && call.start >= start && call.end === null)) continue;
+      if (calls.some((call) => call.command === 'query_csv_source_options' && call.end === null)) continue;
       await frame();
       const namesMs = performance.now() - start;
       for (let imageFrame = 0; imageFrame < 600; imageFrame++) {
@@ -199,5 +198,6 @@ export function installCsvAudit() {
     const tab = Array.from(document.querySelectorAll<HTMLElement>('.mod-tab')).find((item) => normalize(item.title) === mod)!;
     tab.querySelector<HTMLButtonElement>('.mod-tab-activate')!.click();
   }
-  return Object.assign(window, { __csvBench: { measure, frame, activateMod, ready: (label: string) => Boolean(state(label)) } }).__csvBench;
+  return Object.assign(window, { __csvBench: { measure, frame, activateMod, calls, ready: (label: string) => Boolean(state(label)) } })
+    .__csvBench;
 }

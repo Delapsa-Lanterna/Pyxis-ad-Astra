@@ -353,7 +353,7 @@ fn readonly_dependency_version_changes_reject_the_captured_save() {
 }
 
 #[test]
-fn queued_joint_save_graph_builds() {
+fn queued_joint_save_reuses_the_verified_graph() {
     for (kind, id, binding, field, value) in [
         (JointEditKind::Ship, "a", "spec", "hullName", json!("Saved")),
         (
@@ -394,7 +394,7 @@ fn queued_joint_save_graph_builds() {
         )
         .unwrap();
         let result = submit(&input).unwrap();
-        assert_eq!(take_joint_graph_builds(), 1, "{kind:?}");
+        assert_eq!(take_joint_graph_builds(), 0, "{kind:?}");
         assert_eq!(result.changes.len(), 1, "{kind:?}");
         assert_eq!(result.history.undo_stack.len(), 1, "{kind:?}");
         let saved = result.content.unwrap().value;

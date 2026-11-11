@@ -41,6 +41,8 @@ export const desktopCases = {
     run: async ({ launch, fixture, check, options, runs }) => editorPerformance(await launch(), fixture, check, options, runs),
   },
   'immersive-performance': { run: immersivePerformance },
+  'immersive-core-performance': { run: (context) => immersivePerformance(context, { core: true }) },
+  'immersive-multi-window-performance': { run: (context) => immersivePerformance(context, { observers: true }) },
   'source-performance': {
     run: async ({ launch, fixture, check, options, artifacts, runs }) => {
       if (!options.mod || !options.game || !Number.isFinite(options.soak) || options.soak < 0)

@@ -40,13 +40,13 @@ export function csvText(header, rows) {
   const cell = (/** @type {string} */ value) => (/[",\r\n]/.test(value) ? '"' + value.replaceAll('"', '""') + '"' : value);
   return [header, ...rows.map((row) => header.map((key) => row[key] ?? ''))].map((row) => row.map(cell).join(',')).join('\n') + '\n';
 }
-/** @param {{ship:Record<string,unknown>,weapon:{projectile:Record<string,unknown>},projectile:{projectile:Record<string,unknown>}}} defaults @param {number} unrelatedVariants @param {'weapons'|'wings'|'hullmods'} [catalog] @param {number} [entries] */
-export function immersiveFiles(defaults, unrelatedVariants, catalog, entries = 1) {
+/** @param {{ship:Record<string,unknown>,weapon:{projectile:Record<string,unknown>},projectile:{projectile:Record<string,unknown>}}} defaults @param {number} unrelatedVariants @param {'weapons'|'wings'|'hullmods'} [catalog] @param {number} [entries] @param {string} [prefix] */
+export function immersiveFiles(defaults, unrelatedVariants, catalog, entries = 1, prefix = '') {
   const files = new Map([['mod_info.json', '{"id":"performance_sample","name":"Performance sample","version":"1","gameVersion":"0.98a"}']]);
   const json = (/** @type {string} */ path, /** @type {unknown} */ value) => files.set(path, JSON.stringify(value, null, 2) + '\n');
   const variant = (/** @type {string} */ id, /** @type {string} */ hullId) => ({
-    variantId: id,
-    hullId,
+    variantId: prefix + id,
+    hullId: prefix + hullId,
     displayName: id,
     goalVariant: false,
     fluxVents: 0,
@@ -58,36 +58,43 @@ export function immersiveFiles(defaults, unrelatedVariants, catalog, entries = 1
     wings: [],
   });
   for (const id of ['ship_0', 'ship_1'])
-    json('data/hulls/' + id + '.ship', {
+    json('data/hulls/' + prefix + id + '.ship', {
       ...defaults.ship,
-      hullId: id,
+      hullId: prefix + id,
       hullName: id,
       spriteName: 'graphics/sample.png',
       weaponSlots: [{ id: 'SLOT', type: 'BALLISTIC', size: 'SMALL', mount: 'TURRET', angle: 0, arc: 360, locations: [0, 0] }],
     });
-  json('data/hulls/skins/sample.skin', { skinHullId: 'sample_skin', baseHullId: 'ship_0', hullName: 'Sample skin' });
-  json('data/weapons/proj/sample_shot.proj', { ...defaults.projectile.projectile, id: 'sample_shot' });
-  json('data/variants/sample.variant', variant('sample_variant', 'ship_0'));
-  json('data/variants/fighter.variant', variant('sample_fighter', 'ship_0'));
+  json('data/hulls/skins/' + prefix + 'sample.skin', {
+    skinHullId: prefix + 'sample_skin',
+    baseHullId: prefix + 'ship_0',
+    hullName: 'Sample skin',
+  });
+  json('data/weapons/proj/' + prefix + 'sample_shot.proj', { ...defaults.projectile.projectile, id: prefix + 'sample_shot' });
+  json('data/variants/' + prefix + 'sample.variant', variant('sample_variant', 'ship_0'));
+  json('data/variants/' + prefix + 'fighter.variant', variant('sample_fighter', 'ship_0'));
   for (let index = 0; index < unrelatedVariants; index++)
-    json('data/variants/unrelated_' + index + '.variant', variant('unrelated_' + index, 'ship_1'));
+    json('data/variants/' + prefix + 'unrelated_' + index + '.variant', variant('unrelated_' + index, 'ship_1'));
   files.set(
     'data/hulls/ship_data.csv',
     'id,name,hitpoints,armor rating,max flux,flux dissipation,ordnance points,max speed,shield type,min crew,max crew,mass,fighter bays\n' +
-      'ship_0,Sample ship,1000,100,1000,100,50,100,NONE,1,2,100,1\nship_1,Other ship,1000,100,1000,100,50,100,NONE,1,2,100,1\n',
+      prefix +
+      'ship_0,Sample ship,1000,100,1000,100,50,100,NONE,1,2,100,1\n' +
+      prefix +
+      'ship_1,Other ship,1000,100,1000,100,50,100,NONE,1,2,100,1\n',
   );
   const weapons = [],
     wings = [],
     hullmods = [];
   for (let index = 0; index < (catalog ? entries : 1); index++) {
-    const weaponId = 'weapon_' + index;
+    const weaponId = prefix + 'weapon_' + index;
     if (catalog === 'weapons' || index === 0) {
       json('data/weapons/' + weaponId + '.wpn', {
         ...defaults.weapon.projectile,
         id: weaponId,
         turretSprite: 'graphics/sample.png',
         hardpointSprite: 'graphics/sample.png',
-        projectileSpecId: 'sample_shot',
+        projectileSpecId: prefix + 'sample_shot',
       });
       weapons.push({
         id: weaponId,
@@ -102,8 +109,8 @@ export function immersiveFiles(defaults, unrelatedVariants, catalog, entries = 1
     }
     if (catalog === 'wings' || index === 0)
       wings.push({
-        id: index === 0 ? 'sample_wing' : 'wing_' + index,
-        variant: 'sample_fighter',
+        id: prefix + (index === 0 ? 'sample_wing' : 'wing_' + index),
+        variant: prefix + 'sample_fighter',
         num: '1',
         role: 'FIGHTER',
         'role desc': 'Sample role',
@@ -114,7 +121,7 @@ export function immersiveFiles(defaults, unrelatedVariants, catalog, entries = 1
       });
     if (catalog === 'hullmods' || index === 0)
       hullmods.push({
-        id: 'hullmod_' + index,
+        id: prefix + 'hullmod_' + index,
         name: 'Hullmod ' + index,
         tier: '1',
         rarity: '1',
