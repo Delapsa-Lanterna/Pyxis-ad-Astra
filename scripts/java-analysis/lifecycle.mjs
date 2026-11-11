@@ -187,6 +187,18 @@ export async function dependencies(session, directory, javaHome) {
   const initial = await query();
   assert.equal(initial.call.binding.type, 'int');
   assert.deepEqual(initial.call.binding.parameters, ['java.lang.String']);
+  const binary = (
+    await session.request('inspect', {
+      project: 'dependencies',
+      revision,
+      file: client,
+      offset: source.indexOf('value'),
+      purpose: 'declaration',
+    })
+  ).value;
+  assert.deepEqual(binary.binding.parameters, ['java.lang.String']);
+  assert.ok(binary.origin.replaceAll('\\', '/').includes('integer.jar'));
+  assert.deepEqual(binary.locations, []);
   /** @param {string[]} classpath */
   const configure = async (classpath) => {
     await session.request('configure', { project: 'dependencies', expectedRevision: revision, classpath, javaHome, language: '17' });

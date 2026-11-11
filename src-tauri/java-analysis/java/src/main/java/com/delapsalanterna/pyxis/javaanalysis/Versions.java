@@ -9,7 +9,6 @@ final class Versions {
   private static final Properties VALUES = load();
   static final String ENGINE = VALUES.getProperty("engine");
   static final int PROTOCOL = Integer.parseInt(VALUES.getProperty("protocol"));
-  static final int JAVA = Integer.parseInt(VALUES.getProperty("java"));
   static final String LANGUAGE = VALUES.getProperty("language");
 
   private static Properties load() {

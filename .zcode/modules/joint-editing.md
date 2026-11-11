@@ -12,7 +12,7 @@
 - `src-tauri/src/commands/joint_edit.rs`：联合读取、准备、提交 command。
 - `src-tauri/src/domain/joint_edit.rs`：三方业务值比较与冲突投影。
 - `src-tauri/src/domain/joint_hull.rs`：有效船体字段来源、Skin 继承与有效武器槽的纯投影。
-- `src-tauri/src/services/project/query/joint_edit.rs`：四类根、来源图、CSV 目录及版本装配。
+- `src-tauri/src/services/project/query/joint_edit.rs`：五类根、来源图、CSV 目录及版本装配。
 - `src-tauri/src/services/project/write/joint_edit.rs`：联合当前来源图准备、身份与修改接纳及实际保存。
 - `src/app/components/JointEditConflictChoices.vue`：三个来源与字段选择展示。
 - `src/app/composables/use-edit-target-handoff.ts`：窗口接收与目标登记生命周期。
@@ -132,6 +132,7 @@
 - 联合保存必须按冲突选择后的实际修改记录消费实体写入校验，失败保留原始码、实际文件、CSV 行键与字段路径；问题聚合消费所属输入集合，修正及基线交接清理所属保存失败。
 - 联合 CSV 记录必须按正式列声明消费共同值规则，问题汇总、捕获保存内容及冲突选择后的实际内容共同检查；字段原文与所属草稿历史保持原有归属。
 - 联合文件检查必须覆盖来源图中的规格及所属整表，当前窗口修改叠加正式内容，同文件检查与来源读取按物理文件合并。
+- 同次完整检查必须合并全部 CSV 文件的实体、来源、文件和脚本需求，读取一次校验上下文，各表保留独立候选及实际问题位置。
 - 本地待写文件的错误必须阻断保存，警告按当前设置一次汇总确认；外部来源问题保持实际文件位置并独立展示，来源自身问题按其所属范围判定。
 - 最终检查必须消费冲突与分支选择后的候选内容，后端规格问题共同收集后通过原错误通道交付完整数组。
 - 冲突必须逐字段通过下拉选择并展示所选完整内容，三份完整来源支持展开查看；身份、覆盖、共享影响与武器分支共同审阅，取消保持原草稿。
@@ -143,7 +144,7 @@
 - CSV、配置、文本与专项保存参与者必须登记完整物理范围，输入、dirty、saving 和历史保持所属会话 owner；原生目标登记只允许由窗口能力维护。
 - Core 来源必须携带来源版本与当前 Mod 创建凭据；覆盖修改经显式确认并写入授权 Mod 目标。
 - `JointEditQuery` 分别承载正式根、可选 CSV `rowKey`、草稿值、`newSources` 与可选 catalog；`rowKey` 由后端解析已保存 ID，草稿关联投影消费独立捕获值。
-- `JointEditRoot` 完整表达 `sessionId`、`modRoot`、kind 和 id；四类根为 ship、weapon、wing 与 variant。
+- `JointEditRoot` 完整表达 `sessionId`、`modRoot`、kind 和 id；五类根为 ship、skin、weapon、wing 与 variant。
 - `JointHull` 表达装配、基础船体、Skin 链、实际字段绑定、逐船体 CSV／描述／系统展示绑定、完整有效槽位、有效 hints、内置装备、模块定位与授权贴图；有效值按继承顺序投影，字段提交消费所属 `recordKey` 与 path，展示绑定指向同一来源图中的实际记录键。
 - `JointRecordTarget` 分别表达规格、CSV 与文本；CSV 具有 table、`rowKey`、业务 identity 和授权 write。
 - `JointValue` 区分 missing 与 present；`null`、删除、数组和文本原文保持各自语义。
@@ -166,6 +167,8 @@
 - 联合基线的写后重读必须消费提交通知的投影阶段，并等待身份阶段完成；所属会话释放撤销基线与关联读取。
 - 联合提交必须只应用一次 changeset、登记一次文件历史；写后结果由实际 after 快照装配版本。
 - 联合保存必须在所属根租约内一次构造当前来源图，修改应用、目标映射及写入消费该图，实际写入前核对所属来源凭据。
+- 联合来源图必须在同次 Mod 读取中复用当前字节版本和匹配的解析成果；父装配按本次实际改名的装配身份在确认前及事务内准备，相关父记录才构造完整文档，反向关系只展开本图记录。
+- 显式保存期间的完整检查由保存动作交付，后台检查在保存结束后接纳当前基线与后续草稿，保存失败位置保持所属会话交接。
 - 已读取规格及 CSV 缺失时必须保留当前完整内容，重建确认后共同应用捕获修改并保留其他记录。
 - 联合保存必须按实际来源读取必要原版内容，Mod 内容齐全时支持无原版保存。
 - 联合武器关联投影按当前草稿的 `projectileSpecId` 与伤害类型返回弹体来源和配置授权图标；配置版本参与关联失效。

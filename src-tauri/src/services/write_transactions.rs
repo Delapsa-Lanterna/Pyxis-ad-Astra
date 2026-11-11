@@ -7,6 +7,7 @@ use crate::models::{
     SessionModScope, WriteResult,
 };
 use crate::services;
+use crate::services::project::PerformanceTrace;
 use std::collections::BTreeMap;
 use std::path::Path;
 
@@ -43,6 +44,8 @@ pub fn begin(
 }
 impl WriteTransaction {
     pub fn commit<T>(self, mut result: WriteResult<T>, label: &str) -> AppResult<WriteResult<T>> {
+        let mut trace = PerformanceTrace::new("project.commit");
+        let timer = trace.timer();
         let moved = result
             .changes
             .iter()
@@ -75,6 +78,8 @@ impl WriteTransaction {
             }
         }
         result.base_versions = versions.into_values().collect();
+        trace.record_stage("versions", timer, Vec::new);
+        let timer = trace.timer();
         if self.session_id.is_some() {
             result.history = file_history::record_write(
                 &self.root,
@@ -83,17 +88,22 @@ impl WriteTransaction {
                 label,
             )?;
         }
+        trace.record_stage("history", timer, Vec::new);
+        let timer = trace.timer();
         result.session_updates = session_updates::refresh_committed_sessions(
             &self.root,
             self.session_id.as_deref(),
             &result.changes,
         )?;
+        trace.record_stage("projection", timer, Vec::new);
+        let timer = trace.timer();
         if let Some(session) = self.session_id.as_deref() {
             let actual = identity_versions(session, &result.identity_changes)?;
             if !actual.is_empty() {
                 result.base_versions = actual;
             }
         }
+        trace.record_stage("identity", timer, Vec::new);
         Ok(result)
     }
 }

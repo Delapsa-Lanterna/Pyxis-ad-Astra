@@ -11,12 +11,11 @@ export async function verifyTestbed(page, artifacts) {
   assert.equal(await page.locator('a[href*="1461"]').count(), 0);
   for (const scene of performanceScenarios) {
     await page.locator('#scene').selectOption(scene.id);
-    assert.equal(await page.locator('#file-bytes').isVisible(), scene.scale === 'files');
+    assert.equal(await page.locator('#file-bytes').isVisible(), Boolean(scene.fileBytes));
     assert.equal(await page.locator('#count').isDisabled(), scene.id === 'text-editor');
     await page.locator('#preview').click();
     await page.locator('#status').filter({ hasText: '样本已显示' }).waitFor();
-    const sample =
-      scene.scale === 'files' ? page.frameLocator('iframe[data-window]').locator(scene.selector) : page.locator(scene.selector);
+    const sample = scene.keyboard ? page.frameLocator('iframe[data-window]').locator(scene.selector) : page.locator(scene.selector);
     await sample.first().waitFor();
     if (scene.scale !== 'files') {
       const panel = page.locator('.table-panel,.variant-picker-list,.variant-hullmod-list');
@@ -38,7 +37,7 @@ export async function verifyTestbed(page, artifacts) {
             String(theme === 'dark'),
           theme,
         );
-        if (scene.scale === 'files')
+        if (scene.keyboard)
           await page
             .frameLocator('iframe[data-window]')
             .locator('html[data-theme="' + theme + '"]')

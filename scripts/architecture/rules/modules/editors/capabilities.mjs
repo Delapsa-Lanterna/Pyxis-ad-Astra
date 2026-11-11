@@ -155,7 +155,7 @@ export const editorsCapabilities = [
   ...capabilities({ role: 'service', domain: 'text-editor' }, [
     {
       capability: 'text-write',
-      names: ['saveTextFile', 'transcodeFileToUtf8'],
+      names: ['saveTextFile', 'transcodeFileToUtf8', 'saveTextBatch'],
       owners: [
         { layer: 'services' },
         { layer: 'orchestrators' },

@@ -94,7 +94,7 @@ invokeCommand('save_editor_spec'); invokeSaveCommand('load_imported_editor_spec_
     ['save_editor_spec', 'load_imported_editor_spec_file'],
   );
   const actions = Object.values(saveActionOwners).flat();
-  assert.equal(actions.length, 20);
+  assert.equal(actions.length, 21);
   assert.equal(new Set(actions).size, actions.length);
   assert.equal(actions.filter((action) => Object.values(commandOwners).flat().includes(action)).length, 0);
 });

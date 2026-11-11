@@ -1,10 +1,11 @@
 import type { EditorCase } from './cases/editors';
 import type { createListCase } from './cases/lists';
+import type { createImmersiveCase } from './cases/immersive';
 import { summarizeRun } from './results';
 import type { RoundResult, RunOptions } from '../contracts';
 import { cases } from './cases/registry';
 export function createBenchmark(element: HTMLElement) {
-  let current: EditorCase | ReturnType<typeof createListCase> | undefined,
+  let current: EditorCase | ReturnType<typeof createListCase> | ReturnType<typeof createImmersiveCase> | undefined,
     key = '';
   async function close() {
     try {
@@ -30,7 +31,7 @@ export function createBenchmark(element: HTMLElement) {
   async function openEditor(options: RunOptions) {
     const sample = (await prepare(options)) as EditorCase;
     await sample.open();
-    return { label: sample.label, openMilliseconds: sample.openMilliseconds };
+    return { label: sample.label, file: sample.file, openMilliseconds: sample.openMilliseconds };
   }
   async function sampleRound(options: RunOptions, iteration: number, phase: RoundResult['phase']) {
     try {
@@ -74,6 +75,7 @@ export function createBenchmark(element: HTMLElement) {
     environment,
     summarizeRun,
     openEditor,
+    queryEditor: () => (current as EditorCase).query(),
     preview,
     close,
     get host() {

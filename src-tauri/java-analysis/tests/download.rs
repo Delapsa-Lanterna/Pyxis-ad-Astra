@@ -1,3 +1,4 @@
+use pyxis_java_analysis::versions::PROTOCOL_VERSION;
 use pyxis_java_analysis::{Artifact, Package, dependencies};
 use sha2::{Digest, Sha256};
 use std::fs;
@@ -29,7 +30,7 @@ fn download_failures_retain_staging_and_retry_share_one_local_fixture() {
     });
     let mut package = Package {
         version: "fixture".into(),
-        protocol: 2,
+        protocol: PROTOCOL_VERSION,
         java: 17,
         bytes: 0,
         sha256: String::new(),

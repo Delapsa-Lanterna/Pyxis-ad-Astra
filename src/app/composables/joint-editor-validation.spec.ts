@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { CsvValidationContext, JointEditSnapshot } from '@/shared/types';
+import type { CsvTableKey, CsvValidationContext, JointEditSnapshot } from '@/shared/types';
 import { createShipSpec, createWeaponSpec, createDefaultVariant, createDefaultSkin } from '@/domain/entity-write/spec-construction';
 import { getCsvColumnSchemas } from '@/domain/schema/csv-schema-registry';
 import { fixtureCsvRecord, fixtureJointSnapshot, fixtureSpecRecord } from '@/test/fixtures/joint-edit/joint-record';
@@ -33,6 +33,70 @@ beforeEach(() => {
   );
 });
 describe('joint file validation', () => {
+  it.each([false, true])('shares all table references and retains file results when the reference read fails=%s', async (failed) => {
+    const tables: CsvTableKey[] = ['ships', 'wings', 'descriptions', 'shipSystems'];
+    const rows: { id: string; [key: string]: string }[] = [
+      { id: 'probe', name: 'Probe', mass: 'invalid', 'shield type': 'NONE', 'system id': 'system', 'defense id': 'system' },
+      { id: 'probe_wing', variant: 'loadout' },
+      { id: 'probe', type: 'SHIP', text1: 'Probe' },
+      { id: 'system', name: 'System', icon: 'graphics/probe.png' },
+    ];
+    const records = tables.map((table, i) => fixtureCsvRecord(table, table, { id: rows[i]!.id }, rows[i]!));
+    const snapshot = fixtureJointSnapshot('wing', 'probe_wing', records, { csv: 'wings' });
+    reads.index.mockImplementation(async (_session: string, table: CsvTableKey) =>
+      csvTableIndex([csvDraftRow(rows[tables.indexOf(table)]!, table)], { table }),
+    );
+    if (failed) reads.context.mockRejectedValue(new Error('reference read failed'));
+    const before = JSON.stringify(snapshot);
+    for (const issues of await Promise.all([validateJointFiles(snapshot, {}), validateJointFiles(snapshot, {})])) {
+      expect(issues.filter((issue) => issue.code === 'unknown').map((issue) => issue.location?.path)).toEqual(
+        failed ? records.map((record) => record.source!.path) : [],
+      );
+      expect(issues).toContainEqual(
+        expect.objectContaining({ code: 'csv.value_invalid', location: expect.objectContaining({ field: 'mass' }) }),
+      );
+    }
+    expect(reads.context).toHaveBeenCalledTimes(2);
+    expect(reads.context.mock.calls[0]![1]).toMatchObject({
+      entities: [
+        { kind: 'ship', id: 'probe' },
+        { kind: 'variant', id: 'loadout' },
+        { kind: 'skin', id: 'probe' },
+        { kind: 'system', id: 'system' },
+      ],
+      sources: ['csv:shipSystems.id'],
+      files: ['graphics/probe.png'],
+    });
+    expect(JSON.stringify(snapshot)).toBe(before);
+    await validateJointFiles(snapshot, {});
+    expect(reads.context).toHaveBeenCalledTimes(3);
+  });
+  it('reports an unreadable table independently and validates the remaining table', async () => {
+    const snapshot = fixture();
+    snapshot.records.push(fixtureCsvRecord('description', 'descriptions', { id: 'one', type: 'WEAPON' }, { id: 'one', type: 'WEAPON' }));
+    reads.index.mockRejectedValueOnce(new Error('table read failed'));
+    const issues = await validateJointFiles(snapshot, {});
+    expect(issues).toContainEqual(
+      expect.objectContaining({ code: 'unknown', location: expect.objectContaining({ path: snapshot.records[0]!.source!.path }) }),
+    );
+    expect(issues).toContainEqual(
+      expect.objectContaining({
+        code: 'csv.column_missing',
+        location: expect.objectContaining({ path: snapshot.records[1]!.source!.path, field: 'type' }),
+      }),
+    );
+    expect(reads.context).toHaveBeenCalledTimes(1);
+  });
+  it('propagates cancellation of the combined reference read', async () => {
+    const controller = new AbortController();
+    const failure = new Error('cancelled');
+    reads.context.mockImplementation(async () => {
+      controller.abort();
+      throw failure;
+    });
+    await expect(validateJointFiles(fixture(), {}, controller.signal)).rejects.toBe(failure);
+    expect(reads.context).toHaveBeenCalledTimes(1);
+  });
   it.each([
     ['ship', 'ships', 'hullId', 'id'],
     ['weapon', 'weapons', 'id', 'id'],

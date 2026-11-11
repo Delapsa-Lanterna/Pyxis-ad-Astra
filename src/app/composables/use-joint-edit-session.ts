@@ -148,9 +148,12 @@ export function useJointEditSession(
   );
   function refreshProblems() {
     problems.clearFailure();
+    checkProblems();
+  }
+  function checkProblems() {
     reads.revoke('consumer', 'validation');
     const snapshot = session.baselineSnapshot.value?.meta.snapshot;
-    if (!snapshot || !options.validate) return;
+    if (!snapshot || !options.validate || session.saving.value) return;
     const values = cloneQuerySnapshot(session.draftValue.value);
     reads.schedule('validation', () => {
       void reads.consume('validation', { root: snapshot.root, values }, (signal) => options.validate!(snapshot, values, signal), {
@@ -162,6 +165,7 @@ export function useJointEditSession(
     });
   }
   watch([session.context, session.draftValue], refreshProblems);
+  watch(session.saving, checkProblems);
   const isBlocking = (issue: FieldProblem) =>
     Boolean(
       session.baselineSnapshot.value && jointProblemBlocks(session.baselineSnapshot.value.meta.snapshot, session.draftValue.value, issue),

@@ -20,6 +20,8 @@ const { values } = parseArgs({
     rounds: { type: 'string', default: '30' },
     warmup: { type: 'string', default: '2' },
     count: { type: 'string', default: '50' },
+    bytes: { type: 'string', default: '10485760' },
+    shape: { type: 'string' },
     phase: { type: 'string', default: 'all' },
     screenshots: { type: 'boolean' },
     'isolated-desktop': { type: 'boolean' },
@@ -36,6 +38,8 @@ const options = {
   rounds: Number(values.rounds),
   warmup: Number(values.warmup),
   count: Number(values.count),
+  bytes: Number(values.bytes),
+  shape: values.shape,
   phase: values.phase,
   screenshots: values.screenshots ?? false,
   isolatedDesktop: values['isolated-desktop'] ?? false,
@@ -78,6 +82,7 @@ else {
     const app = await startDesktop({
       exe: options.exe,
       isolatedDesktop: options.isolatedDesktop,
+      performanceMonitor: options.suite === 'workspace-opening',
       artifacts: output.artifacts,
       errors,
       resources,
@@ -100,7 +105,10 @@ else {
       !Number.isInteger(options.warmup) ||
       options.warmup < 0 ||
       !Number.isInteger(options.count) ||
-      options.count < 1
+      options.count < 1 ||
+      !Number.isInteger(options.bytes) ||
+      options.bytes < 4 ||
+      (options.shape !== undefined && !['multiline', 'long-line'].includes(options.shape))
     )
       throw Error('Invalid desktop measurement parameters');
     metadata = {
@@ -113,7 +121,7 @@ else {
       scripts: await scriptFingerprints(['scripts/desktop', 'scripts/shared']),
     };
     work = await TestWorkspace.create(join(cacheDirectory, 'workspaces'), 'run');
-    const fixture = await prepareSample(work, options.mod, options.count);
+    const fixture = await prepareSample(work, options.suite === 'workspace-opening' ? undefined : options.mod, options.count);
     result = await scenario.run({ launch, close, fixture, check, options, artifacts: output.artifacts, runs });
   } catch (error) {
     errors.push(error instanceof Error ? (error.stack ?? error.message) : String(error));

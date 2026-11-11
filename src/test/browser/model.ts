@@ -32,6 +32,7 @@ import { resourceImage } from '../fixtures/resources';
 import { variantModuleEntries } from '@/shared/lib/starsector/variant-modules';
 import type { OriginalFontResult, FontId } from '@/shared/types';
 import type { ScenarioOptions } from './contracts';
+import { csvSample } from '../../../scripts/shared/performance-samples.mjs';
 
 export type BrowserScenario = ScenarioOptions['scene'];
 export const sampleRoot = 'M:/browser-sample';
@@ -55,41 +56,13 @@ export function createBrowserModel(
   resourceSize = 0,
   modRoot = sampleRoot,
 ) {
-  const header = [
-    'id',
-    'name',
-    'designation',
-    'tags',
-    'hullSize',
-    'fleet pts',
-    'base value',
-    'mass',
-    'shield type',
-    ...Array.from({ length: 31 }, (_, i) => 'field_' + i),
-  ];
+  const { header, rows: sampleRows } = csvSample(scene === 'csv' ? count : 0);
   const rows: CsvRowRecord[] =
     scene === 'csv'
-      ? Array.from({ length: count }, (_, i) => ({
+      ? sampleRows.map((data, i) => ({
           rowKey: 'ships:row:' + i,
-          isComment: i % 97 === 0,
-          data: Object.fromEntries(
-            header.map((key) => [
-              key,
-              key === 'shield type'
-                ? 'NONE'
-                : key === 'mass'
-                  ? '100'
-                  : key === 'id'
-                    ? 'ship_' + i
-                    : key === 'name'
-                      ? 'Sample ship ' + i
-                      : key === 'tags'
-                        ? 'sample,benchmark'
-                        : key === 'hullSize'
-                          ? 'CRUISER'
-                          : String(i),
-            ]),
-          ),
+          isComment: false,
+          data,
         }))
       : [];
   const manifest = sessionUpdateFixture(sessionId, modRoot).content.manifest;

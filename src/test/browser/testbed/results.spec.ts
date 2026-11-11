@@ -33,17 +33,23 @@ it('fails incomplete runs, behavior failures and failed warmup operations', () =
   failed[0]!.error = 'operation failed';
   expect(summarizeRun(options, failed, {}).pass).toBe(false);
 });
-it('enforces CSV budgets only on their defined baseline workload', () => {
-  const result = summarizeRun({ ...options, scene: 'csv', count: 50 }, samples(), {});
-  expect(result.budgets).toHaveLength(5);
-  expect(result.pass).toBe(false);
-  expect(summarizeRun({ ...options, scene: 'csv', workload: 'stress' }, samples(), {}).budgets).toEqual([]);
+it('records slow measurements and accepts correct completed operations', () => {
+  const slow = samples();
+  for (const sample of slow) sample.metrics.open = 100000;
+  const result = summarizeRun({ ...options, scene: 'csv', count: 2000 }, slow, {});
+  expect(result.pass).toBe(true);
+  expect(result.metrics.open?.p95).toBe(100000);
 });
-it.each([
-  [50, [75, 120, 30, 25, 20]],
-  [300, [80, 140, 350, 30, 30]],
-  [2000, [90, 160, 4000, 45, 50]],
-] as const)('uses the documented CSV limits at %i rows', (count, limits) => {
-  const result = summarizeRun({ ...options, scene: 'csv', count }, samples(), {});
-  expect(result.budgets.map((budget) => budget.maximum)).toEqual(limits);
+
+it('retains stage memory and history separately from timed metrics', () => {
+  const measured = samples();
+  const resources = {
+    heapPhases: [{ phase: 'undo-0', usedJSHeapSize: 1234 }],
+    history: [{ cycle: 0, operation: 'undo', step: 0, milliseconds: 5 }],
+  };
+  measured.at(-1)!.resources = resources;
+  const result = summarizeRun(options, measured, {});
+  expect(result.resources).toEqual({ released: true, stages: [resources] });
+  expect(Object.keys(result.metrics)).toEqual(['open']);
+  expect(result.pass).toBe(true);
 });

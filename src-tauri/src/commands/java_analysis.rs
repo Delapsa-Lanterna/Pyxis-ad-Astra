@@ -1,8 +1,10 @@
 use crate::errors::{AppError, AppResult};
-use crate::services::java_analysis;
+use crate::services::java_analysis::editor::{self, EditorAction};
 use crate::services::java_analysis::management::{
     ComponentManagement, ManagementAction, ManagementSnapshot,
 };
+use crate::services::{java_analysis, windows};
+use serde_json::Value;
 use std::sync::Arc;
 use tauri::async_runtime;
 use tauri::ipc::Channel;
@@ -71,4 +73,14 @@ pub fn java_analysis_context(
     game_root: Option<String>,
 ) -> AppResult<Option<String>> {
     java_analysis::automatic_java_path(session_id.as_deref(), game_root.as_deref())
+}
+
+#[command_macros::command(async)]
+pub fn java_editor(window: WebviewWindow, action: EditorAction) -> AppResult<Value> {
+    editor::execute(
+        window.app_handle(),
+        window.label(),
+        windows::current_window_context(window.label())?.identity,
+        action,
+    )
 }

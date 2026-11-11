@@ -3,18 +3,27 @@ import { wingJointFixture } from '@/test/fixtures/joint-edit/wing-joint-edit';
 import { variantJointFixture } from '@/test/fixtures/joint-edit/variant-joint-edit';
 import type { WindowContextFor } from '@/shared/types';
 import { openEntityImmersiveEditor, openVariantImmersiveEditor, retargetImmersiveWindow } from './immersive-editor.orchestrator';
-const mocks = vi.hoisted(() => ({ focus: vi.fn(), open: vi.fn(), retarget: vi.fn(), publish: vi.fn(), row: vi.fn(), query: vi.fn() }));
+const mocks = vi.hoisted(() => ({
+  focus: vi.fn(),
+  open: vi.fn(),
+  retarget: vi.fn(),
+  publish: vi.fn(),
+  row: vi.fn(),
+  query: vi.fn(),
+  context: { value: null as WindowContextFor<'immersive-editor'> | null },
+}));
 vi.mock('@/services/window.service', () => ({ focusNativeManagedWindow: mocks.focus, retargetNativeWindow: mocks.retarget }));
 vi.mock('@/windows/immersive-editor.window', () => ({
   openImmersiveEditorWindow: mocks.open,
   immersiveWindowTitle: (root: { id: string }) => '战机联队 - ' + root.id,
 }));
-vi.mock('@/windows/window-context.window', () => ({ publishWindowContext: mocks.publish }));
+vi.mock('@/windows/window-context.window', () => ({ managedWindowContext: mocks.context, publishWindowContext: mocks.publish }));
 vi.mock('@/orchestrators/joint-edit.orchestrator', () => ({ openJointEditRowSnapshot: mocks.row, openJointEditSnapshot: mocks.query }));
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.focus.mockResolvedValue(true);
   mocks.open.mockResolvedValue({ status: 'accepted' });
+  mocks.context.value = null;
 });
 describe('immersive window structured handoff', () => {
   it('delivers a focus request to a reused wing and waits for its receiver', async () => {
@@ -70,5 +79,15 @@ describe('immersive window structured handoff', () => {
       rowKey: 'latest-wing-row',
     });
     expect(mocks.publish).toHaveBeenCalledWith(context);
+    mocks.context.value = { ...context, title: '战机联队 - ' + snapshot.root.id };
+    mocks.retarget.mockClear();
+    mocks.publish.mockClear();
+    await retargetImmersiveWindow(snapshot);
+    expect(mocks.retarget).not.toHaveBeenCalled();
+    expect(mocks.publish).not.toHaveBeenCalled();
+    row.target.rowKey = 'changed-wing-row';
+    await retargetImmersiveWindow(snapshot);
+    expect(mocks.retarget).toHaveBeenCalledTimes(1);
+    expect(mocks.retarget.mock.lastCall![2]).toMatchObject({ rowKey: 'changed-wing-row' });
   });
 });

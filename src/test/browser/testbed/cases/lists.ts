@@ -1,5 +1,5 @@
 import { createBrowserHost } from '../../host';
-import { createScenario, performanceScenarios } from '../scenarios';
+import { createScenario, performanceScenarios, releaseScenario } from '../scenarios';
 import { settled, until } from '../../timing';
 import { eventListenerCount } from '../../runtime/events';
 import { recordAssertion, scrollList } from './operations';
@@ -53,6 +53,7 @@ export function createListCase(element: HTMLElement, options: RunOptions) {
       result.error = error instanceof Error ? error.message : String(error);
     } finally {
       await host.close();
+      releaseScenario(host.model);
       await settled();
       listenerBaseline ??= eventListenerCount();
       result.metrics.listeners = eventListenerCount();
@@ -68,5 +69,13 @@ export function createListCase(element: HTMLElement, options: RunOptions) {
     }
     return result;
   }
-  return { host, sample, open: () => host.open(createScenario(options), options.monitor), close: host.close };
+  return {
+    host,
+    sample,
+    open: () => host.open(createScenario(options), options.monitor),
+    close: async () => {
+      await host.close();
+      releaseScenario(host.model);
+    },
+  };
 }

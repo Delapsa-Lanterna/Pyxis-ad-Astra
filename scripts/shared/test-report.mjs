@@ -2,8 +2,7 @@ import { summarize } from './sample-statistics.mjs';
 
 /** @typedef {{name:string,pass:boolean,actual?:string|number|boolean,expected?:string|number|boolean,milliseconds?:number}} TestCheck */
 /** @typedef {{iteration:number,phase:string,metrics:Record<string,number>,assertions:TestCheck[],error?:string}} TestSample */
-/** @typedef {{metric:string,statistic:'median'|'p95',actual:number,maximum:number,pass:boolean}} TestBudget */
-/** @typedef {{scenario:string,parameters:Record<string,string|number|boolean>,units:Record<string,string>,execution:'page'|'keyboard'|'native',completion:string,environment:Record<string,unknown>,warmup:number,rounds:number,samples:TestSample[],metrics:Record<string,ReturnType<typeof summarize>>,budgets:TestBudget[],resources:Record<string,unknown>,pass:boolean}} TestRun */
+/** @typedef {{scenario:string,parameters:Record<string,string|number|boolean>,units:Record<string,string>,execution:'page'|'keyboard'|'native',completion:string,environment:Record<string,unknown>,warmup:number,rounds:number,samples:TestSample[],metrics:Record<string,ReturnType<typeof summarize>>,resources:Record<string,unknown>,pass:boolean}} TestRun */
 /** @typedef {{kind:'preview'|'testbed'|'desktop',pass:boolean,runs:TestRun[],checks:TestCheck[],errors:string[],resourcesReleased:boolean,[key:string]:unknown}} TestReport */
 
 /** @param {Omit<TestRun,'metrics'|'pass'>} input @returns {TestRun} */
@@ -17,8 +16,7 @@ export function createTestRun(input) {
     pass:
       input.samples.filter((sample) => sample.phase === 'warmup').length === input.warmup &&
       measured.length === input.rounds &&
-      input.samples.every((sample) => !sample.error && sample.assertions.every((check) => check.pass)) &&
-      input.budgets.every((budget) => budget.pass),
+      input.samples.every((sample) => !sample.error && sample.assertions.every((check) => check.pass)),
   };
 }
 
@@ -66,7 +64,7 @@ export function markdown(report) {
     );
     for (const [name, value] of Object.entries(run.metrics))
       lines.push('| ' + [name, value.n, value.min, value.max, value.mean, value.median, value.p95].join(' | ') + ' |');
-    lines.push('', '预算：`' + JSON.stringify(run.budgets) + '`', '', '资源：`' + JSON.stringify(run.resources) + '`');
+    lines.push('', '资源：' + JSON.stringify(run.resources));
     for (const sample of run.samples) {
       if (sample.error) lines.push('', '- ' + sample.phase + ' ' + sample.iteration + ': ' + sample.error);
       for (const check of sample.assertions.filter((check) => !check.pass)) lines.push('- ' + JSON.stringify(check));

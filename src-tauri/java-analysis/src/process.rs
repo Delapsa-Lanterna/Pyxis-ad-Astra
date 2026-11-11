@@ -1,3 +1,4 @@
+use crate::Error;
 use crate::dependencies::{compatible, inspect, matches_file};
 use crate::package::Builtin;
 use crate::paths::{java_path, relative};
@@ -10,7 +11,7 @@ use serde_json::json;
 use std::env::join_paths;
 use std::fs::{self, File};
 use std::io::Result as IoResult;
-use std::io::{BufRead, BufReader, Write};
+use std::io::{BufRead, BufReader, BufWriter, Write};
 #[cfg(windows)]
 use std::os::windows::process::CommandExt;
 use std::path::Path;
@@ -20,7 +21,7 @@ use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
 pub struct Engine {
     child: Child,
-    input: Option<ChildStdin>,
+    input: Option<BufWriter<ChildStdin>>,
     output: Receiver<IoResult<String>>,
     reader: Option<JoinHandle<()>>,
     closed: bool,
@@ -120,7 +121,14 @@ impl Engine {
         {
             command.creation_flags(0x08000000);
         }
-        let mut child = command.spawn()?;
+        let mut child = command.spawn().map_err(|source| Error::JavaStart {
+            java: java.to_path_buf(),
+            directory: command
+                .get_current_dir()
+                .expect("Java working directory is set")
+                .to_path_buf(),
+            source,
+        })?;
         let input = child.stdin.take().expect("piped engine input");
         let stdout = child.stdout.take().expect("piped engine output");
         let (sender, output) = mpsc::channel();
@@ -133,7 +141,7 @@ impl Engine {
         });
         let mut engine = Self {
             child,
-            input: Some(input),
+            input: Some(BufWriter::with_capacity(65536, input)),
             output,
             reader: Some(reader),
             closed: false,
@@ -163,7 +171,6 @@ impl Engine {
     /// Executes a request and preserves its request identity and structured engine errors.
     pub fn request(&mut self, request: &AnalysisRequest) -> Result<AnalysisResponse> {
         let started = Instant::now();
-        let request = serde_json::to_value(request)?;
         let input = self
             .input
             .as_mut()
@@ -178,26 +185,20 @@ impl Engine {
         let mut response: AnalysisResponse = serde_json::from_str(&line)?;
         response.request_milliseconds = started.elapsed().as_secs_f64() * 1000.0;
         response.response_bytes = line.len() as u64;
-        if Some(&response.id) != request.get("id") {
-            return Err(invalid(format!(
-                "Engine response identity mismatch: {line}"
-            )));
+        if &response.id != request.id() {
+            return Err(invalid("Engine response identity mismatch"));
         }
         if response.result.is_some() == response.error.is_some() {
             return Err(invalid("Engine response must contain one result or error"));
         }
         if let Some(result) = &response.result
-            && !result.accepts(
-                request["op"]
-                    .as_str()
-                    .expect("typed request has an operation"),
-            )
+            && !result.accepts(request.operation())
         {
             return Err(invalid(
                 "Engine result does not match the requested operation",
             ));
         }
-        if request["op"] == "shutdown" && response.error.is_none() {
+        if matches!(request, AnalysisRequest::Shutdown { .. }) && response.error.is_none() {
             self.shutdown_requested = true;
         }
         Ok(response)
@@ -244,5 +245,50 @@ impl Drop for Engine {
                 eprintln!("engine reader cleanup failed");
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::AnalysisRequest;
+    use serde_json::json;
+    use std::io::{BufWriter, Result, Write};
+
+    #[derive(Default)]
+    struct PipeWrites {
+        bytes: Vec<u8>,
+        calls: usize,
+    }
+    impl Write for PipeWrites {
+        fn write(&mut self, bytes: &[u8]) -> Result<usize> {
+            self.calls += 1;
+            self.bytes.extend_from_slice(bytes);
+            Ok(bytes.len())
+        }
+        fn flush(&mut self) -> Result<()> {
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn buffered_requests_preserve_bytes_and_coalesce_multiline_pipe_writes() {
+        let request = AnalysisRequest::Parse {
+            id: json!("buffered"),
+            source: "// 星🪐\n".repeat(16384),
+            version: 1,
+            language: None,
+        };
+        let mut direct = PipeWrites::default();
+        serde_json::to_writer(&mut direct, &request).unwrap();
+        let mut buffered = BufWriter::with_capacity(65536, PipeWrites::default());
+        serde_json::to_writer(&mut buffered, &request).unwrap();
+        buffered.flush().unwrap();
+        let buffered = buffered.into_inner().ok().unwrap();
+        assert_eq!(buffered.bytes, direct.bytes);
+        assert!(buffered.calls < direct.calls / 100);
+        println!(
+            "{}",
+            json!({"sourceBytes":direct.bytes.len(),"directWrites":direct.calls,"bufferedWrites":buffered.calls})
+        );
     }
 }

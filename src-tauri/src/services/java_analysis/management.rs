@@ -1,16 +1,12 @@
-use super::environment::{JavaEnvironment, probe_java};
-use super::stop_owned_analysis;
+use super::environment::JavaEnvironment;
 use crate::diagnostics;
 use crate::errors::{AppError, AppResult};
-use crate::io::canonical_path;
-use pyxis_java_analysis::protocol::AnalysisResult;
 use pyxis_java_analysis::transfer::{TransferControl, TransferProgress};
-use pyxis_java_analysis::{AnalysisRequest, AnalysisRuntime, Error as AnalysisError, java_path};
+use pyxis_java_analysis::versions::JDT_VERSION;
+use pyxis_java_analysis::{AnalysisRuntime, Error as AnalysisError, java_path};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::collections::{BTreeMap, VecDeque};
-use std::fs;
-use std::path::Path;
 use std::sync::{Arc, Condvar, Mutex, MutexGuard};
 use std::thread::{self, JoinHandle};
 use std::time::Instant;
@@ -101,7 +97,7 @@ impl ManagementCompletion {
                 *result = Some(snapshot);
                 self.changed.notify_all();
             }
-            Err(error) => diagnostics::failure(
+            Err(error) => diagnostics::fault(
                 "java_analysis.receipt",
                 AppError::message("java_analysis.management_lock", error.to_string()),
                 json!({}),
@@ -138,12 +134,7 @@ pub struct ComponentManagement {
 impl ComponentManagement {
     pub fn new(runtime: Arc<AnalysisRuntime>) -> Arc<Self> {
         let package = runtime.package();
-        let version = package
-            .version
-            .strip_prefix("jdt-")
-            .and_then(|version| version.split('-').next())
-            .expect("fixed JDT inventory identity")
-            .to_string();
+        let version = JDT_VERSION.to_string();
         let snapshot = ManagementSnapshot {
             revision: 0,
             operation_key: None,
@@ -249,11 +240,7 @@ impl ComponentManagement {
         }
         state.snapshot.instances = instances;
         state.snapshot.projects = projects;
-        state.snapshot.revision += 1;
-        let snapshot = state.snapshot.clone();
-        state
-            .listeners
-            .retain(|_, (_, channel)| channel.send(snapshot.clone()).is_ok());
+        Self::publish(&mut state);
         Ok(())
     }
     pub fn cancel(&self, operation_key: &str) -> AppResult<ManagementSnapshot> {
@@ -265,7 +252,7 @@ impl ComponentManagement {
         {
             operation.control.cancel();
             state.snapshot.phase = "cancelling".into();
-            return Self::publish(&mut state);
+            return Ok(Self::publish(&mut state));
         }
         if let Some(index) = state
             .queue
@@ -278,7 +265,7 @@ impl ComponentManagement {
                 .expect("queued cancellation target");
             state.snapshot.queued = state.queue.len();
             Self::cancel_pending(&operation, &state.snapshot);
-            return Self::publish(&mut state);
+            return Ok(Self::publish(&mut state));
         }
         Ok(state.snapshot.clone())
     }
@@ -342,7 +329,7 @@ impl ComponentManagement {
             state.worker_running = true;
             Self::activate_next(&mut state);
         }
-        let snapshot = Self::publish(&mut state)?;
+        let snapshot = Self::publish(&mut state);
         drop(state);
         if start_worker {
             self.join_worker()?;
@@ -388,13 +375,13 @@ impl ComponentManagement {
             state.snapshot.progress = None;
         }
     }
-    fn publish(state: &mut ManagementState) -> AppResult<ManagementSnapshot> {
+    fn publish(state: &mut ManagementState) -> ManagementSnapshot {
         state.snapshot.revision += 1;
         let snapshot = state.snapshot.clone();
         state
             .listeners
             .retain(|_, (_, channel)| channel.send(snapshot.clone()).is_ok());
-        Ok(snapshot)
+        snapshot
     }
     fn publish_progress(&self, operation_key: &str, progress: TransferProgress) -> AppResult<()> {
         let mut state = self.state()?;
@@ -410,7 +397,7 @@ impl ComponentManagement {
             state.snapshot.phase = progress.phase.into();
         }
         state.snapshot.progress = Some(progress);
-        Self::publish(&mut state)?;
+        Self::publish(&mut state);
         Ok(())
     }
     fn run_queue(self: Arc<Self>) {
@@ -418,32 +405,51 @@ impl ComponentManagement {
             let operation = match self.state() {
                 Ok(state) => state.current.clone(),
                 Err(error) => {
-                    diagnostics::failure("java_analysis.management", error, json!({}));
+                    diagnostics::fault("java_analysis.management", error, json!({}));
                     return;
                 }
             };
             let Some(operation) = operation else {
                 return;
             };
+            let started = Instant::now();
+            diagnostics::debug("java_analysis.management_started", || {
+                json!({"operationKey":operation.key,"action":operation.action}).to_string()
+            });
             let result = self.perform(&operation);
             let cancelled = matches!(
                 &result,
                 Err(AppError::JavaAnalysis(AnalysisError::Cancelled))
             );
-            let inspection = self.inspect();
-            if let Some(error) = result.as_ref().err()
+            let failed = result.is_err();
+            let error_message = result.as_ref().err().map(|error| {
+                let diagnostic = error.diagnostic();
+                diagnostic
+                    .location
+                    .and_then(|location| location.path)
+                    .map_or_else(|| error.to_string(), |path| format!("{path}: {error}"))
+            });
+            let inspection = matches!(
+                operation.action,
+                ManagementAction::Refresh
+                    | ManagementAction::Download
+                    | ManagementAction::Import { .. }
+                    | ManagementAction::Remove
+            )
+            .then(|| self.inspect());
+            if let Err(error) = result
                 && !cancelled
             {
-                diagnostics::failure(
+                diagnostics::fault(
                     "java_analysis.management",
-                    AppError::message("java_analysis.operation_failed", error.to_string()),
+                    error,
                     json!({"action":operation.action}),
                 );
             }
             let mut state = match self.state() {
                 Ok(state) => state,
                 Err(error) => {
-                    diagnostics::failure("java_analysis.management", error, json!({}));
+                    diagnostics::fault("java_analysis.management", error, json!({}));
                     return;
                 }
             };
@@ -458,26 +464,28 @@ impl ComponentManagement {
             state.snapshot.active = false;
             state.snapshot.phase = if cancelled {
                 "cancelled"
-            } else if result.is_err() {
+            } else if failed {
                 "failed"
             } else {
                 "succeeded"
             }
             .into();
-            state.snapshot.error = if cancelled {
-                None
-            } else {
-                result.as_ref().err().map(ToString::to_string)
-            };
+            state.snapshot.error = if cancelled { None } else { error_message };
             match inspection {
-                Ok((installation, bytes)) => {
+                Some(Ok((installation, bytes))) => {
                     state.snapshot.installation = installation;
                     state.snapshot.staged_bytes = bytes;
                 }
-                Err(error) => {
+                Some(Err(error)) => {
+                    diagnostics::fault(
+                        "java_analysis.management_inspection",
+                        AppError::message("java_analysis.inspection_failed", error.to_string()),
+                        json!({"operationKey":operation.key}),
+                    );
                     state.snapshot.phase = "failed".into();
                     state.snapshot.error = Some(error.to_string());
                 }
+                None => {}
             }
             match counts {
                 Ok((instances, projects)) => {
@@ -490,10 +498,9 @@ impl ComponentManagement {
                 }
             }
             state.current = None;
-            if let Err(error) = Self::publish(&mut state) {
-                diagnostics::failure("java_analysis.management", error, json!({}));
-            }
+            Self::publish(&mut state);
             operation.completion.deliver(state.snapshot.clone());
+            diagnostics::info("java_analysis.management_completed", &json!({"operationKey":operation.key,"action":operation.action,"phase":state.snapshot.phase,"milliseconds":started.elapsed().as_secs_f64()*1000.0,"instances":state.snapshot.instances,"projects":state.snapshot.projects,"stagedBytes":state.snapshot.staged_bytes}).to_string());
             if state.closed {
                 for pending in state.queue.drain(..).collect::<Vec<_>>() {
                     Self::cancel_pending(&pending, &state.snapshot);
@@ -507,134 +514,8 @@ impl ComponentManagement {
                 return;
             }
             Self::activate_next(&mut state);
-            if let Err(error) = Self::publish(&mut state) {
-                diagnostics::failure("java_analysis.management", error, json!({}));
-            }
+            Self::publish(&mut state);
         }
-    }
-    fn inspect(&self) -> AppResult<(String, u64)> {
-        let installation = match self.runtime.installed() {
-            Ok(true) => "installed",
-            Ok(false) => "missing",
-            Err(_) => "damaged",
-        };
-        let stage = self
-            .runtime
-            .paths()
-            .dependencies
-            .join(format!("{}.staging", self.runtime.package().version));
-        fn size(path: &Path) -> AppResult<u64> {
-            if !path.exists() {
-                return Ok(0);
-            }
-            let mut bytes = 0;
-            for entry in fs::read_dir(path)? {
-                let entry = entry?;
-                let kind = entry.file_type()?;
-                if kind.is_symlink() {
-                    return Err(AppError::message(
-                        "java_analysis.staging_link",
-                        "Staging links are unsupported",
-                    ));
-                }
-                bytes += if kind.is_dir() {
-                    size(&entry.path())?
-                } else {
-                    entry.metadata()?.len()
-                };
-            }
-            Ok(bytes)
-        }
-        Ok((installation.into(), size(&stage)?))
-    }
-    fn perform(&self, operation: &ManagementOperation) -> AppResult<()> {
-        let action = &operation.action;
-        let control = &operation.control;
-        control.check()?;
-        match action {
-            ManagementAction::Refresh => {}
-            ManagementAction::Download => {
-                self.require_idle_runtime()?;
-                self.runtime.install_with_control(control)?;
-            }
-            ManagementAction::Import { archive } => {
-                self.require_idle_runtime()?;
-                self.runtime
-                    .import_with_control(Path::new(archive), control)?;
-            }
-            ManagementAction::Probe { java_path } | ManagementAction::Test { java_path } => {
-                let started = Instant::now();
-                let mut environment = probe_java(Path::new(java_path), control)?;
-                if matches!(action, ManagementAction::Test { .. }) {
-                    let instance = self.runtime.start(Path::new(java_path))?;
-                    let result = (|| -> AppResult<()> {
-                        control.check()?;
-                        let response = self.runtime.request(
-                            &instance,
-                            &AnalysisRequest::Parse {
-                                id: json!("environment-test"),
-                                source: "record Satellite(int radius) {}".into(),
-                                version: 1,
-                                language: Some("17".into()),
-                            },
-                        )?;
-                        if !matches!(response.result,Some(AnalysisResult::Syntax(ref syntax)) if syntax.errors==0)
-                        {
-                            return Err(AppError::message(
-                                "java_analysis.self_check",
-                                "Java AST self-check failed",
-                            ));
-                        }
-                        Ok(())
-                    })();
-                    let release = self.runtime.close(&instance);
-                    result?;
-                    release?;
-                    environment.log_path = Some(
-                        self.runtime
-                            .paths()
-                            .logs
-                            .join(format!("{instance}.log"))
-                            .to_string_lossy()
-                            .into_owned(),
-                    );
-                    control.check()?;
-                }
-                environment.milliseconds = started.elapsed().as_secs_f64() * 1000.0;
-                let mut state = self.state()?;
-                if state
-                    .current
-                    .as_ref()
-                    .is_some_and(|active| active.key == operation.key)
-                {
-                    state.snapshot.environment = Some(environment);
-                    Self::publish(&mut state)?;
-                }
-            }
-            ManagementAction::Stop => stop_owned_analysis(&self.runtime)?,
-            ManagementAction::Remove => {
-                self.require_idle_runtime()?;
-                let root = &self.runtime.paths().dependencies;
-                if root.exists() {
-                    for path in [
-                        root.join(&self.runtime.package().version),
-                        root.join(format!("{}.staging", self.runtime.package().version)),
-                    ] {
-                        remove_owned(&path, root)?;
-                    }
-                }
-            }
-        }
-        Ok(())
-    }
-    fn require_idle_runtime(&self) -> AppResult<()> {
-        if self.runtime.instance_count()? > 0 {
-            return Err(AppError::message(
-                "java_analysis.in_use",
-                "Stop Java analysis before changing dependencies",
-            ));
-        }
-        Ok(())
     }
     fn join_worker(&self) -> AppResult<()> {
         if let Some(worker) = self
@@ -680,31 +561,5 @@ impl ComponentManagement {
     }
 }
 
-fn remove_owned(path: &Path, root: &Path) -> AppResult<()> {
-    if !path.exists() {
-        return Ok(());
-    }
-    if canonical_path(path, "Component removal target")?.parent()
-        != Some(canonical_path(root, "Component root")?.as_path())
-        || fs::symlink_metadata(path)?.file_type().is_symlink()
-    {
-        return Err(AppError::message(
-            "java_analysis.installation_path",
-            "Component path escapes its root",
-        ));
-    }
-    fn remove(path: &Path) -> AppResult<()> {
-        for entry in fs::read_dir(path)? {
-            let entry = entry?;
-            let kind = entry.file_type()?;
-            if kind.is_dir() && !kind.is_symlink() {
-                remove(&entry.path())?;
-            } else {
-                fs::remove_file(entry.path())?;
-            }
-        }
-        fs::remove_dir(path)?;
-        Ok(())
-    }
-    remove(path)
-}
+#[path = "component_operations.rs"]
+mod operations;

@@ -13,6 +13,12 @@ export interface TextSave {
   path: string;
   text: string;
 }
+export interface TextBatchSave {
+  sessionId: string;
+  modRoot: string;
+  baseVersions: FileVersion[];
+  files: { path: string; target: string | null; text: string }[];
+}
 
 export interface TextTranscode {
   baseVersions: FileVersion[];

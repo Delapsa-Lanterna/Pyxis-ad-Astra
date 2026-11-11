@@ -1,6 +1,7 @@
 //! Java analysis requests and results; all locations belong to one analysis revision.
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use serde_json::{Value, json};
+use std::collections::BTreeMap;
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(tag = "op", rename_all = "camelCase", rename_all_fields = "camelCase")]
@@ -57,9 +58,162 @@ pub enum AnalysisRequest {
         id: Value,
         project: String,
     },
+    EditorUpdate {
+        id: Value,
+        project: String,
+        expected_revision: u64,
+        documents: Vec<DocumentEdit>,
+    },
+    Inspect {
+        id: Value,
+        project: String,
+        revision: u64,
+        file: String,
+        offset: u32,
+        purpose: String,
+    },
     Shutdown {
         id: Value,
     },
+    Assist {
+        id: Value,
+        project: String,
+        revision: u64,
+        file: String,
+        offset: u32,
+        purpose: String,
+        name: Option<String>,
+        #[serde(default)]
+        choices: BTreeMap<String, String>,
+    },
+}
+
+impl AnalysisRequest {
+    pub fn operation(&self) -> &'static str {
+        match self {
+            Self::Hello { .. } => "hello",
+            Self::Parse { .. } => "parse",
+            Self::Open { .. } => "open",
+            Self::Update { .. } => "update",
+            Self::Configure { .. } => "configure",
+            Self::Analyze { .. } => "analyze",
+            Self::Query { .. } => "query",
+            Self::Close { .. } => "close",
+            Self::EditorUpdate { .. } => "editorUpdate",
+            Self::Inspect { .. } => "inspect",
+            Self::Shutdown { .. } => "shutdown",
+            Self::Assist { .. } => "assist",
+        }
+    }
+
+    pub fn id(&self) -> &Value {
+        match self {
+            Self::Hello { id }
+            | Self::Parse { id, .. }
+            | Self::Open { id, .. }
+            | Self::Update { id, .. }
+            | Self::Configure { id, .. }
+            | Self::Analyze { id, .. }
+            | Self::Query { id, .. }
+            | Self::Close { id, .. }
+            | Self::EditorUpdate { id, .. }
+            | Self::Inspect { id, .. }
+            | Self::Shutdown { id }
+            | Self::Assist { id, .. } => id,
+        }
+    }
+
+    pub fn project(&self) -> Option<&str> {
+        match self {
+            Self::Open { project, .. }
+            | Self::Update { project, .. }
+            | Self::Configure { project, .. }
+            | Self::Analyze { project, .. }
+            | Self::Query { project, .. }
+            | Self::Close { project, .. }
+            | Self::EditorUpdate { project, .. }
+            | Self::Inspect { project, .. }
+            | Self::Assist { project, .. } => Some(project),
+            _ => None,
+        }
+    }
+
+    pub fn context(&self) -> Value {
+        let mut context =
+            json!({"operation":self.operation(),"project":self.project(),"requestId":self.id()});
+        match self {
+            Self::Inspect { file, purpose, .. } | Self::Assist { file, purpose, .. } => {
+                context["path"] = json!(file);
+                context["purpose"] = json!(purpose);
+            }
+            Self::Parse { source, .. } => context["sourceBytes"] = json!(source.len()),
+            Self::EditorUpdate { documents, .. } => {
+                context["files"] = json!(documents.len());
+                context["sourceBytes"] = json!(
+                    documents
+                        .iter()
+                        .map(|file| file.source.as_ref().map_or(0, String::len)
+                            + file.edits.iter().map(|edit| edit.text.len()).sum::<usize>())
+                        .sum::<usize>()
+                );
+            }
+            Self::Open {
+                sources, classpath, ..
+            }
+            | Self::Configure {
+                classpath,
+                sources: Some(sources),
+                ..
+            } => {
+                context["sourceRoots"] = json!(sources.len());
+                context["jars"] = json!(classpath.len());
+            }
+            _ => {}
+        }
+        context
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DocumentEdit {
+    pub file: String,
+    pub previous_file: Option<String>,
+    pub version: u64,
+    pub source: Option<String>,
+    #[serde(default)]
+    pub edits: Vec<TextEdit>,
+}
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct TextEdit {
+    pub from: u32,
+    pub to: u32,
+    pub text: String,
+}
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Inspection {
+    pub purpose: String,
+    pub project: String,
+    pub revision: u64,
+    pub file: String,
+    pub version: u64,
+    pub source: Option<String>,
+    pub binding: Option<Binding>,
+    pub origin: Option<String>,
+    #[serde(default)]
+    pub diagnostics: Vec<Diagnostic>,
+    #[serde(default)]
+    pub outline: Vec<OutlineEntry>,
+    #[serde(default)]
+    pub locations: Vec<SourceLocation>,
+}
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct OutlineEntry {
+    pub name: String,
+    pub kind: String,
+    pub depth: u32,
+    pub range: SourceRange,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -115,6 +269,8 @@ pub struct AnalysisError {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(untagged)]
 pub enum AnalysisResult {
+    Assistance(Box<Assistance>),
+    Inspection(Box<Inspection>),
     Hello(Handshake),
     Syntax(SyntaxResult),
     Query(Box<QueryResult>),
@@ -135,6 +291,9 @@ impl AnalysisResult {
                 | (Self::Project(_), "open" | "update" | "configure")
                 | (Self::Released(_), "close")
                 | (Self::Shutdown(_), "shutdown")
+                | (Self::Inspection(_), "inspect")
+                | (Self::Assistance(_), "assist")
+                | (Self::Project(_), "editorUpdate")
         )
     }
 }
@@ -146,6 +305,48 @@ pub struct Handshake {
     pub java: u32,
     pub workspace: String,
     pub pid: u32,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Assistance {
+    pub assistance: bool,
+    pub purpose: String,
+    pub project: String,
+    pub revision: u64,
+    pub file: String,
+    pub version: u64,
+    #[serde(default)]
+    pub candidates: Vec<Completion>,
+    #[serde(default)]
+    pub files: Vec<SourceEdit>,
+    #[serde(default)]
+    pub choices: Vec<ImportChoice>,
+    #[serde(default)]
+    pub conflicts: Vec<String>,
+    pub argument: u32,
+}
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct Completion {
+    pub label: String,
+    pub text: String,
+    pub detail: String,
+    pub from: u32,
+    pub to: u32,
+    pub relevance: i32,
+}
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct SourceEdit {
+    pub file: String,
+    pub version: u64,
+    pub source: String,
+    pub target: Option<String>,
+    pub edits: Vec<TextEdit>,
+}
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct ImportChoice {
+    pub name: String,
+    pub candidates: Vec<String>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -333,6 +534,30 @@ mod protocol_tests {
     use super::AnalysisResult;
     use super::{AnalysisRequest, FileChange, FileChangeAction};
     use serde_json::{Value, json};
+
+    #[test]
+    fn metadata_matches_the_wire_without_copying_source_into_diagnostics() {
+        for value in [
+            json!({"op":"hello","id":7}),
+            json!({"op":"parse","id":7,"source":"private source","version":1}),
+            json!({"op":"open","id":7,"project":"sample","sources":[],"classpath":[],"javaHome":"J:/runtime"}),
+            json!({"op":"update","id":7,"project":"sample","expectedRevision":1,"files":[]}),
+            json!({"op":"configure","id":7,"project":"sample","expectedRevision":1,"classpath":[],"javaHome":"J:/runtime","language":"17"}),
+            json!({"op":"analyze","id":7,"project":"sample"}),
+            json!({"op":"query","id":7,"project":"sample","revision":1,"file":"Sample.java","offset":0}),
+            json!({"op":"inspect","id":7,"project":"sample","revision":1,"file":"Sample.java","offset":0,"purpose":"document"}),
+            json!({"op":"assist","id":7,"project":"sample","revision":1,"file":"Sample.java","offset":0,"purpose":"complete"}),
+            json!({"op":"editorUpdate","id":7,"project":"sample","expectedRevision":1,"documents":[{"file":"Sample.java","version":2,"source":"private source","edits":[]}]}),
+            json!({"op":"close","id":7,"project":"sample"}),
+            json!({"op":"shutdown","id":7}),
+        ] {
+            let request: AnalysisRequest = serde_json::from_value(value.clone()).unwrap();
+            assert_eq!(request.operation(), value["op"].as_str().unwrap());
+            assert_eq!(request.id(), &value["id"]);
+            assert_eq!(request.project(), value["project"].as_str());
+            assert!(!request.context().to_string().contains("private source"));
+        }
+    }
 
     #[test]
     fn response_preserves_project_locations_and_error_context() {

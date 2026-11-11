@@ -8,6 +8,39 @@ import org.junit.jupiter.api.Test;
 
 class AstFactsTest {
   @Test
+  void outlineUsesUtf16RangesAndPreservesNestedDeclarationDepth() {
+    String source = "// 星🪐\r\nclass Orbit {void run(){} class Moon {Moon(){}}}";
+    var outline = EditorQueries.outline(ImpactIndex.syntax(source, "17"));
+    assertEquals(4, outline.size());
+    assertEquals(
+        source.indexOf("Orbit"),
+        outline.get(0).getAsJsonObject().getAsJsonObject("range").get("start").getAsInt());
+    assertEquals(0, outline.get(0).getAsJsonObject().get("depth").getAsInt());
+    assertEquals(1, outline.get(1).getAsJsonObject().get("depth").getAsInt());
+    assertEquals(2, outline.get(3).getAsJsonObject().get("depth").getAsInt());
+  }
+
+  @Test
+  void rangeEditsPreserveUtf16AndRejectOverlappingBatches() {
+    String source = "甲🪐\r\nclass Orbit {}\r";
+    assertEquals(
+        "甲🪐\r\nclass Planet {}\r",
+        EditorQueries.apply(source, java.util.List.of(new Protocol.TextEdit(11, 16, "Planet"))));
+    assertThrows(
+        Protocol.Failure.class,
+        () ->
+            EditorQueries.apply(
+                source,
+                java.util.List.of(
+                    new Protocol.TextEdit(2, 5, ""), new Protocol.TextEdit(4, 6, "x"))));
+    assertThrows(
+        Protocol.Failure.class,
+        () ->
+            EditorQueries.apply(
+                source, java.util.List.of(new Protocol.TextEdit(0, source.length() + 1, ""))));
+  }
+
+  @Test
   void typedProtocolPreservesIdentityAndExclusiveResponseFields() {
     Gson gson = new Gson();
     Protocol.Request request =

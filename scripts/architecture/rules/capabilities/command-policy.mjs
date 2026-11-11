@@ -10,6 +10,7 @@ export const commandOwners = {
     'cancel_java_analysis',
     'open_java_analysis_directory',
     'java_analysis_context',
+    'java_editor',
   ],
   'src/services/misc-config.service.ts': ['query_misc_config_files', 'query_misc_config_file'],
   'src/services/performance-monitor.service.ts': ['performance_monitor_batch', 'performance_monitor_report'],
@@ -90,7 +91,7 @@ export const saveActionOwners = {
   'src/services/project-sync.service.ts': ['refresh_project_sources'],
   'src/services/joint-edit.service.ts': ['save_joint_edit'],
   'src/services/csv-table.service.ts': ['save_csv_patch'],
-  'src/services/text-editor.service.ts': ['save_text_file', 'transcode_file_to_utf8'],
+  'src/services/text-editor.service.ts': ['save_text_file', 'transcode_file_to_utf8', 'save_text_batch'],
   'src/services/spec-editor.service.ts': ['save_editor_spec'],
   'src/services/json-entity.service.ts': [
     'save_mod_info',

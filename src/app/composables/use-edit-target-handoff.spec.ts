@@ -13,13 +13,14 @@ it('settles registrations before close and publishes the surviving targets after
   setActivePinia(createPinia());
   const commands = useSaveCommandStore();
   const target = { sessionId: 'fixture', modRoot: 'M:/fixture', path: 'M:/fixture/file.json' };
+  const targets = ref([target]);
   const unregister = commands.registerSaveParticipant({
     targetKey: ref('fixture'),
     modRoot: ref(target.modRoot),
     saving: ref(false),
     waitForSave: async () => true,
     editing: {
-      targets: ref([target]),
+      targets,
       label: 'Fixture',
       dirty: ref(false),
       draftSession: { draftValue: ref({}), inputs: createFieldInputs() },
@@ -50,6 +51,9 @@ it('settles registrations before close and publishes the surviving targets after
   });
   await flushPromises();
   expect(api.update).toHaveBeenCalledExactlyOnceWith([target]);
+  targets.value = [{ ...target }];
+  await flushPromises();
+  expect(api.update).toHaveBeenCalledTimes(1);
   let settled = false;
   const waiting = commands.settleCloseActions().then(() => {
     settled = true;

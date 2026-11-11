@@ -2,6 +2,9 @@ import type {
   CsvDraftRow,
   CsvValidationContext,
   CsvTableIndex,
+  CsvTableKey,
+  CsvValidationRequest,
+  DeepReadonly,
   EntityKind,
   FieldProblem,
   JointEditSnapshot,
@@ -142,6 +145,15 @@ export async function validateJointFiles(
     const key = record.target.write.path;
     groups.set(key, [...(groups.get(key) ?? []), record]);
   }
+  const prepared: Array<{
+    path: string;
+    records: JointEditRecord[];
+    table: CsvTableKey;
+    index: DeepReadonly<CsvTableIndex>;
+    rows: CsvDraftRow[];
+    externalTables: Array<{ path: string; index: CsvTableIndex }>;
+    request: CsvValidationRequest;
+  }> = [];
   for (const [path, records] of groups) {
     const first = records[0]!,
       target = first.target;
@@ -192,28 +204,48 @@ export async function validateJointFiles(
         }
       }
       const request = csvValidationRequest(target.table, [...rows, ...externalTables.flatMap((external) => external.index.validationRows)]);
-      let context: CsvValidationContext | null = null;
-      try {
-        context = cloneQuerySnapshot<CsvValidationContext>(await queryCsvValidation(snapshot.root.sessionId, request, signal));
-      } catch (error) {
-        if (signal?.aborted) throw error;
-        readFailure(path, error);
+      prepared.push({ path, records, table: target.table, index, rows, externalTables, request });
+    } catch (error) {
+      if (signal?.aborted) throw error;
+      readFailure(path, error);
+    }
+  }
+  let context: CsvValidationContext | null = null;
+  if (prepared.length) {
+    // All physical tables share one reference read while retaining their complete row checks.
+    const requests = prepared.map((file) => file.request);
+    const request: CsvValidationRequest = {
+      entities: [
+        ...new Map(requests.flatMap((request) => request.entities).map((entity) => [`${entity.kind}:${entity.id}`, entity])).values(),
+      ],
+      sources: [...new Set(requests.flatMap((request) => request.sources))],
+      files: [...new Set(requests.flatMap((request) => request.files))],
+      classes: [...new Set(requests.flatMap((request) => request.classes))],
+    };
+    try {
+      context = cloneQuerySnapshot<CsvValidationContext>(await queryCsvValidation(snapshot.root.sessionId, request, signal));
+    } catch (error) {
+      if (signal?.aborted) throw error;
+      for (const { path } of prepared) readFailure(path, error);
+    }
+  }
+  const candidate = context && { ...context, entities: { ...context.entities } };
+  for (const record of snapshot.records) {
+    if (!candidate || record.target.kind !== 'spec') continue;
+    const target = record.target.target;
+    const nextId = specIds.get(`${target.kind}:${target.id}`);
+    if (record.source?.source === 'mod' && nextId !== target.id) {
+      delete candidate.entities[`${target.kind}:${target.id}`];
+      if (record.composition?.layers.length) {
+        const base = composeJson({}, { ...record.composition, replace: false });
+        const id = cell(base[entityContentIdField(target.kind)]) || target.id;
+        candidate.entities[`${target.kind}:${id}`] = base;
       }
-      const candidate = context && { ...context, entities: { ...context.entities } };
-      for (const record of snapshot.records) {
-        if (!candidate || record.target.kind !== 'spec') continue;
-        const target = record.target.target;
-        const nextId = specIds.get(`${target.kind}:${target.id}`);
-        if (record.source?.source === 'mod' && nextId !== target.id) {
-          delete candidate.entities[`${target.kind}:${target.id}`];
-          if (record.composition?.layers.length) {
-            const base = composeJson({}, { ...record.composition, replace: false });
-            const id = cell(base[entityContentIdField(target.kind)]) || target.id;
-            candidate.entities[`${target.kind}:${id}`] = base;
-          }
-        }
-        if (nextId !== undefined) candidate.entities[`${target.kind}:${nextId}`] = data.get(record.key)!;
-      }
+    }
+    if (nextId !== undefined) candidate.entities[`${target.kind}:${nextId}`] = data.get(record.key)!;
+  }
+  for (const { path, records, table, index, rows, externalTables } of prepared) {
+    try {
       const header = [
         ...new Set([
           ...index.header,
@@ -244,11 +276,11 @@ export async function validateJointFiles(
             },
           };
         });
-      issues.push(...mapProblems(csvTableProblems(target.table, rows, header, candidate), path, rows));
+      issues.push(...mapProblems(csvTableProblems(table, rows, header, candidate), path, rows));
       for (const external of externalTables) {
         issues.push(
           ...mapProblems(
-            csvTableProblems(target.table, external.index.validationRows, external.index.header, context),
+            csvTableProblems(table, external.index.validationRows, external.index.header, context),
             external.path,
             external.index.validationRows,
           ),

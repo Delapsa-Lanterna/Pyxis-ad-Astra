@@ -18,7 +18,7 @@ use crate::services::project::query::{
 use crate::services::project::resources::entity_references;
 use crate::services::project::resources::{resource_identity, table_references};
 use crate::services::project::sources::documents::LoadedSpecRecord;
-use crate::services::project::sources::{core, documents, project_csv};
+use crate::services::project::sources::{SourceReader, core, documents, project_csv};
 use crate::services::project::{ensure_project_session_mod_root, resources, versions};
 use serde_json::{Map, Value};
 #[cfg(test)]
@@ -38,7 +38,7 @@ pub(in crate::services::project) fn take_joint_graph_builds() -> usize {
 
 #[cfg(test)]
 pub fn query_joint_edit(root: &JointEditRoot) -> AppResult<JointEditSnapshot> {
-    query_joint_edit_values(root, None, &[])
+    query_joint_edit_values(root, None, &[], &BTreeSet::new())
 }
 
 pub fn query_joint_edit_request(query: &JointEditQuery) -> AppResult<JointEditSnapshot> {
@@ -72,7 +72,36 @@ pub fn query_joint_edit_request(query: &JointEditQuery) -> AppResult<JointEditSn
             .ok_or_else(|| AppError::message("joint.id_missing", "来源行缺少 ID"))?
             .into();
     }
-    query_joint_edit_values(&root, query.values.as_ref(), &query.new_sources)
+    query_joint_edit_values(
+        &root,
+        query.values.as_ref(),
+        &query.new_sources,
+        &BTreeSet::new(),
+    )
+}
+
+pub(in crate::services::project) fn renamed_variants(
+    records: &[JointEditRecord],
+    values: &BTreeMap<String, JointValue>,
+) -> BTreeSet<String> {
+    records
+        .iter()
+        .filter_map(|record| {
+            let JointRecordTarget::Spec { target } = &record.target else {
+                return None;
+            };
+            if target.kind != EntityKind::Variant {
+                return None;
+            }
+            let JointValue::Present(data) = values.get(&record.key)? else {
+                return None;
+            };
+            data.get("variantId")
+                .and_then(Value::as_str)
+                .filter(|next| !next.is_empty() && *next != target.id)
+                .map(|_| target.id.clone())
+        })
+        .collect()
 }
 
 pub(in crate::services::project) fn retained_joint_sources(
@@ -120,6 +149,7 @@ pub(in crate::services::project) fn query_joint_edit_values(
     root: &JointEditRoot,
     values: Option<&BTreeMap<String, JointValue>>,
     new_sources: &[JointSourceCreate],
+    parent_ids: &BTreeSet<String>,
 ) -> AppResult<JointEditSnapshot> {
     for source in new_sources {
         if !matches!(
@@ -140,6 +170,7 @@ pub(in crate::services::project) fn query_joint_edit_values(
     JOINT_GRAPH_BUILDS.with(|count| count.set(count.get() + 1));
     let (reference_settings, damage_icons) = reference_settings(&session)?;
     let mut graph = JointGraph {
+        sources: joint_sources(&session)?,
         session: &mut session,
         records: BTreeMap::new(),
         visiting: BTreeSet::new(),
@@ -278,32 +309,56 @@ pub(in crate::services::project) fn query_joint_edit_values(
             }
         }
     }
-    let variant_ids = records
-        .iter()
-        .filter_map(|record| match &record.target {
-            JointRecordTarget::Spec { target } if target.kind == EntityKind::Variant => {
-                Some(target.id.clone())
-            }
-            _ => None,
-        })
-        .collect::<BTreeSet<_>>();
+    let mut variant_ids = parent_ids.clone();
+    if let Some(values) = values {
+        variant_ids.extend(renamed_variants(&records, values));
+    }
+    let mut sources = graph.sources;
     let parents = session.variant_files.clone();
-    for parent in parents.iter() {
+    if !variant_ids.is_empty() {
+        for path in sources.discover("data/variants", &["variant"], true)? {
+            if !parents
+                .iter()
+                .any(|parent| parent.rel_path == sources.key(&path))
+            {
+                return Err(AppError::message(
+                    "write.version_conflict",
+                    "装配来源已新增，请刷新后重新确认改名",
+                )
+                .at_path(&path));
+            }
+        }
+        sources.stage_directory("data/variants", |key, version| {
+            session.source_versions.get(key) != Some(version)
+        })?;
+    }
+    for parent in parents.iter().filter(|_| !variant_ids.is_empty()) {
         let (parent_version, content, document) = if !Path::new(&parent.path).exists()
             && io::source_recreation_allowed(&session.manifest.mod_root, &parent.path)
         {
             (
                 file_version(Path::new(&parent.path))?,
                 parent.data.clone(),
-                JsonFileContent::from(session.documents[&parent.rel_path].as_ref()),
+                session.documents[&parent.rel_path].clone(),
             )
         } else {
-            let (version, source) = io::read_versioned_json(Path::new(&parent.path))?;
-            (
-                version,
-                source.content.to_json()?,
-                JsonFileContent::from(&source),
-            )
+            let version = sources
+                .versions
+                .get(&parent.rel_path)
+                .cloned()
+                .map(Ok)
+                .unwrap_or_else(|| file_version(Path::new(&parent.path)))?;
+            let (content, source) =
+                if session.source_versions.get(&parent.rel_path) == Some(&version) {
+                    (
+                        parent.data.clone(),
+                        session.documents[&parent.rel_path].clone(),
+                    )
+                } else {
+                    let source = sources.json_source(Path::new(&version.path))?;
+                    (source.content.to_json()?, source)
+                };
+            (version, content, source)
         };
         if !variant_modules::module_entries(content.get("modules"))
             .iter()
@@ -327,7 +382,7 @@ pub(in crate::services::project) fn query_joint_edit_values(
         }
         let source = info.target.source.clone();
         records.push(JointEditRecord {
-            document: Some(document),
+            document: Some(JsonFileContent::from(document.as_ref())),
             composition: None,
             key,
             target: JointRecordTarget::Spec {
@@ -342,7 +397,7 @@ pub(in crate::services::project) fn query_joint_edit_values(
         });
     }
     csv_tables::ensure_registered_table_rows(&mut session, CsvTableKey::Wings)?;
-    let references = reference_catalog(&session)?;
+    let references = reference_catalog(&session, &records)?;
     for record in &mut records {
         if let Some(owners) = references.get(&record.key) {
             record.referenced_by = owners.iter().cloned().collect();
@@ -709,6 +764,7 @@ fn module_variant_catalog(
         });
     }
     let mut graph = JointGraph {
+        sources: joint_sources(session)?,
         session,
         records: BTreeMap::new(),
         visiting: BTreeSet::new(),
@@ -796,6 +852,7 @@ fn catalog_wing_previews(
     damage_icons: BTreeMap<String, ResourceRef>,
 ) -> AppResult<BTreeMap<String, JointVariantPreview>> {
     let mut graph = JointGraph {
+        sources: joint_sources(session)?,
         session,
         records: BTreeMap::new(),
         visiting: BTreeSet::new(),
@@ -1003,10 +1060,12 @@ fn reference_settings(
 
 pub fn prepare_joint_edit(draft: &JointEditDraft) -> AppResult<JointEditPrepared> {
     let retained = retained_joint_sources(&draft.baseline)?;
+    let parent_ids = renamed_variants(&draft.baseline.records, &draft.values);
     let mut snapshot = query_joint_edit_values(
         &draft.baseline.root,
         Some(&retained),
         &draft.baseline.new_sources,
+        &parent_ids,
     )?;
     for version in &mut snapshot.base_versions {
         if version.fingerprint.is_none()
@@ -1088,8 +1147,12 @@ pub fn prepare_joint_edit(draft: &JointEditDraft) -> AppResult<JointEditPrepared
         }
     }
     if !snapshot.new_sources.is_empty() {
-        let projected =
-            query_joint_edit_values(&draft.baseline.root, Some(&values), &snapshot.new_sources)?;
+        let projected = query_joint_edit_values(
+            &draft.baseline.root,
+            Some(&values),
+            &snapshot.new_sources,
+            &parent_ids,
+        )?;
         for record in projected.records {
             if !snapshot
                 .records
@@ -1123,6 +1186,7 @@ enum JointGraphScope {
     HullCatalog,
 }
 struct JointGraph<'a> {
+    sources: SourceReader,
     session: &'a mut ProjectSession,
     records: BTreeMap<String, JointEditRecord>,
     visiting: BTreeSet<(EntityKind, String)>,
@@ -1135,6 +1199,20 @@ struct JointGraph<'a> {
     bindings: BTreeMap<String, String>,
     damage_icons: BTreeMap<String, ResourceRef>,
     new_sources: &'a [JointSourceCreate],
+}
+
+fn joint_sources(session: &ProjectSession) -> AppResult<SourceReader> {
+    let mut sources = SourceReader::for_session(Path::new(&session.manifest.mod_root))?;
+    for (relative, document) in session.documents.iter() {
+        sources.retain_json(
+            relative,
+            &session.source_versions[relative],
+            document.clone(),
+        );
+    }
+    // Queries verify current bytes while retaining matching parsed documents.
+    sources.invalidate_paths(&["data"]);
+    Ok(sources)
 }
 
 impl JointGraph<'_> {
@@ -1245,7 +1323,17 @@ impl JointGraph<'_> {
             .source
             .as_ref()
             .filter(|source| source.reference.is_some() || Path::new(&source.path).exists())
-            .map(|source| self.session.read_spec_source(kind, id, source))
+            .map(|source| {
+                if source.reference.is_none() && source.source == ResourceSource::Mod {
+                    let document = self.sources.json_source(Path::new(&source.path))?;
+                    Ok((
+                        self.sources.versions[&source.rel_path].clone(),
+                        document.as_ref().clone(),
+                    ))
+                } else {
+                    self.session.read_spec_source(kind, id, source)
+                }
+            })
             .transpose()?;
         let source_version = source_read.as_ref().map(|(version, _)| version.clone());
         let document = source_read
@@ -1649,7 +1737,19 @@ fn location(source: ResourceSource, root: &Path, rel_path: &str) -> EntityFileLo
     }
 }
 
-fn reference_catalog(session: &ProjectSession) -> AppResult<BTreeMap<String, BTreeSet<String>>> {
+fn reference_catalog(
+    session: &ProjectSession,
+    records: &[JointEditRecord],
+) -> AppResult<BTreeMap<String, BTreeSet<String>>> {
+    let current = records
+        .iter()
+        .filter_map(|record| match (&record.target, &record.value) {
+            (JointRecordTarget::Spec { target }, JointValue::Present(data)) => {
+                Some(((target.kind, target.id.as_str()), data))
+            }
+            _ => None,
+        })
+        .collect::<BTreeMap<_, _>>();
     let mut references = BTreeMap::<String, BTreeSet<String>>::new();
     let mut owner_keys = BTreeMap::new();
     let core_ships = session
@@ -1737,6 +1837,7 @@ fn reference_catalog(session: &ProjectSession) -> AppResult<BTreeMap<String, BTr
             );
         let mut seen = BTreeSet::new();
         for (kind, id, data) in records {
+            let data = current.get(&(kind, id)).copied().unwrap_or(data);
             if !seen.insert((kind, id)) {
                 continue;
             }
@@ -1838,6 +1939,7 @@ fn reference_catalog(session: &ProjectSession) -> AppResult<BTreeMap<String, BTr
         }
     }
     let direct = references.clone();
+    references.retain(|key, _| records.iter().any(|record| record.key == *key));
     for owners in references.values_mut() {
         let mut pending = owners.iter().cloned().collect::<Vec<_>>();
         while let Some(owner) = pending.pop() {

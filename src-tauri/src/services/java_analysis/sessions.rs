@@ -2,6 +2,7 @@ use super::close;
 use super::inputs::{AnalysisExtras, AnalysisInputs, inputs_for_session};
 use super::management::ComponentManagement;
 use super::requests::{checked_response, request, send};
+use crate::diagnostics;
 use crate::errors::{AppError, AppResult};
 use crate::io::canonical_path;
 use crate::services::{app_settings, project};
@@ -10,12 +11,23 @@ use pyxis_java_analysis::versions::DEFAULT_LANGUAGE;
 use pyxis_java_analysis::{AnalysisRequest, AnalysisResponse, AnalysisRuntime};
 use serde_json::json;
 use std::collections::BTreeMap;
+use std::mem;
 use std::path::Path;
-use std::sync::{Arc, LazyLock, Mutex, Weak};
+use std::sync::{Arc, LazyLock, Mutex, MutexGuard, Weak};
 use std::time::Instant;
 use tauri::{AppHandle, Manager, Runtime};
 
 static SESSION_RUNTIME: LazyLock<Mutex<Weak<AnalysisRuntime>>> = LazyLock::new(Default::default);
+static LIFECYCLE: Mutex<()> = Mutex::new(());
+
+fn lifecycle() -> AppResult<MutexGuard<'static, ()>> {
+    LIFECYCLE.lock().map_err(|_| {
+        AppError::message(
+            "java_analysis.session_lock",
+            "Java session lifecycle unavailable",
+        )
+    })
+}
 
 pub(super) fn register_runtime(runtime: &Arc<AnalysisRuntime>) -> AppResult<()> {
     *SESSION_RUNTIME.lock().map_err(|_| {
@@ -28,6 +40,7 @@ pub(super) fn register_runtime(runtime: &Arc<AnalysisRuntime>) -> AppResult<()> 
 }
 
 pub(super) fn reset() -> AppResult<()> {
+    let _lifecycle = lifecycle()?;
     *SESSIONS.lock().map_err(|_| {
         AppError::message(
             "java_analysis.session_lock",
@@ -55,6 +68,8 @@ fn revision_of(result: &AnalysisResponse) -> Option<u64> {
         AnalysisResult::Project(value) => Some(value.revision),
         AnalysisResult::Analysis(value) => Some(value.revision),
         AnalysisResult::Query(value) => Some(value.revision),
+        AnalysisResult::Inspection(value) => Some(value.revision),
+        AnalysisResult::Assistance(value) => Some(value.revision),
         _ => None,
     }
 }
@@ -69,34 +84,46 @@ pub fn start_for_session<R: Runtime>(
 ) -> AppResult<String> {
     let manager = app.state::<Arc<ComponentManagement>>();
     let _guard = manager.analysis_guard()?;
+    let _lifecycle = lifecycle()?;
     let inputs = inputs_for_session(session_id, &extras)?;
-    let mut state = SESSIONS.lock().map_err(|_| {
+    let state = SESSIONS.lock().map_err(|_| {
         AppError::message(
             "java_analysis.session_lock",
             "Java analysis session state unavailable",
         )
     })?;
-    let instance = match &state.instance {
-        Some(instance) => instance.clone(),
+    if state.projects.contains_key(session_id) {
+        return Ok(state
+            .instance
+            .clone()
+            .expect("registered project owns a shared JVM"));
+    }
+    let instance = state.instance.clone();
+    drop(state);
+    let runtime = app.state::<Arc<AnalysisRuntime>>();
+    let instance = match instance {
+        Some(instance) => instance,
         None => {
             let selected = app_settings::java_executable()?;
             let java = canonical_path(
                 selected.as_deref().map(Path::new).unwrap_or(java),
                 "Java executable",
             )?;
-            let instance = app.state::<Arc<AnalysisRuntime>>().start(&java)?;
-            state.instance = Some(instance.clone());
+            let instance = runtime.start(&java)?;
+            SESSIONS
+                .lock()
+                .map_err(|_| {
+                    AppError::message("java_analysis.session_lock", "Java session unavailable")
+                })?
+                .instance = Some(instance.clone());
             instance
         }
     };
     let project_id = format!("session:{session_id}");
-    if state.projects.contains_key(session_id) {
-        return Ok(instance);
-    }
     let response = request(
         app,
         &instance,
-        &AnalysisRequest::Open {
+        AnalysisRequest::Open {
             id: json!(session_id),
             project: project_id,
             sources: inputs.sources.clone(),
@@ -109,6 +136,9 @@ pub fn start_for_session<R: Runtime>(
     let response = match response {
         Ok(response) => response,
         Err(error) => {
+            let mut state = SESSIONS.lock().map_err(|_| {
+                AppError::message("java_analysis.session_lock", "Java session unavailable")
+            })?;
             if state.projects.is_empty() {
                 state.instance = None;
                 drop(state);
@@ -118,15 +148,31 @@ pub fn start_for_session<R: Runtime>(
         }
     };
     let revision = revision_of(&response).expect("open returns a project snapshot");
-    state.projects.insert(
-        session_id.to_string(),
-        Arc::new(Mutex::new(SessionProject {
-            revision,
-            inputs,
-            extras,
-            closed: false,
-        })),
-    );
+    let mod_root = &inputs.mod_root;
+    diagnostics::info("java_analysis.project_opened", &json!({"sessionId":session_id,"modRoot":mod_root,"instance":instance,"sourceRoots":inputs.sources.len(),"jars":inputs.classpath.len(),"revision":revision}).to_string());
+    if !inputs.missing_dependencies.is_empty() || !inputs.missing_jars.is_empty() {
+        diagnostics::failure(
+            "java_analysis.incomplete_inputs",
+            AppError::message(
+                "java_analysis.missing_inputs",
+                "Java project uses incomplete dependencies",
+            ),
+            json!({"sessionId":session_id,"modRoot":mod_root,"missingDependencies":inputs.missing_dependencies,"missingJars":inputs.missing_jars}),
+        );
+    }
+    SESSIONS
+        .lock()
+        .map_err(|_| AppError::message("java_analysis.session_lock", "Java session unavailable"))?
+        .projects
+        .insert(
+            session_id.to_string(),
+            Arc::new(Mutex::new(SessionProject {
+                revision,
+                inputs,
+                extras,
+                closed: false,
+            })),
+        );
     Ok(instance)
 }
 
@@ -134,7 +180,7 @@ pub fn start_for_session<R: Runtime>(
 pub fn request_for_session<R: Runtime>(
     app: &AppHandle<R>,
     session_id: &str,
-    request: &AnalysisRequest,
+    mut request: AnalysisRequest,
 ) -> AppResult<AnalysisResponse> {
     project::current_project_manifest(session_id)?;
     let state = SESSIONS.lock().map_err(|_| {
@@ -165,16 +211,10 @@ pub fn request_for_session<R: Runtime>(
     }
     let queue_wait = queued.elapsed().as_secs_f64() * 1000.0;
     let expected_project = format!("session:{session_id}");
-    let requested_project = match request {
-        AnalysisRequest::Open { project, .. }
-        | AnalysisRequest::Configure { project, .. }
-        | AnalysisRequest::Update { project, .. }
-        | AnalysisRequest::Analyze { project, .. }
-        | AnalysisRequest::Query { project, .. }
-        | AnalysisRequest::Close { project, .. } => Some(project),
-        _ => None,
-    };
-    if requested_project.is_some_and(|project| project != &expected_project) {
+    if request
+        .project()
+        .is_some_and(|project| project != expected_project)
+    {
         return Err(AppError::message(
             "java_analysis.project_mismatch",
             "Java request belongs to another session",
@@ -191,11 +231,26 @@ pub fn request_for_session<R: Runtime>(
             "Use the Java analysis session lifecycle entry",
         ));
     }
+    // Reference refresh and editor requests share the session's authoritative revision.
+    match &mut request {
+        AnalysisRequest::EditorUpdate {
+            expected_revision, ..
+        } => *expected_revision = owner.revision,
+        AnalysisRequest::Inspect { revision, .. } => *revision = owner.revision,
+        AnalysisRequest::Assist {
+            revision, purpose, ..
+        } if purpose != "validate" => *revision = owner.revision,
+        _ => {}
+    }
+    let operation = request.operation();
     let mut response = send(&app.state::<Arc<AnalysisRuntime>>(), &instance, request)?;
     response.queue_wait_milliseconds += queue_wait;
     if let Some(revision) = revision_of(&response) {
         owner.revision = revision;
     }
+    diagnostics::debug("java_analysis.session_request", || {
+        json!({"sessionId":session_id,"modRoot":owner.inputs.mod_root,"operation":operation,"revision":owner.revision,"queueWaitMilliseconds":response.queue_wait_milliseconds,"requestMilliseconds":response.request_milliseconds}).to_string()
+    });
     Ok(response)
 }
 
@@ -205,6 +260,7 @@ pub fn close_for_session<R: Runtime>(app: &AppHandle<R>, session_id: &str) -> Ap
 }
 
 fn close_owned_session(runtime: &AnalysisRuntime, session_id: &str) -> AppResult<()> {
+    let _lifecycle = lifecycle()?;
     let mut state = SESSIONS.lock().map_err(|_| {
         AppError::message(
             "java_analysis.session_lock",
@@ -228,27 +284,38 @@ fn close_owned_session(runtime: &AnalysisRuntime, session_id: &str) -> AppResult
         .lock()
         .map_err(|_| AppError::message("java_analysis.session_lock", "Java project unavailable"))?;
     owned.closed = true;
-    checked_response(runtime.request(
-        &instance,
-        &AnalysisRequest::Close {
-            id: json!(session_id),
-            project: format!("session:{session_id}"),
-        },
-    )?)?;
-    if last {
-        runtime.close(&instance)?;
-    }
-    Ok(())
+    let result = runtime
+        .request(
+            &instance,
+            &AnalysisRequest::Close {
+                id: json!(session_id),
+                project: format!("session:{session_id}"),
+            },
+        )
+        .map_err(Into::into)
+        .and_then(checked_response)
+        .map(|_| ());
+    let release = if last {
+        runtime.close(&instance).map_err(Into::into)
+    } else {
+        Ok(())
+    };
+    diagnostics::info("java_analysis.project_closed", &json!({"sessionId":session_id,"modRoot":owned.inputs.mod_root,"instance":instance,"lastProject":last,"released":release.is_ok(),"projectReleased":result.is_ok()}).to_string());
+    result.and(release)
 }
 
 pub(super) fn stop_owned_analysis(runtime: &AnalysisRuntime) -> AppResult<()> {
+    let _lifecycle = lifecycle()?;
     let mut state = SESSIONS.lock().map_err(|_| {
         AppError::message(
             "java_analysis.session_lock",
             "Java session state unavailable",
         )
     })?;
-    for owner in state.projects.values() {
+    let projects = mem::take(&mut state.projects);
+    state.instance = None;
+    drop(state);
+    for owner in projects.values() {
         owner
             .lock()
             .map_err(|_| {
@@ -256,8 +323,6 @@ pub(super) fn stop_owned_analysis(runtime: &AnalysisRuntime) -> AppResult<()> {
             })?
             .closed = true;
     }
-    state.projects.clear();
-    state.instance = None;
     runtime.close_all()?;
     Ok(())
 }
@@ -300,8 +365,9 @@ fn refresh_owned_references(runtime: &AnalysisRuntime) -> AppResult<()> {
             language: DEFAULT_LANGUAGE.into(),
             sources: Some(inputs.sources.clone()),
         };
-        let response = checked_response(send(runtime, &instance, &configuration)?)?;
+        let response = checked_response(send(runtime, &instance, configuration)?)?;
         if let Some(next) = revision_of(&response) {
+            diagnostics::info("java_analysis.references_refreshed", &json!({"sessionId":session_id,"modRoot":inputs.mod_root,"revision":next,"sourceRoots":inputs.sources.len(),"jars":inputs.classpath.len(),"references":inputs.referenced_sessions.len()}).to_string());
             previous.revision = next;
             previous.inputs = inputs;
         }

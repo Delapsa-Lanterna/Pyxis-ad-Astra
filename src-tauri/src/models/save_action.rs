@@ -1,7 +1,8 @@
 use super::{
     CsvSave, FileReplay, FileVersion, IndexedConfigDelete, IndexedConfigSave, JointEditSubmission,
     JsonFileDelete, JsonFileSave, JsonSourceRestore, MiscConfigDelete, MiscConfigWrite,
-    ModInfoSave, SaveEdit, SessionModScope, SourceRefresh, SpecSave, TextSave, TextTranscode,
+    ModInfoSave, SaveEdit, SessionModScope, SourceRefresh, SpecSave, TextBatchSave, TextSave,
+    TextTranscode,
 };
 use serde::Deserialize;
 
@@ -18,6 +19,7 @@ pub struct SaveRequest {
 pub enum SaveAction {
     SaveEditorSpec(SpecSave),
     SaveTextFile(TextSave),
+    SaveTextBatch(TextBatchSave),
     TranscodeFileToUtf8(TextTranscode),
     SaveCsvPatch(CsvSave),
     SaveJointEdit(Box<JointEditSubmission>),
@@ -43,6 +45,7 @@ impl SaveAction {
         Some(match self {
             Self::SaveEditorSpec(input) => input,
             Self::SaveTextFile(input) => input,
+            Self::SaveTextBatch(input) => input,
             Self::TranscodeFileToUtf8(input) => input,
             Self::SaveCsvPatch(input) => input,
             Self::SaveJointEdit(input) => input.as_ref(),
@@ -66,6 +69,7 @@ impl SaveAction {
         match self {
             Self::SaveEditorSpec(input) => &mut input.base_versions,
             Self::SaveTextFile(input) => &mut input.base_versions,
+            Self::SaveTextBatch(input) => &mut input.base_versions,
             Self::TranscodeFileToUtf8(input) => &mut input.base_versions,
             Self::SaveCsvPatch(input) => &mut input.base_versions,
             Self::SaveJointEdit(input) => &mut input.base_versions,

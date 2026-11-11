@@ -1,4 +1,5 @@
 use pyxis_java_analysis::transfer::TransferControl;
+use pyxis_java_analysis::versions::PROTOCOL_VERSION;
 use pyxis_java_analysis::{Artifact, Error, Package, dependencies};
 use sha2::{Digest, Sha256};
 use std::fs;
@@ -58,7 +59,7 @@ fn cancellation_releases_pending_requests_and_retry_reuses_verified_files() {
     };
     let mut package = Package {
         version: "fixture".into(),
-        protocol: 2,
+        protocol: PROTOCOL_VERSION,
         java: 17,
         bytes: 0,
         sha256: String::new(),

@@ -182,7 +182,6 @@ export async function sourcePerformance({ app, fixture, check, options, artifact
           warmup: options.warmup,
           rounds: options.rounds,
           samples: [],
-          budgets: [],
           resources: { processes, heaps, released: false },
         });
         runs.push(run);

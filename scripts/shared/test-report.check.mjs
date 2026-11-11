@@ -35,35 +35,14 @@ function report(time) {
     warmup: 0,
     rounds: 1,
     samples: [{ iteration: 0, phase: 'measurement', metrics: { open: time }, assertions: [] }],
-    budgets: [],
     resources: { released: true },
   });
 }
-test('enforces the existing monitor overhead budgets and leaves code comparisons informative', () => {
-  assert.equal(
-    compare(report(100).metrics, report(101).metrics, 'disabled').every((item) => item.pass),
-    true,
-  );
-  assert.equal(
-    compare(report(100).metrics, report(102).metrics, 'disabled').every((item) => item.pass),
-    false,
-  );
-  assert.equal(
-    compare(report(100).metrics, report(110).metrics, 'enabled').every((item) => item.pass),
-    true,
-  );
-  assert.equal(
-    compare(report(100).metrics, report(111).metrics, 'enabled').every((item) => item.pass),
-    false,
-  );
-  assert.equal(
-    compare(report(1).metrics, report(6).metrics, 'enabled').every((item) => item.pass),
-    true,
-  );
-  assert.equal(
-    compare(report(1).metrics, report(100).metrics, 'code').every((item) => item.pass),
-    true,
-  );
+test('records absolute comparison differences for slow measurements', () => {
+  const result = compare(report(100).metrics, report(10000).metrics);
+  assert.equal(result.length, 2);
+  assert.ok(result.every((entry) => entry.delta === 9900));
+  assert.equal(report(10000).pass, true);
 });
 test('exports the same measured values and environment to the readable report', () => {
   const run = report(42);

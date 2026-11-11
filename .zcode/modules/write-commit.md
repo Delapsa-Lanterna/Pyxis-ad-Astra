@@ -28,6 +28,7 @@
 - `src-tauri/src/services/file_history.rs`：文件撤销重做。
 - `src-tauri/src/services/file_history/records.rs`：按实际 Mod 根持有 changeset、双栈、revision、容量及回放交接。
 - `src-tauri/src/services/project/mod.rs`：会话授权和正式结果。
+- `src-tauri/src/services/project/performance.rs`：提交版本、历史、正式内容及身份交付的阶段计时。
 - `src-tauri/src/services/project/query/entity_targets.rs`：实际编辑目标、身份意图及正式版本范围。
 - `src-tauri/src/services/project/session.rs`：会话打开、关闭、内容更新与内部登记及就绪访问能力交付。
 - `src/shared/lib/json-edits.ts`：所属保存请求消费的实际 JSON 字段差异。

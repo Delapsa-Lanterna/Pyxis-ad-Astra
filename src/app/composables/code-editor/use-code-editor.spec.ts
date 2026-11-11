@@ -21,6 +21,8 @@ import { textEditorSurface } from '@/test/unit/text-editor-surface';
 import { writeTextContent } from '@/shared/runtime/text-document';
 import * as textDocument from '@/shared/runtime/text-document';
 import { useCodeEditor } from './use-code-editor';
+import { useCodeAnalysis } from './use-code-analysis';
+import { useCodeActions } from './use-code-actions';
 import { Transaction } from '@codemirror/state';
 
 const mocks = vi.hoisted(() => ({
@@ -45,7 +47,17 @@ vi.mock('@/services/code-editor.service', () => ({
 }));
 vi.mock('@/orchestrators/project-sync.orchestrator', async () => await import('@/test/unit/project-changes'));
 vi.mock('@/app/composables/code-editor/use-code-editor-window', () => ({
-  useCodeEditorWindow: () => ({ ...useCodeEditor(owner), closing: ref(false) }),
+  useCodeEditorWindow: () => {
+    const host = useCodeEditor(owner);
+    const analysis = useCodeAnalysis(host, owner.modRoot);
+    return { ...host, analysis, actions: useCodeActions(host, analysis, owner), closing: ref(false) };
+  },
+}));
+vi.mock('@/services/java-analysis.service', () => ({
+  closeJavaEditor: async () => {},
+  startJavaEditor: async () => {},
+  syncJavaEditor: async () => {},
+  inspectJavaEditor: async () => ({ diagnostics: [], outline: [], locations: [] }),
 }));
 vi.mock('@/app/composables/use-window-shortcuts', () => ({ useWindowShortcuts: () => {} }));
 enableAutoUnmount(afterEach);
@@ -180,7 +192,9 @@ describe('code editor document host', () => {
   });
   it('binds independent document states to one input surface across tab switches', async () => {
     const wrapper = mount(CodeEditorContent, {
-      global: { stubs: { NButton: { template: '<button><slot /></button>' }, TextEditorSurface: textEditorSurface } },
+      global: {
+        stubs: { NButton: { template: '<button><slot /></button>' }, NInput: true, NSelect: true, TextEditorSurface: textEditorSurface },
+      },
     });
     await flushPromises();
     mocks.receive!({ key: 'view', files: [{ path: 'M:/sample/A.java' }, { path: 'M:/sample/B.java' }] });

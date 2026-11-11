@@ -1,6 +1,6 @@
 use super::super::{
-    AnalysisExtras, close_for_session, inputs_for_session, register, request_for_session, shutdown,
-    start_for_session,
+    AnalysisExtras, automatic_java_path, close_for_session, inputs_for_session, register,
+    request_for_session, shutdown, start_for_session,
 };
 use crate::errors::AppResult;
 use crate::services::project::PerformanceTrace;
@@ -29,7 +29,7 @@ impl<R: Runtime> Drop for AnalysisCleanup<'_, R> {
 
 fn send<R: Runtime>(app: &AppHandle<R>, session: &str, value: Value) -> AppResult<Value> {
     let request: AnalysisRequest = serde_json::from_value(value)?;
-    let result = request_for_session(app, session, &request)?;
+    let result = request_for_session(app, session, request)?;
     assert!(result.error.is_none(), "{result:?}");
     Ok(serde_json::to_value(result)?)
 }
@@ -74,6 +74,15 @@ fn live_sessions_share_jvm_and_refresh_only_affected_sources() {
     )
     .unwrap();
     let first = open(&consumer, &game);
+    let automatic = automatic_java_path(Some(&first), None).unwrap().unwrap();
+    assert!(
+        Path::new(&automatic).is_file(),
+        "automatic Java: {automatic:?}"
+    );
+    assert_eq!(
+        fs::canonicalize(&automatic).unwrap(),
+        fs::canonicalize(&java).unwrap()
+    );
     let second = open(&library, &game);
     project::set_reference_order(vec![first.clone(), second.clone()]).unwrap();
     project::set_reference_sources(vec![second.clone()]).unwrap();
@@ -156,7 +165,7 @@ fn live_sessions_share_jvm_and_refresh_only_affected_sources() {
         request_for_session(
             handle,
             &first,
-            &AnalysisRequest::Analyze {
+            AnalysisRequest::Analyze {
                 id: json!(1),
                 project: format!("session:{second}"),
                 force_full: false
@@ -171,6 +180,22 @@ fn live_sessions_share_jvm_and_refresh_only_affected_sources() {
     assert_eq!(runtime.instance_count().unwrap(), 1);
     assert!(analyze(&first)["result"]["errors"].as_u64().unwrap() > 0);
     close_for_session(handle, &first).unwrap();
+    assert_eq!(runtime.instance_count().unwrap(), 0);
+    assert_eq!(
+        fs::read_dir(&runtime.paths().workspaces).unwrap().count(),
+        0
+    );
+    let instance = start_for_session(handle, &first, &java, AnalysisExtras::default()).unwrap();
+    runtime
+        .request(
+            &instance,
+            &AnalysisRequest::Close {
+                id: json!("remove-before-release"),
+                project: first_project,
+            },
+        )
+        .unwrap();
+    assert!(close_for_session(handle, &first).is_err());
     assert_eq!(runtime.instance_count().unwrap(), 0);
     assert_eq!(
         fs::read_dir(&runtime.paths().workspaces).unwrap().count(),
@@ -233,7 +258,7 @@ fn live_correct_mods_use_the_published_reference_inputs() {
         let response = request_for_session(
             handle,
             &session,
-            &AnalysisRequest::Analyze {
+            AnalysisRequest::Analyze {
                 id: json!(name),
                 project: format!("session:{session}"),
                 force_full: false,

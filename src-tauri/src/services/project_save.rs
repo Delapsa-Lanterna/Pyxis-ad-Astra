@@ -4,6 +4,7 @@ use crate::models::{
     EntityIdentityChange, EntityKind, FileChangeReplayDirection, SaveAction, SaveEdit, SaveRequest,
     WriteContent, WriteResult,
 };
+use crate::services::project::PerformanceTrace;
 use crate::services::project::write::{
     config_entity, csv_patch, entity_write::content, joint_edit, json_recovery,
 };
@@ -43,6 +44,8 @@ pub async fn submit_project_save(
         }
     };
     let task = project_sync::enqueue(&owner, request.id, &root, session.as_deref())?;
+    let mut trace = PerformanceTrace::new("project.save");
+    let mut queued = Some(trace.timer());
     async_runtime::spawn_blocking(move || {
         let result = project_sync::execute_queued(
             task,
@@ -50,10 +53,17 @@ pub async fn submit_project_save(
             session.as_deref(),
             reason,
             |identities, versions| {
+                if let Some(timer) = queued.take() {
+                    trace.record_stage("queue", timer, Vec::new);
+                }
                 let mut action = request.action.clone();
+                let timer = trace.timer();
                 let _lease =
                     project_sync::prepare_versions(&root, action.versions(), versions, identities)?;
+                trace.record_stage("versions", timer, Vec::new);
+                let timer = trace.timer();
                 prepare_save_action(&mut action, &request.edits, identities)?;
+                trace.record_stage("prepare", timer, Vec::new);
                 execute_save_action(action)
             },
         )?;
@@ -121,9 +131,13 @@ pub(crate) fn execute_save_action(mut action: SaveAction) -> AppResult<WriteResu
         }
         _ => {}
     }
+    let mut trace = PerformanceTrace::new("project.save");
+    let timer = trace.timer();
     let versions = action.versions().to_vec();
     let transaction =
         write_transactions::begin(action.scope().expect("file action scope"), &versions)?;
+    trace.record_stage("transaction", timer, Vec::new);
+    let timer = trace.timer();
     let (result, label) = match action {
         SaveAction::SaveEditorSpec(input) => (
             json_result(content::write_spec_request(input)?)?,
@@ -132,6 +146,10 @@ pub(crate) fn execute_save_action(mut action: SaveAction) -> AppResult<WriteResu
         SaveAction::SaveTextFile(input) => (
             text_editor::save_project_text_file(&input.mod_root, &input.path, input.text)?,
             "保存文本",
+        ),
+        SaveAction::SaveTextBatch(input) => (
+            json_result(text_editor::save_text_batch(input)?)?,
+            "保存文本批次",
         ),
         SaveAction::TranscodeFileToUtf8(input) => (
             json_result(text_editor::transcode_file_to_utf8(
@@ -203,6 +221,7 @@ pub(crate) fn execute_save_action(mut action: SaveAction) -> AppResult<WriteResu
             unreachable!("non-file action returned before transaction")
         }
     };
+    trace.record_stage("write", timer, Vec::new);
     transaction.commit(result, label)
 }
 fn json_result<T: Serialize>(result: WriteResult<T>) -> AppResult<WriteResult<Value>> {

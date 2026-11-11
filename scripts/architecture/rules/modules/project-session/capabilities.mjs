@@ -42,6 +42,11 @@ export const projectCapabilities = [
       owners: [{ layer: 'app', role: 'composable', domain: 'app-close-participant' }],
     },
     {
+      capability: 'saved-content-wait',
+      names: ['settleSavedContent'],
+      owners: [{ path: 'src/app/composables/code-editor/use-code-batch.ts', layer: 'app' }],
+    },
+    {
       capability: 'session-release',
       names: ['releaseProjectContentConsumers'],
       owners: [{ layer: 'orchestrators', domain: 'workspace-lifecycle' }],

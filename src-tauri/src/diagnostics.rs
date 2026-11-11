@@ -38,7 +38,15 @@ pub fn install(sink: Sink) {
 
 /// Enqueues the original diagnostic with the operation's identity metadata.
 pub fn failure(code: &str, error: impl Into<AppError>, context: Value) {
-    let error = error.into();
+    diagnostic(AppLogLevel::Warning, code, error.into(), context);
+}
+
+/// Records an infrastructure failure with the original diagnostic and operation identity.
+pub fn fault(code: &str, error: impl Into<AppError>, context: Value) {
+    diagnostic(AppLogLevel::Error, code, error.into(), context);
+}
+
+fn diagnostic(level: AppLogLevel, code: &str, error: AppError, context: Value) {
     let mut fields: BTreeMap<String, String> = context
         .as_object()
         .expect("diagnostic contexts are objects")
@@ -57,7 +65,7 @@ pub fn failure(code: &str, error: impl Into<AppError>, context: Value) {
         fields.insert("column".into(), column.to_string());
     }
     write(AppLogEntry {
-        level: AppLogLevel::Warning,
+        level,
         code: Some(code.into()),
         message: Some(error.to_string()),
         path: error.location().and_then(|location| location.path.clone()),
@@ -88,7 +96,8 @@ fn write(entry: AppLogEntry) {
 
 #[cfg(test)]
 mod tests {
-    use super::{AppError, Arc, Mutex, SINK, failure, install};
+    use super::{AppError, Arc, Mutex, SINK, failure, fault, install};
+    use crate::models::AppLogLevel;
     use serde_json::json;
 
     #[test]
@@ -117,5 +126,23 @@ mod tests {
         assert_eq!(fields["errorCode"], "test.source");
         assert_eq!(fields["column"], "3");
         assert_eq!(fields["requestId"], "test-request");
+        let record = Arc::new(Mutex::new(None));
+        let captured = Arc::clone(&record);
+        let previous = SINK.lock().unwrap().take();
+        install(Arc::new(move |entry| {
+            if entry.code.as_deref() == Some("test.transport") {
+                *captured.lock().unwrap() = Some(entry);
+            }
+        }));
+        fault(
+            "test.transport",
+            AppError::message("test.pipe", "broken pipe").at_path("M:/engine.log"),
+            json!({"project":"sample"}),
+        );
+        *SINK.lock().unwrap() = previous;
+        let entry = record.lock().unwrap().take().unwrap();
+        assert_eq!(entry.level, AppLogLevel::Error);
+        assert_eq!(entry.path.as_deref(), Some("M:/engine.log"));
+        assert_eq!(entry.fields.unwrap()["errorCode"], "test.pipe");
     }
 }

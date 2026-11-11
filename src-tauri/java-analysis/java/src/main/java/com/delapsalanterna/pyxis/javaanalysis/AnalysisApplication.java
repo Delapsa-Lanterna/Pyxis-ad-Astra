@@ -1,10 +1,8 @@
 package com.delapsalanterna.pyxis.javaanalysis;
 
 import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
-import com.google.gson.ToNumberPolicy;
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
@@ -23,12 +21,7 @@ public final class AnalysisApplication implements IApplication {
   @Override
   public Object start(IApplicationContext context) throws Exception {
     ResourcesPlugin.getWorkspace().getDescription();
-    Gson gson =
-        new GsonBuilder()
-            .serializeNulls()
-            .disableHtmlEscaping()
-            .setObjectToNumberStrategy(ToNumberPolicy.LONG_OR_DOUBLE)
-            .create();
+    Gson gson = Protocol.JSON;
     try (BufferedReader input =
             new BufferedReader(new InputStreamReader(System.in, StandardCharsets.UTF_8));
         PrintWriter output = new PrintWriter(System.out, true, StandardCharsets.UTF_8)) {
@@ -114,7 +107,10 @@ public final class AnalysisApplication implements IApplication {
             }
             yield project.summary();
           }
-          case "update" -> project.update(typed);
+          case "update" -> project.update(typed.expectedRevision(), typed.files());
+          case "editorUpdate" -> EditorQueries.update(project, typed);
+          case "inspect" -> EditorQueries.inspect(project, typed);
+          case "assist" -> SourceAssistance.query(project, typed);
           case "configure" -> project.configure(typed);
           case "query" -> project.query(typed);
           case "close" -> {

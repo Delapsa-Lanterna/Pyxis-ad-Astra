@@ -17,6 +17,7 @@
 - `src-tauri/src/models/save_action.rs`：保存请求及封闭业务动作。
 - `src-tauri/src/services/json_file.rs`：Variant 与 Skin 文件保存及身份操作。
 - `src-tauri/src/services/misc_config.rs`：已登记配置文件的实际保存与删除。
+- `src-tauri/src/services/project/performance.rs`：保存排队、业务准备及文件执行的阶段计时。
 - `src-tauri/src/services/project/session.rs`：会话打开、关闭、内容更新与内部登记及就绪访问能力交付。
 - `src-tauri/src/services/project/session/`：会话授权、就绪访问、CSV 正式内容、引用及来源版本管理。
 - `src-tauri/src/services/project/write/config_entity.rs`：Mod 信息和索引配置的正式保存准备及写入。
@@ -77,3 +78,4 @@
 - 实际文件修改必须经正式事务入口，文件回放与来源刷新消费各自正式流程。
 - 结果必须由实际提交决定，引用通知失败保留提交结果并交付诊断。
 - 项目队列必须覆盖来源确认、业务准备、文件执行、失败恢复、历史及正式内容登记。
+- 文本批次必须在同次根事务内核对全部来源并提交文件内容与改名，交付一次文件历史和实际版本集合。

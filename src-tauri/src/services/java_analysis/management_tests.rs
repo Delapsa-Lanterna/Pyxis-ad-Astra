@@ -289,7 +289,7 @@ fn live_management_install_repair_selfcheck_stop_remove_and_release() {
     assert_eq!(manager.snapshot().unwrap().phase, "failed");
     execute(ManagementAction::Stop);
     assert_eq!(runtime.instance_count().unwrap(), 0);
-    assert_eq!(runtime.project_count(), 0);
+    assert_eq!(runtime.project_count().unwrap(), 0);
     let instance = runtime.start(&java).unwrap();
     runtime.close(&instance).unwrap();
     manager

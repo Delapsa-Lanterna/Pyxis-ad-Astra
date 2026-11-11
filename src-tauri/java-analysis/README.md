@@ -49,6 +49,11 @@ npm run build:java-analysis
 npm run check:java-analysis
 npm run test:java-analysis -- --game D:/Starsector
 npm run test:java-analysis -- --game D:/Starsector --download
+npm run test:browser-preview -- --scene java-queries
+npm run test:browser-testbed -- --scene java-queries
+npm run test:desktop -- --suite java-queries --game D:/Starsector --isolated-desktop
+npm run test:browser-preview -- --scene source-actions
+npm run test:desktop -- --suite source-actions --game D:/Starsector --isolated-desktop
 $env:JAVA_ANALYSIS_TEST_JAVA = 'D:/Starsector/jre/bin/java.exe'
 cargo test --manifest-path src-tauri/Cargo.toml -p pyxis-java-analysis --test runtime -- --include-ignored
 $env:AST_GAME = '<游戏根>'
@@ -71,7 +76,11 @@ src-tauri/target/debug/examples/java-analysis <status|install|import|remove|run>
 
 输入包含 `configRoot`；`run` 追加 `java`，`import` 追加 `archive`。`run` 按行读取 JSON 请求并返回相同请求编号，标准输入 EOF 触发实例关闭。诊断原文保存在配置目录的所属实例日志。
 
-协议版本为 2，操作包括 `hello`、`parse`、`open`、`analyze`、`update`、`configure`、`query`、`close` 和 `shutdown`。Rust `AnalysisRequest`、`AnalysisResponse`、`FileChange` 与 Java `Protocol.Request`、`Protocol.Response` 提供两端类型化接口。源码位置采用 UTF-16 半开区间，项目更新须匹配 `expectedRevision`，文档版本须递增。
+协议版本为 4，操作包括 `hello`、`parse`、`open`、`analyze`、`update`、`editorUpdate`、`inspect`、`assist`、`configure`、`query`、`close` 和 `shutdown`。Rust `AnalysisRequest`、`AnalysisResponse`、`FileChange` 与 Java `Protocol.Request`、`Protocol.Response` 提供两端类型化接口。源码位置采用 UTF-16 半开区间，项目更新须匹配 `expectedRevision`，文档版本须递增。
+
+`assist` 接纳 `complete`、`signature`、`imports`、`rename` 和 `validate`。候选与签名来自当前 WorkingCopy，导入歧义返回候选类型，重命名返回冲突或带文档版本的范围修改及文件目标。代码编辑器预览后共同接纳草稿，整批保存经正式项目队列提交，整批撤销恢复文本与文件身份。
+
+代码编辑器就绪后后台建立所属项目，`java_editor` 从调用窗口取得 Mod 身份并交付启动、同步、查询与关闭。`editorUpdate` 首次提交全文，后续提交有序且不重叠的 UTF-16 范围修改；`previousFile` 交付改名前身份。`inspect` 按 `document`、`hover`、`declaration`、`references` 和 `source` 分别交付大纲与诊断、签名、声明位置、引用位置和当前快照源码。悬停与源码读取复用缓存，原始全文只在明确交接边界生成。
 
 `open` 建立私有源码快照及 WorkingCopy。`update` 支持 `add`、`replace`、`delete` 和 `move`，单批多个文件先核验后共同接纳；来源目录保持不变。`configure` 接纳完整依赖 JAR 列表、Java 路径和语言级别，并推进项目版本。每个分析版本的 AST 与声明引用索引由查询复用。
 

@@ -31,10 +31,14 @@ fn normalize_classpath(classpath: &mut [String], java_home: &mut String) -> AppR
 pub(super) fn send(
     runtime: &AnalysisRuntime,
     instance: &str,
-    request: &AnalysisRequest,
+    mut request: AnalysisRequest,
 ) -> AppResult<AnalysisResponse> {
-    let mut request = request.clone();
-    match &mut request {
+    normalize_request(&mut request)?;
+    runtime.request(instance, &request).map_err(Into::into)
+}
+
+fn normalize_request(request: &mut AnalysisRequest) -> AppResult<()> {
+    match request {
         AnalysisRequest::Open {
             sources,
             classpath,
@@ -63,16 +67,26 @@ pub(super) fn send(
                 }
             }
         }
-        AnalysisRequest::Query { file, .. } => normalize_path(file, "Java source file")?,
+        AnalysisRequest::Query { file, .. }
+        | AnalysisRequest::Inspect { file, .. }
+        | AnalysisRequest::Assist { file, .. } => normalize_path(file, "Java source file")?,
+        AnalysisRequest::EditorUpdate { documents, .. } => {
+            for document in documents {
+                normalize_path(&mut document.file, "Java source file")?;
+                if let Some(previous) = &mut document.previous_file {
+                    normalize_path(previous, "Java source file")?;
+                }
+            }
+        }
         _ => {}
     }
-    runtime.request(instance, &request).map_err(Into::into)
+    Ok(())
 }
 
 pub fn request<R: Runtime>(
     app: &AppHandle<R>,
     instance: &str,
-    request: &AnalysisRequest,
+    request: AnalysisRequest,
 ) -> AppResult<AnalysisResponse> {
     send(&app.state::<Arc<AnalysisRuntime>>(), instance, request)
 }
@@ -90,4 +104,38 @@ pub(super) fn checked_response(response: AnalysisResponse) -> AppResult<Analysis
         });
     }
     Ok(response)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::normalize_request;
+    use crate::test_support::TestWorkspace;
+    use pyxis_java_analysis::{AnalysisRequest, FileChange, FileChangeAction};
+    use serde_json::json;
+
+    #[test]
+    fn path_normalization_retains_the_owned_source_allocation() {
+        let work = TestWorkspace::new("java_owned_request");
+        let source = "x".repeat(10 * 1024 * 1024);
+        let pointer = source.as_ptr();
+        let mut request = AnalysisRequest::Update {
+            id: json!(1),
+            project: "sample".into(),
+            expected_revision: 1,
+            files: vec![FileChange {
+                action: FileChangeAction::Add,
+                file: work.join("New.java").to_string_lossy().into_owned(),
+                target: None,
+                source: Some(source),
+                version: Some(1),
+            }],
+        };
+        normalize_request(&mut request).unwrap();
+        let AnalysisRequest::Update { files, .. } = request else {
+            panic!("update request");
+        };
+        assert_eq!(files[0].source.as_ref().unwrap().as_ptr(), pointer);
+        assert_eq!(files[0].source.as_ref().unwrap().len(), 10 * 1024 * 1024);
+        work.close().unwrap();
+    }
 }

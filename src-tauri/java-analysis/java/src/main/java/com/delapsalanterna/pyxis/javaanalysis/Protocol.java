@@ -1,12 +1,20 @@
 package com.delapsalanterna.pyxis.javaanalysis;
 
 import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import com.google.gson.ToNumberPolicy;
 import java.util.List;
 
 /** Typed Java representation of the versioned host protocol. */
 final class Protocol {
+  static final Gson JSON =
+      new GsonBuilder()
+          .disableHtmlEscaping()
+          .setObjectToNumberStrategy(ToNumberPolicy.LONG_OR_DOUBLE)
+          .create();
+
   record Request(
       JsonElement id,
       String op,
@@ -22,7 +30,51 @@ final class Protocol {
       Long revision,
       String file,
       Integer offset,
-      Boolean forceFull) {}
+      Boolean forceFull,
+      List<DocumentEdit> documents,
+      String purpose,
+      String name,
+      java.util.Map<String, String> choices) {}
+
+  record Completion(String label, String text, String detail, int from, int to, int relevance) {}
+
+  record SourceEdit(
+      String file, long version, String source, String target, List<TextEdit> edits) {}
+
+  record ImportChoice(String name, List<String> candidates) {}
+
+  record Assistance(
+      boolean assistance,
+      String purpose,
+      String project,
+      long revision,
+      String file,
+      long version,
+      List<Completion> candidates,
+      List<SourceEdit> files,
+      List<ImportChoice> choices,
+      List<String> conflicts,
+      int argument) {}
+
+  record TextEdit(int from, int to, String text) {}
+
+  record DocumentEdit(
+      String file, String previousFile, long version, String source, List<TextEdit> edits) {}
+
+  record OutlineEntry(String name, String kind, int depth, SourceRange range) {}
+
+  record Inspection(
+      String purpose,
+      String project,
+      long revision,
+      String file,
+      long version,
+      String source,
+      Binding binding,
+      String origin,
+      List<Diagnostic> diagnostics,
+      List<OutlineEntry> outline,
+      List<SourceLocation> locations) {}
 
   record FileChange(String action, String file, String target, String source, Long version) {}
 
@@ -139,6 +191,8 @@ final class Protocol {
           case "hello" -> Handshake.class;
           case "parse" -> SyntaxResult.class;
           case "query" -> QueryResult.class;
+          case "inspect" -> Inspection.class;
+          case "assist" -> Assistance.class;
           case "analyze" -> AnalysisSummary.class;
           case "close" -> ProjectRelease.class;
           case "shutdown" -> ShutdownResult.class;
@@ -163,9 +217,8 @@ final class Protocol {
   static JsonObject encode(Response response) {
     JsonObject json = new JsonObject();
     json.add("id", response.id());
-    if (response.result() != null) json.add("result", new Gson().toJsonTree(response.result()));
-    if (response.error() != null)
-      json.add("error", new com.google.gson.Gson().toJsonTree(response.error()));
+    if (response.result() != null) json.add("result", JSON.toJsonTree(response.result()));
+    if (response.error() != null) json.add("error", JSON.toJsonTree(response.error()));
     return json;
   }
 

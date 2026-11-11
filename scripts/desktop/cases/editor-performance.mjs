@@ -4,8 +4,10 @@ import { execFileSync } from 'node:child_process';
 import { join } from 'node:path';
 import { createTestRun } from '../../shared/test-report.mjs';
 import { until } from '../runtime.mjs';
+import { textSample, editedText } from '../../shared/performance-samples.mjs';
+import { createHash } from 'node:crypto';
 
-/** @param {Awaited<ReturnType<typeof import('../runtime.mjs').startDesktop>>} app @param {Awaited<ReturnType<typeof import('../sample.mjs').prepareSample>>} fixture @param {(name:string,operation:()=>Promise<void>)=>Promise<void>} check @param {{count:number,rounds:number,warmup:number}} options @param {import('../../shared/test-report.mjs').TestRun[]} runs */
+/** @param {Awaited<ReturnType<typeof import('../runtime.mjs').startDesktop>>} app @param {Awaited<ReturnType<typeof import('../sample.mjs').prepareSample>>} fixture @param {(name:string,operation:()=>Promise<void>)=>Promise<void>} check @param {import('./registry.mjs').DesktopCase['options']} options @param {import('../../shared/test-report.mjs').TestRun[]} runs */
 export async function editorPerformance(app, fixture, check, options, runs) {
   const manifest = /** @type {{sessionId:string,modRoot:string}} */ (
     await app.main.evaluate(
@@ -26,23 +28,18 @@ export async function editorPerformance(app, fixture, check, options, runs) {
   const system = await browser.newBrowserCDPSession();
   try {
     for (const kind of ['code', 'text'])
-      for (const shape of ['multiline', 'long-line']) {
+      for (const shape of /** @type {Array<'multiline'|'long-line'>} */ (options.shape ? [options.shape] : ['multiline', 'long-line'])) {
         await check(kind + ' retained text and save scope: ' + shape, async () => {
           const count = kind === 'code' ? options.count : 1,
-            bytes = 10485760,
+            bytes = options.bytes,
             files = [];
-          const line = 'class Sample { int value = 1; }\n';
           for (let index = 0; index < count; index++) {
             const path = join(fixture.mod, 'Memory-' + shape + '-' + index + '.txt');
-            await writeFile(
-              path,
-              String(index).padStart(3, '0') +
-                (shape === 'multiline' ? line.repeat(Math.ceil(bytes / line.length)).slice(0, bytes - 4) : 'x'.repeat(bytes - 4)) +
-                '\n',
-              'utf8',
-            );
+            await writeFile(path, textSample(bytes, shape, index), 'utf8');
             files.push({ path });
           }
+          const original = textSample(bytes, shape, count - 1);
+          const openBegan = performance.now();
           const opening = app.main.evaluate(
             async ({ kind, files, manifest }) => {
               const invoke = Reflect.get(globalThis, '__TAURI_INTERNALS__').invoke;
@@ -84,6 +81,20 @@ export async function editorPerformance(app, fixture, check, options, runs) {
             samples = [],
             phases = /** @type {Record<string,unknown>[]} */ ([]);
           const surface = editor.getByRole('textbox', { name: '文件内容' });
+          const history = /** @type {Record<string,unknown>[]} */ ([]);
+          /** @param {number} steps */
+          async function verifyText(steps) {
+            const actual = await surface.evaluate(async (element) => {
+              const text = Reflect.get(element, 'cmTile').root.view.state.doc.toString();
+              const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+              return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
+            });
+            assert.equal(
+              actual,
+              createHash('sha256').update(editedText(original, steps)).digest('hex'),
+              'Complete editor text at step ' + steps,
+            );
+          }
           const run = createTestRun({
             scenario: kind + '-editor',
             parameters: { fileCount: count, fileBytes: bytes, textShape: shape },
@@ -94,8 +105,7 @@ export async function editorPerformance(app, fixture, check, options, runs) {
             warmup: options.warmup,
             rounds: options.rounds,
             samples: [],
-            budgets: [],
-            resources: { released: false, heapPhases: phases },
+            resources: { released: false, heapPhases: phases, history },
           });
           runs.push(run);
           /** @param {string} phase */
@@ -120,14 +130,25 @@ export async function editorPerformance(app, fixture, check, options, runs) {
           }
           try {
             await surface.waitFor();
+            run.resources.openMilliseconds = performance.now() - openBegan;
             await memory('opened');
             const log = /** @type {{path:string}} */ (
               await app.main.evaluate(() => Reflect.get(globalThis, '__TAURI_INTERNALS__').invoke('get_app_log_status'))
             );
             const before = (await readFile(log.path, 'utf8')).length;
+            const savedFile = files[count - 1];
+            assert.ok(savedFile);
             for (let index = 0; index < options.rounds + options.warmup; index++) {
+              const switched = performance.now();
+              if (kind === 'code')
+                await editor
+                  .getByRole('tab')
+                  .nth(index % count)
+                  .click();
+              const switchMilliseconds = performance.now() - switched;
+              if (kind === 'code') await editor.getByRole('tab').last().click();
               const began = performance.now();
-              await surface.press('Control+Home');
+              await surface.press(index % 2 ? 'Control+End' : 'Control+Home');
               await surface.pressSequentially('!');
               const input = performance.now() - began,
                 saveBegan = performance.now();
@@ -138,18 +159,30 @@ export async function editorPerformance(app, fixture, check, options, runs) {
               run.samples.push({
                 iteration: index,
                 phase: index < options.warmup ? 'warmup' : 'measurement',
-                metrics: { input, save },
+                metrics: { switch: switchMilliseconds, input, save },
                 assertions: [],
               });
+              await verifyText(index + 1);
+              assert.equal(await readFile(savedFile.path, 'utf8'), editedText(original, index + 1));
             }
-            const savedFile = files[count - 1];
-            assert.ok(savedFile);
-            assert.ok((await readFile(savedFile.path, 'utf8')).startsWith('!'.repeat(options.rounds + options.warmup)));
+            assert.equal(await readFile(savedFile.path, 'utf8'), editedText(original, options.rounds + options.warmup));
             await memory('saved');
             for (let round = 0; round < 3; round++) {
-              for (let index = 0; index < options.rounds; index++) await surface.press('Control+z');
+              for (let index = 0; index < options.rounds; index++) {
+                const began = performance.now();
+                await surface.press('Control+z');
+                const milliseconds = performance.now() - began;
+                await verifyText(options.warmup + options.rounds - index - 1);
+                history.push({ cycle: round, operation: 'undo', step: index, milliseconds });
+              }
               await memory('undo-' + round);
-              for (let index = 0; index < options.rounds; index++) await surface.press('Control+y');
+              for (let index = 0; index < options.rounds; index++) {
+                const began = performance.now();
+                await surface.press('Control+y');
+                const milliseconds = performance.now() - began;
+                await verifyText(options.warmup + index + 1);
+                history.push({ cycle: round, operation: 'redo', step: index, milliseconds });
+              }
               await memory('redo-' + round);
             }
             let content = '';
@@ -184,6 +217,7 @@ export async function editorPerformance(app, fixture, check, options, runs) {
             files.map((file) => ({ ...manifest, path: file.path })),
           );
           assert.equal(owners.length, 0);
+          run.resources.released = true;
         });
       }
   } finally {

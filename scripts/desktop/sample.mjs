@@ -1,5 +1,6 @@
-import { cp, mkdir, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { cp, mkdir, writeFile, readFile } from 'node:fs/promises';
+import { join, dirname } from 'node:path';
+import { csvSample, csvText, immersiveFiles, samplePng } from '../shared/performance-samples.mjs';
 
 export const sampleInfo = { id: 'desktop_sample', name: 'Desktop sample', version: '1', gameVersion: '0.98a' };
 export const commodityText = (names = ['First', 'Second']) =>
@@ -16,22 +17,16 @@ export async function prepareSample(work, source, count) {
     for (const path of ['data/campaign', 'data/hulls', 'data/weapons']) await mkdir(join(mod, path), { recursive: true });
     await writeFile(join(mod, 'mod_info.json'), JSON.stringify(sampleInfo), 'utf8');
     await writeFile(join(mod, 'data/campaign/commodities.csv'), commodityText(), 'utf8');
-    const columns = ['id', 'name', ...Array.from({ length: 38 }, (_, index) => 'sample_' + index)];
     for (const [path, kind] of /** @type {const} */ ([
       ['data/hulls/ship_data.csv', 'ship'],
       ['data/weapons/weapon_data.csv', 'weapon'],
     ])) {
-      const rows = Array.from({ length: count }, (_, index) =>
-        [kind + '_' + index, 'Sample ' + index, ...Array.from({ length: 38 }, (_, column) => String(index + column))].join(','),
-      );
-      await writeFile(join(mod, path), columns.join(',') + '\n' + rows.join('\n') + '\n', 'utf8');
+      const { header, rows } = csvSample(count, kind);
+      await writeFile(join(mod, path), csvText(header, rows), 'utf8');
     }
     await writeFile(join(mod, 'notes.txt'), 'Initial text', 'utf8');
   }
-  await writeFile(
-    join(core, 'graphics/first.png'),
-    Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/l1sAAAAASUVORK5CYII=', 'base64'),
-  );
+  await writeFile(join(core, 'graphics/first.png'), Buffer.from(samplePng, 'base64'));
   return {
     game,
     mod,
@@ -42,4 +37,16 @@ export async function prepareSample(work, source, count) {
     source: source ?? 'generated',
     count,
   };
+}
+
+/** @param {Awaited<ReturnType<typeof prepareSample>>} fixture @param {number} count @param {'weapons'|'wings'|'hullmods'} [catalog] @param {number} [entries] */
+export async function prepareImmersiveSample(fixture, count, catalog, entries) {
+  const defaults = JSON.parse(await readFile(new URL('../../schemas/spec-defaults.json', import.meta.url), 'utf8'));
+  for (const [relative, content] of immersiveFiles(defaults, count, catalog, entries)) {
+    const path = join(fixture.mod, relative);
+    await mkdir(dirname(path), { recursive: true });
+    await writeFile(path, content, 'utf8');
+  }
+  await mkdir(join(fixture.mod, 'graphics'), { recursive: true });
+  await writeFile(join(fixture.mod, 'graphics/sample.png'), Buffer.from(samplePng, 'base64'));
 }

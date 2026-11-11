@@ -29,7 +29,9 @@
 - `src/app/composables/use-window-close-state.ts`：窗口关闭保护。
 - `src/app/composables/use-window-shortcuts.ts`：保存和历史快捷键。
 - `src/domain/project-sync/committed-text.ts`：正式回执中的所属文件文本。
-- `src/orchestrators/project-sync.orchestrator.ts`：保存接纳与外部更新。
+- `src/orchestrators/project-sync.orchestrator.ts`：保存接纳、外部更新及所属项目队列交接等待。
+- `src/orchestrators/window-identity.orchestrator.ts`：整批文本提交的目标预约和释放。
+- `src/services/java-analysis.service.ts`：所属窗口的分析启动、草稿交接、查询与关闭。
 - `src/services/text-editor.service.ts`：正式文本读取与保存。
 - `src/shared/lib/errors.ts`：原始错误和位置转换。
 - `src/shared/lib/paths.ts`：文件路径比较及范围。
@@ -57,6 +59,7 @@
 - 保存复用正式项目执行及参与者，写盘回执交给原文档。
 - 文件读取和保存路径由正式授权边界交付。
 - 窗口 composable 装配请求接纳与关闭参与者，文本组件持有输入、选择和滚动状态。
+- 分析适配拥有后台准备、草稿交接及结果接纳，引用源码来自所属项目快照并以只读文档展示。
 
 ## 链路
 
@@ -88,3 +91,8 @@
 - 保存捕获必须等待组词提交并分隔前后输入历史，保留较早历史与保存期间的新文本。
 - 标签关闭必须等待所属保存，dirty 选择必须绑定所属文档。
 - 文档释放必须结束历史、读取与保存登记，窗口释放必须结束全部待交付回执。
+- Java 草稿必须在组词完成及停笔 300 ms 后串行提交范围修改，定位查询先等待待交付内容，结果只接纳对应内容与路径的快照。
+- 分析刷新优先交付活动文件；同项目版本复用已有后台投影，语义变化后按新版本接纳全部所属文件结果。
+- 引用源码标签必须同时禁止输入、撤销修改与保存登记；关闭窗口必须等待所属请求并释放分析项目。
+- 多文件修改必须先核对预览项目版本及全部草稿，再共同接纳；关联保存及撤销覆盖同一批文件，保存回执保留后续输入。
+- 补全候选与参数签名按当前内容和光标接纳，导入歧义由明确选择交付，重命名先展示范围与冲突。

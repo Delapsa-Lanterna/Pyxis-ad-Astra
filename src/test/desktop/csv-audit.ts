@@ -149,10 +149,27 @@ export function installCsvAudit() {
     if (operation === 'switch') current = undefined;
     const panel = document.querySelector<HTMLElement>('.table-panel')!;
     let start = performance.now();
+    let operationMilliseconds = 0;
     if (operation === 'switch') nav(label);
     else {
       const maxTop = panel.scrollHeight - panel.clientHeight,
         maxLeft = panel.scrollWidth - panel.clientWidth;
+      if (operation === 'roundTrip' || operation === 'traverse') {
+        const began = performance.now();
+        const positions =
+          operation === 'roundTrip'
+            ? [maxTop / 2, maxTop, 0, maxTop, 0]
+            : Array.from({ length: Math.ceil(panel.scrollHeight / panel.clientHeight) }, (_, index) => index * panel.clientHeight);
+        for (const position of positions) {
+          const step = performance.now();
+          panel.scrollTop = position;
+          panel.dispatchEvent(new Event('scroll'));
+          await complete(label, step);
+        }
+        panel.scrollTop = 0;
+        operationMilliseconds = performance.now() - began;
+        start = performance.now();
+      }
       if (operation === 'tail') panel.scrollTop = maxTop;
       if (operation === 'top') panel.scrollTop = 0;
       if (operation === 'right') panel.scrollLeft = maxLeft;
@@ -170,7 +187,7 @@ export function installCsvAudit() {
     }
     const fields = (await complete(label, start))!;
     const extra = (await auxiliary(label, start))!;
-    return { ...fields, ...extra };
+    return { ...fields, ...extra, operationMilliseconds };
   }
   function activateMod(mod: string) {
     const normalize = (path: string) =>
@@ -182,5 +199,5 @@ export function installCsvAudit() {
     const tab = Array.from(document.querySelectorAll<HTMLElement>('.mod-tab')).find((item) => normalize(item.title) === mod)!;
     tab.querySelector<HTMLButtonElement>('.mod-tab-activate')!.click();
   }
-  return Object.assign(window, { __csvBench: { measure, frame, activateMod } }).__csvBench;
+  return Object.assign(window, { __csvBench: { measure, frame, activateMod, ready: (label: string) => Boolean(state(label)) } }).__csvBench;
 }

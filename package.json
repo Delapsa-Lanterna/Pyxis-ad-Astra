@@ -46,6 +46,7 @@
     "ci:full": "npm run format:check && npm run lint:full && npm run lint:checks && npm run typecheck && npm run test:checks && npm run test:resources && npm run test && npm run lint:rust && npm run test:rust && npm run build && npm run tauri -- build --no-bundle && git diff --check"
   },
   "dependencies": {
+    "@codemirror/autocomplete": "6.20.4",
     "@codemirror/commands": "^6.11.1",
     "@codemirror/lang-java": "6.0.2",
     "@codemirror/language": "6.13.1",

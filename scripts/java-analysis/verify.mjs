@@ -3,12 +3,15 @@ import { execFileSync } from 'node:child_process';
 import { mkdir, readFile, stat, readdir } from 'node:fs/promises';
 import { join, delimiter, relative, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
+import { tmpdir } from 'node:os';
 import { Session, command } from './session.mjs';
 import { root, output, reports, resources, readJson, files, sha256, run, javaTool, versions, setReportDirectory } from './runtime.mjs';
 import { TestWorkspace, reserveTestOutput } from '../shared/test-workspace.mjs';
 import { lifecycle, dependencies } from './lifecycle.mjs';
 import { performanceComparison } from './performance.mjs';
 import { incremental } from './incremental.mjs';
+import { editorQueries } from './editor-queries.mjs';
+import { sourceActions } from './source-actions.mjs';
 
 const { values } = parseArgs({
   options: {
@@ -49,6 +52,7 @@ else {
   setReportDirectory(join(directory, 'commands'));
   /** @type {TestWorkspace | undefined} */
   let work;
+  let shortWork;
   const report = {
     passed: false,
     errors: /** @type {string[]} */ ([]),
@@ -57,6 +61,8 @@ else {
     workcopies: {},
     dependencies: {},
     incremental: {},
+    editorQueries: {},
+    sourceActions: {},
     performance: /** @type {unknown[]} */ ([]),
     libraryInventory: /** @type {{path:string,sha256:string}[]} */ ([]),
     paths: /** @type {unknown[]} */ ([]),
@@ -117,6 +123,8 @@ else {
       report.workcopies = await lifecycle(session, work.path('fixture'), javaHome);
       report.dependencies = await dependencies(session, work.path('dependency-fixture'), javaHome);
       report.incremental = await incremental(session, work.path('incremental'), javaHome);
+      report.editorQueries = await editorQueries(session, work.path('editor-queries'), javaHome);
+      report.sourceActions = await sourceActions(session, work.path('source-actions'), javaHome);
       for (const newline of ['\n', '\r\n']) {
         const source = '// 🪐' + newline + 'record Orbit(int radius) {}';
         const parsed = (await session.request('parse', { source, version: 1 })).value;
@@ -179,10 +187,18 @@ else {
     report.libraryInventory = libraryInventory;
     assert.deepEqual(await readdir(paths.workspaces), []);
     assert.ok((await readdir(paths.logs)).length > 0);
-    const alias = 'AST' + Date.now().toString(16).slice(-3) + '~1';
-    execFileSync('fsutil', ['file', 'setshortname', config, alias], { windowsHide: true });
-    const parent = join(config, '..');
-    const configs = [join(parent, alias), work.path('long/' + 'a'.repeat(65) + '/' + 'b'.repeat(65) + '/' + 'c'.repeat(65))];
+    shortWork = await TestWorkspace.create(tmpdir(), 'pyxis-java-short');
+    const alias = execFileSync(
+      'powershell.exe',
+      [
+        '-NoProfile',
+        '-Command',
+        '[Console]::Write((New-Object -ComObject Scripting.FileSystemObject).GetFolder($env:PYXIS_JAVA_SHORT_ROOT).ShortPath)',
+      ],
+      { windowsHide: true, encoding: 'utf8', env: { ...process.env, PYXIS_JAVA_SHORT_ROOT: shortWork.root } },
+    ).trim();
+    assert.ok(alias.includes('~'), 'The system must supply an actual 8.3 path');
+    const configs = [alias, work.path('long/' + 'a'.repeat(65) + '/' + 'b'.repeat(65) + '/' + 'c'.repeat(65))];
     for (const selected of configs) {
       await command(selected, 'import', { archive: join(output, 'jdt-dependencies.zip') });
       const short = await Session.start(selected, java);
@@ -230,6 +246,7 @@ else {
     let resourcesReleased = true;
     try {
       await work?.close();
+      await shortWork?.close();
     } catch (error) {
       resourcesReleased = false;
       report.errors.push(String(error));
@@ -248,9 +265,13 @@ else {
       await markdownOutput.handle.writeFile(
         '# Java 分析验收\n\n判定：' +
           (report.passed ? '通过' : '失败') +
-          '\n\n```json\n' +
-          JSON.stringify({ environment, mods: report.mods, performance: report.performance }, null, 2) +
-          '\n```\n',
+          '\n\n原始样本、指纹、诊断及释放结果：[' +
+          relative(directory, reportOutput.path) +
+          '](' +
+          relative(directory, reportOutput.path) +
+          ')。\n\n' +
+          report.mods.map((entry) => JSON.stringify(entry)).join('\n\n') +
+          '\n',
         'utf8',
       );
     } finally {

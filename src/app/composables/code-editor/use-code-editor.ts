@@ -95,8 +95,9 @@ export function useCodeEditor(owner: Pick<CodeEditorOpen, 'sessionId' | 'modRoot
   function close(document: CodeDocument) {
     return serialize(async () => {
       if (!(await commands.waitForParticipant(document.participant))) return;
-      if (document.session.dirty.value) {
+      if (document.dirty.value) {
         const before = document.session.draftValue.value;
+        const unchanged = document.group.value?.capture();
         const choice = await feedback.choose({
           title: '关闭文件？',
           content: document.path.value,
@@ -107,11 +108,14 @@ export function useCodeEditor(owner: Pick<CodeEditorOpen, 'sessionId' | 'modRoot
           cancelText: '继续编辑',
         });
         if (!choice) return;
-        if (choice === 'save' && (!(await save(document)) || document.session.dirty.value)) return;
+        if (unchanged && !unchanged()) return;
+        if (choice === 'save' && (!(await save(document)) || document.dirty.value)) return;
         if (choice === 'discard' && before !== document.session.draftValue.value) return;
+        if (choice === 'discard') document.group.value?.discard();
       }
       const index = documents.indexOf(document);
       if (index < 0 || disposed) return;
+      document.group.value?.release();
       if (active.value === document) active.value = documents[index + 1] ?? documents[index - 1] ?? null;
       documents.splice(index, 1);
       document.dispose();
@@ -126,6 +130,7 @@ export function useCodeEditor(owner: Pick<CodeEditorOpen, 'sessionId' | 'modRoot
     const update = sessionContentUpdate(event, owner.sessionId);
     if (!update || disposed) return;
     for (const document of [...documents]) {
+      if (document.readOnly) continue;
       try {
         const target = document.session.currentTarget.value!;
         const renamed = update.invalidation.renames?.find(([before]) => pathBelongsToRoot(target.path, before));
@@ -219,17 +224,30 @@ export function useCodeEditor(owner: Pick<CodeEditorOpen, 'sessionId' | 'modRoot
     opening.clear();
   });
   return {
+    isDisposed: () => disposed,
     documents,
     active,
     location,
     ready,
     settle: () => queue,
-    openFiles,
+    openFiles: (files: CodeEditorFile[]) => serialize(() => openFiles(files)),
+    openSnapshot: (path: string, source: string) =>
+      serialize(async () => {
+        if (disposed) return null;
+        let document = documents.find((entry) => normalizeFsPath(entry.path.value) === normalizeFsPath(path));
+        if (!document) {
+          document = createCodeDocument(owner, path, source);
+          await document.load();
+          documents.push(document);
+        }
+        active.value = document;
+        return document;
+      }),
     save,
     saveAll,
     close,
     move,
-    dirty: computed(() => documents.some((document) => document.session.dirty.value)),
+    dirty: computed(() => documents.some((document) => document.dirty.value)),
     label: (document: CodeDocument) =>
       tabLabel(
         document.path.value,

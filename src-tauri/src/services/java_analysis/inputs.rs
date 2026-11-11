@@ -20,6 +20,7 @@ pub struct AnalysisExtras {
 #[serde(rename_all = "camelCase")]
 pub struct AnalysisInputs {
     pub session_id: String,
+    pub mod_root: String,
     pub sources: Vec<String>,
     pub classpath: Vec<String>,
     pub java_home: String,
@@ -94,6 +95,7 @@ pub fn inputs_for_session(session_id: &str, extras: &AnalysisExtras) -> AppResul
     let java_home = game_boundary.resolve_relative("jre", "Java standard library")?;
     let mut input = AnalysisInputs {
         session_id: session_id.into(),
+        mod_root: manifest.mod_root.clone(),
         sources: Vec::new(),
         classpath: Vec::new(),
         java_home: java_path(&java_home).to_string_lossy().to_string(),

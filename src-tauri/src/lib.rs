@@ -6,6 +6,7 @@ use crate::services::{
 };
 use serde_json::json;
 pub use services::java_analysis;
+use services::java_analysis::editor as java_editor;
 use std::sync::Arc;
 use tauri::ipc::Invoke;
 use tauri::{Builder, Emitter, Manager, RunEvent, WindowEvent, async_runtime};
@@ -96,6 +97,15 @@ pub fn run() {
             {
                 diagnostics::failure(
                     "window.close_release_failed",
+                    error,
+                    json!({"window":window.label()}),
+                );
+            }
+            if matches!(event, WindowEvent::Destroyed)
+                && let Err(error) = java_editor::release(window.app_handle(), window.label())
+            {
+                diagnostics::failure(
+                    "java_analysis.editor_release",
                     error,
                     json!({"window":window.label()}),
                 );
@@ -197,6 +207,7 @@ pub fn run() {
                     commands::cancel_java_analysis,
                     commands::open_java_analysis_directory,
                     commands::java_analysis_context,
+                    commands::java_editor,
                     commands::unregister_save_window,
                     commands::abandon_project_saves,
                     commands::resolve_save_sources,

@@ -20,6 +20,7 @@ import { miscConfigDefinition } from '@/domain/misc-config';
 import { composeJson } from '@/domain/json-composition';
 import { isRowData } from '@/shared/lib/row-data';
 import { createJavaComponentPreview } from './java-analysis';
+import { createJavaQueryPreview } from './java-queries';
 import { createCodeEditorPreview } from './code-editor';
 import { gameFiles } from './sample-data';
 
@@ -30,6 +31,7 @@ export function createBrowserWorkspace(
   buildProjects = () => [coreRoot, ...workspaceRoots].map((root, index) => createWorkspaceProject(root, index)),
 ) {
   const javaAnalysis = createJavaComponentPreview();
+  const javaQueries = createJavaQueryPreview();
   const codeEditor = createCodeEditorPreview(
     (owner, request) => invoke(owner, 'request_window', { payload: request }) as Promise<T.WindowRequestReceipt>,
   );
@@ -208,6 +210,7 @@ export function createBrowserWorkspace(
     setTimeout(() => {
       targets.forEach((key) => {
         codeEditor.release(key);
+        javaQueries.release(key);
         windows.delete(key);
         channels.delete(key);
         saveReceivers.delete(key);
@@ -220,6 +223,7 @@ export function createBrowserWorkspace(
   }
   async function invoke(label: string, command: string, args: Record<string, unknown> = {}): Promise<unknown> {
     calls.push({ window: label, command });
+    if (command === 'java_editor') return javaQueries.invoke(label, args.action as Parameters<typeof javaQueries.invoke>[1]);
     if (javaAnalysis.commands.has(command)) return javaAnalysis.invoke(command, args);
     if (codeEditor.commands.has(command)) return codeEditor.invoke(label, command, args);
     const request = command === 'save_project' ? (args.request as T.SaveRequest) : null;
@@ -669,6 +673,37 @@ export function createBrowserWorkspace(
         result = receiver.write(null, { kind: 'text', path }, [path]);
         break;
       }
+      case 'save_text_batch': {
+        const input = payload as unknown as T.TextBatchSave;
+        const changes: T.FileChangeRecord[] = input.files.map((file) => ({
+          kind: 'file',
+          beforePath: file.path,
+          afterPath: file.target ?? file.path,
+          beforeExists: true,
+          afterExists: true,
+          beforeText: receiver.textFiles.get(file.path)!,
+          afterText: file.text,
+          beforeDataBase64: null,
+          afterDataBase64: null,
+          beforeFiles: [],
+          afterFiles: [],
+        }));
+        for (const change of changes) {
+          receiver.textFiles.delete(change.beforePath);
+          receiver.textFiles.set(change.afterPath, change.afterText!);
+        }
+        const saved = receiver.write(
+          null,
+          { kind: 'text', path: input.files[0]!.target ?? input.files[0]!.path },
+          changes.map((change) => change.afterPath),
+        );
+        saved.changes = changes;
+        saved.invalidation.renames = changes
+          .filter((change) => change.beforePath !== change.afterPath)
+          .map((change) => [change.beforePath, change.afterPath]);
+        result = saved;
+        break;
+      }
       case 'query_joint_edit': {
         const input = payload as unknown as T.JointEditQuery;
         if (input.catalog)
@@ -739,6 +774,7 @@ export function createBrowserWorkspace(
   }
   addWindow('main', null);
   return {
+    javaQueries,
     get projects() {
       return projects;
     },

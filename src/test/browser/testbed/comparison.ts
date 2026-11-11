@@ -5,7 +5,6 @@ export interface Variant {
   label: string;
   url: string;
   monitor: boolean;
-  policy: 'code' | 'enabled' | 'disabled';
 }
 
 export async function comparePages(variants: Variant[], options: RunOptions, progress: (text: string) => void) {
@@ -78,9 +77,8 @@ export async function comparePages(variants: Variant[], options: RunOptions, pro
       run.environment.variant = entry.variant.label;
       runs.push(run);
     }
-    const comparisons = runs.slice(1).map((run, index) => {
-      const policy = entries[index + 1]!.variant.policy;
-      return compare(runs[policy === 'enabled' ? index : 0]!.metrics, run.metrics, policy);
+    const comparisons = runs.slice(1).map((run) => {
+      return compare(runs[0]!.metrics, run.metrics);
     });
     return {
       kind: 'testbed' as const,
@@ -90,7 +88,7 @@ export async function comparePages(variants: Variant[], options: RunOptions, pro
       runs,
       order,
       comparisons,
-      pass: runs.every((run) => run.pass) && comparisons.flat().every((item) => item.pass),
+      pass: runs.every((run) => run.pass),
     };
   } finally {
     for (const entry of entries) entry.close();

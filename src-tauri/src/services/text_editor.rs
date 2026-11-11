@@ -2,7 +2,7 @@ use crate::domain::document_edit::JsonDraft;
 use crate::domain::entity_definitions;
 use crate::domain::schema::{ScalarKind, ScalarRule};
 use crate::errors::{AppError, AppResult};
-use crate::io::{self, FsRootBoundary};
+use crate::io::{self, FileChangeSetBuilder, FsRootBoundary};
 use crate::models;
 use crate::models::file_content::DraftEdit;
 use crate::models::file_content::SaveLayout;
@@ -11,10 +11,12 @@ use crate::models::{
     EntityIdentityChange, EntityKind, FileChangeReplayDirection, TextFileData, TextSave,
     WriteContentTarget, WriteResult,
 };
+use crate::models::{TextBatchSave, windows_path_key};
 use crate::parsers::game;
 use crate::parsers::game::text;
 use crate::services::{project, query_file_entity_target};
 use serde_json::{Value, json};
+use std::collections::BTreeSet;
 use std::path::Path;
 use std::sync::Arc;
 
@@ -68,6 +70,41 @@ pub fn save_project_text_file(
     let path = target.to_string_lossy().into_owned();
     let actual = json!({"text":text});
     Ok(save_text_file(root, &path, text)?.with_content(WriteContentTarget::Text { path }, actual))
+}
+
+pub fn save_text_batch(input: TextBatchSave) -> AppResult<WriteResult> {
+    let root = FsRootBoundary::new(Path::new(&input.mod_root), "text batch root")?;
+    let mut builder = FileChangeSetBuilder::new(root.root())?;
+    let mut occupied = BTreeSet::new();
+    for file in input.files {
+        let source = root.resolve_absolute(Path::new(&file.path), "text batch source")?;
+        let target = root.resolve_absolute_target(
+            Path::new(file.target.as_deref().unwrap_or(&file.path)),
+            "text batch target",
+        )?;
+        if !occupied.insert(windows_path_key(&source.to_string_lossy()))
+            || (source != target && !occupied.insert(windows_path_key(&target.to_string_lossy())))
+        {
+            return Err(
+                AppError::message("text.batch_overlap", "文本批次包含重叠目标").at_path(&source),
+            );
+        }
+        if !input.base_versions.iter().any(|version| {
+            windows_path_key(&version.path) == windows_path_key(&source.to_string_lossy())
+        }) {
+            return Err(
+                AppError::message("text.batch_version", "文本批次缺少来源版本").at_path(&source),
+            );
+        }
+        let before = io::forward_slash_relative_path(root.root(), &source);
+        let after = io::forward_slash_relative_path(root.root(), &target);
+        if source == target {
+            builder.text_file(before, Some(file.text))?;
+        } else {
+            builder.rename_text_file(&before, &after, file.text)?;
+        }
+    }
+    Ok(WriteResult::from_changes(builder.apply()?))
 }
 pub fn transcode_file_to_utf8(root: &str, path: &str, encoding: &str) -> AppResult<WriteResult> {
     let _lease = io::acquire_root_write_lock(Path::new(root))?;
@@ -135,11 +172,61 @@ mod tests {
     use super::*;
     use crate::io::read_utf8_no_bom;
     use crate::io::write_utf8_no_bom;
+    use crate::models::{SaveAction, TextFileWrite};
+    use crate::services::project::PerformanceTrace;
     use crate::services::project::test_support::project_workspace;
+    use crate::services::{project_save, project_sync};
     use crate::test_support::TestWorkspace;
     #[cfg(test)]
     use encoding_rs::{GB18030, WINDOWS_1252};
     use std::fs;
+
+    #[test]
+    fn batch_save_moves_and_writes_together_and_rejects_stale_sources() {
+        let root = project_workspace("text_batch");
+        let first = root.join("A.java");
+        let second = root.join("B.java");
+        let moved = root.join("Beacon.java");
+        fs::write(&first, "class A {}").unwrap();
+        fs::write(&second, "class B {A a;}").unwrap();
+        let manifest =
+            project::open_project_session_traced(&root, None, &mut PerformanceTrace::new("batch"))
+                .unwrap();
+        let input = TextBatchSave {
+            session_id: manifest.session_id.clone(),
+            mod_root: manifest.mod_root.clone(),
+            base_versions: vec![
+                io::file_version(&first).unwrap(),
+                io::file_version(&second).unwrap(),
+            ],
+            files: vec![
+                TextFileWrite {
+                    path: first.to_string_lossy().into(),
+                    target: Some(moved.to_string_lossy().into()),
+                    text: "class Beacon {}".into(),
+                },
+                TextFileWrite {
+                    path: second.to_string_lossy().into(),
+                    target: None,
+                    text: "class B {Beacon a;}".into(),
+                },
+            ],
+        };
+        fs::write(&second, "changed").unwrap();
+        assert!(
+            project_save::execute_save_action(SaveAction::SaveTextBatch(input.clone())).is_err()
+        );
+        assert!(first.exists());
+        assert!(!moved.exists());
+        fs::write(&second, "class B {A a;}").unwrap();
+        let saved = project_save::execute_save_action(SaveAction::SaveTextBatch(input)).unwrap();
+        assert_eq!(saved.changes.len(), 2);
+        assert!(!first.exists());
+        assert_eq!(fs::read_to_string(&moved).unwrap(), "class Beacon {}");
+        assert_eq!(fs::read_to_string(&second).unwrap(), "class B {Beacon a;}");
+        project_sync::release_project_session(manifest.session_id).unwrap();
+        root.close().unwrap();
+    }
 
     #[test]
     fn recovery_editor_loads_file_inside_mod_root() {

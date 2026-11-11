@@ -232,12 +232,28 @@ impl SourceReader {
         keep: impl Fn(&str, &FileVersion) -> bool,
     ) -> AppResult<BTreeMap<PathBuf, FileVersion>> {
         let mut result = BTreeMap::new();
+        let mut authorized = BTreeSet::new();
         for path in self.files(relative)? {
             let key = self.key(&path);
             if !self.tracks(&key) {
                 continue;
             }
-            let version = self.stage_version(&path)?;
+            let version = if path.is_file() {
+                // Authorize shared ancestors once within this directory byte snapshot.
+                for ancestor in path.ancestors() {
+                    if authorized.insert(ancestor.to_path_buf()) {
+                        io::validate_walk_entry(ancestor, "source file")?;
+                    }
+                }
+                let file = self.disk_file(&path)?;
+                let version = file.version.clone();
+                self.stamps.insert(key.clone(), stamp(&path)?);
+                self.versions.insert(key.clone(), version.clone());
+                self.bytes.insert(key.clone(), file);
+                version
+            } else {
+                self.stage_version(&path)?
+            };
             if !keep(&key, &version) {
                 self.bytes.remove(&key);
             }
@@ -246,12 +262,25 @@ impl SourceReader {
         Ok(result)
     }
     pub fn json_source(&mut self, path: &Path) -> AppResult<Arc<JsonSource>> {
-        let path = self.boundary.resolve_absolute(path, "source file")?;
+        // Loaded products already belong to this reader's captured source version.
+        if let Some(source) = self.loaded_json(&self.key(path)) {
+            return Ok(source);
+        }
+        let staged = self
+            .bytes
+            .get(&self.key(path))
+            .is_some_and(|file| Path::new(&file.version.path) == path);
+        // Staged bytes already carry the authorized path and its matching version.
+        let path = if staged {
+            path.to_path_buf()
+        } else {
+            #[cfg(test)]
+            work_counts::record("source-path", path);
+            self.boundary.resolve_absolute(path, "source file")?
+        };
         let key = self.key(&path);
-        if self.loaded.contains(&key)
-            && let SourceProduct::Json(source) = &self.records[&key].product
-        {
-            return Ok(source.clone());
+        if let Some(source) = self.loaded_json(&key) {
+            return Ok(source);
         }
         let file = self.read_file(&path)?;
         let source = match self.records.get(&key) {
@@ -287,6 +316,15 @@ impl SourceReader {
         self.versions.insert(key.clone(), file.version);
         self.loaded.insert(key);
         Ok(source)
+    }
+    fn loaded_json(&self, key: &str) -> Option<Arc<JsonSource>> {
+        if self.loaded.contains(key)
+            && let SourceProduct::Json(source) = &self.records[key].product
+        {
+            Some(source.clone())
+        } else {
+            None
+        }
     }
     pub fn json(&mut self, path: &Path) -> AppResult<Value> {
         self.json_source(path)?

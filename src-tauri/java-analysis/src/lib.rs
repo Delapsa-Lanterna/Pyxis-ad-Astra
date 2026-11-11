@@ -10,12 +10,12 @@ pub mod transfer;
 pub mod versions;
 pub use error::{Error, Result};
 pub use package::{Artifact, Builtin, Manifest, Package, PackageFile};
-pub use paths::java_path;
+pub use paths::{AnalysisPaths, java_path};
 pub use process::Engine;
 pub use protocol::{
     AnalysisError, AnalysisRequest, AnalysisResponse, FileChange, FileChangeAction,
 };
-pub use runtime::{AnalysisEvent, AnalysisPaths, AnalysisRuntime, EventSink};
+pub use runtime::{AnalysisEvent, AnalysisRuntime, EventSink};
 fn invalid(message: impl Into<String>) -> Error {
     Error::Invalid(message.into())
 }

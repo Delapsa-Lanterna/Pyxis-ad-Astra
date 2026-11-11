@@ -23,6 +23,22 @@ pub struct TextSave {
     pub text: String,
 }
 
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TextBatchSave {
+    pub base_versions: Vec<FileVersion>,
+    pub session_id: ProjectSessionId,
+    pub mod_root: String,
+    pub files: Vec<TextFileWrite>,
+}
+#[derive(Debug, Clone, Deserialize)]
+pub struct TextFileWrite {
+    pub path: String,
+    pub target: Option<String>,
+    pub text: String,
+}
+project_identity::impl_session_mod_scope_required!(TextBatchSave);
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TextTranscode {

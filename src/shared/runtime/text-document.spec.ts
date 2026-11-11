@@ -7,7 +7,16 @@ import { SearchQuery, getSearchQuery, setSearchQuery } from '@codemirror/search'
 import { textIndentation } from './text-features';
 import type { EditContext } from '@/shared/types';
 import { createFieldInputs } from './field-inputs';
-import { createTextDocument, readTextContent, sameTextContent, writeTextContent, type TextDocument } from './text-document';
+import {
+  createTextDocument,
+  readTextContent,
+  sameTextContent,
+  writeTextContent,
+  sourceOffset,
+  displayOffset,
+  sourceSlice,
+  type TextDocument,
+} from './text-document';
 
 const documents: TextDocument[] = [];
 afterEach(() => {
@@ -23,6 +32,14 @@ function open(source: string, file = 'Sample.txt') {
   return { value, context, limit, path, doc, raw: () => writeTextContent(value.value) };
 }
 describe('immutable text documents', () => {
+  it.each(['', '甲🪐\n乙\r\n丙\r丁', '\r\n\r\n', 'x\ny'])('maps raw UTF-16 locations and source slices: %j', (source) => {
+    const value = readTextContent(source);
+    for (let from = 0; from <= value.text.length; from++) {
+      expect(displayOffset(value, sourceOffset(value, from))).toBe(from);
+      for (let to = from; to <= value.text.length; to++)
+        expect(sourceSlice(value, from, to)).toBe(source.slice(sourceOffset(value, from), sourceOffset(value, to)));
+    }
+  });
   it.each([
     ['class Sample {\n  void run() {}\n}', '  '],
     ['class Sample {\n\tvoid run() {}\n}', '\t'],

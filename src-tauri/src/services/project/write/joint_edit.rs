@@ -15,9 +15,8 @@ use crate::models::file_content::{DraftEdit, PreparedValue};
 use crate::models::file_value::Value as FileValue;
 use crate::models::{
     AssociatedSpecCreateParams, CsvRowKeyMapping, CsvTableKey, EntityIdentityChange, EntityKind,
-    EntityLinkedRecord, JointEditKind, JointEditQuery, JointEditSnapshot, JointEditSubmission,
-    JointRecordTarget, JointValue, ResourceSource, SaveEdit, WriteContentTarget, WriteResult,
-    windows_path_key,
+    EntityLinkedRecord, JointEditKind, JointEditSnapshot, JointEditSubmission, JointRecordTarget,
+    JointValue, ResourceSource, SaveEdit, WriteContentTarget, WriteResult, windows_path_key,
 };
 use crate::parsers;
 use crate::services::project::model::{self, SessionCsvRow};
@@ -726,7 +725,11 @@ pub fn prepare_joint_save(
 ) -> AppResult<()> {
     verify_sources(&input.snapshot)?;
     io::verify_versions(&input.snapshot.root.mod_root, &input.base_versions)?;
+    let mut parent_ids = joint_edit::renamed_variants(&input.snapshot.records, &input.values);
     for identity in identities {
+        if identity.before.kind == EntityKind::Variant && parent_ids.remove(&identity.before.id) {
+            parent_ids.insert(identity.after.id.clone());
+        }
         if identity.before.id == input.snapshot.root.id
             && root_identity(input.snapshot.root.kind, identity.before.kind)
         {
@@ -748,14 +751,27 @@ pub fn prepare_joint_save(
             })
             .map(|(key, value)| (key.clone(), value.clone())),
     );
-    let current = joint_edit::query_joint_edit_request(&JointEditQuery {
-        root: input.snapshot.root.clone(),
-        row_key: None,
-        values: Some(retained),
-        new_sources: input.snapshot.new_sources.clone(),
-        catalog: None,
-        catalog_source: None,
-    })?;
+    let current = joint_edit::query_joint_edit_values(
+        &input.snapshot.root,
+        Some(&retained),
+        &input.snapshot.new_sources,
+        &parent_ids,
+    )?;
+    for record in &current.records {
+        if !parent_ids.is_empty()
+            && !input
+                .snapshot
+                .records
+                .iter()
+                .any(|original| original.key == record.key)
+        {
+            return Err(AppError::message(
+                "write.version_conflict",
+                "联合改名影响范围已变化，请重新确认",
+            )
+            .at_path(&record.target.write().path));
+        }
+    }
     let mut documents = BTreeMap::new();
     let mut values = BTreeMap::new();
     let mut columns = BTreeMap::new();

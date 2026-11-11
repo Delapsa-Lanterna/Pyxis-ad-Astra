@@ -3,6 +3,8 @@ import { runBrowser } from './runtime.mjs';
 import { verifyBrowserUI } from './preview/cases/ui.mjs';
 import { verifyEditors } from './preview/cases/editors.mjs';
 import { verifyJavaAnalysis } from './preview/cases/java-analysis.mjs';
+import { verifyJavaQueries } from './preview/cases/java-queries.mjs';
+import { verifySourceActions } from './preview/cases/source-actions.mjs';
 
 const { values } = parseArgs({
   options: { scene: { type: 'string', default: 'all' }, url: { type: 'string' }, output: { type: 'string' } },
@@ -14,6 +16,8 @@ await runBrowser('preview', values, async ({ browser, newPage, artifacts }) => {
       { id: 'workspace', run: async () => verifyBrowserUI(browser, values.url ?? 'http://127.0.0.1:1461', artifacts + '/workspace') },
       { id: 'editors', run: async () => verifyEditors((await newPage()).page, artifacts) },
       { id: 'java-analysis', run: async () => verifyJavaAnalysis((await newPage()).page, artifacts) },
+      { id: 'java-queries', run: async () => verifyJavaQueries((await newPage()).page, artifacts) },
+      { id: 'source-actions', run: async () => verifySourceActions((await newPage()).page, artifacts) },
     ];
   const selected = scenes.filter((scene) => values.scene === 'all' || values.scene === scene.id);
   if (!selected.length) throw Error('Unknown preview scene: ' + values.scene);

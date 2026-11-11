@@ -9,8 +9,8 @@ use crate::io::csv_files;
 use crate::io::{file_version, verify_versions};
 #[cfg(test)]
 use crate::models::{
-    InvalidatedResourceScope, JointEditKind, JointEditRoot, JointValue, ResourceOwnerKind,
-    ResourceSource,
+    InvalidatedResourceScope, JointEditDraft, JointEditKind, JointEditRoot, JointValue,
+    ResourceOwnerKind, ResourceSource,
 };
 #[cfg(test)]
 use crate::services::project::query::{hull_references, joint_edit, resources as query_resources};
@@ -23,9 +23,9 @@ use crate::services::project::{
     PerformanceTrace, open_project_session_traced, refresh_project_sources, resources,
 };
 #[cfg(test)]
-use crate::test_support;
-#[cfg(test)]
 use crate::test_support::work_counts;
+#[cfg(test)]
+use crate::test_support::{self, TestWorkspace};
 #[cfg(test)]
 use std::fs;
 use std::slice;
@@ -56,12 +56,41 @@ fn directory_staging_retains_only_changed_bytes_and_hands_off_the_same_snapshot(
 }
 
 #[test]
+fn staged_directory_rechecks_cached_parent_links_before_reading_bytes() {
+    let (root, outside, _) =
+        TestWorkspace::directory_link("staged_parent_link", "data/hulls").unwrap();
+    let external = outside.join("sample.ship");
+    fs::write(&external, r#"{"hullId":"external"}"#).unwrap();
+    let mut reader = SourceReader::new(&root).unwrap();
+    let cached = reader.root().join("data/hulls/sample.ship");
+    reader
+        .paths
+        .insert("data/hulls".into(), vec![cached.clone()]);
+    reader.versions.insert(
+        "data/hulls/sample.ship".into(),
+        FileVersion {
+            path: cached.to_string_lossy().into_owned(),
+            fingerprint: Some("cached".into()),
+        },
+    );
+    for _ in 0..2 {
+        let error = reader
+            .stage_directory("data/hulls", |_, _| true)
+            .unwrap_err();
+        assert_eq!(error.code(), "path.link_rejected");
+    }
+    assert_eq!(work_counts::count("read", &external), 0);
+    root.close().unwrap();
+}
+
+#[test]
 fn source_reads_parses_and_directory_walks_are_reused_per_reader() {
     let root = project_workspace("source_work_counts");
     fs::create_dir_all(root.join("data/hulls/nested")).unwrap();
     let json = root.join("data/hulls/nested/sample.ship");
     let csv = root.join("data/hulls/table.csv");
     fs::write(&json, r#"{"hullId":"sample"}"#).unwrap();
+    let json = json.canonicalize().unwrap();
     fs::write(&csv, "id,name\nsample,Sample\n").unwrap();
     let mut sources = SourceReader::new(&root).unwrap();
     csv_files::take_csv_work();
@@ -74,12 +103,28 @@ fn source_reads_parses_and_directory_walks_are_reused_per_reader() {
     }
     assert_eq!(work_counts::count("read", &json), 1);
     assert_eq!(work_counts::count("parse", &json), 1);
+    assert_eq!(work_counts::count("source-path", &json), 1);
+    assert_eq!(
+        sources
+            .json(&root.join("data/hulls/nested/sample.ship"))
+            .unwrap()["hullId"],
+        "sample"
+    );
+    assert_eq!(work_counts::count("read", &json), 1);
+    assert_eq!(work_counts::count("parse", &json), 1);
     assert_eq!(csv_files::take_csv_work(), (1, 1, 0));
     assert_eq!(work_counts::count("walk", &root.join("data/hulls")), 1);
     assert_eq!(
         work_counts::count("walk", &root.join("data/hulls/nested")),
         0
     );
+    let path_checks = work_counts::count("source-path", &json);
+    fs::write(&json, r#"{"hullId":"changed"}"#).unwrap();
+    sources.invalidate_paths(&["data/hulls/nested/sample.ship"]);
+    assert_eq!(sources.json(&json).unwrap()["hullId"], "changed");
+    assert_eq!(work_counts::count("read", &json), 2);
+    assert_eq!(work_counts::count("parse", &json), 2);
+    assert_eq!(work_counts::count("source-path", &json), path_checks + 1);
     root.close().unwrap();
 }
 
@@ -376,6 +421,22 @@ fn joint_parent_version_matches() {
         id: "child".into(),
     })
     .unwrap();
+    let key = snapshot.bindings["variant"].clone();
+    let record = snapshot
+        .records
+        .iter()
+        .find(|record| record.key == key)
+        .unwrap();
+    let mut value = record.value.clone();
+    if let JointValue::Present(data) = &mut value {
+        data["variantId"] = json!("renamed");
+    }
+    let snapshot = joint_edit::prepare_joint_edit(&JointEditDraft {
+        baseline: snapshot,
+        values: BTreeMap::from([(key, value)]),
+    })
+    .unwrap()
+    .snapshot;
     let record = snapshot
         .records
         .iter()

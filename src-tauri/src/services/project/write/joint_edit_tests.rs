@@ -11,7 +11,7 @@ use crate::domain::entity_construction;
 use crate::errors::AppResult;
 use crate::io::write_utf8_no_bom;
 use crate::models::{
-    FileChangeReplayDirection, JointEditDraft, JointEditRoot, JointSourceCreate,
+    FileChangeReplayDirection, JointEditDraft, JointEditQuery, JointEditRoot, JointSourceCreate,
     JointVariantCatalogKind, ResourceOwnerKind, WeaponSpecClass,
 };
 #[cfg(test)]
@@ -28,6 +28,7 @@ use crate::services::{prepare_joint_edit, project, write_transactions};
 #[cfg(test)]
 use crate::services::{project_save, project_sync};
 use crate::test_support::TestWorkspace;
+use crate::test_support::work_counts;
 #[cfg(test)]
 use crate::{io, services};
 use serde_json::json;
@@ -40,6 +41,7 @@ use std::fs::OpenOptions;
 #[cfg(test)]
 use std::os::windows::fs::OpenOptionsExt;
 use std::path::PathBuf;
+use std::thread;
 
 #[path = "joint_skin_tests.rs"]
 mod skin_tests;
@@ -118,6 +120,208 @@ fn submit(payload: &JointEditSubmission) -> AppResult<WriteResult<JointEditSnaps
 fn cleanup(dir: TestWorkspace, root: &JointEditRoot) {
     release_project_session(root.session_id.clone()).unwrap();
     dir.close().unwrap();
+}
+
+fn variant_rename_draft(snapshot: JointEditSnapshot, next: &str) -> JointEditDraft {
+    let key = snapshot.bindings["variant"].clone();
+    let mut values = payload(snapshot.clone()).values;
+    values.retain(|record, _| record == &key);
+    if let JointValue::Present(data) = values.get_mut(&key).unwrap() {
+        data["variantId"] = json!(next);
+    }
+    JointEditDraft {
+        baseline: snapshot,
+        values,
+    }
+}
+
+#[test]
+fn joint_reads_reuse_sources_and_limit_parent_work() {
+    let (dir, mut root) = fixture();
+    release_project_session(root.session_id.clone()).unwrap();
+    let unrelated = dir.join("data/variants/unrelated.variant");
+    write_utf8_no_bom(
+        &unrelated,
+        r#"{"variantId":"unrelated","hullId":"a","weaponGroups":[]}"#,
+    )
+    .unwrap();
+    fs::create_dir_all(dir.join("data/hulls/skins")).unwrap();
+    write_utf8_no_bom(
+        &dir.join("data/hulls/skins/overlay.skin"),
+        r#"{"skinHullId":"overlay","baseHullId":"a"}"#,
+    )
+    .unwrap();
+    let mut trace = PerformanceTrace::new("joint.reuse");
+    root.session_id = project::open_project_session_traced(&dir, None, &mut trace)
+        .unwrap()
+        .session_id;
+    for (kind, id) in [
+        (JointEditKind::Ship, "a"),
+        (JointEditKind::Skin, "overlay"),
+        (JointEditKind::Weapon, "weapon"),
+        (JointEditKind::Wing, "wing"),
+        (JointEditKind::Variant, "var"),
+    ] {
+        root.kind = kind;
+        root.id = id.into();
+        let reads = work_counts::count("read", &unrelated);
+        let parses = work_counts::count("parse", &unrelated);
+        let hull_parses = work_counts::count("parse", &dir.join("data/hulls/a.ship"));
+        for _ in 0..2 {
+            assert_eq!(query_joint_edit(&root).unwrap().root, root);
+        }
+        thread::scope(|scope| {
+            let first = scope.spawn(|| query_joint_edit(&root).unwrap());
+            let second = scope.spawn(|| query_joint_edit(&root).unwrap());
+            assert_eq!(first.join().unwrap().root, root);
+            assert_eq!(second.join().unwrap().root, root);
+        });
+        assert_eq!(
+            work_counts::count("read", &unrelated) - reads,
+            0,
+            "{kind:?}"
+        );
+        assert_eq!(work_counts::count("parse", &unrelated), parses, "{kind:?}");
+        assert_eq!(
+            work_counts::count("parse", &dir.join("data/hulls/a.ship")),
+            hull_parses,
+            "{kind:?}"
+        );
+    }
+    let draft = variant_rename_draft(query_joint_edit(&root).unwrap(), "next");
+    let reads = work_counts::count("read", &unrelated);
+    let parses = work_counts::count("parse", &unrelated);
+    for _ in 0..2 {
+        prepare_joint_edit(&draft).unwrap();
+    }
+    thread::scope(|scope| {
+        let first = scope.spawn(|| prepare_joint_edit(&draft).unwrap());
+        let second = scope.spawn(|| prepare_joint_edit(&draft).unwrap());
+        first.join().unwrap();
+        second.join().unwrap();
+    });
+    assert_eq!(work_counts::count("read", &unrelated) - reads, 4);
+    assert_eq!(work_counts::count("parse", &unrelated), parses);
+    cleanup(dir, &root);
+}
+
+#[test]
+fn joint_parent_changes_are_read_before_rename() {
+    let (dir, mut root) = fixture();
+    release_project_session(root.session_id.clone()).unwrap();
+    let parent = dir.join("data/variants/parent.variant");
+    write_utf8_no_bom(&parent, r#"{"variantId":"parent","hullId":"a"}"#).unwrap();
+    let mut trace = PerformanceTrace::new("joint.parent.current");
+    root.session_id = project::open_project_session_traced(&dir, None, &mut trace)
+        .unwrap()
+        .session_id;
+    root.kind = JointEditKind::Variant;
+    root.id = "var".into();
+    let draft = variant_rename_draft(query_joint_edit(&root).unwrap(), "renamed");
+    let prepared = prepare_joint_edit(&draft).unwrap();
+    let mut submitted = payload(prepared.snapshot);
+    submitted.values = prepared.values;
+    write_utf8_no_bom(
+        &parent,
+        r#"{"variantId":"parent","hullId":"a","modules":{"late":"var"}}"#,
+    )
+    .unwrap();
+    assert_eq!(
+        prepare_joint_save(&mut submitted, &[], &[])
+            .unwrap_err()
+            .code(),
+        "write.version_conflict"
+    );
+    assert!(
+        query_file_history(&root.session_id, &root.mod_root)
+            .unwrap()
+            .undo_stack
+            .is_empty()
+    );
+    write_utf8_no_bom(&parent, r#"{"variantId":"parent","hullId":"a"}"#).unwrap();
+    let added = dir.join("data/variants/added.variant");
+    write_utf8_no_bom(
+        &added,
+        r#"{"variantId":"added","hullId":"a","modules":{"new":"var"}}"#,
+    )
+    .unwrap();
+    let error = prepare_joint_edit(&draft).unwrap_err();
+    assert_eq!(error.code(), "write.version_conflict");
+    assert!(
+        error
+            .location()
+            .unwrap()
+            .path
+            .as_deref()
+            .unwrap()
+            .ends_with("added.variant")
+    );
+    fs::remove_file(added).unwrap();
+    assert!(
+        query_joint_edit(&root)
+            .unwrap()
+            .records
+            .iter()
+            .all(|record| record
+                .source
+                .as_ref()
+                .is_none_or(|source| !source.path.ends_with("parent.variant")))
+    );
+    for modules in [json!({"A":"var"}), json!([{"B":"var"}])] {
+        write_utf8_no_bom(
+            &parent,
+            &json!({"variantId":"parent","hullId":"a","modules":modules,"custom":"retained"})
+                .to_string(),
+        )
+        .unwrap();
+        let parses = work_counts::count("parse", &parent);
+        let current = prepare_joint_edit(&variant_rename_draft(
+            query_joint_edit(&root).unwrap(),
+            "renamed",
+        ))
+        .unwrap()
+        .snapshot;
+        assert_eq!(work_counts::count("parse", &parent), parses + 1);
+        assert!(current.records.iter().any(|record| {
+            matches!(&record.value, JointValue::Present(data) if data.get("modules") == Some(&modules))
+        }));
+        let variant = current
+            .records
+            .iter()
+            .find(|record| record.key == current.bindings["variant"])
+            .unwrap();
+        assert!(variant.referenced_by.contains(&"Variant:parent".into()));
+    }
+    let snapshot = prepare_joint_edit(&variant_rename_draft(
+        query_joint_edit(&root).unwrap(),
+        "renamed",
+    ))
+    .unwrap()
+    .snapshot;
+    let key = snapshot.bindings["variant"].clone();
+    let mut input = payload(snapshot);
+    input.values.retain(|record, _| record == &key);
+    let JointValue::Present(data) = input.values.get_mut(&key).unwrap() else {
+        panic!("variant is present");
+    };
+    data["variantId"] = json!("renamed");
+    input
+        .base_versions
+        .push(io::file_version(&dir.join("data/variants/renamed.variant")).unwrap());
+    let result = submit(&input).unwrap();
+    assert_eq!(result.changes.len(), 2);
+    let current = file_formats::read_json_value(&parent).unwrap();
+    assert_eq!(current["modules"], json!([{"B":"renamed"}]));
+    assert_eq!(current["custom"], "retained");
+    fs::remove_file(&parent).unwrap();
+    root.id = "renamed".into();
+    let error = prepare_joint_edit(&variant_rename_draft(
+        query_joint_edit(&root).unwrap(),
+        "again",
+    ))
+    .unwrap_err();
+    assert!(error.to_string().contains("parent.variant"));
+    cleanup(dir, &root);
 }
 
 #[test]
@@ -609,7 +813,14 @@ fn joint_variant_rename_parents() {
         .session_id;
     root.kind = JointEditKind::Variant;
     root.id = "var".into();
-    let mut write = payload(query_joint_edit(&root).unwrap());
+    let mut write = payload(
+        prepare_joint_edit(&variant_rename_draft(
+            query_joint_edit(&root).unwrap(),
+            "new",
+        ))
+        .unwrap()
+        .snapshot,
+    );
     let key = write.snapshot.bindings["variant"].clone();
     write.values.retain(|record, _| record == &key);
     if let JointValue::Present(data) = write.values.get_mut(&key).unwrap() {

@@ -15,6 +15,7 @@ export interface ScenarioOptions {
     | 'resources'
     | 'feedback'
     | 'code-editor'
+    | 'java-queries'
     | 'text-editor';
   source?: 'mod' | 'core' | 'all';
   count: number;
@@ -26,7 +27,19 @@ export interface ScenarioOptions {
 }
 
 export interface RunOptions extends ScenarioOptions {
-  scene: 'csv' | 'weapons' | 'wings' | 'hullmods' | 'code-editor' | 'text-editor';
+  scene:
+    | 'csv'
+    | 'weapons'
+    | 'wings'
+    | 'hullmods'
+    | 'code-editor'
+    | 'text-editor'
+    | 'java-queries'
+    | 'ship'
+    | 'skin'
+    | 'weapon'
+    | 'wing'
+    | 'variant';
   workload: 'benchmark' | 'stress' | 'resources';
   warmup: number;
   rounds: number;
@@ -44,6 +57,7 @@ export interface RoundResult {
   phase: 'warmup' | 'measurement' | 'first';
   metrics: Record<string, number>;
   assertions: Assertion[];
+  resources?: Record<string, unknown>;
   error?: string;
 }
 export interface RunResult extends TestRun {

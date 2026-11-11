@@ -1,6 +1,6 @@
 import type { SaveEdit } from './write-commit.types';
 import type { SpecSave } from './spec-editor.types';
-import type { TextSave, TextTranscode } from './text-editor.types';
+import type { TextSave, TextTranscode, TextBatchSave } from './text-editor.types';
 import type { CsvSave } from './table-save.types';
 import type { SaveJointEditPayload } from './joint-edit.types';
 import type { ModInfoSave, IndexedConfigSave, IndexedConfigDelete } from './config-entity.types';
@@ -13,6 +13,7 @@ import type { SourceRefresh } from './project-session.types';
 export type SaveAction =
   | { kind: 'save_editor_spec'; input: SpecSave }
   | { kind: 'save_text_file'; input: TextSave }
+  | { kind: 'save_text_batch'; input: TextBatchSave }
   | { kind: 'transcode_file_to_utf8'; input: TextTranscode }
   | { kind: 'save_csv_patch'; input: CsvSave }
   | { kind: 'save_joint_edit'; input: SaveJointEditPayload }

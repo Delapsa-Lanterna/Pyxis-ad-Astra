@@ -244,18 +244,17 @@ pub(in crate::services::project) fn stage_validated_entity(
     after.state = EntityTargetState::Existing;
     after.write = entity_targets::location(&session.manifest.mod_root, &relative);
     after.source = Some(after.write.clone());
-    let source: Option<Arc<JsonSource>> =
-        if let Some(source) = session.documents.get(&target.write.rel_path) {
-            Some(source.clone())
-        } else if Path::new(&target.write.path).is_file() {
-            Some(Arc::new(io::read_json_file(Path::new(&target.write.path))?))
-        } else if let Some(source) = &target.source {
-            Some(Arc::new(
-                session.read_spec_source(target.kind, &target.id, source)?.1,
-            ))
-        } else {
-            None
-        };
+    let source: Option<Arc<JsonSource>> = if Path::new(&target.write.path).is_file() {
+        Some(Arc::new(io::read_json_file(Path::new(&target.write.path))?))
+    } else if let Some(source) = session.documents.get(&target.write.rel_path) {
+        Some(source.clone())
+    } else if let Some(source) = &target.source {
+        Some(Arc::new(
+            session.read_spec_source(target.kind, &target.id, source)?.1,
+        ))
+    } else {
+        None
+    };
     let document = match source {
         Some(source) => source.write(request)?,
         None => JsonSource::create(request)?,

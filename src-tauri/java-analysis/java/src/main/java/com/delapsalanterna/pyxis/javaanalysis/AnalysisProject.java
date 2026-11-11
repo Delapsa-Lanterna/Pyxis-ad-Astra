@@ -1,6 +1,5 @@
 package com.delapsalanterna.pyxis.javaanalysis;
 
-import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import java.io.ByteArrayInputStream;
@@ -104,8 +103,9 @@ final class AnalysisProject implements AutoCloseable {
       try (var contents = new ByteArrayInputStream(bytes)) {
         privateFile.create(contents, IResource.FORCE, null);
       }
-      register(key, privateFile, new String(bytes, StandardCharsets.UTF_8), 1L);
-      impact.changed(key, new String(bytes, StandardCharsets.UTF_8), language);
+      String text = new String(bytes, StandardCharsets.UTF_8);
+      register(key, privateFile, text, 1L);
+      impact.changed(key, text, language);
     }
   }
 
@@ -116,15 +116,15 @@ final class AnalysisProject implements AutoCloseable {
     return existing.toRealPath().resolve(existing.relativize(path)).toString();
   }
 
-  JsonObject update(Protocol.Request input) throws Exception {
-    if (input.expectedRevision() != revision)
+  JsonObject update(long expectedRevision, List<Protocol.FileChange> files) throws Exception {
+    if (expectedRevision != revision)
       throw new Protocol.Failure("engine.stale_project", "Project revision is stale", null, null);
     record Change(String action, String file, String target, String source, long version) {}
     List<Change> changes = new ArrayList<>();
     Map<String, Long> nextVersions = new HashMap<>();
     Map<String, Boolean> sources = new HashMap<>();
     Map<String, Boolean> targets = new HashMap<>();
-    for (Protocol.FileChange file : input.files()) {
+    for (Protocol.FileChange file : files) {
       String action = file.action();
       String from = key(file.file());
       String target = file.target() == null ? from : key(file.target());
@@ -374,7 +374,9 @@ final class AnalysisProject implements AutoCloseable {
                   }
                 });
             semanticNodes.put(file, nodes);
-            summaries.put(file, AstFacts.summarize(Map.of(file, ast)));
+            JsonObject summary = AstFacts.summarize(Map.of(file, ast));
+            summary.add("outline", EditorQueries.outline(ast));
+            summaries.put(file, summary);
           }
         },
         null);
@@ -505,14 +507,15 @@ final class AnalysisProject implements AutoCloseable {
           "File is outside the active Java source selection",
           file,
           input.offset());
-    String source = copies.get(file).getSource();
-    if (offset < 0 || offset >= source.length())
+    ICompilationUnit sourceUnit = copies.get(file);
+    if (offset < 0 || offset >= sourceUnit.getBuffer().getLength())
       throw new IllegalArgumentException("Offset is outside source");
     ASTNode selected = NodeFinder.perform(unit, offset, 0);
     ASTNode call = selected;
     while (call != null && AstFacts.callGroup(call) == null) call = call.getParent();
     Protocol.SemanticNode selectedFacts = semanticNodes.get(file).get(selected);
-    if (selectedFacts == null) selectedFacts = new SemanticSnapshot().node(selected, source);
+    if (selectedFacts == null)
+      selectedFacts = new SemanticSnapshot().node(selected, sourceUnit.getSource());
     var binding = selectedFacts.binding();
     String target = binding == null ? null : binding.key();
     JsonArray declarations = new JsonArray();
@@ -533,9 +536,9 @@ final class AnalysisProject implements AutoCloseable {
             "file",
             file,
             "node",
-            new Gson().toJsonTree(selectedFacts),
+            Protocol.JSON.toJsonTree(selectedFacts),
             "call",
-            call == null ? null : new Gson().toJsonTree(semanticNodes.get(file).get(call)),
+            call == null ? null : Protocol.JSON.toJsonTree(semanticNodes.get(file).get(call)),
             "declarations",
             declarations,
             "references",

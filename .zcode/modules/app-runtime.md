@@ -76,6 +76,7 @@
 - `src-tauri/src/services/code_editor.rs`：代码编辑窗口销毁后的队列与回执释放。
 - `src-tauri/src/services/file_history/records.rs`：按实际 Mod 根持有 changeset、双栈、revision、容量及回放交接。
 - `src-tauri/src/services/java_analysis.rs`：Java 分析运行态初始化及应用关闭后的实例释放。
+- `src-tauri/src/services/java_analysis/editor.rs`：代码窗口销毁后的分析项目释放。
 - `src-tauri/src/services/performance_monitor.rs`：命令计时、环形缓冲与报告导出。
 - `src-tauri/src/services/project/resources/media_cache.rs`：正式设置接纳时配置后端媒体预算。
 - `src-tauri/src/services/project/session.rs`：会话打开、关闭、内容更新与内部登记及就绪访问能力交付。

@@ -130,19 +130,31 @@ fn live_runtime_releases_instances_workspaces_and_preserves_logs() {
     let id = runtime.start(Path::new(&java)).unwrap();
     let second = runtime.start(Path::new(&java)).unwrap();
     assert_eq!(runtime.instance_count().unwrap(), 2);
+    let began = Instant::now();
+    let source = format!(
+        "/*{}*/record Orbit(int radius) {{}}",
+        "x".repeat(10 * 1024 * 1024)
+    );
+    let source_bytes = source.len();
     let result = runtime
         .request(
             &id,
-            &serde_json::from_value(
-                json!({"id":1,"op":"parse","source":"record Orbit(int radius) {}","version":1}),
-            )
-            .unwrap(),
+            &AnalysisRequest::Parse {
+                id: json!(1),
+                source,
+                version: 1,
+                language: None,
+            },
         )
         .unwrap();
     let Some(AnalysisResult::Syntax(result)) = result.result else {
         panic!("syntax result");
     };
     assert_eq!(result.errors, 0);
+    println!(
+        "{}",
+        json!({"sourceBytes":source_bytes,"roundtripMilliseconds":began.elapsed().as_secs_f64()*1000.0})
+    );
     assert!(
         runtime
             .request("unknown", &AnalysisRequest::Hello { id: json!(2) })

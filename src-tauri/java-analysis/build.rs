@@ -4,10 +4,9 @@ use std::{env, fs};
 
 fn main() {
     println!("cargo:rerun-if-changed=versions.json");
-    let values: Value = serde_json::from_str(
-        &fs::read_to_string("versions.json").expect("Java analysis version declaration"),
-    )
-    .expect("Java analysis versions are valid JSON");
+    // Compile-time inclusion ties generated constants to the actual declaration in every target.
+    let values: Value = serde_json::from_str(include_str!("versions.json"))
+        .expect("Java analysis versions are valid JSON");
     let mut generated = String::new();
     for (name, field) in [
         ("ENGINE_VERSION", "engine"),

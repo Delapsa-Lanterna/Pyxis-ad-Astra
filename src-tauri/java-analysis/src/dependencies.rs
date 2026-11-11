@@ -472,11 +472,14 @@ pub fn install_with_control(
     })
 }
 
-/// Removes an explicitly selected, complete installed version.
+/// Removes the selected installation and its staging under the same installation lock.
 pub fn remove(root: &Path, version: &str) -> Result<()> {
     compatible(version, PROTOCOL_VERSION, REQUIRED_JAVA)?;
-    let directory = root.canonicalize()?.join(version);
-    inspect(&directory)?;
-    fs::remove_dir_all(directory)?;
+    if !root.exists() {
+        return Ok(());
+    }
+    let (root, _lock) = installation_lock(root, version)?;
+    clear_staging(&root, &root.join(version))?;
+    clear_staging(&root, &root.join(format!("{version}.staging")))?;
     Ok(())
 }

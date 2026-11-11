@@ -1,4 +1,5 @@
 use pyxis_java_analysis::dependencies::{import, inspect, remove};
+use pyxis_java_analysis::versions::PROTOCOL_VERSION;
 use pyxis_java_analysis::{Artifact, Builtin, Engine, Manifest, Package, PackageFile};
 use sha2::{Digest, Sha256};
 use std::fs::{self, File, OpenOptions};
@@ -26,7 +27,7 @@ fn archive(path: &Path, entries: &[(&str, &[u8])]) -> Package {
     let bytes = fs::read(path).unwrap();
     Package {
         version: "1.0.0".into(),
-        protocol: 2,
+        protocol: PROTOCOL_VERSION,
         java: 17,
         artifacts: vec![Artifact {
             path: "dependency.jar".into(),
@@ -44,7 +45,7 @@ fn valid_archive(path: &Path) -> Package {
     let launcher = b"fixture-dependency";
     let manifest = Manifest {
         version: "1.0.0".into(),
-        protocol: 2,
+        protocol: PROTOCOL_VERSION,
         java: 17,
         bundles: vec!["dependency.jar".into()],
         files: vec![PackageFile {
@@ -71,6 +72,32 @@ fn imports_checks_and_removes_a_complete_version() {
     assert_eq!(import(&root, &path, &package).unwrap(), directory);
     remove(&root, "1.0.0").unwrap();
     assert!(!directory.exists());
+    work.close();
+}
+
+#[test]
+fn removes_damaged_installations_and_staging_with_the_installation_lock() {
+    let work = TestWorkspace::new();
+    let root = work.0.join("installation");
+    remove(&root, "fixture").unwrap();
+    assert!(!root.exists());
+    for directory in ["fixture", "fixture.staging"] {
+        fs::create_dir_all(root.join(directory)).unwrap();
+        fs::write(root.join(directory).join("partial.jar"), "incomplete").unwrap();
+    }
+    let lock = OpenOptions::new()
+        .read(true)
+        .write(true)
+        .create_new(true)
+        .open(root.join("fixture.lock"))
+        .unwrap();
+    lock.try_lock().unwrap();
+    assert!(remove(&root, "fixture").is_err());
+    assert!(root.join("fixture/partial.jar").is_file());
+    drop(lock);
+    remove(&root, "fixture").unwrap();
+    assert!(!root.join("fixture").exists());
+    assert!(!root.join("fixture.staging").exists());
     work.close();
 }
 
@@ -166,7 +193,7 @@ fn pins_builtin_host_and_dependencies_before_starting_java() {
     fs::write(builtin.join("host.jar"), b"host").unwrap();
     let mut host = Builtin {
         version: "1.0.0".into(),
-        protocol: 2,
+        protocol: PROTOCOL_VERSION,
         java: 17,
         launcher: "host.jar".into(),
         bundle: "host.jar".into(),

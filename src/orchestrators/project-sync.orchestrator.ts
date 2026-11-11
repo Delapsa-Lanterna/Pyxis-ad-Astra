@@ -336,6 +336,13 @@ export function beginSavedWrite<T>(
   return { id, result };
 }
 
+export async function settleSavedContent(modRoot: string) {
+  const window = consumers();
+  await window.ready;
+  await waitProjectSaves([modRoot]);
+  await window.processing;
+}
+
 export async function settleProjectSaves(scope: CloseScope, feedback?: AppFeedback) {
   const roots =
     scope.kind === 'window'

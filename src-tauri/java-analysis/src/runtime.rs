@@ -1,13 +1,14 @@
 use crate::dependencies;
 use crate::transfer::TransferControl;
-use crate::{AnalysisRequest, AnalysisResponse, Engine, Package, Result, invalid};
-use serde::Serialize;
+use crate::{
+    AnalysisPaths, AnalysisRequest, AnalysisResponse, Engine, Error, Package, Result, invalid,
+};
+use serde_json::{Value, json};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::mem;
 use std::path::{Path, PathBuf};
 use std::process;
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
@@ -16,43 +17,24 @@ const BUILTIN: &[u8] = include_bytes!("../resources/builtin.json");
 const LAUNCHER: &[u8] = include_bytes!("../resources/launcher.jar");
 const ENGINE: &[u8] = include_bytes!("../resources/engine.jar");
 
-#[derive(Clone, Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct AnalysisPaths {
-    pub root: PathBuf,
-    pub dependencies: PathBuf,
-    pub workspaces: PathBuf,
-    pub logs: PathBuf,
-}
-
-impl AnalysisPaths {
-    pub fn new(config_root: &Path) -> Self {
-        let root = config_root.join("java-analysis");
-        Self {
-            dependencies: root.join("dependencies"),
-            workspaces: root.join("workspaces"),
-            logs: root.join("logs"),
-            root,
-        }
-    }
-}
-
 pub struct AnalysisEvent {
     pub code: &'static str,
     pub instance: Option<String>,
     pub error: Option<String>,
+    pub context: Value,
+    pub fault: bool,
 }
 pub type EventSink = Arc<dyn Fn(AnalysisEvent) + Send + Sync>;
 
 struct Instance {
     engine: Option<Engine>,
     workspace: PathBuf,
-    projects: BTreeSet<String>,
 }
 
 #[derive(Default)]
 struct State {
     instances: BTreeMap<String, Arc<Mutex<Instance>>>,
+    projects: BTreeMap<String, BTreeSet<String>>,
     sequence: u64,
     closed: bool,
 }
@@ -63,7 +45,6 @@ pub struct AnalysisRuntime {
     package: Package,
     state: Mutex<State>,
     events: EventSink,
-    project_count: AtomicUsize,
 }
 
 impl AnalysisRuntime {
@@ -74,7 +55,6 @@ impl AnalysisRuntime {
             package: serde_json::from_str(CATALOG)?,
             state: Mutex::new(State::default()),
             events,
-            project_count: AtomicUsize::new(0),
         })
     }
 
@@ -100,7 +80,13 @@ impl AnalysisRuntime {
         (self.events)(AnalysisEvent {
             code,
             instance: instance.map(str::to_owned),
-            error: result.as_ref().err().map(ToString::to_string),
+            error: result
+                .as_ref()
+                .err()
+                .filter(|error| !matches!(error, Error::Cancelled))
+                .map(ToString::to_string),
+            context: json!({"dependencySet":self.package.version,"jars":self.package.artifacts.len(),"cancelled":matches!(result, Err(Error::Cancelled))}),
+            fault: result.is_err(),
         });
     }
 
@@ -153,7 +139,10 @@ impl AnalysisRuntime {
 
     pub fn managed_counts(&self) -> Result<(usize, usize)> {
         let state = self.state()?;
-        Ok((state.instances.len(), self.project_count()))
+        Ok((
+            state.instances.len(),
+            state.projects.values().map(BTreeSet::len).sum(),
+        ))
     }
 
     pub fn remove_dependencies(&self) -> Result<()> {
@@ -179,7 +168,6 @@ impl AnalysisRuntime {
         let instance = Arc::new(Mutex::new(Instance {
             engine: None,
             workspace: workspace.clone(),
-            projects: Default::default(),
         }));
         let mut instance_state = instance
             .lock()
@@ -207,10 +195,10 @@ impl AnalysisRuntime {
                 &self.paths.logs.join(format!("{id}.log")),
             )
         })();
-        self.record("java_analysis.start", Some(&id), &result);
         match result {
             Ok(engine) => {
                 instance_state.engine = Some(engine);
+                self.record("java_analysis.start", Some(&id), &Ok(()));
                 Ok(id)
             }
             Err(error) => {
@@ -218,7 +206,10 @@ impl AnalysisRuntime {
                     state.instances.remove(&id);
                 }
                 if workspace.exists() {
-                    fs::remove_dir_all(workspace)?;
+                    let cleanup = fs::remove_dir_all(workspace).map_err(Into::into);
+                    if cleanup.is_err() {
+                        self.record("java_analysis.cleanup_failed", Some(&id), &cleanup);
+                    }
                 }
                 self.record::<()>(
                     "java_analysis.start_failed",
@@ -251,26 +242,52 @@ impl AnalysisRuntime {
             response.queue_wait_milliseconds = queue_wait;
             if response.error.is_none() {
                 match request {
-                    AnalysisRequest::Open { project, .. }
-                        if state.projects.insert(project.clone()) =>
-                    {
-                        self.project_count.fetch_add(1, Ordering::Relaxed);
+                    AnalysisRequest::Open { project, .. } => {
+                        let mut registry = self.state()?;
+                        if registry.instances.contains_key(instance) {
+                            registry
+                                .projects
+                                .entry(instance.into())
+                                .or_default()
+                                .insert(project.clone());
+                        }
                     }
-                    AnalysisRequest::Close { project, .. } if state.projects.remove(project) => {
-                        self.project_count.fetch_sub(1, Ordering::Relaxed);
+                    AnalysisRequest::Close { project, .. } => {
+                        if let Some(projects) = self.state()?.projects.get_mut(instance) {
+                            projects.remove(project);
+                        }
                     }
                     _ => {}
                 }
             }
         }
-        if let Ok(response) = &result
-            && let Some(error) = &response.error
-        {
-            let failure = Err(invalid(format!("{}: {}", error.code, error.message)));
-            self.record::<()>("java_analysis.request", Some(instance), &failure);
-        } else {
-            self.record("java_analysis.request", Some(instance), &result);
+        let mut context = request.context();
+        context["queueWaitMilliseconds"] = json!(queue_wait);
+        if let Ok(response) = &result {
+            context["requestMilliseconds"] = json!(response.request_milliseconds);
+            context["responseBytes"] = json!(response.response_bytes);
+            if let Some(error) = &response.error {
+                context["engineCode"] = json!(error.code);
+                context["engineType"] = json!(error.error_type);
+                context["offset"] = json!(error.offset);
+                if let Some(file) = &error.file {
+                    context["path"] = json!(file);
+                }
+            }
         }
+        (self.events)(AnalysisEvent {
+            code: "java_analysis.request",
+            instance: Some(instance.into()),
+            context,
+            error: match &result {
+                Err(error) => Some(error.to_string()),
+                Ok(response) => response
+                    .error
+                    .as_ref()
+                    .map(|error| format!("{}: {}", error.code, error.message)),
+            },
+            fault: result.is_err(),
+        });
         result
     }
 
@@ -279,11 +296,6 @@ impl AnalysisRuntime {
             .lock()
             .map_err(|_| invalid("Java instance lock poisoned"))?;
         let result = instance.engine.take().map_or(Ok(()), Engine::close);
-        let projects = instance.projects.len();
-        if projects > 0 {
-            self.project_count.fetch_sub(projects, Ordering::Relaxed);
-        }
-        instance.projects.clear();
         let cleanup = fs::remove_dir_all(&instance.workspace).map_err(Into::into);
         let result = result.and(cleanup);
         self.record("java_analysis.release", Some(id), &result);
@@ -296,17 +308,21 @@ impl AnalysisRuntime {
             .instances
             .remove(id)
             .ok_or_else(|| invalid("Unknown Java analysis instance"))?;
+        state.projects.remove(id);
         drop(state);
         self.release(id, instance)
     }
 
-    pub fn project_count(&self) -> usize {
-        self.project_count.load(Ordering::Relaxed)
+    pub fn project_count(&self) -> Result<usize> {
+        Ok(self.managed_counts()?.1)
     }
 
     /// Stops instances while retaining the runtime for subsequent explicit starts.
     pub fn close_all(&self) -> Result<()> {
-        let instances = mem::take(&mut self.state()?.instances);
+        let mut state = self.state()?;
+        let instances = mem::take(&mut state.instances);
+        state.projects.clear();
+        drop(state);
         let mut failures = Vec::new();
         for (id, instance) in instances {
             if let Err(error) = self.release(&id, instance) {
@@ -328,6 +344,7 @@ impl AnalysisRuntime {
             .map_err(|_| invalid("Java analysis runtime lock poisoned"))?;
         state.closed = true;
         let instances = mem::take(&mut state.instances);
+        state.projects.clear();
         drop(state);
         let mut failures = Vec::new();
         for (id, instance) in instances {

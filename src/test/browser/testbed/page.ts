@@ -125,11 +125,16 @@ document.querySelector<HTMLSelectElement>('#workload')!.onchange = () => {
 function updateParameters() {
   const scene = document.querySelector<HTMLSelectElement>('#scene')!.value;
   const definition = performanceScenarios.find((item) => item.id === scene)!;
-  document.querySelector<HTMLElement>('#scale-label')!.textContent =
-    definition.scale === 'files' ? '文件数' : definition.scale === 'rows' ? '行数' : '条目数';
+  document.querySelector<HTMLElement>('#scale-label')!.textContent = definition.immersive
+    ? '无关装配文件数'
+    : definition.scale === 'files'
+      ? '文件数'
+      : definition.scale === 'rows'
+        ? '行数'
+        : '条目数';
   document.querySelector<HTMLInputElement>('#count')!.value = String(definition.counts[0]);
   document.querySelector<HTMLInputElement>('#count')!.disabled = scene === 'text-editor';
-  for (const element of document.querySelectorAll<HTMLElement>('[data-editor-parameter]')) element.hidden = definition.scale !== 'files';
+  for (const element of document.querySelectorAll<HTMLElement>('[data-editor-parameter]')) element.hidden = !definition.fileBytes;
 }
 document.querySelector<HTMLSelectElement>('#scene')!.onchange = updateParameters;
 async function preview() {
@@ -165,7 +170,6 @@ function addVariant() {
     new URL(import.meta.env.BASE_URL, location.origin).href +
     '"></label>' +
     '<label><input class="variant-monitor" type="checkbox">开启性能监视</label>' +
-    '<label>判定 <select class="variant-policy"><option value="code">记录性能差异</option><option value="enabled">监视开启预算</option><option value="disabled">监视关闭预算</option></select></label>' +
     '<button type="button">移除</button>';
   row.querySelector('button')!.onclick = () => row.remove();
   variantsInput.append(row);
@@ -199,12 +203,11 @@ document.querySelector<HTMLButtonElement>('#compare')!.onclick = () =>
       label: row.querySelector<HTMLInputElement>('.variant-label')!.value,
       url: row.querySelector<HTMLInputElement>('.variant-url')!.value,
       monitor: row.querySelector<HTMLInputElement>('.variant-monitor')!.checked,
-      policy: row.querySelector<HTMLSelectElement>('.variant-policy')!.value as Variant['policy'],
     })),
   );
 document.querySelector<HTMLButtonElement>('#aa')!.onclick = () =>
   void compareSelected(
-    ['A', 'B'].map((label) => ({ label, url: new URL(import.meta.env.BASE_URL, location.origin).href, monitor: false, policy: 'code' })),
+    ['A', 'B'].map((label) => ({ label, url: new URL(import.meta.env.BASE_URL, location.origin).href, monitor: false })),
   );
 document.querySelector<HTMLButtonElement>('#monitor-compare')!.onclick = () =>
   void compareSelected(
@@ -212,7 +215,6 @@ document.querySelector<HTMLButtonElement>('#monitor-compare')!.onclick = () =>
       label: monitor ? 'enabled' : 'disabled',
       url: new URL(import.meta.env.BASE_URL, location.origin).href,
       monitor,
-      policy: 'enabled',
     })),
   );
 if (new URLSearchParams(location.search).has('worker')) {
@@ -240,6 +242,7 @@ Object.assign(globalThis, {
     environment: async () => (await loadBenchmark()).environment(),
     summarizeRun: async (...args: Parameters<Benchmark['summarizeRun']>) => (await loadBenchmark()).summarizeRun(...args),
     openEditor: async (options: RunOptions) => (await loadBenchmark()).openEditor(options),
+    queryEditor: async () => (await loadBenchmark()).queryEditor(),
     close: async () => (await loadBenchmark()).close(),
     preview: async (options: RunOptions) => (await loadBenchmark()).preview(options),
     get host() {

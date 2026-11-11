@@ -8,8 +8,20 @@ import { beginSavedWrite } from '@/orchestrators/project-sync.orchestrator';
 import { normalizeFsPath } from '@/shared/lib/paths';
 import type { CodeEditorOpen, EntityTargetSnapshot, ErrorDiagnostic, WriteResult } from '@/shared/types';
 import { waitForRead } from '@/shared/runtime/read-request';
+import type { DocumentSaveResult } from '@/shared/runtime/document-editor';
 
-export function createCodeDocument(owner: Pick<CodeEditorOpen, 'sessionId' | 'modRoot'>, path: string) {
+export interface CodeDocumentGroup {
+  release: () => void;
+  capture: () => () => boolean;
+  save: () => Promise<DocumentSaveResult>;
+  wait: () => Promise<boolean>;
+  undo: () => boolean;
+  redo: () => boolean;
+  discard: () => void;
+}
+
+export function createCodeDocument(owner: Pick<CodeEditorOpen, 'sessionId' | 'modRoot'>, path: string, source?: string) {
+  const readOnly = source !== undefined;
   const scope = effectScope();
   let released = false;
   const document = scope.run(() => {
@@ -17,6 +29,8 @@ export function createCodeDocument(owner: Pick<CodeEditorOpen, 'sessionId' | 'mo
     type Meta = { entity: EntityTargetSnapshot | null; receipt: WriteResult | null };
     const settings = useSettingsStore();
     const commands = useSaveCommandStore();
+    const group = shallowRef<CodeDocumentGroup | null>(null);
+    const pendingPath = shallowRef<string | null>(null);
     const session: EditTargetDraftSession<TextContent, Target, Meta> = useEditTargetDraftSession<TextContent, Target, Meta>({
       emptyValue: readTextContent(''),
       clone: (text) => text,
@@ -63,32 +77,55 @@ export function createCodeDocument(owner: Pick<CodeEditorOpen, 'sessionId' | 'mo
       targetKey: session.currentTargetKey,
       modRoot: computed(() => owner.modRoot),
       saving: session.saving,
-      waitForSave: session.waitForSave,
+      waitForSave: () => group.value?.wait() ?? session.waitForSave(),
       editing: {
-        targets: computed(() => session.baselineSnapshot.value?.baseVersions.map((version) => ({ ...owner, path: version.path })) ?? []),
+        targets: computed(() => [
+          ...(session.baselineSnapshot.value?.baseVersions.map((version) => ({ ...owner, path: version.path })) ?? []),
+          ...(pendingPath.value ? [{ ...owner, path: pendingPath.value }] : []),
+        ]),
         label: path,
-        dirty: session.dirty,
+        dirty: computed(
+          () =>
+            session.dirty.value ||
+            (!!pendingPath.value && normalizeFsPath(pendingPath.value) !== normalizeFsPath(session.currentTarget.value?.path ?? path)),
+        ),
         draftSession: session,
         captureContent: document.captureContent,
         save: async () => {
+          if (group.value) return group.value.save();
           if (!session.dirty.value) return { status: 'noop' as const };
           const saved = await session.saveDraft();
           return saved ? { status: 'saved' as const, receipt: saved.meta.receipt! } : { status: 'cancelled' as const };
         },
       },
     };
-    const unregister = commands.registerSaveParticipant(participant);
+    const unregister = readOnly ? () => {} : commands.registerSaveParticipant(participant);
     return {
       session,
+      readOnly,
+      group,
+      pendingPath,
       document,
       participant,
+      dirty: participant.editing.dirty,
       problem: shallowRef<ErrorDiagnostic | null>(null),
-      path: computed(() => session.currentTarget.value?.path ?? path),
-      load: () => session.loadTarget({ ...owner, path }),
-      save: () => commands.requestSave(participant),
-      setText: document.replaceSource,
-      undo: document.undo,
-      redo: document.redo,
+      path: computed(() => pendingPath.value ?? session.currentTarget.value?.path ?? path),
+      load: async () => {
+        if (readOnly)
+          session.loadBaseForTarget({
+            target: { ...owner, path },
+            value: readTextContent(source),
+            baseVersions: [],
+            meta: { entity: null, receipt: null },
+          });
+        else await session.loadTarget({ ...owner, path });
+      },
+      save: () => (readOnly ? Promise.resolve({ status: 'noop' as const }) : commands.requestSave(participant)),
+      setText: (text: string) => {
+        if (!readOnly) document.replaceSource(text);
+      },
+      undo: () => !readOnly && (group.value?.undo() || document.undo()),
+      redo: () => !readOnly && (group.value?.redo() || document.redo()),
       dispose() {
         if (released) return;
         released = true;

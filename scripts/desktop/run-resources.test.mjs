@@ -250,14 +250,14 @@ test('desktop reports retain results and failed checks while preserving existing
       runs: [],
       suite: 'csv',
       pass: false,
-      checks: [{ name: 'Performance budget', milliseconds: 0.5, pass: false }],
-      errors: ['CSV budget exceeded'],
+      checks: [{ name: 'Saved value check', milliseconds: 0.5, pass: false }],
+      errors: ['CSV saved value differs'],
       statistics: { fields: { p95: 270 } },
       resourcesReleased: true,
     });
     assert.equal(JSON.parse(await readFile(work.path('failed.json'), 'utf8')).statistics.fields.p95, 270);
     const markdown = await readFile(work.path('failed.md'), 'utf8');
-    assert.match(markdown, /Performance budget \| 失败 \| 0\.50/);
+    assert.match(markdown, /Saved value check \| 失败 \| 0\.50/);
     assert.match(markdown, /"p95": 270/);
     const occupied = work.path('occupied.md');
     await writeFile(occupied, 'owned markdown', 'utf8');

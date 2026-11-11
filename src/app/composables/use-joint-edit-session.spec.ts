@@ -50,6 +50,40 @@ beforeEach(() => {
   mocks.complete.mockResolvedValue(undefined);
 });
 describe('joint snapshot session acceptance', () => {
+  it('hands background validation to the explicit save and resumes after acceptance', async () => {
+    const validate = vi.fn(async () => [] as FieldProblem[]);
+    let session!: ReturnType<typeof useJointEditSession>;
+    const wrapper = mount({
+      setup() {
+        session = useJointEditSession({ validate });
+        return () => null;
+      },
+    });
+    let finish!: (result: JointEditWriteResult) => void;
+    try {
+      await session.loadTarget(root);
+      await flushPromises();
+      session.setDraft({ ship: { state: 'present', value: 'next' } });
+      await flushPromises();
+      expect(validate).toHaveBeenCalledTimes(2);
+      mocks.save.mockImplementationOnce(() => new Promise<JointEditWriteResult>((resolve) => (finish = resolve)));
+      const saving = session.saveDraft();
+      await flushPromises();
+      expect(session.saving.value).toBe(true);
+      session.setDraft({ ship: { state: 'present', value: 'later' } });
+      await flushPromises();
+      expect(validate).toHaveBeenCalledTimes(2);
+      const actual = structuredClone(snapshot);
+      actual.records[0]!.value = { state: 'present', value: 'next' };
+      finish({ ...savedWriteFixture(), content: { target: { kind: 'joint', root }, value: actual } });
+      await saving;
+      await flushPromises();
+      expect(session.draftValue.value.ship).toEqual({ state: 'present', value: 'later' });
+      expect(validate).toHaveBeenCalledTimes(3);
+    } finally {
+      wrapper.unmount();
+    }
+  });
   it('revokes an earlier complete check when the draft changes', async () => {
     const completions: Array<(value: FieldProblem[]) => void> = [];
     const validate = vi.fn(

@@ -24,7 +24,7 @@ export async function waitFor(page, expression) {
   await until(() => page.evaluate(expression), expression);
 }
 
-/** @param {{exe:string,isolatedDesktop?:boolean,artifacts:string,errors:string[],resources:{released:boolean,desktops:{name:string,pid:number,released:boolean}[]}}} options */
+/** @param {{exe:string,isolatedDesktop?:boolean,performanceMonitor?:boolean,artifacts:string,errors:string[],resources:{released:boolean,desktops:{name:string,pid:number,released:boolean}[]}}} options */
 export async function startDesktop(options) {
   const config = await desktopConfiguration(options.isolatedDesktop);
   const roaming = resolve(process.env.APPDATA ?? '', config.identifier);
@@ -46,6 +46,10 @@ export async function startDesktop(options) {
   async function close() {
     try {
       if (child?.exitCode === null && main && !main.isClosed()) {
+        for (const page of browser?.contexts()[0]?.pages() ?? []) {
+          const pending = page.getByRole('dialog').getByRole('button', { name: '返回编辑', exact: true });
+          if (await pending.count()) await pending.evaluate((button) => /** @type {HTMLButtonElement} */ (button).click());
+        }
         await main.evaluate('setTimeout(()=>{void ' + invoke + '("request_close",{scope:{kind:"application"}})},0)');
         await until(
           async () => {
@@ -123,6 +127,8 @@ export async function startDesktop(options) {
       await mkdir(directory);
       owned.push(directory);
     }
+    if (options.performanceMonitor)
+      await writeFile(join(roaming, 'settings.json'), JSON.stringify({ performanceMonitorEnabled: true }), 'utf8');
     child = spawn(
       'pwsh',
       [
@@ -190,6 +196,7 @@ export async function startDesktop(options) {
     const session = await context.newCDPSession(page);
     const environment = {
       isolation: config.isolation,
+      ...(options.performanceMonitor ? { performanceMonitor: true, toolCache: 'empty', osCache: 'retained' } : {}),
       browser: connected.version(),
       nativeDesktop,
       ...(await page.evaluate('({width:innerWidth,height:innerHeight,dpr:devicePixelRatio})')),
@@ -232,4 +239,64 @@ export async function openMod(page, mod, game, table) {
       ');stores.get("workspace").activateModTable(manifest.modRoot);',
   );
   return manifest;
+}
+
+/** @param {Awaited<ReturnType<typeof startDesktop>>} app @param {{sessionId:string,modRoot:string,kind:import('../shared/performance-scenarios.mjs').ImmersiveKind,id:string}} identity @param {string|null} [rowKey] */
+export async function openImmersiveWindow(app, identity, rowKey = null) {
+  const before = new Set(app.context.pages());
+  const began = performance.now();
+  await app.main.evaluate(
+    ({ identity, rowKey }) =>
+      Reflect.get(globalThis, '__TAURI_INTERNALS__').invoke('request_window', {
+        payload: {
+          identity: { type: 'immersive', ...identity },
+          title: 'Immersive performance ' + identity.kind,
+          input: { kind: 'immersive-editor', rowKey },
+          width: 1280,
+          height: 860,
+          minWidth: 430,
+          minHeight: 480,
+        },
+      }),
+    { identity, rowKey },
+  );
+  await until(() => app.context.pages().some((page) => !before.has(page)), 'immersive window created');
+  const editor = app.context.pages().find((page) => !before.has(page));
+  assert.ok(editor);
+  await editor.getByRole('button', { name: '保存', exact: true }).waitFor();
+  await until(() => editor.getByRole('button', { name: '保存', exact: true }).isEnabled(), 'immersive content ready');
+  await editor.evaluate(() => new Promise((done) => globalThis.requestAnimationFrame(() => globalThis.requestAnimationFrame(done))));
+  const firstOpen = performance.now() - began;
+  const firstOpenEnvironment = await editor.evaluate(() => ({
+    width: globalThis.innerWidth,
+    height: globalThis.innerHeight,
+    dpr: globalThis.devicePixelRatio,
+  }));
+  await editor.evaluate(() => {
+    const original = globalThis.window.fetch;
+    Reflect.set(globalThis, '__immersiveCalls', []);
+    globalThis.window.fetch = async function (input, init) {
+      const start = performance.now();
+      try {
+        return await original.call(this, input, init);
+      } finally {
+        const url = new URL(input instanceof Request ? input.url : String(input));
+        if (url.hostname === 'ipc.localhost')
+          Reflect.get(globalThis, '__immersiveCalls').push({
+            command: decodeURIComponent(url.pathname.slice(1)),
+            start,
+            duration: performance.now() - start,
+          });
+      }
+    };
+  });
+  const session = await app.context.newCDPSession(editor);
+  await session.send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 860, deviceScaleFactor: 1.5, mobile: false });
+  const viewport = await editor.evaluate(() => ({
+    width: globalThis.innerWidth,
+    height: globalThis.innerHeight,
+    dpr: globalThis.devicePixelRatio,
+  }));
+  assert.deepEqual(viewport, { width: 1280, height: 860, dpr: 1.5 });
+  return { editor, session, viewport, firstOpen, firstOpenEnvironment };
 }

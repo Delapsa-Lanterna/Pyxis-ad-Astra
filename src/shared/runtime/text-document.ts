@@ -38,6 +38,40 @@ export function writeTextContent(value: TextContent): string {
 }
 export const sameTextContent = (left: TextContent, right: TextContent) =>
   left === right || (left.text.eq(right.text) && left.endings.eq(right.endings));
+// JDT counts both CRLF code units; CodeMirror stores each line separator as one.
+const newlineOffsets = new WeakMap<Text, Uint32Array>();
+export function sourceOffset(value: TextContent, offset: number): number {
+  if (value.uniform) return offset + (value.newline === '\r\n' ? value.text.lineAt(offset).number - 1 : 0);
+  let counts = newlineOffsets.get(value.endings);
+  if (!counts) {
+    counts = new Uint32Array(value.endings.length + 1);
+    let index = 0;
+    for (const chunk of value.endings.iter())
+      for (const ending of chunk) {
+        counts[index + 1] = counts[index]! + Number(ending === 'c');
+        index++;
+      }
+    newlineOffsets.set(value.endings, counts);
+  }
+  return offset + counts[value.text.lineAt(offset).number - 1]!;
+}
+export function displayOffset(value: TextContent, offset: number): number {
+  let low = 0,
+    high = value.text.length;
+  while (low < high) {
+    const middle = Math.ceil((low + high) / 2);
+    if (sourceOffset(value, middle) <= offset) low = middle;
+    else high = middle - 1;
+  }
+  return low;
+}
+export function sourceSlice(value: TextContent, from: number, to: number): string {
+  return writeTextContent({
+    ...value,
+    text: value.text.slice(from, to),
+    endings: value.endings.slice(value.text.lineAt(from).number - 1, value.text.lineAt(to).number - 1),
+  });
+}
 const restoreContent = StateEffect.define<TextContent>();
 // The newline map follows the same immutable transaction and undo event as the displayed text.
 const contentField = StateField.define<TextContent>({
@@ -160,6 +194,12 @@ export function createTextDocument(
     );
   return {
     state,
+    restoreState(saved: EditorState) {
+      transaction = null;
+      state.value = saved;
+      value.value = saved.field(contentField);
+    },
+    content: computed(() => value.value),
     lightweight: computed(() => isJavaText(path?.value) && hasLongTextLine(state.value.doc)),
     dispatch,
     startComposition() {

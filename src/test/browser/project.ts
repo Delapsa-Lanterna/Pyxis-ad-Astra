@@ -464,7 +464,18 @@ export function createWorkspaceProject(root: string, index: number, files = game
       title: String(manifest.modInfo!.name),
       kind: 'immersive-editor',
       identity: { type: 'immersive', ...snapshot.root },
-      input: { kind: 'immersive-editor', rowKey: null },
+      input: {
+        kind: 'immersive-editor',
+        rowKey:
+          kind === 'wing'
+            ? (
+                snapshot.records.find((record) => record.key === snapshot.bindings.csv)!.target as Extract<
+                  T.JointRecordTarget,
+                  { kind: 'csv' }
+                >
+              ).rowKey
+            : null,
+      },
     };
     return model.context;
   };

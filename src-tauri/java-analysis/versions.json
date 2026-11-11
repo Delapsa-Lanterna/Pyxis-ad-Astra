@@ -1,6 +1,6 @@
 {
   "engine": "1.0.0",
-  "protocol": 2,
+  "protocol": 4,
   "java": 17,
   "language": "17",
   "jdt": "3.47.0"

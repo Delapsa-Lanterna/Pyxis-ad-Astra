@@ -13,7 +13,7 @@ import { Decoration, EditorView, GutterMarker, gutterLineClass, keymap, lineNumb
 import { defaultKeymap } from '@codemirror/commands';
 import { openSearchPanel } from '@codemirror/search';
 import type { TextDocument } from '@/shared/runtime/text-document';
-const props = defineProps<{ document: TextDocument; disabled?: boolean; lineNumbers?: boolean; line?: number }>();
+const props = defineProps<{ document: TextDocument; disabled?: boolean; lineNumbers?: boolean; line?: number; extensions?: Extension }>();
 const emit = defineEmits<{ position: [value: { line: number; column: number }] }>();
 const host = useTemplateRef<HTMLElement>('host');
 const errorGutter = new (class extends GutterMarker {
@@ -42,10 +42,12 @@ function bind() {
   }
   stop?.();
   if (view && bound) bound.scroll = view.scrollSnapshot();
+  const sameDocument = bound === props.document;
   bound = props.document;
   const line = props.line;
   const marker = (state: EditorState) => (line && line <= state.doc.lines ? state.doc.line(line).from : null);
   const extensions: Extension = [
+    props.extensions ?? [],
     // Native composition mutations settle before the application's input finalizer captures text.
     EditorView.domEventHandlers({
       compositionstart() {
@@ -75,8 +77,11 @@ function bind() {
       : [],
   ];
   bound.configureSurface(extensions);
-  if (view) view.setState(bound.state.value);
-  else
+  if (view) {
+    const transaction = bound.transaction;
+    if (sameDocument && transaction?.startState === view.state) view.update([transaction]);
+    else view.setState(bound.state.value);
+  } else
     view = new EditorView({
       parent: host.value,
       state: bound.state.value,
@@ -102,7 +107,9 @@ function bind() {
   );
   position();
 }
-watch([() => props.document, () => props.disabled, () => props.lineNumbers, () => props.line], bind, { flush: 'post' });
+watch([() => props.document, () => props.disabled, () => props.lineNumbers, () => props.line, () => props.extensions], bind, {
+  flush: 'post',
+});
 onMounted(bind);
 onBeforeUnmount(() => {
   stop?.();

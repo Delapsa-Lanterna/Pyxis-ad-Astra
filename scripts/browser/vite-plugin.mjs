@@ -2,7 +2,7 @@ import { fileURLToPath } from 'node:url';
 import { readdir, readFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 
-const OPERATION_VERSION = 1;
+const OPERATION_VERSION = 2;
 
 export const root = fileURLToPath(new URL('../../', import.meta.url));
 /** @param {'preview' | 'testbed'} mode */

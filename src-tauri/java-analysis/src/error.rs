@@ -1,10 +1,18 @@
 use reqwest::Error as HttpError;
 use serde_json::Error as JsonError;
 use std::io::Error as IoError;
+use std::path::PathBuf;
 use std::result::Result as StdResult;
 use zip::result::ZipError;
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
+    #[error("Start Java {java} in {directory}: {source}")]
+    JavaStart {
+        java: PathBuf,
+        directory: PathBuf,
+        #[source]
+        source: IoError,
+    },
     #[error("Java component operation cancelled")]
     Cancelled,
     #[error("{0}")]
