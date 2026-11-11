@@ -899,12 +899,12 @@
           "description": "玩家在装配界面使用自动装配时，不会应用该插件的效果。"
         },
         "DO_can_not_add": {
-          "label": "损伤控制排除新增",
-          "description": "损伤控制技能的战后修复替换 D 类损伤时，将此插件排除在新增候选之外。"
+          "label": "D 类损伤重排时排除新增",
+          "description": "Derelict Operations (derelict_contingent) 技能重排 D 类损伤时，将此插件排除在新增候选之外。"
         },
         "DO_can_not_remove": {
-          "label": "损伤控制保留损伤",
-          "description": "损伤控制技能的战后修复替换 D 类损伤时，保留此插件。"
+          "label": "D 类损伤重排时保留",
+          "description": "Derelict Operations (derelict_contingent) 技能重排 D 类损伤时，保留此插件。"
         }
       }
     },
