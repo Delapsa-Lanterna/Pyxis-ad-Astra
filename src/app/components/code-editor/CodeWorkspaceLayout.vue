@@ -25,7 +25,8 @@
         />
       </template>
       <template #2>
-        <section v-if="active" class="code-analysis-body">
+        <slot v-if="overview" name="overview" />
+        <section v-if="active" v-show="!overview" class="code-analysis-body">
           <n-split
             direction="vertical"
             :size="results ? `calc(100% - ${panelSize + 6}px)` : 1"
@@ -79,7 +80,6 @@
             <template #2><slot name="results" /></template>
           </n-split>
         </section>
-        <slot v-else name="empty" />
       </template>
     </n-split>
   </section>
@@ -87,7 +87,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onScopeDispose, ref, useTemplateRef, watch } from 'vue';
 
-defineProps<{ active: boolean; results: boolean }>();
+defineProps<{ active: boolean; results: boolean; overview?: boolean }>();
 const tree = defineModel<boolean>('tree', { required: true });
 const outline = defineModel<boolean>('outline', { required: true });
 const workspace = useTemplateRef<HTMLElement>('workspace');

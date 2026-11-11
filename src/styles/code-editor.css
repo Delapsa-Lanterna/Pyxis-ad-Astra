@@ -4,21 +4,20 @@
   background: var(--color-bg);
 }
 .code-editor-header {
-  padding: 8px 12px;
+  gap: 8px;
+  padding: 4px 12px;
   border-bottom: 1px solid var(--color-border);
 }
-.code-editor-identity,
-.code-editor-tools,
 .code-project-heading,
 .code-editor-status {
   gap: 8px;
 }
-.code-editor-identity {
-  margin-bottom: 8px;
+.code-editor-path {
+  max-width: 40%;
 }
-.code-editor-tools {
-  flex-wrap: wrap;
-  justify-content: space-between;
+.code-tool-icon {
+  width: 12px;
+  height: 12px;
 }
 .code-java-tools {
   width: 520px;
@@ -47,6 +46,20 @@
 }
 .code-text-area {
   height: 100%;
+}
+.code-overview {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+.code-overview-statistics {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+}
+.code-overview-statistics dd {
+  margin: 8px 0 0;
+  font-weight: 600;
 }
 .code-project-tree {
   overflow: auto;

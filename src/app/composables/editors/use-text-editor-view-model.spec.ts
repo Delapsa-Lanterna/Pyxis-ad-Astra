@@ -228,7 +228,7 @@ describe('useTextEditorViewModel loading', () => {
     mocks.loadTextFile.mockResolvedValue(textFileFixture('line1\nline2'));
     const viewModel = await initializeViewModel(paramsFixture());
     expect(viewModel.text.value).toBe('line1\nline2');
-    expect(viewModel.lineCount.value).toBe(2);
+    expect(viewModel.document.state.value.doc.lines).toBe(2);
     expect(viewModel.dirty.value).toBe(false);
     viewModel.dispose();
   });

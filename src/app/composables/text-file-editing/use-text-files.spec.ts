@@ -223,6 +223,9 @@ describe('code editor document host', () => {
     mocks.receive!({ key: 'view', files: [{ path: 'M:/sample/A.java' }, { path: 'M:/sample/B.java' }] });
     await flushPromises();
     const surface = wrapper.getComponent(TextEditorSurface);
+    expect(wrapper.get('[aria-label="展开大纲"]').attributes('aria-pressed')).toBe('false');
+    await wrapper.get('[aria-label="展开大纲"]').trigger('click');
+    expect(wrapper.get('[aria-label="收起大纲"]').attributes('aria-pressed')).toBe('true');
     const second = surface.props('document');
     await wrapper.findAll('[role="tab"]')[0]!.trigger('click');
     const first = surface.props('document');

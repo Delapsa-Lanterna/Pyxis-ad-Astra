@@ -130,7 +130,6 @@ export function useTextEditorViewModel(params: TextEditorViewModelParams) {
 
   const text = computed(() => writeTextContent(draftSession.draftValue.value));
   const dirty = draftSession.dirty;
-  const lineCount = computed(() => draftSession.draftValue.value.text.lines);
   const canUndo = document.canUndo;
   const canRedo = document.canRedo;
   const isErrorContext = computed(() => contextSeverity.value === 'error' && contextMessage.value !== '');
@@ -430,7 +429,6 @@ export function useTextEditorViewModel(params: TextEditorViewModelParams) {
     ),
     hasPendingExternalText,
     externalTextNotice,
-    lineCount,
     canUndo,
     canRedo,
     isErrorContext,

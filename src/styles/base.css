@@ -46,8 +46,8 @@
   --ui-feedback-duration: 80ms;
   --ui-motion-easing: cubic-bezier(0.4, 0, 0.2, 1);
   --ui-feedback-easing: ease-out;
-  --font-field: 'Cascadia Mono', Consolas, 'Courier New', monospace;
-  --font-text-editor: 'Cascadia Mono', Consolas, 'Courier New', monospace;
+  --font-field: 'Cascadia Mono', Consolas, 'Courier New', 'Microsoft YaHei UI', 'Microsoft YaHei', monospace;
+  --font-text-editor: 'Cascadia Mono', Consolas, 'Courier New', 'Microsoft YaHei UI', 'Microsoft YaHei', monospace;
 }
 .ui-layout-contained {
   min-width: 0;

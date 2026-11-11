@@ -25,17 +25,6 @@
         >
           {{ displayPath }}
         </div>
-        <div class="text-editor-meta ui-layout-row ui-layout-shrink" aria-label="文件信息">
-          <span class="text-editor-meta-label ui-text-truncate ui-text-muted ui-control-border ui-content-surface-muted">{{
-            fileTypeText
-          }}</span>
-          <span class="text-editor-meta-label ui-text-truncate ui-text-muted ui-control-border ui-content-surface-muted"
-            >{{ lineCount }} 行</span
-          >
-          <span class="text-editor-meta-label ui-text-truncate ui-text-muted ui-control-border ui-content-surface-muted">{{
-            modRootName
-          }}</span>
-        </div>
       </div>
       <div class="text-editor-actions action-group">
         <n-button :disabled="!contentReady || loading" @click="surface?.search()">查找与替换</n-button>
@@ -96,12 +85,6 @@ const displayPath = computed(() => {
   if (modRoot && pathBelongsToRoot(filePath.value, modRoot)) return relativePathFromRoot(modRoot, filePath.value);
   return filePath.value;
 });
-const fileTypeText = computed(() => {
-  const name = fileName.value;
-  const extension = name.includes('.') ? name.split('.').pop()?.toUpperCase() : '';
-  return extension ? `${extension} 文本` : '文本文件';
-});
-const modRootName = computed(() => (modRoot ? pathBasename(modRoot) : '未知 Mod'));
 const surface = useTemplateRef<InstanceType<typeof TextEditorSurface>>('surface');
 const {
   document,
@@ -119,7 +102,6 @@ const {
   canSave,
   hasPendingExternalText,
   externalTextNotice,
-  lineCount,
   isErrorContext,
   isWarningContext,
   initialize,

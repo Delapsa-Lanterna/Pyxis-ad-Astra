@@ -123,7 +123,17 @@ async function crossEditorLifecycle(app, fixture, check) {
       await page.getByRole('textbox', { name: '替换', exact: true }).fill('count');
       await page.getByRole('button', { name: '替换全部', exact: true }).click();
       await find.press('Escape');
+      if (kind === 'code') {
+        assert.equal(await page.getByRole('tab').last().getAttribute('aria-description'), '有未保存修改');
+        await page.getByRole('button', { name: '打开代码总览', exact: true }).click();
+        const overview = page.getByRole('region', { name: '代码总览', exact: true });
+        await overview.waitFor();
+        assert.equal(await overview.locator('dl > div').filter({ hasText: '未保存文件' }).locator('dd').innerText(), '1');
+        await page.getByRole('tab').last().click();
+        assert.equal(await text(page), source.replaceAll('\r\n', '\n').replace('value', 'count'));
+      }
       await save(page);
+      if (kind === 'code') assert.equal(await page.getByRole('tab').last().getAttribute('aria-description'), '已保存');
       assert.equal(await readFile(path, 'utf8'), source.replace('value', 'count'));
       await input.press('Control+z');
       await save(page);
@@ -400,7 +410,7 @@ export async function editorLifecycle(app, fixture, check, artifacts) {
     await until(async () => (await editor.getByRole('tab').count()) === 1, 'saved tab close');
     assert.equal(await readFile(moved, 'utf8'), 'unsaved');
     await editor.getByRole('button', { name: '关闭 Second.java', exact: true }).click();
-    await editor.getByRole('heading', { name: '代码编辑器', exact: true }).waitFor();
+    await editor.getByRole('heading', { name: '选择文件开始编辑', exact: true }).waitFor();
     await editor.evaluate(() => {
       void Reflect.get(globalThis, '__TAURI_INTERNALS__').invoke('request_close', { scope: { kind: 'window' } });
     });

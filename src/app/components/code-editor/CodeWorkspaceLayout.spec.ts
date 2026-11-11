@@ -1,6 +1,6 @@
 import { afterEach, expect, it, vi } from 'vitest';
 import { mount } from '@vue/test-utils';
-import { defineComponent, nextTick, ref } from 'vue';
+import { defineComponent, h, nextTick, onMounted, onUnmounted, ref } from 'vue';
 import CodeWorkspaceLayout from './CodeWorkspaceLayout.vue';
 
 afterEach(() => vi.unstubAllGlobals());
@@ -51,4 +51,40 @@ it('keeps an explicitly reopened narrow sidebar through height changes and relea
     wrapper.unmount();
   }
   expect(disconnect).toHaveBeenCalledTimes(1);
+});
+it('retains the mounted editor while overview changes and releases it once', async () => {
+  vi.stubGlobal(
+    'ResizeObserver',
+    class {
+      observe() {}
+      disconnect() {}
+    },
+  );
+  let created = 0,
+    released = 0;
+  const content = defineComponent({
+    setup() {
+      onMounted(() => created++);
+      onUnmounted(() => released++);
+      return () => h('input', { value: 'Retained draft' });
+    },
+  });
+  const wrapper = mount(CodeWorkspaceLayout, {
+    props: { active: true, results: false, tree: false, outline: false, overview: false },
+    slots: { text: content, overview: 'Code overview' },
+    global: { stubs: { NSplit: { template: '<div><slot name="1"/><slot name="2"/></div>' } } },
+  });
+  try {
+    const input = wrapper.get('input').element;
+    await wrapper.setProps({ overview: true });
+    expect(wrapper.text()).toContain('Code overview');
+    expect(wrapper.get('input').isVisible()).toBe(false);
+    await wrapper.setProps({ overview: false });
+    expect(wrapper.get('input').element).toBe(input);
+    expect(created).toBe(1);
+    expect(released).toBe(0);
+  } finally {
+    wrapper.unmount();
+  }
+  expect(released).toBe(1);
 });

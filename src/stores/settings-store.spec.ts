@@ -108,8 +108,18 @@ describe('settings integer limits', () => {
   });
   it.each([
     ['interfaceFont', 'setInterfaceFont', 'interfaceFontFamily', "Inter, 'Segoe UI', 'Microsoft YaHei', sans-serif"],
-    ['fieldFont', 'setFieldFont', 'fieldFontFamily', "'Cascadia Mono', Consolas, 'Courier New', monospace"],
-    ['textEditorFont', 'setTextEditorFont', 'textEditorFontFamily', "'Cascadia Mono', Consolas, 'Courier New', monospace"],
+    [
+      'fieldFont',
+      'setFieldFont',
+      'fieldFontFamily',
+      "'Cascadia Mono', Consolas, 'Courier New', 'Microsoft YaHei UI', 'Microsoft YaHei', monospace",
+    ],
+    [
+      'textEditorFont',
+      'setTextEditorFont',
+      'textEditorFontFamily',
+      "'Cascadia Mono', Consolas, 'Courier New', 'Microsoft YaHei UI', 'Microsoft YaHei', monospace",
+    ],
     ['canvasEditorFont', 'setCanvasEditorFont', 'canvasEditorFontFamily', 'sans-serif'],
   ] as const)('publishes and mirrors %s while preserving its default combination', (field, setter, family, defaults) => {
     const settings = useSettingsStore();

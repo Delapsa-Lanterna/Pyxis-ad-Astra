@@ -118,8 +118,8 @@
 - `cacheLimits.mediaData` 统一表达闲置媒体条数与 MiB，默认值为 2048 与 64；活跃租约独立计量。
 - `editHistoryLimit` 与 `fileHistoryLimit` 必须分别控制每个编辑撤销栈及每个 Mod 根的文件保存历史，默认值分别为 250 与 20，整数范围为 1–1000；设置读取和保存共同校验范围。
 - `interfaceFont` 必须以 `null` 表达默认字体组合，以非空且不含控制字符的单个字体族名表达选择；默认组合为 Inter、Segoe UI、Microsoft YaHei 和 sans-serif，选择随完整快照持久化及镜像。
-- `fieldFont` 必须以 `null` 表达默认字体组合，以非空且不含控制字符的单个字体族名表达选择；默认组合为 Cascadia Mono、Consolas、Courier New 和 monospace，作用于字段文字与窗口悬浮提示，并随完整快照持久化及镜像。
-- `textEditorFont` 必须以 `null` 表达默认字体组合，以非空且不含控制字符的单个字体族名表达选择；默认组合为 Cascadia Mono、Consolas、Courier New 和 monospace，作用于文本编辑器与代码编辑器的主编辑区正文，并随完整快照持久化及镜像。
+- `fieldFont` 必须以 `null` 表达默认字体组合，以非空且不含控制字符的单个字体族名表达选择；默认组合依次为 Cascadia Mono、Consolas、Courier New、Microsoft YaHei UI、Microsoft YaHei 和 monospace，作用于字段文字与窗口悬浮提示，并随完整快照持久化及镜像。
+- `textEditorFont` 必须以 `null` 表达默认字体组合，以非空且不含控制字符的单个字体族名表达选择；默认组合依次为 Cascadia Mono、Consolas、Courier New、Microsoft YaHei UI、Microsoft YaHei 和 monospace，作用于文本编辑器与代码编辑器的主编辑区正文，并随完整快照持久化及镜像。
 - `canvasEditorFont` 必须以 `null` 表达默认 sans-serif 字体，以非空且不含控制字符的单个字体族名表达选择；作用于画布内文字，并随完整快照持久化、镜像及重置。
 - `immersiveFontDirectory` 必须以 `null` 表达游戏字体来源，以绝对目录路径表达指定来源，随完整设置快照持久化、镜像及重置；目录可用性由字体加载流程处理。
 - `logBackupCount` 默认为 1，整数范围为 1–20；`logRotationSizeMiB` 默认为 5，整数范围为 1–1024。

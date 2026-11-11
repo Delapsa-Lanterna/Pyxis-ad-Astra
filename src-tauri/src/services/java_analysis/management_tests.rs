@@ -50,7 +50,25 @@ fn management_subscriptions_refresh_failure_and_closed_state() {
         .unwrap();
     manager.join_worker().unwrap();
     assert_eq!(manager.snapshot().unwrap().installation, "missing");
+    assert_eq!(manager.snapshot().unwrap().installed_bytes, 0);
     assert!(!runtime.paths().root.exists());
+    let package = runtime.package();
+    let directory = runtime
+        .dependency_directory()
+        .unwrap()
+        .join(&package.version);
+    fs::create_dir_all(directory.join("lib")).unwrap();
+    fs::write(directory.join("lib/sample.jar"), b"sample-jar").unwrap();
+    fs::write(directory.join("engine.json"), b"invalid").unwrap();
+    let stage = directory.with_file_name(format!("{}.staging", package.version));
+    fs::create_dir_all(&stage).unwrap();
+    fs::write(stage.join("partial"), b"stage").unwrap();
+    let inspection = manager.inspect().unwrap();
+    assert_eq!(inspection, ("damaged".into(), 5, 17));
+    manager
+        .begin(ManagementAction::Refresh, "refresh-size".into())
+        .unwrap();
+    manager.join_worker().unwrap();
     let before = first.lock().unwrap().len();
     manager
         .begin(
@@ -62,6 +80,8 @@ fn management_subscriptions_refresh_failure_and_closed_state() {
         .unwrap();
     manager.join_worker().unwrap();
     let failed = manager.snapshot().unwrap();
+    assert_eq!(failed.installed_bytes, 17);
+    assert_eq!(failed.staged_bytes, 5);
     assert_eq!(failed.phase, "failed");
     assert!(failed.error.is_some());
     let next_control = TransferControl::default();

@@ -46,6 +46,7 @@ export async function verifySourceActions(page, output) {
   await editor.getByRole('button', { name: 'Java 操作', exact: true }).click();
   await editor.getByRole('button', { name: '参数提示', exact: true }).click();
   await editor.locator('.code-signature').waitFor();
+  await surface.click();
   await surface.fill('class Orbit {List<String> values;}');
   await editor.getByRole('button', { name: 'Java 操作', exact: true }).click();
   await editor.getByRole('button', { name: '整理导入', exact: true }).click();

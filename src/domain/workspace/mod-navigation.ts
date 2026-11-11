@@ -65,7 +65,7 @@ export function buildModNavigationSections(manifest: ProjectManifest | null | un
         jsonItem('mission', '战役', manifest?.entitySummaries.missions ?? 0),
       ],
     },
-    { id: 'code', label: '代码', items: [{ id: 'code-editor', label: '代码编辑器', count: null, target: { type: 'code-editor' } }] },
+    { id: 'code', label: '实验性区域', items: [{ id: 'code-editor', label: '代码编辑器', count: null, target: { type: 'code-editor' } }] },
   ];
 }
 

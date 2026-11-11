@@ -8,6 +8,7 @@ export async function verifyJavaAnalysis(page, artifacts) {
   const main = page.frameLocator('iframe[data-window="main"]');
   const card = main.locator('section').filter({ has: main.getByRole('heading', { name: 'Java 分析', exact: true }) });
   await card.getByRole('button', { name: '下载安装', exact: true }).waitFor();
+  await card.getByText('目标版本 JDT 3.47.0 · 下载大小 15.66 MiB', { exact: false }).waitFor();
   const headings = await main.locator('section > h3').allTextContents();
   const index = headings.indexOf('Java 分析');
   assert.equal(headings[index - 1], '配置文件');
@@ -50,12 +51,16 @@ export async function verifyJavaAnalysis(page, artifacts) {
   await page.evaluate(() =>
     Reflect.get(globalThis, 'browserWorkspace').javaAnalysis.publish({
       installation: 'installed',
+      installedBytes: 16777216,
       phase: 'succeeded',
       error: null,
       instances: 1,
       projects: 2,
     }),
   );
+  await card.getByText('已安装版本 JDT 3.47.0', { exact: false }).waitFor();
+  await card.getByText('16.00 MiB', { exact: true }).waitFor();
+  assert.equal(await card.getByText('下载大小', { exact: false }).count(), 0);
   assert.equal(await card.getByRole('button', { name: '检查并修复', exact: true }).isDisabled(), true);
   assert.equal(await card.getByRole('button', { name: '移除组件', exact: true }).isDisabled(), true);
   const stop = card.getByRole('button', { name: '停止全部分析', exact: true });

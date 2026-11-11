@@ -41,6 +41,7 @@ function snapshot(patch: Partial<JavaManagementSnapshot> = {}): JavaManagementSn
     installation: 'missing',
     jdtVersion: '3.47.0',
     downloadBytes: 16423216,
+    installedBytes: 0,
     installationPath: 'G:/sample/config/java-analysis/dependencies/fixed',
     logPath: 'G:/sample/config/java-analysis/logs',
     stagedBytes: 0,
@@ -75,6 +76,21 @@ beforeEach(() => {
 });
 
 describe('Java component management card', () => {
+  it('shows installed version and measured files separately from download inventory', async () => {
+    const wrapper = card();
+    await flushPromises();
+    expect(wrapper.text()).toContain('目标版本 JDT 3.47.0 · 下载大小 15.66 MiB');
+    receive(snapshot({ revision: 2, installation: 'installed', installedBytes: 16777216 }));
+    await flushPromises();
+    expect(wrapper.text()).toContain('已安装版本 JDT 3.47.0');
+    expect(wrapper.text()).toContain('安装占用');
+    expect(wrapper.text()).toContain('16.00 MiB');
+    expect(wrapper.text()).not.toContain('下载大小');
+    receive(snapshot({ revision: 3, installation: 'missing' }));
+    await flushPromises();
+    expect(wrapper.text()).not.toContain('安装占用');
+    expect(wrapper.text()).toContain('下载大小 15.66 MiB');
+  });
   it('keeps dangerous actions red and blocks dependency changes while analysis is active', async () => {
     const wrapper = card();
     await flushPromises();

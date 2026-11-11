@@ -305,7 +305,7 @@ describe('settings limit controls', () => {
     expect(useSettingsStore().textEditorFont).toBeNull();
     await canvasFont.setValue('""');
     expect(useSettingsStore().canvasEditorFont).toBeNull();
-    expect(immersive.text()).toContain('默认字体组合为 Cascadia Mono、Consolas、Courier New。');
+    expect(immersive.text()).toContain('默认字体组合为 Cascadia Mono、Consolas、Courier New、Microsoft YaHei UI、Microsoft YaHei。');
     expect(immersive.text()).toContain('再尝试游戏原版字体');
     expect(useSettingsStore().immersiveGameFont).toBe(true);
     await immersive.get('button').trigger('click');

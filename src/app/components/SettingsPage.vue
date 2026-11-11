@@ -381,10 +381,14 @@ const LOG_LEVEL_OPTIONS: { label: string; value: LogLevel }[] = [
 ];
 const FONT_FIELDS = {
   interfaceFont: ['界面字体', '选择本机已安装字体。默认字体组合为 Inter、Segoe UI、Microsoft YaHei。', 'setInterfaceFont'],
-  fieldFont: ['字段字体', '用于字段键、路径、ID、代码及悬浮提示。默认字体组合为 Cascadia Mono、Consolas、Courier New。', 'setFieldFont'],
+  fieldFont: [
+    '字段字体',
+    '用于字段键、路径、ID、代码及悬浮提示。默认字体组合为 Cascadia Mono、Consolas、Courier New、Microsoft YaHei UI、Microsoft YaHei。',
+    'setFieldFont',
+  ],
   textEditorFont: [
     '文本编辑器字体',
-    '用于文本编辑器和代码编辑器的主编辑区。默认字体组合为 Cascadia Mono、Consolas、Courier New。',
+    '用于文本编辑器和代码编辑器的主编辑区。默认字体组合为 Cascadia Mono、Consolas、Courier New、Microsoft YaHei UI、Microsoft YaHei。',
     'setTextEditorFont',
   ],
   canvasEditorFont: ['画布编辑器字体', '用于画布内的文字。默认使用系统 sans-serif 字体。', 'setCanvasEditorFont'],

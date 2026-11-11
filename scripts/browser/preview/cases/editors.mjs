@@ -26,9 +26,71 @@ export async function closeEditorDocuments(editor) {
 /** @param {import('playwright').Page} page @param {string} output */
 export async function verifyEditors(page, output) {
   const editor = await openEditorSample(page);
+  const controls = editor.locator('.code-editor-header button');
+  assert.equal(await controls.count(), 7);
+  for (const control of await controls.all()) {
+    assert.equal((await control.innerText()).trim(), '');
+    assert.equal(await control.locator('svg').count(), 1);
+    assert.ok(await control.getAttribute('aria-label'));
+    assert.ok(await control.getAttribute('title'));
+  }
+  await editor.getByRole('button', { name: '查找与替换', exact: true }).hover();
+  const tooltip = editor.getByRole('tooltip').filter({ hasText: '查找与替换' });
+  await tooltip.waitFor();
+  const tooltipFont = await tooltip.evaluate((element) => {
+    const view = /** @type {Window} */ (element.ownerDocument.defaultView);
+    return {
+      actual: view.getComputedStyle(element).fontFamily,
+      field: view.getComputedStyle(element.ownerDocument.documentElement).getPropertyValue('--font-field').trim(),
+    };
+  });
+  assert.equal(tooltipFont.actual.replace(/["']/g, ''), tooltipFont.field.replace(/["']/g, ''));
+  /** @type {Record<string,unknown>} */
+  const fontEvidence = { family: tooltipFont };
+  const fontSession = await page.context().newCDPSession(page);
+  /** @param {string|null} font */
+  const setFieldFont = (font) =>
+    page.evaluate(async (fieldFont) => {
+      const workspace = Reflect.get(globalThis, 'browserWorkspace'),
+        settings = await workspace.invoke('main', 'read_settings', {});
+      await workspace.invoke('main', 'save_settings', { payload: { settings: { ...settings.value, fieldFont } } });
+    }, font);
+  const initialFieldFont = await page.evaluate(
+    async () => (await Reflect.get(globalThis, 'browserWorkspace').invoke('main', 'read_settings', {})).value.fieldFont,
+  );
+  try {
+    await fontSession.send('DOM.enable');
+    await fontSession.send('CSS.enable');
+    const nodes = (await fontSession.send('DOM.getFlattenedDocument', { depth: -1, pierce: true })).nodes;
+    const node = nodes.find((node) => node.nodeName === 'SPAN' && node.attributes?.includes('tooltip'));
+    assert.ok(node);
+    fontEvidence.defaultGlyphs = (await fontSession.send('CSS.getPlatformFontsForNode', { nodeId: node.nodeId })).fonts;
+    await setFieldFont('SimSun');
+    assert.ok(
+      (
+        await tooltip.evaluate((element) => /** @type {Window} */ (element.ownerDocument.defaultView).getComputedStyle(element).fontFamily)
+      ).startsWith('SimSun'),
+    );
+    const customFonts = (await fontSession.send('CSS.getPlatformFontsForNode', { nodeId: node.nodeId })).fonts;
+    assert.ok(customFonts.some((font) => font.familyName === 'SimSun' && font.glyphCount === 5));
+    fontEvidence.customGlyphs = customFonts;
+  } finally {
+    await setFieldFont(initialFieldFont);
+    await fontSession.detach();
+  }
   assert.equal(await editor.getByRole('tab').count(), 3);
   const surface = editor.getByRole('textbox', { name: '文件内容' });
   await surface.fill('modified third\n');
+  assert.equal(await editor.getByRole('tab').last().getAttribute('aria-description'), '有未保存修改');
+  await editor.getByRole('button', { name: '打开代码总览', exact: true }).click();
+  const overview = editor.getByRole('region', { name: '代码总览', exact: true });
+  await overview.waitFor();
+  assert.equal(await editor.getByRole('tab', { selected: true }).count(), 0);
+  assert.equal(await overview.locator('dl > div').filter({ hasText: '未保存文件' }).locator('dd').innerText(), '1');
+  assert.equal(await overview.locator('dl > div').filter({ hasText: '已打开文件' }).locator('dd').innerText(), '3');
+  assert.equal(await surface.isVisible(), false);
+  await editor.getByRole('tab').last().click();
+  assert.equal((await surface.locator('.cm-line').allTextContents()).join('\n'), 'modified third\n');
   await editor.getByRole('tab').first().click();
   await surface.fill('modified first\n');
   await page.evaluate(() => Reflect.get(globalThis, 'browserWorkspace').openSampleWindow('code-editor'));
@@ -36,9 +98,14 @@ export async function verifyEditors(page, output) {
   assert.equal((await surface.locator('.cm-line').allTextContents()).join('\n'), 'modified third\n');
   await editor.getByRole('button', { name: '保存全部', exact: true }).click();
   await editor.locator('footer').filter({ hasText: '已保存' }).waitFor();
+  assert.equal(await editor.getByRole('tab').last().getAttribute('aria-description'), '已保存');
   const features = await verifyTextFeatures(editor);
   assert.equal(await page.evaluate(() => Reflect.get(globalThis, 'browserWorkspace').codeEditor.pending), 0);
-  const checks = [{ name: 'open, reuse, independent drafts and save all', pass: true }, features];
+  const checks = [
+    { name: 'compact SVG toolbar, hover labels and field font', pass: true, fontEvidence },
+    { name: 'open, overview statistics, retained drafts, status lights, reuse and save all', pass: true },
+    features,
+  ];
   const beforeComposition = (await surface.locator('.cm-line').allTextContents()).join('\n');
   await surface.focus();
   await surface.press('Control+End');
@@ -97,6 +164,9 @@ export async function verifyEditors(page, output) {
       await editor.getByRole('button', { name: '查找与替换', exact: true }).click();
       await editor.locator('.code-editor').screenshot({ path: join(output, 'code-editor-' + theme + '-' + width + '.png') });
       await editor.getByRole('textbox', { name: '查找', exact: true }).press('Escape');
+      await editor.getByRole('button', { name: '打开代码总览', exact: true }).click();
+      await overview.screenshot({ path: join(output, 'code-overview-' + theme + '-' + width + '.png') });
+      await editor.getByRole('tab').filter({ hasText: 'Third.java' }).click();
       checks.push({ name: theme + '-' + width, pass: true });
     }
   await surface.fill(Array.from({ length: 100 }, (_, index) => String(index) + ' ' + 'x'.repeat(1000)).join('\n'));
@@ -109,6 +179,11 @@ export async function verifyEditors(page, output) {
     element.scrollLeft = 200;
     return { top: element.scrollTop, left: element.scrollLeft };
   });
+  await editor.getByRole('button', { name: '打开代码总览', exact: true }).click();
+  await editor.getByRole('tab').filter({ hasText: 'Third.java' }).click();
+  await page.waitForTimeout(32);
+  assert.deepEqual(await scrolling.evaluate((element) => ({ top: element.scrollTop, left: element.scrollLeft })), savedScroll);
+  assert.equal(await surface.evaluate((element) => element.ownerDocument.getSelection()?.toString()), selection);
   await editor.getByRole('tab').first().click();
   await editor.getByRole('tab').filter({ hasText: 'Third.java' }).click();
   assert.equal(await surface.evaluate((element) => element.ownerDocument.getSelection()?.toString()), selection);
@@ -131,6 +206,12 @@ export async function verifyEditors(page, output) {
   assert.equal(await editor.getByRole('button', { name: '跳转声明', exact: true }).count(), 0);
   checks.push({ name: '50 sequential file tabs activate the final file and ordinary text exposes text operations', pass: true });
   await closeEditorDocuments(editor);
+  await editor.getByRole('heading', { name: '选择文件开始编辑', exact: true }).waitFor();
+  for (const theme of ['light', 'dark']) {
+    await page.setViewportSize({ width: 1602, height: 900 });
+    await page.evaluate((theme) => Reflect.get(globalThis, 'browserWorkspace').setAppearance({ theme }), theme);
+    await editor.locator('.code-editor').screenshot({ path: join(output, 'code-empty-' + theme + '.png') });
+  }
   checks.push({ name: 'all documents released', pass: true });
   checks.push(...(await verifyTextEditor(page, output)));
   return checks;

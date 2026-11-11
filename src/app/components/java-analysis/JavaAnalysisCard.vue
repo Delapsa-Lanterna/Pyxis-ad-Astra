@@ -2,12 +2,16 @@
   <section class="panel-card ui-layout-shrink ui-control-border ui-content-surface ui-layout-grid ui-layout-stretch">
     <h3 class="panel-section-title">Java 分析</h3>
     <FieldRow readonly label="分析组件"
-      ><span
+      ><span v-if="snapshot?.installation === 'installed'">已安装版本 JDT {{ snapshot.jdtVersion }}</span
+      ><span v-else
         >{{ installation
         }}<template v-if="snapshot">
           · 目标版本 JDT {{ snapshot.jdtVersion }} · 下载大小 {{ bytes(snapshot.downloadBytes) }}</template
         ></span
       ></FieldRow
+    >
+    <FieldRow v-if="snapshot?.installedBytes" readonly label="安装占用"
+      ><span>{{ bytes(snapshot.installedBytes) }}</span></FieldRow
     >
     <FieldRow label="安装位置"
       ><div class="ui-field-actions ui-layout-stretch action-group">

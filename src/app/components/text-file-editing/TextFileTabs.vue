@@ -1,5 +1,6 @@
 <template>
-  <nav class="code-editor-tabs ui-content-surface-muted" aria-label="已打开文件">
+  <nav class="code-editor-tabs ui-control-row ui-content-surface-muted" aria-label="已打开文件">
+    <slot name="leading" />
     <div ref="list" class="mod-tabs-list ui-layout-row" role="tablist">
       <div
         v-for="document in files"
@@ -18,6 +19,7 @@
           class="mod-tab-activate ui-button ui-control-row ui-control-button ui-control-pointer ui-layout-row ui-layout-center"
           role="tab"
           :aria-selected="active === document"
+          :aria-description="status(document).label"
           draggable="true"
           @dragstart="dragged = document"
           @dragend="endDrag"
@@ -25,7 +27,7 @@
         >
           <span class="mod-tab-name ui-text-truncate">{{ label(document) }}</span>
           <span v-if="document.readOnly" class="code-readonly">引用，只读</span>
-          <span v-if="document.dirty.value" class="mod-tab-dirty" title="未保存" />
+          <span :class="status(document).className" :title="status(document).label" aria-hidden="true" />
         </button>
         <button
           class="mod-tab-close ui-button ui-control-button ui-text-muted ui-layout-grid ui-control-reset ui-control-pointer"
@@ -41,6 +43,7 @@
 <script setup lang="ts">
 import { nextTick, onScopeDispose, ref, shallowRef, useTemplateRef, watch } from 'vue';
 import type { TextFile } from '@/app/composables/text-file-editing/use-text-file';
+import { fileTabStatus } from '@/domain/text-file-editing/file-tabs';
 const props = defineProps<{ files: TextFile[]; active: TextFile | null; label: (file: TextFile) => string }>();
 const emit = defineEmits<{
   activate: [file: TextFile];
@@ -53,6 +56,9 @@ const target = shallowRef<TextFile | null>(null),
   list = useTemplateRef<HTMLElement>('list');
 let frame = 0,
   scroll = 0;
+function status(file: TextFile) {
+  return fileTabStatus(file.dirty.value, Boolean(file.problem.value), file.session.saving.value, file.readOnly);
+}
 watch(
   () => [props.active, props.files.length],
   async () => {

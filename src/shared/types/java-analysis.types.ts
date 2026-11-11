@@ -69,6 +69,7 @@ export interface JavaManagementSnapshot {
   installation: 'unchecked' | 'missing' | 'installed' | 'damaged';
   jdtVersion: string;
   downloadBytes: number;
+  installedBytes: number;
   installationPath: string;
   logPath: string;
   stagedBytes: number;

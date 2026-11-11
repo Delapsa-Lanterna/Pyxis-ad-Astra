@@ -97,6 +97,7 @@ export async function javaQueries(
       );
       assert.fail(status + '\n' + JSON.stringify({ java, error }));
     }
+    await page.getByRole('button', { name: '展开大纲', exact: true }).click();
     await page.getByRole('button', { name: 'run', exact: true }).waitFor();
     const hover = await action(page, { kind: 'inspect', file, offset: source.indexOf('value'), purpose: 'hover' });
     assert.equal(hover.result.binding.type, 'java.lang.String');

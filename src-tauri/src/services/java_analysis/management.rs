@@ -44,6 +44,7 @@ pub struct ManagementSnapshot {
     pub installation: String,
     pub jdt_version: String,
     pub download_bytes: u64,
+    pub installed_bytes: u64,
     pub installation_path: String,
     pub log_path: String,
     pub staged_bytes: u64,
@@ -145,6 +146,7 @@ impl ComponentManagement {
             installation: "unchecked".into(),
             jdt_version: version,
             download_bytes: package.artifacts.iter().map(|file| file.bytes).sum(),
+            installed_bytes: 0,
             installation_path: java_path(&runtime.paths().dependencies.join(&package.version))
                 .to_string_lossy()
                 .into_owned(),
@@ -472,9 +474,10 @@ impl ComponentManagement {
             .into();
             state.snapshot.error = if cancelled { None } else { error_message };
             match inspection {
-                Some(Ok((installation, bytes))) => {
+                Some(Ok((installation, staged_bytes, installed_bytes))) => {
                     state.snapshot.installation = installation;
-                    state.snapshot.staged_bytes = bytes;
+                    state.snapshot.staged_bytes = staged_bytes;
+                    state.snapshot.installed_bytes = installed_bytes;
                 }
                 Some(Err(error)) => {
                     diagnostics::fault(

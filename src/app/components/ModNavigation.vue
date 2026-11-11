@@ -24,7 +24,7 @@
           <div v-if="workspace.activeMod.status === 'ready'" class="mod-navigation ui-layout-row ui-layout-stack">
             <template v-for="(section, sectionIndex) in sections" :key="section.id">
               <div v-if="sectionIndex > 0" class="mod-navigation-separator" />
-              <div v-if="section.label" class="nav-label ui-text-muted">{{ section.label }}</div>
+              <div v-if="section.label" class="nav-label ui-control-row ui-text-muted">{{ section.label }}</div>
               <button
                 v-for="item in section.items"
                 :key="item.id"

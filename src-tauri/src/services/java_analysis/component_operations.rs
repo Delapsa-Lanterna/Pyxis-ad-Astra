@@ -12,16 +12,14 @@ use std::path::Path;
 use std::time::Instant;
 
 impl ComponentManagement {
-    pub(super) fn inspect(&self) -> AppResult<(String, u64)> {
+    pub(super) fn inspect(&self) -> AppResult<(String, u64, u64)> {
         let installation = match self.runtime.installed() {
             Ok(true) => "installed",
             Ok(false) => "missing",
             Err(_) => "damaged",
         };
-        let stage = self
-            .runtime
-            .dependency_directory()?
-            .join(format!("{}.staging", self.runtime.package().version));
+        let root = self.runtime.dependency_directory()?;
+        let stage = root.join(format!("{}.staging", self.runtime.package().version));
         fn size(path: &Path) -> AppResult<u64> {
             if !path.exists() {
                 return Ok(0);
@@ -33,7 +31,7 @@ impl ComponentManagement {
                 if kind.is_symlink() {
                     return Err(AppError::message(
                         "java_analysis.staging_link",
-                        "Staging links are unsupported",
+                        "Dependency directory links are unsupported",
                     ));
                 }
                 bytes += if kind.is_dir() {
@@ -44,7 +42,11 @@ impl ComponentManagement {
             }
             Ok(bytes)
         }
-        Ok((installation.into(), size(&stage)?))
+        Ok((
+            installation.into(),
+            size(&stage)?,
+            size(&root.join(&self.runtime.package().version))?,
+        ))
     }
     pub(super) fn perform(&self, operation: &ManagementOperation) -> AppResult<()> {
         let action = &operation.action;

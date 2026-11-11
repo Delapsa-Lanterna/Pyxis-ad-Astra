@@ -20,6 +20,7 @@ export function createJavaComponentPreview() {
     installation: 'missing',
     jdtVersion: '3.47.0',
     downloadBytes: 16423216,
+    installedBytes: 0,
     installationPath: 'C:/示例配置/组件缓存/java-analysis/dependencies/jdt-3.47.0-fixed',
     logPath: 'C:/示例配置/java-analysis/logs',
     stagedBytes: 0,
@@ -93,7 +94,7 @@ export function createJavaComponentPreview() {
             return completed;
           }
           if (action.kind === 'remove')
-            return publish({ operationKey, action, installation: 'missing', stagedBytes: 0, phase: 'succeeded' });
+            return publish({ operationKey, action, installation: 'missing', stagedBytes: 0, installedBytes: 0, phase: 'succeeded' });
           if (action.kind === 'stop') return publish({ operationKey, action, instances: 0, projects: 0, phase: 'succeeded' });
           if (action.kind === 'probe' || action.kind === 'test')
             return publish({
