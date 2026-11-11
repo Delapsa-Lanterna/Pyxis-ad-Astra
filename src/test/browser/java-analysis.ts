@@ -80,7 +80,7 @@ export function createJavaComponentPreview() {
             publish({ queued: state.queued + 1 });
             return waitForCompletion(operationKey);
           }
-          if (action.kind === 'download' || action.kind === 'import') {
+          if (action.kind === 'download') {
             const completed = waitForCompletion(operationKey);
             publish({
               operationKey,

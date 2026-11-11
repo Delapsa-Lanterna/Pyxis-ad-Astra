@@ -99,7 +99,10 @@ export const projectCapabilities = [
     {
       capability: 'file-browser-read',
       names: ['queryFileDirectory', 'queryFileSearch', 'queryFileTextTarget'],
-      owners: [{ layer: 'app', role: 'composable', domain: 'file-browser-view-model' }],
+      owners: [
+        { layer: 'app', role: 'composable', domain: 'file-browser-view-model' },
+        { path: 'src/app/composables/code-editor/use-code-project.ts', layer: 'app' },
+      ],
     },
   ]),
   ...capabilities({ path: 'src/shared/runtime/command.runtime.ts', layer: 'shared', role: 'shared', domain: 'runtime' }, [

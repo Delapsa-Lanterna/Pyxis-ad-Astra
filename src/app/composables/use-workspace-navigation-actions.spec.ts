@@ -4,6 +4,7 @@ import { flushPromises } from '@vue/test-utils';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
+  codeEditor: vi.fn(async () => []),
   openMod: vi.fn(),
   feedback: {
     success: vi.fn(),
@@ -23,6 +24,7 @@ const mocks = vi.hoisted(() => ({
     activateModTab: vi.fn(),
   },
 }));
+vi.mock('@/services/code-editor.service', () => ({ openCodeEditor: mocks.codeEditor }));
 
 vi.mock('@/orchestrators/workspace-opening.orchestrator', () => ({ openWorkspaceMod: mocks.openMod }));
 
@@ -52,6 +54,18 @@ import { gameCoreDirectoryPath } from '@/shared/lib/paths';
 import { sessionUpdateFixture } from '@/test/fixtures/write-result';
 
 describe('useWorkspaceNavigationActions', () => {
+  it('opens an empty project window with the captured identity while retaining the page', async () => {
+    const root = 'M:/sample',
+      workspace = useWorkspaceStore();
+    useProjectStore().registerProjectManifest(sessionUpdateFixture('sample', root).content.manifest);
+    workspace.registerMod({ modRoot: root, displayName: 'Sample', version: '', status: 'ready' });
+    workspace.activateModTab(root);
+    const page = workspace.currentView;
+    useWorkspaceNavigationActions().openProjectCodeEditor(root);
+    await flushPromises();
+    expect(mocks.codeEditor).toHaveBeenCalledExactlyOnceWith({ sessionId: 'sample', modRoot: root, files: [] });
+    expect(workspace.currentView).toBe(page);
+  });
   beforeEach(() => {
     setActivePinia(createPinia());
     vi.clearAllMocks();

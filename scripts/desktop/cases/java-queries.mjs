@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { mkdir, writeFile, rename } from 'node:fs/promises';
-import { join, resolve } from 'node:path';
+import { join } from 'node:path';
 import { until } from '../runtime.mjs';
 import { summarize } from '../../shared/sample-statistics.mjs';
 
@@ -40,15 +40,13 @@ export async function javaQueries(
     );
   const manifest = await open(fixture.mod),
     reference = await open(libraryRoot);
-  const installation = await app.main.evaluate(
-    ({ archive }) =>
-      Reflect.get(globalThis, '__TAURI_INTERNALS__').invoke('manage_java_analysis', {
-        action: { kind: 'import', archive },
-        operationKey: crypto.randomUUID(),
-      }),
-    { archive: resolve('src-tauri/target/java-analysis/jdt-dependencies.zip') },
+  const installation = await app.main.evaluate(() =>
+    Reflect.get(globalThis, '__TAURI_INTERNALS__').invoke('manage_java_analysis', {
+      action: { kind: 'download' },
+      operationKey: crypto.randomUUID(),
+    }),
   );
-  assert.equal(installation.installation, 'installed', installation.error ?? 'Java component imported');
+  assert.equal(installation.installation, 'installed', installation.error ?? 'Java component installed');
   /** @param {string[]} ids */
   const references = (ids) =>
     app.main.evaluate(

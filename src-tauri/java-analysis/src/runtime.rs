@@ -6,6 +6,7 @@ use crate::{
 use serde_json::{Value, json};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
+use std::io::ErrorKind;
 use std::mem;
 use std::path::{Path, PathBuf};
 use std::process;
@@ -33,13 +34,14 @@ struct Instance {
 
 #[derive(Default)]
 struct State {
+    dependency_directory: PathBuf,
     instances: BTreeMap<String, Arc<Mutex<Instance>>>,
     projects: BTreeMap<String, BTreeSet<String>>,
     sequence: u64,
     closed: bool,
 }
 
-/// Owns lazy installation and all analysis instances beneath the supplied configuration root.
+/// Owns dependency installation and analysis instances configured by the supplied root.
 pub struct AnalysisRuntime {
     paths: AnalysisPaths,
     package: Package,
@@ -48,18 +50,46 @@ pub struct AnalysisRuntime {
 }
 
 impl AnalysisRuntime {
-    /// Constructs descriptors without creating directories, downloading or starting Java.
+    /// Loads the installation directory without creating directories, downloading or starting Java.
     pub fn new(config_root: &Path, events: EventSink) -> Result<Self> {
+        let mut paths = AnalysisPaths::new(config_root);
+        match fs::read(paths.root.join("dependencies.json")) {
+            Ok(bytes) => paths.dependencies = serde_json::from_slice(&bytes)?,
+            Err(error) if error.kind() == ErrorKind::NotFound => {}
+            Err(error) => return Err(error.into()),
+        }
         Ok(Self {
-            paths: AnalysisPaths::new(config_root),
+            state: Mutex::new(State {
+                dependency_directory: paths.dependencies.clone(),
+                ..State::default()
+            }),
+            paths,
             package: serde_json::from_str(CATALOG)?,
-            state: Mutex::new(State::default()),
             events,
         })
     }
 
+    /// Returns startup paths; dependency_directory supplies the active installation root.
     pub fn paths(&self) -> &AnalysisPaths {
         &self.paths
+    }
+    pub fn dependency_directory(&self) -> Result<PathBuf> {
+        Ok(self.state()?.dependency_directory.clone())
+    }
+
+    /// Persists the installation root while all analysis instances are released.
+    pub fn set_dependency_directory(&self, directory: &Path) -> Result<()> {
+        let mut state = self.state()?;
+        if !state.instances.is_empty() {
+            return Err(invalid("Java instances still hold dependencies"));
+        }
+        fs::create_dir_all(&self.paths.root)?;
+        fs::write(
+            self.paths.root.join("dependencies.json"),
+            serde_json::to_vec(directory)?,
+        )?;
+        state.dependency_directory = directory.to_path_buf();
+        Ok(())
     }
     pub fn package(&self) -> &Package {
         &self.package
@@ -95,9 +125,11 @@ impl AnalysisRuntime {
     }
 
     pub fn install_with_control(&self, control: &TransferControl) -> Result<PathBuf> {
-        drop(self.state()?);
-        let result =
-            dependencies::install_with_control(&self.paths.dependencies, &self.package, control);
+        let result = dependencies::install_with_control(
+            &self.dependency_directory()?,
+            &self.package,
+            control,
+        );
         self.record("java_analysis.install", None, &result);
         result
     }
@@ -111,9 +143,8 @@ impl AnalysisRuntime {
         archive: &Path,
         control: &TransferControl,
     ) -> Result<PathBuf> {
-        drop(self.state()?);
         let result = dependencies::import_with_control(
-            &self.paths.dependencies,
+            &self.dependency_directory()?,
             archive,
             &self.package,
             control,
@@ -123,8 +154,7 @@ impl AnalysisRuntime {
     }
 
     pub fn installed(&self) -> Result<bool> {
-        drop(self.state()?);
-        match dependencies::status(&self.paths.dependencies, &self.package.version)? {
+        match dependencies::status(&self.dependency_directory()?, &self.package.version)? {
             Some(manifest) if manifest == self.package.manifest() => Ok(true),
             Some(_) => Err(invalid(
                 "Installed dependency identity differs from the fixed inventory",
@@ -150,7 +180,7 @@ impl AnalysisRuntime {
         if !state.instances.is_empty() {
             return Err(invalid("Java instances still hold dependencies"));
         }
-        let result = dependencies::remove(&self.paths.dependencies, &self.package.version);
+        let result = dependencies::remove(&state.dependency_directory, &self.package.version);
         self.record("java_analysis.remove", None, &result);
         result
     }
@@ -158,6 +188,7 @@ impl AnalysisRuntime {
     /// Starts an instance from prepared application resources and installed, pinned libraries.
     pub fn start(&self, java: &Path) -> Result<String> {
         let mut state = self.state()?;
+        let dependencies = state.dependency_directory.join(&self.package.version);
         state.sequence += 1;
         let timestamp = SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -190,7 +221,7 @@ impl AnalysisRuntime {
             Engine::start(
                 java,
                 &builtin,
-                &self.paths.dependencies.join(&self.package.version),
+                &dependencies,
                 &workspace,
                 &self.paths.logs.join(format!("{id}.log")),
             )

@@ -3,10 +3,18 @@
     <h3 class="panel-section-title">Java 分析</h3>
     <FieldRow readonly label="分析组件"
       ><span
-        >{{ installation }}<template v-if="snapshot"> · JDT {{ snapshot.jdtVersion }} · {{ bytes(snapshot.downloadBytes) }}</template></span
+        >{{ installation
+        }}<template v-if="snapshot">
+          · 目标版本 JDT {{ snapshot.jdtVersion }} · 下载大小 {{ bytes(snapshot.downloadBytes) }}</template
+        ></span
       ></FieldRow
     >
-    <FieldRow readonly label="安装位置"><n-input :value="snapshot?.installationPath ?? ''" size="small" readonly /></FieldRow>
+    <FieldRow label="安装位置"
+      ><div class="ui-field-actions ui-layout-stretch action-group">
+        <n-input :value="snapshot?.installationPath ?? ''" size="small" readonly />
+        <n-button size="small" :disabled="busy || inUse" @click="pickInstallationDirectory">选择目录</n-button>
+      </div></FieldRow
+    >
     <FieldRow readonly label="暂存文件"
       ><span
         >{{ bytes(snapshot?.stagedBytes ?? 0) }}<template v-if="snapshot?.stagedBytes"> · 已校验文件将在重试时复用</template></span
@@ -14,13 +22,12 @@
     >
     <FieldRow label="Java 17 路径"
       ><div class="ui-field-actions ui-layout-stretch action-group">
-        <n-input :value="javaPath ?? ''" placeholder="先打开游戏目录或选择 Java 17" size="small" readonly />
+        <n-input :value="customPath ?? ''" placeholder="自动推断或手动指定" size="small" readonly />
         <n-button size="small" :disabled="busy" @click="pickJava">选择文件</n-button>
-        <n-button v-if="customPath" size="small" quaternary :disabled="busy" @click="restoreAutomatic">恢复自动</n-button>
+        <n-button v-if="customPath" size="small" quaternary :disabled="busy" @click="restoreAutomatic">清除</n-button>
       </div>
       <template #hint
-        ><FieldHints
-          :description="customPath ? '使用指定 Java；变更对下一次启动和自检生效。' : '自动使用当前实际游戏目录中的 Java 17。'" /></template
+        ><FieldHints :description="customPath ? '已设置: ' + customPath : '未设置时使用当前实际游戏目录中的 Java 17。'" /></template
     ></FieldRow>
     <FieldRow readonly label="运行状态"
       ><span>{{ snapshot?.instances ?? 0 }} 个 JVM · {{ snapshot?.projects ?? 0 }} 个项目</span></FieldRow
@@ -45,11 +52,10 @@
       <n-button size="small" type="primary" :disabled="busy || inUse" @click="download">{{
         snapshot?.installation === 'installed' || snapshot?.installation === 'damaged' ? '检查并修复' : '下载安装'
       }}</n-button>
-      <n-button size="small" :disabled="busy || inUse" @click="importArchive">离线导入</n-button>
       <n-button size="small" :disabled="busy || !javaPath || snapshot?.installation !== 'installed'" @click="test">环境自检</n-button>
       <n-button size="small" :disabled="busy" @click="refresh">刷新状态</n-button>
       <n-button
-        v-if="snapshot?.active && ['download', 'import', 'probe', 'test'].includes(snapshot.action?.kind ?? '')"
+        v-if="snapshot?.active && ['download', 'probe', 'test'].includes(snapshot.action?.kind ?? '')"
         size="small"
         :disabled="snapshot.phase === 'cancelling'"
         @click="cancel"
@@ -90,9 +96,9 @@ const {
   installation,
   busy,
   inUse,
+  pickInstallationDirectory,
   pickJava,
   restoreAutomatic,
-  importArchive,
   cancel,
   openDirectory,
   dangerous,

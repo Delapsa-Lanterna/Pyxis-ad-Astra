@@ -9,9 +9,11 @@ import { javaQueries } from './java-queries.mjs';
 import { sourceActions, verifyJavaLogs } from './source-actions.mjs';
 import { pickerPerformance } from './picker-performance.mjs';
 import { workspaceOpening } from './workspace-opening.mjs';
+import { codeWorkspace } from './code-workspace.mjs';
 /** @typedef {{launch:()=>ReturnType<typeof import('../runtime.mjs').startDesktop>,close:(app:Awaited<ReturnType<typeof import('../runtime.mjs').startDesktop>>)=>Promise<void>,fixture:Awaited<ReturnType<typeof import('../sample.mjs').prepareSample>>,check:(name:string,operation:()=>Promise<void>)=>Promise<void>,options:{mod?:string,game?:string,soak:number,count:number,bytes:number,shape?:string,rounds:number,warmup:number,phase:string,screenshots:boolean},artifacts:string,runs:import('../../shared/test-report.mjs').TestRun[]}} DesktopCase */
 /** @type {Record<string,{run:(context:DesktopCase)=>Promise<Record<string,unknown>>,afterClose?:(log:string,check:DesktopCase['check'])=>Promise<void>}>} */
 export const desktopCases = {
+  'code-workspace': { run: codeWorkspace },
   'workspace-opening': { run: workspaceOpening },
   'source-actions': { run: sourceActions, afterClose: verifyJavaLogs },
   weapons: { run: (context) => pickerPerformance(context, 'weapons') },

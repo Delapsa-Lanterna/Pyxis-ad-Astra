@@ -5,6 +5,7 @@ import { verifyEditors } from './preview/cases/editors.mjs';
 import { verifyJavaAnalysis } from './preview/cases/java-analysis.mjs';
 import { verifyJavaQueries } from './preview/cases/java-queries.mjs';
 import { verifySourceActions } from './preview/cases/source-actions.mjs';
+import { verifyCodeWorkspace } from './preview/cases/code-workspace.mjs';
 
 const { values } = parseArgs({
   options: { scene: { type: 'string', default: 'all' }, url: { type: 'string' }, output: { type: 'string' } },
@@ -13,6 +14,7 @@ await runBrowser('preview', values, async ({ browser, newPage, artifacts }) => {
   const checks = [],
     errors = /** @type {string[]} */ ([]),
     scenes = [
+      { id: 'code-workspace', run: async () => verifyCodeWorkspace((await newPage()).page, artifacts) },
       { id: 'workspace', run: async () => verifyBrowserUI(browser, values.url ?? 'http://127.0.0.1:1461', artifacts + '/workspace') },
       { id: 'editors', run: async () => verifyEditors((await newPage()).page, artifacts) },
       { id: 'java-analysis', run: async () => verifyJavaAnalysis((await newPage()).page, artifacts) },

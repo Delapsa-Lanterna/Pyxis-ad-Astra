@@ -35,8 +35,10 @@ describe('buildModNavigationSections', () => {
     const index = items.findIndex((item) => item.id === 'table:descriptions');
     expect(items[index + 1]).toMatchObject({ label: '杂项配置', target: { type: 'json-editor', page: 'misc-config' } });
   });
-  it('builds the four fixed sections in order', () => {
-    expect(sections().map((section) => section.id)).toEqual(['workspace', 'mod-info', 'combat', 'campaign']);
+  it('places the project code entry after all content sections', () => {
+    expect(sections().map((section) => section.id)).toEqual(['workspace', 'mod-info', 'combat', 'campaign', 'code']);
+    expect(buildModNavigationSections(coreManifestFixture()).at(-1)).toEqual(sections().at(-1));
+    expect(isModNavigationItemActive(sections().at(-1)!.items[0]!, 'table', 'mod-info', 'ships')).toBe(false);
   });
 
   it('keeps workspace and mod-info entries without counts', () => {

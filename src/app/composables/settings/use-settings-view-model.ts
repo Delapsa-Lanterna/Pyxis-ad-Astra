@@ -24,6 +24,7 @@ export function useSettingsViewModel(changeSource: SettingsSourceChange, onReset
   const logPath = ref('');
   const logStatus = ref<AppLogStatus | null>(null);
   const formattedLogSize = computed(() => formatBytes(logSizeBytes.value));
+  const logDirectory = computed(() => settings.logDirectory ?? logPath.value.replace(/[^\\/]+$/, ''));
   const logPathHint = computed(() => (logPath.value ? `Log 文件: ${logPath.value}` : 'Log 文件尚未创建。'));
   const configActions = useAppConfigActions();
   const reads = useQueryReadOwner();
@@ -180,6 +181,7 @@ export function useSettingsViewModel(changeSource: SettingsSourceChange, onReset
     fontsLoading,
     loadSystemFonts,
     formattedLogSize,
+    logDirectory,
     logPathHint,
     logStatus,
     pickLogDirectory,

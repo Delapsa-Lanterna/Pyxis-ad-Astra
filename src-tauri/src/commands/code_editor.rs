@@ -1,8 +1,15 @@
 use crate::errors::{AppError, AppResult};
-use crate::models::code_editor::{CodeEditorDelivery, CodeEditorFileResult, CodeEditorOpen};
+use crate::models::code_editor::{
+    CodeEditorDelivery, CodeEditorFileResult, CodeEditorOpen, CodeEditorSources,
+};
 use crate::services::{code_editor, windows};
 use tauri::ipc::Channel;
 use tauri::{AppHandle, WebviewWindow, async_runtime};
+
+#[command_macros::command(async)]
+pub fn code_editor_sources(window: WebviewWindow) -> AppResult<CodeEditorSources> {
+    code_editor::sources(windows::current_window_context(window.label())?.identity)
+}
 
 #[command_macros::command(async)]
 pub async fn open_code_editor(

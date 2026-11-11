@@ -83,7 +83,6 @@ describe('Java component management card', () => {
     const buttons = wrapper.findAllComponents(nButton);
     const button = (name: string) => buttons.find((entry) => entry.text() === name)!;
     expect(button('检查并修复').props('disabled')).toBe(true);
-    expect(button('离线导入').props('disabled')).toBe(true);
     expect(button('移除组件').props()).toMatchObject({ type: 'error', disabled: true });
     expect(button('停止全部分析').props()).toMatchObject({ type: 'error', disabled: false });
     await button('停止全部分析').trigger('click');
@@ -196,7 +195,7 @@ describe('Java component management card', () => {
     expect(useSettingsStore().settingsSnapshot().javaExecutable).toBe('H:/runtime/bin/java.exe');
     await wrapper
       .findAll('button')
-      .find((button) => button.text() === '恢复自动')!
+      .find((button) => button.text() === '清除')!
       .trigger('click');
     expect(useSettingsStore().javaExecutable).toBeNull();
     mocks.pick.mockResolvedValue(null);

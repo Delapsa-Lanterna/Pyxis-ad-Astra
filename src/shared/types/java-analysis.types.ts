@@ -1,5 +1,7 @@
 export type JavaManagementAction =
-  { kind: 'refresh' | 'download' | 'stop' | 'remove' } | { kind: 'import'; archive: string } | { kind: 'probe' | 'test'; javaPath: string };
+  | { kind: 'refresh' | 'download' | 'stop' | 'remove' }
+  | { kind: 'directory'; directory: string }
+  | { kind: 'probe' | 'test'; javaPath: string };
 
 export interface JavaEnvironment {
   path: string;

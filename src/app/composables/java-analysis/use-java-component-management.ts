@@ -2,7 +2,7 @@ import { computed, onScopeDispose, ref, watch } from 'vue';
 import { useSettingsStore } from '@/stores/settings.store';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
 import { useQueryReadOwner } from '@/app/composables/use-query-read-owner';
-import { pickFileDialog } from '@/shared/runtime/dialog.runtime';
+import { pickDirectoryDialog, pickFileDialog } from '@/shared/runtime/dialog.runtime';
 import { AppError } from '@/shared/lib/errors';
 import {
   subscribeJavaAnalysis,
@@ -21,7 +21,6 @@ const PHASES: Record<string, string> = {
   stopping: '正在停止分析',
   removing: '正在移除',
   downloading: '正在下载',
-  importing: '正在导入',
   cancelling: '正在取消',
   succeeded: '操作完成',
   failed: '操作失败',
@@ -105,20 +104,20 @@ export function useJavaComponentManagement(context: () => readonly [string | nul
     },
     { immediate: true },
   );
+  async function pickInstallationDirectory() {
+    try {
+      const directory = await pickDirectoryDialog('选择 Java 分析组件安装目录');
+      if (directory) await run({ kind: 'directory', directory });
+    } catch (error) {
+      feedback.error(error, '选择 Java 分析组件安装目录失败');
+    }
+  }
   async function pickJava() {
     try {
       const path = await pickFileDialog({ title: '选择 Java 17 可执行文件' });
       if (path) await run({ kind: 'probe', javaPath: path });
     } catch (error) {
       feedback.error(error, '选择 Java 路径失败');
-    }
-  }
-  async function importArchive() {
-    try {
-      const archive = await pickFileDialog({ title: '选择 Java 依赖离线 ZIP' });
-      if (archive) await run({ kind: 'import', archive });
-    } catch (error) {
-      feedback.error(error, '选择离线依赖失败');
     }
   }
   async function cancel() {
@@ -152,14 +151,14 @@ export function useJavaComponentManagement(context: () => readonly [string | nul
     ready,
     snapshot,
     javaPath,
-    customPath: computed(() => settings.javaExecutable !== null),
+    customPath: computed(() => settings.javaExecutable),
     phase: computed(() => (snapshot.value ? (PHASES[snapshot.value.phase] ?? snapshot.value.phase) : '读取中')),
     installation: computed(() => (snapshot.value ? INSTALLATIONS[snapshot.value.installation] : '读取中')),
     busy: computed(() => submitting.value || !snapshot.value || snapshot.value.active || snapshot.value.queued > 0),
     inUse: computed(() => (snapshot.value?.instances ?? 0) > 0),
+    pickInstallationDirectory,
     pickJava,
     restoreAutomatic: () => settings.setJavaExecutable(null),
-    importArchive,
     cancel,
     openDirectory,
     dangerous,

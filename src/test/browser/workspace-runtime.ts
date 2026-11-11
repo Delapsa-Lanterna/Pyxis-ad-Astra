@@ -23,6 +23,7 @@ import { createJavaComponentPreview } from './java-analysis';
 import { createJavaQueryPreview } from './java-queries';
 import { createCodeEditorPreview } from './code-editor';
 import { gameFiles } from './sample-data';
+import { savedWriteFixture, sessionUpdateFixture } from '../fixtures/write-result';
 
 type Handler = (event: { event: string; id: number; payload: unknown }) => void | Promise<void>;
 type DeliveryChannel = { onmessage: (delivery: T.ProjectSyncDelivery) => void };
@@ -252,6 +253,28 @@ export function createBrowserWorkspace(
     }
     let result: unknown;
     switch (command) {
+      case 'code_editor_sources': {
+        const selected = [
+          receiver,
+          ...references.filter((source) => source.sessionId !== sessionId).map((source) => project(source.sessionId)),
+        ];
+        const analysisRoots = selected
+          .filter((item) => [...item.textFiles.keys()].some((path) => path.startsWith(item.manifest.modRoot + '/src/')))
+          .map((item) => item.manifest.modRoot + '/src');
+        return {
+          revision,
+          analysisRoots,
+          sources: selected
+            .filter((item, index) => index === 0 || analysisRoots.includes(item.manifest.modRoot + '/src'))
+            .map((item, index) => ({
+              sessionId: item.manifest.sessionId,
+              modRoot: item.manifest.modRoot,
+              label: String(item.manifest.modInfo?.name ?? 'Core'),
+              directory: index ? 'src' : null,
+              readOnly: index > 0,
+            })),
+        };
+      }
       case 'get_window_bootstrap':
         return current.context
           ? {
@@ -361,8 +384,18 @@ export function createBrowserWorkspace(
           return { sessionId, modRoot };
         });
         revision++;
-        for (const channel of channels.values())
-          channel.onmessage({ kind: 'references', snapshot: { revision, sources: references }, event: null });
+        for (const channel of channels.values()) {
+          const result = savedWriteFixture();
+          result.sessionUpdates = projects.map((entry) => ({
+            ...sessionUpdateFixture(entry.manifest.sessionId, entry.manifest.modRoot),
+            content: { manifest: structuredClone(entry.manifest), invalidation: { ...result.invalidation, session: true } },
+          }));
+          channel.onmessage({
+            kind: 'references',
+            snapshot: { revision, sources: references },
+            event: { originWindowLabel: label, sessionId: null, modRoot: receiver.manifest.modRoot, reason: 'refresh', result },
+          });
+        }
         return;
       case 'read_settings':
         return { revision, value: settings, performanceMonitorActive: false };

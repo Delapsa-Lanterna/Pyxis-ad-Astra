@@ -33,6 +33,7 @@
 
 - `src-tauri/src/services/mod.rs`：直接从所属实现交付正式业务函数入口。
 - `src/app/AppContent.vue`：交付工作区当前正式浏览目标。
+- `src/app/composables/code-editor/use-code-project.ts`：消费目录读取队列及树投影，持有独立代码窗口浏览状态。
 
 ## 边界
 

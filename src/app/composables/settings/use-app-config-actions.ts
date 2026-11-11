@@ -7,7 +7,7 @@ export function useAppConfigActions() {
     try {
       await openConfigFolder();
     } catch (error) {
-      feedback.error(error, '打开配置文件夹失败');
+      feedback.error(error, '打开配置目录失败');
     }
   }
   return { openConfigFolderAction };

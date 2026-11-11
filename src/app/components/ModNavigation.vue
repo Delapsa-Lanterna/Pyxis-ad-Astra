@@ -24,6 +24,7 @@
           <div v-if="workspace.activeMod.status === 'ready'" class="mod-navigation ui-layout-row ui-layout-stack">
             <template v-for="(section, sectionIndex) in sections" :key="section.id">
               <div v-if="sectionIndex > 0" class="mod-navigation-separator" />
+              <div v-if="section.label" class="nav-label ui-text-muted">{{ section.label }}</div>
               <button
                 v-for="item in section.items"
                 :key="item.id"
@@ -93,6 +94,10 @@ function navigate(item: ModNavigationItem) {
   if (modNavigationPanel.state.narrow) modNavigationPanel.close();
   const modRoot = workspace.activeModRoot;
   if (!modRoot) return;
+  if (item.target.type === 'code-editor') {
+    navigation.openProjectCodeEditor(modRoot);
+    return;
+  }
   if (item.target.type === 'file-browser') {
     navigation.navigateToFileBrowser(modRoot);
     return;

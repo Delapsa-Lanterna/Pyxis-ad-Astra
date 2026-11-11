@@ -2,6 +2,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { enableAutoUnmount, flushPromises } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 import { Transaction } from '@codemirror/state';
+import { ref } from 'vue';
 import { mountSetup } from '@/test/unit/mount-setup';
 import { createSettingsFixture } from '@/test/fixtures/settings';
 import { initializeSettingsStore } from '@/stores/settings.store';
@@ -91,6 +92,21 @@ it('records one failed startup with the original diagnostic and window scope', a
     }),
   );
   expect(analysis.status.value).toBe('Java 分析失败');
+});
+it('keeps files outside the registered roots out of analysis and coalesces startup requests', async () => {
+  const mounted = mountSetup(() => {
+    const host = useCodeEditor({ sessionId: 'sample', modRoot: 'M:/sample' });
+    return { host, analysis: useCodeAnalysis(host, 'M:/sample', ref(['M:/sample/src'])) };
+  });
+  const { host, analysis } = mounted.value;
+  await host.ready;
+  await host.openFiles([{ path: 'M:/sample/Outside.java' }]);
+  expect(mocks.start).not.toHaveBeenCalled();
+  expect(analysis.supports(host.active.value!)).toBe(false);
+  await host.openFiles([{ path: 'M:/sample/src/Orbit.java' }]);
+  await Promise.all([analysis.start(), analysis.start()]);
+  expect(mocks.start).toHaveBeenCalledTimes(1);
+  expect(mocks.sync.mock.calls[0]![0].map((file) => file.file)).toEqual(['M:/sample/src/Orbit.java']);
 });
 it('reuses same-revision background projections and refreshes all files after a semantic change', async () => {
   const { analysis, host, document } = await open();

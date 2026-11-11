@@ -53,6 +53,7 @@
 - `src/orchestrators/file-history-replay.orchestrator.ts`：明确目标的回放计划、复核及实际结果。
 - `src/orchestrators/mod-creation.orchestrator.ts`：最小 Mod 骨架的实际创建结果。
 - `src/orchestrators/project-sync.orchestrator.ts`：窗口内保存消费过程和内容维护者交接。
+- `src/services/code-editor.service.ts`：捕获正式项目身份并打开或聚焦独立代码窗口。
 - `src/services/core-assets.service.ts`：Core 读取与缓存清理协议。
 - `src/services/directory.service.ts`：目录识别与游戏概览扫描结果。
 - `src/services/file-history.service.ts`：历史读取、清空与按条目回放能力包装。
@@ -84,6 +85,7 @@
 - JSON 文档运行态归所属模块，工作区宿主持有当前页面目标的只读投影、定位完成及基础船体导航动作。
 - Mod 概览、文件历史和 JSON 编辑使用独立工作区视图，业务侧栏消费各自导航目标。
 - Core 概览与 Mod 概览共用正式概览投影；Core 身份消费实际游戏根与 Core 根的路径对应关系。
+- 代码分组位于项目导航末尾，Mod 与 Core 共用所属窗口入口，打开动作等待输入与保存交接并保留当前页面。
 - Mod 页面上下文、概览与打开失败状态归本次运行，列宽和目录进入恢复快照。
 - workspace store 拥有全局视图、Mod 页签、运行代次、页面上下文、概览、失败记录与列宽。
 - 工作区按已就绪标签顺序生成会话序列，并从同一序列派生可引用来源，经项目同步统一发布。

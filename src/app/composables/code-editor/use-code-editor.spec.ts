@@ -50,7 +50,7 @@ vi.mock('@/app/composables/code-editor/use-code-editor-window', () => ({
   useCodeEditorWindow: () => {
     const host = useCodeEditor(owner);
     const analysis = useCodeAnalysis(host, owner.modRoot);
-    return { ...host, analysis, actions: useCodeActions(host, analysis, owner), closing: ref(false) };
+    return { ...host, analysis, actions: useCodeActions(host, analysis, owner), closing: ref(false), project: undefined };
   },
 }));
 vi.mock('@/services/java-analysis.service', () => ({

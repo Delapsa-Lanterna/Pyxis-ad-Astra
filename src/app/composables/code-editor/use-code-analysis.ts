@@ -1,4 +1,4 @@
-import { computed, onScopeDispose, shallowRef, watch } from 'vue';
+import { computed, onScopeDispose, shallowRef, watch, type Ref } from 'vue';
 import { ChangeSet, type Extension } from '@codemirror/state';
 import { Decoration, EditorView, hoverTooltip, keymap } from '@codemirror/view';
 import { startJavaEditor, closeJavaEditor, syncJavaEditor, inspectJavaEditor } from '@/services/java-analysis.service';
@@ -19,8 +19,8 @@ import type { CodeDocument } from './use-code-document';
 import { listenSavedContent } from '@/orchestrators/project-sync.orchestrator';
 import { debugLog, recordQueuedLog } from '@/shared/runtime/app-log-queue';
 
-export function useCodeAnalysis(host: ReturnType<typeof useCodeEditor>, modRoot: string) {
-  const status = shallowRef('准备 Java 分析'),
+export function useCodeAnalysis(host: ReturnType<typeof useCodeEditor>, modRoot: string, roots?: Readonly<Ref<string[]>>) {
+  const status = shallowRef('打开 Java 文件后启动分析'),
     problem = shallowRef(''),
     results = shallowRef(new Map<CodeDocument, JavaInspection>());
   const locations = shallowRef<JavaLocation[]>([]),
@@ -54,7 +54,8 @@ export function useCodeAnalysis(host: ReturnType<typeof useCodeEditor>, modRoot:
       });
     }
   }
-  const java = (document: CodeDocument) => /\.java$/i.test(document.path.value);
+  const java = (document: CodeDocument) =>
+    /\.java$/i.test(document.path.value) && (!roots || roots.value.some((root) => pathBelongsToRoot(document.path.value, root)));
   function schedule() {
     clearTimeout(timer);
     if (available && !disposed)
@@ -63,7 +64,7 @@ export function useCodeAnalysis(host: ReturnType<typeof useCodeEditor>, modRoot:
       }, 300);
   }
   const stopDocuments = watch(
-    () => [...host.documents],
+    () => host.documents.filter(java),
     (documents) => {
       for (const document of documents) {
         if (document.readOnly || !java(document) || tracked.has(document)) continue;
@@ -190,8 +191,10 @@ export function useCodeAnalysis(host: ReturnType<typeof useCodeEditor>, modRoot:
     status.value = 'Java 分析就绪';
     problem.value = '';
   }
+  let preparing: Promise<void> | undefined;
   function start() {
-    return serialize(async () => {
+    if (preparing) return preparing;
+    preparing = serialize(async () => {
       available = false;
       status.value = '准备 Java 分析';
       problem.value = '';
@@ -202,7 +205,12 @@ export function useCodeAnalysis(host: ReturnType<typeof useCodeEditor>, modRoot:
         entry.full = true;
       }
       await refresh();
-    }).catch(fail);
+    })
+      .catch(fail)
+      .finally(() => {
+        preparing = undefined;
+      });
+    return preparing;
   }
   function inspect(purpose: JavaQueryPurpose, position?: number) {
     const document = host.active.value;
@@ -237,6 +245,8 @@ export function useCodeAnalysis(host: ReturnType<typeof useCodeEditor>, modRoot:
         await host.openFiles([{ path: location.file }]);
         document = host.active.value ?? undefined;
       } else {
+        if (!available) await start();
+        if (!available || disposed) return;
         const result = await serialize(() => inspectJavaEditor(location.file, 0, 'source'));
         if (disposed) return;
         document = (await host.openSnapshot(location.file, result.source!)) ?? undefined;
@@ -372,7 +382,22 @@ export function useCodeAnalysis(host: ReturnType<typeof useCodeEditor>, modRoot:
     for (const entry of tracked.values()) entry.stop();
     tracked.clear();
     results.value = new Map();
-    void serialize(closeJavaEditor).catch(fail);
+    if (available || preparing) void serialize(closeJavaEditor).catch(fail);
   });
-  return { status, problem, current, diagnostics, locations, detail, extensions, start, navigate, locate, assist, settle: () => queue };
+  return {
+    status,
+    problem,
+    current,
+    diagnostics,
+    locations,
+    detail,
+    extensions,
+    start,
+    navigate,
+    locate,
+    assist,
+    supports: java,
+    isStarted: () => available || !!preparing,
+    settle: () => queue,
+  };
 }

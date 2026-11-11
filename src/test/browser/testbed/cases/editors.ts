@@ -20,7 +20,7 @@ export function createEditorCase(element: HTMLElement, options: RunOptions) {
     fileCount = options.scene === 'text-editor' ? 1 : options.count;
   const javaQueries = options.scene === 'java-queries';
   const files = Array.from({ length: fileCount }, (_, index) => ({
-    path: root + '/measurement/File' + index + (javaQueries ? '.java' : '.txt'),
+    path: root + (javaQueries ? '/src/measurement/File' : '/measurement/File') + index + (javaQueries ? '.java' : '.txt'),
   }));
   for (const [index, file] of files.entries())
     project.textFiles.set(file.path, textSample(fileBytes, options.textShape ?? 'multiline', index));

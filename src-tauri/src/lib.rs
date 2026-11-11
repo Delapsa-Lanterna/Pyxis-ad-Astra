@@ -144,6 +144,7 @@ pub fn run() {
                     commands::performance_monitor_report,
                     commands::request_window,
                     commands::open_code_editor,
+                    commands::code_editor_sources,
                     commands::subscribe_code_editor,
                     commands::finish_code_editor_open,
                     commands::register_window_save_receiver,

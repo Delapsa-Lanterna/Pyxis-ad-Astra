@@ -34,12 +34,14 @@
       </div>
     </nav>
     <div class="code-editor-tools ui-control-row">
+      <n-button size="small" @click="treeShown = !treeShown">{{ treeShown ? '收起项目树' : '展开项目树' }}</n-button>
       <span class="ui-text-path ui-text-truncate" :title="active?.path.value">{{ active?.path.value ?? '请选择要打开的文件' }}</span>
       <div class="action-group ui-layout-row">
         <n-button size="small" :disabled="!active" @click="surface?.search()">查找与替换</n-button>
         <n-button size="small" :disabled="!active" @click="run(() => analysis.navigate('declaration'))">跳转声明</n-button>
         <n-button size="small" :disabled="!active" @click="run(() => analysis.navigate('references'))">查找引用</n-button>
         <n-button size="small" @click="panel = !panel">诊断与引用</n-button>
+        <n-button size="small" @click="outlineShown = !outlineShown">{{ outlineShown ? '收起大纲' : '展开大纲' }}</n-button>
         <n-button size="small" :disabled="!active || active.readOnly" @click="run(() => actions.parameters())">参数提示</n-button>
         <n-button size="small" :disabled="!active || active.readOnly" @click="run(() => actions.prepare('imports'))">整理导入</n-button>
         <n-input v-model:value="actions.name.value" size="small" placeholder="新名称" :input-props="{ 'aria-label': '重命名的新名称' }" />
@@ -56,58 +58,64 @@
       </div>
       <div v-if="active.problem.value" class="ui-notice" role="status">{{ active.problem.value.message }}</div>
     </div>
-    <section v-if="active" class="code-analysis-body">
-      <aside aria-label="类与方法大纲" class="code-outline">
-        <n-button
-          v-for="entry in analysis.current.value?.outline"
-          :key="entry.range.start"
-          text
-          @click="run(() => analysis.locate({ file: active!.path.value, version: analysis.current.value!.version, range: entry.range }))"
-          >{{ entry.name }}</n-button
-        >
-      </aside>
-      <TextEditorSurface
-        ref="surface"
-        :document="active.document"
-        :disabled="active.readOnly"
-        :extensions="extensions"
-        line-numbers
-        @position="position = $event"
-      />
-      <section v-if="panel" class="code-analysis-results" aria-label="诊断与引用">
-        <p v-if="analysis.detail.value" class="ui-text-path">{{ analysis.detail.value }}</p>
-        <template v-for="[file, entries] in groupedResults" :key="file">
-          <h3 class="ui-text-path">{{ file }}</h3>
-          <n-button v-for="entry in entries" :key="entry.range.start + entry.label" text @click="run(() => analysis.locate(entry))">{{
-            entry.label
-          }}</n-button>
-        </template>
+    <section class="code-workspace" :class="{ 'code-tree-open': treeShown, 'code-outline-open': outlineShown }">
+      <CodeProjectTree v-if="project" v-show="treeShown" :project="project" />
+      <section v-if="active" class="code-analysis-body">
+        <aside v-show="outlineShown" aria-label="类与方法大纲" class="code-outline">
+          <n-button
+            v-for="entry in analysis.current.value?.outline"
+            :key="entry.range.start"
+            text
+            @click="run(() => analysis.locate({ file: active!.path.value, version: analysis.current.value!.version, range: entry.range }))"
+            >{{ entry.name }}</n-button
+          >
+        </aside>
+        <TextEditorSurface
+          ref="surface"
+          :document="active.document"
+          :disabled="active.readOnly"
+          :extensions="extensions"
+          line-numbers
+          @position="position = $event"
+        />
+        <p v-if="/\.java$/i.test(active.path.value) && !analysis.supports(active)" class="ui-notice code-analysis-results" role="status">
+          当前文件位于分析源码根之外：{{ project?.analysisRoots.value.join('，') || '当前项目没有 src 源码目录' }}
+        </p>
+        <section v-if="panel" class="code-analysis-results" aria-label="诊断与引用">
+          <p v-if="analysis.detail.value" class="ui-text-path">{{ analysis.detail.value }}</p>
+          <template v-for="[file, entries] in groupedResults" :key="file">
+            <h3 class="ui-text-path">{{ file }}</h3>
+            <n-button v-for="entry in entries" :key="entry.range.start + entry.label" text @click="run(() => analysis.locate(entry))">{{
+              entry.label
+            }}</n-button>
+          </template>
+        </section>
+        <section v-if="actions.plan.value" class="code-analysis-results" aria-label="修改预览">
+          <p v-for="conflict in actions.conflicts.value" :key="conflict">{{ conflict }}</p>
+          <label v-for="choice in actions.plan.value.choices" :key="choice.name"
+            >{{ choice.name
+            }}<n-select
+              v-model:value="actions.choices.value[choice.name]"
+              :options="choice.candidates.map((value) => ({ label: value, value }))"
+          /></label>
+          <n-button v-if="actions.plan.value.choices.length" @click="run(() => actions.prepare('imports'))">接纳导入选择</n-button>
+          <div v-for="file in actions.plan.value.files" :key="file.file">
+            <p class="ui-text-path">{{ file.file }}{{ file.target ? ' → ' + file.target : '' }}</p>
+            <pre v-for="edit in file.edits" :key="edit.from"
+              >{{ edit.from }}–{{ edit.to }}：{{ file.source.slice(edit.from, edit.to) }} → {{ edit.text }}</pre>
+          </div>
+          <n-button
+            :disabled="!actions.plan.value.files.length || !!actions.plan.value.conflicts.length || !!actions.plan.value.choices.length"
+            @click="run(actions.apply)"
+            >接纳整批修改</n-button
+          >
+          <n-button @click="actions.plan.value = null">取消</n-button>
+        </section>
       </section>
-      <section v-if="actions.plan.value" class="code-analysis-results" aria-label="修改预览">
-        <p v-for="conflict in actions.conflicts.value" :key="conflict">{{ conflict }}</p>
-        <label v-for="choice in actions.plan.value.choices" :key="choice.name"
-          >{{ choice.name
-          }}<n-select
-            v-model:value="actions.choices.value[choice.name]"
-            :options="choice.candidates.map((value) => ({ label: value, value }))"
-        /></label>
-        <n-button v-if="actions.plan.value.choices.length" @click="run(() => actions.prepare('imports'))">接纳导入选择</n-button>
-        <div v-for="file in actions.plan.value.files" :key="file.file">
-          <p class="ui-text-path">{{ file.file }}{{ file.target ? ' → ' + file.target : '' }}</p>
-          <pre v-for="edit in file.edits" :key="edit.from"
-            >{{ edit.from }}–{{ edit.to }}：{{ file.source.slice(edit.from, edit.to) }} → {{ edit.text }}</pre>
-        </div>
-        <n-button
-          :disabled="!actions.plan.value.files.length || !!actions.plan.value.conflicts.length || !!actions.plan.value.choices.length"
-          @click="run(actions.apply)"
-          >接纳整批修改</n-button
-        >
-        <n-button @click="actions.plan.value = null">取消</n-button>
+      <section v-else class="empty-state ui-content-grid">
+        <h1 class="page-title">代码编辑器</h1>
+        <p class="ui-text-muted">选择文件开始编辑</p>
       </section>
-    </section>
-    <section v-else class="empty-state ui-content-grid">
-      <h1 class="page-title">代码编辑器</h1>
-      <p class="ui-text-muted">文件将在独立标签中打开。</p>
     </section>
     <footer class="code-editor-status ui-text-muted ui-text-small">
       <span role="status"
@@ -127,13 +135,16 @@ import { computed, nextTick, ref, shallowRef, useTemplateRef, watch } from 'vue'
 import { useCodeEditorWindow } from '@/app/composables/code-editor/use-code-editor-window';
 import type { CodeDocument } from '@/app/composables/code-editor/use-code-document';
 import TextEditorSurface from '@/shared/ui/TextEditorSurface.vue';
+import CodeProjectTree from './CodeProjectTree.vue';
 import { useWindowShortcuts } from '@/app/composables/use-window-shortcuts';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
 import { closeCurrentWindow } from '@/windows/current.window';
 
 const host = useCodeEditorWindow();
-const { documents, active, location, dirty, label, close, save, saveAll, loadExternal, closing, analysis, actions } = host;
+const { documents, active, location, dirty, label, close, save, saveAll, loadExternal, closing, analysis, actions, project } = host;
 const panel = ref(false);
+const treeShown = ref(true),
+  outlineShown = ref(window.innerWidth >= 1000);
 const extensions = computed(() => [analysis.extensions.value, actions.extensions.value]);
 watch([analysis.locations, analysis.detail], ([locations, detail]) => {
   if (locations.length || detail) panel.value = true;

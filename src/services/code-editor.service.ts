@@ -1,5 +1,9 @@
 import { commandChannel, invokeCommand } from '@/shared/runtime/command.runtime';
-import type { CodeEditorDelivery, CodeEditorFileResult, CodeEditorOpen } from '@/shared/types';
+import type { CodeEditorDelivery, CodeEditorFileResult, CodeEditorOpen, CodeEditorSources } from '@/shared/types';
+
+export function queryCodeEditorSources() {
+  return invokeCommand<CodeEditorSources>('code_editor_sources');
+}
 
 export function openCodeEditor(input: CodeEditorOpen) {
   return invokeCommand<CodeEditorFileResult[]>('open_code_editor', { key: crypto.randomUUID(), input });

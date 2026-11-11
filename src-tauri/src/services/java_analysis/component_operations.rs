@@ -1,10 +1,11 @@
 use super::{ComponentManagement, ManagementAction, ManagementOperation};
 use crate::errors::{AppError, AppResult};
+use crate::io::canonical_path;
 use crate::services::java_analysis::environment::probe_java;
 use crate::services::java_analysis::sessions::stop_owned_analysis;
-use pyxis_java_analysis::AnalysisRequest;
 use pyxis_java_analysis::protocol::AnalysisResult;
 use pyxis_java_analysis::versions::DEFAULT_LANGUAGE;
+use pyxis_java_analysis::{AnalysisRequest, java_path};
 use serde_json::json;
 use std::fs;
 use std::path::Path;
@@ -19,8 +20,7 @@ impl ComponentManagement {
         };
         let stage = self
             .runtime
-            .paths()
-            .dependencies
+            .dependency_directory()?
             .join(format!("{}.staging", self.runtime.package().version));
         fn size(path: &Path) -> AppResult<u64> {
             if !path.exists() {
@@ -52,14 +52,20 @@ impl ComponentManagement {
         control.check()?;
         match action {
             ManagementAction::Refresh => {}
+            ManagementAction::Directory { directory } => {
+                self.require_idle_runtime()?;
+                let directory = canonical_path(Path::new(directory), "Java dependency directory")?;
+                self.runtime.set_dependency_directory(&directory)?;
+                let mut state = self.state()?;
+                state.snapshot.installation_path =
+                    java_path(&directory.join(&self.runtime.package().version))
+                        .to_string_lossy()
+                        .into_owned();
+                state.snapshot.environment = None;
+            }
             ManagementAction::Download => {
                 self.require_idle_runtime()?;
                 self.runtime.install_with_control(control)?;
-            }
-            ManagementAction::Import { archive } => {
-                self.require_idle_runtime()?;
-                self.runtime
-                    .import_with_control(Path::new(archive), control)?;
             }
             ManagementAction::Probe { java_path } | ManagementAction::Test { java_path } => {
                 let started = Instant::now();

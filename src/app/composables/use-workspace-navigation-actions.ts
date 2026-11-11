@@ -10,6 +10,7 @@ import { computed } from 'vue';
 import { useCoreAssetsStore } from '@/stores/core-assets.store';
 import { gameCoreDirectoryPath } from '@/shared/lib/paths';
 import { openWorkspaceMod } from '@/orchestrators/workspace-opening.orchestrator';
+import { openCodeEditor } from '@/services/code-editor.service';
 
 export function useWorkspaceNavigationActions() {
   const workspace = useWorkspaceStore();
@@ -47,6 +48,17 @@ export function useWorkspaceNavigationActions() {
 
   function navigateToModOverview(modRoot: string): void {
     confirmNavigation(() => workspaceNavigation.navigateToModOverview(modRoot), { modRoot, page: 'mod-overview' });
+  }
+
+  function openProjectCodeEditor(modRoot: string): void {
+    const manifest = workspace.activeManifest!;
+    const input = { sessionId: manifest.sessionId, modRoot, files: [] };
+    confirmNavigation(
+      () => {
+        void openCodeEditor(input).catch((error) => feedback.error(error, '打开代码编辑器失败'));
+      },
+      { modRoot, page: 'code-editor' },
+    );
   }
 
   function navigateToModTable(modRoot: string, table: CsvTableKey): void {
@@ -140,6 +152,7 @@ export function useWorkspaceNavigationActions() {
   return {
     coreModRoot,
     openCore,
+    openProjectCodeEditor,
     activateModTab,
     navigateToModFileHistory,
     navigateToModJson,

@@ -25,7 +25,7 @@ mod tests;
 pub enum ManagementAction {
     Refresh,
     Download,
-    Import { archive: String },
+    Directory { directory: String },
     Probe { java_path: String },
     Test { java_path: String },
     Stop,
@@ -433,7 +433,7 @@ impl ComponentManagement {
                 operation.action,
                 ManagementAction::Refresh
                     | ManagementAction::Download
-                    | ManagementAction::Import { .. }
+                    | ManagementAction::Directory { .. }
                     | ManagementAction::Remove
             )
             .then(|| self.inspect());

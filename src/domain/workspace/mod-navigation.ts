@@ -7,7 +7,8 @@ export type ModNavigationTarget =
   | { type: 'file-history' }
   | { type: 'json-editor'; page: JsonEditorPageId }
   | { type: 'table'; table: CsvTableKey }
-  | { type: 'file-browser' };
+  | { type: 'file-browser' }
+  | { type: 'code-editor' };
 
 export interface ModNavigationItem {
   id: string;
@@ -18,6 +19,7 @@ export interface ModNavigationItem {
 
 export interface ModNavigationSection {
   id: string;
+  label?: string;
   items: ModNavigationItem[];
 }
 
@@ -63,6 +65,7 @@ export function buildModNavigationSections(manifest: ProjectManifest | null | un
         jsonItem('mission', '战役', manifest?.entitySummaries.missions ?? 0),
       ],
     },
+    { id: 'code', label: '代码', items: [{ id: 'code-editor', label: '代码编辑器', count: null, target: { type: 'code-editor' } }] },
   ];
 }
 
@@ -72,6 +75,7 @@ export function isModNavigationItemActive(
   jsonPage: JsonEditorPageId,
   currentTable: CsvTableKey,
 ): boolean {
+  if (item.target.type === 'code-editor') return false;
   if (item.target.type === 'file-browser') return currentView === 'file-browser';
   if (item.target.type === 'mod-overview') return currentView === 'mod-overview';
   if (item.target.type === 'file-history') return currentView === 'file-history';

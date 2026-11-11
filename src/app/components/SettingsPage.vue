@@ -247,7 +247,7 @@
       <h3 class="panel-section-title">配置文件</h3>
       <FieldRow label="日志输出目录"
         ><div class="ui-field-actions ui-layout-stretch action-group">
-          <n-input :value="settings.logDirectory ?? '默认 app data'" size="small" readonly />
+          <n-input :value="logDirectory" size="small" readonly />
           <n-button size="small" @click="pickLogDirectory">选择目录</n-button>
           <n-button v-if="settings.logDirectory" size="small" quaternary @click="restoreDefaultLogDirectory">恢复默认</n-button>
         </div></FieldRow
@@ -282,7 +282,7 @@
         ></FieldRow
       >
       <div class="ui-field-actions action-group">
-        <n-button size="small" @click="openConfigFolderAction">打开配置文件夹</n-button>
+        <n-button size="small" @click="openConfigFolderAction">打开配置目录</n-button>
         <n-button size="small" @click="refreshLogStatus">刷新日志状态</n-button>
         <n-button size="small" type="error" secondary @click="confirmResetSettings">重置为默认配置</n-button>
         <n-button size="small" type="error" secondary @click="confirmClearLog">清除 log 文件</n-button>
@@ -410,6 +410,7 @@ const {
   fontsLoading,
   loadSystemFonts,
   formattedLogSize,
+  logDirectory,
   logPathHint,
   logStatus,
   applicationLogError,

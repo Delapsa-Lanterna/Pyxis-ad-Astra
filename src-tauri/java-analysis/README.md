@@ -80,7 +80,7 @@ src-tauri/target/debug/examples/java-analysis <status|install|import|remove|run>
 
 `assist` 接纳 `complete`、`signature`、`imports`、`rename` 和 `validate`。候选与签名来自当前 WorkingCopy，导入歧义返回候选类型，重命名返回冲突或带文档版本的范围修改及文件目标。代码编辑器预览后共同接纳草稿，整批保存经正式项目队列提交，整批撤销恢复文本与文件身份。
 
-代码编辑器就绪后后台建立所属项目，`java_editor` 从调用窗口取得 Mod 身份并交付启动、同步、查询与关闭。`editorUpdate` 首次提交全文，后续提交有序且不重叠的 UTF-16 范围修改；`previousFile` 交付改名前身份。`inspect` 按 `document`、`hover`、`declaration`、`references` 和 `source` 分别交付大纲与诊断、签名、声明位置、引用位置和当前快照源码。悬停与源码读取复用缓存，原始全文只在明确交接边界生成。
+代码编辑器首次打开正式源码根内的 Java 文件后后台建立所属项目，`java_editor` 从调用窗口取得 Mod 身份并交付启动、同步、查询与关闭。`editorUpdate` 首次提交全文，后续提交有序且不重叠的 UTF-16 范围修改；`previousFile` 交付改名前身份。`inspect` 按 `document`、`hover`、`declaration`、`references` 和 `source` 分别交付大纲与诊断、签名、声明位置、引用位置和当前快照源码。悬停与源码读取复用缓存，原始全文只在明确交接边界生成。
 
 `open` 建立私有源码快照及 WorkingCopy。`update` 支持 `add`、`replace`、`delete` 和 `move`，单批多个文件先核验后共同接纳；来源目录保持不变。`configure` 接纳完整依赖 JAR 列表、Java 路径和语言级别，并推进项目版本。每个分析版本的 AST 与声明引用索引由查询复用。
 

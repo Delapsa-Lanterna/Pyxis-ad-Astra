@@ -7,8 +7,8 @@ import { FIELD_TYPES } from '@/domain/schema/schema.types';
 
 it('registers functional destinations, real window shortcuts and independently runnable performance samples', () => {
   expect(scenarios.map(({ id }) => id)).toEqual(['workspace', 'csv', 'immersive', 'fields', 'pickers', 'resources', 'feedback']);
-  expect(workspaceEntries).toHaveLength(31);
-  expect(new Set(workspaceEntries.map(({ href }) => href)).size).toBe(31);
+  expect(workspaceEntries).toHaveLength(32);
+  expect(new Set(workspaceEntries.map(({ href }) => href)).size).toBe(32);
   expect(workspaceEntries.find(({ id }) => id === 'code-window')).toMatchObject({ href: '/?sampleWindow=code-window' });
   expect(performanceScenarios.map(({ id }) => id)).toEqual([
     'csv',

@@ -1,10 +1,59 @@
-use super::{enqueue_in, finish, lanes, publish, release_window};
+use super::{enqueue_in, finish, lanes, publish, release_window, sources};
+use crate::models::WindowIdentity;
 use crate::models::code_editor::{CodeEditorFile, CodeEditorFileResult};
+use crate::services::project::PerformanceTrace;
+use crate::services::{project, project_sync};
+use crate::test_support::TestWorkspace;
+use std::fs;
 use std::io::Error as IoError;
 use std::sync::Arc;
 use std::thread;
 use tauri::Error as TauriError;
 use tauri::ipc::Channel;
+
+#[test]
+fn project_sources_describe_ready_references_without_starting_java() {
+    let work = TestWorkspace::new("code_project_sources");
+    let previous = project::reference_sources().unwrap();
+    let mut sessions = Vec::new();
+    for name in ["sample", "library"] {
+        let path = work.join(name);
+        fs::create_dir_all(path.join("src")).unwrap();
+        fs::write(
+            path.join("mod_info.json"),
+            format!("{{\"id\":\"{name}\",\"name\":\"{name}\"}}"),
+        )
+        .unwrap();
+        let mut trace = PerformanceTrace::new("code.sources");
+        let manifest = project::open_project_session_traced(&path, None, &mut trace).unwrap();
+        sessions.push(manifest);
+    }
+    project::set_reference_sources(vec![sessions[1].session_id.clone()]).unwrap();
+    let identity = || WindowIdentity::CodeEditor {
+        session_id: sessions[0].session_id.clone(),
+        mod_root: sessions[0].mod_root.clone(),
+    };
+    let snapshot = sources(identity()).unwrap();
+    assert_eq!(snapshot.sources.len(), 2);
+    assert!(!snapshot.sources[0].read_only);
+    assert!(snapshot.sources[1].read_only);
+    assert_eq!(snapshot.sources[1].directory.as_deref(), Some("src"));
+    assert_eq!(snapshot.analysis_roots.len(), 2);
+    project::set_reference_sources(Vec::new()).unwrap();
+    assert_eq!(sources(identity()).unwrap().sources.len(), 1);
+    for manifest in sessions {
+        project_sync::release_project_session(manifest.session_id).unwrap();
+    }
+    project::set_reference_sources(
+        previous
+            .sources
+            .into_iter()
+            .map(|source| source.session_id)
+            .collect(),
+    )
+    .unwrap();
+    work.close().unwrap();
+}
 
 fn file(path: &str) -> CodeEditorFile {
     CodeEditorFile {

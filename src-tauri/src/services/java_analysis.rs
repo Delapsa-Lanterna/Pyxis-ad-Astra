@@ -86,7 +86,11 @@ pub fn paths<R: Runtime>(app: &AppHandle<R>) -> AnalysisPaths {
 
 pub fn open_component_directory<R: Runtime>(app: &AppHandle<R>, logs: bool) -> AppResult<()> {
     let paths = paths(app);
-    let directory = if logs { paths.logs } else { paths.dependencies };
+    let directory = if logs {
+        paths.logs
+    } else {
+        app.state::<Arc<AnalysisRuntime>>().dependency_directory()?
+    };
     fs::create_dir_all(&directory)?;
     system_open::open_path(&directory)
 }

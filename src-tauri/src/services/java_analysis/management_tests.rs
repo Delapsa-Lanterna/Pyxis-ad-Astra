@@ -9,7 +9,7 @@ use pyxis_java_analysis::{AnalysisRequest, Error as AnalysisError, java_path};
 use serde_json::{Value, json};
 use std::env;
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 use tauri::ipc::{Channel, InvokeResponseBody};
@@ -54,10 +54,10 @@ fn management_subscriptions_refresh_failure_and_closed_state() {
     let before = first.lock().unwrap().len();
     manager
         .begin(
-            ManagementAction::Import {
-                archive: work.join("absent.zip").to_string_lossy().into_owned(),
+            ManagementAction::Probe {
+                java_path: work.join("absent-java.exe").to_string_lossy().into_owned(),
             },
-            "import-failure".into(),
+            "probe-failure".into(),
         )
         .unwrap();
     manager.join_worker().unwrap();
@@ -172,7 +172,7 @@ fn queued_component_operations_run_fifo_and_cancel_uses_the_owned_operation() {
 }
 
 #[test]
-#[ignore = "requires explicit JAVA_ANALYSIS_TEST_JAVA and the prepared dependency archive"]
+#[ignore = "requires JAVA_ANALYSIS_TEST_JAVA and JAVA_ANALYSIS_TEST_JAVA_OTHER"]
 fn live_management_install_repair_selfcheck_stop_remove_and_release() {
     let java =
         PathBuf::from(env::var_os("JAVA_ANALYSIS_TEST_JAVA").expect("explicit Java 17 executable"));
@@ -191,13 +191,10 @@ fn live_management_install_repair_selfcheck_stop_remove_and_release() {
         "download-first",
         "refresh-damaged",
         "repair",
-        "import-package",
-        "download-in-use",
+        "self-check-refresh",
         "stop-analysis",
-        "probe-missing",
-        "probe-wrong-version",
         "remove-package",
-        "import-final",
+        "download-final",
     ]
     .into_iter();
     let mut execute = |action| {
@@ -222,12 +219,6 @@ fn live_management_install_repair_selfcheck_stop_remove_and_release() {
     assert_eq!(execute(ManagementAction::Refresh).installation, "damaged");
     execute(ManagementAction::Download);
     assert!(runtime.installed().unwrap());
-    execute(ManagementAction::Import {
-        archive: Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("target/java-analysis/jdt-dependencies.zip")
-            .to_string_lossy()
-            .into_owned(),
-    });
     let test = ManagementAction::Test {
         java_path: java.to_string_lossy().into_owned(),
     };
@@ -358,12 +349,7 @@ fn live_management_install_repair_selfcheck_stop_remove_and_release() {
         fs::read_dir(&runtime.paths().logs).unwrap().count(),
         saved_logs
     );
-    execute(ManagementAction::Import {
-        archive: Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("target/java-analysis/jdt-dependencies.zip")
-            .to_string_lossy()
-            .into_owned(),
-    });
+    execute(ManagementAction::Download);
     manager
         .begin(
             ManagementAction::Test {
