@@ -2,8 +2,8 @@ use crate::app_data_dir;
 use crate::diagnostics;
 use crate::errors::{AppError, AppResult};
 use crate::io::canonical_path;
-use crate::services::{app_settings, project, system_open};
-use pyxis_java_analysis::{AnalysisEvent, AnalysisPaths, AnalysisRuntime, java_path};
+use crate::services::system_open;
+use pyxis_java_analysis::{AnalysisEvent, AnalysisPaths, AnalysisRuntime};
 use serde_json::json;
 use std::fs;
 use std::path::Path;
@@ -11,12 +11,9 @@ use std::sync::{Arc, LazyLock, Mutex, Weak};
 use tauri::{AppHandle, Manager, Runtime};
 pub mod editor;
 mod environment;
-mod inputs;
 pub mod management;
 mod requests;
 mod sessions;
-pub(crate) use inputs::source_root;
-pub use inputs::{AnalysisExtras, AnalysisInputs, inputs_for_session};
 use management::ComponentManagement;
 pub use requests::request;
 pub use sessions::{close_for_session, references_changed, request_for_session, start_for_session};
@@ -94,23 +91,6 @@ pub fn open_component_directory<R: Runtime>(app: &AppHandle<R>, logs: bool) -> A
     };
     fs::create_dir_all(&directory)?;
     system_open::open_path(&directory)
-}
-
-pub fn automatic_java_path(
-    session_id: Option<&str>,
-    game_root: Option<&str>,
-) -> AppResult<Option<String>> {
-    let game = if let Some(id) = session_id {
-        project::current_project_manifest(id)?.starsector_root
-    } else {
-        project::resolve_core_root(app_settings::starsector_root()?.as_deref(), game_root, None)?
-            .map(|path| path.to_string_lossy().into_owned())
-    };
-    Ok(game.map(|root| {
-        java_path(&Path::new(&root).join("jre/bin/java.exe"))
-            .to_string_lossy()
-            .into_owned()
-    }))
 }
 
 pub fn start<R: Runtime>(app: &AppHandle<R>, java: &Path) -> AppResult<String> {

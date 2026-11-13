@@ -27,6 +27,9 @@ export function startJavaEditor() {
 export function closeJavaEditor() {
   return invokeCommand<void>('java_editor', { action: { kind: 'close' } });
 }
+export function configureJavaEditor() {
+  return invokeCommand<void>('java_editor', { action: { kind: 'configure' } });
+}
 export function syncJavaEditor(documents: JavaDocumentEdit[]) {
   return invokeCommand<void>('java_editor', { action: { kind: 'sync', documents } });
 }

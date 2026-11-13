@@ -15,6 +15,7 @@
 ### 消费
 
 - `src-tauri/src/models/save_action.rs`：保存请求及封闭业务动作。
+- `src-tauri/src/services/java_project/deployment.rs`：成功 Java 产物的授权、指纹核对与二进制修改。
 - `src-tauri/src/services/json_file.rs`：Variant 与 Skin 文件保存及身份操作。
 - `src-tauri/src/services/misc_config.rs`：已登记配置文件的实际保存与删除。
 - `src-tauri/src/services/project/performance.rs`：保存排队、业务准备及文件执行的阶段计时。
@@ -74,6 +75,7 @@
 
 - Mod 批次必须捕获 session 与根；同目标重复请求复用在途任务，不同目标按捕获顺序执行。
 - 跨窗口参与者必须绑定句柄编号与目标键；执行前复核登记、目标与关闭状态，接收释放按原代次交还。
+- 工程动作按所属范围提交各窗口输入并捕获内容，确认与保存期间的新修改结束本次准备，结束时释放捕获内容。
 - 保存动作由封闭请求类型穷尽分派，具体编辑规则归所属业务入口。
 - 保存请求必须消费捕获的根、session、修改与发起窗口，等待覆盖所属项目执行。
 - 实际文件修改必须经正式事务入口，文件回放与来源刷新消费各自正式流程。

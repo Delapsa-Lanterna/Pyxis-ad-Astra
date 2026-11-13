@@ -58,6 +58,7 @@
   line-height: 12px;
 }
 .ui-text-path {
+  font-family: var(--font-field);
   font-size: 10px;
   line-height: 14px;
 }

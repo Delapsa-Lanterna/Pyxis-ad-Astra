@@ -7,7 +7,7 @@ use crate::models::{
 use crate::services::clear_session_media;
 #[cfg(test)]
 use crate::services::source_watch::SourceChangeBatch;
-use crate::services::{file_history, java_analysis, project, windows};
+use crate::services::{file_history, java_analysis, java_project, project, windows};
 #[cfg(test)]
 use crate::test_support::TestWorkspace;
 use crate::{diagnostics, io};
@@ -363,6 +363,7 @@ pub fn execute_queued<T: Serialize>(
         reason,
         result: &result,
     })?;
+    java_project::invalidate(&task.root)?;
     for window in saves.windows.values().filter(|window| {
         window.belongs_to(&task.root) && (reason != "refresh" || !result.session_updates.is_empty())
     }) {
@@ -612,6 +613,7 @@ fn execute<T: Serialize>(
 }
 
 pub fn release_project_session(session_id: &str) -> AppResult<()> {
+    java_project::release_session(session_id)?;
     java_analysis::close_registered_session(session_id)?;
     release_source_watch(&format!("core:{session_id}"))?;
     release_source_watch(session_id)?;

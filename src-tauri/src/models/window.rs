@@ -24,6 +24,7 @@ pub struct WindowSaveParticipant {
     pub target_key: Option<String>,
     pub label: String,
     pub paths: Vec<String>,
+    pub capture_key: Option<String>,
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -46,7 +47,22 @@ pub enum WindowSaveStatus {
 pub enum WindowSaveAction {
     Batch,
     List,
+    Prepare { preparation: WindowSavePreparation },
+    Capture { paths: Option<Vec<String>> },
+    Finish { paths: Option<Vec<String>> },
     Save { participant: WindowSaveParticipant },
+}
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WindowSavePreparation {
+    pub purpose: WindowSavePurpose,
+    pub paths: Option<Vec<String>>,
+}
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum WindowSavePurpose {
+    Build,
+    Sync,
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]

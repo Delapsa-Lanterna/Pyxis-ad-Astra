@@ -19,8 +19,16 @@ export const windowsCapabilities = [
     },
     {
       capability: 'window-mod-save',
-      names: ['registerWindowSaveReceiver', 'unregisterWindowSaveReceiver', 'requestWindowSave', 'replyWindowSave'],
+      names: ['registerWindowSaveReceiver', 'unregisterWindowSaveReceiver', 'replyWindowSave'],
       owners: [{ layer: 'orchestrators', domain: 'mod-save' }],
+    },
+    {
+      capability: 'window-mod-save-request',
+      names: ['requestWindowSave'],
+      owners: [
+        { layer: 'orchestrators', domain: 'mod-save' },
+        { path: 'src/app/composables/code-editor/use-code-editor-window.ts', layer: 'app' },
+      ],
     },
     {
       capability: 'window-target-focus',

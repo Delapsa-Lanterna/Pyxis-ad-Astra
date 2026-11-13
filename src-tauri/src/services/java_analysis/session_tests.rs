@@ -1,8 +1,8 @@
-use super::super::{
-    AnalysisExtras, automatic_java_path, close_for_session, inputs_for_session, register,
-    request_for_session, shutdown, start_for_session,
-};
+use super::super::{close_for_session, register, request_for_session, shutdown, start_for_session};
 use crate::errors::AppResult;
+use crate::services::java_project;
+use crate::services::java_project::environment;
+use crate::services::java_project::inputs::{JavaInputExtras, inputs_for_session};
 use crate::services::project::PerformanceTrace;
 use crate::services::{project, project_sync};
 use crate::test_support::TestWorkspace;
@@ -43,7 +43,7 @@ fn open(root: &Path, game: &Path) -> String {
 }
 
 #[test]
-#[ignore = "requires JAVA_ANALYSIS_TEST_JAVA, AST_GAME and the prepared dependency archive"]
+#[ignore = "requires JAVA_ANALYSIS_TEST_JAVA, AST_GAME and dependency download access"]
 fn live_sessions_share_jvm_and_refresh_only_affected_sources() {
     let java = PathBuf::from(env::var_os("JAVA_ANALYSIS_TEST_JAVA").expect("explicit Java 17"));
     let game = PathBuf::from(env::var_os("AST_GAME").expect("explicit game root"));
@@ -75,7 +75,9 @@ fn live_sessions_share_jvm_and_refresh_only_affected_sources() {
     )
     .unwrap();
     let first = open(&consumer, &game);
-    let automatic = automatic_java_path(Some(&first), None).unwrap().unwrap();
+    let automatic = environment::automatic_java_path(Some(&first), None)
+        .unwrap()
+        .unwrap();
     assert!(
         Path::new(&automatic).is_file(),
         "automatic Java: {automatic:?}"
@@ -89,23 +91,19 @@ fn live_sessions_share_jvm_and_refresh_only_affected_sources() {
     project::set_reference_sources(from_ref(&second)).unwrap();
     let app = mock_builder().build(mock_context(noop_assets())).unwrap();
     let handle = app.handle();
+    java_project::initialize(&config).unwrap();
     register(handle, &config).unwrap();
     let cleanup = AnalysisCleanup(handle);
     let runtime = handle.state::<Arc<AnalysisRuntime>>();
-    runtime
-        .import(
-            &Path::new(env!("CARGO_MANIFEST_DIR"))
-                .join("target/java-analysis/jdt-dependencies.zip"),
-        )
-        .unwrap();
-    let initial = inputs_for_session(&first, &AnalysisExtras::default()).unwrap();
+    runtime.install().unwrap();
+    let initial = inputs_for_session(&first, &JavaInputExtras::default()).unwrap();
     assert!(initial.missing_dependencies.is_empty());
     assert_eq!(initial.missing_jars.len(), 1);
     assert_eq!(initial.referenced_sessions.len(), 1);
     assert_eq!(initial.referenced_sessions[0], second);
-    let instance = start_for_session(handle, &first, &java, AnalysisExtras::default()).unwrap();
+    let instance = start_for_session(handle, &first, &java, JavaInputExtras::default()).unwrap();
     assert_eq!(
-        start_for_session(handle, &second, &java, AnalysisExtras::default()).unwrap(),
+        start_for_session(handle, &second, &java, JavaInputExtras::default()).unwrap(),
         instance
     );
     assert_eq!(runtime.instance_count().unwrap(), 1);
@@ -132,7 +130,7 @@ fn live_sessions_share_jvm_and_refresh_only_affected_sources() {
     let removed = analyze(&first);
     let denied = inputs_for_session(
         &first,
-        &AnalysisExtras {
+        &JavaInputExtras {
             sources: vec![library.join("src").to_string_lossy().to_string()],
             jars: Vec::new(),
         },
@@ -142,7 +140,7 @@ fn live_sessions_share_jvm_and_refresh_only_affected_sources() {
     assert!(removed["result"]["errors"].as_u64().unwrap() > 0);
     assert!(removed["result"]["reparsedFiles"].as_u64().unwrap() < 25);
     assert_eq!(
-        inputs_for_session(&first, &AnalysisExtras::default())
+        inputs_for_session(&first, &JavaInputExtras::default())
             .unwrap()
             .missing_dependencies,
         ["library"]
@@ -186,7 +184,7 @@ fn live_sessions_share_jvm_and_refresh_only_affected_sources() {
         fs::read_dir(&runtime.paths().workspaces).unwrap().count(),
         0
     );
-    let instance = start_for_session(handle, &first, &java, AnalysisExtras::default()).unwrap();
+    let instance = start_for_session(handle, &first, &java, JavaInputExtras::default()).unwrap();
     runtime
         .request(
             &instance,
@@ -210,22 +208,17 @@ fn live_sessions_share_jvm_and_refresh_only_affected_sources() {
 }
 
 #[test]
-#[ignore = "requires JAVA_ANALYSIS_TEST_JAVA, AST_GAME, real correctness Mods and prepared archive"]
+#[ignore = "requires JAVA_ANALYSIS_TEST_JAVA, AST_GAME, real correctness Mods and dependency download access"]
 fn live_correct_mods_use_the_published_reference_inputs() {
     let java = PathBuf::from(env::var_os("JAVA_ANALYSIS_TEST_JAVA").expect("explicit Java 17"));
     let game = PathBuf::from(env::var_os("AST_GAME").expect("explicit game root"));
     let work = TestWorkspace::new("java_real_session");
     let app = mock_builder().build(mock_context(noop_assets())).unwrap();
     let handle = app.handle();
+    java_project::initialize(&work.join("configuration")).unwrap();
     register(handle, &work.join("configuration")).unwrap();
     let cleanup = AnalysisCleanup(handle);
-    handle
-        .state::<Arc<AnalysisRuntime>>()
-        .import(
-            &Path::new(env!("CARGO_MANIFEST_DIR"))
-                .join("target/java-analysis/jdt-dependencies.zip"),
-        )
-        .unwrap();
+    handle.state::<Arc<AnalysisRuntime>>().install().unwrap();
     let libraries = [
         "LazyLib",
         "GraphicsLib",
@@ -248,14 +241,14 @@ fn live_correct_mods_use_the_published_reference_inputs() {
     .unwrap();
     for name in ["Polaris_Prime", "Kratogen_TA", "Templars"] {
         let session = open(&game.join("mods").join(name), &game);
-        let inputs = inputs_for_session(&session, &AnalysisExtras::default()).unwrap();
+        let inputs = inputs_for_session(&session, &JavaInputExtras::default()).unwrap();
         assert!(
             inputs.missing_dependencies.is_empty(),
             "{:?}",
             inputs.missing_dependencies
         );
         let instance =
-            start_for_session(handle, &session, &java, AnalysisExtras::default()).unwrap();
+            start_for_session(handle, &session, &java, JavaInputExtras::default()).unwrap();
         let response = request_for_session(
             handle,
             &session,

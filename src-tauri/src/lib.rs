@@ -2,7 +2,7 @@ use crate::models::CloseScope;
 #[cfg(windows)]
 use crate::services::windows::auxiliary;
 use crate::services::{
-    app_lifecycle, app_log, code_editor, performance_monitor, project_sync, windows,
+    app_lifecycle, app_log, code_editor, java_project, performance_monitor, project_sync, windows,
 };
 use serde_json::json;
 pub use services::java_analysis;
@@ -93,6 +93,15 @@ pub fn run() {
                 );
             }
             if matches!(event, WindowEvent::Destroyed)
+                && let Err(error) = java_project::release_window(window.label())
+            {
+                diagnostics::failure(
+                    "java_project.release",
+                    error,
+                    json!({"window":window.label()}),
+                );
+            }
+            if matches!(event, WindowEvent::Destroyed)
                 && let Err(error) = app_lifecycle::destroyed(window.label())
             {
                 diagnostics::failure(
@@ -130,6 +139,7 @@ pub fn run() {
             diagnostics::install(Arc::new(move |entry| {
                 let _ = app_log::append_app_log(entry);
             }));
+            java_project::initialize(&app_data_dir::data_directory(app.handle())?)?;
             java_analysis::initialize(app.handle())?;
             #[cfg(windows)]
             for window in app.webview_windows().into_values() {
@@ -209,6 +219,8 @@ pub fn run() {
                     commands::open_java_analysis_directory,
                     commands::java_analysis_context,
                     commands::java_editor,
+                    commands::java_project,
+                    commands::preview_java_deployment,
                     commands::unregister_save_window,
                     commands::abandon_project_saves,
                     commands::resolve_save_sources,

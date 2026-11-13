@@ -22,6 +22,8 @@ import { isRowData } from '@/shared/lib/row-data';
 import { createJavaComponentPreview } from './java-analysis';
 import { createJavaQueryPreview } from './java-queries';
 import { createCodeEditorPreview } from './code-editor';
+import { createJavaProjectPreview } from './java-project';
+import type { JavaProjectAction } from '@/shared/types/java-project.types';
 import { gameFiles } from './sample-data';
 import { savedWriteFixture, sessionUpdateFixture } from '../fixtures/write-result';
 
@@ -33,6 +35,7 @@ export function createBrowserWorkspace(
 ) {
   const javaAnalysis = createJavaComponentPreview();
   const javaQueries = createJavaQueryPreview();
+  const javaProject = createJavaProjectPreview();
   const codeEditor = createCodeEditorPreview(
     (owner, request) => invoke(owner, 'request_window', { payload: request }) as Promise<T.WindowRequestReceipt>,
   );
@@ -224,7 +227,10 @@ export function createBrowserWorkspace(
   }
   async function invoke(label: string, command: string, args: Record<string, unknown> = {}): Promise<unknown> {
     calls.push({ window: label, command });
-    if (command === 'java_editor') return javaQueries.invoke(label, args.action as Parameters<typeof javaQueries.invoke>[1]);
+    if (command === 'java_editor') {
+      if ((args.action as { kind: string }).kind === 'configure') return;
+      return javaQueries.invoke(label, args.action as Parameters<typeof javaQueries.invoke>[1]);
+    }
     if (javaAnalysis.commands.has(command)) return javaAnalysis.invoke(command, args);
     if (codeEditor.commands.has(command)) return codeEditor.invoke(label, command, args);
     const request = command === 'save_project' ? (args.request as T.SaveRequest) : null;
@@ -275,6 +281,10 @@ export function createBrowserWorkspace(
             })),
         };
       }
+      case 'java_project':
+        return javaProject.run(receiver, args.action as JavaProjectAction);
+      case 'preview_java_deployment':
+        return javaProject.preview(receiver, String(args.artifact), String(args.target));
       case 'get_window_bootstrap':
         return current.context
           ? {

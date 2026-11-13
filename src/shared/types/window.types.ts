@@ -86,6 +86,7 @@ export interface WindowSaveParticipant {
   targetKey: string | null;
   label: string;
   paths: string[];
+  captureKey?: string | null;
 }
 export interface WindowSaveItem {
   label: string;
@@ -95,7 +96,16 @@ export interface WindowSaveItem {
 }
 export interface WindowSaveRequest {
   target: ModSaveTarget;
-  action: { kind: 'batch' | 'list' } | { kind: 'save'; participant: WindowSaveParticipant };
+  action:
+    | { kind: 'batch' }
+    | { kind: 'list' }
+    | { kind: 'prepare'; preparation: WindowSavePreparation }
+    | { kind: 'capture' | 'finish'; paths: string[] | null }
+    | { kind: 'save'; participant: WindowSaveParticipant };
+}
+export interface WindowSavePreparation {
+  purpose: 'build' | 'sync';
+  paths: string[] | null;
 }
 export interface WindowSaveMessage {
   requestId: number;

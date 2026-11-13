@@ -154,7 +154,7 @@ impl Engine {
             return Err(invalid("Engine handshake result is invalid"));
         };
         if hello.protocol != manifest.protocol
-            || hello.java != REQUIRED_JAVA
+            || hello.java < REQUIRED_JAVA
             || hello.engine != host.version
         {
             return Err(invalid(

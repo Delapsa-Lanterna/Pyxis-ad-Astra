@@ -55,10 +55,11 @@ export function useCodeProject(openFile: (path: string, readOnly: boolean) => Pr
   async function refreshSources() {
     await reads.consume('sources', {}, queryCodeEditorSources, {
       ready(value) {
-        const previous = new Map(branches.map((entry) => [entry.source.sessionId, entry]));
+        const key = (source: CodeEditorSource) => source.sessionId + ':' + source.directory;
+        const previous = new Map(branches.map((entry) => [key(entry.source), entry]));
         const next = value.sources.map((source) => {
-          const current = previous.get(source.sessionId);
-          previous.delete(source.sessionId);
+          const current = previous.get(key(source));
+          previous.delete(key(source));
           if (current) {
             current.source = source;
             return current;
@@ -101,6 +102,7 @@ export function useCodeProject(openFile: (path: string, readOnly: boolean) => Pr
       (searchText.value.trim() ? searchScroll : browseScroll).value = top;
     },
     ready,
+    refreshSources,
     async toggle(entry: CodeProjectBranch) {
       entry.opened = !entry.opened;
       if (entry.opened) {

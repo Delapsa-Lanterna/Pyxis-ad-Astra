@@ -58,8 +58,20 @@
   margin: 0;
 }
 .code-overview-statistics dd {
-  margin: 8px 0 0;
+  margin: 2px 0 0;
   font-weight: 600;
+}
+.java-project-settings {
+  gap: 8px;
+  flex-shrink: 0;
+}
+.java-project-output {
+  max-height: 240px;
+  overflow: auto;
+  white-space: pre-wrap;
+  margin: 0;
+  padding: 8px;
+  background: var(--color-panel-muted);
 }
 .code-project-tree {
   overflow: auto;

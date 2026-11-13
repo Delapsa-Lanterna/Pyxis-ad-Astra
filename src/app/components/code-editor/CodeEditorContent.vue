@@ -146,8 +146,8 @@
           :files="documents"
           :sources="project?.sources.value ?? null"
           :status="analysis.status.value"
-          :tree-shown="treeShown"
-          @show-tree="treeShown = true"
+          :engineering="host.engineering"
+          :diagnostics="analysis.diagnostics.value"
       /></template>
     </CodeWorkspaceLayout>
     <footer class="code-editor-status ui-control-row ui-text-muted ui-text-small">

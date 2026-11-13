@@ -28,6 +28,7 @@
 - `src-tauri/src/services/file_history/records.rs`：按实际 Mod 根持有 changeset、双栈、revision、容量及回放交接。
 - `src-tauri/src/services/java_analysis.rs`：注销前释放所属 Java 项目，引用发布后刷新已启动分析项目。
 - `src-tauri/src/services/java_analysis/sessions.rs`：按正式 Mod 身份释放分析项目与刷新引用输入。
+- `src-tauri/src/services/java_project.rs`：注销前取消并等待所属工程同步。
 - `src-tauri/src/services/project/mod.rs`：原子注销事实、会话内容清理及引用状态交接。
 - `src-tauri/src/services/project/performance.rs`：ProjectSession 阶段计时。
 - `src-tauri/src/services/project/query/entity_targets.rs`：可靠来源改名后的实际实体目标。

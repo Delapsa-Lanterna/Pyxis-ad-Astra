@@ -57,7 +57,7 @@ export async function startDesktop(options) {
             for (const page of browser?.contexts()[0]?.pages() ?? []) {
               const discard = page.getByRole('button', { name: /放弃/ });
               try {
-                if (await discard.count()) await discard.first().click();
+                if (await discard.count()) await discard.first().evaluate((button) => /** @type {HTMLButtonElement} */ (button).click());
               } catch (error) {
                 if (!page.isClosed()) throw error;
               }

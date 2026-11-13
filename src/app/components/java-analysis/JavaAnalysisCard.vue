@@ -24,14 +24,19 @@
         >{{ bytes(snapshot?.stagedBytes ?? 0) }}<template v-if="snapshot?.stagedBytes"> · 已校验文件将在重试时复用</template></span
       ></FieldRow
     >
-    <FieldRow label="Java 17 路径"
+    <FieldRow label="Java 路径"
       ><div class="ui-field-actions ui-layout-stretch action-group">
-        <n-input :value="customPath ?? ''" placeholder="自动推断或手动指定" size="small" readonly />
+        <n-input class="ui-code" :value="customPath ?? ''" placeholder="自动推断或手动指定" size="small" readonly />
         <n-button size="small" :disabled="busy" @click="pickJava">选择文件</n-button>
         <n-button v-if="customPath" size="small" quaternary :disabled="busy" @click="restoreAutomatic">清除</n-button>
       </div>
       <template #hint
-        ><FieldHints :description="customPath ? '已设置: ' + customPath : '未设置时使用当前实际游戏目录中的 Java 17。'" /></template
+        ><FieldHints
+          :description="
+            customPath
+              ? '已设置: ' + customPath
+              : '自动使用游戏运行环境；手动选择 JRE 或 JDK 时要求 Java 17 或更新版本。需要编译器时请选择完整 JDK。'
+          " /></template
     ></FieldRow>
     <FieldRow readonly label="运行状态"
       ><span>{{ snapshot?.instances ?? 0 }} 个 JVM · {{ snapshot?.projects ?? 0 }} 个项目</span></FieldRow

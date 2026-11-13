@@ -89,6 +89,7 @@ export type {
   WindowSaveParticipant,
   WindowSaveItem,
   WindowSaveRequest,
+  WindowSavePreparation,
   WindowSaveMessage,
   WindowSaveReply,
 } from '@/shared/types/window.types';
@@ -249,6 +250,7 @@ export type * from '@/shared/types/misc-config.types';
 export type { PerformanceBatch, PerformanceMonitorStatus } from './performance-monitor.types';
 export type { JsonComposition, JsonSourceLayer } from './json-composition.types';
 export type * from './java-analysis.types';
+export type * from './java-project.types';
 export type { CodeEditorOpen, CodeEditorDelivery, CodeEditorSource, CodeEditorSources } from './code-editor.types';
 export type * from './file-content.types';
 export type { JsonDocumentFile, JsonDocumentRead } from './json-file.types';

@@ -4,6 +4,7 @@ const cases = [
   ['mod-save-register', 'src/orchestrators/mod-save.orchestrator.ts', 'src/services/window.service.ts', 'registerWindowSaveReceiver'],
   ['mod-save-release', 'src/orchestrators/mod-save.orchestrator.ts', 'src/services/window.service.ts', 'unregisterWindowSaveReceiver'],
   ['mod-save-request', 'src/orchestrators/mod-save.orchestrator.ts', 'src/services/window.service.ts', 'requestWindowSave'],
+  ['code-build-save', 'src/app/composables/code-editor/use-code-editor-window.ts', 'src/services/window.service.ts', 'requestWindowSave'],
   ['mod-save-reply', 'src/orchestrators/mod-save.orchestrator.ts', 'src/services/window.service.ts', 'replyWindowSave'],
   [
     'app-close-assembly',

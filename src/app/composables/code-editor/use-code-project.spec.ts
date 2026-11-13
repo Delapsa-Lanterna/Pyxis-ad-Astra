@@ -185,3 +185,26 @@ it('keeps browsing and searching scroll positions separate within the project wi
   project.setSearch('Entry');
   expect(project.scrollTop.value).toBe(40);
 });
+it('keeps multiple roots of the same reference independent across refreshes', async () => {
+  const { project } = await setup();
+  mocks.sources.mockResolvedValue({
+    revision: 2,
+    analysisRoots: ['M:/sample/src', 'M:/reference/src', 'M:/reference/generated'],
+    sources: [
+      source,
+      { sessionId: 'reference', modRoot: 'M:/reference', label: 'Library src', directory: 'src', readOnly: true },
+      { sessionId: 'reference', modRoot: 'M:/reference', label: 'Library generated', directory: 'generated', readOnly: true },
+    ],
+  });
+  await project.refreshSources();
+  const first = project.branches[1]!,
+    second = project.branches[2]!;
+  await project.toggle(first);
+  await project.toggle(second);
+  expect(first.browser).not.toBe(second.browser);
+  first.browser.actions.select(['src/Entry.java']);
+  expect(second.browser.view.selected).toEqual([]);
+  await project.refreshSources();
+  expect(project.branches[1]).toBe(first);
+  expect(project.branches[2]).toBe(second);
+});

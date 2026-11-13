@@ -12,7 +12,7 @@
       <n-button size="small" @click="run(project.refresh)">刷新项目</n-button>
     </div>
     <p v-if="project.problem.value" role="status">{{ project.problem.value }}</p>
-    <section v-for="entry in project.branches" :key="entry.source.sessionId">
+    <section v-for="entry in project.branches" :key="entry.source.sessionId + ':' + entry.source.directory">
       <button
         class="code-project-heading ui-button ui-control-row ui-control-button ui-text-reset ui-text-soft ui-text-small"
         :aria-expanded="entry.opened"

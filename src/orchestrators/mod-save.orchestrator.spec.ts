@@ -9,7 +9,12 @@ import { useSaveCommandStore } from '@/stores/save-command.store';
 import { savedWriteFixture } from '@/test/fixtures/write-result';
 import type { DocumentSaveResult } from '@/shared/runtime/document-editor';
 import { createModSaveCoordinator } from './mod-save.orchestrator';
-import { registerWindowSaveReceiver, unregisterWindowSaveReceiver, queryEditTargetOwners } from '@/services/window.service';
+import {
+  registerWindowSaveReceiver,
+  unregisterWindowSaveReceiver,
+  queryEditTargetOwners,
+  requestWindowSave,
+} from '@/services/window.service';
 const wire = vi.hoisted(() => ({
   label: 'main',
   context: { value: null as ManagedWindowContext | null },
@@ -110,6 +115,98 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 describe('Mod save coordination', () => {
+  it('prepares configuration inputs in another window and filters ordinary drafts', async () => {
+    const unrelated = editor('notes.txt'),
+      output = feedback();
+    vi.mocked(output.choose).mockResolvedValue('save');
+    coordinatorFixture(output, () => false);
+    setActivePinia(createPinia());
+    wire.label = 'text-window';
+    const config = editor('build.gradle'),
+      notes = editor('other.txt');
+    coordinatorFixture(feedback(), () => false);
+    wire.owners = ['main', 'text-window'];
+    const result = await requestWindowSave('main', {
+      target: { sessionId: 'a', modRoot: 'M:/a' },
+      action: { kind: 'prepare', preparation: { purpose: 'sync', paths: ['M:/a/build.gradle'] } },
+    });
+    expect(result).toMatchObject({ kind: 'results', items: [{ status: 'saved', label: 'build.gradle' }] });
+    expect(config.save).toHaveBeenCalledOnce();
+    expect(notes.save).not.toHaveBeenCalled();
+    expect(unrelated.save).not.toHaveBeenCalled();
+    expect(output.choose).toHaveBeenCalledWith(
+      expect.objectContaining({ title: '保存构建配置后同步？', choices: [expect.objectContaining({ label: '保存并同步' })] }),
+    );
+  });
+  it.each(['save', 'cancel', 'changed', 'mutated', 'new-input', 'failed'])(
+    'build confirmation handles %s without losing drafts',
+    async (outcome) => {
+      const own = editor('Sample.java'),
+        output = feedback();
+      coordinatorFixture(output, () => false);
+      vi.mocked(output.choose).mockImplementation(async () => {
+        if (outcome === 'changed') own.participant.editing.draftSession.draftValue.value = { value: 'new input' };
+        if (outcome === 'mutated') Reflect.set(own.participant.editing.draftSession.draftValue.value, 'field', 'new input');
+        if (outcome === 'new-input') editor('New.java');
+        return outcome === 'cancel' ? null : 'save';
+      });
+      if (outcome === 'failed') own.save.mockRejectedValueOnce(new Error('fixture disk failure'));
+      const result = await requestWindowSave('main', {
+        target: { sessionId: 'a', modRoot: 'M:/a' },
+        action: { kind: 'prepare', preparation: { purpose: 'build', paths: null } },
+      });
+      expect(output.choose).toHaveBeenCalledWith(expect.objectContaining({ title: '保存并构建？', cancelText: '继续编辑' }));
+      expect(dialogText(vi.mocked(output.choose).mock.calls[0]![0])).toContain('Sample.java');
+      expect(result.kind).toBe('results');
+      if (result.kind !== 'results') throw Error('expected build save results');
+      if (outcome === 'save') expect(result.items.map((item) => item.status)).toEqual(['saved']);
+      else expect(result.items.some((item) => item.status === (outcome === 'cancel' ? 'cancelled' : 'failed'))).toBe(true);
+      expect(own.save).toHaveBeenCalledTimes(outcome === 'cancel' || outcome === 'changed' || outcome === 'mutated' ? 0 : 1);
+      expect(wire.replies.size).toBe(0);
+    },
+  );
+  it('refuses a build when input submission is cancelled', async () => {
+    const own = editor('Sample.java');
+    own.inputs.registerFinalizer(() => false);
+    const output = feedback();
+    coordinatorFixture(output, () => false);
+    const reply = await requestWindowSave('main', {
+      target: { sessionId: 'a', modRoot: 'M:/a' },
+      action: { kind: 'prepare', preparation: { purpose: 'build', paths: null } },
+    });
+    expect(reply).toMatchObject({ kind: 'results', items: [{ status: 'failed' }] });
+    expect(own.save).not.toHaveBeenCalled();
+    expect(output.choose).not.toHaveBeenCalled();
+  });
+  it('accepts one grouped save and rejects new input in an already saved member', async () => {
+    const first = editor('A.java'),
+      second = editor('B.java'),
+      output = feedback();
+    vi.mocked(output.choose).mockResolvedValue('save');
+    coordinatorFixture(output, () => false);
+    first.save.mockImplementationOnce(async () => {
+      first.dirty.value = false;
+      second.dirty.value = false;
+      return { status: 'saved', receipt: savedWriteFixture() };
+    });
+    const request = {
+      target: { sessionId: 'a', modRoot: 'M:/a' },
+      action: { kind: 'prepare' as const, preparation: { purpose: 'build' as const, paths: null } },
+    };
+    expect(await requestWindowSave('main', request)).toMatchObject({ kind: 'results', items: [{ status: 'saved' }, { status: 'noop' }] });
+    expect(second.save).not.toHaveBeenCalled();
+    first.dirty.value = true;
+    second.dirty.value = true;
+    second.save.mockImplementationOnce(async () => {
+      first.dirty.value = true;
+      first.participant.editing.draftSession.draftValue.value = { value: 'input during saving' };
+      second.dirty.value = false;
+      return { status: 'saved', receipt: savedWriteFixture() };
+    });
+    const reply = await requestWindowSave('main', request);
+    expect(reply.kind === 'results' && reply.items.some((item) => item.status === 'failed')).toBe(true);
+    expect(first.dirty.value).toBe(true);
+  });
   it('commits pending input and saves only the captured Mod editors', async () => {
     const own = editor('csv'),
       other = editor('json', 'b'),

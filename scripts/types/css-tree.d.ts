@@ -12,6 +12,7 @@ declare module 'css-tree' {
   }
   export interface Declaration extends NodeBase {
     type: 'Declaration';
+    important: boolean | string;
     property: string;
     value: Value;
   }

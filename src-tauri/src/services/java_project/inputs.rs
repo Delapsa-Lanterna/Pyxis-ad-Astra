@@ -1,24 +1,30 @@
+use super::configured_inputs;
 use crate::errors::{AppError, AppResult};
 use crate::io;
 use crate::io::{FsRootBoundary, canonical_path};
+use crate::models::FileVersion;
 use crate::models::ProjectManifest;
 use crate::services::project;
+#[cfg(test)]
+use crate::test_support::work_counts;
 use pyxis_java_analysis::java_path;
 use serde::Serialize;
 use serde_json::Value;
 use std::collections::BTreeSet;
 use std::fs;
 use std::path::Path;
+use std::path::PathBuf;
+use walkdir::WalkDir;
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub struct AnalysisExtras {
+pub struct JavaInputExtras {
     pub sources: Vec<String>,
     pub jars: Vec<String>,
 }
 
 #[derive(Clone, Debug, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
-pub struct AnalysisInputs {
+pub struct JavaInputs {
     pub session_id: String,
     pub mod_root: String,
     pub sources: Vec<String>,
@@ -27,7 +33,7 @@ pub struct AnalysisInputs {
     pub referenced_sessions: Vec<String>,
     pub missing_dependencies: Vec<String>,
     pub missing_jars: Vec<String>,
-    pub jar_fingerprints: Vec<Option<String>>,
+    pub jar_versions: Vec<FileVersion>,
 }
 
 fn append(values: &mut Vec<String>, path: &Path) {
@@ -56,18 +62,14 @@ fn require_referenceable_mod(path: &Path, manifests: &[ProjectManifest]) -> AppR
     Ok(())
 }
 
-pub(crate) fn source_root(manifest: &ProjectManifest) -> AppResult<Option<String>> {
+fn add_manifest(input: &mut JavaInputs, manifest: &ProjectManifest) -> AppResult<()> {
     let boundary = FsRootBoundary::new(Path::new(&manifest.mod_root), "Java Mod root")?;
-    let source = boundary.resolve_relative("src", "Java source root")?;
-    Ok(source
-        .is_dir()
-        .then(|| java_path(&source).to_string_lossy().into_owned()))
-}
-
-fn add_manifest(input: &mut AnalysisInputs, manifest: &ProjectManifest) -> AppResult<()> {
-    let boundary = FsRootBoundary::new(Path::new(&manifest.mod_root), "Java Mod root")?;
-    if let Some(source) = source_root(manifest)? {
+    let (sources, libraries) = configured_inputs(manifest)?;
+    for source in sources {
         append(&mut input.sources, Path::new(&source));
+    }
+    for library in libraries {
+        append(&mut input.classpath, Path::new(&library));
     }
     if let Some(jars) = manifest.mod_info.as_ref().and_then(|info| info.get("jars")) {
         for value in jars.as_array().ok_or_else(|| {
@@ -90,7 +92,7 @@ fn add_manifest(input: &mut AnalysisInputs, manifest: &ProjectManifest) -> AppRe
 }
 
 /// Captures the ready project's actual game and all currently referenceable Mod inputs.
-pub fn inputs_for_session(session_id: &str, extras: &AnalysisExtras) -> AppResult<AnalysisInputs> {
+pub fn inputs_for_session(session_id: &str, extras: &JavaInputExtras) -> AppResult<JavaInputs> {
     let manifest = project::current_project_manifest(session_id)?;
     let game = manifest.starsector_root.as_ref().ok_or_else(|| {
         AppError::message(
@@ -100,7 +102,7 @@ pub fn inputs_for_session(session_id: &str, extras: &AnalysisExtras) -> AppResul
     })?;
     let game_boundary = FsRootBoundary::new(Path::new(game), "Java game root")?;
     let java_home = game_boundary.resolve_relative("jre", "Java standard library")?;
-    let mut input = AnalysisInputs {
+    let mut input = JavaInputs {
         session_id: session_id.into(),
         mod_root: manifest.mod_root.clone(),
         sources: Vec::new(),
@@ -109,7 +111,7 @@ pub fn inputs_for_session(session_id: &str, extras: &AnalysisExtras) -> AppResul
         referenced_sessions: Vec::new(),
         missing_dependencies: Vec::new(),
         missing_jars: Vec::new(),
-        jar_fingerprints: Vec::new(),
+        jar_versions: Vec::new(),
     };
     let mut manifests = vec![manifest];
     for reference in project::reference_sources()?.sources {
@@ -171,10 +173,33 @@ pub fn inputs_for_session(session_id: &str, extras: &AnalysisExtras) -> AppResul
         require_referenceable_mod(&path, &manifests)?;
         append(&mut input.classpath, &path);
     }
-    input.jar_fingerprints = input
+    input.jar_versions = input
         .classpath
         .iter()
-        .map(|path| io::file_version(Path::new(path)).map(|version| version.fingerprint))
+        .map(|path| io::file_version(Path::new(path)))
         .collect::<AppResult<Vec<_>>>()?;
     Ok(input)
+}
+
+pub(super) fn source_files(roots: &[String]) -> AppResult<Vec<PathBuf>> {
+    let mut files = Vec::new();
+    for root in roots.iter().filter(|root| Path::new(root).is_dir()) {
+        #[cfg(test)]
+        work_counts::record("java-source-walk", Path::new(root));
+        for entry in WalkDir::new(root).follow_links(false) {
+            let entry = entry
+                .map_err(|error| AppError::message("java_project.source", error.to_string()))?;
+            if entry.file_type().is_file()
+                && entry
+                    .path()
+                    .extension()
+                    .is_some_and(|extension| extension == "java")
+            {
+                files.push(java_path(&canonical_path(entry.path(), "Java source")?));
+            }
+        }
+    }
+    files.sort();
+    files.dedup();
+    Ok(files)
 }

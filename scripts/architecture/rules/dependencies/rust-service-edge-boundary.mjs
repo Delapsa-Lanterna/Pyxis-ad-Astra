@@ -1,6 +1,14 @@
 import { defineRule } from '../../diagnostics.mjs';
 
 const allowedServiceEdges = new Set([
+  'java_project -> project',
+  'java_project -> system_open',
+  'project_save -> java_project',
+  'java_project -> app_settings',
+  'java_analysis -> java_project',
+  'code_editor -> java_project',
+  'app_lifecycle -> java_project',
+  'project_sync -> java_project',
   'app_lifecycle -> windows',
   'app_lifecycle -> project',
   'app_lifecycle -> project_sync',

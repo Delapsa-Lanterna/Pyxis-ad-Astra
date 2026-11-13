@@ -6,6 +6,7 @@ pub mod code_editor;
 pub mod directory_opening;
 pub mod file_history;
 pub mod java_analysis;
+pub mod java_project;
 pub mod json_file;
 pub mod misc_config;
 pub mod mod_creation;

@@ -206,7 +206,7 @@ export async function verifyEditors(page, output) {
   assert.equal(await editor.getByRole('button', { name: '跳转声明', exact: true }).count(), 0);
   checks.push({ name: '50 sequential file tabs activate the final file and ordinary text exposes text operations', pass: true });
   await closeEditorDocuments(editor);
-  await editor.getByRole('heading', { name: '选择文件开始编辑', exact: true }).waitFor();
+  await editor.getByRole('heading', { name: '代码总览', exact: true }).waitFor();
   for (const theme of ['light', 'dark']) {
     await page.setViewportSize({ width: 1602, height: 900 });
     await page.evaluate((theme) => Reflect.get(globalThis, 'browserWorkspace').setAppearance({ theme }), theme);

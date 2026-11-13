@@ -26,7 +26,7 @@ export async function verifyCodeWorkspace(page, output) {
     () => [...Reflect.get(globalThis, 'browserWorkspace').windows].find(([, entry]) => entry.context?.kind === 'code-editor')[0],
   );
   const editor = page.frameLocator('iframe[data-window="' + label + '"]');
-  await editor.getByText('选择文件开始编辑', { exact: true }).waitFor();
+  await editor.getByRole('heading', { name: '代码总览', exact: true }).waitFor();
   const openMilliseconds = performance.now() - began;
   const javaCalls = () =>
     page.evaluate(
@@ -100,7 +100,7 @@ export async function verifyCodeWorkspace(page, output) {
   );
   await page
     .frameLocator('iframe[data-window="' + coreLabel + '"]')
-    .getByText('选择文件开始编辑', { exact: true })
+    .getByRole('heading', { name: '代码总览', exact: true })
     .waitFor();
   await page.evaluate(() => Reflect.get(globalThis, 'browserWorkspace').setAppearance({ theme: 'light' }));
   await main.getByRole('tab').first().click();

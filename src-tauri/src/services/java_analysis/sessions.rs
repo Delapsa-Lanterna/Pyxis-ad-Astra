@@ -1,10 +1,10 @@
 use super::close;
-use super::inputs::{AnalysisExtras, AnalysisInputs, inputs_for_session};
 use super::management::ComponentManagement;
 use super::requests::{checked_response, request, send};
 use crate::diagnostics;
 use crate::errors::{AppError, AppResult};
 use crate::io::canonical_path;
+use crate::services::java_project::inputs::{JavaInputExtras, JavaInputs, inputs_for_session};
 use crate::services::{app_settings, project};
 use pyxis_java_analysis::protocol::AnalysisResult;
 use pyxis_java_analysis::versions::DEFAULT_LANGUAGE;
@@ -52,8 +52,8 @@ pub(super) fn reset() -> AppResult<()> {
 
 struct SessionProject {
     revision: u64,
-    inputs: AnalysisInputs,
-    extras: AnalysisExtras,
+    inputs: JavaInputs,
+    extras: JavaInputExtras,
     closed: bool,
 }
 
@@ -80,7 +80,7 @@ pub fn start_for_session<R: Runtime>(
     app: &AppHandle<R>,
     session_id: &str,
     java: &Path,
-    extras: AnalysisExtras,
+    extras: JavaInputExtras,
 ) -> AppResult<String> {
     let manager = app.state::<Arc<ComponentManagement>>();
     let _guard = manager.analysis_guard()?;

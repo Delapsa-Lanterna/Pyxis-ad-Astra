@@ -5,6 +5,18 @@ import { rustServiceEdgeBoundaryRule } from './rust-service-edge-boundary.mjs';
 
 const serviceAssembly =
   'pub(crate) use project::query::entities::query_entity; pub(crate) use project::write::entity_write::content::save_entity_spec;';
+test('Java engineering supplies inputs and owns its lifecycle edges', () => {
+  const context = architectureFixtures({
+    'src-tauri/src/services/java_analysis/sessions.rs':
+      'fn inputs(){crate::services::java_project::inputs::inputs_for_session(session,extras);}',
+    'src-tauri/src/services/code_editor/sources.rs': 'fn sources(){crate::services::java_project::configured_inputs(manifest);}',
+    'src-tauri/src/services/java_project/build.rs': 'fn locate(){crate::services::system_open::open_path(path);}',
+    'src-tauri/src/services/project_save.rs': 'fn deploy(){crate::services::java_project::deployment::write(input);}',
+    'src-tauri/src/services/java_project/environment.rs': 'fn java(){crate::services::app_settings::java_executable();}',
+    'src-tauri/src/services/project_sync.rs': 'fn close(){crate::services::java_project::release_session(id);}',
+  });
+  assert.deepEqual(rustServiceEdgeBoundaryRule.check(context), []);
+});
 
 test('application lifecycle releases the Java analysis infrastructure', () => {
   const allowed = architectureFixtures({
@@ -17,9 +29,9 @@ test('application lifecycle releases the Java analysis infrastructure', () => {
   assert.equal(rustServiceEdgeBoundaryRule.check(rejected).length, 1);
 });
 
-test('Java analysis consumes project inputs and project sync refreshes its owned sessions', () => {
+test('Java project assembles session inputs and project sync refreshes analysis sessions', () => {
   const context = architectureFixtures({
-    'src-tauri/src/services/java_analysis/inputs.rs': 'fn inputs(){crate::services::project::current_project_manifest(id);}',
+    'src-tauri/src/services/java_project/inputs.rs': 'fn inputs(){crate::services::project::current_project_manifest(id);}',
     'src-tauri/src/services/project_sync.rs': 'fn close(){crate::services::java_analysis::close_registered_session(id);}',
   });
   assert.deepEqual(rustServiceEdgeBoundaryRule.check(context), []);

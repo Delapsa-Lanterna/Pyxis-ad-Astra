@@ -44,7 +44,10 @@ export const projectCapabilities = [
     {
       capability: 'saved-content-wait',
       names: ['settleSavedContent'],
-      owners: [{ path: 'src/app/composables/text-file-editing/use-text-file-batch.ts', layer: 'app' }],
+      owners: [
+        { path: 'src/app/composables/text-file-editing/use-text-file-batch.ts', layer: 'app' },
+        { path: 'src/app/composables/code-editor/use-code-editor-window.ts', layer: 'app' },
+      ],
     },
     {
       capability: 'session-release',

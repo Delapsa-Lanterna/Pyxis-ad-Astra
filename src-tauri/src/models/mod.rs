@@ -14,6 +14,7 @@ pub mod file_content;
 pub mod file_history;
 pub mod file_value;
 pub mod font;
+pub mod java_project;
 pub mod joint_edit;
 pub mod joint_target;
 pub mod json_composition;

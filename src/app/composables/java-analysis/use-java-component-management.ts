@@ -52,7 +52,7 @@ export function useJavaComponentManagement(context: () => readonly [string | nul
     }
     if (value.action?.kind === 'probe' && value.environment) {
       settings.setJavaExecutable(value.environment.path);
-      feedback.success('已设置 Java 17 路径');
+      feedback.success('已设置 Java 路径');
     } else if (value.action?.kind !== 'refresh')
       feedback.success(value.action?.kind === 'test' ? 'Java 分析环境自检通过' : 'Java 分析组件操作完成');
   }
@@ -114,7 +114,7 @@ export function useJavaComponentManagement(context: () => readonly [string | nul
   }
   async function pickJava() {
     try {
-      const path = await pickFileDialog({ title: '选择 Java 17 可执行文件' });
+      const path = await pickFileDialog({ title: '选择 JRE 或 JDK 的 Java 可执行文件 (至少 17)' });
       if (path) await run({ kind: 'probe', javaPath: path });
     } catch (error) {
       feedback.error(error, '选择 Java 路径失败');

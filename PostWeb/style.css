@@ -1,6 +1,8 @@
 :root {
+  --font-interface: 'Microsoft YaHei', 'Segoe UI', sans-serif;
+  --font-field: Consolas, monospace;
   color-scheme: dark;
-  font-family: 'Microsoft YaHei', 'Segoe UI', sans-serif;
+  font-family: var(--font-interface);
   color: #dcdcdc;
   background: #050809;
 }
@@ -269,7 +271,7 @@ textarea {
   border: 1px solid #28505c;
   color: #dcdcdc;
   background: rgb(5 8 9 / 82%);
-  font-family: Consolas, monospace;
+  font-family: var(--font-field);
   font-size: 13px;
   line-height: 1.6;
   resize: vertical;

@@ -345,9 +345,11 @@ impl WindowRegistry {
         receiver: &str,
         request: WindowSaveRequest,
     ) -> AppResult<WindowSaveMessage> {
-        if (matches!(request.action, WindowSaveAction::Batch) && receiver != "main")
-            || (!matches!(request.action, WindowSaveAction::Batch) && owner != "main")
-        {
+        let batch = matches!(
+            request.action,
+            WindowSaveAction::Batch | WindowSaveAction::Prepare { .. }
+        );
+        if (batch && receiver != "main") || (!batch && owner != "main") {
             return Err(AppError::message(
                 "window.save_owner",
                 "保存请求不属于主窗口",
@@ -1332,6 +1334,7 @@ mod tests {
     use super::*;
     #[cfg(test)]
     use crate::io::FsRootBoundary;
+    use crate::models::window::{WindowSavePreparation, WindowSavePurpose};
     #[cfg(test)]
     use crate::models::{EditWriteTarget, JointEditKind, ModSaveTarget, TextWindowLocation};
     use crate::models::{SpecEditorKind, WeaponFirePreviewSource};
@@ -1568,6 +1571,15 @@ mod tests {
             invalid = request.clone();
             invalid.action = WindowSaveAction::List;
             assert!(state.receive_save(&child, "main", invalid).is_err());
+            let mut build = request.clone();
+            build.action = WindowSaveAction::Prepare {
+                preparation: WindowSavePreparation {
+                    purpose: WindowSavePurpose::Build,
+                    paths: None,
+                },
+            };
+            assert!(state.receive_save(&child, "main", build.clone()).is_ok());
+            assert!(state.receive_save(&child, &child, build).is_err());
             let message = state.receive_save(&child, "main", request.clone()).unwrap();
             state.finish_save(
                 &child,

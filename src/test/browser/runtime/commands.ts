@@ -115,7 +115,7 @@ export async function dispatch(command: string, args: Record<string, unknown>, m
       return snapshot;
     }
     case 'query_system_fonts':
-      return ['Arial', 'Microsoft YaHei'];
+      return ['Arial', 'Consolas', 'Courier New', 'Microsoft YaHei'];
     case 'scan_core_fields':
       return {};
     case 'query_core_root':

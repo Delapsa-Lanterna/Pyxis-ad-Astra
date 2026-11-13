@@ -1,10 +1,10 @@
 use super::requests::checked_response;
-use super::{
-    AnalysisExtras, automatic_java_path, close_for_session, request_for_session, start_for_session,
-};
+use super::{close_for_session, references_changed, request_for_session, start_for_session};
 use crate::errors::{AppError, AppResult};
 use crate::io::FsRootBoundary;
 use crate::models::WindowIdentity;
+use crate::services::java_project::environment;
+use crate::services::java_project::inputs::JavaInputExtras;
 use pyxis_java_analysis::AnalysisRequest;
 use pyxis_java_analysis::protocol::DocumentEdit;
 use serde::Deserialize;
@@ -28,6 +28,7 @@ pub enum EditorAction {
         revision: u64,
     },
     Start,
+    Configure,
     Close,
     Sync {
         documents: Vec<DocumentEdit>,
@@ -70,16 +71,20 @@ pub fn execute<R: Runtime>(
         ));
     };
     match action {
+        EditorAction::Configure => {
+            references_changed(app)?;
+            Ok(Value::Null)
+        }
         EditorAction::Close => {
             release(app, label)?;
             Ok(Value::Null)
         }
         EditorAction::Start => {
             release(app, label)?;
-            let java = automatic_java_path(Some(&session_id), None)?.ok_or_else(|| {
+            let java = environment::selected_java_path(&session_id)?.ok_or_else(|| {
                 AppError::message(
                     "java_analysis.game_missing",
-                    "Select the game's Java 17 in settings",
+                    "Select a Java runtime (17 or newer) in settings",
                 )
             })?;
             OWNERS
@@ -92,7 +97,7 @@ pub fn execute<R: Runtime>(
                 app,
                 &session_id,
                 Path::new(&java),
-                AnalysisExtras::default(),
+                JavaInputExtras::default(),
             );
             if result.is_err() {
                 release(app, label)?;

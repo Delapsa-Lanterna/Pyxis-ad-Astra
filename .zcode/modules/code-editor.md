@@ -21,28 +21,34 @@
 - `src-tauri/src/io/mod.rs`：所属项目目录的规范路径及边界。
 - `src-tauri/src/models/code_editor.rs`：文件打开、交付及结果协议。
 - `src-tauri/src/models/window.rs`：所属 Mod 窗口身份和结构化输入。
-- `src-tauri/src/services/java_analysis/inputs.rs`：实际分析源码根描述。
+- `src-tauri/src/services/java_project.rs`：实际工程源码与依赖描述。
 - `src-tauri/src/services/project/session.rs`：正式就绪会话授权。
 - `src-tauri/src/services/project/session/references.rs`：已发布可引用会话顺序和修订。
 - `src-tauri/src/services/windows.rs`：窗口创建、复用和请求接纳。
 - `src/app/components/file-browser/file-tree-renderers.ts`：目录、文件及受限条目的图标和读取状态展示。
 - `src/app/components/java-analysis/`：Java 大纲、诊断、引用和修改预览。
+- `src/app/components/java-project/`：工程设置、同步与输出展示。
 - `src/app/components/text-file-editing/`：文件标签及排序交互。
 - `src/app/composables/file-browser/use-file-browser.ts`：窗口独立的浏览状态、查询及失效接纳。
 - `src/app/composables/java-analysis/`：草稿交接、查询接纳及 Java 界面扩展。
+- `src/app/composables/java-project/`：工程设置和同步寿命装配。
 - `src/app/composables/text-file-editing/`：文件集合、关联修改、保存与释放。
 - `src/app/composables/use-app-feedback.ts`：文件错误和关闭选择。
 - `src/app/composables/use-context-menu.ts`：项目目录及活动文本的所属刷新登记。
 - `src/app/composables/use-managed-window-requests.ts`：窗口就绪交接。
 - `src/app/composables/use-window-close-state.ts`：窗口关闭保护。
 - `src/app/composables/use-window-shortcuts.ts`：保存和历史快捷键。
-- `src/orchestrators/project-sync.orchestrator.ts`：来源变化及保存后的分析刷新接线。
+- `src/orchestrators/project-sync.orchestrator.ts`：来源变化、部署保存及正式内容交接等待。
+- `src/orchestrators/window-identity.orchestrator.ts`：部署目标预约与释放。
+- `src/services/java-project.service.ts`：成功产物的类型化部署请求。
+- `src/services/window.service.ts`：构建前跨窗口保存请求。
 - `src/shared/lib/errors.ts`：原始错误和位置转换。
 - `src/shared/lib/paths.ts`：文件路径比较及范围。
 - `src/shared/types/code-editor.types.ts`：多文件请求和单文件结果。
 - `src/shared/types/text-file-editing.types.ts`：文件打开与逐文件结果。
 - `src/shared/ui/TextEditorSurface.vue`：共享活动文本视图与滚动交接。
 - `src/stores/file-browser.store.ts`：浏览实例状态工厂。
+- `src/stores/save-command.store.ts`：工程同步前的保存等待。
 - `src/windows/current.window.ts`：窗口关闭能力。
 - `src/windows/window-context.window.ts`：所属 Mod 的只读窗口上下文。
 

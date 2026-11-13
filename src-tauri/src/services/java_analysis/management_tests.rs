@@ -314,7 +314,7 @@ fn live_management_install_repair_selfcheck_stop_remove_and_release() {
     manager.join_worker().unwrap();
     assert_eq!(manager.snapshot().unwrap().phase, "failed");
     let other_java =
-        env::var("JAVA_ANALYSIS_TEST_JAVA_OTHER").expect("explicit other Java version");
+        env::var("JAVA_ANALYSIS_TEST_JAVA_OTHER").expect("explicit Java runtime below 17");
     manager
         .begin(
             ManagementAction::Probe {
@@ -331,7 +331,7 @@ fn live_management_install_repair_selfcheck_stop_remove_and_release() {
             .unwrap()
             .error
             .unwrap()
-            .contains("Java 17 is required")
+            .contains("Java 17 or newer is required")
     );
     manager
         .begin(

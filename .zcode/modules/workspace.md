@@ -57,6 +57,7 @@
 - `src/services/core-assets.service.ts`：Core 读取与缓存清理协议。
 - `src/services/directory.service.ts`：目录识别与游戏概览扫描结果。
 - `src/services/file-history.service.ts`：历史读取、清空与按条目回放能力包装。
+- `src/services/java-project.service.ts`：工程窗口请求主窗口 Java 设置导航。
 - `src/services/project-readiness.service.ts`：窗口内按 session 维护正式内容读取门控。
 - `src/services/project-session.service.ts`：session 打开协议。
 - `src/services/project-sync.service.ts`：所属同步命令与有序通道交付。

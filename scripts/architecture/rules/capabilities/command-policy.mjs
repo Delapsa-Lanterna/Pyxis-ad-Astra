@@ -1,6 +1,7 @@
 export const COMMAND_TRANSPORT = 'src/shared/runtime/command.runtime.ts';
 
 export const commandOwners = {
+  'src/services/java-project.service.ts': ['java_project', 'preview_java_deployment'],
   'src/services/json-file.service.ts': ['read_json_document'],
   'src/services/code-editor.service.ts': ['open_code_editor', 'code_editor_sources', 'subscribe_code_editor', 'finish_code_editor_open'],
   'src/services/java-analysis.service.ts': [
@@ -88,6 +89,7 @@ export const commandOwners = {
 };
 
 export const saveActionOwners = {
+  'src/services/java-project.service.ts': ['deploy_java_artifact'],
   'src/services/misc-config.service.ts': ['save_misc_config', 'delete_misc_config'],
   'src/services/project-sync.service.ts': ['refresh_project_sources'],
   'src/services/joint-edit.service.ts': ['save_joint_edit'],

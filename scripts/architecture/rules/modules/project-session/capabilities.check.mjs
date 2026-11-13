@@ -6,6 +6,12 @@ import { capabilityBoundaryRule } from '../../capabilities/capability-boundary.m
 /** @type {Parameters<typeof testCapabilities>[0]} */
 const cases = [
   [
+    'code-deployment-wait',
+    'src/app/composables/code-editor/use-code-editor-window.ts',
+    'src/orchestrators/project-sync.orchestrator.ts',
+    'settleSavedContent',
+  ],
+  [
     'workspace-core-source',
     'src/app/composables/use-workspace-shell-actions.ts',
     'src/orchestrators/workspace-core-source.orchestrator.ts',

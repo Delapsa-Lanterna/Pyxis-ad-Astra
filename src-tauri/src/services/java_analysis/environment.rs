@@ -90,10 +90,10 @@ pub fn probe_java(path: &Path, control: &TransferControl) -> AppResult<JavaEnvir
         .find_map(|line| line.trim().strip_prefix("java.specification.version = "))
         .map(str::trim);
     let required_java = REQUIRED_JAVA.to_string();
-    if !status.success() || version != Some(required_java.as_str()) {
+    if !status.success() || !version.is_some_and(version_supported) {
         return Err(AppError::message(
             "java_analysis.java_version",
-            format!("Java {required_java} is required: {text}"),
+            format!("Java {required_java} or newer is required: {text}"),
         )
         .at_path(&path));
     }
@@ -104,4 +104,29 @@ pub fn probe_java(path: &Path, control: &TransferControl) -> AppResult<JavaEnvir
         released: true,
         log_path: None,
     })
+}
+
+fn version_supported(version: &str) -> bool {
+    version
+        .parse::<u32>()
+        .is_ok_and(|version| version >= REQUIRED_JAVA)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::version_supported;
+    #[test]
+    fn accepts_runtime_versions_at_or_above_the_component_minimum() {
+        for (version, accepted) in [
+            ("8", false),
+            ("1.8", false),
+            ("16", false),
+            ("17", true),
+            ("21", true),
+            ("25", true),
+            ("invalid", false),
+        ] {
+            assert_eq!(version_supported(version), accepted, "{version}");
+        }
+    }
 }

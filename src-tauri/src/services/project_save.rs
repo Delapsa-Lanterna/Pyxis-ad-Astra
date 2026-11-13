@@ -4,6 +4,7 @@ use crate::models::{
     EntityIdentityChange, EntityKind, FileChangeReplayDirection, SaveAction, SaveEdit, SaveRequest,
     WriteContent, WriteResult,
 };
+use crate::services::java_project::deployment;
 use crate::services::project::PerformanceTrace;
 use crate::services::project::write::{
     config_entity, csv_patch, entity_write::content, joint_edit, json_recovery,
@@ -140,6 +141,9 @@ pub(crate) fn execute_save_action(mut action: SaveAction) -> AppResult<WriteResu
     trace.record_stage("transaction", timer, Vec::new);
     let timer = trace.timer();
     let (result, label) = match action {
+        SaveAction::DeployJavaArtifact(input) => {
+            (json_result(deployment::write(&input)?)?, "部署 Java 产物")
+        }
         SaveAction::SaveEditorSpec(input) => (
             json_result(content::write_spec_request(&input)?)?,
             "保存编辑器规格",

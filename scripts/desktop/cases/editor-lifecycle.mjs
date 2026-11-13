@@ -410,7 +410,7 @@ export async function editorLifecycle(app, fixture, check, artifacts) {
     await until(async () => (await editor.getByRole('tab').count()) === 1, 'saved tab close');
     assert.equal(await readFile(moved, 'utf8'), 'unsaved');
     await editor.getByRole('button', { name: '关闭 Second.java', exact: true }).click();
-    await editor.getByRole('heading', { name: '选择文件开始编辑', exact: true }).waitFor();
+    await editor.getByRole('heading', { name: '代码总览', exact: true }).waitFor();
     await editor.evaluate(() => {
       void Reflect.get(globalThis, '__TAURI_INTERNALS__').invoke('request_close', { scope: { kind: 'window' } });
     });

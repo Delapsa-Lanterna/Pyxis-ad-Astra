@@ -26,6 +26,9 @@ Java 分析模块管理 Java 17 语法与语义分析、固定第三方依赖、
 - `src-tauri/src/io/paths.rs`：实际 Java、源码根和类路径的路径边界能力。
 - `src-tauri/src/models/project_session.rs`：Mod 正式清单及实际游戏来源。
 - `src-tauri/src/services/app_settings.rs`：自动 Java 路径消费已保存的游戏根。
+- `src-tauri/src/services/java_project.rs`：有效工程源码根与补充依赖。
+- `src-tauri/src/services/java_project/environment.rs`：主程序 Java 路径的统一解析。
+- `src-tauri/src/services/java_project/inputs.rs`：当前工程、游戏和引用来源的源码、类路径及指纹。
 - `src-tauri/src/services/project/mod.rs`：当前就绪 Mod 清单及已发布可引用来源。
 - `src-tauri/src/services/project/session.rs`：正式就绪会话清单。
 - `src-tauri/src/services/project/session/references.rs`：当前已发布可引用 Mod 身份。
@@ -100,7 +103,7 @@ Java 分析模块管理 Java 17 语法与语义分析、固定第三方依赖、
 
 ## 规范
 
-- 最低 Java 开发及运行基线为 17，自有资源构建与第三方字节码按该基线验收。
+- 最低 Java 开发及运行基线为 17，手动选择的 JRE 与 JDK 必须校验实际主版本至少为 17，项目编译目标消费固定版本声明。
 - 配置根必须消费正式工具目录，依赖、工作区和日志必须归模块专属子目录。
 - 依赖集标识必须共同表达 JDT 版本与固定文件清单哈希。
 - 协议、自有宿主、Java 运行要求、默认语言与 JDT 版本必须由 `src-tauri/java-analysis/versions.json` 唯一维护；Rust 常量、Java 配置与打包清单共同消费该声明。

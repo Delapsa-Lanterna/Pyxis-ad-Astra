@@ -38,7 +38,7 @@ export async function codeWorkspace({ launch, fixture, options, check, artifacts
   }, 'code workspace window');
   const page = editor;
   assert.ok(page);
-  await page.getByText('选择文件开始编辑', { exact: true }).waitFor();
+  await page.getByRole('heading', { name: '代码总览', exact: true }).waitFor();
   const openMilliseconds = performance.now() - begun;
   const management = () =>
     main.evaluate(() =>

@@ -10,11 +10,13 @@ import type { JsonSourceRestore } from './json-recovery.types';
 import type { MiscConfigWrite, MiscConfigDelete } from './misc-config.types';
 import type { FileReplay } from './file-history.types';
 import type { SourceRefresh } from './project-session.types';
+import type { JavaDeploy } from './java-project.types';
 
 export type SaveAction =
   | { kind: 'save_editor_spec'; input: SpecSave }
   | { kind: 'save_text_file'; input: TextSave }
   | { kind: 'save_text_batch'; input: TextBatchSave }
+  | { kind: 'deploy_java_artifact'; input: JavaDeploy }
   | { kind: 'transcode_file_to_utf8'; input: TextTranscode }
   | { kind: 'save_csv_patch'; input: CsvSave }
   | { kind: 'save_joint_edit'; input: SaveJointEditPayload }

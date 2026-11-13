@@ -1,0 +1,55 @@
+import groovy.json.JsonOutput
+
+gradle.projectsEvaluated {
+    def inputsChanged = false
+    def buildTasks = []
+    def inputFiles = []
+    def inputVersions = {
+        def outputs = buildTasks.collectMany { it.outputs.files.files }.collect { it.canonicalFile.toPath() }
+        def inputs = [:]
+        buildTasks.collectMany { it.inputs.files.files }.each { input ->
+            def files = input.isDirectory() ? rootProject.fileTree(input).files : [input]
+            files.each { file ->
+                def path = file.canonicalFile.toPath()
+                if (file.isFile() && !outputs.any { path.startsWith(it) }) inputs[path.toString()] = [file.length(), file.lastModified()]
+            }
+        }
+        inputs
+    }
+    def capture = {
+            def home = new File(System.getProperty('java.home')).canonicalPath
+            if (home != new File(System.getProperty('pyxis.javaHome')).canonicalPath) {
+                throw new GradleException('Gradle Java differs from the application Java setting: ' + home)
+            }
+            def target = System.getProperty('pyxis.target')
+            def projects = rootProject.allprojects.findAll { it.plugins.hasPlugin('java') }.collect { p ->
+                def source = p.sourceSets.main
+                def compile = p.tasks.named('compileJava').get()
+                def release = compile.options.release.orNull?.toString() ?: compile.targetCompatibility
+                if (release != target) {
+                    throw new GradleException(p.buildFile.toString() + ': compile target must be ' + target + ', actual: ' + release)
+                }
+                [path:p.path, sources:source.java.srcDirs.collect { it.canonicalPath }, resources:source.resources.srcDirs.collect { it.canonicalPath },
+                 libraries:source.compileClasspath.files.collect { it.canonicalPath },
+                 artifacts:p.tasks.withType(org.gradle.api.tasks.bundling.AbstractArchiveTask).collect { it.archiveFile.get().asFile.canonicalPath },
+                 target:release, buildFile:p.buildFile.canonicalPath]
+            }
+            def populated = projects.findAll { item -> item.sources.any { source -> new File(source).isDirectory() && !rootProject.fileTree(source).matching { include '**/*.java' }.isEmpty() } }
+            if (populated) projects = populated
+            def tasks = rootProject.allprojects.collectMany { p -> p.tasks.findAll { it.name != 'pyxisProjectModel' }.collect { t -> [path:t.path, group:t.group, description:t.description] } }.sort { it.path }
+            def outputs = buildTasks.collectMany { it.outputs.files.files }.findAll { it.isFile() }.collect { it.canonicalPath }.unique()
+            new File(System.getProperty('pyxis.model')).setText(JsonOutput.toJson([javaHome:home, projects:projects, tasks:tasks, outputs:outputs, inputsChanged:inputsChanged, inputFiles:inputFiles]), 'UTF-8')
+    }
+    rootProject.tasks.register('pyxisProjectModel') { doLast { capture() } }
+    if (System.getProperty('pyxis.run')) {
+        def original
+        gradle.taskGraph.whenReady { graph ->
+            buildTasks = graph.allTasks
+            def outputs = buildTasks.collectMany { it.outputs.files.files }.collect { it.canonicalFile.toPath() }
+            inputFiles = buildTasks.collectMany { it.inputs.files.files }.findAll { file -> !outputs.any { file.canonicalFile.toPath().startsWith(it) } }.collect { it.canonicalPath }.unique()
+            original = inputVersions()
+            capture()
+        }
+        gradle.buildFinished { result -> if (!result.failure) { inputsChanged = original != inputVersions(); capture() } }
+    }
+}

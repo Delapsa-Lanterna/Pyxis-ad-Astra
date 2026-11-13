@@ -2,7 +2,7 @@ use super::{enqueue_in, finish, lanes, publish, release_window, sources};
 use crate::models::WindowIdentity;
 use crate::models::{TextFileOpen, TextFileOpenResult};
 use crate::services::project::PerformanceTrace;
-use crate::services::{project, project_sync};
+use crate::services::{java_project, project, project_sync};
 use crate::test_support::TestWorkspace;
 use std::fs;
 use std::io::Error as IoError;
@@ -15,6 +15,7 @@ use tauri::ipc::Channel;
 #[test]
 fn project_sources_describe_ready_references_without_starting_java() {
     let work = TestWorkspace::new("code_project_sources");
+    java_project::initialize(&work.join("configuration")).unwrap();
     let previous = project::reference_sources().unwrap();
     let mut sessions = Vec::new();
     for name in ["sample", "library"] {

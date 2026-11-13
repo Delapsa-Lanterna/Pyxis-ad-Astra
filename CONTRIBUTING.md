@@ -187,7 +187,12 @@ npm.cmd run test:desktop -- --suite hullmods --count 100
 npm.cmd run test:desktop -- --suite immersive-performance --count 50 --warmup 2 --rounds 30 --isolated-desktop
 npm.cmd run test:desktop -- --suite csv --rounds 30
 npm.cmd run test:desktop -- --suite source-performance --mod D:/game/mods/sample --game D:/game --rounds 30 --soak 600
+$env:JAVA_PROJECT_TEST_JAVA = 'C:/Java/jdk-17/bin/java.exe'
+npm.cmd run test:desktop -- --suite java-project --game D:/game
+npm.cmd run test:desktop -- --suite java-build --game D:/game
 ```
+
+Java 工程场景使用 `JAVA_PROJECT_TEST_JAVA` 指定完整 JDK (至少 17)，游戏目录交付原版依赖，样本使用独立工作区。`java-project` 验证配置与同步，`java-build` 验证跨窗口保存、构建、部署及文件历史。
 
 资源寿命检查：`npm.cmd run test:resources`。
 

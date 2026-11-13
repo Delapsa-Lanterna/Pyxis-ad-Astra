@@ -1,7 +1,7 @@
 import { computed, onScopeDispose, shallowRef, watch, type Ref } from 'vue';
 import { ChangeSet } from '@codemirror/state';
 import { javaEditorExtensions } from './java-editor-extensions';
-import { startJavaEditor, closeJavaEditor, syncJavaEditor, inspectJavaEditor } from '@/services/java-analysis.service';
+import { startJavaEditor, closeJavaEditor, syncJavaEditor, inspectJavaEditor, configureJavaEditor } from '@/services/java-analysis.service';
 import { assistJavaEditor } from '@/services/java-analysis.service';
 import {
   displayOffset,
@@ -359,6 +359,13 @@ export function useJavaEditor(host: JavaEditorFiles, modRoot: string, roots?: Re
     supports: java,
     isStarted: () => available || !!preparing,
     isReady: () => available && !disposed,
+    reconfigure: () =>
+      serialize(async () => {
+        if (!available || disposed) return;
+        await configureJavaEditor();
+        results.value = new Map();
+        await refresh();
+      }),
     refresh: () => {
       locations.value = [];
       detail.value = '';
