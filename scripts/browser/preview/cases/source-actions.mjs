@@ -37,12 +37,25 @@ export async function verifySourceActions(page, output) {
       purpose: 'signature',
       candidates: [{ label: 'value', text: 'value()', detail: 'String (int)', from: 0, to: 0, relevance: 1 }],
     });
+    workspace.javaQueries.assists.set(file + ':complete', {
+      ...common,
+      purpose: 'complete',
+      candidates: [{ label: 'value', text: 'value()', detail: 'String (int)', from: 0, to: 3, relevance: 1 }],
+    });
     workspace.javaQueries.assists.set(file + ':imports', {
       ...common,
       purpose: 'imports',
       choices: [{ name: 'List', candidates: ['java.util.List', 'java.awt.List'] }],
     });
   });
+  await surface.fill('');
+  await surface.pressSequentially('val');
+  await editor.getByRole('option').filter({ hasText: 'value' }).click();
+  assert.equal(await surface.innerText(), 'value()');
+  await surface.press('Control+End');
+  await surface.pressSequentially('(');
+  await editor.locator('.code-signature').waitFor();
+  await surface.fill('class Orbit {}');
   await editor.getByRole('button', { name: 'Java 操作', exact: true }).click();
   await editor.getByRole('button', { name: '参数提示', exact: true }).click();
   await editor.locator('.code-signature').waitFor();
@@ -74,5 +87,5 @@ export async function verifySourceActions(page, output) {
       await page.evaluate((theme) => Reflect.get(globalThis, 'browserWorkspace').setAppearance({ theme }), theme);
       await editor.locator('.code-editor').screenshot({ path: join(output, `source-actions-${theme}-${width}.png`) });
     }
-  return [{ name: 'preview, accept, grouped undo/redo and batch save', pass: true }];
+  return [{ name: 'automatic completion, typed parameter hints, preview, grouped undo/redo and batch save', pass: true }];
 }

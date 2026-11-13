@@ -13,7 +13,7 @@ export async function javaQueries(
 ) {
   const { fixture, check, options, artifacts } = context;
   if (!options.game) throw Error('Java queries require --game for the real Java 17 runtime');
-  const source = '// 星🪐\r\nclass Orbit { Object run(){return Library.value();} }\r';
+  const source = '// 星🪐\r\nimport pkg.Imported;\r\nclass Orbit { Object run(){return Library.value();} }\r';
   const file = join(fixture.mod, 'src/Orbit.java'),
     libraryRoot = join(fixture.game, 'mods/library'),
     library = join(libraryRoot, 'src/Library.java');
@@ -22,6 +22,8 @@ export async function javaQueries(
   await writeFile(file, source);
   await writeFile(join(libraryRoot, 'mod_info.json'), '{"id":"library","name":"Library","version":"1"}');
   await writeFile(library, 'public class Library { public static String value(){return "fixture";} }');
+  await mkdir(join(libraryRoot, 'src/pkg'), { recursive: true });
+  await writeFile(join(libraryRoot, 'src/pkg/Imported.java'), 'package pkg; public class Imported {}');
   const app = await context.launch();
   await app.main.evaluate(async (game) => {
     const invoke = Reflect.get(globalThis, '__TAURI_INTERNALS__').invoke;
@@ -129,8 +131,35 @@ export async function javaQueries(
     await page.getByRole('button', { name: 'Java 操作', exact: true }).click();
     await page.getByRole('button', { name: '查找引用', exact: true }).click();
     await page.getByRole('region', { name: '诊断与引用' }).waitFor();
-    await page.getByRole('button', { name: '跳转声明', exact: true }).click();
+    await page.getByRole('button', { name: 'Java 操作', exact: true }).click();
+    await page.locator('.code-java-tools').waitFor({ state: 'hidden' });
+    const bounds = await surface.boundingBox();
+    assert.ok(bounds);
+    await surface.click({ position: { x: point.x - bounds.x, y: point.y - bounds.y }, modifiers: ['Control'] });
     await page.getByRole('tab', { name: /引用，只读/ }).waitFor();
+    assert.equal(await surface.getAttribute('contenteditable'), 'false');
+    await page.getByRole('tab').filter({ hasText: 'Orbit.java' }).click();
+    const imported = await action(page, { kind: 'inspect', file, offset: source.indexOf('Imported'), purpose: 'declaration' });
+    assert.ok(imported.result.locations[0].file.endsWith('Imported.java'));
+    await surface.press('Control+Home');
+    const importPoint = await surface.evaluate((element) => {
+      const doc = element.ownerDocument,
+        walker = doc.createTreeWalker(element, 4),
+        bounds = element.getBoundingClientRect();
+      let node;
+      while ((node = walker.nextNode())) {
+        const index = (node.textContent ?? '').indexOf('Imported');
+        if (index < 0) continue;
+        const range = doc.createRange();
+        range.setStart(node, index + 1);
+        range.setEnd(node, index + 2);
+        const rect = range.getBoundingClientRect();
+        return { x: rect.x - bounds.x + rect.width / 2, y: rect.y - bounds.y + rect.height / 2 };
+      }
+      throw Error('Expected imported source type');
+    });
+    await surface.click({ position: importPoint, modifiers: ['Control'] });
+    await page.getByRole('tab').filter({ hasText: 'Imported.java' }).waitFor();
     assert.equal(await surface.getAttribute('contenteditable'), 'false');
     await page.getByRole('tab').filter({ hasText: 'Orbit.java' }).click();
   });

@@ -112,12 +112,14 @@
           :entries="analysis.current.value?.outline ?? []"
           :status="analysis.status.value"
           :offset="activeOffset"
+          :file="active?.path.value ?? ''"
+          :refresh="analysis.refresh"
           @locate="(range) => run(() => analysis.locate({ file: active!.path.value, version: analysis.current.value!.version, range }))"
         />
       </template>
       <template #text>
         <div v-if="active" class="code-text-area ui-layout-row ui-layout-stack ui-layout-contained">
-          <p v-if="!active.readOnly && /\.java$/i.test(active.path.value) && !analysis.supports(active)" class="ui-notice" role="status">
+          <p v-if="!active.readOnly && active.path.value.endsWith('.java') && !analysis.supports(active)" class="ui-notice" role="status">
             当前文件位于分析源码根之外：{{ project?.analysisRoots.value.join('，') || '当前项目没有 src 源码目录' }}
           </p>
           <TextEditorSurface
@@ -181,6 +183,7 @@ import JavaEditorPanels from '@/app/components/java-analysis/JavaEditorPanels.vu
 import { useWindowShortcuts } from '@/app/composables/use-window-shortcuts';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
 import { closeCurrentWindow } from '@/windows/current.window';
+import { useContextMenuScope } from '@/app/composables/use-context-menu';
 
 const host = useCodeEditorWindow();
 const { documents, active, location, dirty, label, close, save, saveAll, loadExternal, closing, analysis, actions, project } = host;
@@ -198,6 +201,11 @@ const extensions = computed(() => [analysis.extensions.value, actions.extensions
 const feedback = useAppFeedback();
 const editor = useTemplateRef<HTMLElement>('editor');
 const surface = useTemplateRef<InstanceType<typeof TextEditorSurface>>('surface');
+useContextMenuScope({
+  identity: () => active.value?.path.value ?? '',
+  canRefresh: (target) => Boolean(!showOverview.value && active.value && !active.value.readOnly && target.closest('.code-text-area')),
+  refresh: host.refresh,
+});
 const position = ref({ line: 1, column: 1 });
 function activate(document: TextFile) {
   overview.value = false;

@@ -33,6 +33,7 @@ Java 分析模块管理 Java 17 语法与语义分析、固定第三方依赖、
 - `src-tauri/src/services/system_open.rs`：所属安装与日志目录的系统打开能力。
 - `src-tauri/src/services/windows.rs`：命令边界取得实际调用窗口的所属 Mod 身份。
 - `src/app/composables/use-app-feedback.ts`：组件动作的确认与一次最终反馈。
+- `src/app/composables/use-context-menu.ts`：大纲与诊断区域的重新分析动作登记。
 - `src/shared/runtime/dialog.runtime.ts`：Java 可执行文件及离线 ZIP 的选择能力。
 - `src/shared/runtime/text-document.ts`：原始换行位置与修改范围转换。
 - `src/shared/types/java-analysis.types.ts`：组件管理、环境、源码范围与按用途查询的结果协议。
@@ -129,3 +130,4 @@ Java 分析模块管理 Java 17 语法与语义分析、固定第三方依赖、
 - 管理卡片位于配置文件与性能调试之间，停止与移除通过危险确认并说明实际影响。
 - 编辑器更新与引用刷新必须持有同一项目版本锁；悬停、声明、引用和大纲必须复用所属 AST 与绑定索引。
 - 补全与参数查询消费当前 WorkingCopy，导入及重命名只交付带版本的范围修改；重载选择变化必须在接纳前复核。
+- 声明定位接纳快捷键与修饰键点击的源码位置；补全排队前后复核取消状态，参数提示在输入提交后查询并核对当前位置。

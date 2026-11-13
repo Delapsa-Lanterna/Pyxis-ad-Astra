@@ -132,6 +132,28 @@ export async function sourceActions(context) {
       const errors = await page.locator('[role=dialog], .n-message-container, .n-notification-container').allTextContents();
       if (errors.some((text) => text.includes('失败') || text.includes('变化'))) throw Error(errors.join('\n'));
     };
+    await context.check('native CodeMirror context clipboard edits preserve undo and the source file', async () => {
+      await surface.fill('class Orbit {}');
+      await surface.press('Control+Home');
+      await surface.press('Shift+End');
+      await surface
+        .locator('.cm-line')
+        .first()
+        .click({ button: 'right', position: { x: 20, y: 8 } });
+      await page.getByText('复制', { exact: true }).click();
+      await surface.press('End');
+      await surface.press('Enter');
+      await surface
+        .locator('.cm-line')
+        .last()
+        .click({ button: 'right', position: { x: 20, y: 8 } });
+      await page.getByText('粘贴', { exact: true }).click();
+      assert.equal((await surface.locator('.cm-line').allTextContents()).join('\n'), 'class Orbit {}\nclass Orbit {}');
+      await surface.press('Control+z');
+      assert.equal((await surface.locator('.cm-line').allTextContents()).join('\n'), 'class Orbit {}\n');
+      assert.equal(await readFile(file, 'utf8'), original);
+      await reset();
+    });
     await context.check('native completion and parameter hints use the current draft', async () => {
       await surface.fill('class Orbit {String run(){return Library.val;}}');
       const point = await select('val');

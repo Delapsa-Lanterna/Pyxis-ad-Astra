@@ -3,6 +3,34 @@ import assert from 'node:assert/strict';
 /** @param {import('playwright').Page|import('playwright').FrameLocator} editor */
 export async function verifyTextFeatures(editor) {
   const input = editor.getByRole('textbox', { name: '文件内容' });
+  await input.fill('');
+  await editor.getByRole('button', { name: '保存', exact: true }).click();
+  await editor.locator('footer,.text-editor-status').filter({ hasText: '已保存' }).waitFor();
+  await input.pressSequentially('(');
+  assert.equal(await input.innerText(), '()');
+  await editor.locator('.cm-matchingBracket').first().waitFor();
+  await input.press(')');
+  assert.equal(await input.innerText(), '()');
+  await input.press('Control+z');
+  assert.equal((await input.innerText()).trim(), '');
+  await input.fill('value value');
+  await input.press('Home');
+  for (let index = 0; index < 5; index++) await input.press('Shift+ArrowRight');
+  await editor.locator('.cm-selectionMatch').first().waitFor();
+  await input.click({ button: 'right' });
+  await editor.getByText('全选', { exact: true }).click();
+  assert.equal(
+    await input.evaluate((element) => element.ownerDocument.getSelection()?.toString()),
+    'value value',
+    await editor.locator('footer,.text-editor-status').innerText(),
+  );
+  await input.press('Backspace');
+  assert.equal((await input.innerText()).trim(), '');
+  await input.press('Control+z');
+  assert.equal(await input.innerText(), 'value value');
+  await input.click({ button: 'right' });
+  await editor.getByText('刷新', { exact: true }).click();
+  assert.equal(await input.innerText(), 'value value');
   const source = 'class Sample {\n  void run() {\n    int value = 1; // value\n  }\n}';
   await input.fill(source);
   await editor.locator('.text-token-keyword').first().waitFor();
@@ -52,5 +80,8 @@ export async function verifyTextFeatures(editor) {
   await find.press('Enter');
   assert.ok(await editor.locator('.cm-search').count());
   await find.press('Escape');
-  return { name: 'Java highlighting, indentation, folding, current-file replace, undo/redo and search dismissal', pass: true };
+  return {
+    name: 'bracket pairing, matching, selection highlighting, context editing, Java highlighting, indentation, folding, replace and undo/redo',
+    pass: true,
+  };
 }

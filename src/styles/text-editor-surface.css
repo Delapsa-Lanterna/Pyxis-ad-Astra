@@ -135,6 +135,13 @@
 .text-editor-surface .cm-searchMatch-selected {
   outline: 1px solid var(--color-primary);
 }
+.text-editor-surface :is(.cm-selectionMatch, .cm-matchingBracket) {
+  background: var(--color-primary-soft);
+  outline: 1px solid var(--color-primary);
+}
+.text-editor-surface .cm-nonmatchingBracket {
+  outline: 1px solid var(--color-danger);
+}
 .text-editor-surface .cm-foldPlaceholder {
   display: inline-flex;
   align-items: center;

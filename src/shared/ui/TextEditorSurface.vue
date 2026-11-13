@@ -13,6 +13,7 @@ import { Decoration, EditorView, GutterMarker, gutterLineClass, keymap, lineNumb
 import { defaultKeymap } from '@codemirror/commands';
 import { openSearchPanel } from '@codemirror/search';
 import type { TextDocument } from '@/shared/runtime/text-document';
+import { registerTextEditorMenu } from '@/shared/runtime/text-editor-menu';
 const props = defineProps<{ document: TextDocument; disabled?: boolean; lineNumbers?: boolean; line?: number; extensions?: Extension }>();
 const emit = defineEmits<{ position: [value: { line: number; column: number }] }>();
 const host = useTemplateRef<HTMLElement>('host');
@@ -20,6 +21,7 @@ const errorGutter = new (class extends GutterMarker {
   override elementClass = 'text-editor-error-gutter';
 })();
 let view: EditorView | undefined, bound: TextDocument | undefined, stop: (() => void) | undefined;
+let stopMenu: (() => void) | undefined;
 function searchInputKey(event: KeyboardEvent) {
   if (
     (event.ctrlKey || event.metaKey) &&
@@ -81,7 +83,7 @@ function bind() {
     const transaction = bound.transaction;
     if (sameDocument && transaction?.startState === view.state) view.update([transaction]);
     else view.setState(bound.state.value);
-  } else
+  } else {
     view = new EditorView({
       parent: host.value,
       state: bound.state.value,
@@ -91,6 +93,8 @@ function bind() {
         position();
       },
     });
+    stopMenu = registerTextEditorMenu(view);
+  }
   if (bound.scroll) view.dispatch({ effects: bound.scroll });
   else view.dispatch({ effects: EditorView.scrollIntoView(bound.state.value.selection.main.head, { y: 'start' }) });
   stop = watch(
@@ -113,6 +117,7 @@ watch([() => props.document, () => props.disabled, () => props.lineNumbers, () =
 onMounted(bind);
 onBeforeUnmount(() => {
   stop?.();
+  stopMenu?.();
   if (view && bound) bound.scroll = view.scrollSnapshot();
   view?.destroy();
 });

@@ -14,11 +14,20 @@ export function javaEditorExtensions({
   document: JavaEditorFile | null;
   result: JavaInspection | undefined;
   inspect: (purpose: JavaQueryPurpose, position?: number) => Promise<JavaInspection | null>;
-  navigate: (purpose: 'declaration' | 'references') => Promise<void>;
+  navigate: (purpose: 'declaration' | 'references', position?: number) => Promise<void>;
   signature: (result: JavaInspection) => string;
   fail: (error: unknown) => void;
 }) {
   return [
+    EditorView.domEventHandlers({
+      mousedown(event, view) {
+        if (event.button !== 0 || !(event.ctrlKey || event.metaKey) || view.composing) return false;
+        const position = view.posAtCoords({ x: event.clientX, y: event.clientY });
+        if (position === null || !view.state.wordAt(position)) return false;
+        void navigate('declaration', position).catch(fail);
+        return true;
+      },
+    }),
     keymap.of([
       {
         key: 'F12',

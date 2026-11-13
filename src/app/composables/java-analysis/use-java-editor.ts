@@ -53,7 +53,7 @@ export function useJavaEditor(host: JavaEditorFiles, modRoot: string, roots?: Re
     }
   }
   const java = (document: JavaEditorFile) =>
-    /\.java$/i.test(document.path.value) && (!roots || roots.value.some((root) => pathBelongsToRoot(document.path.value, root)));
+    document.path.value.endsWith('.java') && (!roots || roots.value.some((root) => pathBelongsToRoot(document.path.value, root)));
   function schedule() {
     clearTimeout(timer);
     if (available && !disposed)
@@ -271,8 +271,8 @@ export function useJavaEditor(host: JavaEditorFiles, modRoot: string, roots?: Re
       document.document.locate(line.number, offset - line.from + 1);
     }
   }
-  function navigate(purpose: 'declaration' | 'references') {
-    return inspect(purpose).then(async (result) => {
+  function navigate(purpose: 'declaration' | 'references', position?: number) {
+    return inspect(purpose, position).then(async (result) => {
       if (!result) return;
       locations.value = result.locations;
       detail.value = signature(result);
@@ -292,6 +292,7 @@ export function useJavaEditor(host: JavaEditorFiles, modRoot: string, roots?: Re
     name: string | null = null,
     choices: Record<string, string> = {},
     revision = 0,
+    current: () => boolean = () => true,
   ) {
     const document = host.active.value;
     if (!document || !java(document)) return Promise.resolve(null);
@@ -299,11 +300,18 @@ export function useJavaEditor(host: JavaEditorFiles, modRoot: string, roots?: Re
       captured = document.document.content.value,
       selected = position ?? document.document.state.value.selection.main.from;
     return serialize(async () => {
-      if (!available) throw new Error('Java analysis is not ready');
-      if (disposed || host.active.value !== document || captured !== document.document.content.value || file !== document.path.value)
+      if (
+        !available ||
+        !current() ||
+        disposed ||
+        host.active.value !== document ||
+        captured !== document.document.content.value ||
+        file !== document.path.value
+      )
         return null;
       if (purpose !== 'validate') await flush();
-      if (captured !== document.document.content.value || file !== document.path.value || !host.documents.includes(document)) return null;
+      if (!current() || captured !== document.document.content.value || file !== document.path.value || !host.documents.includes(document))
+        return null;
       const submitted = document.document.content.value;
       const result = await assistJavaEditor(
         file,
@@ -313,7 +321,8 @@ export function useJavaEditor(host: JavaEditorFiles, modRoot: string, roots?: Re
         choices,
         revision,
       );
-      return !disposed &&
+      return current() &&
+        !disposed &&
         file === document.path.value &&
         submitted === document.document.content.value &&
         host.active.value === document &&
@@ -349,6 +358,7 @@ export function useJavaEditor(host: JavaEditorFiles, modRoot: string, roots?: Re
     assist,
     supports: java,
     isStarted: () => available || !!preparing,
+    isReady: () => available && !disposed,
     refresh: () => {
       locations.value = [];
       detail.value = '';

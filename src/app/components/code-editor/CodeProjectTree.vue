@@ -76,7 +76,13 @@ import type { useCodeProject, CodeProjectBranch } from '@/app/composables/code-e
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
 import { nextTick, useTemplateRef, watch } from 'vue';
 import { fileTreePrefix, fileTreeLabel } from '@/app/components/file-browser/file-tree-renderers';
+import { useContextMenuScope } from '@/app/composables/use-context-menu';
 const props = defineProps<{ project: ReturnType<typeof useCodeProject> }>();
+useContextMenuScope({
+  identity: () => JSON.stringify(props.project.sources.value),
+  refresh: () => props.project.refresh(),
+  canRefresh: () => Boolean(props.project.sources.value),
+});
 const tree = useTemplateRef<HTMLElement>('tree');
 watch(
   () => [Boolean(props.project.searchText.value.trim()), props.project.branches.map((entry) => entry.browser.view.nodes)],

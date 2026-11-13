@@ -85,6 +85,7 @@ import { pathBasename } from '@/shared/lib/paths';
 import type { useJavaEditor } from '@/app/composables/java-analysis/use-java-editor';
 import type { useJavaActions } from '@/app/composables/java-analysis/use-java-actions';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
+import { useContextMenuScope } from '@/app/composables/use-context-menu';
 const { analysis, actions } = defineProps<{
   panel: boolean;
   analysis: ReturnType<typeof useJavaEditor>;
@@ -92,6 +93,11 @@ const { analysis, actions } = defineProps<{
 }>();
 const emit = defineEmits<{ close: []; open: [] }>();
 const selected = ref<'diagnostics' | 'references' | 'changes'>('diagnostics');
+useContextMenuScope({
+  identity: () => selected.value + ':' + (analysis.current.value?.file ?? ''),
+  canRefresh: () => selected.value === 'diagnostics',
+  refresh: analysis.refresh,
+});
 const tabs = computed(() => [
   { key: 'diagnostics' as const, label: `诊断 (${analysis.diagnostics.value.length})` },
   { key: 'references' as const, label: `引用 (${analysis.locations.value.length})` },

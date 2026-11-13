@@ -19,6 +19,10 @@ import { useProjectStore } from '@/stores/project.store';
 import { useCoreAssetsStore } from '@/stores/core-assets.store';
 import { useSaveCommandStore } from '@/stores/save-command.store';
 import { sessionUpdateFixture } from '@/test/fixtures/write-result';
+import { EditorState, EditorSelection, StateEffect } from '@codemirror/state';
+import { EditorView } from '@codemirror/view';
+import { history, undo } from '@codemirror/commands';
+import { registerTextEditorMenu } from '@/shared/runtime/text-editor-menu';
 const closeState = ref(false);
 vi.mock('@/app/composables/use-window-close-state', () => ({ useWindowCloseState: () => closeState }));
 const mocks = vi.hoisted(() => ({
@@ -127,6 +131,81 @@ function setupTabs() {
   return { workspace, parentRefresh };
 }
 describe('window context menu', () => {
+  it.each([false, true])('uses CodeMirror selections, permissions and native history (readonly: %s)', async (readOnly) => {
+    const own = setup();
+    vi.spyOn(window, 'requestAnimationFrame').mockReturnValue(0);
+    const view = new EditorView({
+      parent: wrapper.get('main').element,
+      state: EditorState.create({
+        doc: 'hello',
+        extensions: [history(), EditorState.readOnly.of(readOnly)],
+        selection: EditorSelection.single(1, 4),
+      }),
+    });
+    onTestFinished(() => view.destroy());
+    onTestFinished(registerTextEditorMenu(view));
+    await open(view.contentDOM);
+    expect((dropdown().props('options')! as { key: string }[]).map((item) => item.key)).toEqual([
+      ...(readOnly ? ['复制', '全选'] : ['复制', '粘贴', '剪切', 'separator', '清空', '全选']),
+      'refresh-separator',
+      '刷新',
+    ]);
+    await select('复制');
+    expect(mocks.write).toHaveBeenCalledWith('ell');
+    if (!readOnly) {
+      await open(view.contentDOM);
+      await select('粘贴');
+      expect(view.state.doc.toString()).toBe('hpasteo');
+      expect(undo(view)).toBe(true);
+      expect(view.state.doc.toString()).toBe('hello');
+    }
+    await open(view.contentDOM);
+    await select('全选');
+    expect(view.state.selection.main).toMatchObject({ from: 0, to: 5 });
+    await open(view.contentDOM);
+    await select('刷新');
+    expect(own.refresh).toHaveBeenCalledOnce();
+  });
+
+  it.each(['edit', 'selection', 'permission', 'closing', 'destroy'])('discards a pending CodeMirror paste after %s', async (change) => {
+    setup();
+    vi.spyOn(window, 'requestAnimationFrame').mockReturnValue(0);
+    const view = new EditorView({ parent: wrapper.get('main').element, doc: 'hello' });
+    onTestFinished(() => view.destroy());
+    onTestFinished(registerTextEditorMenu(view));
+    let finish!: (value: string) => void;
+    mocks.read.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+    await open(view.contentDOM);
+    await select('粘贴');
+    if (change === 'edit') view.dispatch({ changes: { from: 0, insert: 'new' } });
+    if (change === 'selection') view.dispatch({ selection: { anchor: 2 } });
+    if (change === 'permission') view.dispatch({ effects: StateEffect.reconfigure.of(EditorState.readOnly.of(true)) });
+    if (change === 'closing') closeState.value = true;
+    if (change === 'destroy') view.destroy();
+    const before = view.state.doc;
+    finish('late');
+    await flushPromises();
+    expect(view.state.doc).toBe(before);
+    expect(mocks.error).not.toHaveBeenCalled();
+  });
+  it('keeps CodeMirror menu actions through decoration replacement', async () => {
+    setup();
+    vi.spyOn(window, 'requestAnimationFrame').mockReturnValue(0);
+    const view = new EditorView({ parent: wrapper.get('main').element, doc: 'hello' });
+    onTestFinished(() => view.destroy());
+    onTestFinished(registerTextEditorMenu(view));
+    const token = document.createElement('span');
+    view.contentDOM.append(token);
+    await open(token);
+    token.remove();
+    await select('全选');
+    expect(view.state.selection.main).toMatchObject({ from: 0, to: 5 });
+  });
   it('toggles references on the clicked tab independently of the selected project', async () => {
     const { workspace } = setupTabs();
     const tab = wrapper.get('[data-mod-root="M:/beta"]');

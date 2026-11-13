@@ -14,6 +14,9 @@ import { useJavaActions } from '@/app/composables/java-analysis/use-java-actions
 import type { startJavaEditor, syncJavaEditor, inspectJavaEditor, assistJavaEditor } from '@/services/java-analysis.service';
 import type { JavaInspection, JavaAssistance } from '@/shared/types';
 import { showTooltip } from '@codemirror/view';
+import { startCompletion } from '@codemirror/autocomplete';
+import { EditorView } from '@codemirror/view';
+import { onTestFinished } from 'vitest';
 import type * as AppLogQueueModule from '@/shared/runtime/app-log-queue';
 import { projectChangeFixture } from '@/test/unit/project-changes';
 
@@ -89,6 +92,73 @@ async function open() {
   await mounted.value.host.openFiles([{ path: 'M:/sample/src/Orbit.java' }]);
   return { ...mounted, ...mounted.value, document: mounted.value.host.active.value! };
 }
+it('queries the clicked import name using its raw CRLF offset and preserves the old selection', async () => {
+  const { analysis, document } = await open();
+  document.setText('// 星🪐\r\nimport pkg.Library;\r\nclass Orbit {}');
+  await analysis.start();
+  document.document.locate(3, 7);
+  const before = document.document.state.value.selection;
+  await analysis.navigate('declaration', 17);
+  expect(mocks.inspect).toHaveBeenLastCalledWith(document.path.value, 18, 'declaration');
+  expect(document.document.state.value.selection).toBe(before);
+});
+
+it('ends cancelled completion before it reaches the JVM queue and skips unavailable analysis', async () => {
+  const { analysis } = await open();
+  expect(await analysis.assist('complete', 6)).toBeNull();
+  await analysis.start();
+  const blocking = analysis.refresh();
+  let current = true;
+  const pending = analysis.assist('complete', 6, null, {}, 0, () => current);
+  current = false;
+  await blocking;
+  expect(await pending).toBeNull();
+  expect(mocks.assist).not.toHaveBeenCalled();
+});
+
+it('uses the engine source extension and refreshes parameters after typed delimiters', async () => {
+  const frames = vi.spyOn(window, 'requestAnimationFrame').mockReturnValue(0);
+  onTestFinished(() => frames.mockRestore());
+  const { analysis, actions, document } = await open();
+  expect(analysis.supports({ ...document, path: ref('M:/sample/src/Orbit.JAVA') })).toBe(false);
+  document.setText('class Orbit {void run(){call}}');
+  await analysis.start();
+  mocks.assist.mockResolvedValue({
+    assistance: true,
+    purpose: 'signature',
+    project: 'sample',
+    revision: 2,
+    version: 2,
+    file: document.path.value,
+    argument: 0,
+    files: [],
+    choices: [],
+    conflicts: [],
+    candidates: [{ label: 'call', text: 'call()', detail: 'void (int)', from: 0, to: 0, relevance: 1 }],
+  });
+  document.document.configureSurface(actions.extensions.value);
+  const view = new EditorView({
+    state: document.document.state.value,
+    dispatchTransactions(transactions, editor) {
+      editor.update(transactions);
+      document.document.dispatchTransactions(transactions);
+    },
+  });
+  onTestFinished(() => view.destroy());
+  const position = view.state.doc.toString().indexOf('call') + 4;
+  view.dispatch({ changes: { from: position, insert: '(' }, selection: { anchor: position + 1 }, userEvent: 'input.type' });
+  await flushPromises();
+  expect(mocks.assist).toHaveBeenCalledWith(document.path.value, position + 1, 'signature', null, {}, 0);
+  document.document.configureSurface(actions.extensions.value);
+  view.setState(document.document.state.value);
+  const result = document.document.state.value.facet(showTooltip).filter(Boolean);
+  expect(result).toHaveLength(1);
+  expect(result[0]?.pos).toBe(position + 1);
+  mocks.assist.mockClear();
+  startCompletion(view);
+  await vi.waitFor(() => expect(mocks.assist).toHaveBeenCalled());
+  expect(mocks.assist.mock.calls[0]![2]).toBe('complete');
+});
 it('records one failed startup with the original diagnostic and window scope', async () => {
   const { analysis } = await open();
   mocks.start.mockRejectedValueOnce(new Error('sample startup failure'));

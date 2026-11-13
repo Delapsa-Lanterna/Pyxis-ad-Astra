@@ -32,6 +32,7 @@
 - `src/app/composables/java-analysis/`：草稿交接、查询接纳及 Java 界面扩展。
 - `src/app/composables/text-file-editing/`：文件集合、关联修改、保存与释放。
 - `src/app/composables/use-app-feedback.ts`：文件错误和关闭选择。
+- `src/app/composables/use-context-menu.ts`：项目目录及活动文本的所属刷新登记。
 - `src/app/composables/use-managed-window-requests.ts`：窗口就绪交接。
 - `src/app/composables/use-window-close-state.ts`：窗口关闭保护。
 - `src/app/composables/use-window-shortcuts.ts`：保存和历史快捷键。

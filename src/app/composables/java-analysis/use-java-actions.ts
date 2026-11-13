@@ -1,5 +1,5 @@
 import { computed, shallowRef, ref } from 'vue';
-import { autocompletion, completionKeymap } from '@codemirror/autocomplete';
+import { autocompletion } from '@codemirror/autocomplete';
 import type { Completion } from '@codemirror/autocomplete';
 import { EditorView, keymap, showTooltip } from '@codemirror/view';
 import type { JavaEditorFiles } from './java-editor-files';
@@ -70,8 +70,10 @@ export function useJavaActions(
       override: [
         async (context) => {
           const document = host.active.value;
-          if (!document || document.readOnly || !document.path.value.endsWith('.java') || document.document.lightweight.value) return null;
-          const result = await analysis.assist('complete', context.pos);
+          if (!document || document.readOnly || !analysis.supports(document) || !analysis.isReady() || document.document.lightweight.value)
+            return null;
+          if (!context.explicit && !context.matchBefore(/[\p{L}\p{N}_$.]+$/u)) return null;
+          const result = await analysis.assist('complete', context.pos, null, {}, 0, () => !context.aborted);
           if (!result || context.aborted) return null;
           const content = document.document.content.value;
           const candidates = result.candidates.filter((candidate) => candidate.from >= 0 && candidate.to >= candidate.from);
@@ -101,7 +103,6 @@ export function useJavaActions(
       ],
     }),
     keymap.of([
-      ...completionKeymap,
       {
         key: 'Mod-Shift-Space',
         run(view) {
@@ -112,6 +113,15 @@ export function useJavaActions(
     ]),
     EditorView.updateListener.of((update) => {
       if (update.docChanged || update.selectionSet) signature.value = null;
+      if (
+        !update.view.composing &&
+        analysis.isReady() &&
+        update.transactions.some((transaction) => transaction.docChanged && transaction.isUserEvent('input.type')) &&
+        ['(', ','].includes(update.state.sliceDoc(update.state.selection.main.head - 1, update.state.selection.main.head))
+      )
+        void Promise.resolve()
+          .then(() => parameters(update.view))
+          .catch((error) => feedback.error(error, '参数提示失败'));
     }),
     showTooltip.of(
       signature.value?.candidates.length

@@ -25,7 +25,15 @@
 <script setup lang="ts">
 import type { JavaInspection, JavaLocation } from '@/shared/types';
 import { computed } from 'vue';
-const props = defineProps<{ entries: JavaInspection['outline']; offset: number; status: string }>();
+import { useContextMenuScope } from '@/app/composables/use-context-menu';
+const props = defineProps<{
+  entries: JavaInspection['outline'];
+  offset: number;
+  status: string;
+  file: string;
+  refresh: () => Promise<void>;
+}>();
+useContextMenuScope({ identity: () => props.file, refresh: () => props.refresh() });
 const current = computed(() => props.entries.findLast((entry) => entry.range.start <= props.offset));
 const emit = defineEmits<{ locate: [range: JavaLocation['range']] }>();
 </script>

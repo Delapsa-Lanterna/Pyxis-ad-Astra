@@ -4,7 +4,7 @@ import { useAppFeedback } from '@/app/composables/use-app-feedback';
 import { useFieldInputActions } from '@/app/composables/use-field-input-actions';
 import { useSaveCommandStore } from '@/stores/save-command.store';
 import { committedFileText } from '@/domain/project-sync/committed-text';
-import { listenSavedContent, sessionContentUpdate } from '@/orchestrators/project-sync.orchestrator';
+import { listenSavedContent, refreshProjectSourcePaths, sessionContentUpdate } from '@/orchestrators/project-sync.orchestrator';
 import { loadTextFile } from '@/services/text-file-editing.service';
 import { errorDiagnosticOf } from '@/shared/lib/errors';
 import { isAbsoluteFsPath, joinRootRelativePath, normalizeFsPath, pathBelongsToRoot, relativePathFromRoot } from '@/shared/lib/paths';
@@ -234,6 +234,14 @@ export function useTextFiles(owner: Pick<FileTextTarget, 'sessionId' | 'modRoot'
         return document;
       }),
     save,
+    async refresh(current: () => boolean) {
+      const document = active.value!;
+      await document.document.waitForInput();
+      if (!current()) return;
+      const target = document.session.currentTarget.value!;
+      await refreshProjectSourcePaths(target.sessionId, target.modRoot, [target.path]);
+      if (current()) await document.session.refreshTarget(target, true);
+    },
     saveAll,
     close,
     move,

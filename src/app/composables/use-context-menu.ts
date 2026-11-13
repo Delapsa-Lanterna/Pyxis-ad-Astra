@@ -1,4 +1,5 @@
 import { readClipboardText, writeClipboardText } from '@/shared/runtime/clipboard.runtime';
+import { captureTextEditorMenu, type TextEditorMenu } from '@/shared/runtime/text-editor-menu';
 import {
   computed,
   getCurrentInstance,
@@ -59,6 +60,7 @@ export function provideContextMenu(closing: ContextMenuHost['closing']) {
     start: number;
     end: number;
     value: string;
+    editor?: TextEditorMenu;
     refreshes: RegisteredMenuScope[];
     identities: string[];
     actions: ReturnType<NonNullable<ContextMenuScope['actions']>>;
@@ -111,11 +113,12 @@ export function provideContextMenu(closing: ContextMenuHost['closing']) {
     ) as HTMLInputElement | HTMLTextAreaElement | null;
     const start = input?.selectionStart ?? 0,
       end = input?.selectionEnd ?? 0;
+    const editor = captureTextEditorMenu(target);
     menu.value = {
       closeGeneration,
       x: event.clientX,
       y: event.clientY,
-      target: input ?? target,
+      target: input ?? editor?.root ?? target,
       scope,
       identity: scope ? scope.revision + ':' + scope.identity() : undefined,
       refreshes,
@@ -124,7 +127,8 @@ export function provideContextMenu(closing: ContextMenuHost['closing']) {
       start,
       end,
       value: input?.value ?? '',
-      selection: input ? input.value.slice(start, end) : (window.getSelection()?.toString() ?? ''),
+      editor,
+      selection: editor ? editor.selection : input ? input.value.slice(start, end) : (window.getSelection()?.toString() ?? ''),
     };
   }
   const runtime = {
@@ -137,6 +141,7 @@ export function provideContextMenu(closing: ContextMenuHost['closing']) {
       !closing.value &&
       captured.closeGeneration === closeGeneration &&
       captured.target.isConnected &&
+      (!captured.editor || captured.editor.current()) &&
       (!captured.scope ||
         (scopes.has(captured.scope) && captured.identity === captured.scope.revision + ':' + captured.scope.identity())) &&
       captured.refreshes.every(
@@ -173,17 +178,23 @@ export function useWindowContextMenu(host: ContextMenuHost) {
       ((captured.target as HTMLInputElement).readOnly ||
         (captured.target as HTMLInputElement).disabled ||
         captured.target.closest('[inert]'));
-    if (input)
-      return readonly
-        ? [action('复制', !captured.selection), action('全选')]
-        : [
-            action('复制', !captured.selection),
-            action('粘贴'),
-            action('剪切', !captured.selection),
-            divider,
-            action('清空'),
-            action('全选'),
-          ];
+    if (input || captured.editor) {
+      const editing =
+        readonly || captured.editor?.readOnly
+          ? [action('复制', !captured.selection), action('全选')]
+          : [
+              action('复制', !captured.selection),
+              action('粘贴'),
+              action('剪切', !captured.selection),
+              divider,
+              action('清空'),
+              action('全选'),
+            ];
+      return [
+        ...editing,
+        ...(captured.editor && captured.refreshes.length ? [{ ...divider, key: 'refresh-separator' }, action('刷新')] : []),
+      ];
+    }
     return [
       ...(captured.actions.length ? [...captured.actions.map((item) => action(item.label, item.disabled)), divider] : []),
       ...(captured.selection && !captured.actions.length ? [action('复制'), divider] : []),
@@ -213,6 +224,12 @@ export function useWindowContextMenu(host: ContextMenuHost) {
         if (key === '复制' || key === '剪切') await writeClipboardText(captured.selection);
         if (key === '复制') return;
         const text = key === '粘贴' ? await readClipboardText() : '';
+        if (captured.editor) {
+          if (!current(captured)) return;
+          if (key === '全选') captured.editor.selectAll();
+          else if (!captured.editor.readOnly) captured.editor.replace(text, key === '清空', key === '粘贴');
+          return;
+        }
         if (
           !current(captured) ||
           !input.isConnected ||

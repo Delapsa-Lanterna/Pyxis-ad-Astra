@@ -5,7 +5,7 @@ import { openEditorSample } from './editors.mjs';
 /** @param {import('playwright').Page} page @param {string} output */
 export async function verifyJavaQueries(page, output) {
   const editor = await openEditorSample(page);
-  const source = '// 星🪐\r\nclass Orbit { Object run(){ return Library.value(); } }';
+  const source = '// 星🪐\r\nimport pkg.Library;\r\nclass Orbit { Object run(){ return Library.value(); } }';
   await page.evaluate(
     ({ source }) => {
       const workspace = Reflect.get(globalThis, 'browserWorkspace');
@@ -67,10 +67,31 @@ export async function verifyJavaQueries(page, output) {
   await editor.getByRole('button', { name: 'Java 操作', exact: true }).click();
   await editor.getByRole('button', { name: '查找引用', exact: true }).click();
   await editor.getByText('fixture-api.jar', { exact: false }).waitFor();
-  await editor.getByRole('button', { name: '跳转声明', exact: true }).click();
+  await editor.getByRole('button', { name: 'Java 操作', exact: true }).click();
+  const point = await surface.evaluate((element) => {
+    const doc = element.ownerDocument,
+      walker = doc.createTreeWalker(element, 4),
+      bounds = element.getBoundingClientRect();
+    let node;
+    while ((node = walker.nextNode())) {
+      const index = (node.textContent ?? '').indexOf('Library');
+      if (index < 0) continue;
+      const range = doc.createRange();
+      range.setStart(node, index + 1);
+      range.setEnd(node, index + 2);
+      const rect = range.getBoundingClientRect();
+      return { x: rect.x - bounds.x + rect.width / 2, y: rect.y - bounds.y + rect.height / 2 };
+    }
+    throw Error('Expected import type name');
+  });
+  await surface.click({ position: point, modifiers: ['Control'] });
   await editor.getByRole('tab', { name: /引用，只读/ }).waitFor();
   assert.equal(await surface.getAttribute('contenteditable'), 'false');
   assert.equal(await editor.getByRole('button', { name: '保存', exact: true }).isDisabled(), true);
   await editor.locator('.code-editor').screenshot({ path: join(output, 'java-queries.png') });
-  return [{ name: 'fixture diagnostics, outline, references, declaration and read-only snapshot', pass: true }];
+  await surface.click({ button: 'right' });
+  assert.ok(await editor.getByText('复制', { exact: true }).count());
+  assert.equal(await editor.getByText('粘贴', { exact: true }).count(), 0);
+  await surface.press('Escape');
+  return [{ name: 'fixture diagnostics, outline, references, Ctrl-click import declaration and read-only snapshot', pass: true }];
 }

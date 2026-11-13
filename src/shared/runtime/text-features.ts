@@ -2,10 +2,20 @@ import { EditorState, type Text } from '@codemirror/state';
 import { keymap } from '@codemirror/view';
 import { indentWithTab } from '@codemirror/commands';
 import { java } from '@codemirror/lang-java';
-import { codeFolding, foldGutter, foldKeymap, HighlightStyle, indentOnInput, indentUnit, syntaxHighlighting } from '@codemirror/language';
+import {
+  bracketMatching,
+  codeFolding,
+  foldGutter,
+  foldKeymap,
+  HighlightStyle,
+  indentOnInput,
+  indentUnit,
+  syntaxHighlighting,
+} from '@codemirror/language';
+import { closeBrackets, closeBracketsKeymap } from '@codemirror/autocomplete';
 import { createTextSearchPanel, textFoldMarker, textFoldPlaceholder } from '@/shared/ui/text-editor-controls';
 import { tags } from '@lezer/highlight';
-import { openSearchPanel, search, searchKeymap } from '@codemirror/search';
+import { highlightSelectionMatches, openSearchPanel, search, searchKeymap } from '@codemirror/search';
 
 export function textIndentation(text: Text): string {
   const widths: number[] = [];
@@ -53,6 +63,10 @@ export function javaTextFeatures(path: string | null | undefined, text: Text) {
     : [];
 }
 export const textSearchFeatures = [
+  closeBrackets(),
+  bracketMatching(),
+  highlightSelectionMatches(),
+  keymap.of(closeBracketsKeymap),
   search({ top: true, createPanel: createTextSearchPanel }),
   keymap.of([...searchKeymap, { key: 'Mod-h', run: openSearchPanel, scope: 'editor search-panel' }]),
   EditorState.phrases.of({
