@@ -631,6 +631,11 @@ impl SourceReader {
             .chain(self.stamps.keys())
             .cloned()
             .collect::<BTreeSet<_>>();
+        // Unversioned catalog roots change through membership, rather than retained directory stamps.
+        paths.retain(|path| {
+            self.versions.contains_key(path)
+                || self.scopes.get(path).is_none_or(|scope| scope.content)
+        });
         for (directory, before) in self.scopes.clone() {
             let extensions = before
                 .extensions

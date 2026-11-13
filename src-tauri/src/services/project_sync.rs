@@ -989,7 +989,6 @@ mod tests {
             return;
         }
         let _serial = TEST_QUEUE.lock().unwrap();
-        configure_source_watch(true).unwrap();
         let work = project_workspace("core_mod_fanout").with_cleanup(release_watched_workspace);
         let game = work.join("game");
         let core = game.join("starsector-core");
@@ -1022,42 +1021,39 @@ mod tests {
             .unwrap();
             manifests.push(manifest);
         }
-        source_changes::wait_source_batches(&core.to_string_lossy()).unwrap();
         let receiver = window("core-watch-first");
+        configure_source_watch(true).unwrap();
+        wait_source_roots(&receiver, &[&core.to_string_lossy()]);
         let lease = io::acquire_root_write_lock(Path::new(&manifests[0].mod_root)).unwrap();
         fs::write(&path, r#"{"id":"shared","damage":2}"#).unwrap();
-        loop {
-            let delivery = receiver.recv_timeout(Duration::from_secs(15)).unwrap();
-            // Independent progress is established while the first root remains leased.
-            if delivery["kind"] == "saved"
+        // Independent progress is established while the first root remains leased.
+        source_delivery(&receiver, |delivery| {
+            delivery["kind"] == "saved"
                 && delivery["event"]["sessionId"] == manifests[1].session_id
-            {
-                break;
-            }
-        }
-        assert_eq!(
-            services::query_entity(&manifests[1].session_id, EntityKind::Projectile, "shared")
+                && services::query_entity(
+                    &manifests[1].session_id,
+                    EntityKind::Projectile,
+                    "shared",
+                )
                 .unwrap()
                 .unwrap()
-                .data["damage"],
-            2
-        );
+                .data["damage"]
+                    == 2
+        });
         drop(lease);
-        loop {
-            let delivery = receiver.recv_timeout(Duration::from_secs(15)).unwrap();
-            if delivery["kind"] == "saved"
+        source_delivery(&receiver, |delivery| {
+            delivery["kind"] == "saved"
                 && delivery["event"]["sessionId"] == manifests[0].session_id
-            {
-                break;
-            }
-        }
-        assert_eq!(
-            services::query_entity(&manifests[0].session_id, EntityKind::Projectile, "shared")
+                && services::query_entity(
+                    &manifests[0].session_id,
+                    EntityKind::Projectile,
+                    "shared",
+                )
                 .unwrap()
                 .unwrap()
-                .data["damage"],
-            3
-        );
+                .data["damage"]
+                    == 3
+        });
         for manifest in manifests {
             release_project_session(&manifest.session_id).unwrap();
         }
@@ -1106,24 +1102,52 @@ mod tests {
         let owner = format!("watch:{}", windows_path_key(&work.to_string_lossy()));
         let receiver = window(&owner);
         configure_source_watch(true).unwrap();
-        source_changes::wait_source_batches(&core.to_string_lossy()).unwrap();
-        source_changes::wait_source_batches(&manifests[2].mod_root).unwrap();
-        receiver.try_iter().for_each(drop);
+        wait_source_roots(
+            &receiver,
+            &[&core.to_string_lossy(), &manifests[2].mod_root],
+        );
+        for manifest in &manifests {
+            assert_eq!(
+                services::query_entity(&manifest.session_id, EntityKind::Projectile, "shared")
+                    .unwrap()
+                    .unwrap()
+                    .data["damage"],
+                1
+            );
+        }
         for damage in [2, 3] {
+            // A queued earlier delivery must not count as acceptance of the next file version.
+            saves().unwrap().windows[&owner]
+                .channel
+                .send(ProjectSyncDelivery::Saved {
+                    request_id: "earlier-source".into(),
+                    event: json!({"result":{"sessionUpdates":manifests.iter().map(|manifest|
+                    json!({"sessionId":manifest.session_id})).collect::<Vec<_>>()}}),
+                })
+                .unwrap();
             let reads = work_counts::count("read", &path);
             fs::write(&path, format!(r#"{{"id":"shared","damage":{damage}}}"#)).unwrap();
             let mut updated = BTreeSet::new();
-            while updated.len() < manifests.len() {
-                let delivery = receiver.recv_timeout(Duration::from_secs(15)).unwrap();
+            source_delivery(&receiver, |delivery| {
                 if delivery["kind"] == "saved" {
                     for update in delivery["event"]["result"]["sessionUpdates"]
                         .as_array()
                         .unwrap()
                     {
-                        updated.insert(update["sessionId"].as_str().unwrap().to_string());
+                        let id = update["sessionId"].as_str().unwrap();
+                        if manifests.iter().any(|manifest| manifest.session_id == id)
+                            && services::query_entity(id, EntityKind::Projectile, "shared")
+                                .unwrap()
+                                .unwrap()
+                                .data["damage"]
+                                == damage
+                        {
+                            updated.insert(id.to_string());
+                        }
                     }
                 }
-            }
+                updated.len() == manifests.len()
+            });
             source_changes::wait_source_batches(&manifests[0].mod_root).unwrap();
             assert_eq!(work_counts::count("read", &path) - reads, 1);
             for manifest in &manifests {
@@ -1174,12 +1198,12 @@ mod tests {
         });
         fs::rename(&core, work.join("moved-core")).unwrap();
         drop(lease);
-        loop {
-            let delivery = receiver.recv_timeout(Duration::from_secs(15)).unwrap();
-            if delivery["kind"] == "sourceStatus" && delivery["state"] == "failed" {
-                break;
-            }
-        }
+        source_delivery(&receiver, |delivery| {
+            delivery["kind"] == "sourceStatus"
+                && delivery["state"] == "failed"
+                && windows_path_key(delivery["root"].as_str().unwrap())
+                    == windows_path_key(&manifest.mod_root)
+        });
         source_changes::wait_source_batches(&manifest.mod_root).unwrap();
         wait_projects(slice::from_ref(&manifest.mod_root)).unwrap();
         assert_project_idle(&manifest.mod_root);
@@ -1213,6 +1237,7 @@ mod tests {
         let root = project_workspace("core_windows").with_cleanup(release_watched_workspace);
         let graphics = root.join("starsector-core/graphics");
         fs::create_dir_all(&graphics).unwrap();
+        let game = io::canonical_path(&root, "starsector root").unwrap();
         fs::write(graphics.join("before.png"), "first").unwrap();
         let first = window("core-watch-first");
         let second = window("core-watch-second");
@@ -1225,32 +1250,41 @@ mod tests {
         fs::remove_file(graphics.join("before.png")).unwrap();
         fs::write(graphics.join("after.png"), "second").unwrap();
         for receiver in [&first, &second] {
-            loop {
-                let delivery = receiver.recv_timeout(Duration::from_secs(15)).unwrap();
-                if delivery["kind"] == "coreChanged" {
-                    break;
-                }
-            }
+            source_delivery(receiver, |delivery| {
+                delivery["kind"] == "coreChanged"
+                    && delivery["root"] == game.to_string_lossy().as_ref()
+                    && services::scan_core_graphics(&root.to_string_lossy()).unwrap()
+                        == vec!["graphics/after.png"]
+            });
         }
         assert_eq!(
             services::scan_core_graphics(&root.to_string_lossy()).unwrap(),
             vec!["graphics/after.png"]
         );
+        source_changes::wait_source_batches(&game.join("starsector-core").to_string_lossy())
+            .unwrap();
+        second.try_iter().for_each(drop);
         retry_source_watch(
             "core-watch-first",
             &root.join("starsector-core").to_string_lossy(),
         )
         .unwrap();
-        loop {
-            let delivery = second.recv_timeout(Duration::from_secs(15)).unwrap();
+        source_delivery(&second, |delivery| {
+            delivery["kind"] == "sourceStatus"
+                && delivery["state"] == "scanning"
+                && windows_path_key(delivery["root"].as_str().unwrap())
+                    == windows_path_key(&game.join("starsector-core").to_string_lossy())
+        });
+        source_delivery(&second, |delivery| {
             assert_ne!(
                 delivery["kind"], "coreChanged",
-                "unchanged rescan retains completed Core products"
+                "unchanged rescan retains completed Core products: {delivery}"
             );
-            if delivery["kind"] == "sourceStatus" && delivery["state"] == "watching" {
-                break;
-            }
-        }
+            delivery["kind"] == "sourceStatus"
+                && delivery["state"] == "watching"
+                && windows_path_key(delivery["root"].as_str().unwrap())
+                    == windows_path_key(&game.join("starsector-core").to_string_lossy())
+        });
         release_window("core-watch-first").unwrap();
         assert!(
             !SOURCE_WATCHES
@@ -1279,7 +1313,6 @@ mod tests {
             return;
         }
         let _serial = TEST_QUEUE.lock().unwrap();
-        configure_source_watch(true).unwrap();
         let root = project_workspace("source_watch_settings_catchup")
             .with_cleanup(release_watched_workspace);
         let path = root.join("data/hulls/ship_data.csv");
@@ -1309,8 +1342,8 @@ mod tests {
             &[],
         )
         .unwrap();
-        source_changes::wait_source_batches(&manifest.mod_root).unwrap();
-        receiver.try_iter().for_each(drop);
+        configure_source_watch(true).unwrap();
+        wait_source_roots(&receiver, &[&manifest.mod_root]);
 
         configure_source_watch(false).unwrap();
         assert!(
@@ -1338,29 +1371,27 @@ mod tests {
         );
 
         configure_source_watch(true).unwrap();
-        let event = loop {
-            let delivery = receiver.recv_timeout(Duration::from_secs(15)).unwrap();
-            if delivery["kind"] == "saved" && delivery["event"]["reason"] == "refresh" {
-                break delivery["event"].clone();
-            }
-        };
+        let delivery = source_delivery(&receiver, |delivery| {
+            delivery["kind"] == "saved"
+                && delivery["event"]["sessionId"] == manifest.session_id
+                && delivery["event"]["reason"] == "refresh"
+                && services::query_csv_table_index(
+                    &manifest.session_id,
+                    CsvTableKey::Ships,
+                    1,
+                    None,
+                    CsvSearchField::IdName,
+                    &[],
+                )
+                .unwrap()
+                .rows[0]
+                    .data["name"]
+                    == "After"
+        });
+        let event = &delivery["event"];
         assert_eq!(
             event["result"]["sessionUpdates"].as_array().unwrap().len(),
             1
-        );
-        assert_eq!(
-            services::query_csv_table_index(
-                &manifest.session_id,
-                CsvTableKey::Ships,
-                1,
-                None,
-                CsvSearchField::IdName,
-                &[],
-            )
-            .unwrap()
-            .rows[0]
-                .data["name"],
-            "After"
         );
 
         release_project_session(&manifest.session_id).unwrap();
@@ -1407,16 +1438,21 @@ mod tests {
         )
         .unwrap();
         retry_source_watch(&owner, &manifest.mod_root).unwrap();
-        assert_eq!(
-            receive.recv_timeout(Duration::from_secs(15)).unwrap()["state"],
-            "scanning"
-        );
-        loop {
-            let delivery = receive.recv_timeout(Duration::from_secs(15)).unwrap();
-            if delivery["kind"] == "sourceStatus" && delivery["state"] == "watching" {
-                break;
-            }
-        }
+        source_delivery(&receive, |delivery| {
+            delivery["kind"] == "sourceStatus"
+                && delivery["state"] == "scanning"
+                && delivery["root"] == manifest.mod_root
+        });
+        source_delivery(&receive, |delivery| {
+            delivery["kind"] == "sourceStatus"
+                && delivery["state"] == "watching"
+                && delivery["root"] == manifest.mod_root
+                && project::current_project_manifest(&manifest.session_id)
+                    .unwrap()
+                    .mod_info
+                    .unwrap()["name"]
+                    == "Recovered"
+        });
         assert_eq!(
             project::current_project_manifest(&manifest.session_id)
                 .unwrap()
@@ -1435,7 +1471,6 @@ mod tests {
             return;
         }
         let _serial = TEST_QUEUE.lock().unwrap();
-        configure_source_watch(true).unwrap();
         let root = project_workspace("watched_sessions").with_cleanup(release_watched_workspace);
         fs::create_dir_all(root.join("data/hulls")).unwrap();
         let path = root.join("data/hulls/ship_data.csv");
@@ -1458,17 +1493,29 @@ mod tests {
         retain_source_watch(second.session_id.clone(), second_watch, ResourceSource::Mod).unwrap();
         let owner = format!("watch:{}", windows_path_key(&root.to_string_lossy()));
         let receive = window(&owner);
-        thread::sleep(Duration::from_millis(100));
-        source_changes::wait_source_batches(&first.mod_root).unwrap();
-        receive.try_iter().for_each(drop);
+        configure_source_watch(true).unwrap();
+        wait_source_roots(&receive, &[&first.mod_root]);
         fs::write(&path, "id,name\nsample,Updated\n").unwrap();
-        let event = loop {
-            let delivery = receive.recv_timeout(Duration::from_secs(15)).unwrap();
+        let delivery = source_delivery(&receive, |delivery| {
             assert!(delivery["kind"] != "sourceStatus" || delivery["state"] != "scanning");
-            if delivery["kind"] == "saved" && delivery["event"]["modRoot"] == first.mod_root {
-                break delivery["event"].clone();
-            }
-        };
+            delivery["kind"] == "saved"
+                && delivery["event"]["modRoot"] == first.mod_root
+                && [&first, &second].iter().all(|manifest| {
+                    services::query_csv_table_index(
+                        &manifest.session_id,
+                        CsvTableKey::Ships,
+                        2,
+                        None,
+                        CsvSearchField::IdName,
+                        &[],
+                    )
+                    .unwrap()
+                    .rows[0]
+                        .data["name"]
+                        == "Updated"
+                })
+        });
+        let event = &delivery["event"];
         assert_eq!(event["reason"], "refresh");
         assert_eq!(
             event["result"]["sessionUpdates"].as_array().unwrap().len(),
@@ -1597,6 +1644,45 @@ mod tests {
         )
         .unwrap();
         receive
+    }
+
+    fn source_delivery(receive: &Receiver<Value>, mut accept: impl FnMut(&Value) -> bool) -> Value {
+        // One functional deadline covers earlier deliveries and the requested source completion.
+        let deadline = Instant::now() + Duration::from_secs(15);
+        loop {
+            let delivery = receive
+                .recv_timeout(deadline.saturating_duration_since(Instant::now()))
+                .expect("source completion arrives before its deadline");
+            if accept(&delivery) {
+                return delivery;
+            }
+        }
+    }
+
+    fn wait_source_roots(receive: &Receiver<Value>, roots: &[&str]) {
+        let roots = roots
+            .iter()
+            .map(|root| {
+                io::canonical_path(Path::new(root), "watch root")
+                    .unwrap()
+                    .to_string_lossy()
+                    .into_owned()
+            })
+            .collect::<Vec<_>>();
+        let mut pending = roots
+            .iter()
+            .map(|root| windows_path_key(root))
+            .collect::<BTreeSet<_>>();
+        source_delivery(receive, |delivery| {
+            if delivery["kind"] == "sourceStatus" && delivery["state"] == "watching" {
+                pending.remove(&windows_path_key(delivery["root"].as_str().unwrap()));
+            }
+            pending.is_empty()
+        });
+        for root in roots {
+            source_changes::wait_source_batches(&root).unwrap();
+        }
+        receive.try_iter().for_each(drop);
     }
 
     fn delivery_for_request(receive: &Receiver<Value>, kind: &str, request_id: &str) -> Value {

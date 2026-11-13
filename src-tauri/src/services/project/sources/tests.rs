@@ -415,6 +415,8 @@ fn directory_version_matches_io() {
         sources.versions["data/missions/example"],
         file_version(&root.join("data/missions/example")).unwrap()
     );
+    let rescanned = sources.rescan_paths().unwrap();
+    assert!(rescanned.contains(&"data/missions/example".into()));
     root.close().unwrap();
 }
 
@@ -579,6 +581,11 @@ fn source_rescan_observes_catalog_membership_and_keeps_media_unread() {
     fs::write(&archive, b"archive").unwrap();
     let mut reader = SourceReader::new(&root).unwrap();
     reader.discover("graphics", &["png"], false).unwrap();
+    reader.notice_changed("graphics").unwrap();
+    reader.begin_batch();
+    assert!(reader.rescan_paths().unwrap().is_empty());
+    fs::rename(&archive, root.join("graphics/renamed.zip")).unwrap();
+    reader.notice_changed("graphics").unwrap();
     reader.begin_batch();
     assert!(reader.rescan_paths().unwrap().is_empty());
     for exists in [false, true] {
