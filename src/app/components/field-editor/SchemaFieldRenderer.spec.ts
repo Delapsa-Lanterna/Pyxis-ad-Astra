@@ -9,6 +9,7 @@ import { flushPromises, mount, type VueWrapper } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { FieldSchema } from '@/domain/schema/schema.types';
+import { getSchema } from '@/domain/schema/config-schema-registry';
 import { initializeSettingsStore, useSettingsStore } from '@/stores/settings.store';
 import { createSettingsFixture } from '@/test/fixtures/settings';
 import FieldLabel from '@/shared/ui/FieldLabel.vue';
@@ -786,9 +787,42 @@ describe('SchemaFieldRenderer smart mode', () => {
     expect(field.emitted('update')?.at(-1)).toEqual([{ kind: 'set', value: 'B' }]);
   });
 
-  it('renders string arrays as a multi picker in smart mode', () => {
-    const field = mountField(fieldFixture('string-array'), ['a', 'b']);
-    expect(field.find('select').exists()).toBe(true);
+  it.each(['string-array', 'tag-select'] as const)('offers fixed options and submits multiple values for %s', async (type) => {
+    const values = ['first', 'second'];
+    const field = mountField(fieldFixture(type, { options: values }), []);
+    const select = field.getComponent(nSelect);
+    expect(field.findAll('option').map((option) => option.text())).toEqual(values);
+    select.vm.$emit('update:value', values);
+    await nextTick();
+    expect(field.emitted('update')?.at(-1)).toEqual([{ kind: 'set', value: values }]);
+  });
+
+  it.each([
+    ['spec-weapon', 'renderHints', 6],
+    ['spec-system', 'weaponTypes', 4],
+  ] as const)('offers and edits all %s.%s combinations with %s presets', async (id, key, count) => {
+    const schema = getSchema(id)!
+      .sections!.flatMap((section) => section.fields)
+      .find((field) => field.key === key)!;
+    const options = schema.options!;
+    expect(options).toHaveLength(count);
+    const field = mountField(schema, []);
+    const select = field.getComponent(nSelect);
+    expect(field.findAll('option').map((option) => option.text())).toEqual(options);
+    for (let step = 1; step <= 1 << count; step++) {
+      const selected = options.filter((_, index) => (step % (1 << count)) & (1 << index));
+      select.vm.$emit('update:value', selected);
+      await nextTick();
+      expect(field.emitted('update')?.at(-1)).toEqual([{ kind: 'set', value: selected }]);
+      await field.setProps({ value: selected });
+      expect(select.props('value')).toEqual(selected);
+    }
+    await field.setProps({ value: [' custom '] });
+    expect(field.findAll('option').map((option) => option.element.textContent)).toEqual([' custom ', ...options]);
+    useSettingsStore().setEditMode('plain');
+    await nextTick();
+    await field.get('input').setValue(options.join(', '));
+    expect(field.emitted('update')?.at(-1)).toEqual([{ kind: 'set', value: options }]);
   });
 
   it('routes a numeric tag template to the field custom input and commits the edited value', async () => {

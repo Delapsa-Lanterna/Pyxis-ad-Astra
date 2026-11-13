@@ -3,6 +3,7 @@ import {
   fieldSourceCurrentValues,
   includeCurrentSelectOptions,
   mapSourceGroupsToSelectOptions,
+  schemaSelectOptions,
   type SelectOption,
 } from '@/domain/field-editor/field-options';
 import type { FieldSchema } from '@/domain/schema/schema.types';
@@ -15,6 +16,18 @@ const catalog: SelectOption[] = [
     children: [{ label: 'Legal', value: 'legal' }],
   },
 ];
+
+describe('field select options', () => {
+  it.each(['enum', 'string-array', 'tag-select'] as const)('uses fixed options or the source catalog for %s', (type) => {
+    const field: FieldSchema = { key: 'value', label: 'Value', type, options: ['first', 'second'] };
+    expect(schemaSelectOptions(field, catalog)).toEqual([
+      { label: 'first', value: 'first' },
+      { label: 'second', value: 'second' },
+    ]);
+    expect(schemaSelectOptions({ ...field, options: [] }, catalog)).toBe(catalog);
+    expect(schemaSelectOptions({ ...field, options: undefined }, catalog)).toBe(catalog);
+  });
+});
 
 describe('source option ghost values', () => {
   it.each([

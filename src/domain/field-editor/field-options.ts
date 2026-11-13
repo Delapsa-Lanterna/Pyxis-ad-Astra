@@ -106,7 +106,7 @@ export function includeCurrentSelectOptions(
   ];
 }
 
-export function schemaEnumSelectOptions(field: FieldSchema, sourceOptions: SelectOption[]): SelectOption[] {
+export function schemaSelectOptions(field: FieldSchema, sourceOptions: SelectOption[]): SelectOption[] {
   if (field.options && field.options.length > 0) return field.options.map((option) => ({ label: option, value: option }));
   return sourceOptions;
 }

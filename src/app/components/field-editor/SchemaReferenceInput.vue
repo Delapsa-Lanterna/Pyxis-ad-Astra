@@ -75,7 +75,7 @@
       ref="referenceSelect"
       :show="reference ? referenceOpen : undefined"
       :value="field.type === 'tag-select' ? tagSelectVal : arrVal"
-      :options="listOptions"
+      :options="displayOptions"
       :render-label="renderSelectLabel"
       :render-tag="renderSelectTag"
       multiple
@@ -117,7 +117,7 @@ import { isCsvFieldSource, isEntityFieldSource } from '@/domain/schema/schema-so
 import {
   fieldSourceCurrentValues,
   includeCurrentSelectOptions,
-  schemaEnumSelectOptions,
+  schemaSelectOptions,
   selectOptionText,
   selectOptionValues,
   type SelectOption,
@@ -297,19 +297,15 @@ function selectOptionOrigin(option: SelectOption & { value?: string }): string |
   return index < 0 ? null : fieldCompositionOrigin(props.runtimeContext, `${props.fieldPath ?? props.field.key}[${index}]`);
 }
 
-const enumOptions = computed(() => {
-  return schemaEnumSelectOptions(props.field, sourceOptions.value);
-});
+const options = computed(() => schemaSelectOptions(props.field, sourceOptions.value));
 
 // Ghost echo: values missing from the catalog (broken refs, manual input) enter the option tree as raw text.
-const enumValues = computed(() => selectOptionValues(enumOptions.value));
-const sourceValues = computed(() => selectOptionValues(sourceOptions.value));
+const optionValues = computed(() => selectOptionValues(options.value));
 const referenceValues = computed(() => [
   ...fieldSourceCurrentValues(props.field, props.value),
   ...(reference?.dirty.value && reference.raw.value ? [reference.raw.value] : []),
 ]);
-const displayOptions = computed(() => includeCurrentSelectOptions(enumOptions.value, referenceValues.value, enumValues.value));
-const listOptions = computed(() => includeCurrentSelectOptions(sourceOptions.value, referenceValues.value, sourceValues.value));
+const displayOptions = computed(() => includeCurrentSelectOptions(options.value, referenceValues.value, optionValues.value));
 
 const customTag = ref<string | null>(null);
 const customTagInput = ref<InstanceType<typeof SchemaScalarInput> | null>(null);
