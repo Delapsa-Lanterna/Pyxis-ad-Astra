@@ -189,7 +189,7 @@ pub(in crate::services::project) fn stage_associated_spec(
                         let FileValue::Object(fields) = &source.content else {
                             unreachable!("JSON root")
                         };
-                        draft.edit(DraftEdit::ObjectSplice {
+                        draft.edit(&DraftEdit::ObjectSplice {
                             path: Vec::new(),
                             index: fields.len(),
                             delete: 0,

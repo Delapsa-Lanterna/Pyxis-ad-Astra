@@ -204,7 +204,7 @@ impl CsvTableDraft {
             })
             .collect();
         let state = csv_tables::session_table_mut(session, key)?;
-        state.header = actual.document.content.header.clone();
+        state.header.clone_from(&actual.document.content.header);
         state.rows = Some(Arc::new(rows));
         state.row_index = None;
         state.next_row_seq = self.next_row_seq;

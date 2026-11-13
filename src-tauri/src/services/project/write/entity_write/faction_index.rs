@@ -56,7 +56,7 @@ pub(in crate::services::project) fn prepare(
         } else {
             id
         };
-        data.insert(id_column.clone(), Value::String(id_value.into()));
+        data.insert(id_column, Value::String(id_value.into()));
         if let Some(column) = &file_column {
             data.insert(column.clone(), Value::String(relative.into()));
         }

@@ -4,6 +4,7 @@ use crate::models::{
     SaveAppSettingsPayload, SettingsSnapshot, WindowBootstrap, WindowIdentity,
 };
 use crate::services::{app_lifecycle, app_settings, windows};
+use std::slice::from_ref;
 use tauri::{AppHandle, WebviewWindow, async_runtime};
 
 #[command_macros::command]
@@ -37,7 +38,7 @@ pub fn reserve_window_targets(
     window: WebviewWindow,
     identities: Vec<WindowIdentity>,
 ) -> Result<(), AppError> {
-    let displaced = windows::reserve_targets(&app, window.label(), identities)?;
+    let displaced = windows::reserve_targets(&app, window.label(), &identities)?;
     app_lifecycle::close_displaced(&app, window.label(), displaced)
 }
 
@@ -49,7 +50,7 @@ pub fn retarget_managed_window(
     title: String,
     input: Option<ManagedWindowInput>,
 ) -> Result<ManagedWindowContext, AppError> {
-    let displaced = windows::reserve_targets(&app, window.label(), vec![identity.clone()])?;
+    let displaced = windows::reserve_targets(&app, window.label(), from_ref(&identity))?;
     app_lifecycle::close_displaced(&app, window.label(), displaced)?;
     let result = windows::retarget_window(&app, window.label(), identity, &title, input);
     windows::release_targets(window.label())?;
@@ -70,7 +71,7 @@ pub fn fail_window_startup(
     if window.label() == "main" {
         return Ok(());
     }
-    windows::fail_window_startup(window.label(), diagnostic)
+    windows::fail_window_startup(window.label(), &diagnostic)
 }
 
 #[command_macros::command(async)]

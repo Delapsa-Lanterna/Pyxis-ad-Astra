@@ -127,7 +127,7 @@ pub fn save_faction_entity(input: IndexedConfigSave) -> AppResult<WriteResult<Va
         .push(EntityIdentityChange { before, after });
     Ok(result)
 }
-pub fn delete_faction(input: IndexedConfigDelete) -> AppResult<WriteResult<Value>> {
+pub fn delete_faction(input: &IndexedConfigDelete) -> AppResult<WriteResult<Value>> {
     let target = entity_targets::query_entity_edit_target(
         &input.session_id,
         EntityKind::Faction,
@@ -278,7 +278,7 @@ mod tests {
         assert_eq!(result.changes.len(), 2);
         assert!(!root.join("data/custom/nested/next.faction").exists());
         assert_eq!(file_formats::read_csv_table(&index).unwrap().rows.len(), 1);
-        release_project_session(manifest.session_id).unwrap();
+        release_project_session(&manifest.session_id).unwrap();
         root.close().unwrap();
     }
 }

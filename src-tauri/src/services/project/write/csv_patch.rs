@@ -138,8 +138,8 @@ pub fn save_csv_patch_snapshot(
     session_id: &str,
     table: CsvTableKey,
     patches: Vec<CsvRowPatch>,
-    associated: Vec<AssociatedSpecWrite>,
-    options: JsonWriteOptions,
+    associated: &[AssociatedSpecWrite],
+    options: &JsonWriteOptions,
     order: Option<Vec<CsvRowOrderEntry>>,
 ) -> AppResult<WriteResult> {
     let handle = session_handle(session_id)?;
@@ -170,7 +170,7 @@ pub fn save_csv_patch_snapshot(
     let mut identities = Vec::new();
     let mut renames = Vec::new();
     let mut read = Vec::new();
-    for spec in &associated {
+    for spec in associated {
         let current = entity_targets::describe_entity_target(
             &mut session,
             spec.target.kind,
@@ -189,7 +189,7 @@ pub fn save_csv_patch_snapshot(
             &spec.change,
             &spec.target,
             spec.resolution.as_ref(),
-            &options,
+            options,
         )?;
         if let Some(rename) = staged.description_rename {
             renames.push(rename);
@@ -224,7 +224,7 @@ pub fn save_csv_patch_snapshot(
             Ok::<_, AppError>((draft, actual))
         })
         .transpose()?;
-    replace_paths::stage_replace_paths(&mut builder, &options)?;
+    replace_paths::stage_replace_paths(&mut builder, options)?;
     let changes = builder.apply()?;
     for (kind, record, version) in read {
         Arc::make_mut(&mut session.source_versions)
@@ -294,8 +294,8 @@ pub fn write_csv_request(input: CsvSave) -> AppResult<WriteResult<Value>> {
         &input.session_id,
         input.table,
         input.patches,
-        input.associated_specs,
-        input.json_write,
+        &input.associated_specs,
+        &input.json_write,
         input.row_order,
     )?;
     let handle = session_handle(&input.session_id)?;
@@ -497,7 +497,7 @@ mod tests {
                 .unwrap();
             assert_eq!(read_utf8_no_bom(&csv_path).unwrap(), csv);
             assert_eq!(read_json_file(&spec_path).unwrap(), expected);
-            release_project_session(manifest.session_id).unwrap();
+            release_project_session(&manifest.session_id).unwrap();
             root.close().unwrap();
         }
     }
@@ -631,7 +631,7 @@ mod tests {
             )
             .unwrap();
             assert_eq!(actual_name(), format!("{next_id}.wpn"));
-            release_project_session(manifest.session_id).unwrap();
+            release_project_session(&manifest.session_id).unwrap();
             root.close().unwrap();
         }
     }
@@ -683,7 +683,7 @@ mod tests {
         assert_eq!(read_utf8_no_bom(&csv_path).unwrap(), csv);
         assert_eq!(read_utf8_no_bom(&spec_path).unwrap(), spec);
         assert!(!root.join("data/weapons/new.wpn").exists());
-        release_project_session(manifest.session_id).unwrap();
+        release_project_session(&manifest.session_id).unwrap();
         root.close().unwrap();
     }
 
@@ -737,7 +737,7 @@ mod tests {
                 keys[2].clone(),
                 keys[0].clone(),
             ]),
-            base_versions: window.base_versions.clone(),
+            base_versions: window.base_versions,
             session_id: manifest.session_id.clone(),
             mod_root: manifest.mod_root.clone(),
             table: CsvTableKey::Ships,
@@ -801,7 +801,7 @@ mod tests {
         )
         .unwrap();
         assert_eq!(read_utf8_no_bom(&path).unwrap(), text);
-        release_project_session(manifest.session_id).unwrap();
+        release_project_session(&manifest.session_id).unwrap();
         root.close().unwrap();
     }
 
@@ -940,11 +940,11 @@ mod tests {
         .unwrap();
         assert_eq!(replayed.rows[1].data["name"], "#edited");
         assert!(!replayed.rows[1].is_comment);
-        release_project_session(manifest.session_id).unwrap();
+        release_project_session(&manifest.session_id).unwrap();
         let mut reopened_trace = PerformanceTrace::new("project.openSession");
         let reopened = open_project_session_traced(&root, None, &mut reopened_trace).unwrap();
         assert_eq!(reopened.table_entity_summaries[&CsvTableKey::Ships], 5);
-        release_project_session(reopened.session_id).unwrap();
+        release_project_session(&reopened.session_id).unwrap();
         root.close().unwrap();
     }
 
@@ -959,7 +959,7 @@ mod tests {
         let mut row = Map::new();
         row.insert("id".to_string(), Value::String("new_ship".to_string()));
         row.insert("name".to_string(), Value::String("New Ship".to_string()));
-        let session_id = manifest.session_id.clone();
+        let session_id = manifest.session_id;
         let result = save_csv_patch(
             &session_id,
             CsvTableKey::Ships,
@@ -989,7 +989,7 @@ mod tests {
             path_string(root.join("data/hulls/new_ship.ship")),
         ];
 
-        let _ = release_project_session(session_id);
+        let _ = release_project_session(&session_id);
         assert_eq!(change_paths(&result.changes), expected_paths);
         assert_eq!(result.invalidation.paths, change_paths(&result.changes));
         assert!(matches!(result.changes[0].kind, FileChangeKind::File));
@@ -1053,7 +1053,7 @@ mod tests {
         )
         .unwrap();
         let new_key = result.key_map[0].next_key.clone();
-        session::invalidate_project_session(&manifest.session_id, result.changes).unwrap();
+        session::invalidate_project_session(&manifest.session_id, &result.changes).unwrap();
         let window = query_csv_table_window(
             &manifest.session_id,
             CsvTableKey::Ships,
@@ -1084,7 +1084,7 @@ mod tests {
             Vec::new(),
         )
         .unwrap();
-        session::invalidate_project_session(&manifest.session_id, result.changes).unwrap();
+        session::invalidate_project_session(&manifest.session_id, &result.changes).unwrap();
         let window = query_csv_table_window(
             &manifest.session_id,
             CsvTableKey::Ships,
@@ -1099,7 +1099,7 @@ mod tests {
         assert_eq!(window.rows[4].data["id"], "b");
         assert_eq!(window.rows[4].row_key, duplicate_key);
         assert_eq!(window.rows[5].row_key, new_key);
-        release_project_session(manifest.session_id).unwrap();
+        release_project_session(&manifest.session_id).unwrap();
         root.close().unwrap();
     }
 
@@ -1155,7 +1155,7 @@ mod tests {
             path_string(root.join("data/weapons/old_weapon.wpn")),
         ];
 
-        let _ = release_project_session(manifest.session_id);
+        let _ = release_project_session(&manifest.session_id);
         assert_eq!(change_paths(&result.changes), expected_paths);
         assert_eq!(result.invalidation.paths, change_paths(&result.changes));
         assert!(!result.changes[1].after_exists);
@@ -1222,7 +1222,7 @@ mod tests {
             path_string(root.join("data/weapons/new_weapon.wpn")),
         ];
 
-        let _ = release_project_session(manifest.session_id);
+        let _ = release_project_session(&manifest.session_id);
         assert_eq!(change_paths(&result.changes), expected_paths);
         assert_eq!(result.invalidation.paths, change_paths(&result.changes));
         assert!(result.changes[1].before_exists);
@@ -1283,7 +1283,7 @@ mod tests {
                     spec_class: WeaponSpecClass::Projectile,
                 },
             }],
-            JsonWriteOptions {
+            &JsonWriteOptions {
                 replace_paths: Vec::new(),
                 keep_filename: false,
                 preserve_structure: true,
@@ -1295,7 +1295,7 @@ mod tests {
         assert!(renamed.contains("# note"));
         assert!(renamed.find("weaponType").unwrap() < renamed.find("id:").unwrap());
         assert!(!root.join("data/weapons/old_weapon.wpn").exists());
-        let _ = release_project_session(manifest.session_id);
+        let _ = release_project_session(&manifest.session_id);
         root.close().unwrap();
     }
 
@@ -1342,7 +1342,7 @@ mod tests {
                     spec_class: WeaponSpecClass::Projectile,
                 },
             }],
-            JsonWriteOptions {
+            &JsonWriteOptions {
                 replace_paths: Vec::new(),
                 keep_filename: false,
                 preserve_structure: true,
@@ -1353,7 +1353,7 @@ mod tests {
         assert!(!spec_path.exists());
         let rewritten = read_utf8_no_bom(&root.join("data/weapons/new_weapon.wpn")).unwrap();
         assert!(rewritten.contains("arr:[1,,2]"));
-        let _ = release_project_session(manifest.session_id);
+        let _ = release_project_session(&manifest.session_id);
         root.close().unwrap();
     }
 
@@ -1408,7 +1408,7 @@ mod tests {
             path_string(root.join("data/weapons/new_weapon.wpn")),
         ];
 
-        let _ = release_project_session(manifest.session_id);
+        let _ = release_project_session(&manifest.session_id);
         assert_eq!(change_paths(&result.changes), expected_paths);
         assert_eq!(result.invalidation.paths, change_paths(&result.changes));
         assert!(!result.changes[1].before_exists);
@@ -1445,7 +1445,7 @@ mod tests {
         .unwrap_err()
         .to_string();
 
-        let _ = release_project_session(manifest.session_id);
+        let _ = release_project_session(&manifest.session_id);
         assert!(error.contains("新增的 CSV 行标识无效"));
         root.close().unwrap();
     }

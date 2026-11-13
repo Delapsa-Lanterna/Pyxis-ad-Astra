@@ -153,7 +153,7 @@ fn object_shapes_and_open_content() {
             json!({"shipRoles":{"sample":{"fallback2":{"first":1,"second":1}}}}),
         ),
     ] {
-        let value = complete_fixture(id, value);
+        let value = complete_fixture(id, &value);
         assert_eq!(
             validate_document(id, &value).unwrap_err().code(),
             "config.shape_invalid",
@@ -188,12 +188,12 @@ fn object_shapes_and_open_content() {
             json!({"sounds":{},"DEFAULT":{},"FIGHTER":{},"FRIGATE":{},"DESTROYER":{},"CRUISER":{},"CAPITAL_SHIP":{}}),
         ),
     ] {
-        let value = complete_fixture(id, value);
+        let value = complete_fixture(id, &value);
         validate_document(id, &value).unwrap();
     }
 }
 
-fn complete_fixture(id: &str, value: Value) -> Value {
+fn complete_fixture(id: &str, value: &Value) -> Value {
     let mut base = match id {
         "mod-info" => json!({"id":"fixture","name":"Fixture","version":"1","gameVersion":"1"}),
         "variant" => json!({"variantId":"fixture","hullId":"base"}),

@@ -87,7 +87,7 @@ mod tests {
         let source = Arc::new(game::read_json(b"{a:[1,,2], # keep\n b:3}\nEND").unwrap());
         let mut draft = JsonDraft::open(source);
         draft
-            .edit(file_formats::replace_edit(vec!["b".into()], &json!(4)))
+            .edit(&file_formats::replace_edit(vec!["b".into()], &json!(4)))
             .unwrap();
         let actual = draft.save(SaveLayout::PreserveStructure).unwrap();
         assert_eq!(&*actual.text, "{a:[1,,2], # keep\n b:4}\nEND");
@@ -98,7 +98,7 @@ mod tests {
         let mut draft = JsonDraft::open(Arc::new(game::read_json(text.as_bytes()).unwrap()));
         let request = file_formats::json_write(&json!({"mode":"LINKED","weapons":{}}));
         draft
-            .edit(DraftEdit::ArraySplice {
+            .edit(&DraftEdit::ArraySplice {
                 path: vec![Text::new("weaponGroups")],
                 index: 2,
                 delete: 0,
@@ -136,7 +136,7 @@ mod tests {
         assert_eq!(value["note"], format!("{padding}界"));
         let mut draft = JsonDraft::open(Arc::new(source));
         draft
-            .edit(file_formats::replace_edit(vec!["speed".into()], &json!(2)))
+            .edit(&file_formats::replace_edit(vec!["speed".into()], &json!(2)))
             .unwrap();
         let actual = draft.save(SaveLayout::PreserveStructure).unwrap();
         assert!(actual.text.contains("value:0.625f"));

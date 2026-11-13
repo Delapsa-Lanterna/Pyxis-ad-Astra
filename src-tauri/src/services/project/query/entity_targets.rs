@@ -533,7 +533,7 @@ mod tests {
             );
             fs::write(parent, original).unwrap();
         }
-        release_project_session(manifest.session_id).unwrap();
+        release_project_session(&manifest.session_id).unwrap();
         work.close().unwrap();
         assert_eq!(files.len(), 3);
         assert_eq!(

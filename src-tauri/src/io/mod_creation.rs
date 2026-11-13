@@ -147,7 +147,7 @@ mod tests {
                 "{relative_directory}"
             );
         }
-        let _ = release_project_session(manifest.session_id);
+        let _ = release_project_session(&manifest.session_id);
         parent.close().unwrap();
     }
 
@@ -188,7 +188,7 @@ mod tests {
     }
 
     fn template(id: &str) -> ValidatedNewModTemplate {
-        validate_new_mod_template(NewModTemplate {
+        validate_new_mod_template(&NewModTemplate {
             id: id.to_string(),
             name: "Demo Mod".to_string(),
             version: "1.0.0".to_string(),

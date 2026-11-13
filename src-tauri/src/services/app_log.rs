@@ -138,14 +138,14 @@ pub fn start_native_writer(app: AppHandle) {
     thread::spawn(move || {
         loop {
             thread::sleep(Duration::from_millis(100));
-            if flush_native_logs(app.clone()).is_err() {
+            if flush_native_logs(&app).is_err() {
                 break;
             }
         }
     });
 }
 
-pub fn flush_native_logs(app: AppHandle) -> AppResult<()> {
+pub fn flush_native_logs(app: &AppHandle) -> AppResult<()> {
     let _drain = NATIVE_DRAIN
         .lock()
         .expect("native drain does not execute callbacks");
@@ -171,13 +171,13 @@ fn stop_native() -> u64 {
     pending
 }
 
-pub fn append_app_logs(app: AppHandle, owner: &str, entries: Vec<AppLogEntry>) -> AppResult<()> {
+pub fn append_app_logs(app: &AppHandle, owner: &str, entries: Vec<AppLogEntry>) -> AppResult<()> {
     let mut state = runtime()?;
     append_with_runtime(app, owner, entries, &mut state)
 }
 
 fn append_with_runtime(
-    app: AppHandle,
+    app: &AppHandle,
     owner: &str,
     mut entries: Vec<AppLogEntry>,
     state: &mut LogState,
@@ -193,7 +193,7 @@ fn append_with_runtime(
         .clone()
         .unwrap_or_else(|| LogSettings::from(&AppSettings::default()));
     let result = state.write(owner, entries.len(), || {
-        let app_data = app_data_dir::data_directory(app.clone())?;
+        let app_data = app_data_dir::data_directory(app)?;
         append_configured_logs(&app_data, &entries, &settings)
     });
     if let Err(cause) = result {
@@ -232,7 +232,7 @@ fn configured_log_directory(app_data: &Path, settings: &LogSettings) -> PathBuf 
         .unwrap_or_else(|| app_data.to_path_buf())
 }
 
-pub fn app_log_status(app: AppHandle) -> AppResult<AppLogStatus> {
+pub fn app_log_status(app: &AppHandle) -> AppResult<AppLogStatus> {
     let state = runtime()?;
     let settings = state
         .settings
@@ -249,7 +249,7 @@ pub fn app_log_status(app: AppHandle) -> AppResult<AppLogStatus> {
     }
     .to_string();
     status.level = settings.level;
-    status.last_error = state.last_error.clone();
+    status.last_error.clone_from(&state.last_error);
     status.dropped = state.losses.values().sum();
     status.pending = NATIVE_QUEUE
         .lock()
@@ -259,9 +259,9 @@ pub fn app_log_status(app: AppHandle) -> AppResult<AppLogStatus> {
     Ok(status)
 }
 
-pub fn clear_app_log_file(app: AppHandle) -> AppResult<AppLogStatus> {
-    let _ = flush_native_logs(app.clone());
-    let status = app_log_status(app.clone())?;
+pub fn clear_app_log_file(app: &AppHandle) -> AppResult<AppLogStatus> {
+    let _ = flush_native_logs(app);
+    let status = app_log_status(app)?;
     clear_log_file(
         Path::new(&status.path)
             .parent()

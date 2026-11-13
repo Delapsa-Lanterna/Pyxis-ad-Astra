@@ -132,7 +132,7 @@ impl Monitor {
 }
 pub fn report(
     app: AppHandle,
-    window: WebviewWindow,
+    window: &WebviewWindow,
     action: PerformanceMonitorAction,
     seconds: Option<u8>,
 ) -> AppResult<PerformanceMonitorStatus> {
@@ -166,7 +166,7 @@ pub fn report(
         PerformanceMonitorAction::Export => {
             #[cfg(windows)]
             webview_trace::require_idle()?;
-            let folder = app_data_dir::data_directory(app)?.join("performance-monitor");
+            let folder = app_data_dir::data_directory(&app)?.join("performance-monitor");
             fs::create_dir_all(&folder)?;
             let timestamp = now() as u64;
             let path = folder.join(format!("{timestamp}.json"));
@@ -192,7 +192,7 @@ pub fn report(
     result.records = monitor.records.len();
     result.overwritten = monitor.overwritten;
     result.started_at = monitor.started_at;
-    result.path = monitor.path.clone();
+    result.path.clone_from(&monitor.path);
     #[cfg(windows)]
     {
         let trace = webview_trace::snapshot();

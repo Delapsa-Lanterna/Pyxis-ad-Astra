@@ -38,25 +38,27 @@ pub fn install(sink: Sink) {
 
 /// Enqueues the original diagnostic with the operation's identity metadata.
 pub fn failure(code: &str, error: impl Into<AppError>, context: Value) {
-    diagnostic(AppLogLevel::Warning, code, error.into(), context);
+    diagnostic(AppLogLevel::Warning, code, &error.into(), context);
 }
 
 /// Records an infrastructure failure with the original diagnostic and operation identity.
 pub fn fault(code: &str, error: impl Into<AppError>, context: Value) {
-    diagnostic(AppLogLevel::Error, code, error.into(), context);
+    diagnostic(AppLogLevel::Error, code, &error.into(), context);
 }
 
-fn diagnostic(level: AppLogLevel, code: &str, error: AppError, context: Value) {
+fn diagnostic(level: AppLogLevel, code: &str, error: &AppError, context: Value) {
+    let Value::Object(context) = context else {
+        unreachable!("diagnostic contexts are objects");
+    };
     let mut fields: BTreeMap<String, String> = context
-        .as_object()
-        .expect("diagnostic contexts are objects")
-        .iter()
+        .into_iter()
         .map(|(key, value)| {
             (
-                key.clone(),
-                value
-                    .as_str()
-                    .map_or_else(|| value.to_string(), str::to_owned),
+                key,
+                match value {
+                    Value::String(text) => text,
+                    value => value.to_string(),
+                },
             )
         })
         .collect();

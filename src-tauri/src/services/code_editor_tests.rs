@@ -6,6 +6,7 @@ use crate::services::{project, project_sync};
 use crate::test_support::TestWorkspace;
 use std::fs;
 use std::io::Error as IoError;
+use std::slice::from_ref;
 use std::sync::Arc;
 use std::thread;
 use tauri::Error as TauriError;
@@ -28,7 +29,7 @@ fn project_sources_describe_ready_references_without_starting_java() {
         let manifest = project::open_project_session_traced(&path, None, &mut trace).unwrap();
         sessions.push(manifest);
     }
-    project::set_reference_sources(vec![sessions[1].session_id.clone()]).unwrap();
+    project::set_reference_sources(from_ref(&sessions[1].session_id)).unwrap();
     let identity = || WindowIdentity::CodeEditor {
         session_id: sessions[0].session_id.clone(),
         mod_root: sessions[0].mod_root.clone(),
@@ -39,19 +40,17 @@ fn project_sources_describe_ready_references_without_starting_java() {
     assert!(snapshot.sources[1].read_only);
     assert_eq!(snapshot.sources[1].directory.as_deref(), Some("src"));
     assert_eq!(snapshot.analysis_roots.len(), 2);
-    project::set_reference_sources(Vec::new()).unwrap();
+    project::set_reference_sources(&Vec::new()).unwrap();
     assert_eq!(sources(identity()).unwrap().sources.len(), 1);
     for manifest in sessions {
-        project_sync::release_project_session(manifest.session_id).unwrap();
+        project_sync::release_project_session(&manifest.session_id).unwrap();
     }
-    project::set_reference_sources(
-        previous
-            .sources
-            .into_iter()
-            .map(|source| source.session_id)
-            .collect(),
-    )
-    .unwrap();
+    let previous_ids = previous
+        .sources
+        .into_iter()
+        .map(|source| source.session_id)
+        .collect::<Vec<_>>();
+    project::set_reference_sources(&previous_ids).unwrap();
     work.close().unwrap();
 }
 

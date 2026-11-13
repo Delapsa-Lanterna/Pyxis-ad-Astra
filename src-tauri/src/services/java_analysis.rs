@@ -58,7 +58,7 @@ fn initialize_at(config_root: &Path) -> AppResult<AnalysisRuntime> {
 }
 
 pub fn initialize(app: &AppHandle) -> AppResult<()> {
-    register(app, &app_data_dir::data_directory(app.clone())?)
+    register(app, &app_data_dir::data_directory(app)?)
 }
 
 fn register<R: Runtime>(app: &AppHandle<R>, config_root: &Path) -> AppResult<()> {

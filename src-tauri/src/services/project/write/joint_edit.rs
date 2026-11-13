@@ -232,7 +232,7 @@ pub fn save_joint_edit(input: &JointEditSubmission) -> AppResult<WriteResult<Joi
             content: original.content.clone(),
         });
         let mut draft = JsonDraft::open(source);
-        draft.edit(DraftEdit::Replace {
+        draft.edit(&DraftEdit::Replace {
             path: Vec::new(),
             value: PreparedValue {
                 value: request.content,
@@ -245,7 +245,7 @@ pub fn save_joint_edit(input: &JointEditSubmission) -> AppResult<WriteResult<Joi
             maximum: None,
         };
         for (path, next) in changes {
-            draft.edit(DraftEdit::Replace {
+            draft.edit(&DraftEdit::Replace {
                 path,
                 value: rule.prepare(&next)?,
             })?;
@@ -406,7 +406,7 @@ pub fn save_joint_edit(input: &JointEditSubmission) -> AppResult<WriteResult<Joi
                 if staged.identity.before.id == snapshot.root.id
                     && root_identity(snapshot.root.kind, staged.identity.before.kind)
                 {
-                    saved.root.id = staged.identity.after.id.clone();
+                    saved.root.id.clone_from(&staged.identity.after.id);
                 }
                 identities.push(staged.identity);
             }
@@ -683,7 +683,7 @@ pub fn save_joint_edit(input: &JointEditSubmission) -> AppResult<WriteResult<Joi
         };
         for binding in saved.bindings.values_mut() {
             if *binding == record.key {
-                *binding = key.clone();
+                binding.clone_from(&key);
             }
         }
         record.key = key;
@@ -733,7 +733,7 @@ pub fn prepare_joint_save(
         if identity.before.id == input.snapshot.root.id
             && root_identity(input.snapshot.root.kind, identity.before.kind)
         {
-            input.snapshot.root.id = identity.after.id.clone();
+            input.snapshot.root.id.clone_from(&identity.after.id);
         }
     }
     let current = if identities.is_empty()
@@ -826,7 +826,7 @@ pub fn prepare_joint_save(
                     if let Some(EntityLinkedRecord::Csv { row_key: key, .. }) =
                         &change.after.linked_record
                     {
-                        *row_key = key.clone();
+                        row_key.clone_from(key);
                     }
                 }
             }

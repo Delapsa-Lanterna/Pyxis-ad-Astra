@@ -47,7 +47,7 @@ pub fn command(attributes: TokenStream, item: TokenStream) -> TokenStream {
         quote!(rename = #original_name,)
     });
     let mut adapter = function.clone();
-    adapter.sig.ident = adapter_name.clone();
+    adapter.sig.ident = adapter_name;
     adapter
         .sig
         .inputs
@@ -55,6 +55,7 @@ pub fn command(attributes: TokenStream, item: TokenStream) -> TokenStream {
     let waiting = function.sig.asyncness.map(|_| quote!(.await));
     *adapter.block = syn::parse_quote!({ #name(#(#arguments),*)#waiting });
     quote! {
+        #[allow(clippy::needless_pass_by_value, reason = "Tauri command adapters deserialize owned arguments.")]
         #function
         #[doc(hidden)]
         #[tauri::command(#renamed #options)]

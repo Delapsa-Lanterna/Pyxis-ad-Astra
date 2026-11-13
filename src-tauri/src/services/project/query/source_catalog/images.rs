@@ -203,7 +203,7 @@ mod image_tests {
             query_image_source_options(&manifest.session_id, &[".".into()], Some("../outside"))
                 .is_err()
         );
-        release_project_session(manifest.session_id.clone()).unwrap();
+        release_project_session(&manifest.session_id).unwrap();
         assert!(query_image_source_options(&manifest.session_id, &directories, None).is_err());
         root.close().unwrap();
     }
@@ -224,7 +224,7 @@ mod image_tests {
             query_image_source_options(&manifest.session_id, &["graphics/icons".into()], None)
                 .is_err()
         );
-        release_project_session(manifest.session_id).unwrap();
+        release_project_session(&manifest.session_id).unwrap();
         root.close().unwrap();
     }
 }

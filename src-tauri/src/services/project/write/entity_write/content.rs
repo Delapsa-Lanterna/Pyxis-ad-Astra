@@ -151,7 +151,7 @@ fn content_id<'a>(target: &'a EntityEditTarget, request: &'a JsonWrite) -> &'a s
         _ => &target.id,
     }
 }
-pub fn write_spec_request(input: SpecSave) -> AppResult<WriteResult<JsonFileContent>> {
+pub fn write_spec_request(input: &SpecSave) -> AppResult<WriteResult<JsonFileContent>> {
     entity_targets::require_entity_version_scope(
         &input.session_id,
         input.target.kind,
@@ -163,8 +163,8 @@ pub fn write_spec_request(input: SpecSave) -> AppResult<WriteResult<JsonFileCont
         &input.session_id,
         &input.target,
         &next,
-        input.document,
-        input.json_write,
+        &input.document,
+        &input.json_write,
     )
 }
 pub(in crate::services::project) struct StagedEntityWrite {
@@ -220,7 +220,7 @@ pub(in crate::services::project) fn stage_validated_entity(
     let mut current =
         entity_targets::describe_entity_target(session, target.kind, &target.id)?.target;
     if current.source.is_none() {
-        current.source = target.source.clone();
+        current.source.clone_from(&target.source);
     }
     if current != *target {
         return Err(AppError::message(
@@ -296,8 +296,8 @@ pub fn save_entity_spec(
     session_id: &str,
     target: &EntityEditTarget,
     next: &str,
-    request: JsonWrite,
-    options: JsonWriteOptions,
+    request: &JsonWrite,
+    options: &JsonWriteOptions,
 ) -> AppResult<WriteResult<JsonFileContent>> {
     let mut builder = FileChangeSetBuilder::new(Path::new(&target.write.root))?;
     let handle = session_handle(session_id)?;
@@ -308,8 +308,8 @@ pub fn save_entity_spec(
         &mut builder,
         target,
         next,
-        &request,
-        &options,
+        request,
+        options,
         Some(&composition),
     )?;
     let mut tables = staged.linked_csv.into_iter().collect::<Vec<_>>();
@@ -334,7 +334,7 @@ pub fn save_entity_spec(
         )?;
         outputs.push((key, table, output));
     }
-    replace_paths::stage_replace_paths(&mut builder, &options)?;
+    replace_paths::stage_replace_paths(&mut builder, options)?;
     let target = WriteContentTarget::Spec {
         target: Box::new(staged.identity.after.clone()),
     };

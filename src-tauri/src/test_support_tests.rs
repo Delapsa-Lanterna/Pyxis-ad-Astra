@@ -19,24 +19,22 @@ use std::os::windows::fs::OpenOptionsExt;
 use std::process::{Command, Stdio};
 use std::time::Instant;
 #[cfg(test)]
-use std::{env, process, thread};
+use std::{array, env, process, thread};
 
 #[test]
 fn concurrent_workspaces_preserve_names_and_contents() {
     let started = Instant::now();
-    let workers = (0..8)
-        .map(|worker| {
-            thread::spawn(move || {
-                (0..32)
-                    .map(|index| {
-                        let root = TestWorkspace::new("same_name");
-                        fs::write(root.join("notes.txt"), format!("{worker}-{index}")).unwrap();
-                        (root, format!("{worker}-{index}"))
-                    })
-                    .collect::<Vec<_>>()
-            })
+    let workers: [_; 8] = array::from_fn(|worker| {
+        thread::spawn(move || {
+            (0..32)
+                .map(|index| {
+                    let root = TestWorkspace::new("same_name");
+                    fs::write(root.join("notes.txt"), format!("{worker}-{index}")).unwrap();
+                    (root, format!("{worker}-{index}"))
+                })
+                .collect::<Vec<_>>()
         })
-        .collect::<Vec<_>>();
+    });
     let workspaces = workers
         .into_iter()
         .flat_map(|worker| worker.join().unwrap())

@@ -620,7 +620,7 @@ fn apply_transaction_changes(
                 Path::new(&change.before_path),
                 Path::new(&change.after_path),
             ) {
-                original.before_path = change.after_path.clone();
+                original.before_path.clone_from(&change.after_path);
                 return Ok(vec![original]);
             }
             Ok(vec![
@@ -722,7 +722,7 @@ fn apply_transaction_changes(
             }
             lease.files.lock().expect("owned source capture").clear();
             lease.paths.clear();
-            return Err(changeset_apply_error(error, restore_errors));
+            return Err(changeset_apply_error(error, &restore_errors));
         }
     }
     lease.files.lock().expect("owned source capture").clear();
@@ -883,7 +883,7 @@ fn build_current_state(path: &Path) -> AppResult<FileChangeRecord> {
     })
 }
 
-fn changeset_apply_error(apply_error: AppError, rollback_errors: Vec<String>) -> AppError {
+fn changeset_apply_error(apply_error: AppError, rollback_errors: &[String]) -> AppError {
     if rollback_errors.is_empty() {
         return apply_error;
     }
@@ -1199,7 +1199,7 @@ mod tests {
         );
         let saved = project_save::execute_save_action(action).unwrap();
         assert_eq!(saved.history.undo_stack.len(), 1);
-        release_project_session(manifest.session_id).unwrap();
+        release_project_session(&manifest.session_id).unwrap();
         root.close().unwrap();
     }
 
@@ -1540,7 +1540,7 @@ mod tests {
     fn changeset_apply_error_includes_apply_and_rollback_errors() {
         let error = changeset_apply_error(
             AppError::message("changeset.apply_failed", "apply failed"),
-            vec![
+            &[
                 "first rollback failed".to_string(),
                 "second rollback failed".to_string(),
             ],

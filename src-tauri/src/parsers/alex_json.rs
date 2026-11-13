@@ -107,7 +107,7 @@ mod tests {
             let error = parse(&source).unwrap_err();
             assert_eq!(error.code, "json.duplicate_key");
             assert_eq!(
-                JsonDocument::layout_shared(Arc::from(source)).unwrap_err(),
+                JsonDocument::layout_shared(&Arc::from(source)).unwrap_err(),
                 error
             );
         }
@@ -314,7 +314,7 @@ mod tests {
             let document = JsonDocument::parse(str::from_utf8(&bytes).unwrap()).unwrap();
             assert!(value.same_content_order(&document.value));
             let layout =
-                JsonDocument::layout_shared(Arc::from(str::from_utf8(&bytes).unwrap())).unwrap();
+                JsonDocument::layout_shared(&Arc::from(str::from_utf8(&bytes).unwrap())).unwrap();
             assert_eq!(layout.root, document.root);
             assert_eq!(
                 serde_json::to_value(&layout.nodes).unwrap(),
@@ -328,14 +328,14 @@ mod tests {
     fn layout_only_retains_compound_keys_and_reports_the_original_error() {
         let source = r#"{[{n:1.0},2]:[3,4],{x:[5,6]}:{y:7},plain:8}"#;
         let document = JsonDocument::parse(source).unwrap();
-        let layout = JsonDocument::layout_shared(Arc::from(source)).unwrap();
+        let layout = JsonDocument::layout_shared(&Arc::from(source)).unwrap();
         assert_eq!(
             serde_json::to_value(layout.nodes).unwrap(),
             serde_json::to_value(document.nodes).unwrap()
         );
         for source in ["{a:1,a:2}", "{a:1e309}", r#"{a:"\q"}"#] {
             assert_eq!(
-                JsonDocument::layout_shared(Arc::from(source)).unwrap_err(),
+                JsonDocument::layout_shared(&Arc::from(source)).unwrap_err(),
                 parse(source).unwrap_err()
             );
         }
@@ -370,8 +370,8 @@ impl JsonDocument {
             root,
         })
     }
-    pub(crate) fn layout_shared(source: Arc<str>) -> Result<JsonOriginalFormat, Error> {
-        let mut parser = Parser::<true, false>::new(&source, Some(source.clone()));
+    pub(crate) fn layout_shared(source: &Arc<str>) -> Result<JsonOriginalFormat, Error> {
+        let mut parser = Parser::<true, false>::new(source, Some(source.clone()));
         let (_, root) = parser.object()?;
         Ok(JsonOriginalFormat {
             root,
@@ -386,8 +386,8 @@ pub fn parse(text: &str) -> Result<Value, Error> {
         .object()
         .map(|v| v.0)
 }
-pub fn parse_shared(source: Arc<str>) -> Result<Value, Error> {
-    Parser::<false>::new(&source, Some(source.clone()))
+pub fn parse_shared(source: &Arc<str>) -> Result<Value, Error> {
+    Parser::<false>::new(source, Some(source.clone()))
         .object()
         .map(|value| value.0)
 }

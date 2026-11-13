@@ -95,7 +95,7 @@ pub fn query_misc_config_file(
         base_versions: vec![version],
     }))
 }
-pub fn query_project_misc_config(input: MiscConfigRead) -> AppResult<Option<MiscConfigFile>> {
+pub fn query_project_misc_config(input: &MiscConfigRead) -> AppResult<Option<MiscConfigFile>> {
     let mut file = query_misc_config_file(&input.mod_root, input.kind)?;
     if let Some(file) = &mut file {
         file.composition = query_json_composition(&input.session_id, &file.rel_path)?;
@@ -116,11 +116,11 @@ pub fn prepare_misc_save(input: &mut MiscConfigWrite, edits: &[SaveEdit]) -> App
     input.base_versions = vec![version];
     Ok(())
 }
-pub fn write_misc_request(input: MiscConfigWrite) -> AppResult<WriteResult<Value>> {
+pub fn write_misc_request(input: &MiscConfigWrite) -> AppResult<WriteResult<Value>> {
     save_misc_config(input, None)
 }
 pub fn save_misc_config(
-    input: MiscConfigWrite,
+    input: &MiscConfigWrite,
     _core: Option<&Path>,
 ) -> AppResult<WriteResult<Value>> {
     let path = target(&input.mod_root, input.kind)?;

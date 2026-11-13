@@ -14,5 +14,5 @@ pub fn performance_monitor_report(
     action: PerformanceMonitorAction,
     trace_seconds: Option<u8>,
 ) -> Result<PerformanceMonitorStatus, AppError> {
-    performance_monitor::report(app, window, action, trace_seconds)
+    performance_monitor::report(app, &window, action, trace_seconds)
 }

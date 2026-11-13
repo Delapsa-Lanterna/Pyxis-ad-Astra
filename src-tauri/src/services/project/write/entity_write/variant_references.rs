@@ -64,7 +64,7 @@ pub(in crate::services::project) fn stage_variant_parents(
     for (relative, source, paths) in parents {
         let mut draft = JsonDraft::open(source);
         for path in paths {
-            draft.edit(DraftEdit::Replace {
+            draft.edit(&DraftEdit::Replace {
                 path,
                 value: rule.prepare(next)?,
             })?;

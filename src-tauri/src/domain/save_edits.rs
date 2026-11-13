@@ -12,7 +12,7 @@ pub fn prepare_json_write(
 ) -> AppResult<JsonWrite> {
     let mut draft = JsonDraft::open(source);
     for edit in edits {
-        draft.edit(edit.clone())?;
+        draft.edit(edit)?;
     }
     Ok(draft.request(layout))
 }

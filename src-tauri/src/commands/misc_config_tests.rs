@@ -59,7 +59,7 @@ fn reject_linked_source() {
         "path.link_rejected"
     );
     let result = misc_config::save_misc_config(
-        MiscConfigWrite {
+        &MiscConfigWrite {
             kind: MiscConfigKind::Strings,
             session_id: "boundary-fixture".into(),
             mod_root,
@@ -99,14 +99,14 @@ impl Fixture {
     }
     fn save(
         &self,
-        data: Value,
+        data: &Value,
         base_versions: Vec<FileVersion>,
     ) -> Result<WriteResult<Value>, AppError> {
         project_save::execute_save_action(SaveAction::SaveMiscConfig(MiscConfigWrite {
             session_id: self.scope.session_id.clone(),
             mod_root: self.scope.mod_root.clone(),
             kind: MiscConfigKind::Strings,
-            document: file_formats::json_write(&data),
+            document: file_formats::json_write(data),
             base_versions,
             json_write: JsonWriteOptions {
                 replace_paths: Vec::new(),
@@ -126,17 +126,17 @@ fn create_edit_delete_history() {
     assert!(f.read().unwrap().is_none());
     let missing = file_version(&f.path()).unwrap();
     assert_eq!(
-        f.save(json!({}), vec![]).unwrap_err().code(),
+        f.save(&json!({}), vec![]).unwrap_err().code(),
         "write.version_scope_missing"
     );
-    let created = f.save(json!({}), vec![missing.clone()]).unwrap();
+    let created = f.save(&json!({}), vec![missing.clone()]).unwrap();
     assert!(f.path().is_file());
     assert_eq!(
-        f.save(json!({}), vec![missing]).unwrap_err().code(),
+        f.save(&json!({}), vec![missing]).unwrap_err().code(),
         "write.version_conflict"
     );
     let content = json!({"组.一":{"_句":"001","中文":"  hello\n$token \"quoted\"  "},"other":{}});
-    let saved = f.save(content.clone(), created.base_versions).unwrap();
+    let saved = f.save(&content, created.base_versions).unwrap();
     assert_eq!(f.read().unwrap().unwrap().data, content);
     assert_eq!(
         query_misc_config_files(f.scope.clone()).unwrap()[0].state,
@@ -193,7 +193,7 @@ fn comments_shape_scope() {
     let read = f.read().unwrap().unwrap();
     let saved = f
         .save(
-            json!({"dialogue":{"a":"123","b":"keep"}}),
+            &json!({"dialogue":{"a":"123","b":"keep"}}),
             read.base_versions,
         )
         .unwrap();
@@ -206,7 +206,7 @@ fn comments_shape_scope() {
         json!({"dialogue":{"a":123}}),
     ] {
         assert_eq!(
-            f.save(value, saved.base_versions.clone())
+            f.save(&value, saved.base_versions.clone())
                 .unwrap_err()
                 .code(),
             "misc_config.shape_invalid"
@@ -487,7 +487,7 @@ fn engine_source_preservation() {
     project_save::execute_save_action(SaveAction::SaveMiscConfig(MiscConfigWrite {
         kind: MiscConfigKind::EngineStyles,
         session_id: f.scope.session_id.clone(),
-        mod_root: f.scope.mod_root.clone(),
+        mod_root: f.scope.mod_root,
         base_versions: read.base_versions,
         document: file_formats::json_write(&(content)),
         json_write: JsonWriteOptions {
@@ -516,7 +516,7 @@ fn merged_config_save_validation() {
     )
     .unwrap();
     fs::write(config.join("sounds.json"), json!({"sample":{"sounds":[{"file":"sounds/sample.ogg"}],"FRIGATE":{"pitch":1,"volume":1,"sounds":[0]}}}).to_string()).unwrap();
-    release_project_session(f.scope.session_id.clone()).unwrap();
+    release_project_session(&f.scope.session_id).unwrap();
     let manifest = project::open_project_session_traced(
         &f.root,
         Some(&game),

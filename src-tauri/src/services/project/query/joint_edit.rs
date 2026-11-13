@@ -137,7 +137,7 @@ pub fn query_variant_catalog(
         variant_catalog(&mut session, kind, damage_icons)?
     };
     let mut root = root.clone();
-    root.mod_root = session.manifest.mod_root.clone();
+    root.mod_root.clone_from(&session.manifest.mod_root);
     Ok(JointVariantCatalogRead {
         root,
         reference_settings,
@@ -165,7 +165,7 @@ pub(in crate::services::project) fn query_joint_edit_values(
     let handle = session_handle(&root.session_id)?;
     let mut session = lock_ready_session(&handle)?;
     let mut root = root.clone();
-    root.mod_root = session.manifest.mod_root.clone();
+    root.mod_root.clone_from(&session.manifest.mod_root);
     #[cfg(test)]
     JOINT_GRAPH_BUILDS.with(|count| count.set(count.get() + 1));
     let (reference_settings, damage_icons) = reference_settings(&session)?;
@@ -606,7 +606,7 @@ fn variant_catalog(
                         id,
                         data,
                         resource_refs,
-                        source: Some(source.location.clone()),
+                        source: Some(source.location),
                         source_version: Some(version),
                     })
                 })
@@ -968,7 +968,7 @@ fn reference_settings(
     for (root, source, reference) in roots {
         let resource = |path: &str, owner, id: &str, key: &str| {
             let mut resource = resources::resource_ref(source, path, owner, id, key);
-            resource.reference = reference.clone();
+            resource.reference.clone_from(&reference);
             resource
         };
         let boundary = FsRootBoundary::new(&root, "joint reference settings")?;

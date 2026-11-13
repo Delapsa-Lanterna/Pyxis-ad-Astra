@@ -26,6 +26,7 @@ use serde_json::json;
 #[cfg(test)]
 use std::fs;
 use std::slice;
+use std::slice::from_ref;
 
 fn cases() -> Vec<AssociatedSpecCreateParams> {
     vec![
@@ -231,7 +232,7 @@ fn weapon_source_directory_survives_rename_delete_and_default_creation() {
         file_formats::read_json_value(&root.join("data/weapons/fresh.wpn")).unwrap()["id"],
         "fresh"
     );
-    release_project_session(manifest.session_id).unwrap();
+    release_project_session(&manifest.session_id).unwrap();
     root.close().unwrap();
 }
 
@@ -356,7 +357,7 @@ fn all_formats_read_and_replace_existing_targets_with_one_reversible_save() {
                     )
                     .unwrap();
                     assert!(!rename || !old.exists());
-                    release_project_session(manifest.session_id).unwrap();
+                    release_project_session(&manifest.session_id).unwrap();
                     root.close().unwrap();
                 }
             }
@@ -400,7 +401,7 @@ fn preparation_shares_actual_reads_and_keeps_invalid_files_as_choices() {
         file_formats::read_json_value(&path).unwrap()["hullId"],
         "next"
     );
-    release_project_session(manifest.session_id).unwrap();
+    release_project_session(&manifest.session_id).unwrap();
     root.close().unwrap();
 }
 
@@ -432,7 +433,7 @@ fn confirmed_versions_reject_replaced_and_deleted_files_before_any_csv_write() {
                 .undo_stack
                 .is_empty()
         );
-        release_project_session(manifest.session_id).unwrap();
+        release_project_session(&manifest.session_id).unwrap();
         root.close().unwrap();
     }
 }
@@ -470,7 +471,7 @@ fn inherited_originals_supply_all_formats_without_changing_their_sources() {
                 project::open_project_session_traced(&local, Some(&game), &mut trace).unwrap();
             let external_session = if reference {
                 let manifest = open(&external);
-                project::set_reference_sources(vec![manifest.session_id.clone()]).unwrap();
+                project::set_reference_sources(from_ref(&manifest.session_id)).unwrap();
                 Some(manifest.session_id)
             } else {
                 None
@@ -505,11 +506,11 @@ fn inherited_originals_supply_all_formats_without_changing_their_sources() {
                     .unwrap()["custom"],
                 data["custom"]
             );
-            project::set_reference_sources(Vec::new()).unwrap();
+            project::set_reference_sources(&Vec::new()).unwrap();
             if let Some(session) = external_session {
-                release_project_session(session).unwrap();
+                release_project_session(&session).unwrap();
             }
-            release_project_session(manifest.session_id).unwrap();
+            release_project_session(&manifest.session_id).unwrap();
             root.close().unwrap();
         }
     }
@@ -551,7 +552,7 @@ fn reading_targets_retains_descriptions_and_overwriting_uses_existing_collision_
             assert!(root.join("data/hulls/old.ship").exists());
         }
         assert_eq!(read_utf8_no_bom(&description).unwrap(), text);
-        release_project_session(manifest.session_id).unwrap();
+        release_project_session(&manifest.session_id).unwrap();
         root.close().unwrap();
     }
 }
@@ -610,7 +611,7 @@ fn invalid_originals_allow_target_reuse_template_replacement_and_csv_only() {
                 "{hullId:'next',custom:true}"
             );
         }
-        release_project_session(manifest.session_id).unwrap();
+        release_project_session(&manifest.session_id).unwrap();
         root.close().unwrap();
     }
 }

@@ -460,7 +460,7 @@ mod tests {
             .is_empty()
         );
         drop(session);
-        release_project_session(manifest.session_id).unwrap();
+        release_project_session(&manifest.session_id).unwrap();
         root.close().unwrap();
     }
 }

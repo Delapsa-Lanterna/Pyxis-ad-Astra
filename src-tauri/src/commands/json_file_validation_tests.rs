@@ -64,6 +64,6 @@ fn skin_engine_index_save() {
         .unwrap()
         .unwrap();
     assert_eq!(saved.data["engineSlotChanges"]["0"]["width"], 2.5);
-    release_project_session(manifest.session_id).unwrap();
+    release_project_session(&manifest.session_id).unwrap();
     root.close().unwrap();
 }

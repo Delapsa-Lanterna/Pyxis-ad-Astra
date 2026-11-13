@@ -321,7 +321,7 @@ mod tests {
         let loaded = text_file_editing::load_project_text_file(
             Some(&target.session_id),
             &target.mod_root,
-            target.path.clone(),
+            &target.path,
         )
         .unwrap();
         assert_eq!(loaded.text, "中文");
@@ -332,7 +332,7 @@ mod tests {
         );
         assert!(query_file_text_target(&manifest.session_id, "../external.txt").is_err());
         assert!(query_file_directory(&manifest.session_id, Some("../external")).is_err());
-        release_project_session(manifest.session_id.clone()).unwrap();
+        release_project_session(&manifest.session_id).unwrap();
         assert_eq!(
             query_file_directory(&manifest.session_id, None)
                 .unwrap_err()

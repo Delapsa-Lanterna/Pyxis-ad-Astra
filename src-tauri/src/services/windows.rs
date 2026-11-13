@@ -28,7 +28,7 @@ use webview2_com::Microsoft::Web::WebView2::Win32::{
 use windows_core::Interface;
 
 #[cfg(windows)]
-pub fn set_window_memory_target(window: WebviewWindow, active: bool) {
+pub fn set_window_memory_target(window: &WebviewWindow, active: bool) {
     let label = window.label().to_string();
     let code = "window.memory_target_failed";
     if let Err(error) = window.with_webview(move |platform| {
@@ -756,7 +756,7 @@ pub(crate) fn register_window_request(
     match built {
         Ok(_window) => {
             #[cfg(windows)]
-            set_window_memory_target(_window, false);
+            set_window_memory_target(&_window, false);
             if let Some(instance) = state.instances.get_mut(&opened.label) {
                 instance.creating = false;
             } else {
@@ -882,7 +882,7 @@ pub fn fail_window_request(
     REGISTRY.1.notify_all();
     Ok(())
 }
-pub fn fail_window_startup(label: &str, diagnostic: ErrorDiagnostic) -> AppResult<()> {
+pub fn fail_window_startup(label: &str, diagnostic: &ErrorDiagnostic) -> AppResult<()> {
     let mut state = registry()?;
     let pending: Vec<_> = state
         .requests
@@ -1139,11 +1139,11 @@ pub fn focus_edit_target_owner(app: &AppHandle, label: &str) -> AppResult<bool> 
 pub fn reserve_targets(
     app: &AppHandle,
     label: &str,
-    identities: Vec<WindowIdentity>,
+    identities: &[WindowIdentity],
 ) -> AppResult<Vec<String>> {
     let displaced = {
         let mut state = registry()?;
-        if let Err(conflict) = state.reserve(label, &identities) {
+        if let Err(conflict) = state.reserve(label, identities) {
             drop(state);
             focus_window(app, &conflict)?;
             return Err(AppError::message(
@@ -1437,7 +1437,7 @@ mod tests {
             assert_eq!(mod_name, "Named Mod");
             release_window(&label).unwrap();
         }
-        release_project_session(manifest.session_id).unwrap();
+        release_project_session(&manifest.session_id).unwrap();
         root.close().unwrap();
     }
 
@@ -1900,7 +1900,7 @@ mod tests {
         let input = ManagedWindowInput::ImmersiveEditor {
             row_key: Some("old-row".into()),
         };
-        let label = state.register(identity.clone(), "战机联队".into(), input.clone());
+        let label = state.register(identity, "战机联队".into(), input.clone());
         let accepted = state.receive(&label, "main", input.clone());
         state.claim(&label).unwrap();
         state.accept(&label, accepted, 0).unwrap();

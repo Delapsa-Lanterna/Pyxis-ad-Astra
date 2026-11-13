@@ -58,9 +58,9 @@ pub(crate) fn json_write(value: &Value) -> JsonWrite {
     }
 }
 pub(crate) fn json_write_from_source(source: &JsonSource, value: &Value) -> JsonWrite {
-    fn formats(value: &FileValue, old: Option<&FileValue>, path: Vec<Text>) -> JsonTarget {
+    fn formats(value: &FileValue, old: Option<&FileValue>, path: &[Text]) -> JsonTarget {
         let mut target = if old.is_some() {
-            JsonTarget::source(path.clone())
+            JsonTarget::source(path.to_vec())
         } else {
             JsonTarget::generated(Default::default())
         };
@@ -69,7 +69,7 @@ pub(crate) fn json_write_from_source(source: &JsonSource, value: &Value) -> Json
                 fields
                     .iter()
                     .map(|(key, value)| {
-                        let mut next = path.clone();
+                        let mut next = path.to_vec();
                         next.push(key.clone());
                         let previous = old.and_then(|old| {
                             if let FileValue::Object(fields) = old {
@@ -81,7 +81,7 @@ pub(crate) fn json_write_from_source(source: &JsonSource, value: &Value) -> Json
                                 None
                             }
                         });
-                        (key.clone(), formats(value, previous, next))
+                        (key.clone(), formats(value, previous, &next))
                     })
                     .collect(),
             )),
@@ -90,7 +90,7 @@ pub(crate) fn json_write_from_source(source: &JsonSource, value: &Value) -> Json
                     .iter()
                     .enumerate()
                     .map(|(index, value)| {
-                        let mut next = path.clone();
+                        let mut next = path.to_vec();
                         next.push(Text::new(index.to_string()));
                         let previous = old.and_then(|old| {
                             if let FileValue::Array(items) = old {
@@ -99,7 +99,7 @@ pub(crate) fn json_write_from_source(source: &JsonSource, value: &Value) -> Json
                                 None
                             }
                         });
-                        formats(value, previous, next)
+                        formats(value, previous, &next)
                     })
                     .collect(),
             )),
@@ -108,7 +108,7 @@ pub(crate) fn json_write_from_source(source: &JsonSource, value: &Value) -> Json
         target
     }
     let mut request = json_write(value);
-    request.target = formats(&request.content, Some(&source.content), Vec::new());
+    request.target = formats(&request.content, Some(&source.content), &Vec::new());
     request
 }
 pub(crate) fn joint_submission(mut request: JointEditSubmission) -> JointEditSubmission {
@@ -229,18 +229,18 @@ pub(crate) fn save_csv_patch(
     patches: Vec<CsvRowPatch>,
     changes: Vec<AssociatedSpecChange>,
 ) -> AppResult<WriteResult> {
-    save_csv_patch_with_json_options(session, table, patches, changes, Default::default())
+    save_csv_patch_with_json_options(session, table, patches, changes, &Default::default())
 }
 pub(crate) fn save_csv_patch_with_json_options(
     session: &str,
     table: CsvTableKey,
     patches: Vec<CsvRowPatch>,
     changes: Vec<AssociatedSpecChange>,
-    options: JsonWriteOptions,
+    options: &JsonWriteOptions,
 ) -> AppResult<WriteResult> {
     let associated = changes
         .into_iter()
         .map(|change| prepared_spec_write(session, table, change))
         .collect::<AppResult<Vec<_>>>()?;
-    save_csv_patch_snapshot(session, table, patches, associated, options, None)
+    save_csv_patch_snapshot(session, table, patches, &associated, options, None)
 }

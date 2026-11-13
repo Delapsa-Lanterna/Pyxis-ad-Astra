@@ -17,7 +17,7 @@ pub fn prepare_text_save(
 ) -> AppResult<()> {
     for identity in identities {
         if windows_path_key(&input.path) == windows_path_key(&identity.before.write.path) {
-            input.path = identity.after.write.path.clone();
+            input.path.clone_from(&identity.after.write.path);
         }
     }
     if io::source_recreation_allowed(&input.mod_root, &input.path)
@@ -25,15 +25,12 @@ pub fn prepare_text_save(
     {
         return Ok(());
     }
-    input.base_versions = load_project_text_file(
-        input.session_id.as_deref(),
-        &input.mod_root,
-        input.path.clone(),
-    )?
-    .base_versions;
+    input.base_versions =
+        load_project_text_file(input.session_id.as_deref(), &input.mod_root, &input.path)?
+            .base_versions;
     Ok(())
 }
-pub fn load_text_file(root: &str, path: String) -> AppResult<TextFileData> {
+pub fn load_text_file(root: &str, path: &str) -> AppResult<TextFileData> {
     let _lease = io::acquire_root_write_lock(Path::new(root))?;
     let path = FsRootBoundary::new(Path::new(root), "text root")?
         .resolve_absolute(Path::new(&path), "text source")?;
@@ -53,7 +50,7 @@ pub fn load_text_file(root: &str, path: String) -> AppResult<TextFileData> {
 pub fn load_project_text_file(
     session: Option<&str>,
     root: &str,
-    path: String,
+    path: &str,
 ) -> AppResult<TextFileData> {
     if let Some(session) = session {
         project::ensure_project_session_mod_root(session, root)?;
@@ -140,12 +137,12 @@ mod tests {
         let file = root.join("sample.txt");
         fs::write(&file, "中文\r\nplain\rfinal\n").unwrap();
         let loaded =
-            load_text_file(&root.to_string_lossy(), file.to_string_lossy().into()).unwrap();
+            load_text_file(&root.to_string_lossy(), file.to_string_lossy().as_ref()).unwrap();
         assert_eq!(loaded.text, "中文\r\nplain\rfinal\n");
         assert_eq!(loaded.base_versions.len(), 1);
         fs::write(&file, b"PK\x03\x04archive").unwrap();
         let error =
-            load_text_file(&root.to_string_lossy(), file.to_string_lossy().into()).unwrap_err();
+            load_text_file(&root.to_string_lossy(), file.to_string_lossy().as_ref()).unwrap_err();
         assert_eq!(error.code(), "text.binary");
         assert_eq!(
             error.location().unwrap().path.as_deref(),
@@ -196,7 +193,7 @@ mod tests {
         assert!(!first.exists());
         assert_eq!(fs::read_to_string(&moved).unwrap(), "class Beacon {}");
         assert_eq!(fs::read_to_string(&second).unwrap(), "class B {Beacon a;}");
-        project_sync::release_project_session(manifest.session_id).unwrap();
+        project_sync::release_project_session(&manifest.session_id).unwrap();
         root.close().unwrap();
     }
 
@@ -208,7 +205,7 @@ mod tests {
 
         let loaded = text_file_editing::load_text_file(
             &root.to_string_lossy(),
-            target.to_string_lossy().to_string(),
+            target.to_string_lossy().as_ref(),
         )
         .unwrap();
 
@@ -275,7 +272,7 @@ mod tests {
 
         let result = text_file_editing::load_text_file(
             &root.to_string_lossy(),
-            outside_file.to_string_lossy().to_string(),
+            outside_file.to_string_lossy().as_ref(),
         );
 
         assert!(result.is_err());
@@ -290,7 +287,7 @@ mod tests {
 
         let result = text_file_editing::load_text_file(
             &root.to_string_lossy(),
-            escaped.to_string_lossy().to_string(),
+            escaped.to_string_lossy().as_ref(),
         );
 
         assert!(result.is_err());
@@ -320,7 +317,7 @@ mod tests {
 
         let result = text_file_editing::load_text_file(
             &root.to_string_lossy(),
-            linked.join("outside.txt").to_string_lossy().to_string(),
+            linked.join("outside.txt").to_string_lossy().as_ref(),
         );
 
         assert!(result.is_err());

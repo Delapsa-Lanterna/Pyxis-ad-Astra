@@ -156,7 +156,6 @@ impl ProjectSaves {
         }
     }
     fn block(&mut self, task: &SaveTask, diagnostic: ErrorDiagnostic) {
-        self.progress(task).blocked = Some(diagnostic.clone());
         for window in self
             .windows
             .values()
@@ -175,6 +174,7 @@ impl ProjectSaves {
                 );
             }
         }
+        self.progress(task).blocked = Some(diagnostic);
         SAVES.1.notify_all();
     }
 }
@@ -283,7 +283,7 @@ pub fn enqueue(
 }
 /// The project queue owns execution; subscribers receive results without holding the queue.
 pub fn execute_queued<T: Serialize>(
-    task: Arc<SaveTask>,
+    task: &Arc<SaveTask>,
     event_root: &str,
     session_id: Option<&str>,
     reason: &str,
@@ -301,11 +301,11 @@ pub fn execute_queued<T: Serialize>(
         {
             saves = wait_changed(saves)?;
         }
-        if saves.progress(&task).abandoned {
+        if saves.progress(task).abandoned {
             saves.finish(&task.root);
             return Err(AppError::message("write.abandoned", "所属项目保存已结束"));
         }
-        let progress = saves.progress(&task);
+        let progress = saves.progress(task);
         (progress.identities.clone(), progress.versions.clone())
     };
     let started = Instant::now();
@@ -316,7 +316,7 @@ pub fn execute_queued<T: Serialize>(
         || loop {
             match action(&identities, &versions) {
                 Err(AppError::SaveSourcesMissing { paths }) => {
-                    confirm_sources(&task, paths.clone())?;
+                    confirm_sources(task, paths.clone())?;
                     io::accept_source_recreation(&task.root, paths)?;
                 }
                 result => break result,
@@ -398,7 +398,6 @@ pub fn publish_references(
     if snapshot.revision < saves.references.revision {
         return Ok(());
     }
-    saves.references = snapshot.clone();
     for window in saves.windows.values() {
         if let Err(error) = window.channel.send(ProjectSyncDelivery::References {
             snapshot: snapshot.clone(),
@@ -411,6 +410,7 @@ pub fn publish_references(
             );
         }
     }
+    saves.references = snapshot;
     drop(saves);
     java_analysis::refresh_registered_references()?;
     Ok(())
@@ -440,7 +440,7 @@ pub fn prepare_versions(
     for identity in identities {
         for version in captured.iter_mut() {
             if windows_path_key(&version.path) == windows_path_key(&identity.before.write.path) {
-                version.path = identity.after.write.path.clone();
+                version.path.clone_from(&identity.after.write.path);
             }
         }
     }
@@ -474,7 +474,7 @@ pub fn prepare_versions(
 fn confirm_sources(task: &SaveTask, paths: Vec<String>) -> AppResult<()> {
     let mut saves = saves()?;
     saves.progress(task).confirmation = Some(SourceConfirmation {
-        paths: paths.clone(),
+        paths,
         accepted: None,
         responder: None,
     });
@@ -603,7 +603,7 @@ fn execute<T: Serialize>(
     action: impl FnMut(&[EntityIdentityChange], &[FileVersion]) -> AppResult<WriteResult<T>>,
 ) -> AppResult<WriteResult<T>> {
     execute_queued(
-        enqueue(label, request_id, root, session_id)?,
+        &enqueue(label, request_id, root, session_id)?,
         root,
         session_id,
         reason,
@@ -611,17 +611,17 @@ fn execute<T: Serialize>(
     )
 }
 
-pub fn release_project_session(session_id: String) -> AppResult<()> {
-    java_analysis::close_registered_session(&session_id)?;
+pub fn release_project_session(session_id: &str) -> AppResult<()> {
+    java_analysis::close_registered_session(session_id)?;
     release_source_watch(&format!("core:{session_id}"))?;
-    release_source_watch(&session_id)?;
+    release_source_watch(session_id)?;
     let revision = project::reference_revision();
-    if let Some(root) = project::unregister_project_session(&session_id)? {
+    if let Some(root) = project::unregister_project_session(session_id)? {
         publish_source_status(&root, SourceSyncState::Released, None)?;
         file_history::release_root_history(&root)?;
     }
-    clear_session_media(&session_id);
-    project::reference_sources_changed(Some(&session_id))?;
+    clear_session_media(session_id);
+    project::reference_sources_changed(Some(session_id))?;
     if revision != project::reference_revision() {
         let delivery = project::reference_sources()
             .and_then(|snapshot| publish_references(snapshot, project::reference_updates()?));
@@ -633,7 +633,7 @@ pub fn release_project_session(session_id: String) -> AppResult<()> {
             );
         }
     }
-    windows::release_session(&session_id)
+    windows::release_session(session_id)
 }
 
 #[cfg(test)]
@@ -704,7 +704,7 @@ mod tests {
         publish_source_status(&manifest.mod_root, SourceSyncState::Released, None).unwrap();
         release_window("source-status-first").unwrap();
         release_window("source-status-second").unwrap();
-        release_project_session(manifest.session_id.clone()).unwrap();
+        release_project_session(&manifest.session_id).unwrap();
         root.close().unwrap();
         drop(serial);
     }
@@ -752,7 +752,7 @@ mod tests {
         });
         let queued = saves().unwrap().roots[&blocker.root].len();
         execute_queued(
-            blocker,
+            &blocker,
             &manifest.mod_root,
             Some(&manifest.session_id),
             "save",
@@ -760,7 +760,7 @@ mod tests {
         )
         .unwrap();
         source_changes::wait_source_batches(&manifest.mod_root).unwrap();
-        release_project_session(manifest.session_id).unwrap();
+        release_project_session(&manifest.session_id).unwrap();
         root.close().unwrap();
         drop(serial);
         assert_eq!(
@@ -845,7 +845,7 @@ mod tests {
             })
             .unwrap()["source"]
             .clone();
-        release_project_session(manifest.session_id).unwrap();
+        release_project_session(&manifest.session_id).unwrap();
         release_window("review-source-role").unwrap();
         work.close().unwrap();
         drop(serial);
@@ -907,8 +907,8 @@ mod tests {
                 .data["name"]
                 .clone()
         });
-        release_project_session(first.session_id).unwrap();
-        release_project_session(second.session_id).unwrap();
+        release_project_session(&first.session_id).unwrap();
+        release_project_session(&second.session_id).unwrap();
         root.close().unwrap();
         drop(serial);
         assert_eq!(
@@ -931,7 +931,7 @@ mod tests {
             .get_mut("review-core-status")
             .unwrap()
             .core_root = Some(root.to_string_lossy().into_owned());
-        consume_source_batch(SourceChangeBatch {
+        consume_source_batch(&SourceChangeBatch {
             root: root.join("starsector-core").to_string_lossy().into_owned(),
             paths: [path].into(),
             diagnostic: Some(
@@ -1059,7 +1059,7 @@ mod tests {
             3
         );
         for manifest in manifests {
-            release_project_session(manifest.session_id).unwrap();
+            release_project_session(&manifest.session_id).unwrap();
         }
         release_window("core-watch-first").unwrap();
         work.close().unwrap();
@@ -1146,7 +1146,7 @@ mod tests {
         }
         configure_source_watch(false).unwrap();
         for manifest in manifests {
-            release_project_session(manifest.session_id).unwrap();
+            release_project_session(&manifest.session_id).unwrap();
         }
         release_window(&owner).unwrap();
         work.close().unwrap();
@@ -1183,7 +1183,7 @@ mod tests {
         source_changes::wait_source_batches(&manifest.mod_root).unwrap();
         wait_projects(slice::from_ref(&manifest.mod_root)).unwrap();
         assert_project_idle(&manifest.mod_root);
-        release_project_session(manifest.session_id).unwrap();
+        release_project_session(&manifest.session_id).unwrap();
         release_window(&owner).unwrap();
         work.close().unwrap();
     }
@@ -1363,7 +1363,7 @@ mod tests {
             "After"
         );
 
-        release_project_session(manifest.session_id).unwrap();
+        release_project_session(&manifest.session_id).unwrap();
         release_window(&owner).unwrap();
         configure_source_watch(false).unwrap();
         root.close().unwrap();
@@ -1388,7 +1388,7 @@ mod tests {
         let owner = format!("watch:{}", windows_path_key(&root.to_string_lossy()));
         let receive = window(&owner);
         fs::write(&path, "{").unwrap();
-        consume_source_batch(SourceChangeBatch {
+        consume_source_batch(&SourceChangeBatch {
             root: manifest.mod_root.clone(),
             paths: [path.clone()].into(),
             ..Default::default()
@@ -1424,7 +1424,7 @@ mod tests {
                 .unwrap()["name"],
             "Recovered"
         );
-        release_project_session(manifest.session_id).unwrap();
+        release_project_session(&manifest.session_id).unwrap();
         release_window(&owner).unwrap();
         root.close().unwrap();
     }
@@ -1494,7 +1494,7 @@ mod tests {
                 0
             );
         }
-        consume_source_batch(SourceChangeBatch {
+        consume_source_batch(&SourceChangeBatch {
             root: first.mod_root.clone(),
             paths: [path].into(),
             ..Default::default()
@@ -1505,8 +1505,8 @@ mod tests {
                 .all(|delivery| delivery["kind"] != "saved"
                     || delivery["event"]["modRoot"] != first.mod_root)
         );
-        release_project_session(first.session_id).unwrap();
-        release_project_session(second.session_id).unwrap();
+        release_project_session(&first.session_id).unwrap();
+        release_project_session(&second.session_id).unwrap();
         release_window(&owner).unwrap();
         root.close().unwrap();
     }
@@ -1551,7 +1551,7 @@ mod tests {
             if remove_root {
                 fs::remove_dir_all(root.as_ref()).unwrap();
             }
-            release_project_session(manifest.session_id.clone()).unwrap();
+            release_project_session(&manifest.session_id).unwrap();
             assert_eq!(
                 file_history::snapshot_for_root(&manifest.mod_root)
                     .unwrap()
@@ -1559,7 +1559,7 @@ mod tests {
                     .len(),
                 1
             );
-            release_project_session(sibling.session_id).unwrap();
+            release_project_session(&sibling.session_id).unwrap();
             assert!(
                 !project::registered_session_ids()
                     .unwrap()
@@ -1653,7 +1653,7 @@ mod tests {
         let queued = enqueue("replaced-root", "replaced-root".into(), &text, None).unwrap();
         fs::remove_dir(&project).unwrap();
         fs::rename(link, &project).unwrap();
-        let error = execute_queued::<()>(queued, &text, None, "save", |_, _| {
+        let error = execute_queued::<()>(&queued, &text, None, "save", |_, _| {
             panic!("replacement root is rejected before writing")
         })
         .unwrap_err();
@@ -1680,7 +1680,7 @@ mod tests {
             }
             let calls = Cell::new(0);
             assert!(
-                execute_queued(first, &text, None, "save", |_, _| {
+                execute_queued(&first, &text, None, "save", |_, _| {
                     calls.set(calls.get() + 1);
                     Ok(WriteResult::<()>::from_changes(Vec::new()))
                 })
@@ -1688,7 +1688,7 @@ mod tests {
             );
             assert_eq!(calls.get(), 0);
             fs::create_dir(&root).unwrap();
-            execute_queued(second, &text, None, "save", |_, _| {
+            execute_queued(&second, &text, None, "save", |_, _| {
                 Ok(WriteResult::<()>::from_changes(Vec::new()))
             })
             .unwrap();
@@ -1708,13 +1708,13 @@ mod tests {
         let (send, receive) = mpsc::channel();
         let next_root = text.clone();
         let worker = thread::spawn(move || {
-            execute_queued(second, &next_root, None, "save", |_, _| {
+            execute_queued(&second, &next_root, None, "save", |_, _| {
                 send.send(()).unwrap();
                 Ok(WriteResult::<()>::from_changes(Vec::new()))
             })
             .unwrap()
         });
-        execute_queued(first, &text, None, "save", |_, _| {
+        execute_queued(&first, &text, None, "save", |_, _| {
             assert!(receive.try_recv().is_err());
             Ok(WriteResult::<()>::from_changes(Vec::new()))
         })
@@ -1736,7 +1736,7 @@ mod tests {
         let following = enqueue("recovery-owner", "following".into(), &text, None).unwrap();
         let next_root = text.clone();
         let worker = thread::spawn(move || {
-            execute_queued(queued, &next_root, None, "save", |_, _| {
+            execute_queued(&queued, &next_root, None, "save", |_, _| {
                 io::retry_write(&next_root, || {
                     fs::read_to_string(Path::new(&next_root).join("available.txt"))?;
                     Ok(())
@@ -1754,7 +1754,7 @@ mod tests {
         fs::write(root.join("available.txt"), "ready").unwrap();
         retry("recover").unwrap();
         worker.join().unwrap();
-        execute_queued(following, &text, None, "save", |_, _| {
+        execute_queued(&following, &text, None, "save", |_, _| {
             Ok(WriteResult::<()>::from_changes(Vec::new()))
         })
         .unwrap();
@@ -1829,7 +1829,7 @@ mod tests {
         let root = project_workspace("save_confirmation_handoff");
         let text = root.to_string_lossy().to_string();
         let source = window("confirmation-source");
-        let next_root = text.clone();
+        let next_root = text;
         let worker = thread::spawn(move || {
             execute(
                 "confirmation-source",
@@ -1889,7 +1889,7 @@ mod tests {
         let following = enqueue("abandon-owner", "following".into(), &text, None).unwrap();
         let next_root = text.clone();
         let worker = thread::spawn(move || {
-            execute_queued(first, &next_root, None, "save", |_, _| {
+            execute_queued(&first, &next_root, None, "save", |_, _| {
                 io::retry_write(&next_root, || {
                     Err::<(), _>(AppError::message("io.unexpected", "restore unavailable"))
                 })?;
@@ -1902,7 +1902,7 @@ mod tests {
         abandon(slice::from_ref(&text)).unwrap();
         assert_eq!(worker.join().unwrap(), "write.recovery_abandoned");
         assert_eq!(
-            execute_queued(following, &text, None, "save", |_, _| Ok(
+            execute_queued(&following, &text, None, "save", |_, _| Ok(
                 WriteResult::<()>::from_changes(Vec::new())
             ))
             .unwrap_err()
@@ -2037,7 +2037,7 @@ mod tests {
         release_window("multifile-first").unwrap();
         release_window("multifile-second").unwrap();
         unrelated.close().unwrap();
-        release_project_session(manifest.session_id).unwrap();
+        release_project_session(&manifest.session_id).unwrap();
         root.close().unwrap();
     }
 }

@@ -42,9 +42,9 @@ pub(crate) fn set_reference_order(order: Vec<String>) -> AppResult<()> {
     }
     Ok(())
 }
-pub(crate) fn set_reference_sources(ids: Vec<String>) -> AppResult<ReferenceSources> {
+pub(crate) fn set_reference_sources(ids: &[String]) -> AppResult<ReferenceSources> {
     let mut views = BTreeMap::new();
-    for id in &ids {
+    for id in ids {
         let handle = registry::session_handle(id)?;
         let session = registry::lock_content_ready_session(&handle)?;
         views.insert(id.clone(), Arc::new(ReferenceSnapshot::capture(&session)));

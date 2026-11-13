@@ -23,6 +23,7 @@ use serde_json::Value;
 use serde_json::{Map, json};
 use std::fs;
 use std::path::Path;
+use std::slice::from_ref;
 #[cfg(test)]
 use std::thread;
 
@@ -161,7 +162,7 @@ fn faction_reference_priority_and_refresh() {
     }
     let local = open(&root.join("local"), Some(&root.join("game")));
     let reference = open(&root.join("reference"), None);
-    set_reference_sources(vec![reference.session_id.clone()]).unwrap();
+    set_reference_sources(from_ref(&reference.session_id)).unwrap();
     let groups = options(&local, "csv:factions.id");
     assert_eq!(owner(&groups, "local"), ResourceSource::Mod);
     assert_eq!(owner(&groups, "shared"), ResourceSource::Reference);
@@ -181,14 +182,14 @@ fn faction_reference_priority_and_refresh() {
     let path = root.join("reference/data/world/factions/shared.faction");
     fs::remove_file(&path).unwrap();
     refresh(&reference, "data/world/factions");
-    set_reference_sources(vec![reference.session_id.clone()]).unwrap();
+    set_reference_sources(from_ref(&reference.session_id)).unwrap();
     assert_eq!(
         owner(&options(&local, "csv:factions.id"), "shared"),
         ResourceSource::Core
     );
-    set_reference_sources(Vec::new()).unwrap();
-    release_project_session(local.session_id).unwrap();
-    release_project_session(reference.session_id).unwrap();
+    set_reference_sources(&Vec::new()).unwrap();
+    release_project_session(&local.session_id).unwrap();
+    release_project_session(&reference.session_id).unwrap();
     root.close().unwrap();
 }
 
@@ -264,7 +265,7 @@ fn reference_priority_content_and_lifecycle() {
     let c = open(&root.join("c"), None);
     let before = options(&a, "csv:weapons.id");
     assert_eq!(owner(&before, "shared"), ResourceSource::Core);
-    set_reference_sources(vec![b.session_id.clone(), c.session_id.clone()]).unwrap();
+    set_reference_sources(&[b.session_id.clone(), c.session_id.clone()]).unwrap();
     assert!(
         prepare(&a.session_id).unwrap().1[0]
             .session
@@ -456,8 +457,8 @@ fn reference_priority_content_and_lifecycle() {
         session::lock_ready_session(&captured).err().unwrap().code(),
         "session.content_pending"
     );
-    session::invalidate_project_session(&a.session_id, Vec::new()).unwrap();
-    set_reference_sources(vec![c.session_id.clone(), b.session_id.clone()]).unwrap();
+    session::invalidate_project_session(&a.session_id, &Vec::new()).unwrap();
+    set_reference_sources(&[c.session_id.clone(), b.session_id.clone()]).unwrap();
     assert_eq!(
         session::lock_ready_session(&captured).unwrap().references[0]
             .identity
@@ -468,19 +469,19 @@ fn reference_priority_content_and_lifecycle() {
         entity(&a, EntityKind::Weapon, "shared").data["spec"]["tag"],
         "gamma"
     );
-    release_project_session(c.session_id).unwrap();
+    release_project_session(&c.session_id).unwrap();
     assert_eq!(
         entity(&a, EntityKind::Weapon, "shared").data["spec"]["tag"],
         "beta"
     );
     let reopened = open(&root.join("c"), None);
-    set_reference_sources(vec![reopened.session_id.clone(), b.session_id.clone()]).unwrap();
+    set_reference_sources(&[reopened.session_id.clone(), b.session_id.clone()]).unwrap();
     assert_eq!(
         entity_source(&entity(&a, EntityKind::Weapon, "shared")).session_id,
         reopened.session_id
     );
-    release_project_session(reopened.session_id).unwrap();
-    set_reference_sources(Vec::new()).unwrap();
+    release_project_session(&reopened.session_id).unwrap();
+    set_reference_sources(&Vec::new()).unwrap();
     assert_eq!(
         resources::query_resource_data_urls(&a.session_id, vec![image])
             .unwrap()
@@ -495,7 +496,7 @@ fn reference_priority_content_and_lifecycle() {
         owner(&options(&a, "csv:weapons.id"), "shared"),
         ResourceSource::Core
     );
-    release_project_session(a.session_id.clone()).unwrap();
+    release_project_session(&a.session_id).unwrap();
     assert_eq!(
         session::session_handle(&a.session_id).err().unwrap().code(),
         "session.unknown"
@@ -507,7 +508,7 @@ fn reference_priority_content_and_lifecycle() {
             .session_id,
         a.session_id
     );
-    release_project_session(b.session_id).unwrap();
+    release_project_session(&b.session_id).unwrap();
     root.close().unwrap();
 }
 
@@ -521,7 +522,7 @@ fn mutual_references_share_views_and_refresh_official_content() {
     content(&root.join("b"), "beta", &["shared"], 2);
     let a = open(&root.join("a"), None);
     let b = open(&root.join("b"), None);
-    set_reference_sources(vec![b.session_id.clone(), a.session_id.clone()]).unwrap();
+    set_reference_sources(&[b.session_id.clone(), a.session_id.clone()]).unwrap();
     let workers = [&a, &b]
         .into_iter()
         .map(|manifest| {
@@ -561,17 +562,17 @@ fn mutual_references_share_views_and_refresh_official_content() {
         entity(&a, EntityKind::Weapon, "shared").data["spec"]["tag"],
         "updated"
     );
-    set_reference_sources(Vec::new()).unwrap();
+    set_reference_sources(&Vec::new()).unwrap();
     data["tag"] = json!("reenabled");
     write_utf8_no_bom(&root.join("b/data/weapons/shared.wpn"), &data.to_string()).unwrap();
     refresh(&b, "data/weapons/shared.wpn");
-    set_reference_sources(vec![b.session_id.clone()]).unwrap();
+    set_reference_sources(from_ref(&b.session_id)).unwrap();
     assert_eq!(
         entity(&a, EntityKind::Weapon, "shared").data["spec"]["tag"],
         "reenabled"
     );
-    set_reference_sources(Vec::new()).unwrap();
-    release_project_session(a.session_id).unwrap();
-    release_project_session(b.session_id).unwrap();
+    set_reference_sources(&Vec::new()).unwrap();
+    release_project_session(&a.session_id).unwrap();
+    release_project_session(&b.session_id).unwrap();
     root.close().unwrap();
 }

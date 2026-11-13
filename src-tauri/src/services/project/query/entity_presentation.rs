@@ -218,7 +218,7 @@ mod tests {
             }
             assert_eq!(count("read", &core_file), 1);
             assert_eq!(count("parse", &core_file), 1);
-            release_project_session(manifest.session_id).unwrap();
+            release_project_session(&manifest.session_id).unwrap();
             work.close().unwrap();
         }
     }
@@ -262,7 +262,7 @@ mod tests {
                 .unwrap()
                 .is_some()
         );
-        release_project_session(manifest.session_id).unwrap();
+        release_project_session(&manifest.session_id).unwrap();
         work.close().unwrap();
     }
 }

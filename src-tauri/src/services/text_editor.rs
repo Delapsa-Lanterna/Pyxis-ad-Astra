@@ -40,7 +40,7 @@ pub fn follow_text_identity(kind: EntityKind, source: &str, next: &str) -> AppRe
         let FileValue::Object(fields) = &source.content else {
             unreachable!("JSON file root")
         };
-        draft.edit(DraftEdit::ObjectSplice {
+        draft.edit(&DraftEdit::ObjectSplice {
             path: Vec::new(),
             index: fields.len(),
             delete: 0,

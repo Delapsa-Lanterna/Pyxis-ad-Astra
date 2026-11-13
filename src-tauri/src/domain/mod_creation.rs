@@ -16,19 +16,19 @@ pub(crate) struct ValidatedNewModTemplate {
 }
 
 pub(crate) fn validate_new_mod_template(
-    template: NewModTemplate,
+    template: &NewModTemplate,
 ) -> AppResult<ValidatedNewModTemplate> {
-    let id = normalize_mod_id(template.id)?;
+    let id = normalize_mod_id(&template.id)?;
     Ok(ValidatedNewModTemplate {
         id,
-        name: normalize_single_line_text(template.name, "Mod 名称", MAX_MOD_NAME_LENGTH)?,
+        name: normalize_single_line_text(&template.name, "Mod 名称", MAX_MOD_NAME_LENGTH)?,
         version: normalize_single_line_text(
-            template.version,
+            &template.version,
             "Mod 版本号",
             MAX_MOD_VERSION_LENGTH,
         )?,
         game_version: normalize_single_line_text(
-            template.game_version,
+            &template.game_version,
             "游戏版本",
             MAX_GAME_VERSION_LENGTH,
         )?,
@@ -49,7 +49,7 @@ pub(crate) fn render_initial_mod_info(template: &ValidatedNewModTemplate) -> App
     Ok(format!("{}\r\n", text.replace('\n', "\r\n")))
 }
 
-fn normalize_mod_id(value: String) -> AppResult<String> {
+fn normalize_mod_id(value: &str) -> AppResult<String> {
     let normalized = value.trim();
     if normalized.is_empty()
         || normalized.len() > MAX_MOD_ID_LENGTH
@@ -72,7 +72,7 @@ fn is_mod_id_byte(byte: u8, first: bool) -> bool {
     byte.is_ascii_alphanumeric() || (!first && matches!(byte, b'.' | b'_' | b'-'))
 }
 
-fn normalize_single_line_text(value: String, label: &str, max_length: usize) -> AppResult<String> {
+fn normalize_single_line_text(value: &str, label: &str, max_length: usize) -> AppResult<String> {
     let normalized = value.trim();
     if normalized.is_empty() {
         return Err(AppError::message(
@@ -101,7 +101,7 @@ mod tests {
 
     #[test]
     fn validates_and_normalizes_new_mod_template() {
-        let validated = validate_new_mod_template(NewModTemplate {
+        let validated = validate_new_mod_template(&NewModTemplate {
             id: "  demo_mod  ".to_string(),
             name: "  示例 Mod  ".to_string(),
             version: "  1.0.0  ".to_string(),
@@ -117,7 +117,7 @@ mod tests {
     #[test]
     fn rejects_unsafe_mod_ids_and_multiline_metadata() {
         for id in ["", "../demo", "demo/mod", "demo mod", "_demo", "demo!"] {
-            let error = validate_new_mod_template(NewModTemplate {
+            let error = validate_new_mod_template(&NewModTemplate {
                 id: id.to_string(),
                 name: "Demo".to_string(),
                 version: "1.0.0".to_string(),
@@ -128,7 +128,7 @@ mod tests {
             assert!(error.contains("Mod ID"), "{id}");
         }
 
-        let error = validate_new_mod_template(NewModTemplate {
+        let error = validate_new_mod_template(&NewModTemplate {
             id: "demo".to_string(),
             name: "Demo\nMod".to_string(),
             version: "1.0.0".to_string(),

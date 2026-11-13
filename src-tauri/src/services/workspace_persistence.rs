@@ -25,14 +25,14 @@ pub fn load_persisted_workspace_roots(app_data_dir: &Path) -> AppResult<Vec<Path
         .collect()
 }
 
-pub fn load_app_workspace(app_handle: AppHandle) -> AppResult<PersistedWorkspace> {
+pub fn load_app_workspace(app_handle: &AppHandle) -> AppResult<PersistedWorkspace> {
     let app_data = app_data_dir::data_directory(app_handle)?;
     load_workspace(&app_data)
 }
 
-pub fn save_app_workspace(app_handle: AppHandle, state: PersistedWorkspace) -> AppResult<()> {
+pub fn save_app_workspace(app_handle: &AppHandle, state: &PersistedWorkspace) -> AppResult<()> {
     let app_data = app_data_dir::data_directory(app_handle)?;
-    save_workspace(&app_data, &state)
+    save_workspace(&app_data, state)
 }
 
 pub fn load_workspace(app_data_dir: &Path) -> AppResult<PersistedWorkspace> {

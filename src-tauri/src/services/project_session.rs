@@ -9,11 +9,11 @@ use std::path::{Path, PathBuf};
 use tauri::AppHandle;
 
 pub fn resolve_project_session_roots(
-    app_handle: AppHandle,
-    mod_root: String,
-    starsector_root: Option<String>,
+    app_handle: &AppHandle,
+    mod_root: &str,
+    starsector_root: Option<&str>,
 ) -> AppResult<(PathBuf, Option<PathBuf>)> {
-    if let Ok(app_data_dir) = app_data_dir::data_directory(app_handle.clone())
+    if let Ok(app_data_dir) = app_data_dir::data_directory(app_handle)
         && let Err(error) = configure_persistent_index_cache(&app_data_dir)
     {
         diagnostics::failure(
@@ -26,7 +26,7 @@ pub fn resolve_project_session_roots(
     let mod_root_path = mod_root_boundary.root();
     let starsector_root = project::resolve_core_root(
         app_settings::starsector_root()?.as_deref(),
-        starsector_root.as_deref(),
+        starsector_root,
         Some(mod_root_path),
     )?;
     Ok((mod_root_path.to_path_buf(), starsector_root))

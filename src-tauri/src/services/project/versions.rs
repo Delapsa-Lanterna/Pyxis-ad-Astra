@@ -87,7 +87,7 @@ mod tests {
         io::verify_versions(&manifest.mod_root, &mission).unwrap();
         fs::write(root.join("data/missions/demo/new.txt"), "external").unwrap();
         assert!(io::verify_versions(&manifest.mod_root, &mission).is_err());
-        release_project_session(manifest.session_id).unwrap();
+        release_project_session(&manifest.session_id).unwrap();
         root.close().unwrap();
     }
 }

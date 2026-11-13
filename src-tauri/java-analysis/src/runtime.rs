@@ -322,7 +322,7 @@ impl AnalysisRuntime {
         result
     }
 
-    fn release(&self, id: &str, instance: Arc<Mutex<Instance>>) -> Result<()> {
+    fn release(&self, id: &str, instance: &Mutex<Instance>) -> Result<()> {
         let mut instance = instance
             .lock()
             .map_err(|_| invalid("Java instance lock poisoned"))?;
@@ -341,7 +341,7 @@ impl AnalysisRuntime {
             .ok_or_else(|| invalid("Unknown Java analysis instance"))?;
         state.projects.remove(id);
         drop(state);
-        self.release(id, instance)
+        self.release(id, &instance)
     }
 
     pub fn project_count(&self) -> Result<usize> {
@@ -356,7 +356,7 @@ impl AnalysisRuntime {
         drop(state);
         let mut failures = Vec::new();
         for (id, instance) in instances {
-            if let Err(error) = self.release(&id, instance) {
+            if let Err(error) = self.release(&id, &instance) {
                 failures.push(error.to_string());
             }
         }
@@ -379,7 +379,7 @@ impl AnalysisRuntime {
         drop(state);
         let mut failures = Vec::new();
         for (id, instance) in instances {
-            if let Err(error) = self.release(&id, instance) {
+            if let Err(error) = self.release(&id, &instance) {
                 failures.push(error.to_string());
             }
         }

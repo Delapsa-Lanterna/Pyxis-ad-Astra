@@ -5,7 +5,7 @@ use tauri::AppHandle;
 
 #[command_macros::command(async)]
 pub fn load_workspace(app_handle: AppHandle) -> Result<PersistedWorkspace, AppError> {
-    workspace_persistence::load_app_workspace(app_handle)
+    workspace_persistence::load_app_workspace(&app_handle)
 }
 
 #[command_macros::command(async)]
@@ -13,5 +13,5 @@ pub fn save_workspace(
     app_handle: AppHandle,
     payload: SaveWorkspacePayload,
 ) -> Result<(), AppError> {
-    workspace_persistence::save_app_workspace(app_handle, payload.state)
+    workspace_persistence::save_app_workspace(&app_handle, &payload.state)
 }

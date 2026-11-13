@@ -48,8 +48,8 @@ impl SpriteMediaCacheState {
     fn insert(&mut self, key: (String, String), entry: CachedSpriteMedia) {
         self.remove(&key);
         self.bytes += entry.data_url.len();
-        self.entries.insert(key.clone(), entry);
         self.touch(&key);
+        self.entries.insert(key, entry);
         self.trim();
     }
 

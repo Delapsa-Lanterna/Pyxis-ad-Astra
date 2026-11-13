@@ -277,7 +277,7 @@ fn recovery_snapshot_versions() {
         r#"{"id":"sample","crest":"graphics/current.png"}"#,
     )
     .unwrap();
-    let plan = prepare_json_source_recovery(fixture.request.clone()).unwrap();
+    let plan = prepare_json_source_recovery(fixture.request).unwrap();
     assert_eq!(plan.resource_refs["crest"].rel_path, "graphics/current.png");
 }
 #[test]
@@ -402,7 +402,7 @@ fn directory_sources_preserve_registration_and_sparse_identity() {
                     if let Some(reference) = &reference {
                         let ids = vec![reference.session_id.clone(), manifest.session_id.clone()];
                         project::set_reference_order(ids.clone()).unwrap();
-                        project::set_reference_sources(ids).unwrap();
+                        project::set_reference_sources(&ids).unwrap();
                     }
                     let record = query_entity(&manifest.session_id, kind, "sample")
                         .unwrap()
@@ -495,11 +495,11 @@ fn directory_sources_preserve_registration_and_sparse_identity() {
                         assert_eq!(file_formats::read_json_value(&base_file).unwrap(), base);
                     }
                     if reference.is_some() {
-                        project::set_reference_sources(Vec::new()).unwrap();
+                        project::set_reference_sources(&Vec::new()).unwrap();
                     }
-                    release_project_session(manifest.session_id).unwrap();
+                    release_project_session(&manifest.session_id).unwrap();
                     if let Some(reference) = reference {
-                        release_project_session(reference.session_id).unwrap();
+                        release_project_session(&reference.session_id).unwrap();
                     }
                     work.close().unwrap();
                 }
@@ -525,7 +525,7 @@ fn recovery_rejects_an_explicit_identity_change() {
             "spec.id_mismatch"
         );
         assert!(!path.exists());
-        release_project_session(fixture.request.session_id).unwrap();
+        release_project_session(&fixture.request.session_id).unwrap();
         fixture.root.close().unwrap();
     }
 }

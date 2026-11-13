@@ -90,7 +90,7 @@ pub(super) fn build_hull_references(
                 let resource_ref = string_field(&ship.data, "spriteName").map(|sprite| {
                     let mut resource =
                         resource_ref(origin, &sprite, ResourceOwnerKind::Ship, id, "thumbnail");
-                    resource.reference = reference.clone();
+                    resource.reference.clone_from(&reference);
                     resource
                 });
                 HullReferenceOption {
@@ -765,7 +765,7 @@ mod tests {
                 .map(|resource| resource.rel_path.as_str()),
             Some("graphics/ships/mod_ship.png")
         );
-        let _ = release_project_session(manifest.session_id);
+        let _ = release_project_session(&manifest.session_id);
         root.close().unwrap();
     }
 
@@ -792,7 +792,7 @@ mod tests {
                     .code(),
                 "skin.base_cycle"
             );
-            release_project_session(manifest.session_id).unwrap();
+            release_project_session(&manifest.session_id).unwrap();
             root.close().unwrap();
         }
     }

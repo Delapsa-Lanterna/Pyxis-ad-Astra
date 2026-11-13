@@ -14,6 +14,7 @@ use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::slice::from_ref;
 use std::sync::Arc;
 use tauri::test::{mock_builder, mock_context, noop_assets};
 use tauri::{AppHandle, Manager, Runtime};
@@ -85,7 +86,7 @@ fn live_sessions_share_jvm_and_refresh_only_affected_sources() {
     );
     let second = open(&library, &game);
     project::set_reference_order(vec![first.clone(), second.clone()]).unwrap();
-    project::set_reference_sources(vec![second.clone()]).unwrap();
+    project::set_reference_sources(from_ref(&second)).unwrap();
     let app = mock_builder().build(mock_context(noop_assets())).unwrap();
     let handle = app.handle();
     register(handle, &config).unwrap();
@@ -124,7 +125,7 @@ fn live_sessions_share_jvm_and_refresh_only_affected_sources() {
     assert_eq!(changed["result"]["reparsedFiles"], 1);
     assert_eq!(changed["result"]["errors"], 0);
     project_sync::publish_references(
-        project::set_reference_sources(Vec::new()).unwrap(),
+        project::set_reference_sources(&Vec::new()).unwrap(),
         Vec::new(),
     )
     .unwrap();
@@ -147,7 +148,7 @@ fn live_sessions_share_jvm_and_refresh_only_affected_sources() {
         ["library"]
     );
     project_sync::publish_references(
-        project::set_reference_sources(vec![second.clone()]).unwrap(),
+        project::set_reference_sources(from_ref(&second)).unwrap(),
         Vec::new(),
     )
     .unwrap();
@@ -176,7 +177,7 @@ fn live_sessions_share_jvm_and_refresh_only_affected_sources() {
     project::set_reference_order(vec![second.clone(), first.clone()]).unwrap();
     project_sync::publish_references(project::reference_sources().unwrap(), Vec::new()).unwrap();
     assert_eq!(analyze(&first)["result"]["errors"], 0);
-    project_sync::release_project_session(second.clone()).unwrap();
+    project_sync::release_project_session(&second).unwrap();
     assert_eq!(runtime.instance_count().unwrap(), 1);
     assert!(analyze(&first)["result"]["errors"].as_u64().unwrap() > 0);
     close_for_session(handle, &first).unwrap();
@@ -201,7 +202,7 @@ fn live_sessions_share_jvm_and_refresh_only_affected_sources() {
         fs::read_dir(&runtime.paths().workspaces).unwrap().count(),
         0
     );
-    project_sync::release_project_session(first).unwrap();
+    project_sync::release_project_session(&first).unwrap();
     shutdown(handle).unwrap();
     drop(cleanup);
     drop(app);
@@ -241,7 +242,7 @@ fn live_correct_mods_use_the_published_reference_inputs() {
         .collect();
     project::set_reference_order(references.clone()).unwrap();
     project_sync::publish_references(
-        project::set_reference_sources(references.clone()).unwrap(),
+        project::set_reference_sources(&references).unwrap(),
         Vec::new(),
     )
     .unwrap();
@@ -325,10 +326,10 @@ fn live_correct_mods_use_the_published_reference_inputs() {
         assert!(own_errors.is_empty(), "{name}: {own_errors:?}");
         assert_eq!(result.unresolved, 0);
         assert_eq!(result.recovered, 0);
-        project_sync::release_project_session(session).unwrap();
+        project_sync::release_project_session(&session).unwrap();
     }
     for reference in references {
-        project_sync::release_project_session(reference).unwrap();
+        project_sync::release_project_session(&reference).unwrap();
     }
     shutdown(handle).unwrap();
     drop(cleanup);

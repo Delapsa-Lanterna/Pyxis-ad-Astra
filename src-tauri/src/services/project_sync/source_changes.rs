@@ -91,7 +91,7 @@ pub(super) fn enqueue_source_batch(batch: SourceChangeBatch) {
                         }
                     }
                 };
-                consume_queued_source_batch(queued.batch, queued.task);
+                consume_queued_source_batch(&queued.batch, queued.task);
             }
         });
         Ok(())
@@ -139,9 +139,9 @@ pub fn begin_source_watch(root: &Path) -> AppResult<SourceSubscription> {
     source_watch::subscribe(root, enqueue_source_batch)
 }
 pub fn open_project_session(
-    app: AppHandle,
-    mod_root: String,
-    core: Option<String>,
+    app: &AppHandle,
+    mod_root: &str,
+    core: Option<&str>,
 ) -> AppResult<ProjectManifest> {
     let (root, core) = project_session::resolve_project_session_roots(app, mod_root, core)?;
     let subscription = begin_source_watch(&root);
@@ -348,7 +348,7 @@ pub(super) fn publish_source_status(
     Ok(())
 }
 #[cfg(test)]
-pub(super) fn consume_source_batch(batch: SourceChangeBatch) {
+pub(super) fn consume_source_batch(batch: &SourceChangeBatch) {
     consume_queued_source_batch(batch, None);
 }
 // Consumers receive final destinations, including files nested below renamed directories.
@@ -394,7 +394,7 @@ fn resolved_renames(batch: &SourceChangeBatch, required: &[String]) -> Vec<(Stri
     results.sort_by_key(|(before, _)| Reverse(Path::new(before).components().count()));
     results
 }
-fn consume_queued_source_batch(batch: SourceChangeBatch, queued: Option<Arc<SaveTask>>) {
+fn consume_queued_source_batch(batch: &SourceChangeBatch, queued: Option<Arc<SaveTask>>) {
     let root = batch.root.clone();
     let started = Instant::now();
     let result = (|| -> AppResult<()> {
@@ -402,7 +402,7 @@ fn consume_queued_source_batch(batch: SourceChangeBatch, queued: Option<Arc<Save
             publish_source_status(&root, SourceSyncState::Failed, Some(diagnostic.clone()))?;
         }
         let reads = SourceReadBatch::default();
-        let core_result = consume_core_source(&batch, &reads);
+        let core_result = consume_core_source(batch, &reads);
         let mut manifests = Vec::new();
         for manifest in project::registered_manifests(&root, ResourceSource::Mod)? {
             if windows::accepts_save("source-watch", Some(&manifest.session_id))? {
@@ -412,7 +412,7 @@ fn consume_queued_source_batch(batch: SourceChangeBatch, queued: Option<Arc<Save
         let Some(first) = manifests.first() else {
             if let Some(task) = &queued {
                 execute_queued(
-                    task.clone(),
+                    task,
                     &root,
                     task.session_id.as_deref(),
                     "refresh",
@@ -435,7 +435,7 @@ fn consume_queued_source_batch(batch: SourceChangeBatch, queued: Option<Arc<Save
             .iter()
             .map(|path| path.to_string_lossy().into_owned())
             .collect::<Vec<_>>();
-        let result = execute_queued(task, &root, Some(&first.session_id), "refresh", |_, _| {
+        let result = execute_queued(&task, &root, Some(&first.session_id), "refresh", |_, _| {
             let mut targets = Vec::new();
             let mut required = Vec::new();
             for manifest in &manifests {
@@ -459,7 +459,7 @@ fn consume_queued_source_batch(batch: SourceChangeBatch, queued: Option<Arc<Save
                 &required,
                 &reads,
             )?;
-            let renames = resolved_renames(&batch, &required);
+            let renames = resolved_renames(batch, &required);
             if !renames.is_empty() {
                 for update in &mut result.session_updates {
                     Arc::make_mut(&mut update.content).invalidation.renames = Some(renames.clone());
@@ -628,6 +628,10 @@ fn consume_core_source(batch: &SourceChangeBatch, reads: &SourceReadBatch) -> Ap
         }
     }
     thread::scope(|scope| {
+        #[expect(
+            clippy::needless_collect,
+            reason = "Start every refresh worker before waiting for its result."
+        )]
         let jobs = manifests
             .into_iter()
             // Same-root content belongs to the already queued source batch.
@@ -649,7 +653,7 @@ fn consume_core_source(batch: &SourceChangeBatch, reads: &SourceReadBatch) -> Ap
                         Some(&manifest.session_id),
                     )?;
                     execute_queued(
-                        task,
+                        &task,
                         &manifest.mod_root,
                         Some(&manifest.session_id),
                         "refresh",

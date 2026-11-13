@@ -7,7 +7,7 @@ use std::path::Path;
 
 pub fn load_imported_editor_spec_file(
     kind: SpecEditorKind,
-    path: String,
+    path: &str,
 ) -> AppResult<JsonFileContent> {
     let definition = editor_spec_definition(kind)?;
     let path = Path::new(&path);
@@ -57,7 +57,7 @@ mod tests {
     use std::fs;
     use std::path::PathBuf;
 
-    fn load_imported_editor_spec_file(kind: SpecEditorKind, path: String) -> AppResult<Value> {
+    fn load_imported_editor_spec_file(kind: SpecEditorKind, path: &str) -> AppResult<Value> {
         spec_editor::load_imported_editor_spec_file(kind, path)?
             .content
             .to_json()
@@ -69,14 +69,14 @@ mod tests {
         id: &str,
         data: Value,
     ) -> AppResult<WriteResult<Value>> {
-        save_editor_spec_with_json_options(root, kind, id, data, Default::default(), None)
+        save_editor_spec_with_json_options(root, kind, id, data, &Default::default(), None)
     }
     fn save_editor_spec_with_json_options(
         root: &str,
         kind: SpecEditorKind,
         id: &str,
         data: Value,
-        options: JsonWriteOptions,
+        options: &JsonWriteOptions,
         order: Option<&str>,
     ) -> AppResult<WriteResult<Value>> {
         entity_identity::validate_entity_id(id, "无效武器 ID")?;
@@ -108,12 +108,12 @@ mod tests {
                 SaveLayout::Expanded
             };
             let actual =
-                services::save_entity_spec(&manifest.session_id, &target, id, document, options)?;
+                services::save_entity_spec(&manifest.session_id, &target, id, &document, options)?;
             let target = actual.content.as_ref().unwrap().target.clone();
             let value = actual.content.as_ref().unwrap().value.content.to_json()?;
             Ok(actual.with_content(target, value))
         })();
-        release_project_session(manifest.session_id)?;
+        release_project_session(&manifest.session_id)?;
         result
     }
     fn read_json_file(path: &Path) -> AppResult<Value> {
@@ -183,7 +183,7 @@ mod tests {
                 Some(valid)
             );
             assert_eq!(saved.history.undo_stack.len(), 1);
-            release_project_session(manifest.session_id).unwrap();
+            release_project_session(&manifest.session_id).unwrap();
             root.close().unwrap();
         }
     }
@@ -196,7 +196,7 @@ mod tests {
         let original = r#"{"id":"demo","specClass":"pulse","turretOffsets":[0,0],"hardpointOffsets":[0,0],"builtInWeapons":{"_slot":"w"},"array":[{"_field":1}]}"#;
         write_utf8_no_bom(&path, original).unwrap();
         let mut content =
-            load_imported_editor_spec_file(SpecEditorKind::Weapon, path.to_string_lossy().into())
+            load_imported_editor_spec_file(SpecEditorKind::Weapon, path.to_string_lossy().as_ref())
                 .unwrap();
         let error = save_editor_spec(
             &root.to_string_lossy(),
@@ -254,7 +254,7 @@ mod tests {
                 kind,
                 "demo",
                 persisted.clone(),
-                JsonWriteOptions {
+                &JsonWriteOptions {
                     replace_paths: Vec::new(),
                     keep_filename: false,
                     preserve_structure: true,
@@ -311,7 +311,7 @@ mod tests {
                 SpecEditorKind::Weapon,
                 "demo",
                 serde_json::json!({"id":"demo","specClass":"projectile","weaponType":"ENERGY","turretOffsets":[0,0],"hardpointOffsets":[0,0]}),
-                JsonWriteOptions {
+                &JsonWriteOptions {
                     replace_paths: Vec::new(),
                     keep_filename: false,
                     preserve_structure: true,
@@ -328,7 +328,7 @@ mod tests {
                 SpecEditorKind::Weapon,
                 "demo",
                 serde_json::json!({"id":"demo","specClass":"projectile","weaponType":"ENERGY","turretOffsets":[0,0],"hardpointOffsets":[0,0]}),
-                JsonWriteOptions::default(),
+                &JsonWriteOptions::default(),
                 None,
             )
             .unwrap();
@@ -426,12 +426,10 @@ mod tests {
         let path = root.join("demo.ship");
         write_utf8_no_bom(&path, r#"{"hullId":"demo"}"#).unwrap();
 
-        let error = load_imported_editor_spec_file(
-            SpecEditorKind::Weapon,
-            path.to_string_lossy().to_string(),
-        )
-        .unwrap_err()
-        .to_string();
+        let error =
+            load_imported_editor_spec_file(SpecEditorKind::Weapon, path.to_string_lossy().as_ref())
+                .unwrap_err()
+                .to_string();
 
         assert!(error.contains("规格文件扩展名应为 .wpn"));
         root.close().unwrap();
@@ -442,12 +440,10 @@ mod tests {
         let root = project_workspace("load_imported_spec_parent_dir");
         let path = root.literal_path("../demo.wpn");
 
-        let error = load_imported_editor_spec_file(
-            SpecEditorKind::Weapon,
-            path.to_string_lossy().to_string(),
-        )
-        .unwrap_err()
-        .to_string();
+        let error =
+            load_imported_editor_spec_file(SpecEditorKind::Weapon, path.to_string_lossy().as_ref())
+                .unwrap_err()
+                .to_string();
 
         assert!(error.contains("imported specification"));
         root.close().unwrap();
@@ -459,10 +455,8 @@ mod tests {
             TestWorkspace::file_link("load_imported_spec_link", "demo.wpn").unwrap();
         write_utf8_no_bom(&outside, r#"{"id":"demo","weaponType":"ENERGY"}"#).unwrap();
 
-        let result = load_imported_editor_spec_file(
-            SpecEditorKind::Weapon,
-            link.to_string_lossy().to_string(),
-        );
+        let result =
+            load_imported_editor_spec_file(SpecEditorKind::Weapon, link.to_string_lossy().as_ref());
 
         assert!(result.is_err());
         root.close().unwrap();
@@ -474,11 +468,9 @@ mod tests {
         let path = root.join("demo.wpn");
         write_utf8_no_bom(&path, r#"{"id":"demo","weaponType":"ENERGY"}"#).unwrap();
 
-        let value = load_imported_editor_spec_file(
-            SpecEditorKind::Weapon,
-            path.to_string_lossy().to_string(),
-        )
-        .unwrap();
+        let value =
+            load_imported_editor_spec_file(SpecEditorKind::Weapon, path.to_string_lossy().as_ref())
+                .unwrap();
 
         assert_eq!(value.get("id").and_then(Value::as_str), Some("demo"));
         root.close().unwrap();

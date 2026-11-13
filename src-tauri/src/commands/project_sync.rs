@@ -42,7 +42,7 @@ pub fn set_reference_sources(
     }
     project::set_reference_order(order)?;
     project_sync::publish_references(
-        project::set_reference_sources(session_ids)?,
+        project::set_reference_sources(&session_ids)?,
         project::reference_updates()?,
     )
 }
@@ -83,10 +83,10 @@ pub async fn wait_project_saves(mod_roots: Vec<String>) -> Result<(), ErrorDiagn
 pub fn invalidate_project_session(
     payload: InvalidateProjectSessionPayload,
 ) -> Result<SessionContentUpdate, AppError> {
-    project::invalidate_project_session(&payload.session_id, payload.changes)
+    project::invalidate_project_session(&payload.session_id, &payload.changes)
 }
 
 #[command_macros::command(async)]
 pub fn close_project_session(payload: CloseProjectSessionPayload) -> Result<(), AppError> {
-    project_sync::release_project_session(payload.session_id)
+    project_sync::release_project_session(&payload.session_id)
 }

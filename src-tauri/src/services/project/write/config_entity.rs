@@ -46,7 +46,7 @@ pub fn prepare_indexed_request(
             && input.previous_id.as_deref() == Some(&identity.before.id)
         {
             if input.next_id == identity.before.id {
-                input.next_id = identity.after.id.clone();
+                input.next_id.clone_from(&identity.after.id);
             }
             input.previous_id = Some(identity.after.id.clone());
         }
@@ -72,7 +72,7 @@ pub fn prepare_indexed_request(
     input.base_versions = snapshot.base_versions;
     Ok(())
 }
-pub fn save_mod_info(input: ModInfoSave) -> AppResult<WriteResult<Value>> {
+pub fn save_mod_info(input: &ModInfoSave) -> AppResult<WriteResult<Value>> {
     let path = Path::new(&input.mod_root).join("mod_info.json");
     let data = input.document.content.to_json()?;
     schema::validate_document(parsers::bundled_schema("mod-info"), &data)?;
@@ -266,7 +266,7 @@ pub fn delete_indexed_request(input: IndexedConfigDelete) -> AppResult<WriteResu
         &input.base_versions,
     )?;
     if input.kind == IndexedConfigKind::Faction {
-        return faction_identity::delete_faction(input);
+        return faction_identity::delete_faction(&input);
     }
     let handle = session_handle(&input.session_id)?;
     let mut session = lock_session(&handle)?;
@@ -343,22 +343,22 @@ mod tests {
     const MISSION_INDEX: &str = "data/missions/mission_list.csv";
     fn save_mod_info(
         root: &str,
-        data: Value,
+        data: &Value,
         options: JsonWriteOptions,
     ) -> AppResult<WriteResult<Value>> {
         with_session(root, |manifest| {
             let source = Path::new(root).join("mod_info.json");
             let mut document = if source.exists() {
-                file_formats::json_write_from_source(&io::read_json_file(&source)?, &data)
+                file_formats::json_write_from_source(&io::read_json_file(&source)?, data)
             } else {
-                file_formats::json_write(&data)
+                file_formats::json_write(data)
             };
             document.layout = if options.preserve_structure {
                 SaveLayout::PreserveStructure
             } else {
                 SaveLayout::Expanded
             };
-            let actual = config_entity::save_mod_info(ModInfoSave {
+            let actual = config_entity::save_mod_info(&ModInfoSave {
                 session_id: manifest.session_id.clone(),
                 mod_root: manifest.mod_root.clone(),
                 base_versions: manifest.base_versions.clone(),
@@ -388,7 +388,7 @@ mod tests {
         let mut trace = PerformanceTrace::new("project.openSession");
         let manifest = project::open_project_session_traced(Path::new(root), None, &mut trace)?;
         let result = action(&manifest);
-        release_project_session(manifest.session_id)?;
+        release_project_session(&manifest.session_id)?;
         result
     }
 
@@ -588,7 +588,7 @@ mod tests {
             read_csv_data(&index).unwrap().rows[2].data["mission"],
             "old"
         );
-        release_project_session(manifest.session_id).unwrap();
+        release_project_session(&manifest.session_id).unwrap();
         root.close().unwrap();
     }
 
@@ -860,7 +860,7 @@ mod tests {
         write_utf8_no_bom(&path, before).unwrap();
         let result = save_mod_info(
             &root.to_string_lossy(),
-            serde_json::json!({"id":"demo","name":"Demo","version":"1","gameVersion":"1"}),
+            &serde_json::json!({"id":"demo","name":"Demo","version":"1","gameVersion":"1"}),
             JsonWriteOptions {
                 replace_paths: Vec::new(),
                 keep_filename: false,
@@ -882,7 +882,7 @@ mod tests {
         let root = project_workspace("mod_info_receipt");
         let data = serde_json::json!({"id":"demo", "name":"Saved", "version":"1", "gameVersion":"1", "dependencies":[{"id":"dep"}]});
         let result =
-            save_mod_info(&root.to_string_lossy(), data, JsonWriteOptions::default()).unwrap();
+            save_mod_info(&root.to_string_lossy(), &data, JsonWriteOptions::default()).unwrap();
         assert_eq!(
             result.content.map(|content| content.value),
             Some(file_formats::read_json_value(&root.join("mod_info.json")).unwrap())

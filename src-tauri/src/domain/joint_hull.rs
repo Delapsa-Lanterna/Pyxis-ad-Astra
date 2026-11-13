@@ -164,7 +164,7 @@ fn project_hull(
     let mut wings = Vec::new();
     if let Some(data) = value(hull) {
         if let Some(items) = data.get("weaponSlots").and_then(Value::as_array) {
-            slots = items.clone();
+            slots.clone_from(items);
         }
         add_weapons(&mut weapons, data);
         add_mods(&mut mods, data);

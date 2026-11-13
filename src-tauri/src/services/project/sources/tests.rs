@@ -87,9 +87,9 @@ fn repeated_saves_persist_sources_at_the_final_same_root_close() {
         .unwrap();
         assert!(!cache.join("source-record-cache").exists());
     }
-    release_project_session(first.session_id).unwrap();
+    release_project_session(&first.session_id).unwrap();
     assert!(!cache.join("source-record-cache").exists());
-    release_project_session(second.session_id).unwrap();
+    release_project_session(&second.session_id).unwrap();
     let files = fs::read_dir(cache.join("source-record-cache"))
         .unwrap()
         .map(|entry| entry.unwrap().path())
@@ -102,7 +102,7 @@ fn repeated_saves_persist_sources_at_the_final_same_root_close() {
             .unwrap();
     assert_eq!(work_counts::count("parse", &variant), parses);
     assert_eq!(fs::read_to_string(&notes).unwrap(), "Saved 19");
-    release_project_session(reopened.session_id).unwrap();
+    release_project_session(&reopened.session_id).unwrap();
     root.close().unwrap();
 }
 
@@ -279,7 +279,7 @@ fn resolved_source_drives_session_fields_graphics_and_media() {
             hull_references::query_hull_references(&manifest.session_id, &["example".into()])
                 .unwrap();
         assert!(references.sprites.contains_key("example"));
-        release_project_session(manifest.session_id).unwrap();
+        release_project_session(&manifest.session_id).unwrap();
     }
     assert_eq!(
         resolve_core_root(None, Some(&game_text), Some(&isolated)).unwrap(),
@@ -468,7 +468,7 @@ fn core_refresh_keeps_mod_baseline() {
             .unwrap()
             .contains_key("updated")
     );
-    release_project_session(manifest.session_id).unwrap();
+    release_project_session(&manifest.session_id).unwrap();
     core::invalidate_core_cache(&game.to_string_lossy()).unwrap();
     root.close().unwrap();
 }
@@ -531,7 +531,7 @@ fn joint_parent_version_matches() {
     assert_eq!(expected, &file_version(&parent).unwrap());
     assert!(record.base_versions.contains(expected));
     verify_versions(&manifest.mod_root, &snapshot.base_versions).unwrap();
-    release_project_session(manifest.session_id).unwrap();
+    release_project_session(&manifest.session_id).unwrap();
     root.close().unwrap();
 }
 
@@ -624,6 +624,6 @@ fn session_startup_captures_consumed_sources_and_full_mission_dependencies() {
     assert_eq!(changed.session_updates.len(), 1);
     assert_eq!(work_counts::count("read", &archive), 0);
     assert_eq!(work_counts::count("read", &image), 0);
-    release_project_session(manifest.session_id).unwrap();
+    release_project_session(&manifest.session_id).unwrap();
     root.close().unwrap();
 }

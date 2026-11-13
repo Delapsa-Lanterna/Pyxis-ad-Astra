@@ -31,7 +31,7 @@ pub struct PerformanceMonitorStatus {
     pub trace_started_at: f64,
     pub trace_error: String,
 }
-#[derive(Deserialize)]
+#[derive(Clone, Copy, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum PerformanceMonitorAction {
     Status,

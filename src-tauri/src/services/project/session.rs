@@ -118,11 +118,11 @@ pub fn invalidate_core_cache(root: &str) -> AppResult<()> {
 }
 pub fn invalidate_project_session(
     id: &str,
-    changes: Vec<FileChangeRecord>,
+    changes: &[FileChangeRecord],
 ) -> AppResult<SessionContentUpdate> {
     let handle = session_handle(id)?;
     let mut session = lock_session(&handle)?;
-    let invalidation = invalidation::invalidate_session_changes(&mut session, &changes)?;
+    let invalidation = invalidation::invalidate_session_changes(&mut session, changes)?;
     session.manifest.base_versions = vec![versions::version_for_path(&session, "mod_info.json")];
     session.content_pending = false;
     Ok(SessionContentUpdate {
@@ -452,7 +452,7 @@ mod tests {
         }
         let handle = session_handle(&manifests[0].session_id).unwrap();
         for manifest in &manifests {
-            release_project_session(manifest.session_id.clone()).unwrap();
+            release_project_session(&manifest.session_id).unwrap();
             assert!(session_handle(&manifest.session_id).is_err());
         }
         assert_eq!(
@@ -545,7 +545,7 @@ mod tests {
             .unwrap_err()
             .to_string();
 
-        let _ = release_project_session(manifest.session_id);
+        let _ = release_project_session(&manifest.session_id);
         assert!(error.contains("does not own mod root"));
         right.close().unwrap();
         left.close().unwrap();
@@ -646,7 +646,7 @@ mod tests {
         let mut trace = PerformanceTrace::new("project.openSession");
         let manifest = open_project_session_traced(&root, None, &mut trace).unwrap();
         assert_eq!(manifest.entity_summaries.skins, 1);
-        release_project_session(manifest.session_id).unwrap();
+        release_project_session(&manifest.session_id).unwrap();
         root.close().unwrap();
     }
 
@@ -714,7 +714,7 @@ mod tests {
             .find(|entry| entry.stage == "spec_bundle")
             .unwrap();
         assert_eq!(bundle.fields, vec![("files".into(), "7".into())]);
-        release_project_session(manifest.session_id).unwrap();
+        release_project_session(&manifest.session_id).unwrap();
         root.close().unwrap();
     }
 
@@ -891,7 +891,7 @@ mod tests {
                         Vec::new(),
                     )
                     .unwrap();
-                    invalidate_project_session(&session_id, Vec::new()).unwrap();
+                    invalidate_project_session(&session_id, &Vec::new()).unwrap();
                 }
             }));
         }
@@ -914,7 +914,7 @@ mod tests {
             )
             .unwrap();
             assert_eq!(window.total_rows, 1 + WRITES_PER_SESSION);
-            release_project_session(session_id.clone()).unwrap();
+            release_project_session(session_id).unwrap();
             roots[session_index].clone().close().unwrap();
         }
     }
@@ -954,7 +954,7 @@ mod tests {
             assert!(io::verify_versions(&manifest.mod_root, &target.base_versions).is_err());
             assert_eq!(work_counts::count("read", &image), 0);
             assert_eq!(work_counts::count("walk", &root.join("graphics")), 0);
-            release_project_session(manifest.session_id).unwrap();
+            release_project_session(&manifest.session_id).unwrap();
         }
         root.close().unwrap();
     }
@@ -990,7 +990,7 @@ mod tests {
                 assert!(result.invalidation.tables.is_empty());
                 assert!(result.invalidation.entities.is_empty());
             }
-            release_project_session(manifest.session_id).unwrap();
+            release_project_session(&manifest.session_id).unwrap();
             root.close().unwrap();
         }
     }
@@ -1034,7 +1034,7 @@ mod tests {
                 .iter()
                 .any(|entity| entity.kind == EntityKind::Ship)
         );
-        release_project_session(manifest.session_id).unwrap();
+        release_project_session(&manifest.session_id).unwrap();
         root.close().unwrap();
     }
 
@@ -1102,7 +1102,7 @@ mod tests {
         }
         assert_eq!(work_counts::count("read", &csv) - reads, 0);
         assert_eq!(work_counts::count("parse", &csv) - parses, 0);
-        release_project_session(manifest.session_id).unwrap();
+        release_project_session(&manifest.session_id).unwrap();
         root.close().unwrap();
     }
 
@@ -1143,7 +1143,7 @@ mod tests {
                 .data["hullName"],
             "Formal"
         );
-        release_project_session(manifest.session_id).unwrap();
+        release_project_session(&manifest.session_id).unwrap();
         root.close().unwrap();
     }
 
@@ -1217,7 +1217,7 @@ mod tests {
             scopes,
             stamps,
         );
-        release_project_session(manifest.session_id).unwrap();
+        release_project_session(&manifest.session_id).unwrap();
         root.close().unwrap();
     }
 
@@ -1269,7 +1269,7 @@ mod tests {
             retained.rows[0].row_key == original.rows[0].row_key,
             retained.base_versions[0].fingerprint.is_none(),
         );
-        release_project_session(manifest.session_id).unwrap();
+        release_project_session(&manifest.session_id).unwrap();
         root.close().unwrap();
         assert_eq!(observations, (false, 1, true, true));
     }
@@ -1291,7 +1291,7 @@ mod tests {
         let second =
             open_project_session_traced(&root, None, &mut PerformanceTrace::new("atomic.second"))
                 .unwrap();
-        let ids = vec![first.session_id.clone(), second.session_id.clone()];
+        let ids = vec![first.session_id.clone(), second.session_id];
         for id in &ids {
             services::query_csv_table_index(
                 id,
@@ -1353,7 +1353,7 @@ mod tests {
                     .data["name"],
                 "Changed"
             );
-            release_project_session(id).unwrap();
+            release_project_session(&id).unwrap();
         }
         root.close().unwrap();
     }
@@ -1413,7 +1413,7 @@ mod tests {
             );
             assert_eq!(work_counts::count("parse", &file), parses);
         }
-        release_project_session(manifest.session_id).unwrap();
+        release_project_session(&manifest.session_id).unwrap();
         root.close().unwrap();
     }
 
@@ -1463,7 +1463,7 @@ mod tests {
             assert_eq!(retained.rows[0].data, original.rows[0].data);
             assert_eq!(retained.rows[0].row_key, original.rows[0].row_key);
             assert!(retained.base_versions[0].fingerprint.is_none());
-            release_project_session(manifest.session_id).unwrap();
+            release_project_session(&manifest.session_id).unwrap();
             root.close().unwrap();
         }
     }
@@ -1483,7 +1483,7 @@ mod tests {
         .unwrap();
         invalidate_project_session(
             &manifest.session_id,
-            vec![io::build_text_change(&path, Some(original.into())).unwrap()],
+            &[io::build_text_change(&path, Some(original.into())).unwrap()],
         )
         .unwrap();
         fs::remove_file(&path).unwrap();
@@ -1512,7 +1512,7 @@ mod tests {
                 .unwrap()
                 .ends_with("ship_data.csv")
         );
-        release_project_session(manifest.session_id).unwrap();
+        release_project_session(&manifest.session_id).unwrap();
         root.close().unwrap();
     }
     #[test]
@@ -1564,7 +1564,7 @@ mod tests {
             rel_path: "../outside".into(),
         };
         assert!(refresh_project_sources(&manifest.session_id, vec![invalid]).is_err());
-        release_project_session(manifest.session_id).unwrap();
+        release_project_session(&manifest.session_id).unwrap();
         root.close().unwrap();
     }
 }

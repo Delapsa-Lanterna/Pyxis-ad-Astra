@@ -81,9 +81,9 @@ fn apply_session_changes(
                     )? {
                         let pair = files.entry(relative).or_default();
                         if after {
-                            pair.1 = file.text.clone();
+                            pair.1.clone_from(&file.text);
                         } else {
-                            pair.0 = file.text.clone();
+                            pair.0.clone_from(&file.text);
                         }
                     }
                 }
@@ -92,9 +92,9 @@ fn apply_session_changes(
             {
                 let pair = files.entry(relative).or_default();
                 if after {
-                    pair.1 = text.clone();
+                    pair.1.clone_from(text);
                 } else {
-                    pair.0 = text.clone();
+                    pair.0.clone_from(text);
                 }
             }
         }
@@ -325,7 +325,7 @@ pub(super) fn refresh_sources_from(
             state.next_row_seq = sequence;
             state.row_index = None;
         } else if !load {
-            state.header = csv.header.clone();
+            state.header.clone_from(&csv.header);
         }
         state.source = reader.csv_sources.get(spec.rel_path).cloned();
         let header = state.header.clone();
@@ -547,7 +547,6 @@ mod tests {
     use crate::services::project::test_support::project_workspace;
     use crate::test_support::work_counts;
     use std::fs;
-    use std::path::PathBuf;
     use std::slice;
 
     #[test]
@@ -576,7 +575,7 @@ mod tests {
             ),
         ] {
             fs::write(&path, after).unwrap();
-            invalidate_session_changes(&mut session, &[file_change(path, before, Some(after))])
+            invalidate_session_changes(&mut session, &[file_change(&path, before, Some(after))])
                 .unwrap();
             assert_eq!(work_counts::count("read", &table), table_reads);
             assert_eq!(work_counts::count("read", &unrelated), variant_reads);
@@ -685,7 +684,7 @@ mod tests {
             write_utf8_no_bom(&path, after).unwrap();
             invalidate_session_changes(
                 &mut session,
-                &[file_change(path.clone(), Some(before), Some(after))],
+                &[file_change(&path, Some(before), Some(after))],
             )
             .unwrap();
             (definition.prepare)(&mut session).unwrap();
@@ -715,7 +714,7 @@ mod tests {
         invalidate_session_changes(
             &mut session,
             &[file_change(
-                path.clone(),
+                &path,
                 Some("mission\r\nexternal\r\n"),
                 Some("mission\r\nfirst\r\n"),
             )],
@@ -764,7 +763,7 @@ mod tests {
         invalidate_session_changes(
             &mut session,
             &[file_change(
-                root.join("data/variants/b.variant"),
+                &root.join("data/variants/b.variant"),
                 Some(variant),
                 None,
             )],
@@ -778,7 +777,7 @@ mod tests {
         invalidate_session_changes(
             &mut session,
             &[file_change(
-                root.join("data/hulls/skins/b.skin"),
+                &root.join("data/hulls/skins/b.skin"),
                 Some(skin),
                 None,
             )],
@@ -790,11 +789,15 @@ mod tests {
             &mut session,
             &[
                 file_change(
-                    root.join("data/variants/a.variant"),
+                    &root.join("data/variants/a.variant"),
                     Some(variant),
                     Some(variant),
                 ),
-                file_change(root.join("data/hulls/skins/a.skin"), Some(skin), Some(skin)),
+                file_change(
+                    &root.join("data/hulls/skins/a.skin"),
+                    Some(skin),
+                    Some(skin),
+                ),
             ],
         )
         .unwrap();
@@ -819,11 +822,11 @@ mod tests {
                 &mut session,
                 &[
                     file_change(
-                        root.join("data/variants/a.variant"),
+                        &root.join("data/variants/a.variant"),
                         Some(before),
                         Some(after)
                     ),
-                    file_change(root.join("data/hulls/skins/b.skin"), None, Some("{"))
+                    file_change(&root.join("data/hulls/skins/b.skin"), None, Some("{"))
                 ]
             )
             .is_err()
@@ -881,7 +884,7 @@ mod tests {
         let invalidation = invalidate_session_changes(
             &mut session,
             &[file_change(
-                root.join("data/variants/demo.variant"),
+                &root.join("data/variants/demo.variant"),
                 Some(r#"{"variantId":"old","hullId":"hull"}"#),
                 Some(r#"{"variantId":"new","hullId":"hull"}"#),
             )],
@@ -943,7 +946,7 @@ mod tests {
         let invalidation = invalidate_session_changes(
             &mut session,
             &[file_change(
-                root.join("data/world/factions/demo.faction"),
+                &root.join("data/world/factions/demo.faction"),
                 Some(r#"{"id":"demo","displayName":"Demo","knownShips":{"tags":["demo_old_bp"]}}"#),
                 Some(r#"{"id":"demo","displayName":"Demo","knownShips":{"tags":["demo_new_bp"]}}"#),
             )],
@@ -996,7 +999,7 @@ mod tests {
         let invalidation = invalidate_session_changes(
             &mut session,
             &[file_change(
-                root.join("data/hulls/ship_data.csv"),
+                &root.join("data/hulls/ship_data.csv"),
                 Some(before),
                 Some(after),
             )],
@@ -1039,7 +1042,7 @@ mod tests {
         let invalidation = invalidate_session_changes(
             &mut session,
             &[directory_change(
-                root.join("data/variants"),
+                &root.join("data/variants"),
                 vec![FileSnapshot {
                     rel_path: "old.variant".to_string(),
                     text: Some(old.to_string()),
@@ -1247,7 +1250,7 @@ mod tests {
         invalidate_session_changes(
             &mut session,
             &[file_change(
-                external.join("data/hulls/external.ship"),
+                &external.join("data/hulls/external.ship"),
                 None,
                 Some(r#"{"hullId":"external"}"#),
             )],
@@ -1262,7 +1265,7 @@ mod tests {
     }
 
     fn file_change(
-        path: PathBuf,
+        path: &Path,
         before_text: Option<&str>,
         after_text: Option<&str>,
     ) -> FileChangeRecord {
@@ -1282,7 +1285,7 @@ mod tests {
     }
 
     fn directory_change(
-        path: PathBuf,
+        path: &Path,
         before_files: Vec<FileSnapshot>,
         after_files: Vec<FileSnapshot>,
     ) -> FileChangeRecord {

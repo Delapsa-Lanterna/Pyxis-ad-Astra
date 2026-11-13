@@ -286,6 +286,10 @@ fn weapon_list(session: &mut ProjectSession) -> AppResult<Vec<EntityListEntry>> 
         .into_iter()
         .map(|entry| build_weapon_list_entity(session, EntityKind::Weapon, &entry.id, entry.data))
         .collect::<AppResult<Vec<_>>>()?;
+    #[expect(
+        clippy::needless_collect,
+        reason = "Snapshot specification IDs before mutating the session and result rows."
+    )]
     for id in session
         .weapon_specs
         .keys()
@@ -324,6 +328,10 @@ fn skill_list(session: &mut ProjectSession) -> AppResult<Vec<EntityListEntry>> {
         .into_iter()
         .map(|entry| build_skill_list_entity(session, EntityKind::Skill, &entry.id, entry.data))
         .collect::<AppResult<Vec<_>>>()?;
+    #[expect(
+        clippy::needless_collect,
+        reason = "Snapshot specification IDs before mutating the session and result rows."
+    )]
     for id in session
         .skill_files
         .keys()
@@ -474,7 +482,7 @@ fn build_weapon_list_entity(
         .map(|record| record.data.clone())
         .unwrap_or_else(|| Value::Object(Map::new()));
     let mut data = Map::new();
-    data.insert("spec".to_string(), spec.clone());
+    data.insert("spec".to_string(), spec);
     data.insert("csvRow".to_string(), Value::Object(row));
     Ok(EntityListEntry {
         kind,

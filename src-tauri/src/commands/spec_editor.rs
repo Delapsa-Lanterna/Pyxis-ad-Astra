@@ -7,5 +7,5 @@ use crate::services::spec_editor;
 pub fn load_imported_editor_spec_file(
     payload: LoadImportedEditorSpecPayload,
 ) -> Result<JsonFileContent, AppError> {
-    spec_editor::load_imported_editor_spec_file(payload.kind, payload.path)
+    spec_editor::load_imported_editor_spec_file(payload.kind, &payload.path)
 }

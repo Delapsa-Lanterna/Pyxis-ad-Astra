@@ -49,7 +49,7 @@ pub fn read_settings(
     read_settings_with(
         || {
             Ok(load_settings_report(
-                &app_data_dir::data_directory(app.clone())?,
+                &app_data_dir::data_directory(app)?,
                 resolve_log_directory,
             ))
         },
@@ -113,7 +113,7 @@ pub fn save_settings_snapshot(
 ) -> AppResult<SettingsSnapshot> {
     save_settings_with(
         window,
-        || app_data_dir::data_directory(app.clone()),
+        || app_data_dir::data_directory(app),
         settings,
         prepare_directory,
         apply_runtime,

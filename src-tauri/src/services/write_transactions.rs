@@ -525,7 +525,7 @@ mod tests {
             fs::read(root.join(format!("data/missions/{next_id}/extra.bin"))).unwrap(),
             [0, 255, 128]
         );
-        release_project_session(manifest.session_id).unwrap();
+        release_project_session(&manifest.session_id).unwrap();
         root.close().unwrap();
     }
 
@@ -585,7 +585,7 @@ mod tests {
             )
             .is_err()
         );
-        release_project_session(manifest.session_id).unwrap();
+        release_project_session(&manifest.session_id).unwrap();
         root.close().unwrap();
     }
 
@@ -628,7 +628,7 @@ mod tests {
                 .len(),
             1
         );
-        release_project_session(manifest.session_id).unwrap();
+        release_project_session(&manifest.session_id).unwrap();
         assert!(begin(&payload, &payload.base_versions).is_err());
         root.close().unwrap();
     }
@@ -705,7 +705,7 @@ mod tests {
                 .revision,
             undone.history.revision
         );
-        release_project_session(manifest.session_id).unwrap();
+        release_project_session(&manifest.session_id).unwrap();
         root.close().unwrap();
     }
 }

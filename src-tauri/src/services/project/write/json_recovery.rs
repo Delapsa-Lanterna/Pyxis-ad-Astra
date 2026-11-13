@@ -19,7 +19,7 @@ use std::path::Path;
 use std::sync::Arc;
 
 pub fn restore_source_request(
-    input: JsonSourceRestore,
+    input: &JsonSourceRestore,
 ) -> AppResult<WriteResult<JsonRecoveryPlan>> {
     if input.session_id != input.plan.request.session_id
         || input.mod_root != input.plan.request.mod_root

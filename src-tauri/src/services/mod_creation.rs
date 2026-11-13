@@ -8,7 +8,7 @@ use std::path::Path;
 
 pub fn create_mod(
     destination: NewModDestination,
-    template: NewModTemplate,
+    template: &NewModTemplate,
 ) -> AppResult<CreatedMod> {
     let template = validate_new_mod_template(template)?;
     let mod_info_text = render_initial_mod_info(&template)?;
@@ -49,7 +49,7 @@ mod tests {
             NewModDestination::GameMods {
                 starsector_root: game_root.to_string_lossy().to_string(),
             },
-            template(),
+            &template(),
         )
         .unwrap();
 
@@ -77,7 +77,7 @@ mod tests {
             NewModDestination::Directory {
                 parent_directory: game_root.join("mods").to_string_lossy().to_string(),
             },
-            template(),
+            &template(),
         )
         .unwrap();
 
@@ -101,7 +101,7 @@ mod tests {
             NewModDestination::GameMods {
                 starsector_root: directory.to_string_lossy().to_string(),
             },
-            template(),
+            &template(),
         )
         .unwrap_err()
         .to_string();

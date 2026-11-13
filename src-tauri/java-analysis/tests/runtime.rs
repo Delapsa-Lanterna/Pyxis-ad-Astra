@@ -33,16 +33,17 @@ fn live_requests_measure_same_instance_queue_and_independent_instances() {
     for same_instance in [true, false] {
         let barrier = Arc::new(Barrier::new(3));
         let started = Instant::now();
-        let workers: Vec<_> = [
-            first.clone(),
-            if same_instance {
-                first.clone()
-            } else {
-                second.clone()
-            },
+        let workers = [
+            (0, first.clone()),
+            (
+                1,
+                if same_instance {
+                    first.clone()
+                } else {
+                    second.clone()
+                },
+            ),
         ]
-        .into_iter()
-        .enumerate()
         .map(|(index, instance)| {
             let runtime = Arc::clone(&runtime);
             let barrier = Arc::clone(&barrier);
@@ -68,8 +69,7 @@ fn live_requests_measure_same_instance_queue_and_independent_instances() {
                     response.response_bytes,
                 )
             })
-        })
-        .collect();
+        });
         barrier.wait();
         let results: Vec<_> = workers
             .into_iter()

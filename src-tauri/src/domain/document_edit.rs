@@ -109,7 +109,7 @@ mod tests {
                     .unwrap();
             let mut draft = JsonDraft::open(Arc::new(source));
             draft
-                .edit(DraftEdit::Reorder {
+                .edit(&DraftEdit::Reorder {
                     path: vec!["items".into()],
                     order: vec![1, 2, 0],
                 })
@@ -242,7 +242,7 @@ mod tests {
             .prepare("2")
             .unwrap();
             draft
-                .edit(DraftEdit::ObjectSplice {
+                .edit(&DraftEdit::ObjectSplice {
                     path: vec![],
                     index: 1,
                     delete: 0,
@@ -260,7 +260,7 @@ mod tests {
             let source = game::read_json(b"{items:[1.0,1e0]}").unwrap();
             let mut draft = JsonDraft::open(Arc::new(source));
             draft
-                .edit(DraftEdit::Reorder {
+                .edit(&DraftEdit::Reorder {
                     path: vec!["items".into()],
                     order: vec![1, 0],
                 })
@@ -286,7 +286,7 @@ mod tests {
                 game::read_json(b"{items:[{\n a:1.0 # first\n},{\n a:2e0 # second\n}]}").unwrap();
             let mut draft = JsonDraft::open(Arc::new(source));
             draft
-                .edit(DraftEdit::Reorder {
+                .edit(&DraftEdit::Reorder {
                     path: vec!["items".into()],
                     order: vec![1, 0],
                 })
@@ -384,13 +384,13 @@ impl JsonDraft {
             || moved(&self.target, &mut Vec::new())
     }
     pub fn replace(&mut self, path: &[String], value: PreparedValue) -> AppResult<()> {
-        self.edit(DraftEdit::Replace {
+        self.edit(&DraftEdit::Replace {
             path: path.iter().map(|part| Text::new(part.clone())).collect(),
             value,
         })
     }
-    pub fn edit(&mut self, edit: DraftEdit) -> AppResult<()> {
-        apply(&mut self.content, &mut self.target, &edit)
+    pub fn edit(&mut self, edit: &DraftEdit) -> AppResult<()> {
+        apply(&mut self.content, &mut self.target, edit)
     }
     pub fn request(&self, layout: SaveLayout) -> JsonWrite {
         JsonWrite {

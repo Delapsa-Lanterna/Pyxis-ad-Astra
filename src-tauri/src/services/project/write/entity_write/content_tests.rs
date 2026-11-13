@@ -141,7 +141,7 @@ fn spec_rename_updates_the_registered_row_and_preserves_a_comment_with_the_same_
             file_formats::read_csv_table(&csv).unwrap().rows[1].data["id"],
             "next"
         );
-        release_project_session(manifest.session_id).unwrap();
+        release_project_session(&manifest.session_id).unwrap();
         root.close().unwrap();
     }
 }
@@ -235,7 +235,7 @@ fn loaded_nested_target_renames_with_its_csv_row_and_replays_identity() {
     )
     .unwrap();
     assert!(root.join("data/hulls/nested/new.ship").is_file());
-    release_project_session(manifest.session_id).unwrap();
+    release_project_session(&manifest.session_id).unwrap();
     root.close().unwrap();
 }
 
@@ -258,7 +258,7 @@ fn missing_spec_import_uses_content_identity() {
     .unwrap();
     assert_eq!(result.identity_changes[0].after.id, "imported");
     assert!(root.join("data/hulls/imported.ship").exists());
-    release_project_session(manifest.session_id).unwrap();
+    release_project_session(&manifest.session_id).unwrap();
     root.close().unwrap();
 }
 
@@ -278,7 +278,7 @@ fn text_save_writes_submitted_text_without_identity_changes() {
     let loaded = text_file_editing::load_project_text_file(
         Some(&manifest.session_id),
         &manifest.mod_root,
-        old.to_string_lossy().to_string(),
+        old.to_string_lossy().as_ref(),
     )
     .unwrap();
     assert_eq!(loaded.entity.as_ref().unwrap().target.id, "old");
@@ -302,7 +302,7 @@ fn text_save_writes_submitted_text_without_identity_changes() {
             .data["id"],
         "old"
     );
-    release_project_session(manifest.session_id).unwrap();
+    release_project_session(&manifest.session_id).unwrap();
     root.close().unwrap();
 }
 
@@ -387,7 +387,7 @@ fn assert_core_projectile_override(directory: &str) {
             .data["width"],
         8
     );
-    release_project_session(manifest.session_id).unwrap();
+    release_project_session(&manifest.session_id).unwrap();
     game.close().unwrap();
 }
 
@@ -457,7 +457,7 @@ fn projectile_save_and_rename_preserve_the_loaded_directory() {
                 id
             );
         }
-        release_project_session(manifest.session_id).unwrap();
+        release_project_session(&manifest.session_id).unwrap();
         root.close().unwrap();
     }
 }
@@ -499,7 +499,7 @@ fn linked_csv_version_conflict_keeps_loaded_spec_and_history() {
             .undo_stack
             .is_empty()
     );
-    release_project_session(manifest.session_id).unwrap();
+    release_project_session(&manifest.session_id).unwrap();
     root.close().unwrap();
 }
 
@@ -541,7 +541,7 @@ fn spec_save_requires_the_complete_loaded_version_scope() {
             .undo_stack
             .is_empty()
     );
-    release_project_session(manifest.session_id).unwrap();
+    release_project_session(&manifest.session_id).unwrap();
     root.close().unwrap();
 }
 
@@ -593,7 +593,7 @@ fn partial_identity_preserves_nested_omissions_and_empty_id_through_reopen() {
             assert_eq!(save(invalid).unwrap_err().code(), "config.shape_invalid");
             save(data.clone()).unwrap();
             assert_eq!(file_formats::read_json_value(&path).unwrap(), data);
-            release_project_session(manifest.session_id).unwrap();
+            release_project_session(&manifest.session_id).unwrap();
             let reopened = project::open_project_session_traced(
                 &root,
                 None,
@@ -607,7 +607,7 @@ fn partial_identity_preserves_nested_omissions_and_empty_id_through_reopen() {
                     .data,
                 data
             );
-            release_project_session(reopened.session_id).unwrap();
+            release_project_session(&reopened.session_id).unwrap();
             root.close().unwrap();
         }
     }
@@ -761,7 +761,7 @@ fn inherited_faction_filename_choices_commit_index_and_history_together() {
                 file_formats::read_json_value(&next_path).unwrap(),
                 submitted
             );
-            release_project_session(manifest.session_id).unwrap();
+            release_project_session(&manifest.session_id).unwrap();
             work.close().unwrap();
         }
     }
@@ -828,8 +828,8 @@ fn phase42_single_and_joint_staging_share_field_and_engine_checks() {
                 &manifest.session_id,
                 &target,
                 "entry",
-                file_formats::json_write(&invalid),
-                options.clone()
+                &file_formats::json_write(&invalid),
+                &options
             )
             .unwrap_err()
             .code(),
@@ -851,7 +851,7 @@ fn phase42_single_and_joint_staging_share_field_and_engine_checks() {
             assert_eq!(result.err().unwrap().code(), code);
         }
         assert_eq!(fs::read(&path).unwrap(), before);
-        release_project_session(manifest.session_id).unwrap();
+        release_project_session(&manifest.session_id).unwrap();
         root.close().unwrap();
     }
 }

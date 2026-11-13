@@ -7,6 +7,7 @@ use pyxis_java_analysis::{AnalysisRuntime, Error as AnalysisError, java_path};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::collections::{BTreeMap, VecDeque};
+use std::mem;
 use std::sync::{Arc, Condvar, Mutex, MutexGuard};
 use std::thread::{self, JoinHandle};
 use std::time::Instant;
@@ -505,7 +506,7 @@ impl ComponentManagement {
             operation.completion.deliver(state.snapshot.clone());
             diagnostics::info("java_analysis.management_completed", &json!({"operationKey":operation.key,"action":operation.action,"phase":state.snapshot.phase,"milliseconds":started.elapsed().as_secs_f64()*1000.0,"instances":state.snapshot.instances,"projects":state.snapshot.projects,"stagedBytes":state.snapshot.staged_bytes}).to_string());
             if state.closed {
-                for pending in state.queue.drain(..).collect::<Vec<_>>() {
+                for pending in mem::take(&mut state.queue) {
                     Self::cancel_pending(&pending, &state.snapshot);
                 }
                 state.snapshot.queued = 0;
@@ -551,7 +552,7 @@ impl ComponentManagement {
         {
             let mut state = self.state()?;
             state.closed = true;
-            for pending in state.queue.drain(..).collect::<Vec<_>>() {
+            for pending in mem::take(&mut state.queue) {
                 Self::cancel_pending(&pending, &state.snapshot);
             }
             state.snapshot.queued = 0;

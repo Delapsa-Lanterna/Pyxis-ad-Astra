@@ -203,13 +203,11 @@ mod tests {
                     .collect(),
             )
             .unwrap();
-            project::set_reference_sources(
-                sources
-                    .iter()
-                    .map(|&i| manifests[i].session_id.clone())
-                    .collect(),
-            )
-            .unwrap();
+            let source_ids = sources
+                .iter()
+                .map(|&i| manifests[i].session_id.clone())
+                .collect::<Vec<_>>();
+            project::set_reference_sources(&source_ids).unwrap();
             let manifest = &manifests[target];
             for attempt in 0..2 {
                 let reads = count("read", &core_path);
@@ -240,7 +238,7 @@ mod tests {
                 );
             }
         }
-        project::set_reference_sources(Vec::new()).unwrap();
+        project::set_reference_sources(&Vec::new()).unwrap();
         for (index, manifest) in manifests.iter().enumerate() {
             let entity = entities::query_entity(&manifest.session_id, EntityKind::Variant, "probe")
                 .unwrap()
@@ -270,7 +268,7 @@ mod tests {
             );
         }
         for manifest in manifests {
-            release_project_session(manifest.session_id).unwrap();
+            release_project_session(&manifest.session_id).unwrap();
         }
         for (name, groups, layers) in [("starsector-core", 6, 0), ("first", 6, 1), ("local", 7, 1)]
         {
@@ -290,7 +288,7 @@ mod tests {
             assert_eq!(effective["displayName"], "Saved probe");
             assert_eq!(effective["weaponGroups"].as_array().unwrap().len(), groups);
             schema::validate_document(parsers::bundled_schema("variant"), &effective).unwrap();
-            release_project_session(manifest.session_id).unwrap();
+            release_project_session(&manifest.session_id).unwrap();
         }
         work.close().unwrap();
     }
@@ -405,7 +403,7 @@ mod tests {
             );
         }
         for (kind, relative, data) in configs {
-            let file = misc_config::query_project_misc_config(MiscConfigRead {
+            let file = misc_config::query_project_misc_config(&MiscConfigRead {
                 session_id: manifest.session_id.clone(),
                 mod_root: manifest.mod_root.clone(),
                 kind,
@@ -426,7 +424,7 @@ mod tests {
                 data
             );
         }
-        release_project_session(manifest.session_id).unwrap();
+        release_project_session(&manifest.session_id).unwrap();
         let reopened = project::open_project_session_traced(
             &root,
             Some(&work),
@@ -440,7 +438,7 @@ mod tests {
                     .is_some()
             );
         }
-        release_project_session(reopened.session_id).unwrap();
+        release_project_session(&reopened.session_id).unwrap();
         work.close().unwrap();
     }
 
@@ -479,7 +477,7 @@ mod tests {
             later.session_id.clone(),
         ])
         .unwrap();
-        project::set_reference_sources(vec![
+        project::set_reference_sources(&[
             base.session_id.clone(),
             local.session_id.clone(),
             later.session_id.clone(),
@@ -525,7 +523,7 @@ mod tests {
         ] {
             let ids = order.map(|manifest| manifest.session_id.clone()).to_vec();
             project::set_reference_order(ids.clone()).unwrap();
-            project::set_reference_sources(ids).unwrap();
+            project::set_reference_sources(&ids).unwrap();
             let entity = entities::query_entity(&local.session_id, EntityKind::Faction, "example")
                 .unwrap()
                 .unwrap();
@@ -538,13 +536,13 @@ mod tests {
                 json_composition::compose_game_json(&composition, &entity.data).unwrap();
             assert_eq!(effective["knownShips"]["hulls"], expected);
         }
-        project::set_reference_sources(Vec::new()).unwrap();
+        project::set_reference_sources(&Vec::new()).unwrap();
         let detached = entities::query_entity(&local.session_id, EntityKind::Faction, "example")
             .unwrap()
             .unwrap();
         assert!(detached.composition.unwrap().layers.is_empty());
         for manifest in [base, local, later] {
-            release_project_session(manifest.session_id).unwrap();
+            release_project_session(&manifest.session_id).unwrap();
         }
         work.close().unwrap();
     }

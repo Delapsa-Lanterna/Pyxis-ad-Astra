@@ -386,7 +386,7 @@ fn execute_close(
                 if windows::session_has_windows(&session)? {
                     continue;
                 }
-                project_sync::release_project_session(session.clone())?;
+                project_sync::release_project_session(&session)?;
                 operation.state()?.released_sessions.push(session.clone());
                 result.released_sessions.push(session);
             }

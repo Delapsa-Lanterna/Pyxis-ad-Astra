@@ -59,7 +59,7 @@ pub(crate) fn stage_replace_paths(
                 rule.prepare(value.as_str().expect("normalized path"))
             })
             .collect::<AppResult<_>>()?;
-        draft.edit(DraftEdit::ArraySplice {
+        draft.edit(&DraftEdit::ArraySplice {
             path: vec![Text::new("replace")],
             index: previous.len(),
             delete: 0,
@@ -69,7 +69,7 @@ pub(crate) fn stage_replace_paths(
         let Value::Object(fields) = &source.content else {
             unreachable!("JSON root object")
         };
-        draft.edit(DraftEdit::ObjectSplice {
+        draft.edit(&DraftEdit::ObjectSplice {
             path: Vec::new(),
             index: fields.len(),
             delete: 0,

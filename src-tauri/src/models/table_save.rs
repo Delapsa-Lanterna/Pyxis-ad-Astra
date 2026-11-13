@@ -172,7 +172,7 @@ mod tests {
     fn csv_insert_position_accepts_missing_and_null_values() {
         let value = json!({"rowKey":"row","action":"upsert","row":{},"isComment":false,"columns":[],"commentChanged":false});
         for value in [
-            value.clone(),
+            value,
             json!({"insertAt":null,"rowKey":"row","action":"upsert","row":{},"isComment":false,"columns":[],"commentChanged":false}),
         ] {
             let patch: CsvRowPatch = serde_json::from_value(value).unwrap();

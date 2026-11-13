@@ -288,6 +288,7 @@ mod tests {
     use crate::test_support::{self, work_counts};
     use serde_json::json;
     use std::fs;
+    use std::slice::from_ref;
 
     #[test]
     fn validation_uses_physical_specs_from_all_sources_and_composes_content() {
@@ -351,7 +352,7 @@ mod tests {
         .unwrap();
         project::set_reference_order(vec![reference.session_id.clone(), local.session_id.clone()])
             .unwrap();
-        project::set_reference_sources(vec![reference.session_id.clone()]).unwrap();
+        project::set_reference_sources(from_ref(&reference.session_id)).unwrap();
         let requests = ENTITY_SPEC_DEFINITIONS
             .iter()
             .flat_map(|definition| {
@@ -409,10 +410,10 @@ mod tests {
             assert_eq!(work_counts::count("read", &path), 1);
             assert_eq!(work_counts::count("parse", &path), 1);
         }
-        project::set_reference_sources(vec![]).unwrap();
+        project::set_reference_sources(&[]).unwrap();
         project::set_reference_order(vec![]).unwrap();
-        release_project_session(local.session_id).unwrap();
-        release_project_session(reference.session_id).unwrap();
+        release_project_session(&local.session_id).unwrap();
+        release_project_session(&reference.session_id).unwrap();
         work.close().unwrap();
     }
 
@@ -509,7 +510,7 @@ mod tests {
             )
             .is_err()
         );
-        release_project_session(manifest.session_id).unwrap();
+        release_project_session(&manifest.session_id).unwrap();
         root.close().unwrap();
     }
 }

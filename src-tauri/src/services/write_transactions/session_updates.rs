@@ -34,7 +34,7 @@ pub(super) fn refresh_committed_sessions(
                         }
                     })
                 } else {
-                    project::invalidate_project_session(&session_id, changes.to_vec())
+                    project::invalidate_project_session(&session_id, changes)
                 };
                 if result.is_err() {
                     project::mark_session_pending(&session_id)?;

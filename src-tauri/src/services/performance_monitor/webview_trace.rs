@@ -100,14 +100,14 @@ type TraceCompletion = (
 );
 
 #[cfg(windows)]
-pub(super) fn start(app: AppHandle, window: WebviewWindow, seconds: u8) -> AppResult<()> {
+pub(super) fn start(app: AppHandle, window: &WebviewWindow, seconds: u8) -> AppResult<()> {
     if window.label() != "main" || !(1..=60).contains(&seconds) {
         return Err(AppError::message(
             "performance_monitor.trace_target",
             "trace requires the main window and a duration from 1 to 60 seconds",
         ));
     }
-    let directory = app_data_dir::data_directory(app.clone())?.join("performance-monitor");
+    let directory = app_data_dir::data_directory(&app)?.join("performance-monitor");
     fs::create_dir_all(&directory)?;
     let generation = {
         let mut trace = TRACE.lock().expect("trace state lock");
@@ -128,7 +128,11 @@ pub(super) fn start(app: AppHandle, window: WebviewWindow, seconds: u8) -> AppRe
     let timestamp = now() as u64;
     let partial = directory.join(format!("{timestamp}.{generation}.partial"));
     let ready = directory.join(format!("{timestamp}.{generation}.webview-trace.json"));
-    TRACE.lock().expect("trace state lock").partial = partial.clone();
+    TRACE
+        .lock()
+        .expect("trace state lock")
+        .partial
+        .clone_from(&partial);
     if let Some(writer) = TRACE_WRITER.lock().expect("trace writer lock").take() {
         let _ = writer.join();
     }
@@ -136,11 +140,11 @@ pub(super) fn start(app: AppHandle, window: WebviewWindow, seconds: u8) -> AppRe
     *TRACE_CHANNEL.lock().expect("trace channel lock") = Some(sender.clone());
     let frames = Arc::new(Mutex::new(BTreeSet::new()));
     let writer_frames = frames.clone();
-    let writer_partial = partial.clone();
+    let writer_partial = partial;
     *TRACE_WRITER.lock().expect("trace writer lock") = Some(thread::spawn(move || {
         write_trace(generation, writer_partial, ready, writer_frames, receiver)
     }));
-    let timer_app = app.clone();
+    let timer_app = app;
     if let Err(error) = window.with_webview(move |platform| {
         let core = match unsafe { platform.controller().CoreWebView2() } {
             Ok(core) => core,
@@ -247,7 +251,7 @@ pub(super) fn start(app: AppHandle, window: WebviewWindow, seconds: u8) -> AppRe
                                 thread::spawn(move || {
                                     thread::sleep(Duration::from_secs(seconds.into()));
                                     if let Some(window) = confirmed_app.get_webview_window("main") {
-                                        let _ = trace_stop_generation(window, generation);
+                                        let _ = trace_stop_generation(&window, generation);
                                     }
                                 });
                             }
@@ -322,15 +326,15 @@ fn listen_trace(
 }
 
 #[cfg(windows)]
-pub(super) fn stop(window: WebviewWindow) -> AppResult<()> {
+pub(super) fn stop(window: &WebviewWindow) -> AppResult<()> {
     trace_stop_inner(window, None)
 }
 #[cfg(windows)]
-fn trace_stop_generation(window: WebviewWindow, generation: u64) -> AppResult<()> {
+fn trace_stop_generation(window: &WebviewWindow, generation: u64) -> AppResult<()> {
     trace_stop_inner(window, Some(generation))
 }
 #[cfg(windows)]
-fn trace_stop_inner(window: WebviewWindow, generation: Option<u64>) -> AppResult<()> {
+fn trace_stop_inner(window: &WebviewWindow, generation: Option<u64>) -> AppResult<()> {
     if window.label() != "main" {
         return Err(AppError::message(
             "performance_monitor.trace_target",
@@ -433,6 +437,10 @@ fn trace_failed_with_core(generation: u64, core: &WebView, error: String) {
 }
 #[cfg(windows)]
 #[cfg(windows)]
+#[expect(
+    clippy::needless_pass_by_value,
+    reason = "The trace writer owns its paths, frame registry and receiver until the thread exits."
+)]
 fn write_trace(
     generation: u64,
     partial: PathBuf,
@@ -504,7 +512,7 @@ fn trace_failed(generation: u64, error: String) {
         return;
     }
     trace.state = "failed".into();
-    trace.error = error.clone();
+    trace.error.clone_from(&error);
     let _ = fs::remove_file(&trace.partial);
     trace.partial = PathBuf::new();
     if let Some(sender) = TRACE_CHANNEL.lock().expect("trace channel lock").take() {

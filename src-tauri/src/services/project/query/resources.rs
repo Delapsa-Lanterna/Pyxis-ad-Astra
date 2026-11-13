@@ -213,7 +213,7 @@ mod tests {
             result.entries[9].error.as_ref().unwrap().code,
             "reference.unavailable"
         );
-        release_project_session(manifest.session_id).unwrap();
+        release_project_session(&manifest.session_id).unwrap();
         root.close().unwrap();
     }
 
@@ -288,7 +288,7 @@ mod tests {
                 .code(),
             "parse.json_syntax"
         );
-        release_project_session(manifest.session_id.clone()).unwrap();
+        release_project_session(&manifest.session_id).unwrap();
         assert!(query_engine_render_assets(&manifest.session_id, &[]).is_err());
         root.close().unwrap();
     }
@@ -328,7 +328,7 @@ mod tests {
         )
         .unwrap();
 
-        let _ = release_project_session(manifest.session_id);
+        let _ = release_project_session(&manifest.session_id);
         assert_eq!(result.entries.len(), 2);
         assert_eq!(result.entries[0].key, "ship");
         assert_eq!(result.entries[0].owner_kind, ResourceOwnerKind::Ship);
@@ -416,7 +416,7 @@ mod tests {
         );
         assert_eq!(sprite_read_count(&sprite) - before, 1);
 
-        release_project_session(manifest.session_id).unwrap();
+        release_project_session(&manifest.session_id).unwrap();
         root.close().unwrap();
     }
 
@@ -457,7 +457,7 @@ mod tests {
         .unwrap();
 
         assert_ne!(result.entries[0].data_url, result.entries[1].data_url);
-        release_project_session(manifest.session_id).unwrap();
+        release_project_session(&manifest.session_id).unwrap();
         root.close().unwrap();
     }
 
@@ -486,7 +486,7 @@ mod tests {
             .message
             .clone();
 
-        let _ = release_project_session(manifest.session_id);
+        let _ = release_project_session(&manifest.session_id);
         assert!(error.contains("core resource requires starsector root"));
         root.close().unwrap();
     }
@@ -518,7 +518,7 @@ mod tests {
         )
         .unwrap();
 
-        let _ = release_project_session(manifest.session_id);
+        let _ = release_project_session(&manifest.session_id);
         assert!(result.entries[0].data_url.is_some());
         root.close().unwrap();
     }
@@ -548,7 +548,7 @@ mod tests {
             .message
             .clone();
 
-        let _ = release_project_session(manifest.session_id);
+        let _ = release_project_session(&manifest.session_id);
         assert!(error.contains("sprite path is outside resource root"));
         root.close().unwrap();
     }
@@ -574,7 +574,7 @@ mod tests {
             }],
         );
 
-        let _ = release_project_session(manifest.session_id);
+        let _ = release_project_session(&manifest.session_id);
         assert!(result.unwrap().entries[0].error.is_some());
         root.close().unwrap();
     }
@@ -598,7 +598,7 @@ mod tests {
             key: "ship".to_string(),
         };
 
-        let session_id = manifest.session_id.clone();
+        let session_id = manifest.session_id;
         let before = sprite_read_count(&sprite);
         let first = query_resource_data_urls(&session_id, vec![resource.clone()])
             .unwrap()
@@ -626,7 +626,7 @@ mod tests {
         query_resource_data_urls(&session_id, vec![repeat]).unwrap();
         assert_eq!(sprite_read_count(&sprite) - before, 2);
 
-        release_project_session(session_id).unwrap();
+        release_project_session(&session_id).unwrap();
         assert_ne!(first, second);
         assert!(first.ends_with(&general_purpose_base64(&[1u8])));
         assert!(second.ends_with(&general_purpose_base64(&[7u8, 7, 7])));
@@ -655,7 +655,7 @@ mod tests {
 
         let mut trace = PerformanceTrace::new("project.openSession");
         let manifest = open_project_session_traced(&root, None, &mut trace).unwrap();
-        let result = query_resource_data_urls(&manifest.session_id.clone(), resources).unwrap();
+        let result = query_resource_data_urls(&manifest.session_id, resources).unwrap();
 
         let oldest_still_cached = cached_sprite_media_contains(
             &manifest.session_id,
@@ -696,7 +696,7 @@ mod tests {
         query_resource_data_urls(&manifest.session_id, vec![oldest.clone()]).unwrap();
         query_resource_data_urls(&manifest.session_id, vec![oldest]).unwrap();
         assert_eq!(sprite_read_count(&path), 2);
-        release_project_session(manifest.session_id).unwrap();
+        release_project_session(&manifest.session_id).unwrap();
         root.close().unwrap();
     }
 
@@ -717,7 +717,7 @@ mod tests {
 
         let mut trace = PerformanceTrace::new("project.openSession");
         let manifest = open_project_session_traced(&root, None, &mut trace).unwrap();
-        let session_id = manifest.session_id.clone();
+        let session_id = manifest.session_id;
         query_resource_data_urls(&session_id, vec![resource.clone()]).unwrap();
         assert!(cached_sprite_media_contains(
             &session_id,
@@ -726,7 +726,7 @@ mod tests {
 
         let sibling = open_project_session_traced(&root, None, &mut trace).unwrap();
         query_resource_data_urls(&sibling.session_id, vec![resource.clone()]).unwrap();
-        release_project_session(session_id.clone()).unwrap();
+        release_project_session(&session_id).unwrap();
         assert!(cached_sprite_media_contains(
             &sibling.session_id,
             &media_resource_key(&resource)
@@ -743,8 +743,8 @@ mod tests {
         query_resource_data_urls(&reopened.session_id, vec![resource.clone()]).unwrap();
         query_resource_data_urls(&reopened.session_id, vec![resource]).unwrap();
         assert_eq!(sprite_read_count(&path), 3);
-        release_project_session(sibling.session_id).unwrap();
-        release_project_session(reopened.session_id).unwrap();
+        release_project_session(&sibling.session_id).unwrap();
+        release_project_session(&reopened.session_id).unwrap();
         root.close().unwrap();
     }
 
@@ -764,7 +764,7 @@ mod tests {
         assert_eq!(resources["turretSprite"].rel_path, "graphics/draft.png");
         assert_eq!(resources["turretSprite"].owner_id, "weapon");
         assert_eq!(resources["turretSprite"].key, "turretSprite");
-        release_project_session(manifest.session_id).unwrap();
+        release_project_session(&manifest.session_id).unwrap();
         assert!(
             query_draft_resources("closed", DraftResourceEntityKind::Weapon, "weapon", &draft)
                 .is_err()
@@ -795,7 +795,7 @@ mod tests {
             assert_eq!(resources[field].owner_id, "shot");
             assert_eq!(resources[field].owner_kind, EntityKind::Projectile.into());
         }
-        release_project_session(manifest.session_id.clone()).unwrap();
+        release_project_session(&manifest.session_id).unwrap();
         assert!(
             query_draft_resources(
                 &manifest.session_id,
@@ -830,7 +830,7 @@ mod tests {
         )
         .unwrap();
         assert_eq!(mission["icon"].rel_path, "data/missions/mission/new.png");
-        release_project_session(manifest.session_id).unwrap();
+        release_project_session(&manifest.session_id).unwrap();
         root.close().unwrap();
     }
 }

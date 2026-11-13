@@ -9,7 +9,7 @@ use serde_json::Value as JsonValue;
 use std::path::Path;
 use std::sync::Arc;
 
-pub fn write_variant_request(input: JsonFileSave) -> AppResult<WriteResult<JsonValue>> {
+pub fn write_variant_request(input: &JsonFileSave) -> AppResult<WriteResult<JsonValue>> {
     services::save_file_entity(input, EntityKind::Variant)
 }
 pub fn prepare_file_save(
@@ -22,7 +22,7 @@ pub fn prepare_file_save(
         if identity.before.kind == kind && input.previous_id.as_deref() == Some(&identity.before.id)
         {
             if input.next_id == identity.before.id {
-                input.next_id = identity.after.id.clone();
+                input.next_id.clone_from(&identity.after.id);
             }
             input.previous_id = Some(identity.after.id.clone());
             input.rel_path = Some(identity.after.write.rel_path.clone());
@@ -40,15 +40,15 @@ pub fn prepare_file_save(
     input.base_versions = snapshot.base_versions;
     Ok(())
 }
-pub fn write_skin_request(input: JsonFileSave) -> AppResult<WriteResult<JsonValue>> {
+pub fn write_skin_request(input: &JsonFileSave) -> AppResult<WriteResult<JsonValue>> {
     services::save_file_entity(input, EntityKind::Skin)
 }
 pub fn create_entity_request(
-    input: JsonFileSave,
+    input: &JsonFileSave,
     kind: EntityKind,
 ) -> AppResult<WriteResult<JsonValue>> {
     services::create_json_entity_file(input, kind)
 }
-pub fn delete_entity_request(input: JsonFileDelete, kind: EntityKind) -> AppResult<WriteResult> {
+pub fn delete_entity_request(input: &JsonFileDelete, kind: EntityKind) -> AppResult<WriteResult> {
     services::delete_json_entity_file(input, kind)
 }

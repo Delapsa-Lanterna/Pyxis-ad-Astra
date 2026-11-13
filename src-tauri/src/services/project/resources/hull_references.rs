@@ -174,7 +174,7 @@ impl<'a> HullReferenceResolver<'a> {
         Ok(value.map(|(path, origin, owner)| {
             let mut resource = resource_ref(origin, &path, owner, id, "thumbnail");
             if origin == ResourceSource::Reference {
-                resource.reference = self.resolved_reference.clone();
+                resource.reference.clone_from(&self.resolved_reference);
             }
             resource
         }))

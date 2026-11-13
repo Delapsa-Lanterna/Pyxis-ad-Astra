@@ -477,7 +477,7 @@ mod tests {
         let handle = session_handle(&manifest.session_id).unwrap();
         session::lock_session(&handle).unwrap().content_pending = true;
         assert!(SpriteReadBatch::new(&manifest.session_id).is_err());
-        release_project_session(manifest.session_id.clone()).unwrap();
+        release_project_session(&manifest.session_id).unwrap();
         assert!(SpriteReadBatch::new(&manifest.session_id).is_err());
         let late = ResourceRef {
             rel_path: "late.png".into(),

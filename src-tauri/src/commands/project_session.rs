@@ -8,5 +8,9 @@ pub fn open_project_session(
     app_handle: AppHandle,
     payload: OpenProjectSessionPayload,
 ) -> Result<ProjectManifest, AppError> {
-    project_sync::open_project_session(app_handle, payload.mod_root, payload.starsector_root)
+    project_sync::open_project_session(
+        &app_handle,
+        &payload.mod_root,
+        payload.starsector_root.as_deref(),
+    )
 }

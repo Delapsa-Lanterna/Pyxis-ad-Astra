@@ -214,7 +214,7 @@ fn weapon_description_replay() {
                 .data["id"],
             "new"
         );
-        release_project_session(manifest.session_id).unwrap();
+        release_project_session(&manifest.session_id).unwrap();
         root.close().unwrap();
     }
 }
@@ -243,7 +243,7 @@ fn weapon_description_collision() {
                 .undo_stack
                 .is_empty()
         );
-        release_project_session(manifest.session_id).unwrap();
+        release_project_session(&manifest.session_id).unwrap();
         root.close().unwrap();
     }
 }

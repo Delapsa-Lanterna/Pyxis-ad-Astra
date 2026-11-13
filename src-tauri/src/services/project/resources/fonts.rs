@@ -261,7 +261,7 @@ mod tests {
                 .is_err()
             );
         }
-        release_project_session(manifest.session_id.clone()).unwrap();
+        release_project_session(&manifest.session_id).unwrap();
         assert!(
             query_original_font(&manifest.session_id, FontId::Orbitron12condensed, None).is_err()
         );

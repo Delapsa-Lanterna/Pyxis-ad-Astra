@@ -28,7 +28,7 @@ struct PerformanceStage {
     name: String,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub(crate) struct PerformanceTimer {
     started_at: Option<Instant>,
 }

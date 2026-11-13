@@ -49,7 +49,7 @@ pub async fn submit_project_save(
     let mut queued = Some(trace.timer());
     async_runtime::spawn_blocking(move || {
         let result = project_sync::execute_queued(
-            task,
+            &task,
             &root,
             session.as_deref(),
             reason,
@@ -141,7 +141,7 @@ pub(crate) fn execute_save_action(mut action: SaveAction) -> AppResult<WriteResu
     let timer = trace.timer();
     let (result, label) = match action {
         SaveAction::SaveEditorSpec(input) => (
-            json_result(content::write_spec_request(input)?)?,
+            json_result(content::write_spec_request(&input)?)?,
             "保存编辑器规格",
         ),
         SaveAction::SaveTextFile(input) => (
@@ -168,7 +168,7 @@ pub(crate) fn execute_save_action(mut action: SaveAction) -> AppResult<WriteResu
             json_result(joint_edit::save_joint_edit(&input)?)?,
             "联合保存",
         ),
-        SaveAction::SaveModInfo(input) => (config_entity::save_mod_info(input)?, "保存 Mod 信息"),
+        SaveAction::SaveModInfo(input) => (config_entity::save_mod_info(&input)?, "保存 Mod 信息"),
         SaveAction::SaveIndexedConfigEntity(input) => {
             (config_entity::write_indexed_request(input)?, "保存配置实体")
         }
@@ -181,34 +181,34 @@ pub(crate) fn execute_save_action(mut action: SaveAction) -> AppResult<WriteResu
             "删除配置实体",
         ),
         SaveAction::SaveVariantEntity(input) => {
-            (json_file::write_variant_request(input)?, "保存装配")
+            (json_file::write_variant_request(&input)?, "保存装配")
         }
         SaveAction::CreateVariantEntity(input) => (
-            json_file::create_entity_request(input, EntityKind::Variant)?,
+            json_file::create_entity_request(&input, EntityKind::Variant)?,
             "创建装配",
         ),
         SaveAction::DeleteVariantEntity(input) => (
             json_result(json_file::delete_entity_request(
-                input,
+                &input,
                 EntityKind::Variant,
             )?)?,
             "删除装配",
         ),
-        SaveAction::SaveSkinEntity(input) => (json_file::write_skin_request(input)?, "保存皮肤"),
+        SaveAction::SaveSkinEntity(input) => (json_file::write_skin_request(&input)?, "保存皮肤"),
         SaveAction::CreateSkinEntity(input) => (
-            json_file::create_entity_request(input, EntityKind::Skin)?,
+            json_file::create_entity_request(&input, EntityKind::Skin)?,
             "创建皮肤",
         ),
         SaveAction::DeleteSkinEntity(input) => (
-            json_result(json_file::delete_entity_request(input, EntityKind::Skin)?)?,
+            json_result(json_file::delete_entity_request(&input, EntityKind::Skin)?)?,
             "删除皮肤",
         ),
         SaveAction::RecreateJsonSources(input) => (
-            json_result(json_recovery::restore_source_request(input)?)?,
+            json_result(json_recovery::restore_source_request(&input)?)?,
             "重新创建 JSON 来源",
         ),
         SaveAction::SaveMiscConfig(input) => {
-            (misc_config::write_misc_request(input)?, "保存杂项配置")
+            (misc_config::write_misc_request(&input)?, "保存杂项配置")
         }
         SaveAction::DeleteMiscConfig(input) => (
             json_result(misc_config::delete_misc_config(
@@ -602,8 +602,8 @@ mod tests {
             let delivered = receive
                 .try_iter()
                 .filter(|delivery| delivery["kind"] == "saved")
-                .collect::<Vec<_>>();
-            assert_eq!(delivered.len(), 1, "{kind}");
+                .count();
+            assert_eq!(delivered, 1, "{kind}");
             assert_eq!(result.history.undo_stack.len(), 1, "{kind}");
             assert_eq!(
                 result
@@ -683,7 +683,7 @@ mod tests {
             }
             project_sync::wait_projects(&[manifest.mod_root]).unwrap();
             project_sync::release_window(&owner).unwrap();
-            release_project_session(manifest.session_id).unwrap();
+            release_project_session(&manifest.session_id).unwrap();
             root.close().unwrap();
         }
     }

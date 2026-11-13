@@ -53,8 +53,8 @@ fn history_access_checks_scope_and_reads_pending_projection() {
     assert_eq!(cleared.revision, history.revision + 1);
     assert!(cleared.undo_stack.is_empty() && cleared.redo_stack.is_empty());
     assert_eq!(fs::read_to_string(&path).unwrap(), "saved");
-    project_sync::release_project_session(first.session_id).unwrap();
-    project_sync::release_project_session(second.session_id).unwrap();
+    project_sync::release_project_session(&first.session_id).unwrap();
+    project_sync::release_project_session(&second.session_id).unwrap();
     workspace.close().unwrap();
 }
 
@@ -101,6 +101,6 @@ fn clearing_history_waits_for_the_root_transaction() {
     assert!(blocked);
     assert_eq!(cleared.revision, saved.revision + 1);
     assert!(cleared.undo_stack.is_empty());
-    project_sync::release_project_session(manifest.session_id).unwrap();
+    project_sync::release_project_session(&manifest.session_id).unwrap();
     root.close().unwrap();
 }

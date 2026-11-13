@@ -20,7 +20,7 @@ pub fn spec_entity_definition(kind: EntityKind) -> AppResult<&'static EntitySpec
     entity_definitions::entity_spec_definition(kind)
         .ok_or_else(|| AppError::message("spec.kind_unknown", "此实体没有 JSON 规格定义"))
 }
-pub fn save_file_entity(input: JsonFileSave, kind: EntityKind) -> AppResult<WriteResult<Value>> {
+pub fn save_file_entity(input: &JsonFileSave, kind: EntityKind) -> AppResult<WriteResult<Value>> {
     entity_targets::require_entity_version_scope(
         &input.session_id,
         kind,
@@ -62,8 +62,8 @@ pub fn save_file_entity(input: JsonFileSave, kind: EntityKind) -> AppResult<Writ
         &input.session_id,
         &before,
         next,
-        input.document,
-        input.json_write,
+        &input.document,
+        &input.json_write,
     )?;
     let after = &result.identity_changes[0].after;
     let saved = &result.content.as_ref().expect("specification output").value;
@@ -91,7 +91,7 @@ pub fn save_file_entity(input: JsonFileSave, kind: EntityKind) -> AppResult<Writ
 }
 
 pub fn create_json_entity_file(
-    input: JsonFileSave,
+    input: &JsonFileSave,
     kind: EntityKind,
 ) -> AppResult<WriteResult<Value>> {
     let target =
@@ -103,7 +103,7 @@ pub fn create_json_entity_file(
     }
     save_file_entity(input, kind)
 }
-pub fn delete_json_entity_file(input: JsonFileDelete, kind: EntityKind) -> AppResult<WriteResult> {
+pub fn delete_json_entity_file(input: &JsonFileDelete, kind: EntityKind) -> AppResult<WriteResult> {
     entity_targets::require_entity_version_scope(
         &input.session_id,
         kind,

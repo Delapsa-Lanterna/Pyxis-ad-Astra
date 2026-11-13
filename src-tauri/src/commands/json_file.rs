@@ -76,7 +76,7 @@ mod tests {
             assert!(
                 !json_file_save_context(&manifest.session_id, kind, None, "new", None).unwrap()
             );
-            release_project_session(manifest.session_id).unwrap();
+            release_project_session(&manifest.session_id).unwrap();
             root.close().unwrap();
         }
     }

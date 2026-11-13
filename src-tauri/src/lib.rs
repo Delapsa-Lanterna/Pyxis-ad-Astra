@@ -39,7 +39,7 @@ pub fn run() {
             if let WindowEvent::Focused(active) = event
                 && let Some(webview) = window.app_handle().get_webview_window(window.label())
             {
-                windows::set_window_memory_target(webview, *active);
+                windows::set_window_memory_target(&webview, *active);
             }
             if matches!(event, WindowEvent::Destroyed) {
                 diagnostics::debug("window.destroyed", || format!("window={}", window.label()));
@@ -133,7 +133,7 @@ pub fn run() {
             java_analysis::initialize(app.handle())?;
             #[cfg(windows)]
             for window in app.webview_windows().into_values() {
-                windows::set_window_memory_target(window, false);
+                windows::set_window_memory_target(&window, false);
             }
             Ok(())
         })
@@ -255,7 +255,7 @@ pub fn run() {
                 }
                 performance_monitor::shutdown();
                 diagnostics::info("app.exited", concat!("version=", env!("CARGO_PKG_VERSION")));
-                let _ = app_log::flush_native_logs(app.clone());
+                let _ = app_log::flush_native_logs(app);
             }
         });
 }

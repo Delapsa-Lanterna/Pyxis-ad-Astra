@@ -31,7 +31,7 @@ fn in_session<T>(root: &str, action: impl FnOnce(ProjectManifest) -> AppResult<T
     )?;
     let id = manifest.session_id.clone();
     let result = action(manifest);
-    release_project_session(id)?;
+    release_project_session(&id)?;
     result
 }
 fn save_json_entity_file(
@@ -59,7 +59,7 @@ fn save_json_entity_file(
             SaveLayout::Expanded
         };
         single_files::save_file_entity(
-            JsonFileSave {
+            &JsonFileSave {
                 session_id: manifest.session_id,
                 mod_root: manifest.mod_root,
                 base_versions: info.base_versions,
@@ -77,19 +77,19 @@ fn create_json_entity_file(
     root: &str,
     kind: EntityKind,
     next: &str,
-    data: Value,
+    data: &Value,
 ) -> AppResult<WriteResult<Value>> {
     in_session(root, |manifest| {
         let info = entity_targets::query_entity_edit_target(&manifest.session_id, kind, next)?;
         single_files::create_json_entity_file(
-            JsonFileSave {
+            &JsonFileSave {
                 session_id: manifest.session_id,
                 mod_root: manifest.mod_root,
                 base_versions: info.base_versions,
                 previous_id: None,
                 next_id: next.into(),
                 rel_path: None,
-                document: json_write(&data),
+                document: json_write(data),
                 json_write: Default::default(),
             },
             kind,
@@ -105,7 +105,7 @@ fn delete_json_entity_file(
     in_session(root, |manifest| {
         let info = entity_targets::query_entity_edit_target(&manifest.session_id, kind, id)?;
         single_files::delete_json_entity_file(
-            JsonFileDelete {
+            &JsonFileDelete {
                 session_id: manifest.session_id,
                 mod_root: manifest.mod_root,
                 base_versions: info.base_versions,
@@ -492,7 +492,7 @@ fn spec_create_rejects_existing_id_in_another_filename() {
                 &root.to_string_lossy(),
                 case.kind,
                 "old",
-                entity_json(case, "old"),
+                &entity_json(case, "old"),
             )
             .is_err()
         );
@@ -500,7 +500,7 @@ fn spec_create_rejects_existing_id_in_another_filename() {
             &root.to_string_lossy(),
             case.kind,
             "new",
-            entity_json(case, "new"),
+            &entity_json(case, "new"),
         )
         .unwrap();
         assert_eq!(

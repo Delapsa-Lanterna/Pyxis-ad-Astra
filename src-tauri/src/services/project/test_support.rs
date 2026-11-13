@@ -35,7 +35,7 @@ pub(crate) fn release_workspace(root: &Path) -> Vec<String> {
         Err(error) => return vec![format!("release test sessions {}: {error}", root.display())],
     };
     for id in sessions {
-        if let Err(error) = release_project_session(id) {
+        if let Err(error) = release_project_session(&id) {
             errors.push(format!("close test session {}: {error}", root.display()));
         }
     }

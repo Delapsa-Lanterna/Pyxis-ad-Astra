@@ -328,7 +328,7 @@ mod tests {
         assert_eq!(index.validation_rows[0].data["OPs"], "1.5");
         assert!(!index.validation_rows[0].data.contains_key("custom"));
         assert_eq!(index.base_versions, [io::file_version(&path).unwrap()]);
-        release_project_session(manifest.session_id).unwrap();
+        release_project_session(&manifest.session_id).unwrap();
         work.close().unwrap();
     }
 
@@ -424,7 +424,7 @@ mod tests {
             )
             .is_err()
         );
-        release_project_session(manifest.session_id).unwrap();
+        release_project_session(&manifest.session_id).unwrap();
         root.close().unwrap();
     }
 
@@ -514,7 +514,7 @@ mod tests {
         assert_eq!(resource.owner_kind, ResourceOwnerKind::Ship);
         assert_eq!(resource.owner_id, "ship_a");
         assert_eq!(resource.key, "thumbnail");
-        release_project_session(manifest.session_id).unwrap();
+        release_project_session(&manifest.session_id).unwrap();
         root.close().unwrap();
     }
 
@@ -575,7 +575,7 @@ mod tests {
             resources["hullmods:new:0"].as_ref().unwrap().rel_path,
             "graphics/hullmods/draft.png"
         );
-        release_project_session(manifest.session_id).unwrap();
+        release_project_session(&manifest.session_id).unwrap();
         root.close().unwrap();
     }
 
@@ -648,7 +648,7 @@ mod tests {
             assert_eq!(window.row_keys.len(), count);
             assert_eq!(window.rows.len(), count);
         }
-        release_project_session(manifest.session_id).unwrap();
+        release_project_session(&manifest.session_id).unwrap();
         root.close().unwrap();
     }
 }

@@ -130,7 +130,7 @@ impl JsonTarget {
 
 impl From<&JsonSource> for JsonFileContent {
     fn from(source: &JsonSource) -> Self {
-        let original = JsonDocument::layout_shared(source.text.clone())
+        let original = JsonDocument::layout_shared(&source.text)
             .expect("source already parsed with the shared grammar");
         Self {
             content: source.content.clone(),
@@ -143,7 +143,7 @@ impl From<&JsonSource> for JsonFileContent {
 /// Decodes game bytes into exact JSON content and its shared source, retaining text on failure.
 pub fn read_json(bytes: &[u8]) -> Result<JsonSource, ReadFailure> {
     let source: Arc<str> = Arc::from(text::decode_game(bytes).as_ref());
-    let content = json::parse_shared(source.clone()).map_err(|error| ReadFailure {
+    let content = json::parse_shared(&source).map_err(|error| ReadFailure {
         text: source.to_string(),
         error,
     })?;
@@ -157,7 +157,7 @@ impl JsonSource {
     pub fn write(&self, request: &JsonWrite) -> Result<Self, Error> {
         // Release the input layout and resolved formats before parsing the output.
         let output = {
-            let original = JsonDocument::layout_shared(self.text.clone())?;
+            let original = JsonDocument::layout_shared(&self.text)?;
             let format = request
                 .target
                 .format(&mut Some(SourceIndex::new(&original)))?;
@@ -169,15 +169,15 @@ impl JsonSource {
                 SaveLayout::Expanded => layout::expand_json(document, &request.content, &format)?,
             }
         };
-        Self::accept_output(output, &request.content)
+        Self::accept_output(&output, &request.content)
     }
 
     pub fn create(request: &JsonWrite) -> Result<Self, Error> {
         let output = layout::write_json(&request.content, &request.target.format(&mut None)?)?;
-        Self::accept_output(output, &request.content)
+        Self::accept_output(&output, &request.content)
     }
 
-    fn accept_output(output: String, expected: &Value) -> Result<Self, Error> {
+    fn accept_output(output: &str, expected: &Value) -> Result<Self, Error> {
         let actual = read_json(output.as_bytes()).map_err(|failure| failure.error)?;
         if !actual.content.same_content_order(expected) {
             return Err(Error::output(

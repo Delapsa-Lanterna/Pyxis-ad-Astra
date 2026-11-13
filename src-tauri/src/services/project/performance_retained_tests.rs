@@ -91,7 +91,7 @@ fn retained_csv_performance() {
             cold.push(started.elapsed().as_secs_f64() * 1000.0);
             assert_eq!(index.total, count);
             assert_eq!(index.first_rows, count.min(240));
-            release_project_session(manifest.session_id).unwrap();
+            release_project_session(&manifest.session_id).unwrap();
         }
         let mut trace = PerformanceTrace::new("retained.csv.performance");
         let manifest = open_project_session_traced(&root, None, &mut trace).unwrap();
@@ -197,7 +197,7 @@ fn retained_csv_performance() {
             "RETAINED_CSV_PERF {}",
             serde_json::json!({"count":count,"columns":40,"bytes":text.len(),"openSession":summarize(opening.clone()),"coldIndex":summarize(cold.clone()),"warmIndex":summarize(warm.clone()),"rows":summarize(rows.clone()),"search":summarize(search.clone()),"saveOrder":summarize(writes.clone()),"recovery":summarize(recovery.clone()),"queryWork":query_work,"saveWork":save_work,"recoveryWork":recovery_work,"samples":{"openSession":opening,"coldIndex":cold,"warmIndex":warm,"rows":rows,"search":search,"saveOrder":writes,"recovery":recovery}})
         );
-        release_project_session(manifest.session_id).unwrap();
+        release_project_session(&manifest.session_id).unwrap();
         root.close().unwrap();
     }
 }
