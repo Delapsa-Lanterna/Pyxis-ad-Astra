@@ -3,6 +3,7 @@ import { debugLog } from './app-log-queue';
 
 let limits: CacheLimits;
 const subscribers = new Set<WeakRef<{ trim(): void }>>();
+const collected = new FinalizationRegistry<WeakRef<{ trim(): void }>>((reference) => subscribers.delete(reference));
 
 export function initializeCacheLimits(value: CacheLimits): void {
   updateCacheLimits(value);
@@ -22,7 +23,11 @@ export function updateCacheLimits(value: CacheLimits): void {
 export function subscribeCacheLimits(cache: { trim(): void }): () => void {
   const reference = new WeakRef(cache);
   subscribers.add(reference);
-  return () => subscribers.delete(reference);
+  collected.register(cache, reference, reference);
+  return () => {
+    collected.unregister(reference);
+    subscribers.delete(reference);
+  };
 }
 
 export function windowCacheLimits(): Readonly<CacheLimits> {

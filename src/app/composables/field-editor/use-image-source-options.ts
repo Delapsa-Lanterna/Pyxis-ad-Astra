@@ -1,6 +1,6 @@
 import { observeSavedContent, sessionContentUpdate } from '@/orchestrators/project-sync.orchestrator';
 import { ref, watch, onScopeDispose } from 'vue';
-import { queryImageSourceOptions } from '@/services/source-catalog.service';
+import { queryImageSourceOptions, hasSourceInvalidation } from '@/services/source-catalog.service';
 
 import { mapSourceGroupsToSelectOptions, type SelectOption } from '@/domain/field-editor/field-options';
 import { useQueryReadOwner } from '@/app/composables/use-query-read-owner';
@@ -48,6 +48,8 @@ export function useImageSourceOptions(args: {
         const update = sessionContentUpdate(event, args.sessionId());
         if (!update) return;
         if (update.manifest.sessionId !== args.sessionId()) return;
+        if (!hasSourceInvalidation(update.invalidation, { directories: args.directories() ?? [], missionId: args.missionId?.() ?? null }))
+          return;
         return reload(true);
       },
       (sessionId) => {

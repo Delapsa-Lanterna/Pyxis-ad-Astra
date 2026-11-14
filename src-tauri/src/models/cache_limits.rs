@@ -59,7 +59,7 @@ impl Default for CacheLimits {
             .map(|(name, count)| (name.to_string(), count))
             .collect(),
             fonts: FontCacheLimits {
-                glyph_entries_per_page: 512,
+                glyph_entries_per_page: 1024,
             },
         }
     }

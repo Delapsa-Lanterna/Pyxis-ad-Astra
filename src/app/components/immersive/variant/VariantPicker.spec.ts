@@ -512,7 +512,7 @@ describe('variant candidate picker', () => {
     await own.wrapper.find('input').setValue('Hull 1');
     await flushPromises();
     expect(own.picker.get('[data-entry-id=incompatible]').isVisible()).toBe(true);
-    expect(own.picker.get('[data-entry-id=compatible]').isVisible()).toBe(false);
+    expect(own.picker.find('[data-entry-id=compatible]').exists()).toBe(false);
     await own.picker.findAll('.variant-candidate-card')[0]!.trigger('click');
     expect(own.picker.emitted('select')?.at(-1)).toEqual(['', 'normal']);
     expect(own.picker.get('.variant-module-edit').attributes('disabled')).toBeDefined();
@@ -555,7 +555,7 @@ describe('variant candidate picker', () => {
     expect(visible()).toEqual(sources.includes('reference') ? ['referenced'] : []);
     own.wrapper.unmount();
   });
-  it('retains filtered candidate nodes with hidden visibility', async () => {
+  it('releases filtered candidate nodes and recreates them when they match again', async () => {
     const own = harness();
     await flushPromises();
     await own.wrapper.find('[aria-label=实弹]').trigger('click');
@@ -563,7 +563,10 @@ describe('variant candidate picker', () => {
     const card = own.wrapper.get('[data-entry-id=incompatible]');
     await own.wrapper.find('input').setValue('能量');
     await flushPromises();
-    expect(card.isVisible(), own.wrapper.html()).toBe(false);
+    expect(own.wrapper.find('[data-entry-id=incompatible]').exists()).toBe(false);
+    await own.wrapper.find('input').setValue('');
+    await flushPromises();
+    expect(own.wrapper.get('[data-entry-id=incompatible]').element).not.toBe(card.element);
     own.wrapper.unmount();
   });
   it('replaces the empty deck graphic with its source while retaining the slot button', async () => {
@@ -677,6 +680,7 @@ describe('variant candidate picker', () => {
     await own.wrapper.find('input').setValue('entry_0');
     expect(ids()).toEqual(['entry_0']);
     await own.wrapper.find('input').setValue('');
+    await flushPromises();
     expect(ids()).toEqual(descending);
     list.element.scrollTop = 234;
     await list.trigger('scroll');

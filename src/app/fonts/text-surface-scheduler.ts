@@ -6,6 +6,7 @@ export interface TextSurface {
 }
 const surfaces = new Map<HTMLElement, TextSurface>();
 const paints = new Set<TextSurface>();
+const alignments = new Set<TextSurface>();
 const widths = new Map<HTMLElement, number>();
 let observer: ResizeObserver | null = null,
   frame = 0;
@@ -16,14 +17,29 @@ function repaint() {
   for (const surface of surfaces.values()) paints.add(surface);
   schedule();
 }
+function realign() {
+  for (const surface of surfaces.values()) alignments.add(surface);
+  schedule();
+}
 function flush() {
   frame = 0;
   for (const [element, width] of widths) surfaces.get(element)?.resize(width);
   widths.clear();
-  for (const surface of paints) surface.paint();
-  paints.clear();
-  const writes = [...surfaces.values()].map((surface) => surface.align());
+  const started = performance.now();
+  for (const surface of paints) {
+    paints.delete(surface);
+    surface.paint();
+    alignments.add(surface);
+    if (performance.now() - started >= 4) break;
+  }
+  const writes: Array<(() => void) | undefined> = [];
+  for (const surface of alignments) {
+    alignments.delete(surface);
+    writes.push(surface.align());
+    if (performance.now() - started >= 4) break;
+  }
   for (const write of writes) write?.();
+  if (paints.size || alignments.size) schedule();
 }
 export function queueTextPaint(surface: TextSurface) {
   if (!surfaces.has(surface.element)) return;
@@ -36,7 +52,7 @@ export function registerTextSurface(surface: TextSurface) {
       for (const entry of entries) widths.set(entry.target as HTMLElement, entry.contentRect.width);
       schedule();
     });
-    window.addEventListener('scroll', schedule, true);
+    window.addEventListener('scroll', realign, true);
     window.addEventListener('resize', repaint);
   }
   surfaces.set(surface.element, surface);
@@ -47,12 +63,13 @@ export function registerTextSurface(surface: TextSurface) {
     surfaces.delete(surface.element);
     widths.delete(surface.element);
     paints.delete(surface);
+    alignments.delete(surface);
     if (!surfaces.size) {
       observer!.disconnect();
       observer = null;
       cancelAnimationFrame(frame);
       frame = 0;
-      window.removeEventListener('scroll', schedule, true);
+      window.removeEventListener('scroll', realign, true);
       window.removeEventListener('resize', repaint);
     }
   };

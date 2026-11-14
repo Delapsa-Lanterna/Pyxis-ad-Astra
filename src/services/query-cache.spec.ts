@@ -1,4 +1,4 @@
-import { describe, expect, expectTypeOf, it, vi } from 'vitest';
+import { describe, expect, expectTypeOf, it, vi, onTestFinished } from 'vitest';
 import {
   CachedSessionQuery,
   readLiveSessionQuery,
@@ -24,6 +24,44 @@ const createReader = (load: () => Promise<Array<{ name: string }>>) =>
   new CachedSessionQuery<{ id: string }, Array<{ name: string }>>({ queryKind: 'entity-list', load, invalidates: () => true });
 
 describe('session query ownership', () => {
+  it.each(['success', 'failure', 'project', 'session'] as const)(
+    'shares live transport through cancellation and %s completion',
+    async (mode) => {
+      const session = 'live-' + mode,
+        controller = new AbortController();
+      let finish!: (value: string[]) => void, reject!: (error: Error) => void;
+      const load = vi.fn(
+        () =>
+          new Promise<string[]>((yes, no) => {
+            finish = yes;
+            reject = no;
+          }),
+      );
+      const definition = { queryKind: 'live-sample', load, invalidates: () => true };
+      const read = (signal?: AbortSignal) => readLiveSessionQuery(definition, session, { id: 'a' }, signal);
+      const first = read(controller.signal).catch((error: unknown) => error),
+        second = read().catch((error: unknown) => error);
+      onTestFinished(async () => {
+        finish([]);
+        invalidateQueryCacheForSession(session);
+        await Promise.all([first, second]);
+      });
+      expect(load).toHaveBeenCalledTimes(1);
+      controller.abort();
+      await expect(first).resolves.toMatchObject({ code: 'query.invalidated' });
+      if (mode === 'project') invalidateQueryCacheByProject(session, changed);
+      if (mode === 'session') invalidateQueryCacheForSession(session);
+      if (mode === 'failure') reject(new Error('source failed'));
+      else finish(['ready']);
+      if (mode === 'success') await expect(second).resolves.toEqual(['ready']);
+      else if (mode === 'failure') await expect(second).resolves.toMatchObject({ message: 'source failed' });
+      else await expect(second).resolves.toMatchObject({ code: 'query.invalidated' });
+      const next = read();
+      expect(load).toHaveBeenCalledTimes(2);
+      finish(['fresh']);
+      await expect(next).resolves.toEqual(['fresh']);
+    },
+  );
   it('waits for the first source snapshot before loading or using the cache', async () => {
     let received!: () => void;
     const ready = new Promise<void>((resolve) => {

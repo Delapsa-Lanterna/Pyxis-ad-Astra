@@ -21,7 +21,7 @@
 </template>
 <script setup lang="ts">
 import { computed, ref, watch, onMounted, onScopeDispose } from 'vue';
-import { fontGlyph } from '@/app/fonts/font-provider';
+import { acquireFontGlyph } from '@/app/fonts/font-provider';
 import { useOriginalFont } from '@/app/composables/use-original-fonts';
 import { fontDefaultStyles } from '@/domain/fonts/font-styles';
 import { layoutText } from '@/domain/fonts/text-layout';
@@ -70,8 +70,14 @@ const missingTitle = computed(() =>
 );
 let textSurface: TextSurface | null = null;
 let lastPaint: { canvas: HTMLCanvasElement; signature: string } | null = null;
+let glyphLeases = new Map<HTMLCanvasElement, () => void>();
+function releaseGlyphs() {
+  for (const release of glyphLeases.values()) release();
+  glyphLeases.clear();
+}
 watch(font, () => {
   lastPaint = null;
+  releaseGlyphs();
 });
 function paint() {
   if (textSurface && props.active) queueTextPaint(textSurface);
@@ -96,6 +102,14 @@ function paintNow() {
   target.style.height = target.height / pixelRatio + 'px';
   const context = target.getContext('2d')!;
   context.imageSmoothingEnabled = false;
+  const previousGlyphs = glyphLeases;
+  glyphLeases = new Map();
+  const raster = (...args: Parameters<typeof acquireFontGlyph>) => {
+    const lease = acquireFontGlyph(...args);
+    if (glyphLeases.has(lease.canvas)) lease.release();
+    else glyphLeases.set(lease.canvas, lease.release);
+    return lease.canvas;
+  };
   for (const item of layout.value!.placements) {
     if (item.character === '\t') continue;
     context.fillStyle = item.color ?? ink;
@@ -106,7 +120,7 @@ function paintNow() {
     const glyphWidth = Math.round((item.x + glyph.xoffset + glyph.width - offsetX + padding) * pixelRatio) - left,
       glyphHeight = Math.round((item.y + glyph.yoffset + glyph.height - offsetY + padding) * pixelRatio) - top;
     if (props.outlined) {
-      const outline = fontGlyph(image, glyph, '#000000', true);
+      const outline = raster(image, glyph, '#000000', true);
       const stroke = Math.max(1, Math.round(pixelRatio));
       for (const [dx, dy] of [
         [-1, -1],
@@ -120,8 +134,9 @@ function paintNow() {
       ])
         context.drawImage(outline, 0, 0, glyph.width, glyph.height, left + dx! * stroke, top + dy! * stroke, glyphWidth, glyphHeight);
     }
-    context.drawImage(fontGlyph(image, glyph, item.color ?? ink), 0, 0, glyph.width, glyph.height, left, top, glyphWidth, glyphHeight);
+    context.drawImage(raster(image, glyph, item.color ?? ink), 0, 0, glyph.width, glyph.height, left, top, glyphWidth, glyphHeight);
   }
+  for (const release of previousGlyphs.values()) release();
   lastPaint = { canvas: target, signature };
 }
 function alignPixels() {
@@ -152,11 +167,15 @@ onMounted(() => {
     () => props.active,
     (active) => {
       release?.();
+      if (!active) releaseGlyphs();
       release = active ? registerTextSurface(textSurface!) : null;
     },
     { immediate: true, flush: 'sync' },
   );
 });
 watch([layout, font, () => props.inkAligned, () => props.outlined], paint, { flush: 'post' });
-onScopeDispose(() => release?.());
+onScopeDispose(() => {
+  release?.();
+  releaseGlyphs();
+});
 </script>

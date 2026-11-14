@@ -42,6 +42,40 @@ function fixture() {
   return { images, cache: createWindowImageRuntime() };
 }
 describe('window image residence', () => {
+  it('reclaims version metadata when the last resource identity is collected', () => {
+    const cleanups: Array<() => void> = [];
+    vi.stubGlobal(
+      'FinalizationRegistry',
+      class<T> {
+        constructor(private cleanup: (held: T) => void) {}
+        register(_target: object, held: T) {
+          cleanups.push(() => this.cleanup(held));
+        }
+      },
+    );
+    const { cache } = fixture();
+    try {
+      for (let index = 0; index < 1000; index++) {
+        const item = { ...resource, relPath: `graphics/${index}.png` };
+        cache.revision(`session-${index}`, item);
+        cache.clearSession(`session-${index}`);
+      }
+      expect(cache.stats().revisions).toBe(1000);
+      cleanups.splice(0).forEach((cleanup) => cleanup());
+      expect(cache.stats().revisions).toBe(0);
+      const other = { ...resource };
+      cache.revision('shared', resource);
+      cache.revision('shared', other);
+      cleanups.shift()!();
+      mocks.listener!({ scope: 'resources', sessionId: 'shared', resources: [other], invalidation: null });
+      expect(cache.revision('shared', other)).toBeGreaterThan(0);
+      expect(cache.stats().revisions).toBe(1);
+      cleanups.shift()!();
+      expect(cache.stats().revisions).toBe(0);
+    } finally {
+      cache.dispose();
+    }
+  });
   it('keeps image observers asleep for unrelated source updates and refreshes their actual resource', async () => {
     const { cache } = fixture(),
       observe = vi.fn();

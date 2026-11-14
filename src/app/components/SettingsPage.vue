@@ -205,7 +205,7 @@
               "
             />条／图集</label
           >
-          <template #hint><FieldHints description="每张原版字体图集保留的着色字形成品数量。" /></template>
+          <template #hint><FieldHints description="每张原版字体图集闲置保留的着色字形成品数量，正在展示的文字独立持有字形。" /></template>
         </FieldRow>
       </div>
     </section>

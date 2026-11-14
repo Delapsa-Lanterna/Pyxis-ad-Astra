@@ -77,7 +77,7 @@ function fixture(maxBatchSize = Infinity) {
   return { keys, records, list, scroll };
 }
 describe('retained list lifecycle', () => {
-  it('records range changes, hiding, restoration and owner release while retaining nodes', async () => {
+  it('records range changes, hiding and owner release while releasing filtered nodes', async () => {
     const records: AppLogEntry[] = [];
     appLogQueue.install(async (entries) => {
       records.push(...entries);
@@ -93,10 +93,10 @@ describe('retained list lifecycle', () => {
       await flush();
       own.keys.value = original;
       await flush();
-      expect(wrapper.get('[data-id="0"]').element).toBe(first);
+      expect(wrapper.get('[data-id="0"]').element).not.toBe(first);
       wrapper.unmount();
       await appLogQueue.flush();
-      for (const code of ['list.range_changed', 'list.item_hidden', 'list.item_restored', 'list.released'])
+      for (const code of ['list.range_changed', 'list.item_hidden', 'list.released'])
         expect(records.some((record) => record.code === code)).toBe(true);
       expect(new Set(records.map((record) => record.fields?.listId)).size).toBe(1);
     } finally {
@@ -117,7 +117,7 @@ describe('retained list lifecycle', () => {
     await flush();
     expect(wrapper.findAll('input')).toHaveLength(60);
   });
-  it('mounts a nearby first visit and retains its nodes, input and focus across a round trip', async () => {
+  it('bounds residence across every row and restores document values after remounting', async () => {
     const own = fixture();
     own.scroll(0);
     await flush();
@@ -126,8 +126,12 @@ describe('retained list lifecycle', () => {
     await first.setValue('original input');
     own.scroll(100);
     await flush();
-    expect(wrapper.get('[data-id="0"]').element).toBe(first.element);
-    expect(document.activeElement).toBe(first.element);
+    expect(wrapper.find('[data-id="0"]').exists()).toBe(false);
+    for (let index = 0; index < 200; index += 5) {
+      own.scroll(index);
+      await flush();
+      expect(wrapper.findAll('input').length).toBeLessThanOrEqual(15);
+    }
     own.scroll(0);
     await flush();
     expect(wrapper.get<HTMLInputElement>('[data-id="0"]').element.value).toBe('original input');
@@ -153,7 +157,7 @@ describe('retained list lifecycle', () => {
     await flush();
     expect(wrapper.get<HTMLInputElement>('[data-id="0"]').element.value).toBe('Ready');
   });
-  it('retains filtered nodes and restores their same instances', async () => {
+  it('releases filtered nodes and restores their document values', async () => {
     const own = fixture();
     own.scroll(0);
     await flush();
@@ -161,10 +165,10 @@ describe('retained list lifecycle', () => {
     const keys = [...own.keys.value];
     own.keys.value = ['100'];
     await flush();
-    expect(wrapper.get('[data-id="0"]').isVisible()).toBe(false);
+    expect(wrapper.find('[data-id="0"]').exists()).toBe(false);
     own.keys.value = keys;
     await flush();
-    expect(wrapper.get('[data-id="0"]').element).toBe(first);
+    expect(wrapper.get('[data-id="0"]').element).not.toBe(first);
     expect(wrapper.get('[data-id="0"]').isVisible()).toBe(true);
   });
   it('preserves the rendered identity when a temporary record receives its saved key', async () => {

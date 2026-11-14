@@ -1,12 +1,12 @@
 import { parseOriginalBitmapFont } from '@/domain/fonts/bitmap-font';
 import type { BitmapFont, BitmapGlyph } from '@/domain/fonts/font.types';
 import type { OriginalFontResult } from '@/shared/types';
-import { createRuntimeCache, type RuntimeCache } from '@/shared/runtime/cache';
+import { createResidentCache } from '@/shared/runtime/resident-cache';
 import { AppError } from '@/shared/lib/errors';
 import { subscribeCacheLimits, windowCacheLimits } from '@/shared/runtime/cache-limits';
 import { debugLog } from '@/shared/runtime/app-log-queue';
 
-const glyphs = new WeakMap<HTMLImageElement, RuntimeCache<string, HTMLCanvasElement, never>>();
+const glyphs = new WeakMap<HTMLImageElement, ReturnType<typeof createResidentCache<HTMLCanvasElement>>>();
 
 export interface LoadedFont {
   definition: BitmapFont;
@@ -73,19 +73,19 @@ export async function decodeOriginalFont(source: Extract<OriginalFontResult, { s
   return { definition, pages: new Map(results.flatMap((result) => (result.status === 'fulfilled' ? [result.value] : []))) };
 }
 
-export function fontGlyph(image: HTMLImageElement, glyph: BitmapGlyph, color: string, outline = false): HTMLCanvasElement {
+export function acquireFontGlyph(image: HTMLImageElement, glyph: BitmapGlyph, color: string, outline = false) {
   let cache = glyphs.get(image);
   if (!cache) {
-    cache = createRuntimeCache<string, HTMLCanvasElement>({
-      name: 'font-glyphs',
-      capacity: () => windowCacheLimits().fonts.glyphEntriesPerPage,
-    });
+    cache = createResidentCache<HTMLCanvasElement>(
+      () => ({ entries: windowCacheLimits().fonts.glyphEntriesPerPage, bytes: Infinity }),
+      'font-glyphs',
+    );
     glyphs.set(image, cache);
     subscribeCacheLimits(cache);
   }
   const key = JSON.stringify([glyph.id, color, outline]);
   const cached = cache.get(key);
-  if (cached) return cached;
+  if (cached) return { canvas: cached, release: cache.retain(key) };
   const surface = document.createElement('canvas');
   surface.width = Math.max(1, glyph.width);
   surface.height = Math.max(1, glyph.height);
@@ -98,6 +98,6 @@ export function fontGlyph(image: HTMLImageElement, glyph: BitmapGlyph, color: st
     paint.globalCompositeOperation = 'destination-in';
     paint.drawImage(image, glyph.x, glyph.y, glyph.width, glyph.height, 0, 0, glyph.width, glyph.height);
   }
-  cache.set(key, surface);
-  return surface;
+  cache.put(key, surface, surface.width * surface.height * 4, 1);
+  return { canvas: surface, release: () => cache.release(key) };
 }

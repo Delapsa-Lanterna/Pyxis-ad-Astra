@@ -7,7 +7,7 @@ import {
   querySessionEntityIdentityIntent,
   hasEntityInvalidation,
 } from './entity-query.service';
-import { queryTableIndex, querySessionCsvRowPreview, hasTableInvalidation } from './csv-table.service';
+import { queryTableIndex, querySessionCsvRowPreview, queryCsvValidation, hasTableInvalidation } from './csv-table.service';
 import { querySourceOptionCatalog, hasSourceInvalidation } from './source-catalog.service';
 import { querySessionHullReferences } from './hull-reference.service';
 import { querySessionDraftResources, resolveModImageReference } from './resource-reference.service';
@@ -184,6 +184,31 @@ function releasePendingQueries(finish: () => void, reads: Promise<unknown>[]) {
 }
 
 describe('business-owned query invalidation', () => {
+  it('shares validation dependencies across callers and reloads their changed resources', async () => {
+    const request = { entities: [], sources: [], files: ['graphics/sample.png'], classes: [] };
+    const value = { complete: true, entities: {}, sources: {}, files: { 'graphics/sample.png': true }, classes: {} };
+    let finish!: (value: unknown) => void;
+    invoke.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const first = queryCsvValidation(session, request),
+      second = queryCsvValidation(session, request);
+    releasePendingQueries(() => finish(value), [first, second]);
+    expect(invoke).toHaveBeenCalledTimes(1);
+    finish(value);
+    await Promise.all([first, second]);
+    await queryCsvValidation(session, request);
+    invalidateQueryCacheByProject(session, detail);
+    await queryCsvValidation(session, request);
+    expect(invoke).toHaveBeenCalledTimes(1);
+    invalidateQueryCacheByProject(session, { ...empty, resources: [{ source: 'core', relPath: 'graphics' }] });
+    invoke.mockResolvedValue(value);
+    await Promise.all([queryCsvValidation(session, request), queryCsvValidation(session, request)]);
+    expect(invoke).toHaveBeenCalledTimes(2);
+  });
   it.each(
     cases.filter(
       ({ name }) =>

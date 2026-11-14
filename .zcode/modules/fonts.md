@@ -22,7 +22,7 @@
 - `src-tauri/src/services/project/session/registry.rs`：会话存活登记、句柄与内容就绪门控。
 - `src/app/composables/use-query-read-owner.ts`：字体读取消费的票据与通道释放入口。
 - `src/shared/runtime/app-log-queue.ts`：字体解码及字形缓存详细记录。
-- `src/shared/runtime/cache.ts`：字形缓存消费的容量与访问顺序原语。
+- `src/shared/runtime/resident-cache.ts`：字形缓存消费的活跃引用、闲置容量与访问顺序原语。
 - `src/shared/types/font.types.ts`：字体身份、加载结果与图集页协议。
 - `src/stores/settings.store.ts`：settings 运行态，只持状态、setter 与派生值；初始快照经统一初始化入口注入。
 - `src/test/fixtures/font.ts`：自主构造的精简 FNT 与外部加载结果夹具。
@@ -72,7 +72,8 @@
 - 分段颜色必须保持文本排布连续，测量、截断与绘制消费同一排布算法。
 - 原版字体逐字体优先从指定目录直接读取同名 FNT，再从授权安装根的 `starsector-core/graphics/fonts` 读取；图集消费 FNT 的实际 `page` 文件声明，文件路径经所属字体目录边界授权。
 - 失败必须按字体及本次尝试记录一次实际路径与原始诊断；重试只允许由重新开启、根变化及重新打开窗口触发。
-- 字形栅格缓存必须区分图集、字形、颜色与描边，容量消费 settings 的启动预算，共享缓存只允许在所属 WebView 内维护。
+- 字形栅格缓存必须区分图集、字形、颜色与描边，每张图集默认闲置保留 1024 项并消费正式 settings 预算；展示文字持有活跃字形，隐藏、字体切换及卸载交还引用，共享范围归所属 WebView。
+- 文字绘制与像素对齐必须按 4ms 帧预算分批处理，排版边界测量按字符数线性推进。
 - 字素与显式换行必须保持原文对应关系，缺字提供原字符与完整 Unicode 定位。
 - 排版分别交付行布局与墨迹范围，画布容纳字形偏移和描边并对齐物理像素。
 - 文字完成画面必须按字体、内容、颜色、容器宽度、DPR、描边与墨迹对齐参数复用；字体或画布身份变化时重新绘制，位置变化独立更新物理像素对齐。

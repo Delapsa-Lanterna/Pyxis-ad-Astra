@@ -19,6 +19,7 @@ export function useRetainedList<T>(
   rowHeight: number,
   maxBatchSize = Infinity,
   context: () => Record<string, string> = () => ({}),
+  pinned: () => readonly string[] = () => [],
 ) {
   const listId = String(++nextListId);
   const mounted = shallowReactive(new Map<string, RetainedListItem<T>>());
@@ -46,7 +47,6 @@ export function useRetainedList<T>(
       index = view.index + 1;
     }
     if (index < keys().length) result.push({ kind: 'gap', key: 'gap:' + index, height: (keys().length - index) * rowHeight });
-    for (const view of mounted.values()) if (view.hidden) result.push(view);
     return result;
   });
   function mount(key: string) {
@@ -83,10 +83,12 @@ export function useRetainedList<T>(
   }
   function schedule() {
     generation++;
-    for (const view of active) {
+    const held = new Set(pinned());
+    for (const view of mounted.values()) {
       if (view.hidden || view.index < startIndex.value || view.index >= endIndex.value) {
         view.active = false;
         active.delete(view);
+        if (!held.has(identity(view.item))) mounted.delete(identity(view.item));
       }
     }
     const near = keys().slice(startIndex.value, endIndex.value);
@@ -135,6 +137,7 @@ export function useRetainedList<T>(
     { immediate: true, flush: 'sync' },
   );
   watch(() => keys().slice(startIndex.value, endIndex.value).map(resolve), schedule, { flush: 'sync' });
+  watch(pinned, schedule, { flush: 'sync' });
   function setViewportMetrics(metrics: { clientHeight: number; scrollTop: number }) {
     viewportHeight.value = metrics.clientHeight;
     scrollTop.value = metrics.scrollTop;

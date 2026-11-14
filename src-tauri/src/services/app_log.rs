@@ -24,6 +24,7 @@ static NATIVE_DRAIN: Mutex<()> = Mutex::new(());
 static NATIVE_QUEUE: LazyLock<Mutex<NativeQueue>> =
     LazyLock::new(|| Mutex::new(NativeQueue::default()));
 static LOG_RUNTIME: LazyLock<Mutex<LogState>> = LazyLock::new(|| Mutex::new(LogState::default()));
+const NATIVE_QUEUE_LIMIT: usize = 4096;
 
 #[derive(Default)]
 struct LogState {
@@ -57,6 +58,7 @@ struct NativeQueue {
     sequence: u64,
     level: Option<AppLogLevel>,
     stopped: bool,
+    overflow: Option<u64>,
 }
 
 impl LogState {
@@ -115,23 +117,35 @@ pub fn stop_app_log(app: &AppHandle, owner: &str, message: String, dropped: u64)
     app.emit("app-log-stopped", message).map_err(AppError::from)
 }
 
-pub fn append_app_log(mut entry: AppLogEntry) -> AppResult<()> {
-    let mut state = NATIVE_QUEUE
+pub fn append_app_log(entry: AppLogEntry) -> AppResult<()> {
+    NATIVE_QUEUE
         .lock()
-        .expect("native queue lock is scoped to data changes");
-    if entry.level < state.level.unwrap_or(AppLogLevel::Info) || state.stopped {
-        return Ok(());
-    }
-    state.sequence += 1;
-    let fields = entry.fields.get_or_insert_with(BTreeMap::new);
-    fields.insert("window".to_string(), "native".to_string());
-    fields.insert("sequence".to_string(), state.sequence.to_string());
-    fields.insert(
-        "timestamp".to_string(),
-        Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true),
-    );
-    state.entries.push(entry);
+        .expect("native queue lock is scoped to data changes")
+        .push(entry);
     Ok(())
+}
+
+impl NativeQueue {
+    fn push(&mut self, mut entry: AppLogEntry) {
+        if entry.level < self.level.unwrap_or(AppLogLevel::Info) || self.stopped {
+            return;
+        }
+        if self.entries.len() == NATIVE_QUEUE_LIMIT {
+            self.overflow = Some(self.entries.len() as u64 + 1);
+            self.stopped = true;
+            self.entries.clear();
+            return;
+        }
+        self.sequence += 1;
+        let fields = entry.fields.get_or_insert_with(BTreeMap::new);
+        fields.insert("window".into(), "native".into());
+        fields.insert("sequence".into(), self.sequence.to_string());
+        fields.insert(
+            "timestamp".into(),
+            Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true),
+        );
+        self.entries.push(entry);
+    }
 }
 
 pub fn start_native_writer(app: AppHandle) {
@@ -149,12 +163,20 @@ pub fn flush_native_logs(app: &AppHandle) -> AppResult<()> {
     let _drain = NATIVE_DRAIN
         .lock()
         .expect("native drain does not execute callbacks");
-    let entries = mem::take(
-        &mut NATIVE_QUEUE
+    let (entries, overflow) = {
+        let mut queue = NATIVE_QUEUE
             .lock()
-            .expect("native queue lock is scoped to data changes")
-            .entries,
-    );
+            .expect("native queue lock is scoped to data changes");
+        (mem::take(&mut queue.entries), queue.overflow.take())
+    };
+    if let Some(dropped) = overflow {
+        stop_app_log(
+            app,
+            "native",
+            "日志待写记录达到 4096 条，记录已停止".into(),
+            dropped,
+        )?;
+    }
     if entries.is_empty() {
         return Ok(());
     }
@@ -485,6 +507,22 @@ mod tests {
             line: None,
             fields: None,
         }
+    }
+
+    #[test]
+    fn native_queue_stops_at_capacity_and_retains_the_exact_loss_count() {
+        let mut queue = NativeQueue::default();
+        for _ in 0..NATIVE_QUEUE_LIMIT {
+            queue.push(entry("sample"));
+        }
+        assert_eq!(queue.entries.len(), NATIVE_QUEUE_LIMIT);
+        queue.push(entry("overflow"));
+        assert!(queue.entries.is_empty());
+        assert!(queue.stopped);
+        assert_eq!(queue.overflow, Some(NATIVE_QUEUE_LIMIT as u64 + 1));
+        queue.push(entry("stopped"));
+        assert!(queue.entries.is_empty());
+        assert_eq!(queue.sequence, NATIVE_QUEUE_LIMIT as u64);
     }
 
     #[test]

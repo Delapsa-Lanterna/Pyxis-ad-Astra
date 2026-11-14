@@ -21,7 +21,7 @@ export function createSettingsFixture(overrides: Partial<AppSettings> = {}): App
         'entity-detail': 128,
         'entity-list': 128,
       },
-      fonts: { glyphEntriesPerPage: 512 },
+      fonts: { glyphEntriesPerPage: 1024 },
     },
     theme: null,
     accent: 'blue',

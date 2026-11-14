@@ -1,4 +1,4 @@
-import { expect, it } from 'vitest';
+import { expect, it, vi } from 'vitest';
 import { logIdentity } from './log-fields';
 import type { JavaDocumentEdit, JavaInspection, JavaSourceEdit, ResourceRef, SourceCatalogPayload, JsonFileContent } from '@/shared/types';
 
@@ -46,18 +46,32 @@ it('projects source sizes while retaining paths, revisions and categorical resou
   }
   expect(logIdentity({ files: [edit] })).toMatchObject({
     'files.count': '1',
-    'files[0].file': edit.file,
-    'files[0].version': '2',
-    'files[0].target': edit.target,
-    'files[0].sourceCharacters': String(source.length),
   });
   expect(logIdentity({ source: { path: edit.file, source: 'core' }, resources: [resource] })).toMatchObject({
     'source.path': edit.file,
     'source.source': 'core',
-    'resources[0].source': 'reference',
+    'resources.count': '1',
   });
   expect(logIdentity({ payload: catalog, catalogSource: catalog.source })).toMatchObject({
     'payload.sessionId': 'sample',
     catalogSource: 'csv:ships.name',
   });
+});
+
+it('records collection sizes with constant work across command, query, save and cache metadata', () => {
+  const id = vi.fn(() => 'sample');
+  const records = Array.from({ length: 10000 }, () => ({
+    get id() {
+      return id();
+    },
+  }));
+  for (const value of [
+    { result: records },
+    { payload: { files: records } },
+    { state: { rows: records } },
+    { identity: { parameters: { rowKeys: records } } },
+  ]) {
+    expect(Object.keys(logIdentity(value))).toHaveLength(1);
+  }
+  expect(id).toHaveBeenCalledTimes(0);
 });

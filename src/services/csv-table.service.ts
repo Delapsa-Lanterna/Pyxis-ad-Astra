@@ -31,6 +31,7 @@ import type { ProjectInvalidation } from '@/shared/types';
 import { queryResourceDataUrls } from '@/services/resource-media.service';
 
 import { csvValidationDefinitions } from '@/domain/csv-editor/csv-validation';
+import { hasCsvValidationInvalidation } from '@/domain/csv-editor/csv-rule-context';
 import { infoLog } from '@/shared/runtime/app-log-queue';
 import { logIdentity } from '@/shared/lib/log-fields';
 import { cell } from '@/shared/lib/starsector';
@@ -60,13 +61,18 @@ const readRowResources = {
   invalidates: () => false,
 } satisfies SessionQueryDefinition<Omit<CsvTableRowsPayload, 'sessionId'> & { drafts: CsvRowRecord[] }, CsvRowResources>;
 
-const readValidation = {
+const readValidation = new CachedSessionQuery<CsvValidationRequest, CsvValidationContext>({
   queryKind: 'csv-table-window',
   load: ({ sessionId, parameters }) => invokeCommand('query_csv_validation', { payload: { sessionId, ...parameters } }),
-  invalidates: () => true,
-} satisfies SessionQueryDefinition<CsvValidationRequest, CsvValidationContext>;
+  invalidates: (parameters, invalidation) =>
+    hasCsvValidationInvalidation(
+      invalidation,
+      parameters,
+      () => invalidation.resources.length > 0 || invalidation.queryScopes.some((scope) => scope.kind === 'csv-source-options'),
+    ),
+});
 export function queryCsvValidation(sessionId: string, request: CsvValidationRequest, signal?: AbortSignal) {
-  return readLiveSessionQuery(readValidation, sessionId, request, signal);
+  return readValidation.read(sessionId, request, signal);
 }
 
 const readRowPreview = new CachedSessionQuery<Omit<CsvRowPreviewPayload, 'sessionId'>, CsvRowPreview>({

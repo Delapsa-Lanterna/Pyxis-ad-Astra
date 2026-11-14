@@ -116,6 +116,7 @@
 
 - `cacheLimits` 随完整快照持久化与镜像，正式快照接纳后立即应用；条数范围为整数 0–65536，MiB 范围为整数 0–4096，零值关闭相应闲置缓存。
 - `cacheLimits.mediaData` 统一表达闲置媒体条数与 MiB，默认值为 2048 与 64；活跃租约独立计量。
+- `cacheLimits.fonts.glyphEntriesPerPage` 默认保留每张图集的 1024 个闲置字形，活跃文字独立持有字形；预算订阅随缓存回收或显式释放结束。
 - `editHistoryLimit` 与 `fileHistoryLimit` 必须分别控制每个编辑撤销栈及每个 Mod 根的文件保存历史，默认值分别为 250 与 20，整数范围为 1–1000；设置读取和保存共同校验范围。
 - `interfaceFont` 必须以 `null` 表达默认字体组合，以非空且不含控制字符的单个字体族名表达选择；默认组合为 Inter、Segoe UI、Microsoft YaHei 和 sans-serif，选择随完整快照持久化及镜像。
 - `fieldFont` 必须以 `null` 表达默认字体组合，以非空且不含控制字符的单个字体族名表达选择；默认组合依次为 Cascadia Mono、Consolas、Courier New、Microsoft YaHei UI、Microsoft YaHei 和 monospace，作用于字段文字与窗口悬浮提示，并随完整快照持久化及镜像。

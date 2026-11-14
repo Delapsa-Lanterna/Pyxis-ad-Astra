@@ -74,6 +74,10 @@ export function createAppLogQueue() {
   }
   function record(entry: AppLogEntry) {
     if (!enabled(entry.level)) return;
+    if (pending.length + sending >= 4096) {
+      stop('日志待写记录达到 4096 条，记录已停止', 1);
+      return;
+    }
     pending.push({
       ...entry,
       fields: {

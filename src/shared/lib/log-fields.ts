@@ -9,11 +9,7 @@ export function logFields(values: Record<string, string | number | null | undefi
 
 // Select identity metadata explicitly; request bodies and raw input stay with their owners.
 export function logIdentity(value: unknown, prefix = '', scalar = false): Record<string, string> {
-  if (Array.isArray(value)) {
-    const fields = { [prefix + '.count']: String(value.length) };
-    value.forEach((item, index) => Object.assign(fields, logIdentity(item, prefix + '[' + index + ']', scalar)));
-    return fields;
-  }
+  if (Array.isArray(value)) return { [prefix + '.count']: String(value.length) };
   if (value !== null && typeof value === 'object') {
     const fields: Record<string, string> = {};
     for (const key of Object.keys(value)) {

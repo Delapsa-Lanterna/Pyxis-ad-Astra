@@ -1,9 +1,15 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { fontGlyph, decodeOriginalFont } from './font-provider';
+import { acquireFontGlyph, decodeOriginalFont } from './font-provider';
 import { parseOriginalBitmapFont } from '@/domain/fonts/bitmap-font';
 import { originalFontFixture } from '@/test/fixtures/font';
 import { initializeCacheLimits } from '@/shared/runtime/cache-limits';
 import { createSettingsFixture } from '@/test/fixtures/settings';
+
+function fontGlyph(...args: Parameters<typeof acquireFontGlyph>) {
+  const lease = acquireFontGlyph(...args);
+  lease.release();
+  return lease.canvas;
+}
 
 afterEach(() => {
   initializeCacheLimits(createSettingsFixture().cacheLimits);
@@ -95,12 +101,32 @@ describe('glyph raster ownership', () => {
     initializeCacheLimits(limits);
     expect(fontGlyph(image, glyph, '#ffd200')).not.toBe(first);
   });
-  it('evicts the oldest raster beyond 512 entries', () => {
+  it('evicts the oldest idle raster beyond 1024 entries', () => {
     context();
     const image = new Image(),
       glyph = parseOriginalBitmapFont(originalFontFixture().definition).glyphs.get(65)!;
     const first = fontGlyph(image, { ...glyph, id: 0 }, '#fff');
-    for (let id = 1; id <= 512; id++) fontGlyph(image, { ...glyph, id }, '#fff');
+    for (let id = 1; id <= 1024; id++) fontGlyph(image, { ...glyph, id }, '#fff');
     expect(fontGlyph(image, { ...glyph, id: 0 }, '#fff')).not.toBe(first);
+  });
+  it('shares an active working set above budget and releases it with zero idle capacity', () => {
+    const paint = context(),
+      image = new Image(),
+      glyph = parseOriginalBitmapFont(originalFontFixture().definition).glyphs.get(65)!;
+    const leases = Array.from({ length: 1025 }, (_, id) => acquireFontGlyph(image, { ...glyph, id }, '#fff'));
+    try {
+      const limits = createSettingsFixture().cacheLimits;
+      limits.fonts.glyphEntriesPerPage = 0;
+      initializeCacheLimits(limits);
+      for (const [id, lease] of leases.entries()) {
+        const next = acquireFontGlyph(image, { ...glyph, id }, '#fff');
+        expect(next.canvas).toBe(lease.canvas);
+        next.release();
+      }
+      expect(paint.fillRect).toHaveBeenCalledTimes(1025);
+    } finally {
+      leases.forEach((lease) => lease.release());
+    }
+    expect(fontGlyph(image, { ...glyph, id: 0 }, '#fff')).not.toBe(leases[0]!.canvas);
   });
 });

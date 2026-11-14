@@ -28,6 +28,7 @@
 - `src-tauri/src/services/project/sources/`：对应来源的内容、版本、Core 文档及配置读取。
 - `src/domain/schema/schema-source-definitions.ts`：候选读取的字段来源名称、配置路径及 CSV 来源语法。
 - `src/services/query-cache.service.ts`：候选读取的会话缓存、实时请求与读取就绪门控。
+- `src/shared/lib/paths.ts`：图片候选目录与来源变化的规范路径范围匹配。
 - `src/shared/types/source-catalog.types.ts`：候选请求、选项、来源分组和模板协议。
 
 ### 装配
@@ -66,3 +67,4 @@
 - Bundled schema 的 `config:` 来源必须属于正式配置目录登记，声音、设计类型、船体样式与引擎样式按当前 Mod 优先和原版补全交付候选。
 - 原版 tags、hints 与 UI 标签按 Starsector 版本及完整表列 source 查询；数字规则通过独立模板选项交付默认输入值与有效上限，选择填入标签自定义输入，并经所属 FieldInputs 提交；具体数字说明来自匹配的来源规则。
 - 图片候选按声明目录及子目录查询当前 Mod 和原版，同路径采用 Mod 优先，任务图片按当前任务目录交付相对路径；查询只允许交付路径元数据。
+- 图片候选失效必须消费实际目录、任务范围、父目录及会话身份，字段重读与在途失效复用同一判定。

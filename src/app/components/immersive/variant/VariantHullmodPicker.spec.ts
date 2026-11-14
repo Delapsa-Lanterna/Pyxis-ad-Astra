@@ -182,7 +182,9 @@ describe('original hullmod picker', () => {
     await own.wrapper.find('input').setValue('mod_0');
     expect(ids()).toEqual(['mod_0']);
     await own.wrapper.find('input').setValue('');
+    await flushPromises();
     await own.wrapper.findAll('.variant-hullmod-columns button')[2]!.trigger('click');
+    await flushPromises();
     expect(ids()).toEqual(['mod_4', 'mod_0', 'mod_5', 'mod_2', 'mod_1', 'mod_3']);
     own.wrapper.unmount();
   });
@@ -201,6 +203,7 @@ describe('original hullmod picker', () => {
         .map((row) => row.attributes('data-entry-id')),
     ).toEqual(['mod_1', 'mod_3', 'mod_5']);
     await checks.find((check) => check.attributes('aria-label') === 'Common')!.trigger('click', { ctrlKey: true });
+    await flushPromises();
     expect(own.wrapper.findAll('.variant-hullmod-row').filter((row) => row.isVisible())).toHaveLength(6);
     await own.wrapper.find('.variant-hullmod-row').trigger('click');
     expect(own.picker.emitted('select')).toEqual([['mod_1', 'normal']]);

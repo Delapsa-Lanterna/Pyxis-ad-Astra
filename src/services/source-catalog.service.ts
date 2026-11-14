@@ -10,14 +10,26 @@ import type { ProjectInvalidation } from '@/shared/types';
 
 import { CONFIG_FIELD_SOURCES, isConfigFieldSource, parseCsvFieldSource } from '@/domain/schema/schema-source-definitions';
 import { invokeCommand } from '@/shared/runtime/command.runtime';
+import { pathBelongsToRoot } from '@/shared/lib/paths';
 import { CachedSessionQuery, readLiveSessionQuery, type SessionQueryDefinition } from '@/services/query-cache.service';
 
 const readImageOptions = {
   queryKind: 'image-source-options',
   load: ({ sessionId, parameters }) =>
     invokeCommand('query_image_source_options', { payload: { sessionId, ...parameters } satisfies ImageSourceOptionsPayload }),
-  invalidates: () => true,
+  invalidates: (parameters, invalidation) => hasSourceInvalidation(invalidation, parameters),
 } satisfies SessionQueryDefinition<Omit<ImageSourceOptionsPayload, 'sessionId'>, SourceOptionGroup[]>;
+
+function hasImageSourceInvalidation(invalidation: ProjectInvalidation, directories: readonly string[], missionId?: string | null): boolean {
+  if (invalidation.session) return true;
+  const roots = directories.map((directory) =>
+    [missionId ? 'data/missions/' + missionId : '', directory === '.' ? '' : directory].filter(Boolean).join('/'),
+  );
+  return invalidation.resources.some(
+    ({ relPath }) =>
+      relPath === '' || roots.some((root) => root === '' || pathBelongsToRoot(relPath, root) || pathBelongsToRoot(root, relPath)),
+  );
+}
 
 export function queryImageSourceOptions(sessionId: string, directories: string[], missionId: string | null, signal?: AbortSignal) {
   return readLiveSessionQuery(readImageOptions, sessionId, { directories, missionId }, signal);
@@ -40,7 +52,11 @@ export async function querySourceOptionCatalog(
   return readSourceOptions.read(sessionId, { source }, signal);
 }
 
-export function hasSourceInvalidation(invalidation: ProjectInvalidation, source: string): boolean {
+export function hasSourceInvalidation(
+  invalidation: ProjectInvalidation,
+  source: string | Pick<ImageSourceOptionsPayload, 'directories' | 'missionId'>,
+): boolean {
+  if (typeof source !== 'string') return hasImageSourceInvalidation(invalidation, source.directories, source.missionId);
   return (
     invalidation.session ||
     invalidation.queryScopes.some((scope) => matchesSourceOptionsScope(scope, source)) ||

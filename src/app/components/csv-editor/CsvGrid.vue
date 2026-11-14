@@ -162,6 +162,7 @@ const viewport = useRetainedList(
   24,
   4,
   () => ({ ...context.target, kind: 'csv' }),
+  () => (editorTarget.value ? [editorTarget.value.rowKey] : []),
 );
 const overlayRef = useTemplateRef<HTMLDivElement>('overlayRef');
 const scrollTop = ref(0),

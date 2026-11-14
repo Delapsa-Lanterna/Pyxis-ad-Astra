@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { parseBitmapFont } from './bitmap-font';
 import { layoutText, textGraphemes } from './text-layout';
 
@@ -12,6 +12,20 @@ const font = parseBitmapFont(
 );
 
 describe('shared text layout boundaries', () => {
+  it('lays out long punctuation runs with a linear number of boundary checks', () => {
+    const has = vi.spyOn(Set.prototype, 'has');
+    try {
+      for (const count of [1000, 2000, 4000]) {
+        has.mockClear();
+        const result = layoutText(font, [{ text: '）'.repeat(count) }], 7);
+        const checks = has.mock.calls.length;
+        expect(result.placements).toHaveLength(count);
+        expect(checks).toBeLessThan(count * 5);
+      }
+    } finally {
+      has.mockRestore();
+    }
+  });
   it('keeps kerning and words continuous across color runs', () => {
     const split = layoutText(font, [{ text: '中A' }, { text: 'V', color: '#ffd200' }], 14);
     const single = layoutText(font, [{ text: '中AV' }], 14);

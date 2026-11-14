@@ -6,12 +6,16 @@ import { ref } from 'vue';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useImageSourceOptions } from './use-image-source-options';
 import type { SourceOptionGroup } from '@/shared/types';
+import type * as SourceCatalogService from '@/services/source-catalog.service';
 
 const mocks = vi.hoisted(() => ({
   query: vi.fn(),
   error: vi.fn(),
 }));
-vi.mock('@/services/source-catalog.service', () => ({ queryImageSourceOptions: mocks.query }));
+vi.mock('@/services/source-catalog.service', async (original) => ({
+  ...(await original<typeof SourceCatalogService>()),
+  queryImageSourceOptions: mocks.query,
+}));
 vi.mock('@/app/composables/use-app-feedback', () => ({ useAppFeedback: () => ({ error: mocks.error }) }));
 const groups: SourceOptionGroup[] = [
   { origin: 'mod', options: [{ label: 'Image', value: 'graphics/sample.png', origin: 'mod', description: null, resourceRef: null }] },
@@ -42,6 +46,35 @@ function harness() {
   return { active, directories, sessionId, missionId, options };
 }
 describe('image directory candidate lifecycle', () => {
+  it('refreshes only image directories, their parents and the captured mission', async () => {
+    const state = harness();
+    state.active.value = true;
+    await flushPromises();
+    for (const relPath of ['data/hulls/sample.ship', 'graphics/other/sample.png', 'graphics/icons2/sample.png']) {
+      const invalidation = savedWriteFixture().invalidation;
+      invalidation.session = false;
+      invalidation.resources = [{ source: 'mod', relPath }];
+      await projectChangeFixture('one', invalidation);
+    }
+    expect(mocks.query).toHaveBeenCalledTimes(1);
+    for (const relPath of ['graphics/icons/sample.png', 'graphics']) {
+      const invalidation = savedWriteFixture().invalidation;
+      invalidation.session = false;
+      invalidation.resources = [{ source: 'core', relPath }];
+      await projectChangeFixture('one', invalidation);
+    }
+    expect(mocks.query).toHaveBeenCalledTimes(3);
+    state.missionId.value = 'sample';
+    state.directories.value = ['.'];
+    await flushPromises();
+    const invalidation = savedWriteFixture().invalidation;
+    invalidation.resources = [{ source: 'mod', relPath: 'data/missions/other/icon.png' }];
+    await projectChangeFixture('one', invalidation);
+    expect(mocks.query).toHaveBeenCalledTimes(4);
+    invalidation.resources = [{ source: 'mod', relPath: 'data/missions/sample/icon.png' }];
+    await projectChangeFixture('one', invalidation);
+    expect(mocks.query).toHaveBeenCalledTimes(5);
+  });
   it('loads on opening, clears absent ranges and reloads the captured mission and directories', async () => {
     const state = harness();
     expect(mocks.query).not.toHaveBeenCalled();
@@ -66,7 +99,9 @@ describe('image directory candidate lifecycle', () => {
     await flushPromises();
     expect(mocks.error).toHaveBeenCalledOnce();
     expect(state.options.value).toEqual([]);
-    void projectChangeFixture('one', savedWriteFixture().invalidation);
+    const invalidation = savedWriteFixture().invalidation;
+    invalidation.resources = [{ source: 'mod', relPath: 'graphics/icons' }];
+    void projectChangeFixture('one', invalidation);
     await flushPromises();
     expect(state.options.value[0]?.children).toHaveLength(1);
     closeProjectChangeFixture('one');

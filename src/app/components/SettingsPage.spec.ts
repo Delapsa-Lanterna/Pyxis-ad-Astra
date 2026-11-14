@@ -339,7 +339,7 @@ describe('settings limit controls', () => {
     expect(config.text()).toContain('下次轮转');
     const cached = wrapper.findAllComponents(nInputNumber).slice(2, 19);
     expect(cached.map((control) => control.props('value'))).toEqual([
-      2048, 64, 1024, 96, 2048, 32, 512, 64, 16, 128, 80, 240, 400, 128, 128, 128, 512,
+      2048, 64, 1024, 96, 2048, 32, 512, 64, 16, 128, 80, 240, 400, 128, 128, 128, 1024,
     ]);
     for (const control of cached) {
       await control.get('input').setValue('0');

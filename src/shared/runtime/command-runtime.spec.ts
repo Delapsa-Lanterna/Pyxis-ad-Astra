@@ -10,7 +10,7 @@ vi.mock('@tauri-apps/api/core', () => ({ invoke: mockInvoke }));
 beforeEach(() => vi.clearAllMocks());
 
 describe('command transport', () => {
-  it('projects every target while leaving bodies and unrelated getters untouched', () => {
+  it('projects target counts while leaving bodies and unrelated getters untouched', () => {
     const body = vi.fn(() => 'private content');
     const value = {
       payload: {
@@ -28,8 +28,6 @@ describe('command transport', () => {
     expect(logIdentity(value)).toMatchObject({
       'payload.sessionId': 's',
       'payload.targets.count': '2',
-      'payload.targets[0].id': 'one',
-      'payload.targets[1].id': 'two',
     });
     expect(body).not.toHaveBeenCalled();
     expect(logIdentity(value)).not.toHaveProperty('payload.input');

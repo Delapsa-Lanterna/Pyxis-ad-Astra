@@ -92,18 +92,22 @@ export function layoutText(font: BitmapFont, runs: readonly TextRun[], maxWidth 
       last = item.glyph?.id ?? null;
     }
     if (x > 0 && tokenWidth <= maxWidth && x + kerning(previous, first.glyph?.id ?? null) + tokenWidth > maxWidth) newLine();
+    // Each punctuation suffix is measured once, including overlong unbreakable runs.
+    const unitWidths = new Map<number, number>();
+    if (tokenWidth > maxWidth)
+      for (let cursor = end - 1; cursor >= index; cursor--) {
+        const current = characters[cursor]!,
+          next = characters[cursor + 1];
+        const joined = cursor + 1 < end && (opening.has(current.character) || closing.has(next!.character));
+        unitWidths.set(
+          cursor,
+          current.advance + (joined ? kerning(current.glyph?.id ?? null, next!.glyph?.id ?? null) + unitWidths.get(cursor + 1)! : 0),
+        );
+      }
     for (; index < end; index++) {
       const item = characters[index]!;
       if (tokenWidth > maxWidth) {
-        let unitEnd = index + 1,
-          unitWidth = item.advance,
-          unitLast = item.glyph?.id ?? null;
-        while (unitEnd < end && (opening.has(characters[unitEnd - 1]!.character) || closing.has(characters[unitEnd]!.character))) {
-          const next = characters[unitEnd]!;
-          unitWidth += kerning(unitLast, next.glyph?.id ?? null) + next.advance;
-          unitLast = next.glyph?.id ?? null;
-          unitEnd++;
-        }
+        const unitWidth = unitWidths.get(index)!;
         if (x > 0 && unitWidth <= maxWidth && x + kerning(previous, item.glyph?.id ?? null) + unitWidth > maxWidth) newLine();
       }
       let kern = kerning(previous, item.glyph?.id ?? null);

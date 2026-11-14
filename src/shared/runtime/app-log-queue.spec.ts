@@ -6,6 +6,27 @@ const entry = (level: AppLogLevel): AppLogEntry => ({ level, code: 'fixture', me
 afterEach(() => vi.useRealTimers());
 
 describe('log queue', () => {
+  it.each(['accepted', 'failed'] as const)('bounds queued records and counts an %s in-flight batch exactly', async (outcome) => {
+    const queue = createAppLogQueue(),
+      failed = vi.fn();
+    let finish!: () => void, reject!: (error: Error) => void;
+    queue.install(
+      () =>
+        new Promise<void>((resolve, no) => {
+          finish = resolve;
+          reject = no;
+        }),
+      failed,
+    );
+    for (let index = 0; index < 4097; index++) queue.record(entry('info'));
+    const flushed = queue.flush();
+    expect(queue.status()).toMatchObject({ pending: 64, dropped: 4033 });
+    if (outcome === 'accepted') finish();
+    else reject(new Error('write failed'));
+    await flushed;
+    expect(queue.status()).toMatchObject({ pending: 0, dropped: outcome === 'accepted' ? 4033 : 4097 });
+    expect(failed.mock.lastCall![1]).toBe(outcome === 'accepted' ? 4033 : 4097);
+  });
   it('filters detailed fields and interval clocks before evaluating them', async () => {
     appLogQueue.setLevel('info');
     const fields = vi.fn(() => ({ field: 'fixture' }));

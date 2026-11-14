@@ -125,6 +125,29 @@ function mountGrid(model = modelFixture(), smart = false, anchored = false, real
 }
 
 describe('CsvGrid', () => {
+  it('retains only the active input anchor while distant rows release', async () => {
+    const model = modelFixture();
+    model.rowKeys = Array.from({ length: 200 }, (_, index) => 'key-' + index);
+    model.rowsByKey = Object.fromEntries(model.rowKeys.map((key) => [key, csvDraftRow({ id: key }, key)]));
+    const grid = mountGrid(model, false, true);
+    await vi.waitFor(() => expect(grid.find('.row-slot').exists()).toBe(true));
+    await grid.get('.csv-cell-frame').trigger('dblclick');
+    await flushPromises();
+    const input = grid.get<HTMLTextAreaElement>('textarea');
+    await input.setValue('pending draft');
+    const panel = grid.get('.table-panel');
+    panel.element.scrollTop = 2400;
+    await panel.trigger('scroll');
+    await vi.waitFor(() => expect(grid.find('[data-row-key="key-100"]').exists()).toBe(true));
+    expect(input.element.isConnected).toBe(true);
+    expect(input.element.value).toBe('pending draft');
+    expect(fixture.inputs.dirty.value).toBe(true);
+    expect(grid.findAll('.row-slot').length).toBeLessThanOrEqual(31);
+    await input.trigger('keydown', { key: 'Enter' });
+    await flushPromises();
+    expect(fixture.updates.at(-1)).toMatchObject({ value: 'pending draft' });
+    expect(grid.find('[data-row-key="key-0"]').exists()).toBe(false);
+  });
   it('locates cells and repeats row-only location without changing content', async () => {
     const model = modelFixture();
     model.rowKeys = Array.from({ length: 20 }, (_, i) => 'key-' + i);

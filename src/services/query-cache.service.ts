@@ -18,6 +18,8 @@ type QueryInvalidationHandler = (sessionId: string, invalidation: ProjectInvalid
 interface LiveQuery {
   identity: SessionQueryIdentity;
   request: ReadTicket<unknown>;
+  promise: Promise<unknown>;
+  release: () => void;
   invalidates: (invalidation: ProjectInvalidation) => boolean;
 }
 export interface QueryCacheInvalidationEvent {
@@ -29,6 +31,7 @@ export interface QueryCacheInvalidationEvent {
 type QueryCacheInvalidationListener = (event: QueryCacheInvalidationEvent) => void;
 const caches = new Set<QueryInvalidationHandler>();
 const liveQueries = new Set<LiveQuery>();
+const liveRequests = new WeakMap<object, Map<string, LiveQuery>>();
 const invalidationListeners = new Set<QueryCacheInvalidationListener>();
 
 function observeQueryLoad<T>(load: () => Promise<T>, signal: AbortSignal, identity: SessionQueryIdentity): Promise<T> {
@@ -154,20 +157,34 @@ export function readLiveSessionQuery<TParameters extends object, TResult>(
     if (observation && shouldQueueLog('debug')) Object.assign(observation, logIdentity(identity.parameters));
     if (signal?.aborted) throw invalidatedRead(identity, 'consumer');
     requireSessionReady(sessionId);
+    const pending = liveRequests.get(definition) ?? new Map<string, LiveQuery>();
+    liveRequests.set(definition, pending);
+    const key = JSON.stringify([sessionId, stableStringify(identity.parameters), revision]);
+    const shared = pending.get(key);
+    if (shared) {
+      if (observation) observation.cache = 'shared';
+      return waitForRead(shared.promise as Promise<DeepReadonly<TResult>>, identity, signal);
+    }
     const request = createReadTicket(identity, (signal) => observeQueryLoad(() => definition.load(identity), signal, identity));
-    const entry: LiveQuery = {
-      identity,
-      request,
-      invalidates: (invalidation) => definition.invalidates(identity.parameters, invalidation),
-    };
-    liveQueries.add(entry);
     const completed = request.promise
       .then((value) => {
         requireSessionReady(sessionId, revision);
         request.requireCurrent();
         return value as DeepReadonly<TResult>;
       })
-      .finally(() => liveQueries.delete(entry));
+      .finally(() => entry.release());
+    const entry: LiveQuery = {
+      identity,
+      request,
+      promise: completed,
+      release: () => {
+        liveQueries.delete(entry);
+        if (pending.get(key) === entry) pending.delete(key);
+      },
+      invalidates: (invalidation) => definition.invalidates(identity.parameters, invalidation),
+    };
+    liveQueries.add(entry);
+    pending.set(key, entry);
     return waitForRead(completed, identity, signal);
   });
 }
@@ -179,7 +196,7 @@ function invalidateQueries(sessionId: string, invalidation: ProjectInvalidation 
   for (const entry of liveQueries) {
     if (entry.identity.sessionId !== sessionId || (invalidation && !invalidation.session && !entry.invalidates(invalidation))) continue;
     queries.push(entry.identity);
-    liveQueries.delete(entry);
+    entry.release();
     entry.request.invalidate(invalidation ? 'project' : 'session');
   }
   const event: QueryCacheInvalidationEvent = { invalidation, queries, sessionId, scope: invalidation ? 'paths' : 'session' };

@@ -236,6 +236,7 @@ mod tests {
         assert_eq!(wire["cacheLimits"]["mediaData"]["MiB"], 64);
         assert_eq!(wire["cacheLimits"]["decodedImages"]["MiB"], 96);
         assert_eq!(wire["cacheLimits"]["thumbnails"]["MiB"], 32);
+        assert_eq!(wire["cacheLimits"]["fonts"]["glyphEntriesPerPage"], 1024);
         assert_eq!(
             serde_json::from_value::<AppSettings>(wire).unwrap(),
             AppSettings::default()

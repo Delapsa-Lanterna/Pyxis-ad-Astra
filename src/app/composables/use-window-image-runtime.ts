@@ -42,6 +42,11 @@ interface ThumbnailLoad {
   canvas: HTMLCanvasElement | null;
   start(): Promise<HTMLCanvasElement>;
 }
+interface ImageRevision {
+  value: number;
+  owners: number;
+  sessionId: string;
+}
 export function createWindowImageRuntime() {
   const decoded = createResidentCache<DecodedImage>(
     () => ({
@@ -61,8 +66,11 @@ export function createWindowImageRuntime() {
   const stopDecoded = subscribeCacheLimits(decoded),
     stopThumbnails = subscribeCacheLimits(thumbnails);
   const products = new Map<string, ThumbnailLoad>();
-  const revisions = new Map<string, number>();
-  const sessionRevisions = new Map<string, number>();
+  const revisions = new Map<string, ImageRevision>();
+  const revisionOwners = new WeakMap<ResourceRef, Set<ImageRevision>>();
+  const collected = new FinalizationRegistry<{ physicalKey: string; entry: ImageRevision }>(({ physicalKey, entry }) => {
+    if (--entry.owners === 0 && revisions.get(physicalKey) === entry) revisions.delete(physicalKey);
+  });
   let revisionClock = 0;
   const epoch = ref(0);
   const preloadQueue: Array<{ task: () => Promise<void>; signal: AbortSignal; resolve: () => void; reject: (error: unknown) => void }> = [];
@@ -99,8 +107,19 @@ export function createWindowImageRuntime() {
   function revision(sessionId: string, resource: ResourceRef) {
     void epoch.value;
     const physicalKey = key(sessionId, resource);
-    if (!revisions.has(physicalKey)) revisions.set(physicalKey, 0);
-    return Math.max(sessionRevisions.get(sessionId) ?? 0, revisions.get(physicalKey) ?? 0);
+    let entry = revisions.get(physicalKey);
+    if (!entry) {
+      entry = { value: 0, owners: 0, sessionId };
+      revisions.set(physicalKey, entry);
+    }
+    const owned = revisionOwners.get(resource) ?? new Set<ImageRevision>();
+    if (!owned.has(entry)) {
+      owned.add(entry);
+      revisionOwners.set(resource, owned);
+      entry.owners++;
+      collected.register(resource, { physicalKey, entry });
+    }
+    return entry.value;
   }
   function removeImage(physicalKey: string) {
     if (
@@ -121,7 +140,8 @@ export function createWindowImageRuntime() {
         product.request.invalidate('project');
         products.delete(id);
       }
-    revisions.set(physicalKey, ++revisionClock);
+    const entry = revisions.get(physicalKey);
+    if (entry) entry.value = ++revisionClock;
     for (const id of [...thumbnails.keys()]) if (thumbnails.get(id)!.dependencies.has(physicalKey)) thumbnails.remove(id);
     queueMicrotask(() => {
       epoch.value++;
@@ -357,7 +377,6 @@ export function createWindowImageRuntime() {
         decoded.remove(physicalKey);
         pending.get(physicalKey)?.request.invalidate('session');
         pending.delete(physicalKey);
-        revisions.delete(physicalKey);
       }
     for (const id of [...thumbnails.keys()]) if (thumbnails.get(id)!.sessionId === sessionId) thumbnails.remove(id);
     for (const [id, product] of products)
@@ -365,7 +384,8 @@ export function createWindowImageRuntime() {
         product.request.invalidate('session');
         products.delete(id);
       }
-    sessionRevisions.set(sessionId, ++revisionClock);
+    const version = ++revisionClock;
+    for (const entry of revisions.values()) if (entry.sessionId === sessionId) entry.value = version;
     queueMicrotask(() => {
       epoch.value++;
     });
@@ -392,7 +412,6 @@ export function createWindowImageRuntime() {
     decoded.clear();
     thumbnails.clear();
     revisions.clear();
-    sessionRevisions.clear();
   }
   return {
     acquire,
@@ -411,6 +430,7 @@ export function createWindowImageRuntime() {
       decoded: decoded.stats(),
       thumbnails: thumbnails.stats(),
       pending: pending.size + products.size,
+      revisions: revisions.size,
       decodeCount,
       imageHits,
       thumbnailHits,
