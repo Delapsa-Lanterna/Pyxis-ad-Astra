@@ -1,3 +1,4 @@
+import { appThemes } from '../../../shared/app-themes.mjs';
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
 
@@ -104,7 +105,7 @@ export async function verifyCodeWorkspace(page, output) {
     .waitFor();
   await page.evaluate(() => Reflect.get(globalThis, 'browserWorkspace').setAppearance({ theme: 'light' }));
   await main.getByRole('tab').first().click();
-  for (const theme of ['light', 'dark'])
+  for (const theme of appThemes)
     for (const width of [800, 1280]) {
       await page.setViewportSize({ width, height: 900 });
       await page.evaluate((theme) => Reflect.get(globalThis, 'browserWorkspace').setAppearance({ theme }), theme);

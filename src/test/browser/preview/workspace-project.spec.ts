@@ -1,3 +1,10 @@
+import { MISC_CONFIG_DEFINITIONS, type MiscConfigDefinition } from '@/domain/misc-config';
+import { miscConfigFixture } from '@/test/fixtures/misc-config';
+import type { JsonDocumentKind } from '@/domain/json-editor/json-document-definitions';
+import { TABLE_KEYS } from '@/shared/types';
+import { associatedSpecKind } from '@/domain/csv-editor/associated-specs';
+import { JOINT_EDIT_KINDS } from '@/shared/types';
+import { SPEC_EDITOR_KINDS } from '@/shared/types';
 import { describe, expect, it } from 'vitest';
 import type * as T from '@/shared/types';
 import { gameImages } from './game-files';
@@ -6,62 +13,73 @@ import { buildModNavigationSections } from '@/domain/workspace/mod-navigation';
 import { createBrowserWorkspace } from '../workspace-runtime';
 import { createWorkspaceProject } from '../project';
 import { coreRoot, gameRoot, workspaceRoots } from './game-files';
-import { jsonDocumentMedia, jsonDocumentRecord, jsonDocumentSummary } from '@/domain/json-editor/json-document-definitions';
+import {
+  JSON_DOCUMENT_DEFINITIONS,
+  jsonDocumentMedia,
+  jsonDocumentRecord,
+  jsonDocumentSummary,
+} from '@/domain/json-editor/json-document-definitions';
 import { composeJson } from '@/domain/json-composition';
 import { jsonEntitySavedData } from '@/domain/json-editor/json-file-records';
 import { jsonFileFixture, jsonWriteFixture } from '@/test/fixtures/json-file';
 import { projectJsonValue } from '@/domain/json-document';
 
 describe('complete browser workspace fixtures', () => {
-  it.each(['modInfo', 'miscConfig', 'faction', 'mission', 'variant', 'skin'] as const)(
-    'reads and refreshes %s documents from current files with their versions',
-    async (kind) => {
-      const workspace = createBrowserWorkspace(),
-        project = workspace.projects[2]!;
-      const entity = [...project.entities.values()].find((entry) => entry.kind === kind);
-      const origin: T.JsonDocumentOrigin =
-        kind === 'modInfo'
-          ? { kind }
-          : kind === 'miscConfig'
-            ? { kind, file: 'settings' }
-            : { kind: 'entity', target: { kind, id: entity!.id, relPath: entity!.target.write.relPath } };
-      const relPath =
-        kind === 'modInfo'
-          ? 'mod_info.json'
-          : kind === 'miscConfig'
-            ? 'data/config/settings.json'
-            : entity!.target.write.relPath + (kind === 'mission' ? '/descriptor.json' : '');
-      const path = project.manifest.modRoot + '/' + relPath,
-        key = kind === 'mission' ? 'descriptor' : 'file';
-      const payload = { sessionId: project.manifest.sessionId, modRoot: project.manifest.modRoot, origin };
-      const read = () =>
-        workspace.invoke('main', 'read_json_document', { payload: { ...payload, relPath } }) as Promise<T.JsonDocumentFile | null>;
-      const refresh = () => workspace.invoke('main', 'prepare_json_source_recovery', { payload }) as Promise<T.JsonRecoveryPlan>;
-      const file = (await read())!;
-      expect(projectJsonValue(file.document.content)).toEqual(JSON.parse(project.textFiles.get(path)!));
-      expect(file.baseVersions).toEqual([project.version(path)]);
-      const changed = { ...(projectJsonValue(file.document.content) as T.RowData), fixtureRefresh: true };
-      project.textFiles.set(path, JSON.stringify(changed));
-      project.versions.set(path, 'external');
-      const plan = await refresh();
-      expect(projectJsonValue(plan.documents[key]!.content)).toEqual(changed);
-      expect(plan.currentSources[key]).toEqual(changed);
-      expect(plan.baseVersions).toEqual([project.version(path)]);
-      expect(plan.missingPaths).toEqual([]);
-      if (kind === 'mission') {
-        expect(plan.currentSources.text).toBe((entity!.data as T.RowData).text);
-        expect(plan.currentSources.index).toEqual({ rows: [{ data: (entity!.data as T.RowData).list, isComment: false }] });
-      }
-      project.textFiles.delete(path);
-      expect(await read()).toBeNull();
-      expect(await refresh()).toMatchObject({
-        documents: {},
-        currentSources: {},
-        missingPaths: [path],
-        baseVersions: [{ path, fingerprint: null }],
-      });
-    },
-  );
+  it.each(
+    Object.values(JSON_DOCUMENT_DEFINITIONS).flatMap<{ kind: JsonDocumentKind; misc: MiscConfigDefinition | null; name: string }>(
+      (definition) =>
+        definition.kind === 'misc-config'
+          ? MISC_CONFIG_DEFINITIONS.map((file) => ({ kind: definition.kind, misc: file, name: file.schema }))
+          : [{ kind: definition.kind, misc: null, name: definition.kind }],
+    ),
+  )('reads and refreshes $name documents from current files with their versions', async ({ kind: documentKind, misc }) => {
+    const kind = documentKind === 'mod-info' ? 'modInfo' : documentKind === 'misc-config' ? 'miscConfig' : documentKind;
+    const workspace = createBrowserWorkspace(),
+      project = workspace.projects[2]!;
+    if (misc) project.textFiles.set(project.manifest.modRoot + '/' + misc.path, JSON.stringify(miscConfigFixture(misc.kind)));
+    const entity = [...project.entities.values()].find((entry) => entry.kind === kind);
+    const origin: T.JsonDocumentOrigin =
+      kind === 'modInfo'
+        ? { kind }
+        : kind === 'miscConfig'
+          ? { kind, file: misc!.kind }
+          : { kind: 'entity', target: { kind, id: entity!.id, relPath: entity!.target.write.relPath } };
+    const relPath =
+      kind === 'modInfo'
+        ? 'mod_info.json'
+        : kind === 'miscConfig'
+          ? misc!.path
+          : entity!.target.write.relPath + (kind === 'mission' ? '/descriptor.json' : '');
+    const path = project.manifest.modRoot + '/' + relPath,
+      key = kind === 'mission' ? 'descriptor' : 'file';
+    const payload = { sessionId: project.manifest.sessionId, modRoot: project.manifest.modRoot, origin };
+    const read = () =>
+      workspace.invoke('main', 'read_json_document', { payload: { ...payload, relPath } }) as Promise<T.JsonDocumentFile | null>;
+    const refresh = () => workspace.invoke('main', 'prepare_json_source_recovery', { payload }) as Promise<T.JsonRecoveryPlan>;
+    const file = (await read())!;
+    expect(projectJsonValue(file.document.content)).toEqual(JSON.parse(project.textFiles.get(path)!));
+    expect(file.baseVersions).toEqual([project.version(path)]);
+    const changed = { ...(projectJsonValue(file.document.content) as T.RowData), fixtureRefresh: true };
+    project.textFiles.set(path, JSON.stringify(changed));
+    project.versions.set(path, 'external');
+    const plan = await refresh();
+    expect(projectJsonValue(plan.documents[key]!.content)).toEqual(changed);
+    expect(plan.currentSources[key]).toEqual(changed);
+    expect(plan.baseVersions).toEqual([project.version(path)]);
+    expect(plan.missingPaths).toEqual([]);
+    if (kind === 'mission') {
+      expect(plan.currentSources.text).toBe((entity!.data as T.RowData).text);
+      expect(plan.currentSources.index).toEqual({ rows: [{ data: (entity!.data as T.RowData).list, isComment: false }] });
+    }
+    project.textFiles.delete(path);
+    expect(await read()).toBeNull();
+    expect(await refresh()).toMatchObject({
+      documents: {},
+      currentSources: {},
+      missingPaths: [path],
+      baseVersions: [{ path, fingerprint: null }],
+    });
+  });
   it('saves and refreshes miscellaneous JSON through the document protocol', async () => {
     const workspace = createBrowserWorkspace(),
       project = workspace.projects[1]!;
@@ -256,67 +274,59 @@ describe('complete browser workspace fixtures', () => {
       expect(project.tables.get('ships')!.rows).toEqual(rows);
     },
   );
-  it.each(['ships', 'weapons', 'shipSystems', 'skills'] as const)(
-    'prepares and replays existing %s files through one save',
-    async (table) => {
-      for (const rename of [false, true])
-        for (const mode of ['read', 'overwrite'] as const) {
-          const workspace = createBrowserWorkspace(),
-            project = workspace.projects[1]!;
-          const kind = table === 'ships' ? 'ship' : table === 'weapons' ? 'weapon' : table === 'skills' ? 'skill' : 'system';
-          const extension = { ship: 'ship', weapon: 'wpn', skill: 'skill', system: 'system' }[kind];
-          const directory = { ship: 'data/hulls', weapon: 'data/weapons', skill: 'data/characters/skills', system: 'data/shipsystems' }[
-            kind
-          ];
-          const field = kind === 'ship' ? 'hullId' : 'id';
-          const destination = project.manifest.modRoot + '/' + directory + '/nested/prepared.' + extension;
-          const targetText = JSON.stringify({ [field]: 'prepared', custom: 'preserve destination' }, null, 4) + '\n';
-          const old = project.manifest.modRoot + '/' + directory + '/original.' + extension;
-          project.textFiles.set(destination, targetText);
-          if (rename) project.textFiles.set(old, JSON.stringify({ [field]: 'original', custom: 'preserve source', specClass: 'beam' }));
-          project.write(null, { kind: 'csv', table }, [destination, ...(rename ? [old] : [])]);
-          const create: T.AssociatedSpecCreateParams =
-            kind === 'ship'
-              ? { kind, id: 'prepared', hullName: 'CSV name' }
-              : kind === 'weapon'
-                ? { kind, id: 'prepared', specClass: 'beam' as const }
-                : { kind, id: 'prepared' };
-          const change: T.AssociatedSpecChange = rename
-            ? { action: 'rename', previousId: 'original', create }
-            : { action: 'create', create };
-          const input = { sessionId: project.manifest.sessionId, table, changes: [change] };
-          const plans = (await workspace.invoke('main', 'prepare_csv_associated_specs', {
-            payload: input,
-          })) as T.AssociatedSpecPreparation[];
-          const plan = plans[0]!;
-          const beforeHistory = project.history.undoStack.length;
-          const saved = (await workspace.invoke('main', 'save_csv_patch', {
-            payload: {
-              sessionId: project.manifest.sessionId,
-              table,
-              patches: [{ rowKey: table + ':new:0', action: 'upsert', row: { id: 'prepared', name: 'CSV name' }, isComment: false }],
-              associatedSpecs: [
-                { change, target: plan.target, resolution: { mode, original: plan.original, destination: plan.destination } },
-              ],
-            },
-          })) as T.WriteResult;
-          expect(saved.history.undoStack).toHaveLength(beforeHistory + 1);
-          expect(saved.content).toMatchObject({
-            target: { kind: 'csv', table },
-            value: { table, baseVersions: saved.baseVersions, rows: project.tables.get(table)!.rows },
-          });
-          if (mode === 'read') expect(project.textFiles.get(destination)).toBe(targetText);
-          else expect(JSON.parse(project.textFiles.get(destination)!)[field]).toBe('prepared');
-          if (rename) expect(project.textFiles.has(old)).toBe(false);
-          expect(workspace.calls.filter((call) => call.command === 'prepare_csv_associated_specs')).toHaveLength(1);
-          project.undo();
-          expect(project.textFiles.get(destination)).toBe(targetText);
-          if (rename) expect(project.textFiles.has(old)).toBe(true);
-          project.undo('redo');
-          if (rename) expect(project.textFiles.has(old)).toBe(false);
-        }
-    },
-  );
+  it.each(
+    TABLE_KEYS.filter((table) => associatedSpecKind(table)).flatMap((table) =>
+      [false, true].flatMap((rename) => (['read', 'overwrite'] as const).map((mode) => ({ table, rename, mode }))),
+    ),
+  )('prepares and replays $table files, rename=$rename, mode=$mode', async ({ table, rename, mode }) => {
+    const workspace = createBrowserWorkspace(),
+      project = workspace.projects[1]!;
+    const kind = associatedSpecKind(table)!;
+    const extension = { ship: 'ship', weapon: 'wpn', skill: 'skill', system: 'system' }[kind];
+    const directory = { ship: 'data/hulls', weapon: 'data/weapons', skill: 'data/characters/skills', system: 'data/shipsystems' }[kind];
+    const field = kind === 'ship' ? 'hullId' : 'id';
+    const destination = project.manifest.modRoot + '/' + directory + '/nested/prepared.' + extension;
+    const targetText = JSON.stringify({ [field]: 'prepared', custom: 'preserve destination' }, null, 4) + '\n';
+    const old = project.manifest.modRoot + '/' + directory + '/original.' + extension;
+    project.textFiles.set(destination, targetText);
+    if (rename) project.textFiles.set(old, JSON.stringify({ [field]: 'original', custom: 'preserve source', specClass: 'beam' }));
+    project.write(null, { kind: 'csv', table }, [destination, ...(rename ? [old] : [])]);
+    const create: T.AssociatedSpecCreateParams =
+      kind === 'ship'
+        ? { kind, id: 'prepared', hullName: 'CSV name' }
+        : kind === 'weapon'
+          ? { kind, id: 'prepared', specClass: 'beam' as const }
+          : { kind, id: 'prepared' };
+    const change: T.AssociatedSpecChange = rename ? { action: 'rename', previousId: 'original', create } : { action: 'create', create };
+    const input = { sessionId: project.manifest.sessionId, table, changes: [change] };
+    const plans = (await workspace.invoke('main', 'prepare_csv_associated_specs', {
+      payload: input,
+    })) as T.AssociatedSpecPreparation[];
+    const plan = plans[0]!;
+    const beforeHistory = project.history.undoStack.length;
+    const saved = (await workspace.invoke('main', 'save_csv_patch', {
+      payload: {
+        sessionId: project.manifest.sessionId,
+        table,
+        patches: [{ rowKey: table + ':new:0', action: 'upsert', row: { id: 'prepared', name: 'CSV name' }, isComment: false }],
+        associatedSpecs: [{ change, target: plan.target, resolution: { mode, original: plan.original, destination: plan.destination } }],
+      },
+    })) as T.WriteResult;
+    expect(saved.history.undoStack).toHaveLength(beforeHistory + 1);
+    expect(saved.content).toMatchObject({
+      target: { kind: 'csv', table },
+      value: { table, baseVersions: saved.baseVersions, rows: project.tables.get(table)!.rows },
+    });
+    if (mode === 'read') expect(project.textFiles.get(destination)).toBe(targetText);
+    else expect(JSON.parse(project.textFiles.get(destination)!)[field]).toBe('prepared');
+    if (rename) expect(project.textFiles.has(old)).toBe(false);
+    expect(workspace.calls.filter((call) => call.command === 'prepare_csv_associated_specs')).toHaveLength(1);
+    project.undo();
+    expect(project.textFiles.get(destination)).toBe(targetText);
+    if (rename) expect(project.textFiles.has(old)).toBe(true);
+    project.undo('redo');
+    if (rename) expect(project.textFiles.has(old)).toBe(false);
+  });
   it('returns an empty preview for draft and comment rows', async () => {
     const workspace = createBrowserWorkspace(),
       project = workspace.projects[1]!;
@@ -600,7 +610,7 @@ describe('complete browser workspace fixtures', () => {
       payload: { sessionId: receiver.manifest.sessionId, kind: 'variant' },
     })) as { id: string; data: { displayName: string } }[];
     expect(list.find(({ id }) => id === entity.id)!.data.displayName).toBe('Receiver variant');
-    for (const kind of ['ship', 'weapon', 'projectile', 'system'] as const) {
+    for (const kind of SPEC_EDITOR_KINDS) {
       const window = (await workspace.openSampleWindow('editor', kind)) as { label: string };
       expect(workspace.windows.get(window.label)!.context!.identity).toMatchObject({
         type: 'spec',
@@ -608,7 +618,7 @@ describe('complete browser workspace fixtures', () => {
         sessionId: receiver.manifest.sessionId,
       });
     }
-    for (const kind of ['ship', 'skin', 'weapon', 'wing', 'variant'] as const) {
+    for (const kind of JOINT_EDIT_KINDS) {
       const window = (await workspace.openSampleWindow('immersive-editor', kind)) as { label: string };
       expect(workspace.windows.get(window.label)!.context!.identity).toMatchObject({
         type: 'immersive',
@@ -624,7 +634,9 @@ describe('complete browser workspace fixtures', () => {
       sessionIds: workspace.projects.slice(1).map(({ manifest }) => manifest.sessionId),
     });
     for (const project of workspace.projects)
-      for (const kind of ['faction', 'mission', 'skin', 'variant'] as const) {
+      for (const kind of Object.values(JSON_DOCUMENT_DEFINITIONS)
+        .map((definition) => definition.kind)
+        .filter((kind) => kind !== 'mod-info' && kind !== 'misc-config')) {
         const list = (await workspace.invoke('main', 'query_entity_list', {
           payload: { sessionId: project.manifest.sessionId, kind },
         })) as T.EntityData[];

@@ -1,57 +1,13 @@
-// Starsector 0.98a-RC8 loader enums.
-export const PROJECTILE_SPAWN_TYPES = ['BEAM', 'BALLISTIC_AS_BEAM', 'BALLISTIC', 'PLASMA', 'MISSILE', 'OTHER'] as const;
+import { getSchema } from '@/domain/schema/config-schema-registry';
 
-export const BEAM_TEXTURES = ['SMOOTH', 'MEDIUM', 'ROUGH', 'CHUNKY', 'ROUGH2', 'WEAVE', 'LASER'] as const;
-export const COLLISION_CLASSES = [
-  'NONE',
-  'RAY',
-  'RAY_FIGHTER',
-  'FIGHTER',
-  'SHIP',
-  'PROJECTILE_NO_FF',
-  'PROJECTILE_FF',
-  'MISSILE_NO_FF',
-  'MISSILE_FF',
-  'HITS_SHIPS_AND_ASTEROIDS',
-  'HITS_SHIPS_ONLY_FF',
-  'HITS_SHIPS_ONLY_NO_FF',
-  'PROJECTILE_FIGHTER',
-  'ASTEROID',
-  'PLANET',
-  'GAS_CLOUD',
-  'STAR',
-] as const;
+function fieldOptions(schema: string, key: string): readonly string[] {
+  return getSchema(schema)!
+    .sections!.flatMap((section) => section.fields)
+    .find((field) => field.key === key)!.options!;
+}
 
-export const MISSILE_TYPES = [
-  'FLARE',
-  'FLARE_SEEKER',
-  'MOTE',
-  'FLARE_JAMMER',
-  'ROCKET',
-  'MISSILE',
-  'MISSILE_TWO_STAGE_SECOND_UNGUIDED',
-  'HEATSEEKER',
-  'CIRCLE_TARGET',
-  'MIRV',
-  'TORPEDO',
-  'BOMB',
-  'BOMB_WITH_SLOW',
-  'BOMB_WITH_ACCEL',
-  'PHASE_CHARGE',
-  'PHASE_MINE',
-  'NO_AI',
-] as const;
-
-export const SYSTEM_TYPES = [
-  'WEAPON',
-  'ENGINE_MOD',
-  'SHIELD_MOD',
-  'STAT_MOD',
-  'FAST_RELOAD',
-  'AMMO_RELOAD',
-  'TELEPORTER',
-  'PHASE_CLOAK',
-  'DISPLACER',
-  'DRONE_LAUNCHER',
-  'EMP',
-] as const;
+export const PROJECTILE_SPAWN_TYPES = fieldOptions('spec-projectile', 'spawnType');
+export const BEAM_TEXTURES = fieldOptions('spec-weapon', 'textureType');
+export const COLLISION_CLASSES = fieldOptions('spec-projectile', 'collisionClass');
+export const MISSILE_TYPES = fieldOptions('spec-projectile', 'missileType');
+export const SYSTEM_TYPES = fieldOptions('spec-system', 'type');

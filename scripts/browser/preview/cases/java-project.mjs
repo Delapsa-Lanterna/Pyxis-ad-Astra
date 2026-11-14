@@ -1,3 +1,4 @@
+import { appThemes } from '../../../shared/app-themes.mjs';
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
 import { openEditorSample } from './editors.mjs';
@@ -40,7 +41,7 @@ export async function verifyJavaProject(page, output) {
   await editor.getByRole('dialog').filter({ hasText: '部署 Java 产物？' }).waitFor({ state: 'hidden' });
   assert.equal(await editor.getByRole('button', { name: '部署', exact: true }).isEnabled(), true);
   assert.equal(await editor.locator('.code-overview .empty-state').count(), 0);
-  for (const theme of ['light', 'dark'])
+  for (const theme of appThemes)
     for (const width of [1602, 2242]) {
       await page.setViewportSize({ width, height: 1000 });
       await page.evaluate((theme) => Reflect.get(globalThis, 'browserWorkspace').setAppearance({ theme }), theme);
@@ -102,7 +103,7 @@ export async function verifyJavaProject(page, output) {
   await editor.getByRole('textbox', { name: 'Gradle 任务参数' }).fill('-Psample=value');
   await editor.getByRole('button', { name: '运行 Gradle', exact: true }).click();
   await editor.getByText(':inspectAssets -Psample=value', { exact: true }).first().waitFor();
-  for (const theme of ['light', 'dark'])
+  for (const theme of appThemes)
     for (const width of [1602, 2242]) {
       await page.setViewportSize({ width, height: 1000 });
       await page.evaluate((theme) => Reflect.get(globalThis, 'browserWorkspace').setAppearance({ theme }), theme);

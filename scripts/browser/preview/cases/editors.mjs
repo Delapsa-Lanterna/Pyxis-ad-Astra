@@ -1,3 +1,4 @@
+import { appThemes } from '../../../shared/app-themes.mjs';
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
 import { verifyTextFeatures } from './text-features.mjs';
@@ -158,7 +159,7 @@ export async function verifyEditors(page, output) {
   assert.equal(await editor.locator('.cm-editor').count(), 1);
   checks.push({ name: 'pointer resize, keyboard resize, collapse restoration and single text view', pass: true });
   for (const width of [1602, 2242, 2882])
-    for (const theme of ['light', 'dark']) {
+    for (const theme of appThemes) {
       await page.setViewportSize({ width, height: 900 });
       await page.evaluate((theme) => Reflect.get(globalThis, 'browserWorkspace').setAppearance({ theme }), theme);
       await editor.getByRole('button', { name: '查找与替换', exact: true }).click();
@@ -207,7 +208,7 @@ export async function verifyEditors(page, output) {
   checks.push({ name: '50 sequential file tabs activate the final file and ordinary text exposes text operations', pass: true });
   await closeEditorDocuments(editor);
   await editor.getByRole('heading', { name: '代码总览', exact: true }).waitFor();
-  for (const theme of ['light', 'dark']) {
+  for (const theme of appThemes) {
     await page.setViewportSize({ width: 1602, height: 900 });
     await page.evaluate((theme) => Reflect.get(globalThis, 'browserWorkspace').setAppearance({ theme }), theme);
     await editor.locator('.code-editor').screenshot({ path: join(output, 'code-empty-' + theme + '.png') });
@@ -275,7 +276,7 @@ async function verifyTextEditor(page, output) {
   await input.press('Control+z');
   assert.equal((await input.locator('.cm-line').allTextContents()).join('\n'), 'first\n中文 second\nthird\nfinal');
   const features = await verifyTextFeatures(frame);
-  for (const theme of ['light', 'dark'])
+  for (const theme of appThemes)
     for (const width of [1280, 800]) {
       await page.setViewportSize({ width, height: 900 });
       await page.evaluate((theme) => Reflect.get(globalThis, 'browserWorkspace').setAppearance({ theme }), theme);

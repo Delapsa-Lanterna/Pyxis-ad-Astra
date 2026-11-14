@@ -1,3 +1,4 @@
+import { WEAPON_SPEC_CLASSES } from '@/domain/entity-write/spec-construction';
 import { flushPromises, type VueWrapper } from '@vue/test-utils';
 import { mount } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
@@ -225,8 +226,8 @@ describe('SpecWeaponEditor', () => {
       type
         .findAll('option')
         .map((option) => option.text())
-        .slice(-2),
-    ).toEqual(['projectile', 'beam']);
+        .slice(-WEAPON_SPEC_CLASSES.length),
+    ).toEqual(WEAPON_SPEC_CLASSES);
     await type.setValue(JSON.stringify('beam'));
     await vi.waitFor(() =>
       expect(editor.emitted('draft-changed')?.at(-1)?.[0]).toMatchObject({
@@ -264,7 +265,7 @@ describe('SpecWeaponEditor', () => {
     ).toEqual([`${mode}Offsets`, `${mode}Offsets`, `${mode}AngleOffsets`]);
   });
 
-  it.each(['projectile', 'beam'])('groups glow after frame animation for a %s weapon', (specClass) => {
+  it.each(WEAPON_SPEC_CLASSES)('groups glow after frame animation for a %s weapon', (specClass) => {
     const editor = mountEditor({ id: 'railgun', specClass });
     const sections = editor.findAll('.n-collapse-item-stub').map((section) => section.attributes('data-name'));
     const position = sections.indexOf('glow');
@@ -420,7 +421,7 @@ describe('SpecWeaponEditor', () => {
     expect(editor.emitted('edit-projectile')).toEqual([['shot']]);
   });
 
-  it.each(['projectile', 'beam'])(
+  it.each(WEAPON_SPEC_CLASSES)(
     'delivers detached %s snapshots from both preview entries after committing active input',
     async (specClass) => {
       const editor = mountEditor({ id: 'railgun', specClass, unknown: { value: 7 } }, {}, true);

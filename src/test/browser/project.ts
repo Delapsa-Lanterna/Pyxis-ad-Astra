@@ -1,3 +1,4 @@
+import { associatedSpecKind } from '@/domain/csv-editor/associated-specs';
 import type * as T from '@/shared/types';
 import { TABLE_KEYS } from '@/shared/types';
 import { createBrowserModel } from './model';
@@ -165,7 +166,7 @@ export function createWorkspaceProject(root: string, index: number, files = game
     };
     for (const key of Object.values(names)) manifest.entitySummaries[key] = 0;
     for (const entity of entities.values()) manifest.entitySummaries[names[entity.kind]]++;
-    manifest.associatedSpecTables = (['ships', 'weapons', 'skills', 'shipSystems'] as const).filter(
+    manifest.associatedSpecTables = TABLE_KEYS.filter((table) => associatedSpecKind(table)).filter(
       (key) => tables.get(key)!.rows.length > 0,
     );
     model.miscFiles.splice(

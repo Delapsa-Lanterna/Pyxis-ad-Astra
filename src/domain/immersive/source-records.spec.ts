@@ -1,3 +1,4 @@
+import { JOINT_EDIT_KINDS } from '@/shared/types';
 import { describe, expect, it } from 'vitest';
 import type { FieldProblem, JointEditKind, JointEditRecord, JointEditSnapshot } from '@/shared/types';
 import { variantJointFixture } from '@/test/fixtures/joint-edit/variant-joint-edit';
@@ -64,7 +65,7 @@ describe('immersive component problems', () => {
     expect(keys(snapshot)).toContain('replacement-shot');
     expect(keys(snapshot)).not.toContain('projectile');
   });
-  it.each(['ship', 'skin', 'weapon', 'wing', 'variant'] as const)('selects used weapon and projectile problems for %s', (kind) => {
+  it.each(JOINT_EDIT_KINDS)('selects used weapon and projectile problems for %s', (kind) => {
     const snapshot = graph(kind),
       prefix = kind === 'weapon' ? '' : 'weapon-';
     const record = snapshot.records.find((record) => record.key === prefix + 'csv')!;

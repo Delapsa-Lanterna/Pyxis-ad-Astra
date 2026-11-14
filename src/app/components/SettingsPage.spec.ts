@@ -1,3 +1,5 @@
+import { APP_LOG_LEVELS } from '@/shared/types';
+import { FEEDBACK_LEVELS } from '@/shared/types';
 import { mount } from '@vue/test-utils';
 import { ref } from 'vue';
 import { createPinia, setActivePinia } from 'pinia';
@@ -112,7 +114,7 @@ describe('settings limit controls', () => {
       ['警告', 'warning', false, 'true'],
       ['错误', 'error', false, 'true'],
     ]);
-    for (const [index, level] of (['success', 'info', 'warning', 'error'] as const).entries()) {
+    for (const [index, level] of FEEDBACK_LEVELS.entries()) {
       const button = buttons[index]!;
       await button.trigger('click');
       expect(useSettingsStore().settingsSnapshot().showCoreFeedback[level]).toBe(false);
@@ -188,7 +190,7 @@ describe('settings limit controls', () => {
       '警告（WARNING）',
       '错误（ERROR）',
     ]);
-    for (const level of ['debug', 'warning', 'error', 'info'] as const) {
+    for (const level of APP_LOG_LEVELS) {
       await select.setValue(JSON.stringify(level));
       expect(useSettingsStore().logLevel).toBe(level);
     }

@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { extname, matchesGlob } from 'node:path';
-import { collectRepoPaths } from '../../shared/files.mjs';
+import { collectRepoPaths, SOURCE_EXTENSIONS } from '../../shared/files.mjs';
 import { prepareArchitectureFiles } from './imports.mjs';
 import { frontendFile, specFile } from './classify.mjs';
 import { productionRustSource, rustFacts } from './rust.mjs';
@@ -10,7 +10,6 @@ import { performance } from 'node:perf_hooks';
 
 /** @typedef {import('./imports.mjs').ResolvedFile & {rust: import('./rust.mjs').RustFacts, document: import('./modules.mjs').ModuleFacts}} ArchitectureFile */
 /** @typedef {{files: readonly ArchitectureFile[], byPath: ReadonlyMap<string, ArchitectureFile>, paths: ReadonlySet<string>, frontend: readonly ArchitectureFile[], rust: readonly ArchitectureFile[], documents: readonly ArchitectureFile[], testFiles: ReadonlySet<string>, failures: import('../diagnostics.mjs').Diagnostic[], moduleMap: ReturnType<typeof moduleMapFacts>, registeredRules: readonly import('../diagnostics.mjs').ArchitectureRule[], counts: {frontend: number, rust: number, documents: number}}} ArchitectureContext */
-const sourceExtensions = new Set(['.js', '.jsx', '.mjs', '.rs', '.ts', '.tsx', '.vue']);
 
 /** @typedef {{stage:string,durationMs:number,units?:number}} ContextTiming */
 /** @typedef {{onStageTiming?:(timing:ContextTiming)=>void}} ContextOptions */
@@ -106,7 +105,7 @@ export async function collectArchitectureContext(root, options = {}) {
     return (
       !file.rel.endsWith('/') &&
       !specFile(file.rel) &&
-      ((sourceExtensions.has(extension) &&
+      ((SOURCE_EXTENSIONS.has(extension) &&
         (file.rel.startsWith('src/') || file.rel.startsWith('src-tauri/') || file.rel.startsWith('scripts/architecture/rules/'))) ||
         file.rel === 'tsconfig.json' ||
         file.rel === '.zcode/module-map.md' ||

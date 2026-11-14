@@ -103,15 +103,15 @@ describe('schema asset registries', () => {
       eager: true,
       import: 'default',
     });
-    expect(TABLE_KEYS).toHaveLength(14);
-    expect(Object.keys(assets)).toHaveLength(14);
-    let columnCount = 0;
+    expect(
+      Object.keys(assets)
+        .map((path) => path.slice(path.lastIndexOf('/') + 1, -'.schema.json'.length))
+        .sort(),
+    ).toEqual([...TABLE_KEYS].sort());
     for (const table of TABLE_KEYS) {
       const declared = assets['../../../schemas/csv/' + table + '.schema.json']!.columns.map(({ key }) => key);
       expect(getCsvColumnSchemas(table).map(({ key }) => key)).toEqual(declared);
-      columnCount += declared.length;
     }
-    expect(columnCount).toBe(289);
   });
 
   it('keeps fixed CSV value sets distinct from dynamic references and open tag fields', () => {

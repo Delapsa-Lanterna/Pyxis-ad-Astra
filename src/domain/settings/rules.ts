@@ -1,3 +1,4 @@
+import { FEEDBACK_LEVELS } from '@/shared/types';
 import { readCacheLimits } from '@/domain/cache-limits';
 import {
   ACCENT_PRESET_VALUES,
@@ -91,12 +92,12 @@ export function readToastDuration(value: number): number {
 }
 
 export function readToastDurations(value: ToastDurations): ToastDurations {
-  for (const level of ['success', 'info', 'warning', 'error'] as const) readToastDuration(value[level]);
+  for (const level of FEEDBACK_LEVELS) readToastDuration(value[level]);
   return value;
 }
 
 export function readShowCoreFeedback(value: ShowCoreFeedback): ShowCoreFeedback {
-  for (const level of ['success', 'info', 'warning', 'error'] as const)
+  for (const level of FEEDBACK_LEVELS)
     if (typeof value[level] !== 'boolean') throw new Error(`Invalid show core feedback setting: ${level}`);
   return value;
 }

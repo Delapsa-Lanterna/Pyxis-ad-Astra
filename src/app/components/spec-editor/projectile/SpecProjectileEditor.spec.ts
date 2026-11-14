@@ -1,3 +1,4 @@
+import { PROJECTILE_SPAWN_TYPES, MISSILE_TYPES } from '@/domain/editors/lib/game-spec-enums';
 import type { AppFeedback } from '@/shared/types';
 import { mount, type VueWrapper } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
@@ -267,7 +268,7 @@ describe('SpecProjectileEditor', () => {
       .findAll('select')[1]!
       .findAll('option')
       .map((option) => option.text());
-    expect(options).toEqual(['BEAM', 'BALLISTIC_AS_BEAM', 'BALLISTIC', 'PLASMA', 'MISSILE', 'OTHER']);
+    expect(options).toEqual(PROJECTILE_SPAWN_TYPES);
   });
 
   it('offers both phase missile types accepted by the game', () => {
@@ -278,7 +279,7 @@ describe('SpecProjectileEditor', () => {
       .map((option) => option.text());
     expect(options).toContain('PHASE_CHARGE');
     expect(options).toContain('PHASE_MINE');
-    expect(options).toHaveLength(17);
+    expect(options).toEqual(MISSILE_TYPES);
   });
 });
 vi.mock('@/services/engine-assets.service', () => ({

@@ -1,3 +1,4 @@
+import { EDIT_MODES } from '@/shared/types';
 import { defineComponent } from 'vue';
 import SchemaScalarInput from '@/app/components/field-editor/SchemaScalarInput.vue';
 import SchemaCollectionInput from '@/app/components/field-editor/SchemaCollectionInput.vue';
@@ -595,7 +596,7 @@ describe('SchemaFieldRenderer smart mode', () => {
     expect(inputs.dirty.value).toBe(false);
   });
 
-  it.each(['smart', 'plain'] as const)('retains undeclared nested values as JSON text in %s mode', async (mode) => {
+  it.each(EDIT_MODES)('retains undeclared nested values as JSON text in %s mode', async (mode) => {
     useSettingsStore().setEditMode(mode);
     const initial = { known: 'kept', 'extra.key': { enabled: true, count: 3 }, nil: null };
     const { value, inputs } = mountBoundField(

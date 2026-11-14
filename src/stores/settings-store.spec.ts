@@ -1,3 +1,4 @@
+import { FEEDBACK_LEVELS } from '@/shared/types';
 import { createPinia, setActivePinia } from 'pinia';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { createSettingsFixture } from '@/test/fixtures/settings';
@@ -22,7 +23,7 @@ describe('settings integer limits', () => {
     settings.replaceSettings(createSettingsFixture());
     expect(settings.javaExecutable).toBeNull();
   });
-  it.each(['success', 'info', 'warning', 'error'] as const)('validates and mirrors %s toast durations', (level) => {
+  it.each(FEEDBACK_LEVELS)('validates and mirrors %s toast durations', (level) => {
     const settings = useSettingsStore();
     expect(settings.toastDurations).toEqual({ success: 5, info: 7, warning: 7, error: 0 });
     for (const seconds of [0, 3600]) {
@@ -40,7 +41,7 @@ describe('settings integer limits', () => {
       expect(settings.toastDurations[level]).toBe(3600);
     }
   });
-  it.each(['success', 'info', 'warning', 'error'] as const)('persists and mirrors displayed Core %s feedback', (level) => {
+  it.each(FEEDBACK_LEVELS)('persists and mirrors displayed Core %s feedback', (level) => {
     const settings = useSettingsStore();
     expect(settings.showCoreFeedback).toEqual({ success: true, info: true, warning: true, error: true });
     settings.setShowCoreFeedback(level, false);

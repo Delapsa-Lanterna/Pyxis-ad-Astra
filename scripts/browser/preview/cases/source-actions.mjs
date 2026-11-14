@@ -1,3 +1,4 @@
+import { appThemes } from '../../../shared/app-themes.mjs';
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
 import { openEditorSample } from './editors.mjs';
@@ -81,7 +82,7 @@ export async function verifySourceActions(page, output) {
   assert.match(await surface.innerText(), /class Beacon/);
   await editor.getByRole('button', { name: '保存', exact: true }).click();
   await editor.locator('footer').filter({ hasText: '已保存' }).waitFor();
-  for (const theme of ['light', 'dark'])
+  for (const theme of appThemes)
     for (const width of [800, 1280]) {
       await page.setViewportSize({ width, height: 900 });
       await page.evaluate((theme) => Reflect.get(globalThis, 'browserWorkspace').setAppearance({ theme }), theme);

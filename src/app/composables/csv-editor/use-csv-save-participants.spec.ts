@@ -1,3 +1,4 @@
+import { TABLE_KEYS } from '@/shared/types';
 import { mount, flushPromises } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 import { ref, watch } from 'vue';
@@ -43,7 +44,7 @@ describe('all loaded CSV save participants', () => {
         return () => null;
       },
     });
-    expect(commands.editTargets).toHaveLength(14 * modCount);
+    expect(commands.editTargets).toHaveLength(TABLE_KEYS.length * modCount);
     const target = { sessionId: manifests[0]!.sessionId, modRoot: manifests[0]!.modRoot, table: 'ships' as const };
     tables.setSaving(target, true);
     expect(commands.hasPendingSave()).toBe(true);
@@ -53,7 +54,7 @@ describe('all loaded CSV save participants', () => {
       expect(() => tables.removeModState(manifest.modRoot)).not.toThrow();
       project.removeProjectManifest(manifest.modRoot);
       await flushPromises();
-      expect(commands.editTargets).toHaveLength(14 * (modCount - index - 1));
+      expect(commands.editTargets).toHaveLength(TABLE_KEYS.length * (modCount - index - 1));
       expect(commands.hasPendingSave()).toBe(false);
       expect(tables.getCsvModState(manifest.modRoot)).toBeUndefined();
     }
@@ -83,7 +84,7 @@ describe('all loaded CSV save participants', () => {
     useCsvEditorStore().initializeModTables({ sessionId: 's', modRoot: 'M:/mod', manifest });
     await flushPromises();
     const captured = JSON.parse(JSON.stringify(useSaveCommandStore().editTargets));
-    expect(captured).toHaveLength(14);
+    expect(captured).toHaveLength(TABLE_KEYS.length);
     project.removeProjectManifest('M:/mod');
     await flushPromises();
     expect(mocks.registration.mock.calls.map(([targets]) => JSON.parse(JSON.stringify(targets)))).toEqual([[], captured, []]);
@@ -176,11 +177,11 @@ describe('all loaded CSV save participants', () => {
     project.registerProjectManifest(second.content.manifest);
     tables.initializeModTables({ sessionId: 'other', modRoot: 'M:/other', manifest: second.content.manifest });
     await flushPromises();
-    expect(commands.editTargets).toHaveLength(28);
+    expect(commands.editTargets).toHaveLength(TABLE_KEYS.length * 2);
     expect(commands.participantsForTargets([target])).toEqual([initial]);
     tables.initializeModTables({ sessionId: 's', modRoot: manifest.modRoot, manifest });
     await flushPromises();
-    expect(commands.editTargets).toHaveLength(28);
+    expect(commands.editTargets).toHaveLength(TABLE_KEYS.length * 2);
     expect(commands.participantsForTargets([target])[0]).not.toBe(initial);
     wrapper.unmount();
     expect(commands.editTargets).toHaveLength(0);

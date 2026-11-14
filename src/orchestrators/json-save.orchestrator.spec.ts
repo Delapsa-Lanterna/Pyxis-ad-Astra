@@ -3,6 +3,7 @@ import { projectJsonValue } from '@/domain/json-document';
 import type { WriteResult, VariantFile, SkinFile } from '@/shared/types';
 import type * as JsonEntityServiceModule from '@/services/json-entity.service';
 import type * as JsonFileServiceModule from '@/services/json-file.service';
+import type * as MiscConfigServiceModule from '@/services/misc-config.service';
 import { savedWriteFixture } from '@/test/fixtures/write-result';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { entityTargetFixture } from '@/test/fixtures/entity-target';
@@ -12,6 +13,7 @@ import { createSettingsFixture } from '@/test/fixtures/settings';
 
 const mocks = vi.hoisted(() => ({
   writeModInfo: vi.fn<typeof JsonEntityServiceModule.saveModInfo>(),
+  writeMiscConfig: vi.fn<typeof MiscConfigServiceModule.saveMiscConfig>(),
   writeIndexedConfigEntity: vi.fn<typeof JsonEntityServiceModule.saveIndexedConfigEntity>(),
   writeCreateIndexedConfigEntity: vi.fn<typeof JsonEntityServiceModule.createIndexedConfigEntity>(),
   writeDeleteIndexedConfigEntity: vi.fn<typeof JsonEntityServiceModule.deleteIndexedConfigEntity>(),
@@ -52,15 +54,40 @@ vi.mock('@/services/json-file.service', () => ({
   deleteSkinEntity: mocks.writeDeleteSkinEntity,
 }));
 
+vi.mock('@/services/misc-config.service', async () => ({
+  ...(await vi.importActual('@/services/misc-config.service')),
+  saveMiscConfig: mocks.writeMiscConfig,
+}));
+vi.mock('@/services/json-recovery.service', async () => ({
+  ...(await vi.importActual('@/services/json-recovery.service')),
+  prepareJsonSourceRecovery: async (request: JsonRecoveryRequest) => ({
+    request,
+    documents: {},
+    baseVersions: [],
+    missingPaths: [],
+    currentSources: {},
+    resourceRefs: {},
+  }),
+}));
+
 import {
   createIndexedEntityAction,
   createJsonFileAction,
   saveIndexedEntityAction,
   saveJsonFileAction,
 } from '@/orchestrators/json-save.orchestrator';
-import { deleteJsonDocument } from '@/app/composables/json-editor/json-document-capabilities';
+import { createJsonDocument, deleteJsonDocument } from '@/app/composables/json-editor/json-document-capabilities';
 import { createDefaultVariant } from '@/domain/entity-write/spec-construction';
-import type { AppFeedback, RowData, EntityKind } from '@/shared/types';
+import type { AppFeedback, RowData, EntityKind, JsonRecoveryRequest } from '@/shared/types';
+import {
+  JSON_DOCUMENT_DEFINITIONS,
+  jsonDocumentValue,
+  jsonDocumentIssues,
+  type JsonDocumentDefinition,
+} from '@/domain/json-editor/json-document-definitions';
+import { MISC_CONFIG_DEFINITIONS } from '@/domain/misc-config';
+import { getSchema } from '@/domain/schema/config-schema-registry';
+import { requireRowData } from '@/shared/lib/row-data';
 
 const MOD_ROOT = 'M:\\test-mod';
 const SESSION_ID = 'sess-1';
@@ -125,6 +152,37 @@ beforeEach(() => {
   initializeSettingsStore(createSettingsFixture());
   vi.clearAllMocks();
   for (const mock of Object.values(mocks)) mock.mockResolvedValue(writeResult());
+});
+
+describe('registered JSON document creation', () => {
+  it.each(
+    Object.values(JSON_DOCUMENT_DEFINITIONS).flatMap<{ definition: JsonDocumentDefinition; id: string; schema: string }>((definition) =>
+      definition.kind === 'mod-info'
+        ? []
+        : definition.kind === 'misc-config'
+          ? MISC_CONFIG_DEFINITIONS.map((file) => ({ definition, id: file.kind, schema: file.schema }))
+          : [{ definition, id: 'sample_entity', schema: definition.kind }],
+    ),
+  )('creates valid $schema content through the registered creation flow', async ({ definition, id, schema }) => {
+    await createJsonDocument(
+      definition,
+      { sessionId: SESSION_ID, modRoot: MOD_ROOT, kind: definition.kind, id, entity: null },
+      id,
+      'sample_hull',
+    );
+    const payloads = [
+      ...mocks.writeCreateIndexedConfigEntity.mock.calls.map(([input]) => input),
+      ...mocks.writeCreateVariantEntity.mock.calls.map(([input]) => input),
+      ...mocks.writeCreateSkinEntity.mock.calls.map(([input]) => input),
+      ...mocks.writeMiscConfig.mock.calls.map(([input]) => input),
+    ];
+    expect(payloads).toHaveLength(1);
+    const payload = payloads[0]!;
+    const content = requireRowData(projectJsonValue(payload.document.content), 'Invalid created document');
+    const data =
+      'indexRow' in payload && payload.kind === 'mission' ? { list: payload.indexRow, descriptor: content, text: payload.text } : content;
+    expect(jsonDocumentIssues(definition, getSchema(schema)!, jsonDocumentValue(definition.kind, data))).toEqual([]);
+  });
 });
 
 describe('JSON save orchestrator', () => {

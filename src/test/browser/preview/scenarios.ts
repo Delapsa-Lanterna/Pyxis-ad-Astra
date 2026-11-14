@@ -1,7 +1,8 @@
+import { JOINT_EDIT_KINDS } from '@/shared/types';
 import { buildModNavigationSections } from '@/domain/workspace/mod-navigation';
 import type { ScenarioOptions } from '../contracts';
 export type { ScenarioOptions } from '../contracts';
-export const immersiveSamples = ['ship', 'skin', 'weapon', 'wing', 'variant'] as const;
+export const immersiveSamples = JOINT_EDIT_KINDS;
 export const sampleLabels: Partial<Record<ScenarioOptions['scene'], string>> = {
   csv: 'CSV 表格',
   weapons: '武器列表',

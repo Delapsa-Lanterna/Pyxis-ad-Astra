@@ -1,3 +1,4 @@
+import { EDIT_MODES } from '@/shared/types';
 import { computed } from 'vue';
 import { useCsvEditorModel } from '@/app/composables/csv-editor/use-csv-editor-model';
 import { csvTableIndex } from '@/test/fixtures/csv-row';
@@ -105,7 +106,7 @@ function mountPane() {
 }
 
 describe('CsvRowDetails', () => {
-  it.each(['smart', 'plain'] as const)('shares schema selection with media and descriptions in %s mode', async (mode) => {
+  it.each(EDIT_MODES)('shares schema selection with media and descriptions in %s mode', async (mode) => {
     const { tables } = activateProject();
     useSettingsStore().setEditMode(mode);
     const target = { sessionId: 'sess-1', modRoot: 'M:/mod', table: 'ships' as const };
@@ -196,68 +197,65 @@ describe('CsvRowDetails', () => {
     expect(pane.exists()).toBe(true);
   });
 
-  it.each(['smart', 'plain'] as const)(
-    'tracks wing names through source loading, selection and reference edits in %s mode',
-    async (mode) => {
-      const { tables } = activateProject();
-      useSettingsStore().setEditMode(mode);
-      const target = { sessionId: 'sess-1', modRoot: 'M:/mod', table: 'wings' as const };
-      tables.switchTab(target.modRoot, target.table);
-      tables.applyTableIndex(
-        target,
-        csvTableIndex(
+  it.each(EDIT_MODES)('tracks wing names through source loading, selection and reference edits in %s mode', async (mode) => {
+    const { tables } = activateProject();
+    useSettingsStore().setEditMode(mode);
+    const target = { sessionId: 'sess-1', modRoot: 'M:/mod', table: 'wings' as const };
+    tables.switchTab(target.modRoot, target.table);
+    tables.applyTableIndex(
+      target,
+      csvTableIndex(
+        [
+          { rowKey: 'wing-a', isComment: false, data: { id: 'wing-a', variant: 'fighter-a' } },
+          { rowKey: 'wing-b', isComment: false, data: { id: 'wing-b', variant: 'fighter-b' } },
+        ],
+        { baseVersions: [], table: 'wings', header: ['id', 'variant'], totalRows: 2 },
+      ),
+    );
+    tables.selectRowByKey(target, 'wing-a');
+    const pane = mountPane();
+    expect(pane.get('.detail-name').text()).toBe('fighter-a');
+    const sources = (label: string) =>
+      createCsvSourceIndex(
+        ['csv:variants.variantId'],
+        new Map([
           [
-            { rowKey: 'wing-a', isComment: false, data: { id: 'wing-a', variant: 'fighter-a' } },
-            { rowKey: 'wing-b', isComment: false, data: { id: 'wing-b', variant: 'fighter-b' } },
-          ],
-          { baseVersions: [], table: 'wings', header: ['id', 'variant'], totalRows: 2 },
-        ),
-      );
-      tables.selectRowByKey(target, 'wing-a');
-      const pane = mountPane();
-      expect(pane.get('.detail-name').text()).toBe('fighter-a');
-      const sources = (label: string) =>
-        createCsvSourceIndex(
-          ['csv:variants.variantId'],
-          new Map([
+            'csv:variants.variantId',
             [
-              'csv:variants.variantId',
-              [
-                {
-                  type: 'group',
-                  value: 'mod',
-                  label: '当前 Mod',
-                  children: [
-                    { value: 'fighter-a', label },
-                    { value: 'fighter-b', label: '轰炸机 (fighter-b)' },
-                  ],
-                },
-              ],
+              {
+                type: 'group',
+                value: 'mod',
+                label: '当前 Mod',
+                children: [
+                  { value: 'fighter-a', label },
+                  { value: 'fighter-b', label: '轰炸机 (fighter-b)' },
+                ],
+              },
             ],
-          ]),
-        );
-      await pane.setProps({ sourceIndex: sources('截击机 (fighter-a)') });
-      expect(pane.get('.detail-name').text()).toBe('截击机 (fighter-a)');
-      tables.selectRowByKey(target, 'wing-b');
-      await pane.vm.$nextTick();
-      expect(pane.get('.detail-id').text()).toBe('wing-b');
-      expect(pane.get('.detail-name').text()).toBe('轰炸机 (fighter-b)');
-      tables.updateCellValue({ ...target, rowKey: 'wing-b', column: 'variant' }, 'fighter-a');
-      await pane.vm.$nextTick();
-      expect(pane.get('.detail-name').text()).toBe('截击机 (fighter-a)');
-      await pane.setProps({ sourceIndex: sources('战斗机 (fighter-a)') });
-      expect(pane.get('.detail-name').text()).toBe('战斗机 (fighter-a)');
-      tables.updateCellValue({ ...target, rowKey: 'wing-b', column: 'variant' }, 'unresolved');
-      await pane.vm.$nextTick();
-      expect(pane.get('.detail-name').text()).toBe('unresolved');
-      tables.updateCellValue({ ...target, rowKey: 'wing-b', column: 'variant' }, '');
-      await pane.vm.$nextTick();
-      expect(pane.get('.detail-name').text()).toBe('未指定装配');
-      tables.switchTab(target.modRoot, 'ships');
-      await pane.vm.$nextTick();
-      expect(pane.get('.detail-empty-value').text()).toBe('未选择记录');
-    },
-  );
+          ],
+        ]),
+      );
+    await pane.setProps({ sourceIndex: sources('截击机 (fighter-a)') });
+    expect(pane.get('.detail-name').text()).toBe('截击机 (fighter-a)');
+    tables.selectRowByKey(target, 'wing-b');
+    await pane.vm.$nextTick();
+    expect(pane.get('.detail-id').text()).toBe('wing-b');
+    expect(pane.get('.detail-name').text()).toBe('轰炸机 (fighter-b)');
+    tables.updateCellValue({ ...target, rowKey: 'wing-b', column: 'variant' }, 'fighter-a');
+    await pane.vm.$nextTick();
+    expect(pane.get('.detail-name').text()).toBe('截击机 (fighter-a)');
+    await pane.setProps({ sourceIndex: sources('战斗机 (fighter-a)') });
+    expect(pane.get('.detail-name').text()).toBe('战斗机 (fighter-a)');
+    tables.updateCellValue({ ...target, rowKey: 'wing-b', column: 'variant' }, 'unresolved');
+    await pane.vm.$nextTick();
+    expect(pane.get('.detail-name').text()).toBe('unresolved');
+    tables.updateCellValue({ ...target, rowKey: 'wing-b', column: 'variant' }, '');
+    await pane.vm.$nextTick();
+    expect(pane.get('.detail-name').text()).toBe('未指定装配');
+    tables.switchTab(target.modRoot, 'ships');
+    await pane.vm.$nextTick();
+    expect(pane.get('.detail-empty-value').text()).toBe('未选择记录');
+  });
 
   it('shows the referenced variant name for simulated opponents', async () => {
     const { tables } = activateProject();

@@ -1,3 +1,4 @@
+import { getCsvColumnSchemas } from '@/domain/schema/csv-schema-registry';
 import { describe, it, expect } from 'vitest';
 import { immersiveHullPoint, immersiveWingFormation, immersiveWingLayout } from './hull-scene';
 describe('upright variant preview coordinates', () => {
@@ -25,14 +26,17 @@ describe('upright variant preview coordinates', () => {
     expect(layout.points[2]!.y).toBeCloseTo(-7.2);
     expect(layout.spriteHeight).toBeCloseTo(21.6);
   });
-  it.each(['V', 'CLAW', 'BOX', 'DIAMOND'])('consumes all original count branches for %s', (formation) => {
-    for (let count = 0; count <= 6; count++) {
-      const layout = immersiveWingLayout(count, formation, 72);
-      expect(layout.points).toHaveLength(count);
-      expect(layout.spriteHeight).toBeCloseTo(27 * (1 - count / 15));
-      expect(layout.diagnostic).toBe('');
-    }
-  });
+  it.each(getCsvColumnSchemas('wings').find((column) => column.key === 'formation')!.options!)(
+    'consumes all original count branches for %s',
+    (formation) => {
+      for (let count = 0; count <= 6; count++) {
+        const layout = immersiveWingLayout(count, formation, 72);
+        expect(layout.points).toHaveLength(count);
+        expect(layout.spriteHeight).toBeCloseTo(27 * (1 - count / 15));
+        expect(layout.diagnostic).toBe('');
+      }
+    },
+  );
   it('uses the original default shape for DIAMOND and original six-icon cap', () => {
     expect(immersiveWingLayout(4, 'DIAMOND', 72).points).toEqual([
       { x: 0, y: -14.4 },

@@ -1,3 +1,4 @@
+import { JOINT_EDIT_KINDS } from '@/shared/types';
 import { describe, expect, it } from 'vitest';
 import { createBrowserModel, sampleRoot } from './model';
 import { installBrowserModel, invoke } from './runtime/commands';
@@ -8,7 +9,7 @@ import { createSettingsFixture } from '../fixtures/settings';
 import { jsonWriteFixture } from '../fixtures/json-file';
 import { projectJsonValue } from '@/domain/json-document';
 import type { JsonRecoveryPlan } from '@/shared/types';
-import type { CsvTableIndex, JointEditKind, CsvSave, SettingsSnapshot, PerformanceMonitorStatus } from '@/shared/types';
+import type { CsvTableIndex, CsvSave, SettingsSnapshot, PerformanceMonitorStatus } from '@/shared/types';
 
 describe('browser sample service', () => {
   it.each([false, true])('delivers complete miscellaneous recovery documents, present=%s', async (present) => {
@@ -149,7 +150,7 @@ describe('browser sample service', () => {
     expect(reopened.baseVersions).toEqual(saved.baseVersions);
   });
 
-  it.each<JointEditKind>(['ship', 'weapon', 'wing', 'variant'])('saves and reopens the %s scene with consistent versions', (kind) => {
+  it.each(JOINT_EDIT_KINDS)('saves and reopens the %s scene with consistent versions', (kind) => {
     const model = createBrowserModel(kind);
     const snapshot = model.graph(kind);
     model.windowContext(kind);

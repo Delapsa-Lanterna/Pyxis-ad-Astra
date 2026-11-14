@@ -1,3 +1,4 @@
+import { FEEDBACK_LEVELS } from '@/shared/types';
 import type * as AppLogServiceModule from '@/services/app-log.service';
 import type * as FilesServiceModule from '@/services/text-editor.service';
 import { selectDialogOption } from '@/test/unit/dialog-text';
@@ -69,7 +70,7 @@ function feedbackHarness(
 }
 
 describe('feedback diagnostics, file authorization and actions', () => {
-  it.each(['success', 'info', 'warning', 'error'] as const)('filters %s using every operation file', (level) => {
+  it.each(FEEDBACK_LEVELS)('filters %s using every operation file', (level) => {
     const settings = useSettingsStore();
     const { feedback, messages } = feedbackHarness(
       () => true,
@@ -180,7 +181,7 @@ describe('feedback diagnostics, file authorization and actions', () => {
     if (code !== 'query.invalidated')
       expect(mocks.log).toHaveBeenLastCalledWith(expect.objectContaining({ code, fields: { action: 'toast-visibility' } }));
   });
-  it.each(['success', 'info', 'warning', 'error'] as const)('waits for the window source before filtering %s', async (level) => {
+  it.each(FEEDBACK_LEVELS)('waits for the window source before filtering %s', async (level) => {
     const settings = useSettingsStore();
     settings.setShowCoreFeedback(level, false);
     let finish!: (root: string | null) => void;
@@ -260,37 +261,34 @@ describe('feedback diagnostics, file authorization and actions', () => {
     await wrapper.get('button').trigger('click');
     expect(mocks.open).toHaveBeenCalledWith(expect.objectContaining({ sessionId: 's1' }));
   });
-  it.each(['success', 'info', 'warning', 'error'] as const)(
-    'hides selected Core %s toasts while preserving Mod toasts and diagnostics',
-    (level) => {
-      const settings = useSettingsStore();
-      const next = createSettingsFixture({
-        starsectorRoot: 'G:/game',
-        showCoreFeedback: { ...settings.showCoreFeedback, [level]: false },
-      });
-      settings.replaceSettings(next);
-      settings.confirmSavedSettings(next);
-      const { feedback, messages } = feedbackHarness();
-      const show = (path: string) => {
-        if (level === 'warning')
-          feedback.warning({
-            userMessage: 'fixture',
-            diagnostic: { code: 'scan.warning', message: 'raw warning', location: { path, line: null, column: null } },
-          });
-        else if (level === 'error')
-          feedback.error({ code: 'scan.error', message: 'raw error', location: { path, line: null, column: null } });
-        else feedback[level]('fixture', { paths: [path] });
-      };
-      show('\\\\?\\G:\\game\\starsector-core\\data\\variants\\fixture.variant');
-      expect(messages[level]).not.toHaveBeenCalled();
-      expect(mocks.log).toHaveBeenCalledTimes(level === 'warning' || level === 'error' ? 1 : 0);
-      show('G:/game/mods/example/data/variants/fixture.variant');
-      expect(messages[level]).toHaveBeenCalledOnce();
-      settings.setShowCoreFeedback(level, true);
-      show('G:/game/starsector-core/data/variants/fixture.variant');
-      expect(messages[level]).toHaveBeenCalledTimes(2);
-    },
-  );
+  it.each(FEEDBACK_LEVELS)('hides selected Core %s toasts while preserving Mod toasts and diagnostics', (level) => {
+    const settings = useSettingsStore();
+    const next = createSettingsFixture({
+      starsectorRoot: 'G:/game',
+      showCoreFeedback: { ...settings.showCoreFeedback, [level]: false },
+    });
+    settings.replaceSettings(next);
+    settings.confirmSavedSettings(next);
+    const { feedback, messages } = feedbackHarness();
+    const show = (path: string) => {
+      if (level === 'warning')
+        feedback.warning({
+          userMessage: 'fixture',
+          diagnostic: { code: 'scan.warning', message: 'raw warning', location: { path, line: null, column: null } },
+        });
+      else if (level === 'error')
+        feedback.error({ code: 'scan.error', message: 'raw error', location: { path, line: null, column: null } });
+      else feedback[level]('fixture', { paths: [path] });
+    };
+    show('\\\\?\\G:\\game\\starsector-core\\data\\variants\\fixture.variant');
+    expect(messages[level]).not.toHaveBeenCalled();
+    expect(mocks.log).toHaveBeenCalledTimes(level === 'warning' || level === 'error' ? 1 : 0);
+    show('G:/game/mods/example/data/variants/fixture.variant');
+    expect(messages[level]).toHaveBeenCalledOnce();
+    settings.setShowCoreFeedback(level, true);
+    show('G:/game/starsector-core/data/variants/fixture.variant');
+    expect(messages[level]).toHaveBeenCalledTimes(2);
+  });
   it.each(['failure', 'scan', 'loaded'] as const)('shares %s file actions between lists and toasts', async (kind) => {
     const { feedback, messages } = feedbackHarness();
     const diagnostic = { code: 'text.invalid_utf8', message: 'fixture bytes', location: { path: 'M:/mod/source.csv', line: 4, column: 2 } };

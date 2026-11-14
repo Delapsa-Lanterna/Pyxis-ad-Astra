@@ -1,3 +1,4 @@
+import { JOINT_EDIT_KINDS } from '@/shared/types';
 import type * as JointEditServiceModule from '@/services/joint-edit.service';
 import type * as ProjectSyncOrchestratorModule from '@/orchestrators/project-sync.orchestrator';
 import type * as AppLogServiceModule from '@/services/app-log.service';
@@ -1401,7 +1402,7 @@ describe('immersive ship lifecycle and reference channels', () => {
 });
 
 describe('immersive problem presentation', () => {
-  it.each(['ship', 'skin', 'weapon', 'wing', 'variant'] as const)('filters %s table rows without extra reads', async (kind) => {
+  it.each(JOINT_EDIT_KINDS)('filters %s table rows without extra reads', async (kind) => {
     const snapshot =
       kind === 'weapon'
         ? weaponJointFixture()

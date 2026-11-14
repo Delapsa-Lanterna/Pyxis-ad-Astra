@@ -9,7 +9,13 @@ fn main() {
     }
     println!("cargo:rerun-if-changed=icons/icon.ico");
     println!("cargo:rerun-if-changed=../schemas");
-    let mut paths: Vec<_> = fs::read_dir("../schemas")
+    bundle_schemas("../schemas", "config_schemas.rs");
+    bundle_schemas("../schemas/csv", "csv_schemas.rs");
+    tauri_build::build();
+}
+
+fn bundle_schemas(directory: &str, filename: &str) {
+    let mut paths: Vec<_> = fs::read_dir(directory)
         .expect("bundled schema directory")
         .map(|entry| entry.expect("bundled schema entry").path())
         .filter(|path| {
@@ -36,10 +42,8 @@ fn main() {
         .collect::<Vec<_>>()
         .join(",\n");
     fs::write(
-        PathBuf::from(env::var_os("OUT_DIR").expect("Cargo output directory"))
-            .join("config_schemas.rs"),
+        PathBuf::from(env::var_os("OUT_DIR").expect("Cargo output directory")).join(filename),
         format!("[{entries}]"),
     )
     .expect("generate bundled schema assets");
-    tauri_build::build();
 }

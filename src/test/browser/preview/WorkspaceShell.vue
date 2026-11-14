@@ -8,7 +8,7 @@
           <label
             >规格类型
             <select aria-label="规格窗口类型" v-model="specKind">
-              <option v-for="kind in ['ship', 'weapon', 'projectile', 'system']" :key="kind" :value="kind">{{ kind }}</option>
+              <option v-for="kind in SPEC_EDITOR_KINDS" :key="kind" :value="kind">{{ kind }}</option>
             </select></label
           >
           <label
@@ -71,6 +71,7 @@
   </main>
 </template>
 <script setup lang="ts">
+import { SPEC_EDITOR_KINDS } from '@/shared/types';
 import { computed, onUnmounted, ref, toRef } from 'vue';
 import type { BrowserWorkspace } from '../workspace-runtime';
 import { scenarios, workspaceEntries, scenarioHref, immersiveSamples } from './scenarios';

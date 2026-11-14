@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { createDefaultFaction } from '@/domain/json-editor/json-config-entities';
 import { configFactionSaveDraft, configMissionSaveDraft, configModInfoSaveData } from '@/domain/json-editor/json-config-entities';
 import { getSchema } from '@/domain/schema/config-schema-registry';
+import type { RowData } from '@/shared/types';
 
 describe('configuration business content boundaries', () => {
   it('preserves top-level, dictionary and array object keys through every source split', () => {
@@ -25,12 +26,15 @@ describe('new faction game contract', () => {
       displayName: 'new_faction',
       displayNameWithArticle: 'new_faction',
       logo: 'graphics/factions/neutral_traders.png',
+      crest: 'graphics/factions/neutral_traders.png',
       names: { modern: 1 },
       portraits: {},
       color: [128, 128, 128, 255],
       baseUIColor: [128, 128, 128, 255],
       darkUIColor: [64, 64, 64, 255],
     });
+    (faction.factionDoctrine as RowData).warships = 0;
+    expect(createDefaultFaction('other').factionDoctrine).toMatchObject({ warships: 5 });
     faction.names = {};
     expect(createDefaultFaction('other').names).toEqual({ modern: 1 });
   });

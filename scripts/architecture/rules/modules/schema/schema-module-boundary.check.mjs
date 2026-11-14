@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { architectureFixtures } from '../../../testing/fixtures.mjs';
@@ -55,4 +56,27 @@ test('CSV display sorting consumes its schema registry and rejects another JSON 
   assert.equal(diagnostic?.line, 2);
   assert.equal(diagnostic?.target, 'schemas/alternate-columns.json');
   assert.equal(diagnostic?.expected, 'schema registry');
+});
+
+test('generated CSV sources retain the build directory and output identity', () => {
+  const source = 'src-tauri/src/domain/csv_column_order.rs';
+  const code = 'fn columns(){include!(concat!(env!("OUT_DIR"), "/csv_schemas.rs"));}';
+  const build = readFileSync(new URL('../../../../../src-tauri/build.rs', import.meta.url), 'utf8');
+  const legal = architectureFixtures({ [source]: code, 'src-tauri/build.rs': build });
+  assert.deepEqual(schemaModuleBoundaryRule.check(legal), []);
+  assert.equal(legal.byPath.get(source)?.rust.embeddedAssets[0]?.macro, 'include');
+  for (const changed of [
+    '',
+    build.replace('bundle_schemas("../schemas/csv", "csv_schemas.rs")', 'bundle_schemas("../schemas", "csv_schemas.rs")'),
+    build.replace('bundle_schemas("../schemas/csv", "csv_schemas.rs")', 'bundle_schemas("../schemas/csv", "other.rs")'),
+    build.replace('fs::read_dir(directory)', 'fs::read_dir("../schemas")'),
+    build.replace('.join(filename)', '.join("other.rs")'),
+  ]) {
+    const context = architectureFixtures({ [source]: code, 'src-tauri/build.rs': changed });
+    assert.equal(schemaModuleBoundaryRule.check(context).length, 1);
+  }
+  for (const hidden of ['// ' + code, 'fn hidden(){let text=r#"' + code + '"#;}', '#[cfg(test)] mod tests{' + code + '}']) {
+    const context = architectureFixtures({ [source]: hidden, 'src-tauri/build.rs': build });
+    assert.equal(schemaModuleBoundaryRule.check(context).length, 1);
+  }
 });

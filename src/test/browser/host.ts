@@ -1,3 +1,4 @@
+import { JOINT_EDIT_KINDS } from '@/shared/types';
 import { createApp, defineComponent, h, nextTick, onScopeDispose, ref, type App } from 'vue';
 import { createPinia, disposePinia, type Pinia } from 'pinia';
 import WindowShell from '@/app/WindowShell.vue';
@@ -29,7 +30,7 @@ import type { AppSettings } from '@/shared/types';
 import '@/styles/style.css';
 import './browser.css';
 
-const immersiveKinds = ['ship', 'skin', 'weapon', 'wing', 'variant'] as const;
+const immersiveKinds = JOINT_EDIT_KINDS;
 export function createBrowserHost(element: HTMLElement) {
   let app: App | null = null;
   let pinia: Pinia | null = null;

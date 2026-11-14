@@ -1,3 +1,4 @@
+import { SPEC_EDITOR_KINDS } from '@/shared/types';
 import { describe, expect, it } from 'vitest';
 import { specSchema } from './spec-schemas';
 import { shipSpecIssues } from './ship/spec-ship-fields';
@@ -58,41 +59,11 @@ describe('Spec schema validation', () => {
     expect(projectileSpecIssues({ ...projectile, [key]: value })).toEqual([]);
     expect(projectileSpecIssues({ ...projectile, [key]: [] }).map((issue) => issue.path)).toEqual([key]);
   });
-  it.each([
-    'FLARE',
-    'FLARE_JAMMER',
-    'CANISTER_FLAK',
-    'BURN_DRIVE',
-    'BURN_DRIVE_TOGGLE',
-    'MANEUVERING_JETS',
-    'FAST_RELOAD',
-    'AMMO_RELOAD',
-    'FORTRESS_SHIELD',
-    'DAMPER_FIELD',
-    'HIGH_ENERGY_FOCUS',
-    'PHASE_TELEPORTER',
-    'PHASE_TELEPORTER_2',
-    'PHASE_DISPLACER',
-    'DRONE_LAUNCHER_PD',
-    'DRONE_LAUNCHER_STANDARD',
-    'WEAPON_BOOST',
-    'DYNAMIC_STABILIZER',
-    'LIDAR_ARRAY',
-    'TEMPORAL_SHELL',
-    'ACAUSAL_DISRUPTOR',
-    'MOTE_ATTRACTOR',
-    'ENTROPY_AMPLIFIER',
-    'INTERDICTOR',
-    'MINE_STRIKE',
-    'DRONE_STRIKE',
-    'EMP',
-    'PHASE_CLOAK',
-    'NONE',
-    'TARGETING_FEED',
-    'RESERVE_DEPLOYMENT',
-    'RECALL_DEVICE',
-    'CUSTOM',
-  ])('accepts system AI behavior %s through save validation', (aiType) => {
+  it.each(
+    specSchema('spec-system')
+      .sections!.flatMap((section) => section.fields)
+      .find((field) => field.key === 'aiType')!.options!,
+  )('accepts system AI behavior %s through save validation', (aiType) => {
     expect(systemSpecIssues({ ...createSystemSpec('sample'), aiType })).toEqual([]);
   });
   it('accepts system filters with affected weapon and damage categories through save validation', () => {
@@ -149,30 +120,20 @@ describe('Spec schema validation', () => {
       ]);
     }
   });
-  it.each([
-    'BALLISTIC',
-    'ENERGY',
-    'MISSILE',
-    'LAUNCH_BAY',
-    'UNIVERSAL',
-    'HYBRID',
-    'SYNERGY',
-    'COMPOSITE',
-    'BUILT_IN',
-    'DECORATIVE',
-    'SYSTEM',
-    'STATION_MODULE',
-  ])('accepts a complete game slot of type %s', (type) => {
-    const ship = {
-      ...createShipSpec('sample'),
-      spriteName: 'graphics/sample.png',
-      weaponSlots: [{ id: 'sample-slot', size: 'LARGE', type, mount: 'HIDDEN', angle: 0, arc: 360, locations: [0, 0, 4, 2] }],
-    };
-    expect(shipSpecIssues(ship)).toEqual([]);
-    expect(shipSpecIssues({ ...ship, weaponSlots: [{ ...ship.weaponSlots[0], type: 'INVALID' }] }).map((issue) => issue.path)).toEqual([
-      'weaponSlots[0].type',
-    ]);
-  });
+  it.each(specSchema('spec-ship').definitions!.slot!.nested!.find((field) => field.key === 'type')!.options!)(
+    'accepts a complete game slot of type %s',
+    (type) => {
+      const ship = {
+        ...createShipSpec('sample'),
+        spriteName: 'graphics/sample.png',
+        weaponSlots: [{ id: 'sample-slot', size: 'LARGE', type, mount: 'HIDDEN', angle: 0, arc: 360, locations: [0, 0, 4, 2] }],
+      };
+      expect(shipSpecIssues(ship)).toEqual([]);
+      expect(shipSpecIssues({ ...ship, weaponSlots: [{ ...ship.weaponSlots[0], type: 'INVALID' }] }).map((issue) => issue.path)).toEqual([
+        'weaponSlots[0].type',
+      ]);
+    },
+  );
   it('requires muzzle parameters only when particles are produced', () => {
     const base = createWeaponSpec('sample', 'projectile');
     for (const particleCount of [-1, 0, 0.5]) {
@@ -219,8 +180,7 @@ describe('Spec schema validation', () => {
     expect(systemSpecIssues({ ...createSystemSpec('sample'), shipAlpha: 'bad' }).some((issue) => issue.path === 'shipAlpha')).toBe(true);
   });
   it('resolves shared definitions and keeps all asset references out of the rendered definitions', () => {
-    for (const id of ['spec-ship', 'spec-weapon', 'spec-projectile', 'spec-system'])
-      expect(JSON.stringify(specSchema(id))).not.toContain('"ref":');
+    for (const id of SPEC_EDITOR_KINDS.map((kind) => 'spec-' + kind)) expect(JSON.stringify(specSchema(id))).not.toContain('"ref":');
     const custom = specSchema('spec-ship').definitions!.customEngine!.nested!.find((field) => field.key === 'styleSpec')!;
     expect(custom.nested).toHaveLength(23);
     expect(custom.partial).toBe(false);

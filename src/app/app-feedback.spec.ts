@@ -1,3 +1,4 @@
+import { FEEDBACK_LEVELS } from '@/shared/types';
 import type * as AppLogServiceModule from '@/services/app-log.service';
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -59,7 +60,7 @@ describe('window feedback presentation', () => {
     expect(options.showIcon).toBe(true);
     options.onClose();
   });
-  it.each(['success', 'info', 'warning', 'error'] as const)('captures %s duration and expires the corresponding message', async (level) => {
+  it.each(FEEDBACK_LEVELS)('captures %s duration and expires the corresponding message', async (level) => {
     const durations = createSettingsFixture().toastDurations,
       { feedback, messages } = harness(() => [], durations);
     const show = () =>

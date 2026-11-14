@@ -2,6 +2,8 @@ import { readdir, readFile } from 'node:fs/promises';
 import { join, relative } from 'node:path';
 import ignore from 'ignore';
 
+export const SOURCE_EXTENSIONS = new Set(['.js', '.jsx', '.mjs', '.rs', '.ts', '.tsx', '.vue']);
+
 /** @typedef {{ path: string, rel: string }} RepoPath */
 /** @typedef {RepoPath & { text: string }} SourceFile */
 /** @typedef {{root: string, rules: import('ignore').Ignore}} IgnoreScope */

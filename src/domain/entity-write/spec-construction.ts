@@ -22,7 +22,8 @@ export function fillRequiredFields(content: RowData, template: RowData, required
 export function createSpecObject(key: keyof typeof defaults.objects): RowData {
   return deepClone(defaults.objects[key]);
 }
-export const WEAPON_SPEC_CLASSES: readonly WeaponSpecClass[] = ['projectile', 'beam'];
+export const WEAPON_SPEC_CLASSES: readonly WeaponSpecClass[] = Object.keys(defaults.weapon) as WeaponSpecClass[];
+export const PROJECTILE_SPEC_CLASSES: readonly ProjectileSpecClass[] = Object.keys(defaults.projectile) as ProjectileSpecClass[];
 
 export function createWeaponSpec(id: string, specClass: WeaponSpecClass): RowData {
   return { ...deepClone(defaults.weapon[specClass]), id };

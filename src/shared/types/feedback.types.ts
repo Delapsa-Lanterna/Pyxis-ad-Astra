@@ -1,7 +1,8 @@
 import type { VNodeChild } from 'vue';
 import type { FeedbackNotice, FileReference } from './error.types.js';
 
-export type FeedbackLevel = 'success' | 'info' | 'warning' | 'error';
+export const FEEDBACK_LEVELS = ['success', 'info', 'warning', 'error'] as const;
+export type FeedbackLevel = (typeof FEEDBACK_LEVELS)[number];
 export interface FeedbackContext {
   readonly paths: readonly string[];
 }

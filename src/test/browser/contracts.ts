@@ -1,13 +1,10 @@
-import type { AccentPreset } from '../../shared/types/app-settings.types.js';
+import type { JointEditKind } from '../../shared/types/joint-target.types.js';
+import type { AccentPreset, AppTheme } from '../../shared/types/app-settings.types.js';
 import type { TestRun } from '../../../scripts/shared/test-report.mjs';
 export interface ScenarioOptions {
   scene:
     | 'csv'
-    | 'ship'
-    | 'skin'
-    | 'weapon'
-    | 'wing'
-    | 'variant'
+    | JointEditKind
     | 'weapons'
     | 'wings'
     | 'hullmods'
@@ -21,25 +18,13 @@ export interface ScenarioOptions {
   count: number;
   resourceSize: number;
   monitor: boolean;
-  theme: 'light' | 'dark';
+  theme: AppTheme;
   accent?: AccentPreset;
   customAccent?: string;
 }
 
 export interface RunOptions extends ScenarioOptions {
-  scene:
-    | 'csv'
-    | 'weapons'
-    | 'wings'
-    | 'hullmods'
-    | 'code-editor'
-    | 'text-editor'
-    | 'java-queries'
-    | 'ship'
-    | 'skin'
-    | 'weapon'
-    | 'wing'
-    | 'variant';
+  scene: 'csv' | 'weapons' | 'wings' | 'hullmods' | 'code-editor' | 'text-editor' | 'java-queries' | JointEditKind;
   workload: 'benchmark' | 'stress' | 'resources';
   warmup: number;
   rounds: number;

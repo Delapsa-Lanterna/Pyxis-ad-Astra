@@ -1,3 +1,4 @@
+import { SPEC_EDITOR_KINDS } from '@/shared/types';
 import { publishWindowContext } from '@/windows/window-context.window';
 import { reserveNativeWindowTargets, retargetNativeWindow, releaseNativeWindowTargets } from '@/services/window.service';
 import type { WindowIdentity, SpecEditorKind, EntityIdentityIntent, EditWriteTarget } from '@/shared/types';
@@ -12,7 +13,7 @@ export async function withFileTargets<T>(targets: EditWriteTarget[], action: () 
 export async function reserveFileIdentityIntent(sessionId: string, modRoot: string, intent: EntityIdentityIntent) {
   if (intent.source.id === intent.nextId && intent.source.write.path === intent.nextWrite.path) return;
   const identities: WindowIdentity[] = [{ type: 'text-editor', sessionId, modRoot, path: intent.nextWrite.path }];
-  if (['ship', 'weapon', 'projectile', 'system'].includes(intent.source.kind))
+  if (SPEC_EDITOR_KINDS.some((kind) => kind === intent.source.kind))
     identities.push({ type: 'spec', sessionId, modRoot, kind: intent.source.kind as SpecEditorKind, id: intent.nextId });
   await reserveNativeWindowTargets(identities);
 }

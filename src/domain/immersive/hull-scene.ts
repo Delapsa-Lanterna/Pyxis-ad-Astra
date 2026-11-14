@@ -1,3 +1,4 @@
+import { getCsvColumnSchemas } from '@/domain/schema/csv-schema-registry';
 import type { Point } from '@/domain/editors/editor-types';
 import type {
   JointEditSnapshot,
@@ -165,10 +166,10 @@ export interface ImmersiveWingLayout {
   spriteHeight: number;
   diagnostic: string;
 }
+const wingFormations = getCsvColumnSchemas('wings').find((column) => column.key === 'formation')!.options!;
 export function immersiveWingLayout(count: number, formation: string, rendererSize: number): ImmersiveWingLayout {
   if (!Number.isInteger(count) || count < 0) return { points: [], spriteHeight: 0, diagnostic: '战机数量缺失或无效' };
-  if (!['V', 'BOX', 'CLAW', 'DIAMOND'].includes(formation))
-    return { points: [], spriteHeight: 0, diagnostic: '战机联队阵型缺失或无效：' + formation };
+  if (!wingFormations.includes(formation)) return { points: [], spriteHeight: 0, diagnostic: '战机联队阵型缺失或无效：' + formation };
   const distance = rendererSize / 2;
   return {
     points: immersiveWingFormation(count, formation).map((point) => ({ x: point.x * distance, y: point.y * distance })),

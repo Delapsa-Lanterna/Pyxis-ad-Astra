@@ -1,3 +1,4 @@
+import { SPEC_EDITOR_KINDS } from '@/shared/types';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { entityTargetFixture } from '@/test/fixtures/entity-target';
 import { AppError } from '@/shared/lib/errors';
@@ -14,20 +15,17 @@ beforeEach(() => {
 });
 
 describe('conflicting window focus', () => {
-  it.each(['ship', 'weapon', 'projectile', 'system'] as EntityKind[])(
-    'focuses the %s specification before looking for a text window',
-    async (kind) => {
-      const target = entityTargetFixture(kind, 'Alpha');
-      mocks.focus.mockResolvedValueOnce(true);
-      const error = new AppError('Save failed', {
-        cause: new AppError('Command failed', {
-          cause: { code: 'spec.target_exists', message: 'exists', location: null, target },
-        }),
-      });
-      await focusEntityIdentityConflict('s1', 'M:/mod', error);
-      expect(mocks.focus).toHaveBeenCalledExactlyOnceWith({ type: 'spec', sessionId: 's1', modRoot: 'M:/mod', kind, id: 'Alpha' });
-    },
-  );
+  it.each(SPEC_EDITOR_KINDS)('focuses the %s specification before looking for a text window', async (kind) => {
+    const target = entityTargetFixture(kind, 'Alpha');
+    mocks.focus.mockResolvedValueOnce(true);
+    const error = new AppError('Save failed', {
+      cause: new AppError('Command failed', {
+        cause: { code: 'spec.target_exists', message: 'exists', location: null, target },
+      }),
+    });
+    await focusEntityIdentityConflict('s1', 'M:/mod', error);
+    expect(mocks.focus).toHaveBeenCalledExactlyOnceWith({ type: 'spec', sessionId: 's1', modRoot: 'M:/mod', kind, id: 'Alpha' });
+  });
 
   it('uses the actual loaded text path when no specification window owns the entity', async () => {
     const target = entityTargetFixture('ship', 'Alpha');

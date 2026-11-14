@@ -1,3 +1,4 @@
+import { APP_THEMES } from '@/shared/types';
 import { enableAutoUnmount, mount } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -20,7 +21,7 @@ function mountEffect() {
 enableAutoUnmount(afterEach);
 
 describe('useThemeDomEffect', () => {
-  it.each(['light', 'dark'] as const)('publishes every mapped theme value for %s', (theme) => {
+  it.each(APP_THEMES)('publishes every mapped theme value for %s', (theme) => {
     initializeSettingsStore(createSettingsFixture({ theme }));
     const wrapper = mountEffect();
     const colors = useSettingsStore().themeColors;

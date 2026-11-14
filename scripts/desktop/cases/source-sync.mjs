@@ -1,3 +1,4 @@
+import { appThemes } from '../../shared/app-themes.mjs';
 import assert from 'node:assert/strict';
 import { mkdir, readFile, writeFile, rename, unlink } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -166,7 +167,7 @@ export async function sourceSync(app, fixture, check, artifacts) {
     );
     assert.equal(await textPage.getByRole('textbox', { name: '文件内容' }).innerText(), 'Local text draft');
   });
-  for (const theme of ['light', 'dark'])
+  for (const theme of appThemes)
     for (const width of [1280, 900]) {
       await active.evaluate(stores + '.get("settings").setTheme(' + JSON.stringify(theme) + ')');
       await active.setViewportSize({ width, height: 800 });

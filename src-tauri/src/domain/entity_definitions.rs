@@ -287,12 +287,10 @@ mod tests {
                 definition.entity_kind
             );
         }
-        for spec_kind in [
-            SpecEditorKind::Ship,
-            SpecEditorKind::Weapon,
-            SpecEditorKind::Projectile,
-            SpecEditorKind::System,
-        ] {
+        for spec_kind in ENTITY_SPEC_DEFINITIONS
+            .iter()
+            .filter_map(|definition| definition.editor_kind)
+        {
             assert!(editor_spec_definition(spec_kind).is_ok());
         }
         assert!(editor_spec_definition(SpecEditorKind::Ship).is_ok());

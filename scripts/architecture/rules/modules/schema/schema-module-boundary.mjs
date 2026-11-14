@@ -7,12 +7,38 @@ export const schemaModuleBoundaryRule = defineRule(
   (context, report) => {
     for (const file of context.rust.filter((file) => file.rel === 'src-tauri/src/domain/csv_column_order.rs')) {
       const sources = file.rust.embeddedAssets;
+      const build = context.byPath.get('src-tauri/build.rs');
+      const builder = build?.rust.functions.find((fn) => fn.name === 'bundle_schemas');
+      const generated = Boolean(
+        builder &&
+        build?.rust.calls.some(
+          (call) => call.name === 'bundle_schemas' && call.literals[0] === '../schemas/csv' && call.literals[1] === 'csv_schemas.rs',
+        ) &&
+        build.rust.calls.some(
+          (call) =>
+            call.name === 'read_dir' &&
+            call.arguments[0]?.trim() === 'directory' &&
+            call.offset > builder.start &&
+            call.offset < builder.end,
+        ) &&
+        build.rust.calls.some(
+          (call) =>
+            call.name === 'join' && call.arguments[0]?.trim() === 'filename' && call.offset > builder.start && call.offset < builder.end,
+        ),
+      );
       if (!sources.length)
         report(file, { line: 1, column: 1 }, 'CSV standard order must derive from column schema declarations', {
           expected: 'schemas/csv/*.schema.json',
         });
       for (const source of sources)
-        if (source.path === null || !/^schemas\/csv\/[^/]+\.schema\.json$/.test(source.path))
+        if (
+          !(
+            source.macro === 'include' &&
+            generated &&
+            /^\s*concat!\(\s*env!\("OUT_DIR"\),\s*"\/csv_schemas\.rs"\s*\)\s*$/.test(source.expression)
+          ) &&
+          (source.path === null || !/^schemas\/csv\/[^/]+\.schema\.json$/.test(source.path))
+        )
           report(file, source, 'CSV standard order must derive from column schema declarations', {
             target: source.path ?? source.expression,
             expected: 'schemas/csv/*.schema.json',

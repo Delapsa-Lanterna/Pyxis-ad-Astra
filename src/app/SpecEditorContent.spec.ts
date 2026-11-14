@@ -1,3 +1,4 @@
+import { SPEC_EDITOR_KINDS } from '@/shared/types';
 import { installCanvas2DStub } from '@/test/unit/canvas-stub';
 import { mount, flushPromises } from '@vue/test-utils';
 import { computed, defineComponent, h, ref } from 'vue';
@@ -166,7 +167,7 @@ describe('editor window refresh lifetime', () => {
 });
 
 describe('Spec window Escape', () => {
-  it.each(['ship', 'weapon', 'projectile', 'system'] as const)('closes a %s window through its existing close action', async (kind) => {
+  it.each(SPEC_EDITOR_KINDS)('closes a %s window through its existing close action', async (kind) => {
     mocks.kind = kind;
     const { wrapper } = setupWindow(false);
     await flushPromises();

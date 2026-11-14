@@ -1,3 +1,4 @@
+import { RESOURCE_SOURCES } from '@/shared/types';
 import type { HullReferencesResult, HullReferenceOption, SourceOptionGroup } from '@/shared/types';
 import type { DeepReadonly } from '@/shared/types';
 
@@ -49,21 +50,18 @@ export function hullWeaponSlotOptions(
   hullId: string,
   kind: HullSlotKind = 'builtInWeaponSlots',
 ): SourceOptionGroup[] {
-  return (['mod', 'reference', 'core'] as const)
-    .map((origin) => ({
-      origin,
-      options: (result[kind][hullId] ?? [])
-        .filter((slot) => slot.origin === origin)
-        .map((slot) => ({
-          value: slot.id,
-          label: [
-            slot.id,
-            ...[slot.type, slot.size, slot.mount].map((value) => value && (SLOT_LABELS[value] ?? value)).filter(Boolean),
-          ].join(' · '),
-          origin: slot.origin,
-          description: null,
-          resourceRef: null,
-        })),
-    }))
-    .filter((group) => group.options.length > 0);
+  return RESOURCE_SOURCES.map((origin) => ({
+    origin,
+    options: (result[kind][hullId] ?? [])
+      .filter((slot) => slot.origin === origin)
+      .map((slot) => ({
+        value: slot.id,
+        label: [slot.id, ...[slot.type, slot.size, slot.mount].map((value) => value && (SLOT_LABELS[value] ?? value)).filter(Boolean)].join(
+          ' · ',
+        ),
+        origin: slot.origin,
+        description: null,
+        resourceRef: null,
+      })),
+  })).filter((group) => group.options.length > 0);
 }

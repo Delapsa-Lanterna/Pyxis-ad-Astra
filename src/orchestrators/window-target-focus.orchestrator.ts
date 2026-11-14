@@ -1,3 +1,4 @@
+import { SPEC_EDITOR_KINDS } from '@/shared/types';
 import { focusNativeManagedWindow } from '@/services/window.service';
 import { AppError, errorCodeOf } from '@/shared/lib/errors';
 import type { EntityEditTarget } from '@/shared/types';
@@ -9,8 +10,9 @@ export async function focusExistingEntityWindow(sessionId: string, modRoot: stri
 }
 
 export async function focusEntityWindowTarget(sessionId: string, modRoot: string, target: EntityEditTarget): Promise<boolean> {
-  if (target.kind === 'ship' || target.kind === 'weapon' || target.kind === 'projectile' || target.kind === 'system') {
-    const focused = await focusNativeManagedWindow({ type: 'spec', sessionId, modRoot, kind: target.kind, id: target.id });
+  const kind = SPEC_EDITOR_KINDS.find((kind) => kind === target.kind);
+  if (kind) {
+    const focused = await focusNativeManagedWindow({ type: 'spec', sessionId, modRoot, kind, id: target.id });
     if (focused) return true;
   }
   return focusNativeManagedWindow({ type: 'text-editor', sessionId, modRoot, path: target.write.path });

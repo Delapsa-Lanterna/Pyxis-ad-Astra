@@ -1,3 +1,4 @@
+import { APP_LOG_LEVELS } from '@/shared/types';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { appLogQueue, beginDebug, debugLog, createAppLogQueue } from './app-log-queue';
 import type { AppLogEntry, AppLogLevel } from '@/shared/types';
@@ -38,20 +39,18 @@ describe('log queue', () => {
     clock.mockRestore();
     await appLogQueue.flush();
   });
-  it.each([
-    ['debug', 4],
-    ['info', 3],
-    ['warning', 2],
-    ['error', 1],
-  ] as const)('filters %s at the producer', async (level, count) => {
-    const queue = createAppLogQueue(),
-      deliver = vi.fn<(entries: AppLogEntry[]) => Promise<void>>(async () => {});
-    queue.install(deliver, vi.fn());
-    queue.setLevel(level);
-    for (const value of ['debug', 'info', 'warning', 'error'] as const) queue.record(entry(value));
-    await queue.flush();
-    expect(deliver.mock.calls[0]![0]).toHaveLength(count);
-  });
+  it.each(APP_LOG_LEVELS.map((level, index) => [level, APP_LOG_LEVELS.length - index] as const))(
+    'filters %s at the producer',
+    async (level, count) => {
+      const queue = createAppLogQueue(),
+        deliver = vi.fn<(entries: AppLogEntry[]) => Promise<void>>(async () => {});
+      queue.install(deliver, vi.fn());
+      queue.setLevel(level);
+      for (const value of APP_LOG_LEVELS) queue.record(entry(value));
+      await queue.flush();
+      expect(deliver.mock.calls[0]![0]).toHaveLength(count);
+    },
+  );
   it('drains every record through one in-flight batch and includes records added during a write', async () => {
     const queue = createAppLogQueue();
     let release!: () => void;

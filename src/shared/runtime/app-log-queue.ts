@@ -1,3 +1,4 @@
+import { APP_LOG_LEVELS } from '@/shared/types';
 import type { AppLogEntry, AppLogLevel } from '@/shared/types';
 import { shallowRef } from 'vue';
 import { errorDiagnosticOf } from '@/shared/lib/errors';
@@ -21,7 +22,7 @@ function runtimeContext(): RuntimeLogContext {
   return values;
 }
 
-const LEVEL_RANK: Record<AppLogLevel, number> = { debug: 0, info: 1, warning: 2, error: 3 };
+const LEVEL_RANK = Object.fromEntries(APP_LOG_LEVELS.map((level, index) => [level, index])) as Record<AppLogLevel, number>;
 
 export function createAppLogQueue() {
   let level: AppLogLevel = 'info',

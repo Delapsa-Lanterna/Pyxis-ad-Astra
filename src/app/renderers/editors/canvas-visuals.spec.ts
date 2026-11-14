@@ -1,3 +1,4 @@
+import { APP_THEMES } from '@/shared/types';
 import { outlineStyle, controlPointStyle, centerMarkerStyle, barrelStyle } from './canvas-styles';
 import { createCanvasRecorder } from '@/test/unit/canvas-recorder';
 import { describe, expect, it } from 'vitest';
@@ -21,7 +22,7 @@ const palette = createCanvasPalette(createThemeColors('#2563eb', 'light'), 'sans
 
 describe('canvas theme projection', () => {
   it.each([...ACCENT_PRESETS.map((preset) => preset.hex), '#123456'])('consumes existing theme tokens for %s', (accent) => {
-    for (const theme of ['light', 'dark'] as const) {
+    for (const theme of APP_THEMES) {
       const tokens = createThemeColors(accent, theme);
       const colors = createCanvasPalette(tokens, 'sans-serif');
       expect(colors.background).toBe(tokens.panelMuted);
@@ -103,7 +104,7 @@ describe('markers and control points', () => {
   });
 
   it('outlines ordinary white markers on either theme', () => {
-    for (const theme of ['light', 'dark'] as const) {
+    for (const theme of APP_THEMES) {
       const colors = createCanvasPalette(createThemeColors('#ea580c', theme), 'sans-serif');
       const recorder = createCanvasRecorder();
       drawCrossMarker(recorder.ctx, point, centerMarkerStyle(colors, false, false));

@@ -1,20 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { SYSTEM_TYPES } from '@/domain/editors/lib/game-spec-enums';
+import { createSystemSpec } from '@/domain/entity-write/spec-construction';
+import { systemSpecIssues } from './spec-system-fields';
 
 describe('system field registries', () => {
-  it('offers every type accepted by the game system loader', () => {
-    expect(SYSTEM_TYPES).toEqual([
-      'WEAPON',
-      'ENGINE_MOD',
-      'SHIELD_MOD',
-      'STAT_MOD',
-      'FAST_RELOAD',
-      'AMMO_RELOAD',
-      'TELEPORTER',
-      'PHASE_CLOAK',
-      'DISPLACER',
-      'DRONE_LAUNCHER',
-      'EMP',
-    ]);
+  it.each(SYSTEM_TYPES)('accepts registered system type %s through save validation', (type) => {
+    expect(systemSpecIssues({ ...createSystemSpec('sample'), type })).toEqual([]);
   });
 });

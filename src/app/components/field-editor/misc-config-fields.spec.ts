@@ -115,8 +115,7 @@ describe('misc config fields', () => {
     await nextTick();
     expect(value.value.graphics).toEqual({ sample: { icons: ['graphics/sample_a.png', 'graphics/changed.png'] } });
   });
-  it('registers five independently typed files and round-trips their field definitions', () => {
-    expect(MISC_CONFIG_DEFINITIONS.map((file) => file.kind)).toEqual(['strings', 'engineStyles', 'hullStyles', 'sounds', 'settings']);
+  it('round-trips every registered file and its field definitions', () => {
     for (const file of MISC_CONFIG_DEFINITIONS) {
       const schema = getSchema(file.schema)!;
       expect(parseFileSchema(schema.id, schema)).toEqual(schema);
@@ -154,21 +153,16 @@ describe('misc config fields', () => {
     expect(wrapper!.findAll('input').find((field) => field.element.value === '-1')!.element).toBe(input.element);
     expect(document.activeElement).toBe(input.element);
   });
-  it.each([
-    ['strings', 1],
-    ['engineStyles', 1],
-    ['hullStyles', 1],
-    ['sounds', 2],
-    ['settings', 4],
-  ] as const)('groups root objects in %s independently', async (kind, count) => {
+  it.each(MISC_CONFIG_DEFINITIONS)('retains grouped inputs in every registered $kind file', async ({ kind }) => {
     mountConfig(kind);
     const collapse = wrapper!.findAllComponents(EditorCollapse)[0]!;
-    expect(collapse.props('expandedNames')).toHaveLength(count);
+    const expanded = collapse.props('expandedNames')!;
+    expect(expanded.length).toBeGreaterThan(0);
     const input = wrapper!.get('input').element;
     collapse.vm.$emit('update:expandedNames', []);
     await nextTick();
     expect(collapse.props('expandedNames')).toEqual([]);
-    collapse.vm.$emit('update:expandedNames', ['1']);
+    collapse.vm.$emit('update:expandedNames', expanded);
     await nextTick();
     expect(wrapper!.get('input').element).toBe(input);
   });

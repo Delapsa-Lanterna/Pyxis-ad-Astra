@@ -3,14 +3,17 @@ import { csvDraftSearchKeys, csvSearchOptions, csvSearchPlaceholder, DEFAULT_CSV
 import { csvDraftRow } from '@/test/fixtures/csv-row';
 
 describe('CSV search field projection', () => {
-  it.each(['id-name', 'id', 'name', 'tags'] as const)('merges draft matches and preserves draft order for %s', (field) => {
-    const column = field === 'id-name' ? 'name' : field;
-    const drafts = [csvDraftRow({ [column]: 'changed' }, 'old'), csvDraftRow({ [column]: 'Local_MATCH' }, 'new')];
-    expect(csvDraftSearchKeys('ships', ['new', 'saved', 'old'], drafts, ['old', 'deleted', 'saved'], ' match ', field)).toEqual([
-      'new',
-      'saved',
-    ]);
-  });
+  it.each(csvSearchOptions('ships', ['id', 'name', 'tags']).map((option) => option.value))(
+    'merges draft matches and preserves draft order for %s',
+    (field) => {
+      const column = field === 'id-name' ? 'name' : field;
+      const drafts = [csvDraftRow({ [column]: 'changed' }, 'old'), csvDraftRow({ [column]: 'Local_MATCH' }, 'new')];
+      expect(csvDraftSearchKeys('ships', ['new', 'saved', 'old'], drafts, ['old', 'deleted', 'saved'], ' match ', field)).toEqual([
+        'new',
+        'saved',
+      ]);
+    },
+  );
   it('uses variant identities for simulator opponents and leaves inputs intact', () => {
     const row = csvDraftRow({ 'variant id': 'Sample', id: 'Other' }, 'variant');
     expect(csvDraftSearchKeys('simOpponents', ['variant'], [row], [], 'sample', 'id')).toEqual(['variant']);
@@ -36,7 +39,7 @@ describe('CSV search field projection', () => {
     expect(csvSearchOptions(table, header).map((option) => option.value)).toEqual(expected);
   });
   it('projects each field into its search prompt', () => {
-    expect(['id-name', 'id', 'name', 'tags'].map((field) => csvSearchPlaceholder(field as typeof DEFAULT_CSV_SEARCH_FIELD))).toEqual([
+    expect(csvSearchOptions('ships', ['id', 'name', 'tags']).map(({ value }) => csvSearchPlaceholder(value))).toEqual([
       '搜索 ID/名称',
       '搜索 ID',
       '搜索 名称',

@@ -71,3 +71,14 @@ test('Rust module aliases and function values retain their resolved service path
     true,
   );
 });
+
+test('Rust call literals use masked argument boundaries and preserve source positions', () => {
+  const context = architectureFixtures({
+    'src-tauri/build.rs': 'fn main(){bundle_schemas("../schemas/csv", r#"csv_schemas.rs"#);other("a,b", target);}',
+  });
+  const file = context.byPath.get('src-tauri/build.rs');
+  const call = file?.rust.calls.find((call) => call.name === 'bundle_schemas');
+  assert.deepEqual(call?.literals, ['../schemas/csv', 'csv_schemas.rs']);
+  assert.equal(call?.line, 1);
+  assert.deepEqual(file?.rust.calls.find((call) => call.name === 'other')?.literals, ['a,b', null]);
+});

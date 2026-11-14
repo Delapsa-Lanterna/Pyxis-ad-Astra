@@ -1,3 +1,4 @@
+import { WEAPON_SPEC_CLASSES } from '@/domain/entity-write/spec-construction';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
 import { ref } from 'vue';
@@ -93,7 +94,7 @@ describe('CSV schema checks in the actual save entry', () => {
     expect(mocks.read).toHaveBeenCalledTimes(1);
     expect(mocks.write).toHaveBeenCalledTimes(1);
   });
-  it.each(['beam', 'projectile'])('saves burst size through its declared float type with %s associated content', async (specClass) => {
+  it.each(WEAPON_SPEC_CLASSES)('saves burst size through its declared float type with %s associated content', async (specClass) => {
     const f = fixture();
     const target = { ...f.target, table: 'weapons' as const };
     const document = f.tables.getCsvModState(target.modRoot)!.documents.weapons;

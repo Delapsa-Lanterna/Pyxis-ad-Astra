@@ -1,3 +1,4 @@
+import { EDIT_MODES } from '@/shared/types';
 import CsvCellTextEditor from '@/app/components/csv-editor/CsvCellTextEditor.vue';
 import CsvCellPicker from '@/app/components/csv-editor/CsvCellPicker.vue';
 import type { AppFeedback } from '@/shared/types';
@@ -117,7 +118,7 @@ describe('CsvGridCellEditor', () => {
     const model = createCsvGridColumns('ships', [key], [], new Map([['csv:shipSystems.id', options]]));
     const column = model.columns[0]!;
     expect(column.schema).toMatchObject({ control: 'reference', source: 'csv:shipSystems.id' });
-    for (const editMode of ['smart', 'plain'] as const) {
+    for (const editMode of EDIT_MODES) {
       useSettingsStore().setEditMode(editMode);
       const editor = mountEditor({
         column,

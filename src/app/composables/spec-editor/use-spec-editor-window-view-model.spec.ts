@@ -1,3 +1,4 @@
+import { SPEC_EDITOR_KINDS } from '@/shared/types';
 import { jsonFileFixture } from '@/test/fixtures/json-file';
 import { projectJsonValue } from '@/domain/json-document';
 import { requireRowData } from '@/shared/lib/row-data';
@@ -237,7 +238,7 @@ async function initializedViewModel(kind: SpecEditorKind = 'ship', bundle: SpecF
   return viewModel;
 }
 
-describe.each(['ship', 'weapon', 'projectile', 'system'] as const)('%s composed field editing', (kind) => {
+describe.each(SPEC_EDITOR_KINDS)('%s composed field editing', (kind) => {
   it.each([false, true])('keeps editor actions and local saves aligned with source layers: %s', async (layered) => {
     vi.clearAllMocks();
     mocks.feedback.choose.mockResolvedValue('save');
@@ -454,24 +455,21 @@ describe('Spec common save checks', () => {
     }));
     return vm;
   }
-  it.each(['ship', 'weapon', 'projectile', 'system'] as const)(
-    'shares all content errors before %s saving and clears them after correction',
-    async (kind) => {
-      useSettingsStore().setIgnoreEditorWarnings(true);
-      const vm = await openChecked(kind);
-      const original = vm.draftValue.value;
-      const key = kind === 'ship' ? 'width' : kind === 'weapon' ? 'turretOffsets' : kind === 'projectile' ? 'width' : 'type';
-      vm.updateEditorDraft({ ...original, [key]: kind === 'weapon' ? [] : 'invalid' });
-      expect(vm.problems.issues.value.some((issue) => issue.path === key)).toBe(true);
-      await vm.saveEditorData();
-      expect(mocks.saveSpecEditorSpec).not.toHaveBeenCalled();
-      expect(formatError(mocks.feedback.error.mock.calls.at(-1)![0])).toBe('请先解决顶部错误后再保存');
-      vm.updateEditorDraft(original);
-      expect(vm.problems.issues.value).toEqual([]);
-      await vm.saveEditorData();
-      expect(mocks.saveSpecEditorSpec).toHaveBeenCalledTimes(1);
-    },
-  );
+  it.each(SPEC_EDITOR_KINDS)('shares all content errors before %s saving and clears them after correction', async (kind) => {
+    useSettingsStore().setIgnoreEditorWarnings(true);
+    const vm = await openChecked(kind);
+    const original = vm.draftValue.value;
+    const key = kind === 'ship' ? 'width' : kind === 'weapon' ? 'turretOffsets' : kind === 'projectile' ? 'width' : 'type';
+    vm.updateEditorDraft({ ...original, [key]: kind === 'weapon' ? [] : 'invalid' });
+    expect(vm.problems.issues.value.some((issue) => issue.path === key)).toBe(true);
+    await vm.saveEditorData();
+    expect(mocks.saveSpecEditorSpec).not.toHaveBeenCalled();
+    expect(formatError(mocks.feedback.error.mock.calls.at(-1)![0])).toBe('请先解决顶部错误后再保存');
+    vm.updateEditorDraft(original);
+    expect(vm.problems.issues.value).toEqual([]);
+    await vm.saveEditorData();
+    expect(mocks.saveSpecEditorSpec).toHaveBeenCalledTimes(1);
+  });
   it.each([false, true])('controls warnings for direct and coordinated saves: %s', async (ignore) => {
     useSettingsStore().setIgnoreEditorWarnings(ignore);
     const vm = await openChecked('system');
@@ -854,29 +852,26 @@ describe('useSpecEditorWindowViewModel external updates', () => {
     vi.clearAllMocks();
     mocks.feedback.choose.mockResolvedValue(null);
   });
-  it.each(['ship', 'weapon', 'projectile', 'system'] as const)(
-    'accepts a complete %s receipt once with zero detail queries for clean and dirty drafts',
-    async (kind) => {
-      const idField = kind === 'ship' ? 'hullId' : 'id';
-      const original = { [idField]: 'XY', name: 'Original' };
-      const vm = await initializedViewModel(kind, {
-        kind,
-        target: entityTargetFixture(kind, 'XY'),
-        spec: original,
-        isNew: false,
-        baseVersions: [],
-      });
-      mocks.querySpecEditorData.mockClear();
-      await savedSpecChange({ kind, sessionId: 's1', modRoot: 'M:/mod', id: 'XY', spec: { ...original, name: 'Formal' } });
-      expect(mocks.querySpecEditorData).toHaveBeenCalledTimes(0);
-      expect(vm.draftValue.value).toEqual({ ...original, name: 'Formal' });
-      vm.updateEditorDraft({ ...original, name: 'Draft' });
-      await savedSpecChange({ kind, sessionId: 's1', modRoot: 'M:/mod', id: 'XY', spec: { ...original, name: 'Next' } });
-      expect(mocks.querySpecEditorData).toHaveBeenCalledTimes(0);
-      expect(vm.draftValue.value).toEqual({ ...original, name: 'Draft' });
-      expect(vm.externalUpdateNotice.value).toContain('外部版本已更新');
-    },
-  );
+  it.each(SPEC_EDITOR_KINDS)('accepts a complete %s receipt once with zero detail queries for clean and dirty drafts', async (kind) => {
+    const idField = kind === 'ship' ? 'hullId' : 'id';
+    const original = { [idField]: 'XY', name: 'Original' };
+    const vm = await initializedViewModel(kind, {
+      kind,
+      target: entityTargetFixture(kind, 'XY'),
+      spec: original,
+      isNew: false,
+      baseVersions: [],
+    });
+    mocks.querySpecEditorData.mockClear();
+    await savedSpecChange({ kind, sessionId: 's1', modRoot: 'M:/mod', id: 'XY', spec: { ...original, name: 'Formal' } });
+    expect(mocks.querySpecEditorData).toHaveBeenCalledTimes(0);
+    expect(vm.draftValue.value).toEqual({ ...original, name: 'Formal' });
+    vm.updateEditorDraft({ ...original, name: 'Draft' });
+    await savedSpecChange({ kind, sessionId: 's1', modRoot: 'M:/mod', id: 'XY', spec: { ...original, name: 'Next' } });
+    expect(mocks.querySpecEditorData).toHaveBeenCalledTimes(0);
+    expect(vm.draftValue.value).toEqual({ ...original, name: 'Draft' });
+    expect(vm.externalUpdateNotice.value).toContain('外部版本已更新');
+  });
 
   it('stages a conflicting external save as a pending external version', async () => {
     const viewModel = await initializedViewModel();

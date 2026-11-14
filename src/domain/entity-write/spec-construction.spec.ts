@@ -1,3 +1,4 @@
+import { WEAPON_SPEC_CLASSES, PROJECTILE_SPEC_CLASSES } from '@/domain/entity-write/spec-construction';
 import { describe, expect, it } from 'vitest';
 import {
   createDefaultVariant,
@@ -15,9 +16,9 @@ describe('shared game spec construction', () => {
   it('constructs all seven branches from the shared defaults with explicit identity', () => {
     expect(defaults.$schema).toBe('pyxis-ad-astra/spec-defaults/v1');
     expect(createShipSpec('ship', 'Ship')).toEqual({ ...defaults.ship, hullId: 'ship', hullName: 'Ship' });
-    for (const specClass of ['projectile', 'beam'] as const)
+    for (const specClass of WEAPON_SPEC_CLASSES)
       expect(createWeaponSpec('weapon', specClass)).toEqual({ ...defaults.weapon[specClass], id: 'weapon' });
-    for (const specClass of ['projectile', 'missile'] as const)
+    for (const specClass of PROJECTILE_SPEC_CLASSES)
       expect(createProjectileSpec('shot', specClass)).toEqual({ ...defaults.projectile[specClass], id: 'shot' });
     expect(createSystemSpec('system')).toEqual({ ...defaults.system, id: 'system' });
     expect(createSkillSpec('skill')).toEqual({ ...defaults.skill, id: 'skill' });

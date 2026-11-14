@@ -1,3 +1,4 @@
+import { appThemes } from '../../shared/app-themes.mjs';
 import assert from 'node:assert/strict';
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { resolve, join } from 'node:path';
@@ -188,7 +189,7 @@ export async function csvPerformance({ launch, close, fixture, check, options, a
         });
       }
       if (options.screenshots)
-        for (const theme of ['dark', 'light'])
+        for (const theme of [...appThemes].reverse())
           for (const width of [1360, 1100]) {
             await app.main.evaluate(stores + '.get("settings").setTheme(' + JSON.stringify(theme) + ')');
             await app.main.setViewportSize({ width, height: 860 });

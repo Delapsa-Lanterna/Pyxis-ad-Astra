@@ -256,3 +256,6 @@ export type * from './file-content.types';
 export type { JsonDocumentFile, JsonDocumentRead } from './json-file.types';
 
 export * from './text-file-editing.types';
+
+export { JOINT_EDIT_KINDS } from '@/shared/types/joint-target.types';
+export { FEEDBACK_LEVELS } from '@/shared/types/feedback.types';

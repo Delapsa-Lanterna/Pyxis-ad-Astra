@@ -1,3 +1,4 @@
+import { appThemes } from '../../../shared/app-themes.mjs';
 import assert from 'node:assert/strict';
 import { performanceScenarios } from '../scenarios.mjs';
 
@@ -26,7 +27,7 @@ export async function verifyTestbed(page, artifacts) {
       assert.ok(await panel.evaluate((element) => element.scrollTop > 0));
     }
     for (const width of [1280, 800])
-      for (const theme of ['light', 'dark']) {
+      for (const theme of appThemes) {
         await page.setViewportSize({ width, height: 720 });
         const toggle = page.getByRole('switch', { name: '主题明暗', exact: true });
         if ((await toggle.getAttribute('aria-checked')) !== String(theme === 'dark')) await toggle.click();

@@ -5,7 +5,7 @@ import { rustServicePaths } from './rust-crate-paths.mjs';
 import { splitTopLevel } from '../../shared/rust-source.mjs';
 
 /** @typedef {{name: string, commandName: string, public: boolean, attributes: string[], attributeArguments: ReadonlyMap<string,string>, start: number, end: number, body: string, signature: string, line: number, column: number}} RustFunction */
-/** @typedef {{name: string, target: string, arguments: string[], offset: number, line: number, column: number}} RustCall */
+/** @typedef {{name: string, target: string, arguments: string[], literals: Array<string | null>, offset: number, line: number, column: number}} RustCall */
 /** @typedef {{macro: string, expression: string, path: string | null, offset: number, line: number, column: number}} RustEmbeddedAsset */
 /** @typedef {{embeddedAssets: RustEmbeddedAsset[], code: string, references: import('./rust-crate-paths.mjs').RustReference[], functions: RustFunction[], calls: RustCall[]}} RustFacts */
 
@@ -94,10 +94,18 @@ export function rustFacts(file, code, exports) {
       if (code[end] === ')') depth--;
       end++;
     }
+    const args = splitTopLevel(code.slice(opening, end - 1));
+    let argumentStart = opening;
+    const literals = args.map((argument) => {
+      const text = file.text.slice(argumentStart, argumentStart + argument.length);
+      argumentStart += argument.length + 1;
+      return embeddedLiteral(text);
+    });
     calls.push({
       name: /** @type {string} */ (match[2]),
       target: targets.get(match.index) ?? /** @type {string} */ (match[1]),
-      arguments: splitTopLevel(code.slice(opening, end - 1)),
+      arguments: args,
+      literals,
       offset: match.index,
       ...at(match.index),
     });
@@ -134,7 +142,7 @@ export function rustFacts(file, code, exports) {
   }
 
   const embeddedAssets = [];
-  for (const match of code.matchAll(/\b(include_str|include_bytes)\s*!\s*([([{])/g)) {
+  for (const match of code.matchAll(/\b(include_str|include_bytes|include)\s*!\s*([([{])/g)) {
     const opening = match[2] ?? '(',
       closing = { '(': ')', '[': ']', '{': '}' }[opening];
     const start = match.index + match[0].length;

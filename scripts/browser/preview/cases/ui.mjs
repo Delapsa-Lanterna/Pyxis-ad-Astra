@@ -1,3 +1,4 @@
+import { appThemes } from '../../../shared/app-themes.mjs';
 import assert from 'node:assert/strict';
 import { mkdir } from 'node:fs/promises';
 
@@ -15,7 +16,7 @@ function diagnostics(page) {
 async function appearanceMatrix(page, output, name, owner) {
   const checks = [];
   for (const width of [1280, 800])
-    for (const theme of ['light', 'dark']) {
+    for (const theme of appThemes) {
       await page.setViewportSize({ width, height: 720 });
       const toggle = page.getByRole('switch', { name: '主题明暗', exact: true });
       if ((await toggle.getAttribute('aria-checked')) !== String(theme === 'dark')) await toggle.click();
@@ -308,11 +309,14 @@ export async function verifyBrowserUI(browser, url, output) {
     await page.goto(url);
     await main.getByRole('button', { name: '进入编辑' }).first().waitFor();
     await page.locator('.workbench-menu').first().locator('summary').click();
-    for (const { selector, kinds, buttonName } of [
-      { selector: '规格窗口类型', kinds: ['ship', 'weapon', 'projectile', 'system'], buttonName: '规格编辑器' },
-      { selector: '沉浸式窗口类型', kinds: ['ship', 'skin', 'weapon', 'wing', 'variant'], buttonName: '沉浸式编辑器' },
+    for (const { selector, buttonName } of [
+      { selector: '规格窗口类型', buttonName: '规格编辑器' },
+      { selector: '沉浸式窗口类型', buttonName: '沉浸式编辑器' },
     ])
-      for (const kind of kinds) {
+      for (const kind of await page
+        .getByLabel(selector)
+        .locator('option')
+        .evaluateAll((options) => options.map((option) => /** @type {HTMLOptionElement} */ (option).value))) {
         await page.getByLabel(selector).selectOption(kind);
         await page.getByRole('button', { name: buttonName, exact: true }).click();
         const frame = page.locator('iframe[data-window^="window-"]').last(),

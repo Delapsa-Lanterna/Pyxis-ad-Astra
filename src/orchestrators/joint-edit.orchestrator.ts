@@ -1,3 +1,4 @@
+import { SPEC_EDITOR_KINDS } from '@/shared/types';
 import { ref } from 'vue';
 import { queryJointEdit, queryJointEditRow, queryJointEditPreview, prepareJointEdit, saveJointEdit } from '@/services/joint-edit.service';
 import { useSettingsStore } from '@/stores/settings.store';
@@ -185,7 +186,7 @@ export async function submitJointEdit(
     if (record.target.kind === 'spec') {
       if (stableDeepEqual(next, record.value) && !createOverrides.includes(record.key)) continue;
       const schema = getSchema(
-        ['ship', 'weapon', 'projectile', 'system'].includes(record.target.target.kind)
+        (SPEC_EDITOR_KINDS as readonly string[]).includes(record.target.target.kind)
           ? 'spec-' + record.target.target.kind
           : record.target.target.kind,
       );

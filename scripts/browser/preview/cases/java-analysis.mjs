@@ -1,3 +1,4 @@
+import { appThemes } from '../../../shared/app-themes.mjs';
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
 
@@ -15,7 +16,7 @@ export async function verifyJavaAnalysis(page, artifacts) {
   assert.equal(headings[index + 1], '性能调试');
   checks.push({ cardOrder: headings.slice(index - 1, index + 2) });
   for (const width of [1280, 800])
-    for (const theme of ['light', 'dark']) {
+    for (const theme of appThemes) {
       await page.setViewportSize({ width, height: 1000 });
       await page.evaluate((theme) => Reflect.get(globalThis, 'browserWorkspace').setAppearance({ theme }), theme);
       await card.scrollIntoViewIfNeeded();
