@@ -67,8 +67,14 @@ test('generated CSV sources retain the build directory and output identity', () 
   assert.equal(legal.byPath.get(source)?.rust.embeddedAssets[0]?.macro, 'include');
   for (const changed of [
     '',
-    build.replace('bundle_schemas("../schemas/csv", "csv_schemas.rs")', 'bundle_schemas("../schemas", "csv_schemas.rs")'),
-    build.replace('bundle_schemas("../schemas/csv", "csv_schemas.rs")', 'bundle_schemas("../schemas/csv", "other.rs")'),
+    build.replace(
+      'bundle_schemas("../schemas/csv", "csv_schemas.rs", ".schema.json")',
+      'bundle_schemas("../schemas", "csv_schemas.rs", ".schema.json")',
+    ),
+    build.replace(
+      'bundle_schemas("../schemas/csv", "csv_schemas.rs", ".schema.json")',
+      'bundle_schemas("../schemas/csv", "other.rs", ".schema.json")',
+    ),
     build.replace('fs::read_dir(directory)', 'fs::read_dir("../schemas")'),
     build.replace('.join(filename)', '.join("other.rs")'),
   ]) {
