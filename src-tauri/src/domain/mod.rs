@@ -13,7 +13,7 @@ pub mod mod_creation;
 pub mod save_edits;
 pub mod schema;
 pub mod schema_sources;
+pub mod value_catalogs;
 pub mod variant_modules;
-pub mod well_known_labels;
 
 pub mod text_file;

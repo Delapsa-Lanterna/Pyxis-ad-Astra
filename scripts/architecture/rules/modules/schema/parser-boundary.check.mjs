@@ -13,10 +13,11 @@ test('independent workspace crates can read their own strict JSON protocols', ()
   assert.equal(failures[0]?.file, 'src-tauri/src/services/project/query/sample.rs');
 });
 
-test('the spec construction owner parses its embedded strict JSON template', () => {
+test('embedded asset owners parse their strict JSON protocols', () => {
   const files = architectureFixtures({
     'src-tauri/src/domain/entity_construction.rs':
       'let defaults = serde_json::from_str(include_str!("../../../schemas/spec-defaults.json"));',
+    'src-tauri/src/domain/value_catalogs.rs': 'let asset = serde_json::from_str(text);',
   });
   assert.deepEqual(messages(parserBoundaryRule.check(files)), []);
 });

@@ -267,7 +267,7 @@ describe('SpecProjectileEditor', () => {
     const options = editor
       .findAll('select')[1]!
       .findAll('option')
-      .map((option) => option.text());
+      .map((option) => JSON.parse(option.element.value));
     expect(options).toEqual(PROJECTILE_SPAWN_TYPES);
   });
 
@@ -276,7 +276,7 @@ describe('SpecProjectileEditor', () => {
     const options = editor
       .findAll('select')[1]!
       .findAll('option')
-      .map((option) => option.text());
+      .map((option) => JSON.parse(option.element.value));
     expect(options).toContain('PHASE_CHARGE');
     expect(options).toContain('PHASE_MINE');
     expect(options).toEqual(MISSILE_TYPES);

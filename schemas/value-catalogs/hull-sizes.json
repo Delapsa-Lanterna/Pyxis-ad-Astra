@@ -1,0 +1,26 @@
+{
+  "$schema": "pyxis-ad-astra/value-catalog/v1",
+  "id": "hull-sizes",
+  "values": {
+    "FRIGATE": {
+      "label": "护卫舰",
+      "description": "护卫舰级船体。"
+    },
+    "DESTROYER": {
+      "label": "驱逐舰",
+      "description": "驱逐舰级船体。"
+    },
+    "CRUISER": {
+      "label": "巡洋舰",
+      "description": "巡洋舰级船体。"
+    },
+    "CAPITAL_SHIP": {
+      "label": "主力舰",
+      "description": "主力舰级船体。"
+    },
+    "FIGHTER": {
+      "label": "战机",
+      "description": "战机船体，供战机联队及相关规则使用。"
+    }
+  }
+}

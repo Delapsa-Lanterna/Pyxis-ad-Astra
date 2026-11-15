@@ -1,0 +1,30 @@
+{
+  "$schema": "pyxis-ad-astra/value-catalog/v1",
+  "id": "weapon-render-hints",
+  "values": {
+    "RENDER_BARREL_BELOW": {
+      "label": "炮管绘制于主体下方",
+      "description": "将使用后坐跟踪的炮管贴图绘制在武器主体贴图下方。"
+    },
+    "RENDER_LOADED_MISSILES": {
+      "label": "显示已装填导弹",
+      "description": "在武器发射点绘制已装填的导弹。"
+    },
+    "RENDER_LOADED_MISSILES_UNLESS_HIDDEN": {
+      "label": "可见槽位显示已装填导弹",
+      "description": "在可见挂载槽位绘制已装填的导弹。"
+    },
+    "RENDER_ADDITIVE": {
+      "label": "叠加绘制",
+      "description": "采用加色混合绘制武器贴图。"
+    },
+    "SUSPEND_RECOIL": {
+      "label": "暂停后坐",
+      "description": "后坐跟踪器按暂停后坐的规则处理炮管运动。"
+    },
+    "NEVER_RENDER_IN_CAMPAIGN": {
+      "label": "仅战斗中绘制",
+      "description": "在战役舰队展示中隐藏该武器贴图。"
+    }
+  }
+}

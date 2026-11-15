@@ -1,0 +1,18 @@
+{
+  "$schema": "pyxis-ad-astra/value-catalog/v1",
+  "id": "mount-types",
+  "values": {
+    "TURRET": {
+      "label": "炮塔",
+      "description": "采用炮塔挂载方式及对应的贴图、原点和发射点。"
+    },
+    "HARDPOINT": {
+      "label": "固定",
+      "description": "采用固定挂载方式及对应的贴图、原点和发射点。"
+    },
+    "HIDDEN": {
+      "label": "隐藏",
+      "description": "用于隐藏挂载的武器槽位。"
+    }
+  }
+}

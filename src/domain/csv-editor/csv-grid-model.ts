@@ -3,7 +3,7 @@ import { cell } from '@/shared/lib/starsector';
 import { csvColumnSchemaFor, csvListValues } from '@/domain/csv-editor/csv-column-schema';
 import type { CsvColumnSchema } from '@/domain/schema/schema.types';
 import { createCsvSourceIndex, sourceOptions, type CsvSourceIndex } from '@/domain/field-editor/csv-source-options';
-import { flattenSelectOptions, type SelectOption } from '@/domain/field-editor/field-options';
+import { flattenSelectOptions, schemaSelectOptions, type SelectOption } from '@/domain/field-editor/field-options';
 
 export interface CsvGridColumn {
   className: string;
@@ -77,7 +77,7 @@ function createCsvGridColumn(table: CsvTableKey, key: string): CsvGridColumn {
   const schema = csvColumnSchemaFor(table, key);
   return {
     className: `schema-col-${schema?.control ?? 'text'}`,
-    enumOptions: (schema?.options ?? []).map((option) => ({ label: option, value: option })),
+    enumOptions: schemaSelectOptions(schema ?? {}, []),
     key,
     schema,
     widthPx: 0,

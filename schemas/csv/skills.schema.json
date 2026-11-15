@@ -72,7 +72,28 @@
       "summary": true,
       "label": "Tags 标签",
       "control": "tags",
-      "source": "csv:skills.tags"
+      "source": "csv:skills.tags",
+      "optionCatalog": "skill-tags",
+      "suggestions": [
+        "codex_unlockable",
+        "show_in_codex",
+        "hide_in_codex",
+        "invisible_in_codex",
+        "phase",
+        "active_defenses",
+        "ai_core_only",
+        "ballistic_weapons",
+        "carrier",
+        "deprecated",
+        "elite_player_only",
+        "energy_weapons",
+        "missile_weapons",
+        "npc_only",
+        "player_only",
+        "spec",
+        "ai_core",
+        "no_ai_core"
+      ]
     },
     {
       "key": "icon",

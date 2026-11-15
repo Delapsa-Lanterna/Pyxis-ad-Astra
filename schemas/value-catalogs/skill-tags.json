@@ -1,0 +1,78 @@
+{
+  "$schema": "pyxis-ad-astra/value-catalog/v1",
+  "id": "skill-tags",
+  "values": {
+    "codex_unlockable": {
+      "label": "数据百科待解锁",
+      "description": "该内容在数据百科中的锁定状态由玩家是否接触或获得相关内容决定。"
+    },
+    "show_in_codex": {
+      "label": "显示在数据百科中",
+      "description": "参与船体插件、武器、技能或市场条件的数据百科收录判断；最终是否显示还取决于其它条件。"
+    },
+    "hide_in_codex": {
+      "label": "不显示在数据百科中",
+      "description": "数据百科建立相应类别的目录时会跳过带有此标记的内容。"
+    },
+    "invisible_in_codex": {
+      "label": "在数据百科目录中隐藏",
+      "description": "该条目不会出现在常规目录中，但仍可由游戏直接打开。"
+    },
+    "phase": {
+      "label": "相位技能",
+      "description": "将该技能归入相位相关类别，供技能筛选和偏好判断使用。"
+    },
+    "active_defenses": {
+      "label": "主动防御技能",
+      "description": "将该技能归入主动防御类别，供技能筛选和偏好判断使用。"
+    },
+    "ai_core_only": {
+      "label": "仅供 AI 核心使用",
+      "description": "将该技能标记为 AI 核心专用，并在数据百科中按此类别处理。"
+    },
+    "ballistic_weapons": {
+      "label": "实弹武器技能",
+      "description": "将该技能归入实弹武器类别，供技能筛选和偏好判断使用。"
+    },
+    "carrier": {
+      "label": "航母技能",
+      "description": "将该技能归入航母类别，供技能筛选和偏好判断使用。"
+    },
+    "deprecated": {
+      "label": "已废弃技能",
+      "description": "技能选择和数据百科收录会排除带有此标记的技能。"
+    },
+    "elite_player_only": {
+      "label": "精英效果仅供玩家使用",
+      "description": "标记技能中只对玩家生效的精英效果。"
+    },
+    "energy_weapons": {
+      "label": "能量武器技能",
+      "description": "将该技能归入能量武器类别，供技能筛选和偏好判断使用。"
+    },
+    "missile_weapons": {
+      "label": "导弹武器技能",
+      "description": "将该技能归入导弹武器类别，供技能筛选和偏好判断使用。"
+    },
+    "npc_only": {
+      "label": "仅供非玩家角色使用",
+      "description": "标记只供非玩家角色选择的技能；数据百科也会按此类别处理。"
+    },
+    "player_only": {
+      "label": "仅供玩家使用",
+      "description": "玩家技能选择会保留带有此标记的技能。"
+    },
+    "spec": {
+      "label": "专精技能",
+      "description": "将该技能归入专精类别，军官技能选择仍会统计此类别。"
+    },
+    "ai_core": {
+      "label": "AI 核心可选",
+      "description": "此标记允许 AI 核心选择部分标为非玩家专用的技能；仍受 \"AI 核心不可用\" 标记限制。"
+    },
+    "no_ai_core": {
+      "label": "AI 核心不可用",
+      "description": "AI 核心的技能选择会排除带有此标记的技能。"
+    }
+  }
+}

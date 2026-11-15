@@ -1,5 +1,6 @@
 import type { FieldSchema, FileSchema } from './schema.types';
 import { parseFileSchema } from './schema-asset-parser';
+import { validateOptionCatalog } from './value-catalogs';
 
 const SOURCES: Record<string, FileSchema> = Object.fromEntries(
   Object.entries(import.meta.glob<unknown>('../../../schemas/*.schema.json', { eager: true, import: 'default' })).map(([path, asset]) => {
@@ -17,6 +18,7 @@ function resolve(field: FieldSchema): FieldSchema {
     delete overrides.ref;
     return resolve({ ...resolve(target as FieldSchema), ...overrides });
   }
+  validateOptionCatalog(field);
   return {
     ...field,
     ...(field.nested ? { nested: field.nested.map(resolve) } : {}),

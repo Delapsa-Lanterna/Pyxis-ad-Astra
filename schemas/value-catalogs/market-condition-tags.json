@@ -1,0 +1,30 @@
+{
+  "$schema": "pyxis-ad-astra/value-catalog/v1",
+  "id": "market-condition-tags",
+  "values": {
+    "codex_unlockable": {
+      "label": "数据百科待解锁",
+      "description": "该内容在数据百科中的锁定状态由玩家是否接触或获得相关内容决定。"
+    },
+    "show_in_codex": {
+      "label": "显示在数据百科中",
+      "description": "参与船体插件、武器、技能或市场条件的数据百科收录判断；最终是否显示还取决于其它条件。"
+    },
+    "hide_in_codex": {
+      "label": "不显示在数据百科中",
+      "description": "数据百科建立相应类别的目录时会跳过带有此标记的内容。"
+    },
+    "invisible_in_codex": {
+      "label": "在数据百科目录中隐藏",
+      "description": "该条目不会出现在常规目录中，但仍可由游戏直接打开。"
+    },
+    "planet_search": {
+      "label": "行星搜索候选",
+      "description": "行星搜索会将带有此标记的特殊物品和市场条件加入搜索结果。"
+    },
+    "show_in_planet_list": {
+      "label": "显示在行星列表",
+      "description": "允许该市场条件显示在行星列表中。"
+    }
+  }
+}

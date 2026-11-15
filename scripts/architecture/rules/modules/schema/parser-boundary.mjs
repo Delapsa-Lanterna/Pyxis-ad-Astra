@@ -2,7 +2,7 @@ import { defineRule } from '../../../diagnostics.mjs';
 import { modulePartsFromRel } from '../../../facts/rust-crate-paths.mjs';
 
 const toolJson = new Set([
-  'domain::well_known_labels',
+  'domain::value_catalogs',
   'domain::entity_construction',
   'domain::joint_hull',
   'domain::csv_column_order',

@@ -809,7 +809,11 @@ describe('SchemaFieldRenderer smart mode', () => {
     expect(options).toHaveLength(count);
     const field = mountField(schema, []);
     const select = field.getComponent(nSelect);
-    expect(field.findAll('option').map((option) => option.text())).toEqual(options);
+    expect(field.findAll('option').map((option) => option.element.value)).toEqual(options.map((value) => JSON.stringify(value)));
+    for (const option of select.props('options')!) {
+      expect(option.label).toContain('(');
+      expect(option.description).toBeTypeOf('string');
+    }
     for (let step = 1; step <= 1 << count; step++) {
       const selected = options.filter((_, index) => (step % (1 << count)) & (1 << index));
       select.vm.$emit('update:value', selected);
@@ -819,7 +823,9 @@ describe('SchemaFieldRenderer smart mode', () => {
       expect(select.props('value')).toEqual(selected);
     }
     await field.setProps({ value: [' custom '] });
-    expect(field.findAll('option').map((option) => option.element.textContent)).toEqual([' custom ', ...options]);
+    expect(field.findAll('option').map((option) => option.element.value)).toEqual(
+      [' custom ', ...options].map((value) => JSON.stringify(value)),
+    );
     useSettingsStore().setEditMode('plain');
     await nextTick();
     await field.get('input').setValue(options.join(', '));

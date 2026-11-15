@@ -103,7 +103,8 @@
                   "LINKED",
                   "ALTERNATING"
                 ],
-                "required": true
+                "required": true,
+                "optionCatalog": "weapon-group-modes"
               },
               {
                 "key": "weapons",

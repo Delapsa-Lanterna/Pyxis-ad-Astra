@@ -9,6 +9,8 @@ import {
   type FileSchema,
   type SchemaSourceType,
   type SectionSchema,
+  type ValueCatalog,
+  type ValueCatalogEntry,
 } from '@/domain/schema/schema.types';
 
 const FIELD_SCHEMA_VERSION = 'pyxis-ad-astra/field-schema/v1';
@@ -125,6 +127,9 @@ function parseField(id: string, path: string, raw: unknown): FieldSchema {
   }
   if (isNumber(record.step)) field.step = record.step;
   if (isStringArray(record.options)) field.options = record.options;
+  if (isString(record.optionCatalog)) field.optionCatalog = record.optionCatalog;
+  if (isStringArray(record.suggestions)) field.suggestions = record.suggestions;
+  if (isStringArray(record.optionPatterns)) field.optionPatterns = record.optionPatterns;
   if (isStringArray(record.reservedKeys)) field.reservedKeys = record.reservedKeys;
   if (record.presentation !== undefined) {
     if (record.presentation !== 'groups') throw new Error(`schema ${id} ${path}: 非法 presentation`);
@@ -238,6 +243,9 @@ export function parseCsvColumnSchemas(table: string, raw: unknown): CsvColumnSch
       throw new Error(`csv column schema ${table}: 非法配置来源 ${schema.source}`);
     }
     if (isStringArray(record.options)) schema.options = record.options;
+    if (isString(record.optionCatalog)) schema.optionCatalog = record.optionCatalog;
+    if (isStringArray(record.suggestions)) schema.suggestions = record.suggestions;
+    if (isStringArray(record.optionPatterns)) schema.optionPatterns = record.optionPatterns;
     if (isString(record.default)) schema.default = record.default;
     if (isBoolean(record.readonly)) schema.readonly = record.readonly;
     if (isNumber(record.min)) schema.min = record.min;
@@ -246,6 +254,31 @@ export function parseCsvColumnSchemas(table: string, raw: unknown): CsvColumnSch
     if (isNumber(record.priority)) schema.priority = record.priority;
     return schema;
   });
+}
+
+export function parseValueCatalog(id: string, raw: unknown): ValueCatalog {
+  const asset = asRecord(raw, `value catalog ${id}`);
+  if (asset.$schema !== 'pyxis-ad-astra/value-catalog/v1' || asset.id !== id) throw new Error(`value catalog ${id}: 目录版本或 ID 无效`);
+  const values = Object.fromEntries(Object.entries(asRecord(asset.values, id)).map(([value, entry]) => [value, parseValueLabel(entry)]));
+  const patterns = asset.patterns ?? [];
+  if (!Array.isArray(patterns)) throw new Error(`value catalog ${id}: 数字模板必须为数组`);
+  return {
+    id,
+    values,
+    patterns: patterns.map((raw) => {
+      const entry = asRecord(raw, id);
+      if (!isString(entry.prefix) || !entry.prefix || !isNumber(entry.max) || !Number.isInteger(entry.max) || entry.max < 0)
+        throw new Error(`value catalog ${id}: 数字模板前缀或上限无效`);
+      return { ...parseValueLabel(entry), prefix: entry.prefix, max: entry.max };
+    }),
+  };
+}
+
+function parseValueLabel(raw: unknown): ValueCatalogEntry {
+  const entry = asRecord(raw, 'value label');
+  if (!isString(entry.label) || !entry.label.trim() || !isString(entry.description) || !entry.description.trim())
+    throw new Error('取值目录必须提供非空名称和说明');
+  return { label: entry.label, description: entry.description };
 }
 
 function parseImageDirectories(value: unknown): string[] {

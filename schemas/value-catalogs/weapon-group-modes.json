@@ -1,0 +1,14 @@
+{
+  "$schema": "pyxis-ad-astra/value-catalog/v1",
+  "id": "weapon-group-modes",
+  "values": {
+    "LINKED": {
+      "label": "齐射",
+      "description": "武器组中的武器共同开火。"
+    },
+    "ALTERNATING": {
+      "label": "交替",
+      "description": "武器组中的武器交替开火。"
+    }
+  }
+}

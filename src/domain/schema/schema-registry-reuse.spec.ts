@@ -1,15 +1,16 @@
-import { afterEach, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { TABLE_KEYS } from '@/shared/types';
 
-vi.mock('./schema-asset-parser', () => ({
-  parseFileSchema: vi.fn((_id: string, asset: unknown) => asset),
-  parseCsvColumnSchemas: vi.fn((_id: string, asset: { columns: unknown[] }) => asset.columns),
-}));
-afterEach(() => vi.clearAllMocks());
+beforeEach(async () => {
+  vi.resetModules();
+  const parser = await import('./schema-asset-parser');
+  vi.spyOn(parser, 'parseFileSchema');
+  vi.spyOn(parser, 'parseCsvColumnSchemas');
+  vi.spyOn(parser, 'parseValueCatalog');
+});
+afterEach(() => vi.restoreAllMocks());
 
 it('parses each bundled asset once across concurrent imports and repeated registry reads', async () => {
-  vi.resetModules();
-  vi.clearAllMocks();
   const [config, sameConfig, csv, sameCsv] = await Promise.all([
     import('./config-schema-registry'),
     import('./config-schema-registry'),
@@ -30,4 +31,14 @@ it('parses each bundled asset once across concurrent imports and repeated regist
   expect(parsedColumns.mock.calls.map(([id]) => id).sort()).toEqual([...TABLE_KEYS].sort());
   expect(parsedFiles).toHaveBeenCalledTimes(ids.length);
   expect(parsedColumns).toHaveBeenCalledTimes(TABLE_KEYS.length);
+  const catalogIds = Object.keys(import.meta.glob('../../../schemas/value-catalogs/*.json')).map((path) =>
+    path.slice(path.lastIndexOf('/') + 1, -'.json'.length),
+  );
+  expect(
+    vi
+      .mocked(parser.parseValueCatalog)
+      .mock.calls.map(([id]) => id)
+      .sort(),
+  ).toEqual(catalogIds.sort());
+  expect(parser.parseValueCatalog).toHaveBeenCalledTimes(catalogIds.length);
 });

@@ -1,0 +1,46 @@
+{
+  "$schema": "pyxis-ad-astra/value-catalog/v1",
+  "id": "hullmod-ui-tags",
+  "values": {
+    "Defenses": {
+      "label": "防御",
+      "description": "船体插件界面用此标签展示和筛选防御类插件；插件效果由自身实现决定。"
+    },
+    "Engines": {
+      "label": "引擎",
+      "description": "船体插件界面用此标签展示和筛选引擎类插件；插件效果由自身实现决定。"
+    },
+    "Fighters": {
+      "label": "战机",
+      "description": "船体插件界面用此标签展示和筛选战机类插件；插件效果由自身实现决定。"
+    },
+    "Logistics": {
+      "label": "后勤",
+      "description": "船体插件界面用此标签展示和筛选后勤类插件；插件效果由自身实现决定。"
+    },
+    "Phase": {
+      "label": "相位",
+      "description": "船体插件界面用此标签展示和筛选相位类插件；插件效果由自身实现决定。"
+    },
+    "Requires Dock": {
+      "label": "需要停靠",
+      "description": "船体插件界面用此标签展示需要停靠后才能安装或拆卸的插件。"
+    },
+    "Shields": {
+      "label": "护盾",
+      "description": "船体插件界面用此标签展示和筛选护盾类插件；插件效果由自身实现决定。"
+    },
+    "Special": {
+      "label": "特殊",
+      "description": "船体插件界面用此标签展示和筛选特殊类插件；插件效果由自身实现决定。"
+    },
+    "Support": {
+      "label": "支援",
+      "description": "船体插件界面用此标签展示和筛选支援类插件；插件效果由自身实现决定。"
+    },
+    "Weapons": {
+      "label": "武器",
+      "description": "船体插件界面用此标签展示和筛选武器类插件；插件效果由自身实现决定。"
+    }
+  }
+}

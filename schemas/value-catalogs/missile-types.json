@@ -1,0 +1,74 @@
+{
+  "$schema": "pyxis-ad-astra/value-catalog/v1",
+  "id": "missile-types",
+  "values": {
+    "FLARE": {
+      "label": "热诱弹",
+      "description": "采用热诱弹行为，供导弹诱饵规则识别。"
+    },
+    "FLARE_SEEKER": {
+      "label": "追踪热诱弹",
+      "description": "采用追踪型热诱弹行为。"
+    },
+    "MOTE": {
+      "label": "微粒",
+      "description": "采用微粒导弹类别，供对应的行为实现使用。"
+    },
+    "FLARE_JAMMER": {
+      "label": "干扰热诱弹",
+      "description": "采用干扰型热诱弹行为。"
+    },
+    "ROCKET": {
+      "label": "火箭弹",
+      "description": "采用火箭弹的直线飞行行为。"
+    },
+    "MISSILE": {
+      "label": "制导导弹",
+      "description": "采用标准导弹追踪行为。"
+    },
+    "MISSILE_TWO_STAGE_SECOND_UNGUIDED": {
+      "label": "二段无制导导弹",
+      "description": "采用第二阶段转为无制导飞行的两阶段导弹行为。"
+    },
+    "HEATSEEKER": {
+      "label": "热追踪导弹",
+      "description": "采用追踪目标引擎的导弹行为。"
+    },
+    "CIRCLE_TARGET": {
+      "label": "绕行目标",
+      "description": "采用绕行目标的导弹行为。"
+    },
+    "MIRV": {
+      "label": "分导弹头",
+      "description": "采用释放子弹体的分导弹头行为，并读取行为配置。"
+    },
+    "TORPEDO": {
+      "label": "鱼雷",
+      "description": "鱼雷类型标识，飞行和制导由规格及所属行为实现决定。"
+    },
+    "BOMB": {
+      "label": "炸弹",
+      "description": "采用炸弹类型；提供行为配置时按对应的近炸规则处理。"
+    },
+    "BOMB_WITH_SLOW": {
+      "label": "减速炸弹",
+      "description": "采用带减速行为的炸弹类型。"
+    },
+    "BOMB_WITH_ACCEL": {
+      "label": "加速炸弹",
+      "description": "采用带加速行为的炸弹类型。"
+    },
+    "PHASE_CHARGE": {
+      "label": "相位炸弹",
+      "description": "采用读取行为配置的相位近炸行为。"
+    },
+    "PHASE_MINE": {
+      "label": "相位地雷",
+      "description": "采用读取行为配置的相位制导近炸行为。"
+    },
+    "NO_AI": {
+      "label": "无预设制导",
+      "description": "采用无预设导弹 AI 的类型，由其它配置或脚本决定行为。"
+    }
+  }
+}

@@ -1,0 +1,50 @@
+{
+  "$schema": "pyxis-ad-astra/value-catalog/v1",
+  "id": "description-types",
+  "values": {
+    "ACTION_TOOLTIP": {
+      "label": "动作提示",
+      "description": "为动作提供提示文本。"
+    },
+    "ASTEROID": {
+      "label": "小行星",
+      "description": "为小行星类型提供说明文本。"
+    },
+    "CUSTOM": {
+      "label": "自定义",
+      "description": "供按自定义类型查询的说明文本使用。"
+    },
+    "FACTION": {
+      "label": "势力",
+      "description": "为势力提供说明文本。"
+    },
+    "GALLERY": {
+      "label": "画廊",
+      "description": "为画廊条目提供说明文本。"
+    },
+    "PLANET": {
+      "label": "行星",
+      "description": "为行星类型提供说明文本。"
+    },
+    "RESOURCE": {
+      "label": "资源",
+      "description": "为商品等资源提供说明文本。"
+    },
+    "SHIP": {
+      "label": "舰船",
+      "description": "为舰船提供说明文本。"
+    },
+    "SHIP_SYSTEM": {
+      "label": "战术系统",
+      "description": "为舰船战术系统提供说明文本。"
+    },
+    "TERRAIN": {
+      "label": "地形",
+      "description": "为战役地图地形提供说明文本。"
+    },
+    "WEAPON": {
+      "label": "武器",
+      "description": "为武器提供说明文本。"
+    }
+  }
+}

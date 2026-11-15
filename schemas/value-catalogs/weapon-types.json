@@ -1,0 +1,54 @@
+{
+  "$schema": "pyxis-ad-astra/value-catalog/v1",
+  "id": "weapon-types",
+  "values": {
+    "BALLISTIC": {
+      "label": "实弹",
+      "description": "实弹武器类别；实弹槽位接纳对应类别的武器。"
+    },
+    "ENERGY": {
+      "label": "能量",
+      "description": "能量武器类别；能量槽位接纳对应类别的武器。"
+    },
+    "MISSILE": {
+      "label": "导弹",
+      "description": "导弹武器类别；导弹槽位接纳对应类别的武器。"
+    },
+    "HYBRID": {
+      "label": "混合",
+      "description": "混合槽位，可安装实弹或能量武器。"
+    },
+    "UNIVERSAL": {
+      "label": "通用",
+      "description": "通用槽位，可安装实弹、能量或导弹武器。"
+    },
+    "SYNERGY": {
+      "label": "协同",
+      "description": "协同槽位，可安装能量或导弹武器。"
+    },
+    "COMPOSITE": {
+      "label": "复合",
+      "description": "复合槽位，可安装实弹或导弹武器。"
+    },
+    "BUILT_IN": {
+      "label": "内置",
+      "description": "用于由舰船配置固定提供的内置武器。"
+    },
+    "DECORATIVE": {
+      "label": "装饰",
+      "description": "用于装饰性武器或槽位。"
+    },
+    "SYSTEM": {
+      "label": "战术系统",
+      "description": "用于与舰船战术系统关联的武器。"
+    },
+    "STATION_MODULE": {
+      "label": "舰船模块",
+      "description": "用于挂载独立舰船模块的槽位。"
+    },
+    "LAUNCH_BAY": {
+      "label": "战机甲板",
+      "description": "用于战机起降的甲板槽位。"
+    }
+  }
+}

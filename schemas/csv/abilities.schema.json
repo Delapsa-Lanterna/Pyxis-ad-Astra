@@ -25,7 +25,20 @@
       "summary": true,
       "label": "Tags 标签",
       "control": "tags",
-      "source": "csv:abilities.tags"
+      "source": "csv:abilities.tags",
+      "optionCatalog": "ability-tags",
+      "suggestions": [
+        "codex_unlockable",
+        "hide_in_codex",
+        "invisible_in_codex",
+        "burn+",
+        "burn-",
+        "disabled_by_interdict",
+        "sensors+",
+        "sensors-",
+        "stealth+",
+        "stealth-"
+      ]
     },
     {
       "key": "activationDays",

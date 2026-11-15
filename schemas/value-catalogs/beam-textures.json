@@ -1,0 +1,34 @@
+{
+  "$schema": "pyxis-ad-astra/value-catalog/v1",
+  "id": "beam-textures",
+  "values": {
+    "SMOOTH": {
+      "label": "平滑",
+      "description": "采用平滑的预设光束纹理。"
+    },
+    "MEDIUM": {
+      "label": "中等粗糙",
+      "description": "采用中等粗糙程度的预设光束纹理。"
+    },
+    "ROUGH": {
+      "label": "粗糙",
+      "description": "采用粗糙的预设光束纹理。"
+    },
+    "CHUNKY": {
+      "label": "块状",
+      "description": "采用带块状结构的预设光束纹理。"
+    },
+    "ROUGH2": {
+      "label": "粗糙变体",
+      "description": "采用另一组粗糙预设光束纹理。"
+    },
+    "WEAVE": {
+      "label": "编织",
+      "description": "采用带编织结构的预设光束纹理。"
+    },
+    "LASER": {
+      "label": "激光",
+      "description": "采用激光样式的预设光束纹理。"
+    }
+  }
+}

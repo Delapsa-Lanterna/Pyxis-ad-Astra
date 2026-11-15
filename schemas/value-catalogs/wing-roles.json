@@ -1,0 +1,26 @@
+{
+  "$schema": "pyxis-ad-astra/value-catalog/v1",
+  "id": "wing-roles",
+  "values": {
+    "FIGHTER": {
+      "label": "战斗机",
+      "description": "采用战斗机的联队作战职责。"
+    },
+    "INTERCEPTOR": {
+      "label": "截击机",
+      "description": "采用以拦截导弹和敌方战机为主的联队作战职责。"
+    },
+    "BOMBER": {
+      "label": "轰炸机",
+      "description": "采用轰炸机的攻击、投弹和返航职责。"
+    },
+    "ASSAULT": {
+      "label": "突击机",
+      "description": "采用突击型联队的作战职责。"
+    },
+    "SUPPORT": {
+      "label": "支援机",
+      "description": "采用围绕所属舰船提供支援的联队职责。"
+    }
+  }
+}

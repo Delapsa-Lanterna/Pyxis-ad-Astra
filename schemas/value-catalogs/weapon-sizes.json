@@ -1,0 +1,18 @@
+{
+  "$schema": "pyxis-ad-astra/value-catalog/v1",
+  "id": "weapon-sizes",
+  "values": {
+    "SMALL": {
+      "label": "小型",
+      "description": "小型武器或武器槽位。"
+    },
+    "MEDIUM": {
+      "label": "中型",
+      "description": "中型武器或武器槽位。"
+    },
+    "LARGE": {
+      "label": "大型",
+      "description": "大型武器或武器槽位。"
+    }
+  }
+}

@@ -19,7 +19,16 @@
       "summary": true,
       "label": "Tags 标签",
       "control": "tags",
-      "source": "csv:marketConditions.tags"
+      "source": "csv:marketConditions.tags",
+      "optionCatalog": "market-condition-tags",
+      "suggestions": [
+        "codex_unlockable",
+        "show_in_codex",
+        "hide_in_codex",
+        "invisible_in_codex",
+        "planet_search",
+        "show_in_planet_list"
+      ]
     },
     {
       "key": "planetary",

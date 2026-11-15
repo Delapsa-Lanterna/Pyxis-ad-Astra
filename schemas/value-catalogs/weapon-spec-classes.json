@@ -1,0 +1,14 @@
+{
+  "$schema": "pyxis-ad-astra/value-catalog/v1",
+  "id": "weapon-spec-classes",
+  "values": {
+    "projectile": {
+      "label": "弹体武器",
+      "description": "通过引用的弹体规格发射弹体或导弹。"
+    },
+    "beam": {
+      "label": "光束武器",
+      "description": "采用光束武器的纹理、颜色及发射规则。"
+    }
+  }
+}

@@ -20,7 +20,54 @@
       "summary": true,
       "label": "Tags 标签",
       "control": "tags",
-      "source": "csv:wings.tags"
+      "source": "csv:wings.tags",
+      "optionCatalog": "wing-tags",
+      "suggestions": [
+        "base_bp",
+        "hist1t",
+        "ind",
+        "no_sell",
+        "rare_bp",
+        "remnant",
+        "no_bp_drop",
+        "codex_unlockable",
+        "merc",
+        "restricted",
+        "swarm_fighter",
+        "no_drop",
+        "attack_at_an_angle",
+        "auto_fighter",
+        "bomber",
+        "drone",
+        "fighter",
+        "high",
+        "independent_of_carrier",
+        "interceptor",
+        "leader_no_swarm",
+        "low",
+        "match_leader_facing",
+        "mid",
+        "rapid_reform",
+        "stay_in_front_of_ship",
+        "wingmen_no_swarm",
+        "support",
+        "keep_at_range",
+        "target_escort_target",
+        "hide_in_codex",
+        "invisible_in_codex",
+        "LP_bp",
+        "hightech_bp",
+        "lowtech_bp",
+        "midline_bp",
+        "pirate_bp",
+        "missile_bp"
+      ],
+      "optionPatterns": [
+        "fighter",
+        "interceptor",
+        "bomber",
+        "support"
+      ]
     },
     {
       "key": "tier",
@@ -57,7 +104,8 @@
         "V",
         "BOX",
         "DIAMOND"
-      ]
+      ],
+      "optionCatalog": "wing-formations"
     },
     {
       "key": "range",
@@ -95,7 +143,8 @@
         "BOMBER",
         "ASSAULT",
         "SUPPORT"
-      ]
+      ],
+      "optionCatalog": "wing-roles"
     },
     {
       "key": "role desc",

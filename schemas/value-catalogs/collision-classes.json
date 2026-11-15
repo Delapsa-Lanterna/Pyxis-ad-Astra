@@ -1,0 +1,74 @@
+{
+  "$schema": "pyxis-ad-astra/value-catalog/v1",
+  "id": "collision-classes",
+  "values": {
+    "NONE": {
+      "label": "无碰撞",
+      "description": "采用无碰撞交互的类别。"
+    },
+    "RAY": {
+      "label": "光束",
+      "description": "采用光束的碰撞规则。"
+    },
+    "RAY_FIGHTER": {
+      "label": "战机光束",
+      "description": "采用战机发射光束的碰撞规则。"
+    },
+    "FIGHTER": {
+      "label": "战机",
+      "description": "采用战机实体的碰撞规则。"
+    },
+    "SHIP": {
+      "label": "舰船",
+      "description": "采用舰船实体的碰撞规则。"
+    },
+    "PROJECTILE_NO_FF": {
+      "label": "弹体免友伤",
+      "description": "采用免除友方命中的普通弹体碰撞规则。"
+    },
+    "PROJECTILE_FF": {
+      "label": "弹体可友伤",
+      "description": "采用允许命中友方的普通弹体碰撞规则。"
+    },
+    "MISSILE_NO_FF": {
+      "label": "导弹免友伤",
+      "description": "采用免除友方命中的导弹碰撞规则。"
+    },
+    "MISSILE_FF": {
+      "label": "导弹可友伤",
+      "description": "采用允许命中友方的导弹碰撞规则。"
+    },
+    "HITS_SHIPS_AND_ASTEROIDS": {
+      "label": "命中舰船与小行星",
+      "description": "采用针对舰船和小行星的碰撞规则。"
+    },
+    "HITS_SHIPS_ONLY_FF": {
+      "label": "仅命中舰船且可友伤",
+      "description": "采用仅针对舰船并允许命中友方的碰撞规则。"
+    },
+    "HITS_SHIPS_ONLY_NO_FF": {
+      "label": "仅命中舰船且免友伤",
+      "description": "采用仅针对舰船并免除友方命中的碰撞规则。"
+    },
+    "PROJECTILE_FIGHTER": {
+      "label": "战机弹体",
+      "description": "采用战机弹体的碰撞规则。"
+    },
+    "ASTEROID": {
+      "label": "小行星",
+      "description": "采用小行星实体的碰撞规则。"
+    },
+    "PLANET": {
+      "label": "行星",
+      "description": "采用行星实体的碰撞规则。"
+    },
+    "GAS_CLOUD": {
+      "label": "气体云",
+      "description": "采用气体云实体的碰撞规则。"
+    },
+    "STAR": {
+      "label": "恒星",
+      "description": "采用恒星实体的碰撞规则。"
+    }
+  }
+}

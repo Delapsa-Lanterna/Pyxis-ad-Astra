@@ -19,7 +19,30 @@
       "summary": true,
       "label": "Tags 标签",
       "control": "tags",
-      "source": "csv:specialItems.tags"
+      "source": "csv:specialItems.tags",
+      "optionCatalog": "special-item-tags",
+      "suggestions": [
+        "codex_unlockable",
+        "hist3t",
+        "monster",
+        "threat",
+        "no_drop",
+        "hide_in_codex",
+        "invisible_in_codex",
+        "colony_item",
+        "mission_item",
+        "modspec",
+        "nanoforge",
+        "package_bp",
+        "pather4",
+        "pather8",
+        "single_bp",
+        "pather1",
+        "pather2",
+        "pather6",
+        "pather10",
+        "planet_search"
+      ]
     },
     {
       "key": "tech/manufacturer",
@@ -65,7 +88,8 @@
         "MEDIUM",
         "HIGH",
         "EXTREME"
-      ]
+      ],
+      "optionCatalog": "raid-danger-levels"
     },
     {
       "key": "icon",

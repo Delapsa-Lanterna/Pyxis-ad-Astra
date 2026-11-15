@@ -12,7 +12,8 @@
       <n-select
         v-if="field.key === 'textureType' && field.options"
         :value="Array.isArray(value(field)) ? '自定义' : value(field)"
-        :options="toOptions([...field.options, '自定义'])"
+        :options="[...schemaCatalogOptions(field), { label: '自定义', value: '自定义' }]"
+        :render-label="renderOption"
         filterable
         @update:value="$emit('update', path(field), $event === '自定义' ? ['', ''] : $event)"
       />
@@ -52,11 +53,11 @@
   </div>
 </template>
 <script setup lang="ts">
-import { computed, inject } from 'vue';
+import { computed, h, inject } from 'vue';
 import SchemaValueInput from '@/app/components/field-editor/SchemaValueInput.vue';
 import { specSchemaContext } from '@/app/composables/spec-editor/spec-schema-context';
 import FieldRow from '@/shared/ui/FieldRow.vue';
-import { toOptions } from '@/domain/editors/lib/editor-constants';
+import { schemaCatalogOptions } from '@/domain/schema/value-catalogs';
 import { fieldSchemaForContext } from '@/domain/field-editor/field-editor-context';
 import { schemaCollection, schemaFieldRequired } from '@/domain/schema/schema-values';
 import { specFieldParent } from '@/domain/spec-editor/spec-fields';
@@ -93,4 +94,7 @@ const stored = (field: Pick<FieldSchema, 'key'>) => {
   return parent[key];
 };
 const value = (field: FieldSchema) => stored(field) ?? (field.required ? undefined : field.default);
+function renderOption(option: { label: string; description?: string }) {
+  return h('span', { title: option.description ?? undefined }, option.label);
+}
 </script>

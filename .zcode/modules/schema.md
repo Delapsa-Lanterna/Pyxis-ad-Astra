@@ -22,10 +22,12 @@
 - `schemas/spec-system.schema.json`：战术系统字段、默认值及条件分组声明。
 - `schemas/spec-weapon.schema.json`：武器字段及前后端共同消费的保存约束。
 - `schemas/strings.schema.json`：分组字符串与根级文本的文件表单。
+- `schemas/value-catalogs/`：按取值作用域维护固定值、已知标签的名称、说明与数字模板。
 - `schemas/variant.schema.json`：装配字段模式资产。
 - `src-tauri/src/domain/csv_column_order.rs`：从唯一 CSV schema 提取标准列并维护补列顺序。
 - `src-tauri/src/domain/schema.rs`：字段完整性、分支、类型和条件校验。
 - `src-tauri/src/domain/schema_sources.rs`：配置字段来源、相对路径及对象分组声明。
+- `src-tauri/src/domain/value_catalogs.rs`：按 CSV 字段声明装配取值目录、名称、说明与数字模板。
 - `src/domain/schema/`：字段与列资产加载、来源声明、值及结构纯规则。
 
 ### 消费
@@ -87,3 +89,4 @@
 - 配置字段来源消费前后端对应的 CONFIG_FIELD_SOURCES，来源名称、相对路径和对象分组保持一致。
 - Spec 字段、分组、取值与保存约束必须声明在 schemas 资产；定义、嵌套与分支的来源共同校验，展示条件支持当前文档路径、正数判断与任一分支。
 - 静态字段定义合并必须消费当前 Core 根的发现结果，发现失败时保留静态 schema。
+- 取值目录必须按语义作用域拆分，字段通过 `optionCatalog` 引用；固定可用值及顺序由 `options` 声明，开放标签推荐值及模板顺序分别由 `suggestions` 与 `optionPatterns` 声明；目录只维护值的名称、说明及模板内容。

@@ -1,0 +1,270 @@
+{
+  "$schema": "pyxis-ad-astra/value-catalog/v1",
+  "id": "weapon-tags",
+  "values": {
+    "base_bp": {
+      "label": "基础蓝图",
+      "description": "原版势力和玩家初始拥有的蓝图会包括带有此标记的舰船、武器和战机联队。"
+    },
+    "hist1t": {
+      "label": "历史学家蓝图 1 阶",
+      "description": "历史学家事件按蓝图等级筛选候选时使用；此标记对应第 1 阶。"
+    },
+    "ind": {
+      "label": "独立势力装备",
+      "description": "用于把舰船、武器或战机联队列入独立势力及相关舰队的已知装备。"
+    },
+    "no_sell": {
+      "label": "不在市场出售",
+      "description": "市场库存和相关生产候选会排除带有此标记的内容；具体规则取决于所属类型。"
+    },
+    "rare_bp": {
+      "label": "稀有蓝图",
+      "description": "将内容列入稀有蓝图候选；能否实际获得还取决于对应的蓝图掉落组。"
+    },
+    "remnant": {
+      "label": "余辉装备",
+      "description": "用于把舰船、武器和战机联队列入余辉势力的已知装备及相关筛选。"
+    },
+    "no_bp_drop": {
+      "label": "劫掠时不掉落蓝图",
+      "description": "殖民地劫掠不会从带有此标记的舰船、武器或战机联队中取得蓝图。"
+    },
+    "codex_unlockable": {
+      "label": "数据百科待解锁",
+      "description": "该内容在数据百科中的锁定状态由玩家是否接触或获得相关内容决定。"
+    },
+    "dweller": {
+      "label": "渊幕原种",
+      "description": "标记渊幕原种相关的舰船、武器或船体插件；专属 AI、物品兑换和其它相关规则会据此处理。"
+    },
+    "fragment": {
+      "label": "碎片单位",
+      "description": "标记碎片势力相关的舰船、武器或船体插件；具体效果由相应内容决定。"
+    },
+    "merc": {
+      "label": "雇佣兵装备",
+      "description": "用于把舰船、武器、战机联队或船体插件列入雇佣兵势力的已知装备。"
+    },
+    "monster": {
+      "label": "特殊单位",
+      "description": "用于归类特殊舰船、武器和物品；具体用途由相关游戏内容决定。"
+    },
+    "no_dealer": {
+      "label": "蓝图商人不出售",
+      "description": "蓝图商人生成交易库存时会排除带有此标记的舰船或武器。"
+    },
+    "omega": {
+      "label": "欧米伽内容",
+      "description": "标记欧米伽相关的舰船或武器，供势力装备知识及舰船生成规则识别。"
+    },
+    "restricted": {
+      "label": "受限内容",
+      "description": "用于标记受特殊规则限制的内容；生产、候选筛选和数据百科收录会按所属类型处理。"
+    },
+    "threat": {
+      "label": "威胁势力",
+      "description": "标记威胁势力相关的舰船、武器、船体插件或特殊物品；舰船还会使用该势力对应的 AI。"
+    },
+    "LR": {
+      "label": "远程武器",
+      "description": "自动装配为武器槽挑选替代武器时，会把此武器归入远程类别。"
+    },
+    "SR": {
+      "label": "近程武器",
+      "description": "自动装配为武器槽挑选替代武器时，会把此武器归入近程类别。"
+    },
+    "damage_soft_flux": {
+      "label": "按光束武器显示伤害",
+      "description": "武器说明按光束武器的方式展示伤害；与特殊伤害标记同时使用时，也会影响数据百科中的相关武器关联。"
+    },
+    "damage_special": {
+      "label": "显示特殊伤害",
+      "description": "武器说明以 \"特殊\" 代替常规伤害数据，并参与数据百科中的特殊武器关联。"
+    },
+    "fires_one_burst": {
+      "label": "开火时计入剩余齐射时间",
+      "description": "武器正在开火时，AI 会把当前齐射尚未完成的时间计入火力评估。"
+    },
+    "fixed_range": {
+      "label": "不受常规射程加成影响",
+      "description": "该武器不会获得舰船属性提供的常规射程倍率和固定射程加成。"
+    },
+    "fragment_glow": {
+      "label": "碎片发光武器",
+      "description": "标记碎片的发光武器；碎片集群相关脚本会据此处理武器弹药。"
+    },
+    "lidar": {
+      "label": "激光雷达武器",
+      "description": "标记与激光雷达阵列战术系统配套的武器。"
+    },
+    "no_standard_data": {
+      "label": "不显示常规武器数据",
+      "description": "武器说明不展示常规数据栏，改由该武器自己的内容提供说明。"
+    },
+    "nova": {
+      "label": "新星系统武器",
+      "description": "标记由新星爆裂驱动器使用的装饰武器，供系统识别和处理。"
+    },
+    "pusherplate": {
+      "label": "推进板装饰武器",
+      "description": "标记与推进板系统配套的装饰武器。"
+    },
+    "reload_1_and_a_half_pt": {
+      "label": "自动装填消耗 1.5 点",
+      "description": "导弹自动装填机为该武器补充弹药时，每次装填消耗 1.5 点装填资源。"
+    },
+    "reload_3pt": {
+      "label": "自动装填消耗 3 点",
+      "description": "导弹自动装填机为该武器补充弹药时，每次装填消耗 3 点装填资源。"
+    },
+    "reload_1pt": {
+      "label": "自动装填消耗 1 点",
+      "description": "导弹自动装填机为该武器补充弹药时，每次装填消耗 1 点装填资源。"
+    },
+    "reload_2pt": {
+      "label": "自动装填消耗 2 点",
+      "description": "导弹自动装填机为该武器补充弹药时，每次装填消耗 2 点装填资源。"
+    },
+    "reload_4pt": {
+      "label": "自动装填消耗 4 点",
+      "description": "导弹自动装填机为该武器补充弹药时，每次装填消耗 4 点装填资源。"
+    },
+    "reload_5pt": {
+      "label": "自动装填消耗 5 点",
+      "description": "导弹自动装填机为该武器补充弹药时，每次装填消耗 5 点装填资源。"
+    },
+    "reload_6pt": {
+      "label": "自动装填消耗 6 点",
+      "description": "导弹自动装填机为该武器补充弹药时，每次装填消耗 6 点装填资源。"
+    },
+    "no_reload": {
+      "label": "不由自动装填机补充",
+      "description": "导弹自动装填机不会为该武器补充弹药。"
+    },
+    "overseer_charge": {
+      "label": "督战单元充能武器",
+      "description": "督战单元的集群模式会按此标记为武器恢复弹药；需配合对应机制使用。"
+    },
+    "overseer_charge_fighter": {
+      "label": "战机督战单元充能武器",
+      "description": "当武器属于战机时，督战单元的集群模式会按此标记为武器恢复弹药。"
+    },
+    "codex_require_related": {
+      "label": "数据百科关联解锁",
+      "description": "数据百科按关联条目的可见及解锁状态决定此条目的可见与锁定状态。"
+    },
+    "no_drop": {
+      "label": "不会作为常规战利品出现",
+      "description": "所属类型的常规战利品生成会排除带有此标记的内容；具体规则因内容类型而异。"
+    },
+    "no_drop_salvage": {
+      "label": "不会出现在打捞物中",
+      "description": "原版打捞掉落会排除带有此标记的武器和船体插件。"
+    },
+    "show_in_codex": {
+      "label": "显示在数据百科中",
+      "description": "参与船体插件、武器、技能或市场条件的数据百科收录判断；最终是否显示还取决于其它条件。"
+    },
+    "hide_in_codex": {
+      "label": "不显示在数据百科中",
+      "description": "数据百科建立相应类别的目录时会跳过带有此标记的内容。"
+    },
+    "invisible_in_codex": {
+      "label": "在数据百科目录中隐藏",
+      "description": "该条目不会出现在常规目录中，但仍可由游戏直接打开。"
+    },
+    "LP_bp": {
+      "label": "卢德左径蓝图包",
+      "description": "用于收集卢德左径蓝图包内的舰船、武器和战机联队。"
+    },
+    "hightech_bp": {
+      "label": "高新技术蓝图包",
+      "description": "用于收集高新技术蓝图包内的舰船、武器和战机联队。"
+    },
+    "lowtech_bp": {
+      "label": "低端技术蓝图包",
+      "description": "用于收集低端技术蓝图包内的舰船、武器和战机联队。"
+    },
+    "midline_bp": {
+      "label": "中线技术蓝图包",
+      "description": "用于收集中线技术蓝图包内的舰船、武器和战机联队。"
+    },
+    "pirate_bp": {
+      "label": "海盗蓝图包",
+      "description": "用于收集海盗蓝图包内的舰船、武器和战机联队。"
+    },
+    "missile_bp": {
+      "label": "导弹蓝图包",
+      "description": "用于收集导弹蓝图包内的武器。"
+    }
+  },
+  "patterns": [
+    {
+      "prefix": "kinetic",
+      "max": 99,
+      "label": "动能",
+      "description": "用于自动装配的动能武器类别；末尾数字表示替代等级，范围为 0～99。"
+    },
+    {
+      "prefix": "he",
+      "max": 99,
+      "label": "高爆",
+      "description": "用于自动装配的高爆武器类别；末尾数字表示替代等级，范围为 0～99。"
+    },
+    {
+      "prefix": "energy",
+      "max": 99,
+      "label": "能量",
+      "description": "用于自动装配的能量武器类别；末尾数字表示替代等级，范围为 0～99。"
+    },
+    {
+      "prefix": "missile",
+      "max": 99,
+      "label": "导弹",
+      "description": "用于自动装配的导弹类别；末尾数字表示替代等级，范围为 0～99。"
+    },
+    {
+      "prefix": "beam",
+      "max": 99,
+      "label": "光束",
+      "description": "用于自动装配的光束武器类别；末尾数字表示替代等级，范围为 0～99。"
+    },
+    {
+      "prefix": "pd",
+      "max": 99,
+      "label": "点防御",
+      "description": "用于自动装配的点防御类别；末尾数字表示替代等级，范围为 0～99。"
+    },
+    {
+      "prefix": "strike",
+      "max": 99,
+      "label": "打击",
+      "description": "用于自动装配的打击武器类别；末尾数字表示替代等级，范围为 0～99。"
+    },
+    {
+      "prefix": "rocket",
+      "max": 99,
+      "label": "火箭",
+      "description": "用于自动装配的火箭武器类别；末尾数字表示替代等级，范围为 0～99。"
+    },
+    {
+      "prefix": "utility",
+      "max": 99,
+      "label": "功能武器",
+      "description": "用于自动装配的功能武器类别；末尾数字表示替代等级，范围为 0～99。"
+    },
+    {
+      "prefix": "swarm",
+      "max": 99,
+      "label": "集群武器",
+      "description": "用于自动装配的集群武器类别；末尾数字表示替代等级，范围为 0～99。"
+    },
+    {
+      "prefix": "substrate_",
+      "max": 2147483647,
+      "label": "渊幕基质消耗量",
+      "description": "表示兑换此武器所需的渊幕基质数量；兑换要求武器同时带有渊幕原种标记。"
+    }
+  ]
+}

@@ -32,7 +32,8 @@
             "PARTICLES",
             "QUAD_STRIP"
           ],
-          "default": "PARTICLES"
+          "default": "PARTICLES",
+          "optionCatalog": "engine-particle-modes"
         },
         {
           "key": "engineColor",
@@ -190,7 +191,8 @@
           "options": [
             "GLOW",
             "SMOKE"
-          ]
+          ],
+          "optionCatalog": "engine-particle-types"
         }
       ],
       "default": {

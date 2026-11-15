@@ -1,0 +1,18 @@
+{
+  "$schema": "pyxis-ad-astra/value-catalog/v1",
+  "id": "engine-particle-modes",
+  "values": {
+    "NONE": {
+      "label": "无尾迹",
+      "description": "采用无尾迹的显示模式。"
+    },
+    "PARTICLES": {
+      "label": "粒子尾迹",
+      "description": "采用离散粒子绘制尾迹。"
+    },
+    "QUAD_STRIP": {
+      "label": "条带尾迹",
+      "description": "采用连续条带绘制尾迹。"
+    }
+  }
+}

@@ -8,17 +8,17 @@
 
 ### 拥有
 
-- `schemas/well-known-labels.json`：原版候选 tags、hints、UI 标签及数字模板元数据。
 - `src-tauri/src/commands/source_catalog.rs`：字段候选与图片目录查询 command。
-- `src-tauri/src/domain/well_known_labels.rs`：候选已知值、范围标签与数字模板的纯目录。
 - `src-tauri/src/services/project/query/source_catalog.rs`：候选查询的所属职责模块登记。
 - `src-tauri/src/services/project/query/source_catalog/`：值候选、图片目录、来源分组与标签元数据查询。
 - `src/services/source-catalog.service.ts`：正式查询参数、缓存身份、实时图片读取和所属失效。
 
 ### 消费
 
+- `schemas/value-catalogs/`：消费 schema 所引用的取值名称、说明及数字模板。
 - `src-tauri/src/domain/entity_definitions.rs`：实体与表格的对应关系及游戏身份跳过规则。
 - `src-tauri/src/domain/schema_sources.rs`：配置字段来源的相对路径及对象分组声明。
+- `src-tauri/src/domain/value_catalogs.rs`：消费按字段可用值及顺序装配的 CSV 取值目录。
 - `src-tauri/src/models/source_catalog.rs`：候选请求、选项、来源分组及模板的公共协议。
 - `src-tauri/src/services/project/definitions/entity_definitions.rs`：实体来源和列表定义。
 - `src-tauri/src/services/project/model.rs`：会话内容、EntityListEntry、表格定义及引用视图。
@@ -43,7 +43,7 @@
 - 候选查询拥有范围、来源优先级、去重、分组、标签与资源投影。
 - 会话拥有授权根、正式内容及引用顺序，候选查询消费捕获的就绪状态。
 - 通用查询框架拥有共享任务与缓存，业务查询定义拥有身份和失效条件。
-- 已知值资产按表列交付标签和模板，动态蓝图标签来自实际项目内容。
+- 取值目录按字段 schema 的引用、固定值或推荐值及模板顺序交付标签，动态蓝图标签来自实际项目内容。
 - 候选查询消费字段来源声明的名称、配置路径及对象分组，配置失效由目录解释实际资源变化。
 - 图片目录读取捕获所属根并执行路径授权，只交付实际路径元数据。
 
@@ -62,7 +62,7 @@
 - 目录必须按本地、有序引用 Mod、原版的优先级去重；来源身份、完整候选值及实际顺序保留。
 - CSV 来源消费正式非注释记录及所属业务身份规则；关联独立规格的 ID 候选与引用检查共用实际规格身份索引，非 ID 多值按原分隔规则交付。
 - 授权图片必须通过正式资源能力投影，图片目录查询只允许返回路径元数据。
-- 已知值和数字模板按表列隔离，动态标签消费实际来源内容。
+- 取值名称和数字模板必须消费字段引用的作用域目录，候选中的目录值及数字模板必须按所属 schema 声明排序，动态标签消费实际来源内容。
 - 候选失效必须共同消费正式 query scope 与配置资源范围，缓存和字段刷新调用同一判定，实时读取沿所属框架结束等待。
 - Bundled schema 的 `config:` 来源必须属于正式配置目录登记，声音、设计类型、船体样式与引擎样式按当前 Mod 优先和原版补全交付候选。
 - 原版 tags、hints 与 UI 标签按 Starsector 版本及完整表列 source 查询；数字规则通过独立模板选项交付默认输入值与有效上限，选择填入标签自定义输入，并经所属 FieldInputs 提交；具体数字说明来自匹配的来源规则。

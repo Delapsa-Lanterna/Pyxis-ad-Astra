@@ -1,6 +1,7 @@
 import type { ResourceRef, ResourceSource, SourceOptionGroup } from '@/shared/types';
 import { pathBasename } from '@/shared/lib/paths';
 import type { FieldSchema } from '@/domain/schema/schema.types';
+import { schemaCatalogOptions } from '@/domain/schema/value-catalogs';
 import type { DeepReadonly } from '@/shared/types';
 import { schemaArrayStringValues, schemaKeyValueEntries, schemaStringValue, schemaTagValues } from '@/domain/schema/schema-values';
 
@@ -106,8 +107,8 @@ export function includeCurrentSelectOptions(
   ];
 }
 
-export function schemaSelectOptions(field: FieldSchema, sourceOptions: SelectOption[]): SelectOption[] {
-  if (field.options && field.options.length > 0) return field.options.map((option) => ({ label: option, value: option }));
+export function schemaSelectOptions(field: Pick<FieldSchema, 'options' | 'optionCatalog'>, sourceOptions: SelectOption[]): SelectOption[] {
+  if (field.options && field.options.length > 0) return schemaCatalogOptions(field);
   return sourceOptions;
 }
 

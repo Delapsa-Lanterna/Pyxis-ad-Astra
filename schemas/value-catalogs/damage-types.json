@@ -1,0 +1,26 @@
+{
+  "$schema": "pyxis-ad-astra/value-catalog/v1",
+  "id": "damage-types",
+  "values": {
+    "ENERGY": {
+      "label": "能量",
+      "description": "对护盾、装甲和船体均造成 100% 伤害。"
+    },
+    "KINETIC": {
+      "label": "动能",
+      "description": "对护盾造成 200% 伤害，对装甲造成 50% 伤害，对船体造成 100% 伤害。"
+    },
+    "HIGH_EXPLOSIVE": {
+      "label": "高爆",
+      "description": "对装甲造成 200% 伤害，对护盾造成 50% 伤害，对船体造成 100% 伤害。"
+    },
+    "FRAGMENTATION": {
+      "label": "破片",
+      "description": "对护盾和装甲造成 25% 伤害，对船体造成 100% 伤害。"
+    },
+    "OTHER": {
+      "label": "其它",
+      "description": "用于发射器等不适用常规伤害分类的内容。"
+    }
+  }
+}

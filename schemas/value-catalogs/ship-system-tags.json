@@ -1,0 +1,38 @@
+{
+  "$schema": "pyxis-ad-astra/value-catalog/v1",
+  "id": "ship-system-tags",
+  "values": {
+    "restricted": {
+      "label": "受限内容",
+      "description": "用于标记受特殊规则限制的内容；生产、候选筛选和数据百科收录会按所属类型处理。"
+    },
+    "hide_in_codex": {
+      "label": "不显示在数据百科中",
+      "description": "数据百科建立相应类别的目录时会跳过带有此标记的内容。"
+    },
+    "invisible_in_codex": {
+      "label": "在数据百科目录中隐藏",
+      "description": "该条目不会出现在常规目录中，但仍可由游戏直接打开。"
+    },
+    "defensive": {
+      "label": "防御类",
+      "description": "将船体插件或战术系统归入防御类别。"
+    },
+    "offensive": {
+      "label": "进攻类",
+      "description": "将船体插件或战术系统归入进攻类别。"
+    },
+    "movement": {
+      "label": "机动类战术系统",
+      "description": "将该战术系统归入机动类别。"
+    },
+    "uses_damper_ai": {
+      "label": "阻尼类战术系统",
+      "description": "战术系统 AI 选择和防御判断会按阻尼类系统处理。"
+    },
+    "disruptable": {
+      "label": "相位系统可被干扰",
+      "description": "相位系统效果会根据此标记判断能否被干扰。"
+    }
+  }
+}

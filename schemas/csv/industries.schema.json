@@ -60,7 +60,45 @@
       "summary": true,
       "label": "Tags 标签",
       "control": "tags",
-      "source": "csv:industries.tags"
+      "source": "csv:industries.tags",
+      "optionCatalog": "industry-tags",
+      "suggestions": [
+        "codex_unlockable",
+        "hide_in_codex",
+        "invisible_in_codex",
+        "battlestation",
+        "command",
+        "cryorevival",
+        "cryosanctum",
+        "farming",
+        "fuelprod",
+        "grounddefenses",
+        "heavyindustry",
+        "important",
+        "industrial",
+        "industry",
+        "lightindustry",
+        "mining",
+        "no_saturation_bombardment",
+        "parent_item",
+        "patrol",
+        "population",
+        "refining",
+        "rural",
+        "spaceport",
+        "starfortress",
+        "station",
+        "structure",
+        "sub_item",
+        "tactical_bombardment",
+        "techmining",
+        "unraidable",
+        "urban",
+        "uses_blueprints",
+        "waystation",
+        "do_not_show_in_build_dialog",
+        "military"
+      ]
     },
     {
       "key": "data",
@@ -103,7 +141,8 @@
         "MEDIUM",
         "HIGH",
         "EXTREME"
-      ]
+      ],
+      "optionCatalog": "raid-danger-levels"
     }
   ],
   "validation": {

@@ -1,0 +1,74 @@
+{
+  "$schema": "pyxis-ad-astra/value-catalog/v1",
+  "id": "commodity-tags",
+  "values": {
+    "codex_unlockable": {
+      "label": "数据百科待解锁",
+      "description": "该内容在数据百科中的锁定状态由玩家是否接触或获得相关内容决定。"
+    },
+    "no_drop": {
+      "label": "不会作为常规战利品出现",
+      "description": "所属类型的常规战利品生成会排除带有此标记的内容；具体规则因内容类型而异。"
+    },
+    "hide_in_codex": {
+      "label": "不显示在数据百科中",
+      "description": "数据百科建立相应类别的目录时会跳过带有此标记的内容。"
+    },
+    "invisible_in_codex": {
+      "label": "在数据百科目录中隐藏",
+      "description": "该条目不会出现在常规目录中，但仍可由游戏直接打开。"
+    },
+    "military": {
+      "label": "军用",
+      "description": "商品和殖民地设施使用的军用标记；在殖民地设施中表示军事设施类别。"
+    },
+    "ai_core": {
+      "label": "AI 核心",
+      "description": "将商品归入 AI 核心类别，供数据百科和货物规则识别。"
+    },
+    "crew": {
+      "label": "船员",
+      "description": "将商品归入船员类别，供货物和人员相关规则识别。"
+    },
+    "exotic": {
+      "label": "特殊商品",
+      "description": "将商品归入特殊商品类别。"
+    },
+    "expensive": {
+      "label": "高价值商品",
+      "description": "将商品归入高价值类别。"
+    },
+    "food": {
+      "label": "食品",
+      "description": "将商品归入食品类别。"
+    },
+    "luxury": {
+      "label": "奢侈品",
+      "description": "将商品归入奢侈品类别。"
+    },
+    "marines": {
+      "label": "陆战队员",
+      "description": "将商品归入陆战队员类别。"
+    },
+    "medical": {
+      "label": "医疗品",
+      "description": "将商品归入医疗品类别。"
+    },
+    "meta": {
+      "label": "抽象经济资源",
+      "description": "标记由经济系统处理的抽象商品，市场规则会据此识别其类别。"
+    },
+    "no_loss_from_combat": {
+      "label": "不会因战斗损失",
+      "description": "舰队战斗损失结算会保护带有此标记的商品。"
+    },
+    "nonecon": {
+      "label": "非经济商品",
+      "description": "将商品按非普通经济资源处理。"
+    },
+    "personnel": {
+      "label": "人员",
+      "description": "将商品归入人员类别。"
+    }
+  }
+}

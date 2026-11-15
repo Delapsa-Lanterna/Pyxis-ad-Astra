@@ -33,7 +33,8 @@
             "CAPITAL_SHIP",
             "FIGHTER"
           ],
-          "required": true
+          "required": true,
+          "optionCatalog": "hull-sizes"
         },
         {
           "key": "style",
@@ -208,7 +209,8 @@
             "MEDIUM",
             "LARGE"
           ],
-          "required": true
+          "required": true,
+          "optionCatalog": "weapon-sizes"
         },
         {
           "key": "type",
@@ -229,7 +231,8 @@
             "SYSTEM",
             "STATION_MODULE"
           ],
-          "required": true
+          "required": true,
+          "optionCatalog": "weapon-types"
         },
         {
           "key": "mount",
@@ -241,7 +244,8 @@
             "HARDPOINT",
             "HIDDEN"
           ],
-          "required": true
+          "required": true,
+          "optionCatalog": "mount-types"
         },
         {
           "key": "angle",

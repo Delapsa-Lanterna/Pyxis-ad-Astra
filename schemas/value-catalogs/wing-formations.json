@@ -1,0 +1,22 @@
+{
+  "$schema": "pyxis-ad-astra/value-catalog/v1",
+  "id": "wing-formations",
+  "values": {
+    "CLAW": {
+      "label": "爪形",
+      "description": "战机联队采用爪形编队。"
+    },
+    "V": {
+      "label": "V 形",
+      "description": "战机联队采用 V 形编队。"
+    },
+    "BOX": {
+      "label": "箱形",
+      "description": "战机联队采用箱形编队。"
+    },
+    "DIAMOND": {
+      "label": "菱形",
+      "description": "战机联队采用菱形编队。"
+    }
+  }
+}

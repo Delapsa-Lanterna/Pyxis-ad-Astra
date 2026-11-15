@@ -1,0 +1,138 @@
+{
+  "$schema": "pyxis-ad-astra/value-catalog/v1",
+  "id": "system-ai-types",
+  "values": {
+    "BURN_DRIVE": {
+      "label": "燃烧驱动器",
+      "description": "采用燃烧驱动器对应的系统 AI，决定电脑舰船使用系统的时机。"
+    },
+    "BURN_DRIVE_TOGGLE": {
+      "label": "持续燃烧驱动器",
+      "description": "采用持续燃烧驱动器对应的系统 AI，决定电脑舰船使用系统的时机。"
+    },
+    "MANEUVERING_JETS": {
+      "label": "机动喷射",
+      "description": "采用机动喷射对应的系统 AI，决定电脑舰船使用系统的时机。"
+    },
+    "FAST_RELOAD": {
+      "label": "快速装填",
+      "description": "采用快速装填对应的系统 AI，决定电脑舰船使用系统的时机。"
+    },
+    "AMMO_RELOAD": {
+      "label": "弹药补充",
+      "description": "采用弹药补充对应的系统 AI，决定电脑舰船使用系统的时机。"
+    },
+    "PHASE_CLOAK": {
+      "label": "相位隐匿",
+      "description": "采用相位隐匿对应的系统 AI，决定电脑舰船使用系统的时机。"
+    },
+    "PHASE_DISPLACER": {
+      "label": "相位位移",
+      "description": "采用相位位移对应的系统 AI，决定电脑舰船使用系统的时机。"
+    },
+    "FORTRESS_SHIELD": {
+      "label": "堡垒护盾",
+      "description": "采用堡垒护盾对应的系统 AI，决定电脑舰船使用系统的时机。"
+    },
+    "DAMPER_FIELD": {
+      "label": "阻尼力场",
+      "description": "采用阻尼力场对应的系统 AI，决定电脑舰船使用系统的时机。"
+    },
+    "HIGH_ENERGY_FOCUS": {
+      "label": "高能聚焦",
+      "description": "采用高能聚焦对应的系统 AI，决定电脑舰船使用系统的时机。"
+    },
+    "PHASE_TELEPORTER": {
+      "label": "相位传送",
+      "description": "采用相位传送对应的系统 AI，决定电脑舰船使用系统的时机。"
+    },
+    "PHASE_TELEPORTER_2": {
+      "label": "相位传送变体",
+      "description": "采用相位传送变体对应的系统 AI，决定电脑舰船使用系统的时机。"
+    },
+    "TEMPORAL_SHELL": {
+      "label": "时流之壳",
+      "description": "采用时流之壳对应的系统 AI，决定电脑舰船使用系统的时机。"
+    },
+    "ACAUSAL_DISRUPTOR": {
+      "label": "非因果干扰",
+      "description": "采用非因果干扰对应的系统 AI，决定电脑舰船使用系统的时机。"
+    },
+    "WEAPON_BOOST": {
+      "label": "武器增幅",
+      "description": "采用武器增幅对应的系统 AI，决定电脑舰船使用系统的时机。"
+    },
+    "DYNAMIC_STABILIZER": {
+      "label": "动态稳定",
+      "description": "采用动态稳定对应的系统 AI，决定电脑舰船使用系统的时机。"
+    },
+    "LIDAR_ARRAY": {
+      "label": "激光雷达阵列",
+      "description": "采用激光雷达阵列对应的系统 AI，决定电脑舰船使用系统的时机。"
+    },
+    "FLARE": {
+      "label": "热诱弹",
+      "description": "采用热诱弹对应的系统 AI，决定电脑舰船使用系统的时机。"
+    },
+    "FLARE_JAMMER": {
+      "label": "热诱弹干扰",
+      "description": "采用热诱弹干扰对应的系统 AI，决定电脑舰船使用系统的时机。"
+    },
+    "CANISTER_FLAK": {
+      "label": "霰射防空",
+      "description": "采用霰射防空对应的系统 AI，决定电脑舰船使用系统的时机。"
+    },
+    "DRONE_LAUNCHER_PD": {
+      "label": "点防御无人机",
+      "description": "采用点防御无人机对应的系统 AI，决定电脑舰船使用系统的时机。"
+    },
+    "DRONE_LAUNCHER_STANDARD": {
+      "label": "标准无人机",
+      "description": "采用标准无人机对应的系统 AI，决定电脑舰船使用系统的时机。"
+    },
+    "DRONE_STRIKE": {
+      "label": "无人机打击",
+      "description": "采用无人机打击对应的系统 AI，决定电脑舰船使用系统的时机。"
+    },
+    "RESERVE_DEPLOYMENT": {
+      "label": "预备机部署",
+      "description": "采用预备机部署对应的系统 AI，决定电脑舰船使用系统的时机。"
+    },
+    "MOTE_ATTRACTOR": {
+      "label": "微粒吸引",
+      "description": "采用微粒吸引对应的系统 AI，决定电脑舰船使用系统的时机。"
+    },
+    "ENTROPY_AMPLIFIER": {
+      "label": "熵放大",
+      "description": "采用熵放大对应的系统 AI，决定电脑舰船使用系统的时机。"
+    },
+    "INTERDICTOR": {
+      "label": "阻断脉冲",
+      "description": "采用阻断脉冲对应的系统 AI，决定电脑舰船使用系统的时机。"
+    },
+    "MINE_STRIKE": {
+      "label": "地雷打击",
+      "description": "采用地雷打击对应的系统 AI，决定电脑舰船使用系统的时机。"
+    },
+    "EMP": {
+      "label": "电磁脉冲",
+      "description": "采用电磁脉冲对应的系统 AI，决定电脑舰船使用系统的时机。"
+    },
+    "TARGETING_FEED": {
+      "label": "目标指示",
+      "description": "采用目标指示对应的系统 AI，决定电脑舰船使用系统的时机。"
+    },
+    "RECALL_DEVICE": {
+      "label": "召回装置",
+      "description": "采用召回装置对应的系统 AI，决定电脑舰船使用系统的时机。"
+    },
+    "CUSTOM": {
+      "label": "自定义 AI",
+      "description": "由配置的自定义 AI 脚本决定系统使用时机。"
+    },
+    "NONE": {
+      "label": "无预设 AI",
+      "description": "采用无预设系统 AI 的类型。"
+    }
+  }
+}

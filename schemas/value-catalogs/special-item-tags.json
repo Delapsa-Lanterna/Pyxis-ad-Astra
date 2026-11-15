@@ -1,0 +1,86 @@
+{
+  "$schema": "pyxis-ad-astra/value-catalog/v1",
+  "id": "special-item-tags",
+  "values": {
+    "codex_unlockable": {
+      "label": "数据百科待解锁",
+      "description": "该内容在数据百科中的锁定状态由玩家是否接触或获得相关内容决定。"
+    },
+    "hist3t": {
+      "label": "历史学家蓝图 3 阶",
+      "description": "历史学家事件按蓝图等级筛选候选时使用；此标记对应第 3 阶。"
+    },
+    "monster": {
+      "label": "特殊单位",
+      "description": "用于归类特殊舰船、武器和物品；具体用途由相关游戏内容决定。"
+    },
+    "threat": {
+      "label": "威胁势力",
+      "description": "标记威胁势力相关的舰船、武器、船体插件或特殊物品；舰船还会使用该势力对应的 AI。"
+    },
+    "no_drop": {
+      "label": "不会作为常规战利品出现",
+      "description": "所属类型的常规战利品生成会排除带有此标记的内容；具体规则因内容类型而异。"
+    },
+    "hide_in_codex": {
+      "label": "不显示在数据百科中",
+      "description": "数据百科建立相应类别的目录时会跳过带有此标记的内容。"
+    },
+    "invisible_in_codex": {
+      "label": "在数据百科目录中隐藏",
+      "description": "该条目不会出现在常规目录中，但仍可由游戏直接打开。"
+    },
+    "colony_item": {
+      "label": "殖民地设施物品",
+      "description": "标记可用于殖民地设施的特殊物品，供数据百科和殖民地物品目录识别。"
+    },
+    "mission_item": {
+      "label": "任务物品",
+      "description": "将该特殊物品归入任务物品类别。"
+    },
+    "modspec": {
+      "label": "船体插件蓝图",
+      "description": "标记包含船体插件蓝图的特殊物品；蓝图对应的插件由物品数据指定。"
+    },
+    "nanoforge": {
+      "label": "纳米锻炉",
+      "description": "将该特殊物品归入纳米锻炉类别。"
+    },
+    "package_bp": {
+      "label": "蓝图包",
+      "description": "标记蓝图包；物品数据指定包内舰船、武器和战机联队的匹配标签。"
+    },
+    "pather4": {
+      "label": "卢德左径关注度 4",
+      "description": "该物品为卢德左径关注度增加 4 点；同一物品只按原版顺序采用一个数值。"
+    },
+    "pather8": {
+      "label": "卢德左径关注度 8",
+      "description": "该物品为卢德左径关注度增加 8 点；同一物品只按原版顺序采用一个数值。"
+    },
+    "single_bp": {
+      "label": "单项蓝图",
+      "description": "标记只包含一项蓝图的特殊物品；数据百科按该蓝图对应的内容展示。"
+    },
+    "pather1": {
+      "label": "卢德左径关注度 1",
+      "description": "该物品为卢德左径关注度增加 1 点；同一物品只按原版顺序采用一个数值。"
+    },
+    "pather2": {
+      "label": "卢德左径关注度 2",
+      "description": "该物品为卢德左径关注度增加 2 点；同一物品只按原版顺序采用一个数值。"
+    },
+    "pather6": {
+      "label": "卢德左径关注度 6",
+      "description": "该物品为卢德左径关注度增加 6 点；同一物品只按原版顺序采用一个数值。"
+    },
+    "pather10": {
+      "label": "卢德左径关注度 10",
+      "description": "该物品为卢德左径关注度增加 10 点；同一物品只按原版顺序采用一个数值。"
+    },
+    "planet_search": {
+      "label": "行星搜索候选",
+      "description": "行星搜索会将带有此标记的特殊物品和市场条件加入搜索结果。"
+    }
+  }
+}

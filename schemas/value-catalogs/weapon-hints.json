@@ -1,0 +1,150 @@
+{
+  "$schema": "pyxis-ad-astra/value-catalog/v1",
+  "id": "weapon-hints",
+  "values": {
+    "ANTI_FTR": {
+      "label": "反战机",
+      "description": "允许武器 AI 将战机纳入攻击目标；实际目标范围还受点防御和打击类标记影响。"
+    },
+    "BOMB": {
+      "label": "炸弹攻击",
+      "description": "战机 AI 会按炸弹武器的规则选择攻击航线并判断开火时机。"
+    },
+    "CONSERVE_1": {
+      "label": "至少保留 1 轮弹药",
+      "description": "武器 AI 会尽量留出一轮齐射所需的弹药；是否开火还取决于目标、护盾和其它条件。"
+    },
+    "CONSERVE_3": {
+      "label": "至少保留 3 轮弹药",
+      "description": "武器 AI 会尽量留出三轮齐射所需的弹药；是否开火还取决于目标、护盾和其它条件。"
+    },
+    "CONSERVE_5": {
+      "label": "至少保留 5 轮弹药",
+      "description": "武器 AI 会尽量留出五轮齐射所需的弹药；是否开火还取决于目标、护盾和其它条件。"
+    },
+    "CONSERVE_ALL": {
+      "label": "尽量保留全部弹药",
+      "description": "武器 AI 会把剩余弹药都纳入保留判断；满足其它开火条件时仍可能射击。"
+    },
+    "CONSERVE_FOR_ANTI_ARMOR": {
+      "label": "为反装甲目标留弹",
+      "description": "武器 AI 会结合目标装甲和剩余弹药判断开火时机，并调整对无护盾目标的弹药保留。"
+    },
+    "DANGEROUS": {
+      "label": "视为危险武器",
+      "description": "敌方 AI 会把该武器当作打击威胁评估。"
+    },
+    "DIRECT_AIM": {
+      "label": "导弹直线追踪目标",
+      "description": "导弹追踪目标时不采用随机的侧向偏移。"
+    },
+    "DO_NOT_AIM": {
+      "label": "无需舰船瞄准",
+      "description": "武器 AI 不要求舰船先转向目标，适用于由弹体自行制导的武器。"
+    },
+    "DO_NOT_CONSERVE": {
+      "label": "不保留弹药",
+      "description": "武器 AI 会跳过部分弹药保留判断，但仍会检查目标和其它开火条件。"
+    },
+    "FIRE_WHEN_INEFFICIENT": {
+      "label": "无视幅能效率",
+      "description": "自动开火会评估目标护盾承受的幅能与我方开火产生的幅能；带有此标记时，不会因这项幅能交换效率较差而降低开火评价。其他目标和幅能条件仍参与判断。"
+    },
+    "GROUP_ALTERNATING": {
+      "label": "默认交替开火",
+      "description": "自动编排武器组时，倾向把此武器编入交替开火组。"
+    },
+    "GUIDED_POOR": {
+      "label": "制导能力有限",
+      "description": "武器 AI 会按制导能力有限的武器处理，并根据舰船朝向和发射角度放宽部分瞄准要求。"
+    },
+    "HEATSEEKER": {
+      "label": "追踪目标引擎",
+      "description": "武器 AI 会结合攻击方向和目标引擎状态，判断是否适合开火。"
+    },
+    "IMPORTANT": {
+      "label": "优先交由玩家控制",
+      "description": "自动驾驶选择玩家直接控制的武器组时，会提高含有此武器的武器组优先级。"
+    },
+    "MISSILE_SPREAD": {
+      "label": "导弹采用散开航线",
+      "description": "导弹 AI 追踪目标时采用散开航线。"
+    },
+    "NO_MANUAL_FIRE": {
+      "label": "不交由玩家直接控制",
+      "description": "自动驾驶通常不会优先选择该武器供玩家直接控制；同组有其它武器或缺少其它选择时仍可能选中。"
+    },
+    "PD": {
+      "label": "点防御",
+      "description": "自动开火通常优先搜索来袭导弹；实际目标还受打击用途、兼用点防御标记和弹药条件影响。"
+    },
+    "PD_ALSO": {
+      "label": "对舰兼用点防御",
+      "description": "与点防御标记同时使用时，自动开火会优先寻找舰船目标；没有合适目标时再搜索导弹。"
+    },
+    "PD_ONLY": {
+      "label": "点防御专用",
+      "description": "自动开火不会选择常规舰船目标；同时带有反战机标记时，也可攻击战机和无人机。"
+    },
+    "RANGE_FROM_SHIP_RADIUS": {
+      "label": "按舰船半径测距",
+      "description": "武器 AI 根据舰船中心和舰船半径计算射程，适用于发射位置变化但射程固定的武器。"
+    },
+    "RANGE_FROM_TARGETING_OVAL": {
+      "label": "按目标轮廓测距",
+      "description": "武器 AI 根据舰船中心和目标轮廓计算射程，适用于实际发射位置偏离武器槽的武器。"
+    },
+    "SHOW_IN_CODEX": {
+      "label": "收录于数据百科",
+      "description": "允许系统武器参与数据百科收录；是否显示仍取决于其它收录条件。"
+    },
+    "STRIKE": {
+      "label": "打击武器",
+      "description": "武器 AI 按打击用途评估开火时机、弹药保留和威胁；目标尺寸及其它标记也会影响使用。"
+    },
+    "SYSTEM": {
+      "label": "战术系统关联武器",
+      "description": "标记与舰船战术系统关联的武器，数据百科收录和武器评估会读取此标记。"
+    },
+    "USE_LESS_VS_SHIELDS": {
+      "label": "减少对护盾开火",
+      "description": "武器 AI 会提高攻击护盾的代价判断，并结合剩余弹药和伤害效率减少开火。"
+    },
+    "USE_VS_FRIGATES": {
+      "label": "可攻击护卫舰",
+      "description": "放宽打击武器选择护卫舰作为攻击目标的限制。"
+    },
+    "AUTOZOOM": {
+      "label": "锁定目标时启用目标视角",
+      "description": "玩家选中包含此武器的武器组并锁定目标时，自动启用目标视角；自动驾驶时另按相应规则处理。"
+    },
+    "CONSERVE_2": {
+      "label": "至少保留 2 轮弹药",
+      "description": "武器 AI 会尽量留出两轮齐射所需的弹药；是否开火还取决于目标、护盾和其它条件。"
+    },
+    "CONSERVE_4": {
+      "label": "至少保留 4 轮弹药",
+      "description": "武器 AI 会尽量留出四轮齐射所需的弹药；是否开火还取决于目标、护盾和其它条件。"
+    },
+    "EXTRA_RANGE_ON_FIGHTER": {
+      "label": "战机额外射程",
+      "description": "战机 AI 判断该武器是否进入射程时，会额外增加一段距离。"
+    },
+    "IGNORES_FLARES": {
+      "label": "点防御忽略热诱弹",
+      "description": "自动防御搜索导弹目标时，会跳过作为诱饵的热诱弹。"
+    },
+    "GROUP_LINKED": {
+      "label": "默认齐射",
+      "description": "自动编排武器组时，倾向把此武器编入齐射模式的武器组。"
+    },
+    "NO_TURN_RATE_BOOST_WHEN_IDLE": {
+      "label": "炮塔空闲时不加速转向",
+      "description": "炮塔空闲时不提高转向速度；固定武器槽的转向速度上限也会按此标记处理。"
+    },
+    "RESET_BARREL_INDEX_ON_BURST": {
+      "label": "齐射从首个发射口开始",
+      "description": "多发导弹齐射开始时，将发射口顺序重置到第一个发射口。"
+    }
+  }
+}

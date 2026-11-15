@@ -51,6 +51,9 @@ export interface FieldSchema {
   requiredWhen?: Record<string, string | { min: number } | { missing: true }>;
   step?: number;
   options?: string[];
+  optionCatalog?: string;
+  suggestions?: string[];
+  optionPatterns?: string[];
   nested?: FieldSchema[];
   item?: FieldSchema;
   valueSchema?: FieldSchema;
@@ -121,6 +124,9 @@ export interface CsvColumnSchema {
   imageDirectories?: string[];
   source?: string;
   options?: string[];
+  optionCatalog?: string;
+  suggestions?: string[];
+  optionPatterns?: string[];
   default?: string;
   readonly?: boolean;
   min?: number;
@@ -130,4 +136,13 @@ export interface CsvColumnSchema {
 }
 
 export type { DiscoveredField } from '@/shared/types';
+export interface ValueCatalogEntry {
+  label: string;
+  description: string;
+}
+export interface ValueCatalog {
+  id: string;
+  values: Record<string, ValueCatalogEntry>;
+  patterns: (ValueCatalogEntry & { prefix: string; max: number })[];
+}
 import type { DocumentEdit } from '@/shared/types';

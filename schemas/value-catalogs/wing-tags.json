@@ -1,0 +1,184 @@
+{
+  "$schema": "pyxis-ad-astra/value-catalog/v1",
+  "id": "wing-tags",
+  "values": {
+    "base_bp": {
+      "label": "基础蓝图",
+      "description": "原版势力和玩家初始拥有的蓝图会包括带有此标记的舰船、武器和战机联队。"
+    },
+    "hist1t": {
+      "label": "历史学家蓝图 1 阶",
+      "description": "历史学家事件按蓝图等级筛选候选时使用；此标记对应第 1 阶。"
+    },
+    "ind": {
+      "label": "独立势力装备",
+      "description": "用于把舰船、武器或战机联队列入独立势力及相关舰队的已知装备。"
+    },
+    "no_sell": {
+      "label": "不在市场出售",
+      "description": "市场库存和相关生产候选会排除带有此标记的内容；具体规则取决于所属类型。"
+    },
+    "rare_bp": {
+      "label": "稀有蓝图",
+      "description": "将内容列入稀有蓝图候选；能否实际获得还取决于对应的蓝图掉落组。"
+    },
+    "remnant": {
+      "label": "余辉装备",
+      "description": "用于把舰船、武器和战机联队列入余辉势力的已知装备及相关筛选。"
+    },
+    "no_bp_drop": {
+      "label": "劫掠时不掉落蓝图",
+      "description": "殖民地劫掠不会从带有此标记的舰船、武器或战机联队中取得蓝图。"
+    },
+    "codex_unlockable": {
+      "label": "数据百科待解锁",
+      "description": "该内容在数据百科中的锁定状态由玩家是否接触或获得相关内容决定。"
+    },
+    "merc": {
+      "label": "雇佣兵装备",
+      "description": "用于把舰船、武器、战机联队或船体插件列入雇佣兵势力的已知装备。"
+    },
+    "restricted": {
+      "label": "受限内容",
+      "description": "用于标记受特殊规则限制的内容；生产、候选筛选和数据百科收录会按所属类型处理。"
+    },
+    "swarm_fighter": {
+      "label": "集群战机",
+      "description": "用于标记集群机制使用的船体或战机联队；船体还会按集群战机显示战斗信息。"
+    },
+    "no_drop": {
+      "label": "不会作为常规战利品出现",
+      "description": "所属类型的常规战利品生成会排除带有此标记的内容；具体规则因内容类型而异。"
+    },
+    "attack_at_an_angle": {
+      "label": "斜向接近目标",
+      "description": "战机接近目标时会选择偏离直线的攻击方向，并根据攻击距离和目标大小调整航线。"
+    },
+    "auto_fighter": {
+      "label": "可搭载于全自动舰船",
+      "description": "允许全自动舰船搭载该战机联队。"
+    },
+    "bomber": {
+      "label": "轰炸机",
+      "description": "将该联队归为轰炸机；实际战斗职责仍由联队的角色设置决定。"
+    },
+    "drone": {
+      "label": "无人机",
+      "description": "将该联队标记为无人机；具体行为还取决于战机配置和相关实现。"
+    },
+    "fighter": {
+      "label": "战斗机",
+      "description": "将该联队归为战斗机；实际战斗职责仍由联队的角色设置决定。"
+    },
+    "high": {
+      "label": "高等级联队",
+      "description": "原版用此标记区分高等级战机联队。"
+    },
+    "independent_of_carrier": {
+      "label": "可独立于母舰行动",
+      "description": "联队 AI 会减少对母舰位置和行动的依赖。"
+    },
+    "interceptor": {
+      "label": "截击机",
+      "description": "将该联队归为截击机；实际战斗职责仍由联队的角色设置决定。"
+    },
+    "leader_no_swarm": {
+      "label": "长机不绕目标盘旋",
+      "description": "联队长机攻击时不采用集群式的环绕航线。"
+    },
+    "low": {
+      "label": "低等级联队",
+      "description": "原版用此标记区分低等级战机联队。"
+    },
+    "match_leader_facing": {
+      "label": "僚机跟随长机朝向",
+      "description": "僚机跟随长机的朝向；进行相应编队机动时不会单独攻击。"
+    },
+    "mid": {
+      "label": "中等级联队",
+      "description": "原版用此标记区分中等级战机联队。"
+    },
+    "rapid_reform": {
+      "label": "更快重整编队",
+      "description": "战机重新组成编队时会提高移动速度和部分加速度。"
+    },
+    "stay_in_front_of_ship": {
+      "label": "护航时飞在舰船前方",
+      "description": "护航时，战机会尽量保持在所护航舰船前方；联队或战机装配均可带有此标记。"
+    },
+    "wingmen_no_swarm": {
+      "label": "僚机不绕目标盘旋",
+      "description": "僚机编队攻击时不采用集群式的环绕航线。"
+    },
+    "support": {
+      "label": "支援机",
+      "description": "将该联队归为支援机；自动装配使用后缀数字比较支援机等级。"
+    },
+    "keep_at_range": {
+      "label": "保持攻击距离",
+      "description": "战机采用斜向攻击航线时，会根据额外距离调整接近角度；需与斜向攻击标记配合。"
+    },
+    "target_escort_target": {
+      "label": "攻击护航舰的目标",
+      "description": "战机攻击时优先选择所护航舰船的目标，并调整重新搜索目标的频率。"
+    },
+    "hide_in_codex": {
+      "label": "不显示在数据百科中",
+      "description": "数据百科建立相应类别的目录时会跳过带有此标记的内容。"
+    },
+    "invisible_in_codex": {
+      "label": "在数据百科目录中隐藏",
+      "description": "该条目不会出现在常规目录中，但仍可由游戏直接打开。"
+    },
+    "LP_bp": {
+      "label": "卢德左径蓝图包",
+      "description": "用于收集卢德左径蓝图包内的舰船、武器和战机联队。"
+    },
+    "hightech_bp": {
+      "label": "高新技术蓝图包",
+      "description": "用于收集高新技术蓝图包内的舰船、武器和战机联队。"
+    },
+    "lowtech_bp": {
+      "label": "低端技术蓝图包",
+      "description": "用于收集低端技术蓝图包内的舰船、武器和战机联队。"
+    },
+    "midline_bp": {
+      "label": "中线技术蓝图包",
+      "description": "用于收集中线技术蓝图包内的舰船、武器和战机联队。"
+    },
+    "pirate_bp": {
+      "label": "海盗蓝图包",
+      "description": "用于收集海盗蓝图包内的舰船、武器和战机联队。"
+    },
+    "missile_bp": {
+      "label": "导弹蓝图包",
+      "description": "用于收集导弹蓝图包内的武器。"
+    }
+  },
+  "patterns": [
+    {
+      "prefix": "fighter",
+      "max": 99,
+      "label": "战斗机",
+      "description": "用于自动装配的战斗机类别；末尾数字表示替代等级，范围为 0～99。"
+    },
+    {
+      "prefix": "interceptor",
+      "max": 99,
+      "label": "截击机",
+      "description": "用于自动装配的截击机类别；末尾数字表示替代等级，范围为 0～99。"
+    },
+    {
+      "prefix": "bomber",
+      "max": 99,
+      "label": "轰炸机",
+      "description": "用于自动装配的轰炸机类别；末尾数字表示替代等级，范围为 0～99。"
+    },
+    {
+      "prefix": "support",
+      "max": 99,
+      "label": "支援机",
+      "description": "用于自动装配的支援机类别；末尾数字表示替代等级，范围为 0～99。"
+    }
+  ]
+}

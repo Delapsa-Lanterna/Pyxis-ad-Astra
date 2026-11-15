@@ -56,7 +56,8 @@
         "8",
         "9",
         "10"
-      ]
+      ],
+      "optionCatalog": "price-variability"
     },
     {
       "key": "utility",
@@ -74,7 +75,27 @@
       "summary": true,
       "label": "Tags 标签",
       "control": "tags",
-      "source": "csv:commodities.tags"
+      "source": "csv:commodities.tags",
+      "optionCatalog": "commodity-tags",
+      "suggestions": [
+        "codex_unlockable",
+        "no_drop",
+        "hide_in_codex",
+        "invisible_in_codex",
+        "military",
+        "ai_core",
+        "crew",
+        "exotic",
+        "expensive",
+        "food",
+        "luxury",
+        "marines",
+        "medical",
+        "meta",
+        "no_loss_from_combat",
+        "nonecon",
+        "personnel"
+      ]
     },
     {
       "key": "stack size",
@@ -145,7 +166,8 @@
         "MEDIUM",
         "HIGH",
         "EXTREME"
-      ]
+      ],
+      "optionCatalog": "raid-danger-levels"
     },
     {
       "key": "eU * base value",

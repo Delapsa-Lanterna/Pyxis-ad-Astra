@@ -1,0 +1,30 @@
+{
+  "$schema": "pyxis-ad-astra/value-catalog/v1",
+  "id": "projectile-spawn-types",
+  "values": {
+    "BEAM": {
+      "label": "移动光束",
+      "description": "生成沿发射方向移动的光束状弹体。"
+    },
+    "BALLISTIC_AS_BEAM": {
+      "label": "实弹光束",
+      "description": "采用光束状弹体的生成方式表达实弹效果。"
+    },
+    "BALLISTIC": {
+      "label": "实弹",
+      "description": "生成普通实弹弹体。"
+    },
+    "PLASMA": {
+      "label": "等离子体",
+      "description": "生成等离子体弹体。"
+    },
+    "MISSILE": {
+      "label": "导弹",
+      "description": "采用导弹的生成方式。"
+    },
+    "OTHER": {
+      "label": "其它",
+      "description": "用于其它弹体生成类别。"
+    }
+  }
+}

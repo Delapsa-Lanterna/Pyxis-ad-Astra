@@ -1,0 +1,274 @@
+{
+  "$schema": "pyxis-ad-astra/value-catalog/v1",
+  "id": "ship-tags",
+  "values": {
+    "auto_rec": {
+      "label": "可回收的全自动舰船",
+      "description": "用于标记可回收的全自动舰船；自动舰船相关规则会据此判断船体是否符合条件。"
+    },
+    "center_diamond_on_hull_center": {
+      "label": "目标菱形居中",
+      "description": "战斗中的菱形目标标记以船体中心定位。"
+    },
+    "derelict": {
+      "label": "遗弃船",
+      "description": "将舰船归入遗弃船势力；相关势力知识和自动舰军官分配会读取这一标记。"
+    },
+    "dweller_ejecta": {
+      "label": "渊幕飞沫",
+      "description": "标记使用飞沫专属 AI 的渊幕原种舰船；相关舰船优先采用该 AI。"
+    },
+    "dweller_reckless": {
+      "label": "渊幕原种：鲁莽",
+      "description": "渊幕原种舰船采用鲁莽性格，并调整进攻时的横移、后退和推进行为。"
+    },
+    "dweller_timid": {
+      "label": "渊幕原种：胆小",
+      "description": "渊幕原种舰船采用胆小性格，会尽量避开正面冲突。"
+    },
+    "dweller_vortex": {
+      "label": "渊幕涡流",
+      "description": "标记使用涡流专属 AI 的渊幕原种舰船；相关舰船优先采用该 AI。"
+    },
+    "full_cr_recovery": {
+      "label": "战后恢复全部战备",
+      "description": "战斗结束后，将舰船战备值恢复至允许的上限。"
+    },
+    "hist2t": {
+      "label": "历史学家蓝图 2 阶",
+      "description": "历史学家事件按蓝图等级筛选舰船候选时使用；此标记对应第 2 阶。"
+    },
+    "kanta_gift": {
+      "label": "Kanta 赠礼舰船",
+      "description": "Kanta 的赠礼选项会将带有此标记的舰船列为可赠送对象。"
+    },
+    "limited_tooltip_if_locked": {
+      "label": "未解锁时简略显示",
+      "description": "舰船在数据百科中尚未解锁时，只显示受限的条目信息。"
+    },
+    "module_hull_bar_only": {
+      "label": "模块只显示船体状态条",
+      "description": "战斗中，该模块的目标信息只显示船体状态条。"
+    },
+    "no_armor_schematic": {
+      "label": "隐藏装甲示意图",
+      "description": "战斗目标信息中不显示该舰船的装甲示意图。"
+    },
+    "no_auto_penalty": {
+      "label": "全自动舰船免惩罚",
+      "description": "免除自动舰船规则中的战备上限惩罚和技能点数计入；船体或装配均可带有此标记。"
+    },
+    "no_autofit": {
+      "label": "不进行自动装配",
+      "description": "舰队生成时，带有此标记的舰船或装配不会由电脑自动配置装备。"
+    },
+    "no_battle_salvage": {
+      "label": "战后不掉落打捞物资",
+      "description": "舰船在战斗中损失后，不会从其残骸中打捞出补给、燃料、武器、船体插件等物资。"
+    },
+    "no_derelict": {
+      "label": "不生成遗弃船",
+      "description": "战斗结束后，该舰船不会作为可打捞的遗弃舰出现在残骸区。"
+    },
+    "no_sim": {
+      "label": "不参加模拟战",
+      "description": "舰船模拟战的可选舰船列表会排除带有此标记的舰船。"
+    },
+    "req_military": {
+      "label": "军用市场供货",
+      "description": "市场生成舰船库存时，带有此标记的舰船要求市场具备军用条件。"
+    },
+    "show_in_codex_as_ship": {
+      "label": "数据百科舰船条目",
+      "description": "允许战机船体以独立舰船条目的形式出现在数据百科中。"
+    },
+    "special_allows_system_use": {
+      "label": "右键与 F 键系统并用",
+      "description": "右键战术系统正在生效时，仍允许玩家启动 F 键战术系统。"
+    },
+    "system_allows_special_use": {
+      "label": "F 键与右键系统并用",
+      "description": "F 键战术系统正在生效时，仍允许玩家启动右键战术系统。"
+    },
+    "threat_aggressive": {
+      "label": "威胁舰船：激进",
+      "description": "该威胁舰船的 AI 使用激进性格。"
+    },
+    "threat_combat": {
+      "label": "威胁作战舰船",
+      "description": "将该舰船归入威胁势力的作战舰船类别，供其建造与战斗策略使用。"
+    },
+    "threat_fabricator": {
+      "label": "威胁仿织舰船",
+      "description": "将该舰船归入威胁势力的仿织舰类别，供其建造系统识别。"
+    },
+    "threat_hive": {
+      "label": "威胁巢群舰船",
+      "description": "将该舰船归入威胁势力的巢群舰类别，供其建造系统识别。"
+    },
+    "threat_overseer": {
+      "label": "威胁督战单元",
+      "description": "将该舰船归入威胁势力的督战类别，供建造与编队系统使用。"
+    },
+    "threat_skirmish": {
+      "label": "威胁游击舰船",
+      "description": "将该舰船归入威胁势力的游击舰类别，供其战斗策略使用。"
+    },
+    "threat_swarm_ai": {
+      "label": "威胁集群战机",
+      "description": "让该战机使用威胁势力的集群 AI。"
+    },
+    "threat_timid": {
+      "label": "威胁舰船：胆小",
+      "description": "该威胁舰船的 AI 使用胆小性格，会尽量避开正面冲突。"
+    },
+    "module_unselectable": {
+      "label": "模块装配时不可选",
+      "description": "在主体舰船的装配界面中，该模块的选择按钮不可用。"
+    },
+    "module_refit_bright": {
+      "label": "装配时模块不变暗",
+      "description": "在主体舰船的装配界面中，该模块保持正常亮度。"
+    },
+    "module_no_status_bar": {
+      "label": "隐藏模块状态条和标记",
+      "description": "战斗中不为该模块显示状态条或目标标记。"
+    },
+    "automated": {
+      "label": "全自动舰船",
+      "description": "标记这艘舰船为全自动舰船，供自动舰船相关规则识别。"
+    },
+    "retain_smods_on_recovery": {
+      "label": "回收时保留内置插件",
+      "description": "舰船战后被回收时，保留已经内置的船体插件。"
+    },
+    "no_autofit_unless_player": {
+      "label": "仅玩家自动装配",
+      "description": "电脑生成舰队时不会自动配置该舰船；玩家进行装配时仍按玩家装配规则处理。"
+    },
+    "unrestorable": {
+      "label": "无法通过常规方式修复",
+      "description": "受损舰船的恢复和野外修复规则会按此标记限制修复。"
+    },
+    "threat_cautious": {
+      "label": "威胁舰船：谨慎",
+      "description": "该威胁舰船的 AI 使用谨慎性格。"
+    },
+    "threat_reckless": {
+      "label": "威胁舰船：鲁莽",
+      "description": "该威胁舰船的 AI 使用鲁莽性格，并调整进攻时的横移、后退和推进行为。"
+    },
+    "dweller_cautious": {
+      "label": "渊幕原种：谨慎",
+      "description": "渊幕原种舰船采用谨慎性格。"
+    },
+    "dweller_aggressive": {
+      "label": "渊幕原种：激进",
+      "description": "渊幕原种舰船采用激进性格。"
+    },
+    "base_bp": {
+      "label": "基础蓝图",
+      "description": "原版势力和玩家初始拥有的蓝图会包括带有此标记的舰船、武器和战机联队。"
+    },
+    "hist1t": {
+      "label": "历史学家蓝图 1 阶",
+      "description": "历史学家事件按蓝图等级筛选候选时使用；此标记对应第 1 阶。"
+    },
+    "ind": {
+      "label": "独立势力装备",
+      "description": "用于把舰船、武器或战机联队列入独立势力及相关舰队的已知装备。"
+    },
+    "no_sell": {
+      "label": "不在市场出售",
+      "description": "市场库存和相关生产候选会排除带有此标记的内容；具体规则取决于所属类型。"
+    },
+    "rare_bp": {
+      "label": "稀有蓝图",
+      "description": "将内容列入稀有蓝图候选；能否实际获得还取决于对应的蓝图掉落组。"
+    },
+    "remnant": {
+      "label": "余辉装备",
+      "description": "用于把舰船、武器和战机联队列入余辉势力的已知装备及相关筛选。"
+    },
+    "no_bp_drop": {
+      "label": "劫掠时不掉落蓝图",
+      "description": "殖民地劫掠不会从带有此标记的舰船、武器或战机联队中取得蓝图。"
+    },
+    "codex_unlockable": {
+      "label": "数据百科待解锁",
+      "description": "该内容在数据百科中的锁定状态由玩家是否接触或获得相关内容决定。"
+    },
+    "dweller": {
+      "label": "渊幕原种",
+      "description": "标记渊幕原种相关的舰船、武器或船体插件；专属 AI、物品兑换和其它相关规则会据此处理。"
+    },
+    "fragment": {
+      "label": "碎片单位",
+      "description": "标记碎片势力相关的舰船、武器或船体插件；具体效果由相应内容决定。"
+    },
+    "hist3t": {
+      "label": "历史学家蓝图 3 阶",
+      "description": "历史学家事件按蓝图等级筛选候选时使用；此标记对应第 3 阶。"
+    },
+    "merc": {
+      "label": "雇佣兵装备",
+      "description": "用于把舰船、武器、战机联队或船体插件列入雇佣兵势力的已知装备。"
+    },
+    "monster": {
+      "label": "特殊单位",
+      "description": "用于归类特殊舰船、武器和物品；具体用途由相关游戏内容决定。"
+    },
+    "no_dealer": {
+      "label": "蓝图商人不出售",
+      "description": "蓝图商人生成交易库存时会排除带有此标记的舰船或武器。"
+    },
+    "omega": {
+      "label": "欧米伽内容",
+      "description": "标记欧米伽相关的舰船或武器，供势力装备知识及舰船生成规则识别。"
+    },
+    "restricted": {
+      "label": "受限内容",
+      "description": "用于标记受特殊规则限制的内容；生产、候选筛选和数据百科收录会按所属类型处理。"
+    },
+    "swarm_fighter": {
+      "label": "集群战机",
+      "description": "用于标记集群机制使用的船体或战机联队；船体还会按集群战机显示战斗信息。"
+    },
+    "threat": {
+      "label": "威胁势力",
+      "description": "标记威胁势力相关的舰船、武器、船体插件或特殊物品；舰船还会使用该势力对应的 AI。"
+    },
+    "hide_in_codex": {
+      "label": "不显示在数据百科中",
+      "description": "数据百科建立相应类别的目录时会跳过带有此标记的内容。"
+    },
+    "invisible_in_codex": {
+      "label": "在数据百科目录中隐藏",
+      "description": "该条目不会出现在常规目录中，但仍可由游戏直接打开。"
+    },
+    "LP_bp": {
+      "label": "卢德左径蓝图包",
+      "description": "用于收集卢德左径蓝图包内的舰船、武器和战机联队。"
+    },
+    "hightech_bp": {
+      "label": "高新技术蓝图包",
+      "description": "用于收集高新技术蓝图包内的舰船、武器和战机联队。"
+    },
+    "lowtech_bp": {
+      "label": "低端技术蓝图包",
+      "description": "用于收集低端技术蓝图包内的舰船、武器和战机联队。"
+    },
+    "midline_bp": {
+      "label": "中线技术蓝图包",
+      "description": "用于收集中线技术蓝图包内的舰船、武器和战机联队。"
+    },
+    "pirate_bp": {
+      "label": "海盗蓝图包",
+      "description": "用于收集海盗蓝图包内的舰船、武器和战机联队。"
+    },
+    "missile_bp": {
+      "label": "导弹蓝图包",
+      "description": "用于收集导弹蓝图包内的武器。"
+    }
+  }
+}

@@ -1,0 +1,170 @@
+{
+  "$schema": "pyxis-ad-astra/value-catalog/v1",
+  "id": "hullmod-tags",
+  "values": {
+    "codex_unlockable": {
+      "label": "数据百科待解锁",
+      "description": "该内容在数据百科中的锁定状态由玩家是否接触或获得相关内容决定。"
+    },
+    "dweller": {
+      "label": "渊幕原种",
+      "description": "标记渊幕原种相关的舰船、武器或船体插件；专属 AI、物品兑换和其它相关规则会据此处理。"
+    },
+    "fragment": {
+      "label": "碎片单位",
+      "description": "标记碎片势力相关的舰船、武器或船体插件；具体效果由相应内容决定。"
+    },
+    "merc": {
+      "label": "雇佣兵装备",
+      "description": "用于把舰船、武器、战机联队或船体插件列入雇佣兵势力的已知装备。"
+    },
+    "threat": {
+      "label": "威胁势力",
+      "description": "标记威胁势力相关的舰船、武器、船体插件或特殊物品；舰船还会使用该势力对应的 AI。"
+    },
+    "no_drop": {
+      "label": "不会作为常规战利品出现",
+      "description": "所属类型的常规战利品生成会排除带有此标记的内容；具体规则因内容类型而异。"
+    },
+    "no_drop_salvage": {
+      "label": "不会出现在打捞物中",
+      "description": "原版打捞掉落会排除带有此标记的武器和船体插件。"
+    },
+    "hide_in_codex": {
+      "label": "不显示在数据百科中",
+      "description": "数据百科建立相应类别的目录时会跳过带有此标记的内容。"
+    },
+    "invisible_in_codex": {
+      "label": "在数据百科目录中隐藏",
+      "description": "该条目不会出现在常规目录中，但仍可由游戏直接打开。"
+    },
+    "civ": {
+      "label": "可用于民用舰战损",
+      "description": "该插件可以进入民用舰的随机战损候选；其它适用条件仍会继续筛选。"
+    },
+    "civOnly": {
+      "label": "仅用于民用舰",
+      "description": "随机战损只会把该插件分配给民用舰。"
+    },
+    "civ_package": {
+      "label": "民用插件组合",
+      "description": "用于归类原版民用船体插件组合。"
+    },
+    "codex_require_related": {
+      "label": "需要解锁相关数据百科条目",
+      "description": "该条目的显示和解锁状态取决于相关条目是否可见及已解锁。"
+    },
+    "damage": {
+      "label": "可随机成为战损插件",
+      "description": "随机战损会从带有此标记的插件中挑选候选。"
+    },
+    "damageStruct": {
+      "label": "结构损伤类 D 插",
+      "description": "用于标记结构损伤类 D 插；已有同类损伤时，不会再选择其它同类插件。"
+    },
+    "destroyedDamageAlways": {
+      "label": "舰船被摧毁时可选作战损",
+      "description": "生成摧毁类战损时，会将该插件加入候选，再按适用条件筛选并随机选择。"
+    },
+    "dmod": {
+      "label": "受损船体插件",
+      "description": "标记 D 插，供 D 插数量统计和相关舰船规则识别。"
+    },
+    "engines": {
+      "label": "引擎类插件",
+      "description": "将该船体插件归入引擎类别。"
+    },
+    "fighterBayDamage": {
+      "label": "有战机甲板时可成为战损",
+      "description": "舰船具有战机甲板时，该插件可以进入随机战损候选。"
+    },
+    "no_build_in": {
+      "label": "不作为内置插件候选",
+      "description": "随机内置和自动装配不会把该插件选作内置插件；已有装配中的内置设置不受此标记控制。"
+    },
+    "non_phase": {
+      "label": "相位舰不自动安装",
+      "description": "自动装配为相位舰挑选船体插件时会跳过此插件。"
+    },
+    "notAuto": {
+      "label": "全自动舰船不使用",
+      "description": "全自动舰船的随机战损不会选择此插件。"
+    },
+    "notPhase": {
+      "label": "相位舰不使用",
+      "description": "相位舰的随机战损不会选择此插件。"
+    },
+    "peak_time": {
+      "label": "短峰值时间舰船战损",
+      "description": "随机战损只会在舰船的峰值时间低于原版判定值时选择此插件。"
+    },
+    "phase": {
+      "label": "相位舰插件",
+      "description": "自动装配为相位舰挑选插件时，会把此插件归入相位舰类别。"
+    },
+    "phaseDamage": {
+      "label": "相位舰可选战损",
+      "description": "相位舰产生随机战损时，该插件可以进入候选。"
+    },
+    "phase_brawler": {
+      "label": "相位舰近战 AI",
+      "description": "相位舰 AI 会根据此标记调整近距离作战行为。"
+    },
+    "reqShields": {
+      "label": "仅护盾舰可用",
+      "description": "随机战损只会把该插件分配给具有前置或全向护盾的舰船。"
+    },
+    "req_spaceport": {
+      "label": "安装或拆卸需太空港",
+      "description": "只有停靠在拥有太空港或轨道空间站的殖民地并打开贸易界面时，才能安装或拆卸此插件。"
+    },
+    "shields": {
+      "label": "护盾类插件",
+      "description": "将该船体插件归入护盾类别。"
+    },
+    "shrouded": {
+      "label": "渊幕插件",
+      "description": "标记与渊幕内容相关的船体插件。"
+    },
+    "special": {
+      "label": "特殊插件",
+      "description": "将该船体插件归入特殊类别。"
+    },
+    "standard": {
+      "label": "常规插件",
+      "description": "将该船体插件列入原版势力已知的常规插件。"
+    },
+    "weapons": {
+      "label": "武器类插件",
+      "description": "将该船体插件归入武器类别。"
+    },
+    "notCiv": {
+      "label": "民用舰不使用",
+      "description": "民用舰的随机战损不会选择此插件。"
+    },
+    "carrierDamageAlways": {
+      "label": "航母可选战损",
+      "description": "舰船被归为航母时，该插件可以进入随机战损候选。"
+    },
+    "do_not_apply_hullmod_during_autofit": {
+      "label": "自动装配时不应用插件效果",
+      "description": "玩家在装配界面使用自动装配时，不会应用该插件的效果。"
+    },
+    "DO_can_not_add": {
+      "label": "D 类损伤重排时排除新增",
+      "description": "Derelict Operations (derelict_contingent) 技能重排 D 类损伤时，将此插件排除在新增候选之外。"
+    },
+    "DO_can_not_remove": {
+      "label": "D 类损伤重排时保留",
+      "description": "Derelict Operations (derelict_contingent) 技能重排 D 类损伤时，保留此插件。"
+    },
+    "defensive": {
+      "label": "防御类",
+      "description": "将船体插件或战术系统归入防御类别。"
+    },
+    "offensive": {
+      "label": "进攻类",
+      "description": "将船体插件或战术系统归入进攻类别。"
+    }
+  }
+}

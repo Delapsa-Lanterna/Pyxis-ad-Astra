@@ -1,0 +1,18 @@
+{
+  "$schema": "pyxis-ad-astra/value-catalog/v1",
+  "id": "missile-behaviors",
+  "values": {
+    "PROXIMITY_FUSE": {
+      "label": "近炸引信",
+      "description": "在符合引信条件时触发爆炸，读取近炸行为参数。"
+    },
+    "MIRV": {
+      "label": "分导弹头",
+      "description": "按行为参数释放配置的子弹体。"
+    },
+    "CUSTOM": {
+      "label": "自定义",
+      "description": "采用自定义行为实现。"
+    }
+  }
+}

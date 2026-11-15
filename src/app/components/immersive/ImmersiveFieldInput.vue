@@ -8,6 +8,7 @@
       ref="input"
       :value="raw"
       :options="selectOptions"
+      :render-label="renderOption"
       :status="invalid ? 'error' : undefined"
       :clearable="!field.schema.required"
       :filterable="Boolean(field.schema.source)"
@@ -29,7 +30,7 @@
   </label>
 </template>
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { computed, h, ref, watch } from 'vue';
 import type { ImmersiveField } from '@/domain/immersive/fields';
 import { convertSchemaScalarInput, schemaStringValue } from '@/domain/schema/schema-values';
 import { parseCsvValue } from '@/domain/schema/csv-value-validation';
@@ -37,7 +38,12 @@ import type { SchemaFieldUpdate } from '@/domain/schema/schema.types';
 import type { FieldEditorContext } from '@/domain/field-editor/field-editor-context';
 import { useFieldSourceOptions } from '@/app/composables/field-editor/use-field-source-options';
 import { useRawFieldInput } from '@/shared/runtime/raw-field-input';
-import { includeCurrentSelectOptions, selectOptionValues } from '@/domain/field-editor/field-options';
+import {
+  includeCurrentSelectOptions,
+  schemaSelectOptions,
+  selectOptionValues,
+  type SelectOption,
+} from '@/domain/field-editor/field-options';
 import { useFieldEditMode } from '@/app/composables/field-editor/use-field-edit-mode';
 import { isConfigFieldSource } from '@/domain/schema/schema-source-definitions';
 import { parseJsonInput, formatJsonInput } from '@/shared/lib/json-input';
@@ -91,6 +97,12 @@ const sourceValues = computed(() => selectOptionValues(source.sourceOptions.valu
 const selectOptions = computed(() =>
   props.field.schema.source
     ? includeCurrentSelectOptions(source.sourceOptions.value, [raw.value], sourceValues.value)
-    : props.field.schema.options?.map((value) => ({ label: props.field.optionLabels?.[value] ?? value, value })),
+    : schemaSelectOptions(props.field.schema, []).map((option) => ({
+        ...option,
+        label: props.field.optionLabels?.[option.value] ?? option.label,
+      })),
 );
+function renderOption(option: SelectOption) {
+  return h('span', { title: option.description ?? undefined }, option.label);
+}
 </script>

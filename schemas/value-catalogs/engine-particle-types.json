@@ -1,0 +1,14 @@
+{
+  "$schema": "pyxis-ad-astra/value-catalog/v1",
+  "id": "engine-particle-types",
+  "values": {
+    "GLOW": {
+      "label": "辉光粒子",
+      "description": "采用辉光粒子的外观与混合规则。"
+    },
+    "SMOKE": {
+      "label": "烟雾粒子",
+      "description": "采用烟雾粒子的外观与混合规则。"
+    }
+  }
+}

@@ -9,12 +9,13 @@ fn main() {
     }
     println!("cargo:rerun-if-changed=icons/icon.ico");
     println!("cargo:rerun-if-changed=../schemas");
-    bundle_schemas("../schemas", "config_schemas.rs");
-    bundle_schemas("../schemas/csv", "csv_schemas.rs");
+    bundle_schemas("../schemas", "config_schemas.rs", ".schema.json");
+    bundle_schemas("../schemas/csv", "csv_schemas.rs", ".schema.json");
+    bundle_schemas("../schemas/value-catalogs", "value_catalogs.rs", ".json");
     tauri_build::build();
 }
 
-fn bundle_schemas(directory: &str, filename: &str) {
+fn bundle_schemas(directory: &str, filename: &str, suffix: &str) {
     let mut paths: Vec<_> = fs::read_dir(directory)
         .expect("bundled schema directory")
         .map(|entry| entry.expect("bundled schema entry").path())
@@ -22,7 +23,7 @@ fn bundle_schemas(directory: &str, filename: &str) {
             path.file_name()
                 .expect("schema filename")
                 .to_string_lossy()
-                .ends_with(".schema.json")
+                .ends_with(suffix)
         })
         .collect();
     paths.sort();
@@ -34,7 +35,7 @@ fn bundle_schemas(directory: &str, filename: &str) {
                 .expect("schema filename")
                 .to_str()
                 .expect("UTF-8 schema filename")
-                .strip_suffix(".schema.json")
+                .strip_suffix(suffix)
                 .expect("schema suffix");
             let path = path.canonicalize().expect("bundled schema path");
             format!("({name:?}, include_str!({path:?}))")

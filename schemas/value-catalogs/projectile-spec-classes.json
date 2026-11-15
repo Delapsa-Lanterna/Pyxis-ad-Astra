@@ -1,0 +1,14 @@
+{
+  "$schema": "pyxis-ad-astra/value-catalog/v1",
+  "id": "projectile-spec-classes",
+  "values": {
+    "projectile": {
+      "label": "弹体",
+      "description": "使用普通弹体规格及其生成、碰撞与外观规则。"
+    },
+    "missile": {
+      "label": "导弹",
+      "description": "使用导弹规格及其飞行、制导和引擎规则。"
+    }
+  }
+}

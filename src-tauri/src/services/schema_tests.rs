@@ -1,7 +1,7 @@
 use crate::domain::schema;
 use crate::domain::schema::validate_field;
 #[cfg(test)]
-use crate::domain::{entity_construction, joint_hull, well_known_labels};
+use crate::domain::{entity_construction, joint_hull, value_catalogs};
 use crate::errors::AppResult;
 #[cfg(test)]
 use crate::models::{AssociatedSpecCreateParams, CsvTableKey};
@@ -46,8 +46,7 @@ fn bundled_assets_parse_and_build_once_across_concurrent_consumers() {
                     )
                     .unwrap();
                     assert!(
-                        well_known_labels::well_known_catalog(CsvTableKey::Weapons, "hints")
-                            .is_some()
+                        value_catalogs::csv_value_catalog(CsvTableKey::Weapons, "hints").is_some()
                     );
                 }
             });
@@ -56,7 +55,7 @@ fn bundled_assets_parse_and_build_once_across_concurrent_consumers() {
     for (id, _) in &schemas {
         assert_eq!(work_counts::count("schema-parse", Path::new(id)), 1, "{id}");
     }
-    for name in ["spec-defaults", "skin-hull-fields", "well-known-labels"] {
+    for name in ["spec-defaults", "skin-hull-fields", "value-catalogs"] {
         assert_eq!(
             work_counts::count("asset-parse", Path::new(name)),
             1,
@@ -64,7 +63,7 @@ fn bundled_assets_parse_and_build_once_across_concurrent_consumers() {
         );
     }
     assert_eq!(
-        work_counts::count("asset-build", Path::new("well-known-labels")),
+        work_counts::count("asset-build", Path::new("value-catalogs")),
         1
     );
 }

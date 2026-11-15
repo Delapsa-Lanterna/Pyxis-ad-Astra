@@ -257,7 +257,8 @@
                   "SYSTEM",
                   "STATION_MODULE",
                   "LAUNCH_BAY"
-                ]
+                ],
+                "optionCatalog": "weapon-types"
               },
               {
                 "key": "size",
@@ -267,7 +268,8 @@
                   "SMALL",
                   "MEDIUM",
                   "LARGE"
-                ]
+                ],
+                "optionCatalog": "weapon-sizes"
               },
               {
                 "key": "mount",
@@ -277,7 +279,8 @@
                   "TURRET",
                   "HARDPOINT",
                   "HIDDEN"
-                ]
+                ],
+                "optionCatalog": "mount-types"
               },
               {
                 "key": "angle",

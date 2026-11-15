@@ -10,7 +10,7 @@ use super::super::super::session::csv_tables::{
 use super::super::super::session::{lock_ready_session, session_handle};
 use crate::domain::entity_definitions as entity_rules;
 use crate::domain::schema_sources::CONFIG_FIELD_SOURCES;
-use crate::domain::well_known_labels::{WellKnownCatalog, well_known_catalog};
+use crate::domain::value_catalogs::{ValueCatalog, csv_value_catalog};
 use crate::errors::{AppError, AppResult};
 use crate::models::{
     CsvTableKey, EntityKind, ResourceSource, SkinFile, SourceOption, SourceOptionGroup,
@@ -211,8 +211,12 @@ fn collect_source_option_groups(
             });
         }
     }
-    if let Some(catalog) = metadata_catalog.as_ref().and_then(|catalog| catalog.known) {
-        for (value, entry) in &catalog.values {
+    if let Some(catalog) = metadata_catalog
+        .as_ref()
+        .and_then(|catalog| catalog.value_catalog)
+    {
+        for value in &catalog.order {
+            let entry = &catalog.values[value];
             if seen.insert(value.clone()) {
                 options.push(SourceOption {
                     label: format!("{value} ({})", entry.label),
@@ -244,6 +248,22 @@ fn collect_source_option_groups(
             origin: ResourceSource::Core,
             options,
         });
+    }
+    if let Some(catalog) = metadata_catalog
+        .as_ref()
+        .and_then(|catalog| catalog.value_catalog)
+    {
+        let positions: HashMap<_, _> = catalog
+            .order
+            .iter()
+            .enumerate()
+            .map(|(index, value)| (value, index))
+            .collect();
+        for group in &mut groups {
+            group
+                .options
+                .sort_by_key(|option| positions.get(&option.value).copied().unwrap_or(usize::MAX));
+        }
     }
     Ok(groups)
 }
@@ -709,12 +729,13 @@ fn source_token_metadata_catalog(
     column: &str,
     session: &mut ProjectSession,
 ) -> AppResult<Option<SourceTokenMetadataCatalog>> {
-    if !matches!(column, "tags" | "hints" | "uiTags") {
+    let value_catalog = csv_value_catalog(table, column);
+    if value_catalog.is_none() && column != "tags" {
         return Ok(None);
     }
     let mut catalog = SourceTokenMetadataCatalog {
         values: HashMap::new(),
-        known: well_known_catalog(table, column),
+        value_catalog,
     };
     if column == "tags" {
         add_core_blueprint_package_metadata(&mut catalog.values, session)?;
@@ -732,12 +753,12 @@ struct SourceTokenMetadata {
 
 struct SourceTokenMetadataCatalog {
     values: HashMap<String, SourceTokenMetadata>,
-    known: Option<&'static WellKnownCatalog>,
+    value_catalog: Option<&'static ValueCatalog>,
 }
 
 impl SourceTokenMetadataCatalog {
     fn find(&self, value: &str) -> Option<SourceTokenMetadata> {
-        self.known
+        self.value_catalog
             .and_then(|catalog| catalog.find(value))
             .map(|entry| SourceTokenMetadata {
                 label: entry.label,
@@ -1747,6 +1768,23 @@ mod tests {
         assert_eq!(
             source_option_label_from_groups(&hint_groups, "CONSERVE_5").as_deref(),
             Some("CONSERVE_5 (至少保留 5 轮弹药)")
+        );
+        assert_eq!(
+            hint_groups[0]
+                .options
+                .iter()
+                .map(|option| option.value.as_str())
+                .collect::<Vec<_>>(),
+            ["CONSERVE_5", "DIRECT_AIM", "CONSERVE_999", "beam999"]
+        );
+        assert_eq!(
+            hint_groups[1]
+                .options
+                .iter()
+                .take(3)
+                .map(|option| option.value.as_str())
+                .collect::<Vec<_>>(),
+            ["PD", "PD_ONLY", "PD_ALSO"]
         );
         let kinetic_template = tag_groups
             .iter()

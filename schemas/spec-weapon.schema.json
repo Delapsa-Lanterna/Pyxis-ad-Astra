@@ -24,7 +24,8 @@
             "beam"
           ],
           "required": true,
-          "ref": "spec-weapon#/definitions/save/nested/0"
+          "ref": "spec-weapon#/definitions/save/nested/0",
+          "optionCatalog": "weapon-spec-classes"
         },
         {
           "key": "type",
@@ -44,7 +45,8 @@
             "MEDIUM",
             "LARGE"
           ],
-          "required": true
+          "required": true,
+          "optionCatalog": "weapon-sizes"
         },
         {
           "key": "restrictToSpecifiedMountType",
@@ -198,7 +200,8 @@
                 "WEAVE",
                 "LASER"
               ],
-              "required": true
+              "required": true,
+              "optionCatalog": "beam-textures"
             },
             {
               "type": "array",
@@ -215,7 +218,8 @@
                 "required": true
               }
             }
-          ]
+          ],
+          "optionCatalog": "beam-textures"
         },
         {
           "key": "textureScrollSpeed",
@@ -327,7 +331,8 @@
             "DUAL",
             "LINKED"
           ],
-          "required": true
+          "required": true,
+          "optionCatalog": "weapon-barrel-modes"
         },
         {
           "key": "projectileSpecId",
@@ -434,7 +439,8 @@
             "GLOW_AND_FLASH",
             "SMOKE"
           ],
-          "required": true
+          "required": true,
+          "optionCatalog": "weapon-animation-types"
         },
         {
           "key": "visualRecoil",
@@ -525,7 +531,8 @@
             "RENDER_ADDITIVE",
             "SUSPEND_RECOIL",
             "NEVER_RENDER_IN_CAMPAIGN"
-          ]
+          ],
+          "optionCatalog": "weapon-render-hints"
         },
         {
           "key": "renderBelowAllWeapons",
@@ -848,7 +855,8 @@
             "beam"
           ],
           "issueCode": "spec.weapon_class_unsupported",
-          "issueMessage": "规格类型只允许 projectile 或 beam"
+          "issueMessage": "规格类型只允许 projectile 或 beam",
+          "optionCatalog": "weapon-spec-classes"
         },
         {
           "key": "turretOffsets",
@@ -885,7 +893,8 @@
         "DECORATIVE",
         "SYSTEM",
         "BUILT_IN"
-      ]
+      ],
+      "optionCatalog": "weapon-types"
     },
     "enum2": {
       "key": "enum2",
@@ -909,7 +918,8 @@
         "PLANET",
         "GAS_CLOUD",
         "STAR"
-      ]
+      ],
+      "optionCatalog": "collision-classes"
     }
   }
 }

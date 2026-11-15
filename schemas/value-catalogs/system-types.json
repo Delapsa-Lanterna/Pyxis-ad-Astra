@@ -1,0 +1,50 @@
+{
+  "$schema": "pyxis-ad-astra/value-catalog/v1",
+  "id": "system-types",
+  "values": {
+    "WEAPON": {
+      "label": "武器系统",
+      "description": "采用武器类战术系统的执行规则。"
+    },
+    "ENGINE_MOD": {
+      "label": "引擎调整",
+      "description": "采用修改引擎与机动性能的系统规则。"
+    },
+    "SHIELD_MOD": {
+      "label": "护盾调整",
+      "description": "采用修改护盾属性的系统规则。"
+    },
+    "STAT_MOD": {
+      "label": "属性调整",
+      "description": "采用通用属性修改及系统脚本的执行规则。"
+    },
+    "FAST_RELOAD": {
+      "label": "快速装填",
+      "description": "采用快速装填和射速调整的系统规则。"
+    },
+    "AMMO_RELOAD": {
+      "label": "弹药补充",
+      "description": "采用补充指定武器弹药的系统规则。"
+    },
+    "TELEPORTER": {
+      "label": "传送",
+      "description": "采用传送位置的系统规则。"
+    },
+    "PHASE_CLOAK": {
+      "label": "相位隐匿",
+      "description": "采用相位状态、时间倍率及显隐规则。"
+    },
+    "DISPLACER": {
+      "label": "相位位移",
+      "description": "采用相位位移的系统规则。"
+    },
+    "DRONE_LAUNCHER": {
+      "label": "无人机发射",
+      "description": "采用生成和管理无人机的系统规则。"
+    },
+    "EMP": {
+      "label": "电磁脉冲",
+      "description": "采用电磁脉冲及其伤害配置的系统规则。"
+    }
+  }
+}

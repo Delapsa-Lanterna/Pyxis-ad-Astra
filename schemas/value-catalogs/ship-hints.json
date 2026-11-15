@@ -1,0 +1,110 @@
+{
+  "$schema": "pyxis-ad-astra/value-catalog/v1",
+  "id": "ship-hints",
+  "values": {
+    "ALWAYS_PANIC": {
+      "label": "AI 始终处于恐慌状态",
+      "description": "舰船 AI 始终按恐慌状态处理，并会更频繁地使用导弹武器。"
+    },
+    "CARRIER": {
+      "label": "航母",
+      "description": "将舰船归为航母，供舰船角色识别和自动护航判断使用。"
+    },
+    "CIVILIAN": {
+      "label": "民用舰船",
+      "description": "将舰船归为民用，影响战损筛选、数据百科分类和舰船角色判断。"
+    },
+    "COMBAT": {
+      "label": "战斗舰船",
+      "description": "将舰船归为战斗用途，供舰船 AI 判断航母作战和命令响应等行为。"
+    },
+    "FREIGHTER": {
+      "label": "货船",
+      "description": "将舰船归为货船，供舰队生成和自动装配识别其用途。"
+    },
+    "HIDE_IN_CODEX": {
+      "label": "不显示在数据百科中",
+      "description": "数据百科不会收录该舰船；部分生产候选也会跳过它。"
+    },
+    "LINER": {
+      "label": "客船",
+      "description": "将舰船归为客船，供舰队生成和自动装配识别其用途。"
+    },
+    "MODULE": {
+      "label": "舰船模块",
+      "description": "将舰船作为另一艘舰船的模块处理，并在相关信息和数据百科中按模块归类。"
+    },
+    "NEVER_DODGE_MISSILES": {
+      "label": "不躲避导弹",
+      "description": "舰船 AI 不会执行针对导弹的规避动作。"
+    },
+    "NO_AUTO_ESCORT": {
+      "label": "不会自动护航",
+      "description": "舰船 AI 不会把该舰船选作自动护航目标。"
+    },
+    "SHIP_WITH_MODULES": {
+      "label": "带有舰船模块",
+      "description": "舰船会建立并更新其附属模块。"
+    },
+    "STATION": {
+      "label": "空间站",
+      "description": "将舰船按空间站处理，影响战斗实体、舰队生成和数据百科分类。"
+    },
+    "TANKER": {
+      "label": "油船",
+      "description": "将舰船归为油船，供舰队生成和自动装配识别其用途。"
+    },
+    "TRANSPORT": {
+      "label": "运输舰",
+      "description": "将舰船归为运输舰，供舰队生成和自动装配识别其用途。"
+    },
+    "UNBOARDABLE": {
+      "label": "无法回收",
+      "description": "战斗结束后，该舰船不能被玩家回收。"
+    },
+    "UNDER_PARENT": {
+      "label": "模块绘制在主体下方",
+      "description": "舰船模块的贴图绘制在主体船体贴图下方。"
+    },
+    "INDEPENDENT_ROTATION": {
+      "label": "模块可独立转向",
+      "description": "模块位置仍跟随主体舰船，但模块朝向可独立于主体旋转。"
+    },
+    "WEAPONS_FRONT_TO_BACK": {
+      "label": "武器由前向后绘制",
+      "description": "按武器相对船体的位置确定绘制顺序，从舰首方向排到舰尾方向。"
+    },
+    "WEAPONS_BACK_TO_FRONT": {
+      "label": "武器由后向前绘制",
+      "description": "按武器相对船体的位置确定绘制顺序，从舰尾方向排到舰首方向。"
+    },
+    "DO_NOT_SHOW_MODULES_IN_FLEET_LIST": {
+      "label": "舰队列表不显示模块",
+      "description": "舰队列表等舰船预览只显示主体舰船，不显示它的附属模块。"
+    },
+    "RENDER_ENGINES_BELOW_HULL": {
+      "label": "引擎绘制在船体下方",
+      "description": "舰船贴图绘制完成后，引擎显示在船体贴图下层。"
+    },
+    "MISSILE_HARDPOINTS_ROTATE": {
+      "label": "导弹固定槽可以转向",
+      "description": "朝向范围符合原版条件的导弹固定槽可以随舰船武器转向。"
+    },
+    "NO_NEURAL_LINK": {
+      "label": "不能安装神经接口",
+      "description": "神经接口和神经整合器的安装条件会排除此舰船。"
+    },
+    "PHASE": {
+      "label": "相位舰",
+      "description": "将船体按相位舰处理，供 AI、舰队生成和相关说明使用；是否拥有相位系统仍由舰船配置决定。"
+    },
+    "PLAY_FIGHTER_OVERLOAD_SOUNDS": {
+      "label": "战机播放舰船过载音效",
+      "description": "战机过载时播放舰船使用的过载音效。"
+    },
+    "DO_NOT_TURN_TO_ARMOR": {
+      "label": "保持装甲朝向",
+      "description": "舰船 AI 保持正常战斗朝向；不会根据装甲状态调整朝向。"
+    }
+  }
+}

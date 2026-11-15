@@ -1,0 +1,22 @@
+{
+  "$schema": "pyxis-ad-astra/value-catalog/v1",
+  "id": "weapon-barrel-modes",
+  "values": {
+    "ALTERNATING": {
+      "label": "交替",
+      "description": "按发射点顺序交替发射。"
+    },
+    "ALTERNATING_BURST": {
+      "label": "交替连射",
+      "description": "连射过程中交替使用发射点。"
+    },
+    "DUAL": {
+      "label": "双发",
+      "description": "使用双发发射模式。"
+    },
+    "LINKED": {
+      "label": "齐射",
+      "description": "联动各发射点同时发射。"
+    }
+  }
+}

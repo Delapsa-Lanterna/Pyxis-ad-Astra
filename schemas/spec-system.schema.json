@@ -32,7 +32,8 @@
             "DRONE_LAUNCHER",
             "EMP"
           ],
-          "default": "STAT_MOD"
+          "default": "STAT_MOD",
+          "optionCatalog": "system-types"
         },
         {
           "key": "aiType",
@@ -73,7 +74,8 @@
             "RECALL_DEVICE",
             "CUSTOM",
             "NONE"
-          ]
+          ],
+          "optionCatalog": "system-ai-types"
         },
         {
           "key": "statsScript",
@@ -264,7 +266,8 @@
           "options": [
             "LOWPASS",
             "NONE"
-          ]
+          ],
+          "optionCatalog": "system-sound-filters"
         },
         {
           "key": "soundFilterGain",
@@ -362,7 +365,8 @@
             "BALLISTIC",
             "MISSILE",
             "SYSTEM"
-          ]
+          ],
+          "optionCatalog": "weapon-types"
         }
       ]
     },
@@ -646,7 +650,8 @@
             "KINETIC",
             "HIGH_EXPLOSIVE",
             "FRAGMENTATION"
-          ]
+          ],
+          "optionCatalog": "damage-types"
         }
       ]
     },

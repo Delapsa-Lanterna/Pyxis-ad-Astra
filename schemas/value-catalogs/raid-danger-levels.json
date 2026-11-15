@@ -1,0 +1,30 @@
+{
+  "$schema": "pyxis-ad-astra/value-catalog/v1",
+  "id": "raid-danger-levels",
+  "values": {
+    "NONE": {
+      "label": "无",
+      "description": "劫掠或破坏行动采用无危险等级。"
+    },
+    "MINIMAL": {
+      "label": "极低",
+      "description": "劫掠或破坏行动采用极低危险等级。"
+    },
+    "LOW": {
+      "label": "低",
+      "description": "劫掠或破坏行动采用低危险等级。"
+    },
+    "MEDIUM": {
+      "label": "中等",
+      "description": "劫掠或破坏行动采用中等危险等级。"
+    },
+    "HIGH": {
+      "label": "高",
+      "description": "劫掠或破坏行动采用高危险等级。"
+    },
+    "EXTREME": {
+      "label": "极高",
+      "description": "劫掠或破坏行动采用极高危险等级。"
+    }
+  }
+}

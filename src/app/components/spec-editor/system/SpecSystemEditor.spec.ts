@@ -114,7 +114,7 @@ describe('SpecSystemEditor type switching', () => {
     const selects = editor.findAll('select');
     let changed = false;
     for (const select of selects) {
-      const options = select.findAll('option').map((option) => option.text());
+      const options = select.findAll('option').map((option) => JSON.parse(option.element.value));
       if (options.includes('SHIELD_MOD')) {
         await select.setValue(JSON.stringify('SHIELD_MOD'));
         changed = true;
@@ -142,7 +142,7 @@ describe('SpecSystemEditor type switching', () => {
     const options = editor
       .findAll('select')[0]!
       .findAll('option')
-      .map((option) => option.text());
+      .map((option) => JSON.parse(option.element.value));
     expect(options).toContain('FAST_RELOAD');
     expect(options).toContain('AMMO_RELOAD');
     expect(options).toContain('TELEPORTER');

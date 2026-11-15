@@ -211,7 +211,9 @@ describe('SpecWeaponEditor', () => {
   it('switches the weapon type through the type select', async () => {
     const editor = mountEditor({ id: 'railgun', specClass: 'projectile', type: 'BALLISTIC' });
     const selects = editor.findAll('select');
-    const typeSelect = selects.find((select) => select.findAll('option').some((option) => option.text() === 'ENERGY'));
+    const typeSelect = selects.find((select) =>
+      select.findAll('option').some((option) => option.element.value === JSON.stringify('ENERGY')),
+    );
     expect(typeSelect).toBeTruthy();
     await typeSelect!.setValue(JSON.stringify('ENERGY'));
     const last = editor.emitted('draft-changed')?.at(-1)?.[0] as Record<string, unknown>;
@@ -225,7 +227,7 @@ describe('SpecWeaponEditor', () => {
     expect(
       type
         .findAll('option')
-        .map((option) => option.text())
+        .map((option) => JSON.parse(option.element.value))
         .slice(-WEAPON_SPEC_CLASSES.length),
     ).toEqual(WEAPON_SPEC_CLASSES);
     await type.setValue(JSON.stringify('beam'));
@@ -459,7 +461,9 @@ describe('SpecWeaponEditor', () => {
   it('preserves the draft and undo history when the theme changes', async () => {
     const editor = mountEditor({ id: 'railgun', specClass: 'projectile', type: 'BALLISTIC' });
     await editor.setProps({ editContext: { targetKey: 'weapon', baselineGeneration: 1, handoff: 'load' } });
-    const typeSelect = editor.findAll('select').find((select) => select.findAll('option').some((option) => option.text() === 'ENERGY'))!;
+    const typeSelect = editor
+      .findAll('select')
+      .find((select) => select.findAll('option').some((option) => option.element.value === JSON.stringify('ENERGY')))!;
     await typeSelect.setValue(JSON.stringify('ENERGY'));
     const changes = editor.emitted('draft-changed')!.length;
     useSettingsStore().setTheme('dark');

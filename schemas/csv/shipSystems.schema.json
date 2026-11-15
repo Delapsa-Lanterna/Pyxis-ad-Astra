@@ -156,7 +156,18 @@
       "summary": true,
       "label": "Tags 标签",
       "control": "tags",
-      "source": "csv:shipSystems.tags"
+      "source": "csv:shipSystems.tags",
+      "optionCatalog": "ship-system-tags",
+      "suggestions": [
+        "restricted",
+        "hide_in_codex",
+        "invisible_in_codex",
+        "defensive",
+        "offensive",
+        "movement",
+        "uses_damper_ai",
+        "disruptable"
+      ]
     },
     {
       "key": "icon",

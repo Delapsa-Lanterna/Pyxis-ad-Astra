@@ -25,7 +25,8 @@
         "SHIP_SYSTEM",
         "TERRAIN",
         "WEAPON"
-      ]
+      ],
+      "optionCatalog": "description-types"
     },
     {
       "key": "text1",

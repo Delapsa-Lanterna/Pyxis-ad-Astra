@@ -1,0 +1,46 @@
+{
+  "$schema": "pyxis-ad-astra/value-catalog/v1",
+  "id": "ability-tags",
+  "values": {
+    "codex_unlockable": {
+      "label": "数据百科待解锁",
+      "description": "该内容在数据百科中的锁定状态由玩家是否接触或获得相关内容决定。"
+    },
+    "hide_in_codex": {
+      "label": "不显示在数据百科中",
+      "description": "数据百科建立相应类别的目录时会跳过带有此标记的内容。"
+    },
+    "invisible_in_codex": {
+      "label": "在数据百科目录中隐藏",
+      "description": "该条目不会出现在常规目录中，但仍可由游戏直接打开。"
+    },
+    "burn+": {
+      "label": "提高航速",
+      "description": "表示该能力会提高航行速度，并参与能力兼容性和阻断脉冲判断；具体数值由能力效果决定。"
+    },
+    "burn-": {
+      "label": "降低航速",
+      "description": "表示该能力会降低航行速度，并参与能力兼容性判断；具体数值由能力效果决定。"
+    },
+    "disabled_by_interdict": {
+      "label": "可被阻断脉冲打断",
+      "description": "阻断脉冲会根据此标记判断能否中断该能力。"
+    },
+    "sensors+": {
+      "label": "提高传感强度",
+      "description": "表示该能力会提高传感强度，并参与能力兼容性判断。"
+    },
+    "sensors-": {
+      "label": "降低传感强度",
+      "description": "表示该能力会降低传感强度，并参与能力兼容性判断。"
+    },
+    "stealth+": {
+      "label": "提高隐蔽效果",
+      "description": "表示该能力会提高隐蔽效果，并参与能力兼容性判断。"
+    },
+    "stealth-": {
+      "label": "降低隐蔽效果",
+      "description": "表示该能力会降低隐蔽效果，并参与能力兼容性判断。"
+    }
+  }
+}

@@ -1,0 +1,146 @@
+{
+  "$schema": "pyxis-ad-astra/value-catalog/v1",
+  "id": "industry-tags",
+  "values": {
+    "codex_unlockable": {
+      "label": "数据百科待解锁",
+      "description": "该内容在数据百科中的锁定状态由玩家是否接触或获得相关内容决定。"
+    },
+    "hide_in_codex": {
+      "label": "不显示在数据百科中",
+      "description": "数据百科建立相应类别的目录时会跳过带有此标记的内容。"
+    },
+    "invisible_in_codex": {
+      "label": "在数据百科目录中隐藏",
+      "description": "该条目不会出现在常规目录中，但仍可由游戏直接打开。"
+    },
+    "battlestation": {
+      "label": "战斗空间站",
+      "description": "标记殖民地的战斗空间站；通常与空间站类别标记配合使用。"
+    },
+    "command": {
+      "label": "指挥设施",
+      "description": "将该殖民地设施归入指挥类军事设施。"
+    },
+    "cryorevival": {
+      "label": "低温复苏设施",
+      "description": "将该殖民地设施归入低温复苏类别。"
+    },
+    "cryosanctum": {
+      "label": "低温避难设施",
+      "description": "将该殖民地设施归入低温避难类别。"
+    },
+    "farming": {
+      "label": "农业设施",
+      "description": "将该殖民地设施归入农业类别。"
+    },
+    "fuelprod": {
+      "label": "燃料生产设施",
+      "description": "将该殖民地设施归入燃料生产类别。"
+    },
+    "grounddefenses": {
+      "label": "地面防御设施",
+      "description": "将该殖民地设施归入地面防御类别，供相关目标筛选使用。"
+    },
+    "heavyindustry": {
+      "label": "重工业设施",
+      "description": "将该殖民地设施归入重工业类别。"
+    },
+    "important": {
+      "label": "优先建造",
+      "description": "建造列表会优先排列带有此标记的设施，再比较设施顺序值。"
+    },
+    "industrial": {
+      "label": "工业殖民地",
+      "description": "殖民地类型判断会根据工业设施标记将殖民地归为工业型。"
+    },
+    "industry": {
+      "label": "工业设施",
+      "description": "将该殖民地设施归入占用工业槽位的类别。"
+    },
+    "lightindustry": {
+      "label": "轻工业设施",
+      "description": "将该殖民地设施归入轻工业类别。"
+    },
+    "mining": {
+      "label": "采矿设施",
+      "description": "将该殖民地设施归入采矿类别。"
+    },
+    "no_saturation_bombardment": {
+      "label": "不受饱和轰炸干扰",
+      "description": "饱和轰炸选择设施目标时会跳过该设施。"
+    },
+    "parent_item": {
+      "label": "上级建造类别",
+      "description": "在建造界面中作为一类设施的上级入口。"
+    },
+    "patrol": {
+      "label": "巡逻设施",
+      "description": "将该殖民地设施归入巡逻类军事设施。"
+    },
+    "population": {
+      "label": "人口设施",
+      "description": "将该殖民地设施归入人口与基础设施类别。"
+    },
+    "refining": {
+      "label": "精炼设施",
+      "description": "将该殖民地设施归入精炼类别。"
+    },
+    "rural": {
+      "label": "乡村殖民地",
+      "description": "殖民地类型判断会根据乡村设施标记将殖民地归为乡村型。"
+    },
+    "spaceport": {
+      "label": "太空港",
+      "description": "标记太空港类设施；船体插件装卸等殖民地条件也会读取此标记。"
+    },
+    "starfortress": {
+      "label": "星堡",
+      "description": "标记三级星堡设施；通常与空间站类别标记配合使用。"
+    },
+    "station": {
+      "label": "轨道空间站",
+      "description": "标记殖民地的轨道空间站；空间站管理和相关设施条件会读取此标记。"
+    },
+    "structure": {
+      "label": "普通建筑",
+      "description": "将该殖民地设施归入普通建筑类别。"
+    },
+    "sub_item": {
+      "label": "下级建造类别",
+      "description": "在建造界面中作为某类设施下的子项。"
+    },
+    "tactical_bombardment": {
+      "label": "战术轰炸目标",
+      "description": "战术轰炸选择设施目标时会读取此标记。"
+    },
+    "techmining": {
+      "label": "科技采掘设施",
+      "description": "将该殖民地设施归入科技采掘类别。"
+    },
+    "unraidable": {
+      "label": "不可劫掠",
+      "description": "劫掠目标筛选会排除带有此标记的设施。"
+    },
+    "urban": {
+      "label": "城市殖民地",
+      "description": "殖民地类型判断会根据城市设施标记将殖民地归为城市型。"
+    },
+    "uses_blueprints": {
+      "label": "可劫掠蓝图的设施",
+      "description": "标记可用于劫掠蓝图的设施；具体可获得的蓝图由所属势力的知识决定。"
+    },
+    "waystation": {
+      "label": "中转站",
+      "description": "将该殖民地设施归入中转站类别。"
+    },
+    "do_not_show_in_build_dialog": {
+      "label": "不显示在建造列表",
+      "description": "建造界面不会显示带有此标记的设施。"
+    },
+    "military": {
+      "label": "军用",
+      "description": "商品和殖民地设施使用的军用标记；在殖民地设施中表示军事设施类别。"
+    }
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "$schema": "pyxis-ad-astra/value-catalog/v1",
+  "id": "weapon-animation-types",
+  "values": {
+    "NONE": {
+      "label": "无炮口动画",
+      "description": "采用无预设炮口动画的类型。"
+    },
+    "GLOW": {
+      "label": "辉光",
+      "description": "采用炮口辉光动画。"
+    },
+    "MUZZLE_FLASH": {
+      "label": "闪光",
+      "description": "采用炮口闪光动画。"
+    },
+    "GLOW_AND_FLASH": {
+      "label": "辉光与闪光",
+      "description": "同时采用炮口辉光和闪光动画。"
+    },
+    "SMOKE": {
+      "label": "烟雾",
+      "description": "采用炮口烟雾动画。"
+    }
+  }
+}

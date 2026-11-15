@@ -1,0 +1,22 @@
+{
+  "$schema": "pyxis-ad-astra/value-catalog/v1",
+  "id": "shield-types",
+  "values": {
+    "NONE": {
+      "label": "无护盾",
+      "description": "采用无常规护盾的舰船配置。"
+    },
+    "FRONT": {
+      "label": "前盾",
+      "description": "护盾朝向跟随舰船前方。"
+    },
+    "OMNI": {
+      "label": "全向护盾",
+      "description": "护盾朝向可独立于舰船朝向调整。"
+    },
+    "PHASE": {
+      "label": "相位线圈",
+      "description": "采用相位线圈或其它特殊系统规则。"
+    }
+  }
+}

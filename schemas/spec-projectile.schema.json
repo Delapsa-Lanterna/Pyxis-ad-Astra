@@ -23,7 +23,8 @@
             "projectile",
             "missile"
           ],
-          "required": true
+          "required": true,
+          "optionCatalog": "projectile-spec-classes"
         },
         {
           "key": "spawnType",
@@ -43,7 +44,8 @@
             "specClass": [
               "projectile"
             ]
-          }
+          },
+          "optionCatalog": "projectile-spawn-types"
         },
         {
           "key": "missileType",
@@ -74,7 +76,8 @@
             "specClass": [
               "missile"
             ]
-          }
+          },
+          "optionCatalog": "missile-types"
         }
       ]
     },
@@ -186,7 +189,8 @@
                 "ROUGH2",
                 "WEAVE",
                 "LASER"
-              ]
+              ],
+              "optionCatalog": "beam-textures"
             },
             {
               "type": "array",
@@ -203,7 +207,8 @@
                 "required": true
               }
             }
-          ]
+          ],
+          "optionCatalog": "beam-textures"
         },
         {
           "key": "textureScrollSpeed",
@@ -687,7 +692,8 @@
             "PROXIMITY_FUSE",
             "MIRV",
             "CUSTOM"
-          ]
+          ],
+          "optionCatalog": "missile-behaviors"
         },
         {
           "key": "delay",
@@ -1095,7 +1101,8 @@
         "PLANET",
         "GAS_CLOUD",
         "STAR"
-      ]
+      ],
+      "optionCatalog": "collision-classes"
     }
   }
 }

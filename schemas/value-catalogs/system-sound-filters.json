@@ -1,0 +1,14 @@
+{
+  "$schema": "pyxis-ad-astra/value-catalog/v1",
+  "id": "system-sound-filters",
+  "values": {
+    "LOWPASS": {
+      "label": "低通滤波",
+      "description": "系统生效时采用低通音效滤波。"
+    },
+    "NONE": {
+      "label": "无滤波",
+      "description": "系统生效时采用无预设音效滤波的类型。"
+    }
+  }
+}
