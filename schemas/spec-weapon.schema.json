@@ -482,7 +482,7 @@
     },
     {
       "id": "glow",
-      "label": "光效与绘制",
+      "label": "光效",
       "fields": [
         {
           "key": "glowColor",
@@ -506,7 +506,13 @@
           "label": "特殊光效高度",
           "type": "float",
           "default": -1
-        },
+        }
+      ]
+    },
+    {
+      "id": "render",
+      "label": "绘制",
+      "fields": [
         {
           "key": "renderHints",
           "label": "绘制提示",

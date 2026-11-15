@@ -265,11 +265,11 @@ describe('SpecWeaponEditor', () => {
     ).toEqual([`${mode}Offsets`, `${mode}Offsets`, `${mode}AngleOffsets`]);
   });
 
-  it.each(WEAPON_SPEC_CLASSES)('groups glow after frame animation for a %s weapon', (specClass) => {
+  it.each(WEAPON_SPEC_CLASSES)('groups glow and rendering after frame animation for a %s weapon', (specClass) => {
     const editor = mountEditor({ id: 'railgun', specClass });
     const sections = editor.findAll('.n-collapse-item-stub').map((section) => section.attributes('data-name'));
     const position = sections.indexOf('glow');
-    expect(sections.slice(position - 1, position + 2)).toEqual(['anim', 'glow', 'sound']);
+    expect(sections.slice(position - 1, position + 3)).toEqual(['anim', 'glow', 'render', 'sound']);
     expect(editor.get('[data-name="glow"]').text()).toContain('glowColor');
     expect(editor.get('[data-name="advanced"]').text()).toContain('mountTypeOverride');
     expect(editor.get('[data-name="advanced"]').text()).toContain('displayArcRadius');
