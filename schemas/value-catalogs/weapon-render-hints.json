@@ -24,7 +24,7 @@
     },
     "NEVER_RENDER_IN_CAMPAIGN": {
       "label": "仅战斗中绘制",
-      "description": "在战役舰队展示中隐藏该武器贴图。"
+      "description": "在生涯舰队展示中隐藏该武器贴图。"
     }
   }
 }

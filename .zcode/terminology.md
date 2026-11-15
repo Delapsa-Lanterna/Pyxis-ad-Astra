@@ -15,35 +15,30 @@
 
 ### 舰船 Ship
 
-- **对象边界**：舰船业务记录、`.ship` spec 和舰船贴图引用。
 - **所属数据**：CSV `id`、CSV `name`、spec `hullId`、spec `hullName`。
 - **定义**：Ship 是可在舰船编辑器中编辑几何、槽位、引擎、护盾和贴图引用的舰船对象。
 - **不要混用**：CSV `name` 是表格业务名称；spec `hullName` 是规格内容；两者不是同一个字段。
 
 ### 武器 Weapon
 
-- **对象边界**：武器 CSV 业务记录、`.wpn` spec、发射点和武器贴图引用。
 - **所属数据**：CSV `id`、武器类别 `type`、spec `specClass`、spec `projectileSpecId`。
 - **定义**：Weapon 是描述武器类别、发射方式、弹体引用或光束效果的武器对象。
 - **不要混用**：武器类别 `type` 与 `.wpn` 的编辑分支 `specClass` 分别表达游戏类别和规格分支。
 
 ### 弹体 Projectile
 
-- **对象边界**：`.proj` spec、弹体贴图、碰撞尺寸、速度和引擎参数。
 - **所属数据**：`.proj` `id`、`specClass=projectile/missile`、`spawnType` 或 `missileType`。
 - **定义**：Projectile 是武器发射后使用的弹体或导弹规格对象。
 - **不要混用**：产品词 `弹体` 覆盖 `projectile` 和 `missile`；代码分支必须使用实际 `specClass` 区分两者。
 
 ### 装配 Variant
 
-- **对象边界**：`.variant` spec 及其舰船、武器、插件、战机联队和系统装配引用。
 - **所属数据**：`variantId`、`hullId`、槽位和装配引用。
 - **定义**：Variant 是舰船装配配置对象，不是舰船 spec 本身。
 - **不要混用**：严禁写成 `loadout`，严禁翻译为 `变体`。
 
 ### 船体插件 Hullmod
 
-- **对象边界**：`hullmods` CSV 中登记的 Hullmod，以及 `.variant`、`.skin` 和 `.ship` 中的相关引用。
 - **定义**：Hullmod 统一称为 `船体插件`；普通、永久和 S-mod 是其安装类别或强化状态。
 
 ### 战机联队 Wing
@@ -54,33 +49,33 @@
 
 ### 皮肤 Skin
 
-- **对象边界**：`.skin` spec 及其基础船体、贴图变化和装配变化。
 - **所属数据**：`skinHullId`、`baseHullId`、slot change 和 engine change。
 - **定义**：Skin 是基于船体的外观或装配变化对象。
 - **不要混用**：`skinHullId` 是皮肤身份；`baseHullId` 是被覆盖的基础船体身份。
 
 ### 势力 Faction
 
-- **对象边界**：势力索引 CSV、实际 `.faction` 文件、势力名称、颜色、logo 和 crest 引用。
 - **所属数据**：索引行提供文件引用；`.faction` 内容提供势力业务字段。
 - **定义**：Faction 是由索引记录和势力规格文件共同构成的势力对象。
-- **不要混用**：严禁翻译为 `阵营`。
+- **翻译限制**：严禁翻译为 `阵营` 或其它名称。
+
+### 生涯 Campaign
+
+- **定义**：`Campaign` 统一称为 `生涯`，涵盖星域探索、航行、舰队、人物、市场与殖民地等持续游戏内容。
+- **翻译限制**：严禁翻译为 `战役`、`运动` 或其它名称。
 
 ### 战役 Mission
 
-- **对象边界**：`data/missions/mission_list.csv`、任务目录、`descriptor.json` 和 `mission_text.txt`。
 - **所属数据**：索引列 `mission`、descriptor 字段、任务文本和目录资源。
 - **定义**：Mission 是由任务索引、任务目录和任务描述内容共同构成的战役对象。
 
 ### 战术系统 System
 
-- **对象边界**：`.system` spec 及其 schema 字段和编辑集合。
 - **所属数据**：系统 ID、`type`、`aiType` 以及系统效果字段。
 - **定义**：System 是舰船战术系统规格对象。
 
 ### 技能 Skill
 
-- **对象边界**：技能数据记录、`governingAptitude` 和 `effectGroups`。
 - **所属数据**：技能 ID、控制属性字符串和效果组数组。
 - **定义**：Skill 是由控制属性和效果组描述的技能对象。
 

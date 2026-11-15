@@ -40,7 +40,7 @@
     },
     "TERRAIN": {
       "label": "地形",
-      "description": "为战役地图地形提供说明文本。"
+      "description": "为生涯地图地形提供说明文本。"
     },
     "WEAPON": {
       "label": "武器",

@@ -284,9 +284,7 @@ function renderSelectTag({ option, handleClose }: { option: SelectOption; handle
 }
 
 function selectOptionTitle(option: SelectOption & { label?: string; value?: string }): string | undefined {
-  const value = option.value ?? '';
-  const label = selectOptionText(option);
-  return [value, label !== value ? label : '', option.description ?? ''].filter(Boolean).join('\n') || undefined;
+  return [selectOptionText(option), option.description ?? ''].filter(Boolean).join('\n') || undefined;
 }
 
 function selectOptionOrigin(option: SelectOption & { value?: string }): string | null {
