@@ -3,7 +3,10 @@ import { collectRepoPaths } from './shared/files.mjs';
 import { checkStyles } from './shared/style-source.mjs';
 import { checkFontSources } from './shared/font-source.mjs';
 
-const paths = await collectRepoPaths(process.cwd(), (_rel, extension) => /\.(?:css|vue|ts|tsx|js|jsx|mjs|html)$/.test(extension));
+const paths = await collectRepoPaths(
+  process.cwd(),
+  (rel, extension) => !rel.startsWith('showcase/') && /\.(?:css|vue|ts|tsx|js|jsx|mjs|html)$/.test(extension),
+);
 const files = await Promise.all(paths.map(async (path) => ({ rel: path.rel, text: await readFile(path.path, 'utf8') })));
 const failures = [...checkStyles(files), ...checkFontSources(files)];
 if (failures.length) {

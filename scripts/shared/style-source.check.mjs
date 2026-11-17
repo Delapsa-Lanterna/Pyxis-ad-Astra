@@ -142,7 +142,12 @@ test('Vue and HTML use the stylesheet entry while script literals remain content
   ])
     assert.ok(checkStyles([file]).some((failure) => failure.includes('css.entry')));
   assert.deepEqual(
-    checkStyles([...fixture('.control{color:red}'), { rel: 'ui/main.ts', text: 'import "./style.css"; const text="<style scoped>";' }]),
+    checkStyles([
+      ...fixture('.control{color:red}'),
+      { rel: 'ui/main.ts', text: 'import "./style.css"; const text="<style scoped>";' },
+      { rel: 'ui/index.html', text: '<input><br><img src="sample.png">' },
+      { rel: 'ui/script.html', text: `<script>const text = '<b' + (active ? ' class="ready"' : '') + '>' + value + '</b>';</script>` },
+    ]),
     [],
   );
 });

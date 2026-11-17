@@ -1,6 +1,6 @@
 import * as css from 'css-tree';
 import ts from 'typescript';
-import { baseParse } from '@vue/compiler-dom';
+import { parse } from '@vue/compiler-dom';
 import { posix } from 'node:path';
 import { parseFrontendSource } from './frontend-source.mjs';
 import { sourcePositions } from './source-position.mjs';
@@ -129,7 +129,7 @@ export function checkStyles(files) {
       if (file.rel.endsWith('.vue')) {
         for (const style of syntax.styles) report(file, style, 'css.entry', 'component styles belong in the stylesheet entry');
         if (syntax.template) inspectTemplate(file, syntax.template.ast);
-      } else if (file.rel.endsWith('.html')) inspectTemplate(file, baseParse(file.text));
+      } else if (file.rel.endsWith('.html')) inspectTemplate(file, parse(file.text));
       continue;
     }
     /** @type {Sheet} */
