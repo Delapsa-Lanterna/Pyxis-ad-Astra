@@ -29,6 +29,10 @@ jobs:
       - uses: actions/configure-pages@v5
         id: pages
       - run: npm run build:demo -- --base '${{ steps.pages.outputs.base_path }}/'
+      - name: Package showcase
+        run: |
+          mkdir -p dist/browser-demo/showcase
+          cp showcase/iframe-view.html dist/browser-demo/showcase/index.html
       - run: npx playwright install --with-deps chromium
       - name: Serve demo artifact
         run: npm run dev:browser-preview -- --production --existing --directory dist/browser-demo --base /Pyxis-ad-Astra/ --port 1463 &
