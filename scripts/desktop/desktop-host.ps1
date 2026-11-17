@@ -42,7 +42,6 @@ public static class DesktopHost {
     static extern IntPtr CreateFileW(string name, uint access, uint share, IntPtr security, uint mode, uint flags, IntPtr template);
     [DllImport("kernel32.dll")] static extern bool SetHandleInformation(IntPtr handle, uint mask, uint flags);
     [DllImport("user32.dll")] static extern bool EnumDesktopWindows(IntPtr desktop, WindowCallback callback, IntPtr data);
-    [DllImport("user32.dll")] static extern bool EnumWindows(WindowCallback callback, IntPtr data);
     [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr window, out uint pid);
     [DllImport("user32.dll")] static extern bool PostMessageW(IntPtr window, uint message, IntPtr w, IntPtr l);
 
@@ -107,8 +106,9 @@ public static class DesktopHost {
                             if (owner == info.pid) PostMessageW(window, 0x0010, IntPtr.Zero, IntPtr.Zero);
                             return true;
                         };
-                        if (isolatedDesktop) EnumDesktopWindows(desktop, close, IntPtr.Zero);
-                        else EnumWindows(close, IntPtr.Zero);
+                        // A startup close request must also reach windows created after the request.
+                        do { EnumDesktopWindows(desktop, close, IntPtr.Zero); }
+                        while (!application.WaitForExit(50));
                     }
                     finished.GetAwaiter().GetResult();
                     return application.ExitCode;

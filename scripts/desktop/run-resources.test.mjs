@@ -18,73 +18,75 @@ const execute = promisify(execFile);
 const runner = resolve('scripts/desktop/run.mjs');
 
 for (const isolatedDesktop of [false, true])
-  test(`native windows retain focus and close on the ${isolatedDesktop ? 'isolated' : 'user'} desktop`, async () => {
-    const work = await TestWorkspace.create(tmpdir(), 'desktop-close');
-    try {
-      const executable = (await execute('pwsh', ['-NoProfile', '-Command', '[Environment]::ProcessPath'])).stdout.trim();
-      const log = work.path('native.log');
-      const child = spawn(
-        'pwsh',
-        [
-          '-NoProfile',
-          '-File',
-          'scripts/desktop/desktop-host.ps1',
-          ...(isolatedDesktop ? ['-IsolatedDesktop'] : []),
-          '-Executable',
-          executable,
-          '-Log',
-          log,
-          '-Arguments:-NoProfile -File "' +
-            resolve('scripts/desktop/desktop-probe.ps1') +
-            '" -Output "' +
-            work.path('probe.json') +
-            '" -WaitForClose',
-        ],
-        { windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] },
-      );
-      let output = '';
-      child.stdout.on('data', (part) => {
-        output += String(part);
-      });
-      child.stderr.on('data', (part) => {
-        output += String(part);
-      });
-      const finished = new Promise((done, reject) => {
-        child.once('error', reject);
-        child.once('close', done);
-      });
+  for (const phase of ['ready', 'starting', 'foreign-timer'])
+    test(`native windows retain focus and close on the ${isolatedDesktop ? 'isolated' : 'user'} desktop (${phase})`, async () => {
+      const work = await TestWorkspace.create(tmpdir(), 'desktop-close');
       try {
-        await until(() => {
-          if (child.exitCode !== null) throw Error(output);
-          return output.includes('DESKTOP_START ');
-        }, 'native process ready');
-        await until(async () => (await readFile(log, 'utf8')).includes('PROBE_READY'), 'native window ready');
-        child.stdin.end('close\n');
-        assert.equal(await finished, 0, output);
-        const probe = JSON.parse(await readFile(work.path('probe.json'), 'utf8'));
-        assert.equal(probe.desktop === probe.inputDesktop, !isolatedDesktop);
-        assert.equal(probe.threadFocus, true);
-        const desktop = JSON.parse(output.slice('DESKTOP_START '.length).trim());
-        if (isolatedDesktop) {
-          assert.match(probe.desktop, /^PyxisTesting-/);
-          assert.equal(probe.foregroundAccepted, false);
-          const released = await execute('pwsh', [
+        const executable = (await execute('pwsh', ['-NoProfile', '-Command', '[Environment]::ProcessPath'])).stdout.trim();
+        const log = work.path('native.log');
+        const child = spawn(
+          'pwsh',
+          [
             '-NoProfile',
             '-File',
             'scripts/desktop/desktop-host.ps1',
-            '-VerifyDesktop',
-            desktop.name,
-          ]);
-          assert.match(released.stdout, /DESKTOP_RELEASED/);
-        } else assert.equal(desktop.name, '');
+            ...(isolatedDesktop ? ['-IsolatedDesktop'] : []),
+            '-Executable',
+            executable,
+            '-Log',
+            log,
+            '-Arguments:-NoProfile -File "' +
+              resolve('scripts/desktop/desktop-probe.ps1') +
+              '" -Output "' +
+              work.path('probe.json') +
+              '" -WaitForClose' +
+              (phase === 'foreign-timer' ? ' -ForeignTimer' : ''),
+          ],
+          { windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] },
+        );
+        let output = '';
+        child.stdout.on('data', (part) => {
+          output += String(part);
+        });
+        child.stderr.on('data', (part) => {
+          output += String(part);
+        });
+        const finished = new Promise((done, reject) => {
+          child.once('error', reject);
+          child.once('close', done);
+        });
+        try {
+          await until(() => {
+            if (child.exitCode !== null) throw Error(output);
+            return output.includes('DESKTOP_START ');
+          }, 'native process ready');
+          if (phase !== 'starting') await until(async () => (await readFile(log, 'utf8')).includes('PROBE_READY'), 'native window ready');
+          child.stdin.end('close\n');
+          assert.equal(await finished, 0, output + '\n' + (await readFile(log, 'utf8')));
+          const probe = JSON.parse(await readFile(work.path('probe.json'), 'utf8'));
+          assert.equal(probe.desktop === probe.inputDesktop, !isolatedDesktop);
+          assert.equal(probe.threadFocus, true);
+          const desktop = JSON.parse(output.slice('DESKTOP_START '.length).trim());
+          if (isolatedDesktop) {
+            assert.match(probe.desktop, /^PyxisTesting-/);
+            assert.equal(probe.foregroundAccepted, false);
+            const released = await execute('pwsh', [
+              '-NoProfile',
+              '-File',
+              'scripts/desktop/desktop-host.ps1',
+              '-VerifyDesktop',
+              desktop.name,
+            ]);
+            assert.match(released.stdout, /DESKTOP_RELEASED/);
+          } else assert.equal(desktop.name, '');
+        } finally {
+          if (!child.stdin.writableEnded) child.stdin.end('close\n');
+          await finished;
+        }
       } finally {
-        if (!child.stdin.writableEnded) child.stdin.end('close\n');
-        await finished;
+        await work.close();
       }
-    } finally {
-      await work.close();
-    }
-  });
+    });
 
 test('CDP target discovery reports an unavailable WebView and releases its connection', async () => {
   const server = createHttpServer((_request, response) => {
