@@ -88,6 +88,25 @@ for (const isolatedDesktop of [false, true])
       }
     });
 
+test('native probe retains its own close deadline after another thread timer', async () => {
+  const work = await TestWorkspace.create(tmpdir(), 'desktop-deadline');
+  try {
+    const started = performance.now();
+    await assert.rejects(
+      execute(
+        'pwsh',
+        ['-NoProfile', '-File', 'scripts/desktop/desktop-probe.ps1', '-Output', work.path('probe.json'), '-WaitForClose', '-ForeignTimer'],
+        { windowsHide: true, timeout: 20000 },
+      ),
+      { code: 1, stdout: /PROBE_READY/, stderr: /Owned window did not close/ },
+    );
+    assert.ok(performance.now() - started >= 10000);
+    await absent(work.path('probe.json'));
+  } finally {
+    await work.close();
+  }
+});
+
 test('CDP target discovery reports an unavailable WebView and releases its connection', async () => {
   const server = createHttpServer((_request, response) => {
     response.setHeader('Content-Type', 'application/json');
