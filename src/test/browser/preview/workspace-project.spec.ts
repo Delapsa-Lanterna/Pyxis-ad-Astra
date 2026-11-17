@@ -23,6 +23,32 @@ import { composeJson } from '@/domain/json-composition';
 import { jsonEntitySavedData } from '@/domain/json-editor/json-file-records';
 import { jsonFileFixture, jsonWriteFixture } from '@/test/fixtures/json-file';
 import { projectJsonValue } from '@/domain/json-document';
+import { jointObject } from '@/domain/joint-edit';
+
+const sessionRequestCases = workspaceRoots.flatMap((modRoot) =>
+  (['main', 'owner', 'other'] as const).map((caller) => ({ modRoot, caller })),
+);
+async function createSessionRequest(modRoot: string, caller: 'main' | 'owner' | 'other') {
+  const workspace = createBrowserWorkspace(),
+    project = workspace.projects.find((entry) => entry.manifest.modRoot === modRoot)!;
+  let label = 'main';
+  if (caller !== 'main') {
+    const source = caller === 'owner' ? project : workspace.projects.slice(1).find((entry) => entry !== project)!;
+    const opened = (await workspace.invoke('main', 'request_window', {
+      payload: {
+        identity: { type: 'code-editor', sessionId: source.manifest.sessionId, modRoot: source.manifest.modRoot },
+        input: { kind: 'code-editor' },
+        title: 'Session request fixture',
+        width: 1120,
+        height: 780,
+        minWidth: 800,
+        minHeight: 520,
+      },
+    })) as T.WindowRequestReceipt;
+    label = opened.label;
+  }
+  return { workspace, project, label };
+}
 
 describe('complete browser workspace fixtures', () => {
   it.each(
@@ -514,20 +540,130 @@ describe('complete browser workspace fixtures', () => {
     expect(manifest).toMatchObject({ modRoot: gameRoot + '\\starsector-core', sessionId: workspace.projects[0]!.manifest.sessionId });
   });
 
-  it('resolves a blank immersive root ID from the selected ship row key', async () => {
-    const workspace = createBrowserWorkspace(),
-      project = workspace.projects[1]!,
-      row = project.tables.get('ships')!.rows.find((entry) => entry.data.id === 'Kratogen_tectogene')!;
-    const snapshot = (await workspace.invoke('main', 'query_joint_edit', {
-      payload: {
-        root: { sessionId: project.manifest.sessionId, modRoot: project.manifest.modRoot, kind: 'ship', id: '' },
+  it.each((['ships', 'weapons', 'wings'] as const).flatMap((table) => workspaceRoots.map((modRoot) => ({ table, modRoot }))))(
+    'opens immersive $table rows in $modRoot',
+    async ({ table, modRoot }) => {
+      const workspace = createBrowserWorkspace(),
+        project = workspace.projects.find((entry) => entry.manifest.modRoot === modRoot)!,
+        row = project.tables.get(table)!.rows[0]!;
+      const kind = table === 'ships' ? 'ship' : table === 'weapons' ? 'weapon' : 'wing';
+      const payload: T.JointEditQuery = {
+        root: { sessionId: project.manifest.sessionId, modRoot, kind, id: '' },
         rowKey: row.rowKey,
         values: null,
         newSources: [],
         catalog: null,
-      },
-    })) as { root: { kind: string; id: string } };
-    expect(snapshot.root).toMatchObject({ kind: 'ship', id: 'Kratogen_tectogene' });
+      };
+      const captured = (await workspace.invoke('main', 'query_joint_edit', { payload })) as T.JointEditSnapshot;
+      const root = { ...payload.root, id: String(row.data.id) };
+      expect(captured.root).toEqual(root);
+      const csv = captured.records.find((record) => record.key === captured.bindings.csv)!;
+      expect(csv.target).toMatchObject({ kind: 'csv', table, rowKey: row.rowKey });
+      expect(csv.value).toEqual({ state: 'present', value: row.data });
+      const query = { ...payload, root: captured.root, rowKey: null };
+      const snapshot = (await workspace.invoke('main', 'query_joint_edit', { payload: query })) as T.JointEditSnapshot;
+      expect(snapshot).toEqual(captured);
+      const identity: T.WindowIdentity = { type: 'immersive', ...snapshot.root };
+      const opened = (await workspace.invoke('main', 'request_window', {
+        payload: {
+          identity,
+          input: { kind: 'immersive-editor', rowKey: kind === 'wing' ? row.rowKey : null },
+          title: 'Fixture immersive editor',
+          width: 830,
+          height: 700,
+          minWidth: 430,
+          minHeight: 480,
+        },
+      })) as T.WindowRequestReceipt;
+      const bootstrap = await workspace.invoke(opened.label, 'get_window_bootstrap');
+      expect(bootstrap).toMatchObject({ kind: 'managed', modName: project.manifest.modInfo!.name, context: { identity } });
+      expect(await workspace.invoke(opened.label, 'query_joint_edit', { payload: query })).toEqual(snapshot);
+      expect(workspace.calls.filter((call) => call.command === 'query_joint_edit').map((call) => call.sessionId)).toEqual([
+        root.sessionId,
+        root.sessionId,
+        root.sessionId,
+      ]);
+    },
+  );
+
+  it.each(sessionRequestCases)('reads engine resources for $modRoot from $caller', async ({ modRoot, caller }) => {
+    const { workspace, project, label } = await createSessionRequest(modRoot, caller);
+    const path = modRoot + '/data/config/engine_styles.json';
+    const style = { engineColor: [31, 97, 151, 255], glowSprite: 'graphics/fx/engineglow32.png' };
+    const styles = JSON.parse(project.textFiles.get(path) ?? '{}') as T.RowData;
+    project.textFiles.set(path, JSON.stringify({ ...styles, session_fixture: style }));
+    const assets = (await workspace.invoke(label, 'query_engine_render_assets', {
+      sessionId: project.manifest.sessionId,
+      inlineStyles: [],
+    })) as T.EngineRenderAssets;
+    expect(assets.styles.session_fixture).toEqual(style);
+    expect(assets.resources[style.glowSprite]).toMatchObject({ relPath: style.glowSprite });
+    expect(workspace.calls.at(-1)).toMatchObject({ sessionId: project.manifest.sessionId });
+  });
+
+  it.each(sessionRequestCases)('prepares joint edits for $modRoot from $caller', async ({ modRoot, caller }) => {
+    const { workspace, project, label } = await createSessionRequest(modRoot, caller);
+    const baseline = project.graph('ship'),
+      key = baseline.bindings.spec!,
+      record = baseline.records.find((entry) => entry.key === key)!;
+    const draft: T.JointEditDraft = {
+      baseline,
+      values: { [key]: { state: 'present', value: { ...jointObject(record.value), hullName: 'Session fixture hull' } } },
+    };
+    const prepared = (await workspace.invoke(label, 'prepare_joint_edit', { payload: draft })) as T.JointEditPrepared;
+    expect(prepared.snapshot).toEqual(baseline);
+    expect(prepared.values).toEqual(draft.values);
+    expect(prepared.conflicts).toEqual([]);
+    expect(workspace.calls.at(-1)).toMatchObject({ sessionId: project.manifest.sessionId });
+  });
+
+  it.each(sessionRequestCases)('saves joint edits for $modRoot from $caller', async ({ modRoot, caller }) => {
+    const { workspace, project, label } = await createSessionRequest(modRoot, caller);
+    const entity = [...project.entities.values()].find((entry) => entry.kind === 'ship')!,
+      snapshot = project.graph('ship', entity.id),
+      key = snapshot.bindings.spec!,
+      record = snapshot.records.find((entry) => entry.key === key)!;
+    const others = workspace.projects
+      .filter((entry) => entry !== project)
+      .map((source) => ({
+        source,
+        files: new Map(source.textFiles),
+        history: structuredClone(source.history),
+      }));
+    const deliveries: T.ProjectSyncDelivery[] = [];
+    await workspace.invoke('main', 'register_save_window', {
+      channel: { onmessage: (delivery: T.ProjectSyncDelivery) => deliveries.push(delivery) },
+    });
+    const value: T.JointValue = { state: 'present', value: { ...jointObject(record.value), hullName: 'Session fixture hull' } };
+    const input: T.SaveJointEditPayload = {
+      snapshot,
+      values: { [key]: value },
+      documents: {},
+      csvColumns: {},
+      baseVersions: snapshot.baseVersions,
+      jsonWrite: {},
+      createOverrides: [],
+    };
+    const result = (await workspace.invoke(label, 'save_project', {
+      request: { id: 'session-fixture-save', edits: [], action: { kind: 'save_joint_edit', input } },
+    })) as T.JointEditWriteResult;
+    expect(result.content.target).toEqual({ kind: 'joint', root: snapshot.root });
+    expect(result.content.value.root).toEqual(snapshot.root);
+    expect(result.content.value.records.find((entry) => entry.key === key)!.value).toEqual(value);
+    expect(JSON.parse(project.textFiles.get(entity.target.write.path)!).hullName).toBe('Session fixture hull');
+    expect(result.changes.map((change) => change.afterPath)).toEqual([entity.target.write.path]);
+    expect(result.baseVersions).toEqual([project.version(entity.target.write.path)]);
+    expect(result.history.undoStack).toHaveLength(1);
+    expect(result.sessionUpdates).toMatchObject([{ sessionId: project.manifest.sessionId, modRoot }]);
+    expect(deliveries.find((delivery) => delivery.kind === 'saved')).toMatchObject({
+      requestId: 'session-fixture-save',
+      event: { originWindowLabel: label, sessionId: project.manifest.sessionId, modRoot },
+    });
+    expect(workspace.calls.at(-1)).toMatchObject({ sessionId: project.manifest.sessionId });
+    for (const other of others) {
+      expect(other.source.textFiles).toEqual(other.files);
+      expect(other.source.history).toEqual(other.history);
+    }
   });
 
   it('provides the variant list thumbnail from its referenced hull image', async () => {

@@ -238,10 +238,22 @@ export function createBrowserWorkspace(
       command = request.action.kind;
       args = { payload: request.action.input };
     }
-    const payload = (args.payload ?? {}) as Record<string, unknown>;
+    const payload = (args.payload ?? args) as Record<string, unknown>;
     const current = windows.get(label)!;
+    let requestedSession = payload.sessionId;
+    switch (command) {
+      case 'query_joint_edit':
+        requestedSession = (payload.root as T.JointEditRoot).sessionId;
+        break;
+      case 'prepare_joint_edit':
+        requestedSession = (payload.baseline as T.JointEditSnapshot).root.sessionId;
+        break;
+      case 'save_joint_edit':
+        requestedSession = (payload.snapshot as T.JointEditSnapshot).root.sessionId;
+        break;
+    }
     const sessionId = String(
-      payload.sessionId ??
+      requestedSession ??
         (current.context && 'sessionId' in current.context.identity ? current.context.identity.sessionId : projects[1]!.manifest.sessionId),
     );
     const receiver = project(sessionId);
