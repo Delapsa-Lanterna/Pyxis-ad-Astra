@@ -5,7 +5,7 @@ import { TABLE_KEYS } from '@/shared/types';
 import { associatedSpecKind } from '@/domain/csv-editor/associated-specs';
 import { JOINT_EDIT_KINDS } from '@/shared/types';
 import { SPEC_EDITOR_KINDS } from '@/shared/types';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type * as T from '@/shared/types';
 import { gameImages } from './game-files';
 import { formatModVersion } from '@/shared/lib/starsector';
@@ -724,6 +724,32 @@ describe('complete browser workspace fixtures', () => {
     });
     expect(phases).toEqual(['hold', 'settle', 'prepare', 'confirm', 'resume']);
     expect(workspace.windows.has(child.label)).toBe(true);
+  });
+
+  it('releases a closed browser window location and restores the main destination', async () => {
+    const workspace = createBrowserWorkspace();
+    const child = (await workspace.openSampleWindow('text-editor')) as T.WindowRequestReceipt;
+    const publish = vi.fn();
+    workspace.locations.listen(publish);
+    workspace.locations.connect('main', { open: async () => {}, read: () => ({ view: 'workspace' }) });
+    workspace.locations.connect(child.label, { open: async () => {}, read: () => ({ view: 'text', mod: 'fixture', path: 'file.txt' }) });
+    workspace.listen(child.label, 'window-lifecycle-close-requested', async ({ payload }) => {
+      const request = payload as { operationId: number; phase: string };
+      await workspace.invoke(child.label, 'reply_close', { ...request, accepted: true });
+    });
+    let released!: () => void;
+    const closed = new Promise<void>((resolve) => {
+      released = resolve;
+    });
+    workspace.setWindowListener(() => {
+      if (!workspace.windows.has(child.label)) released();
+    });
+    expect(await workspace.invoke(child.label, 'request_close', { scope: { kind: 'window' } })).toMatchObject({ status: 'closed' });
+    await closed;
+    expect(workspace.locations.clients.has(child.label)).toBe(false);
+    expect(publish).toHaveBeenLastCalledWith('main', { view: 'workspace' }, true);
+    workspace.reopen();
+    expect(workspace.locations.clients.size).toBe(0);
   });
 
   it('writes and undoes an entity in its owning Mod session', () => {

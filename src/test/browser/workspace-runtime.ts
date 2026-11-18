@@ -1,5 +1,6 @@
 import type * as T from '@/shared/types';
 import { reactive } from 'vue';
+import { createLocationChannel } from './location-channel';
 import { createWorkspaceProject } from './project';
 import { workspaceRoots, coreRoot, gameRoot } from './sample-data';
 import { dispatch as dispatchScene } from './runtime/commands';
@@ -34,6 +35,7 @@ export function createBrowserWorkspace(
   buildProjects = () => [coreRoot, ...workspaceRoots].map((root, index) => createWorkspaceProject(root, index)),
 ) {
   const javaAnalysis = createJavaComponentPreview();
+  const locations = createLocationChannel();
   const javaQueries = createJavaQueryPreview();
   const javaProject = createJavaProjectPreview();
   const codeEditor = createCodeEditorPreview(
@@ -216,6 +218,7 @@ export function createBrowserWorkspace(
         codeEditor.release(key);
         javaQueries.release(key);
         windows.delete(key);
+        locations.release(key);
         channels.delete(key);
         saveReceivers.delete(key);
         editTargets.delete(key);
@@ -840,6 +843,7 @@ export function createBrowserWorkspace(
   addWindow('main', null);
   return {
     javaQueries,
+    locations,
     get projects() {
       return projects;
     },
@@ -958,6 +962,7 @@ export function createBrowserWorkspace(
     },
     reopen() {
       windows.clear();
+      locations.clients.clear();
       channels.clear();
       listeners.clear();
       addWindow('main', null);

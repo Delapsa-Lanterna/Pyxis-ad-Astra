@@ -5,6 +5,7 @@ import { createBrowserWorkspace } from '../../workspace-runtime';
 import { createWorkspaceProject } from '../../project';
 import { coreRoot, gameRoot } from '../../sample-data';
 import { settled, until } from '../../timing';
+import { browserBase } from '../../location';
 import type { RoundResult, RunOptions } from '../../contracts';
 import type { WindowRequestReceipt } from '@/shared/types';
 import type { BrowserAppearanceState } from '../../BrowserAppearance.vue';
@@ -39,7 +40,7 @@ export function createEditorCase(element: HTMLElement, options: RunOptions) {
         const frame = window.document.createElement('iframe');
         frame.dataset.window = key;
         frame.title = entry.context!.title;
-        frame.src = import.meta.env.BASE_URL + '?window=' + encodeURIComponent(key);
+        frame.src = browserBase() + '?window=' + encodeURIComponent(key);
         frames.set(key, frame);
         element.append(frame);
       }

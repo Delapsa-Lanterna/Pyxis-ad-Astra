@@ -3,7 +3,10 @@ import { scenarios, scenarioHref, workspaceEntries, sampleLabels, sampleSelector
 import { listen, eventListenerCount } from '../runtime/events';
 import { createBrowserWorkspace, workspaceClient } from '../workspace-runtime';
 import WorkspaceShell from './WorkspaceShell.vue';
-import { createApp } from 'vue';
+import { createApp, watch } from 'vue';
+import { readBrowserLocation, locationHref } from '../location';
+import { startBrowserRouting, showLocationError } from '../routing';
+import type { BrowserLocation } from '../location';
 import { mountBrowserWindow } from '../windows';
 import { until } from '../timing';
 import appIcon from '@/assets/app-icon.svg';
@@ -14,9 +17,7 @@ import '@/styles/style.css';
 import '../browser.css';
 
 const query = new URLSearchParams(location.search);
-if (import.meta.env.VITE_BROWSER_DEMO === true) {
-  for (const key of [...query.keys()]) if (key !== 'window') query.delete(key);
-}
+if (query.get('view') === 'testbed') window.location.replace(new URL('testbed/' + location.search, location.href).href);
 Object.assign(globalThis, {
   browserScenarios: scenarios.map((scene) => ({ ...scene, href: scenarioHref(scene.id) })),
   browserWorkspaceEntries: workspaceEntries,
@@ -33,26 +34,38 @@ document.title =
       : query.has('window')
         ? '应用子窗口 · 浏览器验收'
         : '前端测试工作区';
-if (!query.has('scene') && !query.has('window')) {
+if ((!query.has('scene') || (query.get('view') !== 'scene' && query.has('view'))) && !query.has('window')) {
   document.body.classList.add('browser-preview-layout');
   const controls = document.querySelector<HTMLElement>('#controls')!;
   controls.replaceChildren();
   const workspace = createBrowserWorkspace(window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
   (window as Window & { browserWorkspace?: typeof workspace }).browserWorkspace = workspace;
   createApp(WorkspaceShell, { workspace }).mount('#app');
-  void workspaceWindows();
-  if (query.has('navigation')) void navigateInitial(workspace, query.get('navigation')!);
-  if (query.has('page')) void navigateGlobal(query.get('page')!);
-  if (query.has('sampleWindow')) {
-    const kinds = {
-      'code-window': 'code-editor',
-      'spec-window': 'editor',
-      'text-window': 'text-editor',
-      'immersive-window': 'immersive-editor',
-      'preview-window': 'weapon-fire-preview',
-    } as const;
-    void workspace.openSampleWindow(kinds[query.get('sampleWindow') as keyof typeof kinds]);
-  }
+  void (async () => {
+    const requested = readBrowserLocation(location.search);
+    if (query.has('navigation')) await navigateInitial(workspace, query.get('navigation')!);
+    if (query.has('page')) await navigateGlobal(query.get('page')!);
+    if (requested.sampleWindow) {
+      const kinds = {
+        'code-window': 'code-editor',
+        'spec-window': 'editor',
+        'text-window': 'text-editor',
+        'immersive-window': 'immersive-editor',
+        'preview-window': 'weapon-fire-preview',
+      } as const;
+      await workspace.openSampleWindow(kinds[requested.sampleWindow]);
+    }
+    if (query.has('view')) {
+      startBrowserRouting(workspace, requested);
+      return;
+    }
+    await until(() => workspace.locations.clients.has('main'), '链接定位入口');
+    const child = [...workspace.windows.keys()].findLast((label) => label !== 'main');
+    if (child) await until(() => workspace.locations.clients.has(child), '子窗口链接入口');
+    const initial = workspace.locations.clients.get(child ?? 'main')!.read() ?? { view: 'workspace' };
+    if (requested.sampleWindow) initial.sampleWindow = requested.sampleWindow;
+    startBrowserRouting(workspace, initial);
+  })().catch(showLocationError);
 } else {
   document.body.dataset.workspaceBridge = String(Boolean(workspaceClient()));
   void workspaceWindows().catch((error) => {
@@ -95,7 +108,8 @@ async function workspaceWindows() {
   else if (query.has('scene')) await startScene();
 }
 async function startScene() {
-  const definition = scenarios.find((scene) => scene.id === query.get('scene'))!;
+  const destination = query.has('view') ? readBrowserLocation(location.search) : readBrowserLocation('view=scene&' + query.toString());
+  const definition = scenarios.find((scene) => scene.id === destination.scene)!;
   document.body.classList.add('browser-preview', 'browser-preview-layout');
   const controls = document.querySelector<HTMLElement>('#controls')!;
   controls.className = 'browser-controls browser-chrome';
@@ -124,19 +138,43 @@ async function startScene() {
   let appearance: ReturnType<typeof mountSceneAppearance> | undefined;
   const options: ScenarioOptions = {
     scene: definition.samples[0]!,
-    count: 30,
-    resourceSize: 0,
+    count: destination.count ?? 30,
+    resourceSize: destination.resourceSize ?? 0,
     monitor: false,
+    accent: destination.accent,
     theme: (query.get('theme') as ScenarioOptions['theme']) ?? (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'),
   };
+  document.querySelector<HTMLSelectElement>('#sample')!.value = destination.sample!;
+  if (destination.source) document.querySelector<HTMLSelectElement>('#source')!.value = destination.source;
+  let restoringLocation = false;
+  let stopAppearance = () => {};
+  function publishScene() {
+    if (restoringLocation || !host.model || status.dataset.ready !== 'true') return;
+    const target: BrowserLocation = {
+      ...destination,
+      view: 'scene',
+      scene: definition.id,
+      sample: options.scene,
+      source: options.source,
+      theme: host.settings.theme,
+      accent: host.settings.accent,
+    };
+    const href = locationHref(target);
+    if (href !== location.pathname + location.search) history.pushState(null, '', href);
+  }
   async function show(reset = false) {
     delete status.dataset.ready;
     controls.querySelectorAll<HTMLButtonElement>('button').forEach((button) => (button.disabled = true));
     try {
+      stopAppearance();
       appearance?.unmount();
+      if (!restoringLocation && host.model) {
+        options.theme = host.settings.theme;
+        options.accent = host.settings.accent;
+      }
       options.scene = document.querySelector<HTMLSelectElement>('#sample')!.value as ScenarioOptions['scene'];
       options.source = document.querySelector<HTMLSelectElement>('#source')!.value as ScenarioOptions['source'];
-      const model = reset || !host.model ? createGamePreview(options) : host.model;
+      const model = reset || !host.model ? createGamePreview(options, destination.mod, destination.id) : host.model;
       if (query.has('readFailure')) model.failures.set('query_joint_edit', '样本来源读取失败，请重试');
       await host.open(model);
       await until(() => Boolean(element.querySelector(sampleSelector(options.scene))), definition.label);
@@ -144,6 +182,9 @@ async function startScene() {
       appearance.mount('#appearance');
       status.textContent = definition.operations.join(' · ');
       status.dataset.ready = 'true';
+      publishScene();
+      stopAppearance = watch(() => [host.settings.theme, host.settings.accent], publishScene);
+      document.body.dataset.locationReady = 'true';
     } catch (error) {
       status.textContent = error instanceof Error ? error.message : String(error);
       status.dataset.ready = 'false';
@@ -156,6 +197,7 @@ async function startScene() {
   document.querySelector<HTMLSelectElement>('#sample')!.onchange = () => void show(true);
   document.querySelector<HTMLSelectElement>('#source')!.onchange = () => void show(true);
   async function close() {
+    stopAppearance();
     appearance?.unmount();
     appearance = undefined;
     await host.close();
@@ -165,6 +207,23 @@ async function startScene() {
   document.querySelector<HTMLButtonElement>('#close')!.onclick = () => void close();
   void listen('browser-close', close);
   Object.assign(globalThis, { browserTest: { host, eventListenerCount } });
+  window.addEventListener('popstate', () => {
+    const target = readBrowserLocation(location.search);
+    if (target.view !== 'scene' || target.scene !== definition.id) {
+      location.reload();
+      return;
+    }
+    destination.sample = target.sample;
+    destination.source = target.source;
+    options.theme = target.theme ?? options.theme;
+    options.accent = target.accent;
+    document.querySelector<HTMLSelectElement>('#sample')!.value = target.sample!;
+    if (target.source) document.querySelector<HTMLSelectElement>('#source')!.value = target.source;
+    restoringLocation = true;
+    void show(true).finally(() => {
+      restoringLocation = false;
+    });
+  });
   void show();
 }
 function performanceLabel(id: ScenarioOptions['scene']) {

@@ -1,4 +1,7 @@
-import { createApp, type Component } from 'vue';
+import { createApp, h, type Component } from 'vue';
+import WindowShell from '@/app/WindowShell.vue';
+import BrowserWindowLocation from './BrowserWindowLocation.vue';
+import { workspaceClient, clientWindowLabel } from './workspace-client';
 import { createPinia } from 'pinia';
 import { initializeWindowContext } from '@/windows/window-context.window';
 import { showCurrentWindow } from '@/windows/current.window';
@@ -19,7 +22,27 @@ export async function mountBrowserWindow() {
     settingsStore = useSettingsStore(pinia);
   await startApplicationLog(pinia);
   startPerformanceMonitor(pinia, settings.performanceMonitorActive);
-  const app = createApp(Root).use(pinia);
+  const bridge = workspaceClient();
+  const titles = {
+    'code-editor': '代码编辑器',
+    editor: 'Spec 编辑器',
+    'text-editor': '文本编辑器',
+    'immersive-editor': '沉浸式编辑器',
+    'weapon-fire-preview': '开火预览',
+  };
+  const shell =
+    bootstrap.kind === 'main'
+      ? { mode: 'main' as const }
+      : {
+          title: titles[bootstrap.context.kind],
+          appearance: bootstrap.context.kind === 'immersive-editor' ? ('immersive' as const) : ('application' as const),
+        };
+  const app = createApp({
+    render: () =>
+      h(WindowShell, shell, {
+        default: () => [h(Root), ...(bridge ? [h(BrowserWindowLocation, { runtime: bridge, label: clientWindowLabel() })] : [])],
+      }),
+  }).use(pinia);
   installNaiveUi(app);
   app.mount('#app');
   await listen('browser-measurement-ready', () => flushApplicationLogs());
@@ -33,17 +56,17 @@ export async function mountBrowserWindow() {
   await showCurrentWindow();
 }
 async function loadRoot(bootstrap: Awaited<ReturnType<typeof initializeWindowContext>>): Promise<Component> {
-  if (bootstrap.kind === 'main') return (await import('@/app/App.vue')).default;
+  if (bootstrap.kind === 'main') return (await import('@/app/AppContent.vue')).default;
   switch (bootstrap.context.kind) {
     case 'code-editor':
-      return (await import('@/app/CodeEditorApp.vue')).default;
+      return (await import('@/app/components/code-editor/CodeEditorContent.vue')).default;
     case 'editor':
-      return (await import('@/app/SpecEditorApp.vue')).default;
+      return (await import('@/app/SpecEditorContent.vue')).default;
     case 'text-editor':
-      return (await import('@/app/TextEditorApp.vue')).default;
+      return (await import('@/app/TextEditorContent.vue')).default;
     case 'immersive-editor':
-      return (await import('@/app/ImmersiveEditorApp.vue')).default;
+      return (await import('@/app/ImmersiveEditorContent.vue')).default;
     case 'weapon-fire-preview':
-      return (await import('@/app/WeaponFirePreviewApp.vue')).default;
+      return (await import('@/app/WeaponFirePreviewContent.vue')).default;
   }
 }

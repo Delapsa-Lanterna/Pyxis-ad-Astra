@@ -44,8 +44,11 @@ export async function serve({
           return;
         }
         const localPath = '/' + pathname.slice(base.length);
-        const relative =
-          localPath === '/' ? 'index.html' : localPath === '/environment' ? 'environment.json' : decodeURIComponent(localPath.slice(1));
+        const relative = localPath.endsWith('/')
+          ? decodeURIComponent(localPath.slice(1)) + 'index.html'
+          : localPath.endsWith('/environment')
+            ? decodeURIComponent(localPath.slice(1)) + '.json'
+            : decodeURIComponent(localPath.slice(1));
         const path = resolve(output, relative);
         if (!path.startsWith(output + sep)) {
           response.writeHead(403).end();

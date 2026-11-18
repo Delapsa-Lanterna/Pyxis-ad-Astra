@@ -38,6 +38,8 @@ jobs:
         run: npm run dev:browser-preview -- --production --existing --directory dist/browser-demo --base /Pyxis-ad-Astra/ --port 1463 &
       - name: Verify demo artifact
         run: node scripts/browser/demo.mjs http://127.0.0.1:1463/Pyxis-ad-Astra/
+      - name: Verify browser locations
+        run: node scripts/browser/locations.mjs --url http://127.0.0.1:1463/Pyxis-ad-Astra/ --output node_modules/.cache/browser/demo/locations.json
       - name: Remove previous artifacts
         id: artifact_cleanup
         if: always()

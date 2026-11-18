@@ -72,6 +72,12 @@ export function browserTestPlugin(mode = 'preview') {
         if (path === '/environment') {
           response.setHeader('Content-Type', 'application/json');
           response.end(JSON.stringify(metadata));
+        } else if (path === '/testbed/' || path === '/testbed') {
+          response.setHeader('Content-Type', 'text/html; charset=utf-8');
+          response.end(html('/src/test/browser/testbed/entry.ts', '', 'testbed'));
+        } else if (path === '/testbed/environment') {
+          response.setHeader('Content-Type', 'application/json');
+          response.end(JSON.stringify(metadata));
         } else if (path === '/') {
           response.setHeader('Content-Type', 'text/html; charset=utf-8');
           response.end(html('/' + entry, '', mode));

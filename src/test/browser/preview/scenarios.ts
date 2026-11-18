@@ -92,7 +92,7 @@ export const workspaceEntries = [
     ['preview', '开火预览窗口'],
   ].map(([id, label]) => ({ id: id + '-window', label: label!, href: import.meta.env.BASE_URL + '?sampleWindow=' + id + '-window' })),
 ];
-export const scenarioHref = (id: string) => import.meta.env.BASE_URL + (id === 'workspace' ? '' : '?scene=' + id);
+export const scenarioHref = (id: string) => import.meta.env.BASE_URL + (id === 'workspace' ? '' : '?view=scene&scene=' + id);
 export function sceneDefinition(sample: ScenarioOptions['scene']) {
   return scenarios.find((scene) => scene.samples.includes(sample))!;
 }

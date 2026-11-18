@@ -7,6 +7,9 @@ import { markdown, type TestReport, type TestRun } from '../../../../scripts/sha
 import { mountSceneAppearance, browserThemeStyle } from '../appearance';
 import { mountBrowserHeader } from '../header';
 import appIcon from '@/assets/app-icon.svg';
+import { browserBase, locationHref, readBrowserLocation } from '../location';
+import { showLocationError } from '../routing';
+import type { BrowserLocation } from '../location';
 import '@/styles/style.css';
 import '../browser.css';
 
@@ -45,7 +48,14 @@ async function loadBenchmark() {
   return benchmark;
 }
 let appearance: ReturnType<typeof mountSceneAppearance> | undefined;
-const initialTheme = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+let destination: BrowserLocation;
+try {
+  destination = readBrowserLocation(location.search, 'testbed');
+} catch (error) {
+  showLocationError(error);
+  destination = { view: 'testbed', scene: 'csv' };
+}
+const initialTheme = destination.theme ?? (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
 for (const [key, value] of Object.entries(browserThemeStyle({ theme: initialTheme, accent: 'blue', customAccent: '#2563eb' })))
   controls.style.setProperty(key, String(value));
 let runs: TestRun[] = [];
@@ -62,7 +72,7 @@ const selected = (): RunOptions => ({
   textShape: document.querySelector<HTMLSelectElement>('#text-shape')!.value as RunOptions['textShape'],
   monitor: document.querySelector<HTMLInputElement>('#monitor')!.checked,
   theme: benchmark?.host?.settings.theme ?? initialTheme,
-  accent: benchmark?.host?.settings.accent ?? 'blue',
+  accent: benchmark?.host?.settings.accent ?? destination.accent ?? 'blue',
   customAccent: benchmark?.host?.settings.customAccent ?? '#2563eb',
 });
 async function execute(options: RunOptions[]) {
@@ -137,12 +147,55 @@ function updateParameters() {
   for (const element of document.querySelectorAll<HTMLElement>('[data-editor-parameter]')) element.hidden = !definition.fileBytes;
 }
 document.querySelector<HTMLSelectElement>('#scene')!.onchange = updateParameters;
+function applyLocation() {
+  destination = readBrowserLocation(location.search, 'testbed');
+  document.querySelector<HTMLSelectElement>('#scene')!.value = destination.scene!;
+  document.querySelector<HTMLSelectElement>('#workload')!.value = destination.workload ?? 'benchmark';
+  updateParameters();
+  const fields = {
+    count: 'count',
+    warmup: 'warmup',
+    rounds: 'rounds',
+    resourceSize: 'size',
+    fileBytes: 'file-bytes',
+    textShape: 'text-shape',
+  } as const;
+  for (const [key, id] of Object.entries(fields) as [keyof typeof fields, string][]) {
+    const value = destination[key];
+    if (value !== undefined) document.querySelector<HTMLInputElement | HTMLSelectElement>('#' + id)!.value = String(value);
+  }
+  document.querySelector<HTMLInputElement>('#monitor')!.checked = destination.monitor ?? false;
+  document.querySelector<HTMLSelectElement>('#scene')!.disabled = destination.workload === 'resources';
+  document.body.dataset.locationReady = 'true';
+}
+function publishLocation() {
+  const { scene, count, resourceSize, workload, warmup, rounds, fileBytes, textShape, monitor, theme, accent } = selected();
+  const href = locationHref(
+    { view: 'testbed', scene, count, resourceSize, workload, warmup, rounds, fileBytes, textShape, monitor, theme, accent },
+    browserBase(),
+  );
+  if (href !== location.pathname + location.search) history.pushState(null, '', href);
+}
+try {
+  applyLocation();
+} catch (error) {
+  showLocationError(error);
+}
+controls.addEventListener('change', publishLocation);
+window.addEventListener('popstate', () => {
+  try {
+    applyLocation();
+  } catch (error) {
+    showLocationError(error);
+  }
+});
 async function preview() {
   controls.querySelector<HTMLDetailsElement>('.testbed-results')!.open = false;
   status.textContent = '正在准备样本';
   try {
     await loadBenchmark();
     appearance?.unmount();
+    publishLocation();
     await benchmark.preview(selected());
     mountAppearance();
     status.textContent = '样本已显示';
@@ -167,7 +220,7 @@ function addVariant() {
     String.fromCharCode(65 + variantsInput.children.length) +
     '"></label>' +
     '<label>测试台地址 <input class="variant-url" type="url" value="' +
-    new URL(import.meta.env.BASE_URL, location.origin).href +
+    new URL(browserBase(), location.origin).href +
     '"></label>' +
     '<label><input class="variant-monitor" type="checkbox">开启性能监视</label>' +
     '<button type="button">移除</button>';
@@ -206,14 +259,12 @@ document.querySelector<HTMLButtonElement>('#compare')!.onclick = () =>
     })),
   );
 document.querySelector<HTMLButtonElement>('#aa')!.onclick = () =>
-  void compareSelected(
-    ['A', 'B'].map((label) => ({ label, url: new URL(import.meta.env.BASE_URL, location.origin).href, monitor: false })),
-  );
+  void compareSelected(['A', 'B'].map((label) => ({ label, url: new URL(browserBase(), location.origin).href, monitor: false })));
 document.querySelector<HTMLButtonElement>('#monitor-compare')!.onclick = () =>
   void compareSelected(
     [false, true].map((monitor) => ({
       label: monitor ? 'enabled' : 'disabled',
-      url: new URL(import.meta.env.BASE_URL, location.origin).href,
+      url: new URL(browserBase(), location.origin).href,
       monitor,
     })),
   );
