@@ -87,7 +87,7 @@ export function convertSchemaScalarInput(raw: string, field: FieldSchema): Schem
   const error = (message: string) => ({ kind: 'error' as const, message });
   if (field.identity && raw === '') return { kind: 'remove' };
   if (['string', 'text', 'enum', 'path', 'path-image'].includes(field.type)) {
-    if (field.required && !raw.trim()) return error('必填字段不能为空');
+    if (field.required && !field.allowEmptyString && !raw.trim()) return error('必填字段不能为空');
     return field.reservedKeys?.includes(raw) ? error('名称为保留名称') : { kind: 'set', value: raw };
   }
   if (!raw.trim()) return field.required ? error('必填字段不能为空') : { kind: 'remove' };

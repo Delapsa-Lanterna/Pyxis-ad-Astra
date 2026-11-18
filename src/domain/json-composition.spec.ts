@@ -94,3 +94,11 @@ describe('game JSON composition', () => {
     expect(composeJson({ name: 'own' }, composition)).toEqual({ name: 'base' });
   });
 });
+
+it('preserves numeric dictionary-key origins before inspecting nested arrays', () => {
+  const composition = sources({ changes: { '0': { angle: 10, offsets: [1, 2] } } });
+  const local = { changes: { '1': { angle: 20 } } };
+  expect(compositionOrigin(local, composition, ['changes', '0'])).toBe('base');
+  expect(compositionOrigin(local, composition, ['changes', '1'])).toBeNull();
+  expect(compositionOrigin(local, composition, ['changes', '0', 'offsets', '1'])).toBe('base');
+});

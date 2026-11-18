@@ -18,7 +18,7 @@ import {
   configMissionSaveDraft,
 } from '@/domain/json-editor/json-config-entities';
 import { isEntityId, entityIdInvalidMessage } from '@/domain/schema/schema-identity';
-import { takeReplaceBase } from '@/domain/json-composition';
+import { REPLACE_BASE_KEY, takeReplaceBase } from '@/domain/json-composition';
 import { queryMiscConfigFile, saveMiscConfig, deleteMiscConfig } from '@/services/misc-config.service';
 import { prepareJsonSourceRecovery } from '@/services/json-recovery.service';
 import { querySessionEntity } from '@/services/entity-query.service';
@@ -116,10 +116,23 @@ export async function saveJsonDocument(
   const { kind } = definition,
     { sessionId, modRoot, id } = target;
   const replacement = takeReplaceBase(data, kind === 'variant' || kind === 'skin' ? [] : ['file']);
+  data = replacement.value;
   const replacePaths = replacement.replace ? [kind === 'misc-config' ? miscConfigDefinition(id).path : target.entity!.write.relPath] : [];
   if (replacement.replace && composition) composition = { ...composition, replace: true };
   const jsonWrite = { preserveStructure: capture.request.layout === 'preserveStructure', replacePaths };
-  const document = capture.request;
+  let document = capture.request,
+    edits = capture.edits;
+  // Keep typed values and source formats while excluding the draft-only undo payload.
+  if (replacement.replace && document.content.kind === 'object') {
+    const content = { ...document.content, value: document.content.value.filter(([key]) => key !== REPLACE_BASE_KEY) };
+    const children = document.target.children;
+    const target = {
+      ...document.target,
+      children: children?.kind === 'object' ? { ...children, items: children.items.filter(([key]) => key !== REPLACE_BASE_KEY) } : children,
+    };
+    document = { ...document, content, target };
+    edits = [{ kind: 'replace', path: [], value: { value: content, target } }];
+  }
   const nextId = jsonDocumentId(definition, data) || id;
   if (kind !== 'mod-info' && kind !== 'misc-config' && !isEntityId(nextId))
     throw new AppError(entityIdInvalidMessage(definition.idField, nextId), { code: 'config.id_invalid' });
@@ -127,10 +140,10 @@ export async function saveJsonDocument(
   if (kind === 'mod-info' || kind === 'misc-config') {
     const result =
       kind === 'mod-info'
-        ? await saveModInfo({ sessionId, modRoot, baseVersions, document, jsonWrite }, capture.edits, request)
+        ? await saveModInfo({ sessionId, modRoot, baseVersions, document, jsonWrite }, edits, request)
         : await saveMiscConfig(
             { sessionId, modRoot, kind: miscConfigDefinition(id).kind, baseVersions, document, jsonWrite },
-            capture.edits,
+            edits,
             request,
           );
     receipt = result;
@@ -143,7 +156,7 @@ export async function saveJsonDocument(
     const result = await saveJsonFileAction(
       kind,
       { sessionId, modRoot, baseVersions, document, jsonWrite, previousId: id, nextId, relPath: target.entity!.write.relPath },
-      capture.edits,
+      edits,
       feedback,
       { original, data, composition },
       request,
@@ -165,7 +178,7 @@ export async function saveJsonDocument(
       : { ...common, kind: 'faction', indexRow: buildFactionIndexRow(nextId) };
     const result = await saveIndexedEntityAction(
       payload,
-      capture.edits,
+      edits,
       feedback,
       { original: jsonDocumentContent(kind, original), data: jsonDocumentContent(kind, data), composition },
       request,

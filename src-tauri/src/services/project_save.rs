@@ -334,7 +334,7 @@ mod tests {
                 ),
                 (
                     "data/variants/a.variant",
-                    r#"{"variantId":"a","hullId":"a","fluxVents":1}"#,
+                    r#"{"variantId":"a","hullId":"a","fluxVents":1,"weaponGroups":[]}"#,
                 ),
                 (
                     "data/hulls/skins/a.skin",
@@ -403,7 +403,7 @@ mod tests {
                         base_versions: info.base_versions,
                         document: file_formats::json_write(
                             &(if kind == "variant" {
-                                serde_json::json!({"variantId":"a","hullId":"a","fluxVents":2})
+                                serde_json::json!({"variantId":"a","hullId":"a","fluxVents":2,"weaponGroups":[]})
                             } else {
                                 serde_json::json!({"skinHullId":"a","baseHullId":"a","hullName":"Captured"})
                             }),
@@ -468,7 +468,7 @@ mod tests {
                                     serde_json::json!({"file":{
                                         "id":"a","displayName":"Captured","displayNameWithArticle":"a Captured",
                                         "logo":"logo.png","crest":"crest.png","color":[255,255,255,255],
-                                        "knownShips":{},"knownFighters":{},"knownWeapons":{},
+                                        "knownShips":{},"knownFighters":{},"knownWeapons":{},"names":{},"portraits":{},
                                         "factionDoctrine":{"warships":1,"carriers":1,"phaseShips":1,"officerQuality":1,
                                             "shipQuality":1,"numShips":1,"shipSize":1,"aggression":1}
                                     }})

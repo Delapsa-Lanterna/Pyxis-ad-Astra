@@ -29,7 +29,12 @@ pub fn misc_config_schema_id(kind: MiscConfigKind) -> &'static str {
     }
 }
 
-pub fn validate_misc_config(kind: MiscConfigKind, data: &Value, schema: &Value) -> AppResult<()> {
-    schema::validate_field(schema, data, misc_config_path(kind), false)
+pub fn validate_misc_config(
+    kind: MiscConfigKind,
+    data: &Value,
+    schema: &Value,
+    complete: bool,
+) -> AppResult<()> {
+    schema::validate_field(schema, data, misc_config_path(kind), complete)
         .map_err(|error| AppError::message("misc_config.shape_invalid", error.to_string()))
 }

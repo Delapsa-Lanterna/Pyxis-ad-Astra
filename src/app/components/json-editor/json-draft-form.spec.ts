@@ -32,7 +32,7 @@ import { createSettingsFixture } from '@/test/fixtures/settings';
 import { jsonEntityFixture } from '@/test/fixtures/json-editor';
 import { jsonFileFixture } from '@/test/fixtures/json-file';
 import { projectJsonValue } from '@/domain/json-document';
-import type { JsonFileSave } from '@/shared/types';
+import type { JsonFileSave, JsonSourceLayer } from '@/shared/types';
 import { sessionUpdateFixture, savedWriteFixture } from '@/test/fixtures/write-result';
 import { editorUiStubs, nInput } from '@/test/unit/ui-stubs';
 import { getSchema } from '@/domain/schema/config-schema-registry';
@@ -1491,10 +1491,15 @@ describe('composed JSON detail adoption', () => {
     const composition = {
       replace: false,
       excluded: [],
-      layers: (['core', 'reference'] as const).map((source) => ({
+      layers: (['core', 'reference'] as const).map((source): JsonSourceLayer => ({
         source: { source, root: source, path: source + '/' + definition.path, relPath: definition.path },
         version: { path: source + '/' + definition.path, fingerprint: source },
-        data: { inherited_group: { line: source } },
+        data:
+          definition.kind === 'engineStyles'
+            ? { inherited_group: structuredClone(getSchema('engine-styles')!.root!.valueSchema!.default as RowData) }
+            : definition.kind === 'sounds'
+              ? { inherited_group: [{ file: '' }], engine_loop: { sounds: [{ file: '' }] } }
+              : { inherited_group: { line: source } },
         replace: false,
       })),
     };

@@ -67,7 +67,7 @@ pub(in crate::services::project) fn validate_entity_content_in(
         .and_then(Value::as_str)
         .is_none_or(str::is_empty)
     {
-        collect(schema::validate_partial_document(definition, data));
+        collect(schema::validate_partial_document(definition, &effective));
     } else if matches!(
         kind,
         EntityKind::Faction | EntityKind::Variant | EntityKind::Skin

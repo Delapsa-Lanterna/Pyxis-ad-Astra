@@ -1,5 +1,5 @@
 use super::super::session::{lock_session, session_handle};
-use crate::domain::misc_config;
+use crate::domain::{json_composition, misc_config};
 use crate::errors::{AppError, AppResult};
 use crate::io::{
     FsRootBoundary, acquire_root_write_lock, decode_text, file_version, read_versioned_bytes,
@@ -11,7 +11,7 @@ use crate::models::{
     JsonRecoveryRequest, JsonSourceIdentity,
 };
 use crate::services::project;
-use crate::services::project::query::entity_presentation;
+use crate::services::project::query::{entity_presentation, json_layers};
 use crate::services::project::sources::project_csv;
 use crate::{io, parsers};
 use serde_json::Value;
@@ -97,10 +97,14 @@ pub fn prepare_json_source_recovery(request: JsonRecoveryRequest) -> AppResult<J
             documents.insert(key.to_string(), JsonFileContent::from(&source));
             let value = source.content.to_json()?;
             if let JsonDocumentOrigin::MiscConfig { file } = request.origin {
+                let composition =
+                    json_layers::query_json_composition(&request.session_id, &relative)?;
+                let effective = json_composition::compose_game_json(&composition, &value)?;
                 misc_config::validate_misc_config(
                     file,
-                    &value,
+                    &effective,
                     &parsers::bundled_schema(misc_config::misc_config_schema_id(file))["root"],
+                    false,
                 )
                 .map_err(|error| error.at_path(&path))?;
             }

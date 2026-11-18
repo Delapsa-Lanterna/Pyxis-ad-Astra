@@ -515,7 +515,7 @@ fn merged_config_save_validation() {
         json!({"SAMPLE":style}).to_string(),
     )
     .unwrap();
-    fs::write(config.join("sounds.json"), json!({"sample":{"sounds":[{"file":"sounds/sample.ogg"}],"FRIGATE":{"pitch":1,"volume":1,"sounds":[0]}}}).to_string()).unwrap();
+    fs::write(config.join("sounds.json"), json!({"sample":{"sounds":[{"file":"sounds/sample.ogg"}],"FRIGATE":{"pitch":1,"volume":1,"sounds":[0]}},"music":{"inherited":[{"source":"sounds/music","file":"base.ogg"}]}}).to_string()).unwrap();
     release_project_session(&f.scope.session_id).unwrap();
     let manifest = project::open_project_session_traced(
         &f.root,
@@ -564,4 +564,82 @@ fn merged_config_save_validation() {
         json!({"sample":{"FRIGATE":{"pitch":1,"volume":1,"sounds":["0"]}}}),
     )
     .unwrap();
+
+    save(MiscConfigKind::Sounds, json!({"music":{}})).unwrap();
+    let read = query_misc_config_file(MiscConfigRead {
+        session_id: f.scope.session_id.clone(),
+        mod_root: f.scope.mod_root.clone(),
+        kind: MiscConfigKind::Sounds,
+    })
+    .unwrap()
+    .unwrap();
+    assert_eq!(read.data, json!({"music":{}}));
+    let recovery = prepare_json_source_recovery(JsonRecoveryRequest {
+        session_id: f.scope.session_id.clone(),
+        mod_root: f.scope.mod_root.clone(),
+        origin: JsonDocumentOrigin::MiscConfig {
+            file: MiscConfigKind::Sounds,
+        },
+    })
+    .unwrap();
+    assert_eq!(recovery.current_sources["file"], json!({"music":{}}));
+    for invalid in [
+        json!({"music":{"empty_track":[{"source":"sounds/music","files":[]}]}}),
+        json!({"new_effect":[{}]}),
+        json!([]),
+        json!(null),
+        json!(1),
+    ] {
+        assert!(save(MiscConfigKind::Sounds, invalid).is_err());
+        assert_eq!(
+            file_formats::read_json_value(&path).unwrap(),
+            json!({"music":{}})
+        );
+    }
+    save(MiscConfigKind::Sounds, json!({"new_effect":[{"file":""}]})).unwrap();
+    let bytes = fs::read(&path).unwrap();
+    assert!(
+        project_save::execute_save_action(SaveAction::SaveMiscConfig(MiscConfigWrite {
+            session_id: f.scope.session_id.clone(),
+            mod_root: f.scope.mod_root.clone(),
+            kind: MiscConfigKind::Sounds,
+            base_versions: vec![file_version(&path).unwrap()],
+            document: file_formats::json_write(&json!({})),
+            json_write: JsonWriteOptions {
+                replace_paths: vec!["data/config/sounds.json".into()],
+                ..Default::default()
+            },
+        }))
+        .is_err()
+    );
+    assert_eq!(fs::read(&path).unwrap(), bytes);
+    release_project_session(&f.scope.session_id).unwrap();
+    f.root.close().unwrap();
+}
+
+#[test]
+fn pending_sound_groups_preserve_sparse_content_without_a_complete_source() {
+    let f = Fixture::new();
+    let path = f.root.join("data/config/sounds.json");
+    let data = json!({"engine_loop":{"SAMPLE":{"pitch":1,"volume":0.5}}});
+    project_save::execute_save_action(SaveAction::SaveMiscConfig(MiscConfigWrite {
+        session_id: f.scope.session_id.clone(),
+        mod_root: f.scope.mod_root.clone(),
+        kind: MiscConfigKind::Sounds,
+        base_versions: vec![file_version(&path).unwrap()],
+        document: file_formats::json_write(&data),
+        json_write: Default::default(),
+    }))
+    .unwrap();
+    assert_eq!(file_formats::read_json_value(&path).unwrap(), data);
+    let read = query_misc_config_file(MiscConfigRead {
+        session_id: f.scope.session_id.clone(),
+        mod_root: f.scope.mod_root.clone(),
+        kind: MiscConfigKind::Sounds,
+    })
+    .unwrap()
+    .unwrap();
+    assert_eq!(read.data, data);
+    release_project_session(&f.scope.session_id).unwrap();
+    f.root.close().unwrap();
 }

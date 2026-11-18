@@ -39,7 +39,12 @@
                 "key": "file",
                 "type": "string",
                 "label": "音乐文件",
-                "description": "相对 source 的文件名；存在时优先于 files。"
+                "description": "相对 source 的文件名；存在时优先于 files。",
+                "requiredWhen": {
+                  "files": {
+                    "missing": true
+                  }
+                }
               },
               {
                 "key": "files",
@@ -51,6 +56,12 @@
                   "type": "string",
                   "label": "文件名",
                   "default": ""
+                },
+                "minEntries": 1,
+                "requiredWhen": {
+                  "file": {
+                    "missing": true
+                  }
                 }
               },
               {
@@ -84,7 +95,8 @@
             ]
           }
         },
-        "allowExtraFields": true
+        "allowExtraFields": true,
+        "minEntries": 1
       }
     ],
     "valueSchema": {
@@ -101,7 +113,9 @@
             "key": "file",
             "type": "path",
             "label": "音频文件",
-            "description": "相对 Mod 根的音频路径。"
+            "description": "相对 Mod 根的音频路径。",
+            "required": true,
+            "allowEmptyString": true
           },
           {
             "key": "pitch",
@@ -137,7 +151,9 @@
                 "key": "file",
                 "type": "path",
                 "label": "音频文件",
-                "description": "相对 Mod 根的音频路径。"
+                "description": "相对 Mod 根的音频路径。",
+                "required": true,
+                "allowEmptyString": true
               },
               {
                 "key": "pitch",
@@ -180,7 +196,9 @@
                     "key": "file",
                     "type": "path",
                     "label": "音频文件",
-                    "description": "相对 Mod 根的音频路径。"
+                    "description": "相对 Mod 根的音频路径。",
+                    "required": true,
+                    "allowEmptyString": true
                   },
                   {
                     "key": "pitch",
@@ -250,6 +268,7 @@
       ]
     },
     "presentation": "groups",
-    "allowExtraFields": true
+    "allowExtraFields": true,
+    "minEntriesWhenComplete": 1
   }
 }

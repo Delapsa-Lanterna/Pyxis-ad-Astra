@@ -2020,7 +2020,7 @@ mod tests {
         .unwrap();
         fs::write(
             root.join("data/variants/demo.variant"),
-            r#"{"variantId":"demo","hullId":"demo","fluxVents":1}"#,
+            r#"{"variantId":"demo","hullId":"demo","fluxVents":1,"weaponGroups":[]}"#,
         )
         .unwrap();
         let manifest = project::open_project_session_traced(

@@ -85,7 +85,14 @@ export function setCompositionValue(local: RowData, path: readonly string[], val
 
 export function compositionOrigin(local: RowData, composition: JsonComposition, path: string[]): string | null {
   if (replacesBase(local)) return null;
-  const arrayIndex = path.findIndex((key) => /^\d+$/.test(key));
+  const arrayIndex = path.findIndex((key, index) => {
+    if (!/^\d+$/.test(key)) return false;
+    const parent = path.slice(0, index);
+    return (
+      Array.isArray(compositionValue(local, parent)) ||
+      composition.layers.some((layer) => Array.isArray(compositionValue(layer.data, parent)))
+    );
+  });
   if (arrayIndex >= 0 && !composition.replace) {
     const parent = path.slice(0, arrayIndex),
       index = Number(path[arrayIndex]);

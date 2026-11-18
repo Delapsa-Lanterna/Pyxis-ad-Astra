@@ -210,7 +210,11 @@ fn joint_parent_changes_are_read_before_rename() {
     let (dir, mut root) = fixture();
     release_project_session(&root.session_id).unwrap();
     let parent = dir.join("data/variants/parent.variant");
-    write_utf8_no_bom(&parent, r#"{"variantId":"parent","hullId":"a"}"#).unwrap();
+    write_utf8_no_bom(
+        &parent,
+        r#"{"variantId":"parent","hullId":"a","weaponGroups":[]}"#,
+    )
+    .unwrap();
     let mut trace = PerformanceTrace::new("joint.parent.current");
     root.session_id = project::open_project_session_traced(&dir, None, &mut trace)
         .unwrap()
@@ -223,7 +227,7 @@ fn joint_parent_changes_are_read_before_rename() {
     submitted.values = prepared.values;
     write_utf8_no_bom(
         &parent,
-        r#"{"variantId":"parent","hullId":"a","modules":{"late":"var"}}"#,
+        r#"{"variantId":"parent","hullId":"a","modules":{"late":"var"},"weaponGroups":[]}"#,
     )
     .unwrap();
     assert_eq!(
@@ -238,11 +242,15 @@ fn joint_parent_changes_are_read_before_rename() {
             .undo_stack
             .is_empty()
     );
-    write_utf8_no_bom(&parent, r#"{"variantId":"parent","hullId":"a"}"#).unwrap();
+    write_utf8_no_bom(
+        &parent,
+        r#"{"variantId":"parent","hullId":"a","weaponGroups":[]}"#,
+    )
+    .unwrap();
     let added = dir.join("data/variants/added.variant");
     write_utf8_no_bom(
         &added,
-        r#"{"variantId":"added","hullId":"a","modules":{"new":"var"}}"#,
+        r#"{"variantId":"added","hullId":"a","modules":{"new":"var"},"weaponGroups":[]}"#,
     )
     .unwrap();
     let error = prepare_joint_edit(&draft).unwrap_err();
@@ -270,7 +278,7 @@ fn joint_parent_changes_are_read_before_rename() {
     for modules in [json!({"A":"var"}), json!([{"B":"var"}])] {
         write_utf8_no_bom(
             &parent,
-            &json!({"variantId":"parent","hullId":"a","modules":modules,"custom":"retained"})
+            &json!({"variantId":"parent","hullId":"a","modules":modules,"custom":"retained","weaponGroups":[]})
                 .to_string(),
         )
         .unwrap();
@@ -675,10 +683,10 @@ fn confirmed_joint_save_recreates_spec_and_full_csv_from_loaded_content() {
 fn variant_modules_atomic_history() {
     let (dir, mut root) = fixture();
     write_utf8_no_bom(&dir.join("data/hulls/a.ship"), r#"{"hullId":"a","weaponSlots":[{"id":"M1","type":"STATION_MODULE"},{"id":"M2","type":"STATION_MODULE"}]}"#).unwrap();
-    write_utf8_no_bom(&dir.join("data/variants/var.variant"), r#"{"variantId":"var","hullId":"a","fluxVents":2,"modules":[{"M2":"module"},{"M1":"module"}],"unknown":"007"}"#).unwrap();
+    write_utf8_no_bom(&dir.join("data/variants/var.variant"), r#"{"variantId":"var","hullId":"a","fluxVents":2,"modules":[{"M2":"module"},{"M1":"module"}],"unknown":"007","weaponGroups":[]}"#).unwrap();
     write_utf8_no_bom(
         &dir.join("data/variants/module.variant"),
-        r#"{"variantId":"module","hullId":"a","fluxVents":1,"unknown":true}"#,
+        r#"{"variantId":"module","hullId":"a","fluxVents":1,"unknown":true,"weaponGroups":[]}"#,
     )
     .unwrap();
     release_project_session(&root.session_id).unwrap();
@@ -745,7 +753,7 @@ fn variant_rename_all_mod_parents() {
     ] {
         write_utf8_no_bom(
             &dir.join(format!("data/variants/{name}.variant")),
-            &json!({"variantId":name,"hullId":"a","modules":modules,"unknown":"007"}).to_string(),
+            &json!({"variantId":name,"hullId":"a","modules":modules,"unknown":"007","weaponGroups":[]}).to_string(),
         )
         .unwrap();
     }
@@ -766,7 +774,7 @@ fn variant_rename_all_mod_parents() {
         next_id: "new".into(),
         rel_path: Some("data/variants/var.variant".into()),
         document: file_formats::json_write(
-            &(json!({"variantId":"new","hullId":"a","fluxVents":3})),
+            &(json!({"variantId":"new","hullId":"a","fluxVents":3,"weaponGroups":[]})),
         ),
         json_write: Default::default(),
         base_versions: versions,
@@ -803,7 +811,7 @@ fn joint_variant_rename_parents() {
     let (dir, mut root) = fixture();
     write_utf8_no_bom(
         &dir.join("data/variants/parent.variant"),
-        r#"{"variantId":"parent","hullId":"a","modules":[{"M":"var"}],"displayName":"keep"}"#,
+        r#"{"variantId":"parent","hullId":"a","modules":[{"M":"var"}],"displayName":"keep","weaponGroups":[]}"#,
     )
     .unwrap();
     release_project_session(&root.session_id).unwrap();
@@ -845,7 +853,7 @@ fn variant_skin_slots_and_sources() {
     write_utf8_no_bom(&dir.join("data/hulls/skins/skin.skin"), r#"{"skinHullId":"skin","baseHullId":"a","ordnancePoints":120,"fighterBays":2,"weaponSlotChanges":{"A":{"size":"LARGE","type":"HYBRID"}},"removeWeaponSlots":["B"],"removeBuiltInMods":["old"],"builtInMods":["new"]}"#).unwrap();
     write_utf8_no_bom(
         &dir.join("data/variants/var.variant"),
-        r#"{"variantId":"var","hullId":"skin","fluxVents":2}"#,
+        r#"{"variantId":"var","hullId":"skin","fluxVents":2,"weaponGroups":[]}"#,
     )
     .unwrap();
     release_project_session(&root.session_id).unwrap();
@@ -909,19 +917,19 @@ fn module_variant_catalog_lightweight_sources_and_skins() {
         ),
         (
             "data/variants/twin.variant",
-            r#"{"variantId":"twin","hullId":"a","displayName":"Twin"}"#,
+            r#"{"variantId":"twin","hullId":"a","displayName":"Twin","weaponGroups":[]}"#,
         ),
         (
             "data/variants/removed.variant",
-            r#"{"variantId":"removed","hullId":"removed"}"#,
+            r#"{"variantId":"removed","hullId":"removed","weaponGroups":[]}"#,
         ),
         (
             "data/variants/added.variant",
-            r#"{"variantId":"added","hullId":"added"}"#,
+            r#"{"variantId":"added","hullId":"added","weaponGroups":[]}"#,
         ),
         (
             "data/variants/ordinary.variant",
-            r#"{"variantId":"ordinary","hullId":"b"}"#,
+            r#"{"variantId":"ordinary","hullId":"b","weaponGroups":[]}"#,
         ),
     ] {
         let path = dir.join(relative);
@@ -939,11 +947,11 @@ fn module_variant_catalog_lightweight_sources_and_skins() {
         ),
         (
             "data/variants/core.variant",
-            r#"{"variantId":"core","hullId":"core_ship"}"#,
+            r#"{"variantId":"core","hullId":"core_ship","weaponGroups":[]}"#,
         ),
         (
             "data/variants/var.variant",
-            r#"{"variantId":"var","hullId":"core_ship"}"#,
+            r#"{"variantId":"var","hullId":"core_ship","weaponGroups":[]}"#,
         ),
     ] {
         let path = game.join("starsector-core").join(relative);
@@ -1059,7 +1067,7 @@ fn weapon_render_hints_skin_chain() {
     write_utf8_no_bom(&dir.join("data/hulls/skins/outer.skin"), r#"{"skinHullId":"outer","baseHullId":"inner","removeHints":["WEAPONS_BACK_TO_FRONT"],"addHints":["WEAPONS_FRONT_TO_BACK","PHASE"]}"#).unwrap();
     write_utf8_no_bom(
         &dir.join("data/variants/var.variant"),
-        r#"{"variantId":"var","hullId":"outer"}"#,
+        r#"{"variantId":"var","hullId":"outer","weaponGroups":[]}"#,
     )
     .unwrap();
     let mut trace = PerformanceTrace::new("weapon.render.hints");
@@ -1112,7 +1120,7 @@ fn variant_wing_catalog_core_reference() {
     .unwrap();
     write_utf8_no_bom(
         &core.join("data/variants/fighter_var.variant"),
-        r#"{"variantId":"fighter_var","hullId":"fighter","displayName":"Support Fighter"}"#,
+        r#"{"variantId":"fighter_var","hullId":"fighter","displayName":"Support Fighter","weaponGroups":[]}"#,
     )
     .unwrap();
     write_utf8_no_bom(
@@ -2619,7 +2627,7 @@ fn variant_catalog_core_repeated_reads() {
         ),
         (
             "data/variants/core_variant.variant",
-            r#"{"variantId":"core_variant","hullId":"core_ship","displayName":"Support"}"#,
+            r#"{"variantId":"core_variant","hullId":"core_ship","displayName":"Support","weaponGroups":[]}"#,
         ),
     ] {
         let path = core.join(relative);

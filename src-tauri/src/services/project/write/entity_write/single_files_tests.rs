@@ -142,7 +142,7 @@ fn variant_rename_preserves_old_file_comments_and_key_order() {
         "new",
         JsonEntityFileInput {
             source_rel_path: Some("data/variants/old.variant"),
-            data: json!({"hullId":"demo","variantId":"new"}),
+            data: json!({"hullId":"demo","variantId":"new","weaponGroups":[]}),
             json_write: JsonWriteOptions {
                 replace_paths: Vec::new(),
                 keep_filename: false,
@@ -172,7 +172,7 @@ fn variant_save_rename_keeps_the_selected_source_directory() {
         "new",
         save_input(
             Some("data/variants/nested/old.variant"),
-            json!({"hullId":"demo","variantId":"new"}),
+            json!({"hullId":"demo","variantId":"new","weaponGroups":[]}),
         ),
     )
     .unwrap();
@@ -210,14 +210,15 @@ const SKIN_CASE: SpecCase = SpecCase {
 };
 
 fn entity_json(case: &SpecCase, id: &str) -> Value {
-    json!({ case.id_field: id, case.companion_field: case.companion_value })
+    let mut data = json!({ case.id_field: id, case.companion_field: case.companion_value });
+    if case.kind == EntityKind::Variant {
+        data["weaponGroups"] = json!([]);
+    }
+    data
 }
 
 fn entity_file_json(case: &SpecCase, id: &str) -> String {
-    format!(
-        "{{\"{}\":\"{id}\",\"{}\":\"{}\"}}",
-        case.id_field, case.companion_field, case.companion_value
-    )
+    entity_json(case, id).to_string()
 }
 
 fn rename_with_undo_redo(case: &SpecCase) {
@@ -379,8 +380,15 @@ fn spec_edits_preserve_selected_filename_and_rename_with_replay() {
         let source = format!("{}/nested/filename.{}", case.dir, case.ext);
         fs::create_dir_all(root.join(case.dir).join("nested")).unwrap();
         let original = format!(
-            "{{\n# author\n{}: 'old',\n{}: '{}'\n}}\n",
-            case.id_field, case.companion_field, case.companion_value
+            "{{\n# author\n{}: 'old',\n{}: '{}'{}\n}}\n",
+            case.id_field,
+            case.companion_field,
+            case.companion_value,
+            if case.kind == EntityKind::Variant {
+                ",\nweaponGroups: []"
+            } else {
+                ""
+            }
         );
         write_utf8_no_bom(&root.join(&source), &original).unwrap();
         let save = save_json_entity_file(

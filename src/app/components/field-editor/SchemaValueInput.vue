@@ -85,6 +85,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { compositionPath, composeJson, setCompositionValue, editComposedJson } from '@/domain/json-composition';
+import { stableDeepEqual } from '@/shared/lib/stable-compare';
 import { fieldCompositionOrigin, fieldDocumentPath } from '@/domain/field-editor/field-editor-context';
 import { prepareSchemaValue } from '@/domain/schema/game-number';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
@@ -109,11 +110,23 @@ const props = defineProps<{
 const emit = defineEmits<{ update: [update: SchemaFieldUpdate] }>();
 const feedback = useAppFeedback();
 function publish(update: SchemaFieldUpdate) {
+  if (
+    update.kind === 'set' &&
+    !active.value.required &&
+    (active.value.minEntries ?? 0) > 0 &&
+    update.value !== null &&
+    typeof update.value === 'object' &&
+    Object.keys(update.value).length === 0
+  )
+    update = { kind: 'remove' };
   const runtime = props.runtimeContext;
   const filePath = runtime && fieldDocumentPath(runtime, props.fieldPath ?? props.field.key);
-  if (!update.fileEdit && update.kind === 'set' && filePath && runtime?.document?.find(filePath))
+  const context = runtime?.composition;
+  const composedCollection = context && ['object', 'array', 'string-array', 'tag-select'].includes(active.value.type);
+  if (composedCollection && update.kind === 'set' && update.fileEdit?.kind === 'replace' && stableDeepEqual(update.fileEdit.path, filePath))
+    update = { kind: 'set', value: update.value };
+  if (!update.fileEdit && update.kind === 'set' && !composedCollection && filePath && runtime?.document?.find(filePath))
     update = { ...update, fileEdit: { kind: 'replace', path: filePath, value: prepareSchemaValue(update.value, active.value) } };
-  const context = props.runtimeContext?.composition;
   if (!context) {
     emit('update', update);
     return;

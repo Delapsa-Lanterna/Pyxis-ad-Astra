@@ -135,10 +135,10 @@ export function jsonDocumentPartial(definition: JsonDocumentDefinition, value: R
 export function jsonDocumentIssues(definition: JsonDocumentDefinition, schema: FileSchema, value: RowData, composition?: JsonComposition) {
   const kind = definition.kind,
     key = kind === 'mission' ? 'descriptor' : ['faction', 'mod-info', 'misc-config'].includes(kind) ? 'file' : null;
-  const effective = key
-    ? { ...value, [key]: composeJson(value[key] as RowData, kind === 'misc-config' ? undefined : composition) }
-    : composeJson(value, composition);
-  return schemaDocumentIssues(schema, effective, jsonDocumentPartial(definition, value, composition));
+  const effective = key ? { ...value, [key]: composeJson(value[key] as RowData, composition) } : composeJson(value, composition);
+  const partial =
+    kind === 'misc-config' ? !(composition?.layers.length || composition?.replace) : jsonDocumentPartial(definition, value, composition);
+  return schemaDocumentIssues(schema, effective, partial);
 }
 export function jsonRecoveryValue(target: ConfigDocumentTarget, plan: JsonRecoveryPlan, current: RowData): RowData {
   if (target.kind === 'mission') {

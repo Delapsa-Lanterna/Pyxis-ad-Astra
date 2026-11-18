@@ -43,8 +43,8 @@
             class="compact-icon-button ui-control-reset"
             size="tiny"
             quaternary
-            :title="row.dynamic ? '删除条目' : '移除字段'"
-            :aria-label="row.dynamic ? '删除条目' : '移除字段'"
+            :title="field.preserveIndices ? '清空条目' : row.dynamic ? '删除条目' : '移除字段'"
+            :aria-label="field.preserveIndices ? '清空条目' : row.dynamic ? '删除条目' : '移除字段'"
             @click="remove(row)"
           >
             <svg class="compact-icon-button-icon ui-control-icon" viewBox="0 0 24 24" aria-hidden="true">
@@ -131,7 +131,9 @@ const entries = computed(() =>
     : schemaKeyValueEntries(props.value, format.value),
 );
 const definitions = computed(() => props.field.nested ?? []);
-const item = computed<FieldSchema>(() => props.field.item ?? props.field.valueSchema ?? { key: 'value', label: '内容', type: 'json' });
+const item = computed<FieldSchema>(
+  () => (array.value ? props.field.item : props.field.valueSchema) ?? { key: 'value', label: '内容', type: 'json' },
+);
 const keyField = computed<FieldSchema>(() => ({ key: 'name', label: '名称', type: 'string', required: true, ...props.field.keySchema }));
 const { sourceOptions } = useFieldSourceOptions({
   field: () => keyField.value,
@@ -183,6 +185,7 @@ interface Row {
   visible: boolean;
 }
 const filePath = computed<FilePath | null>(() => {
+  void props.value;
   const context = props.runtimeContext;
   const path = context ? fieldDocumentPath(context, props.fieldPath) : null;
   return path && context?.document?.find(path) ? path : null;
@@ -207,15 +210,29 @@ const rows = computed<Row[]>((previous) => {
     .map((entry, displayIndex): Row => {
       const index = entries.value.findIndex((value) => value.key === entry.key),
         definition = fixed.get(entry.key) ?? item.value;
-      const field = definition.variants ? schemaFieldVariant(definition, entry.val) : definition;
+      const selected = definition.variants ? schemaFieldVariant(definition, entry.val) : definition;
+      const field: FieldSchema = {
+        ...selected,
+        required: schemaFieldRequired(selected, (key) => entries.value.find((entry) => entry.key === key)?.val),
+        ...(array.value ? { key: '', label: `${selected.label} ${displayIndex + 1}` } : {}),
+        ...(props.field.partial || props.runtimeContext?.partial ? { partial: true, required: false, requiredWhen: undefined } : {}),
+      };
       const dynamic = array.value || !fixed.has(entry.key);
-      const sourceIndex = sourceNode?.content.kind === 'object' ? sourceNode.content.value.findIndex(([key]) => key === entry.key) : index;
-      const id = dynamic ? (ids[sourceIndex] ?? `${props.inputKey}:${array.value ? index : entry.key}`) : `field:${entry.key}`;
       const path =
         format.value === 'array-of-entries'
           ? `${props.fieldPath}[${index}][${JSON.stringify(entry.key)}]`
           : `${props.fieldPath}[${array.value ? entry.key : JSON.stringify(entry.key)}]`;
+      const documentPath = props.runtimeContext ? fieldDocumentPath(props.runtimeContext, path) : null;
+      const sourceIndex =
+        sourceNode?.content.kind === 'object'
+          ? sourceNode.content.value.findIndex(([key]) => key === entry.key)
+          : sourceNode?.content.kind === 'array'
+            ? documentPath
+              ? Number(documentPath[filePath.value!.length])
+              : -1
+            : index;
       const group = props.field.presentation === 'groups' ? !dynamic || field.type === 'object' : dynamic && schemaCollection(field);
+      const id = dynamic ? (ids[sourceIndex] ?? `${props.inputKey}:${array.value ? index : entry.key}`) : `field:${entry.key}`;
       const current: Row = {
         id,
         key: entry.key,
@@ -227,12 +244,7 @@ const rows = computed<Row[]>((previous) => {
         actionSlot: group ? 'header-extra' : 'actions',
         path,
         inputKey: `${props.inputKey}/${id}`,
-        field: {
-          ...field,
-          required: schemaFieldRequired(field, (key) => entries.value.find((entry) => entry.key === key)?.val),
-          ...(array.value ? { key: '', label: `${field.label} ${displayIndex + 1}` } : {}),
-          ...(props.field.partial || props.runtimeContext?.partial ? { partial: true, required: false, requiredWhen: undefined } : {}),
-        },
+        field,
         origin: fieldCompositionOrigin(props.runtimeContext, path),
         group,
         remove:
@@ -240,6 +252,7 @@ const rows = computed<Row[]>((previous) => {
           props.field.editable !== false &&
           props.field.operations?.remove !== false &&
           index >= 0 &&
+          (entries.value.length > (props.field.minEntries ?? 0) || (props.field.minEntries === 1 && !props.field.required)) &&
           (dynamic || (!field.required && props.field.presentation !== 'groups')),
         visible: schemaFieldVisible(field.visibleWhen, props.runtimeContext?.readValue?.() ?? (props.value as RowData)),
       };
@@ -341,7 +354,11 @@ function updateRow(row: Row, update: SchemaFieldUpdate) {
     (filePath.value
       ? {
           kind: 'replace' as const,
-          path: [...filePath.value, ...(format.value === 'array-of-entries' ? [String(row.index)] : []), row.key],
+          path: [
+            ...filePath.value,
+            ...(format.value === 'array-of-entries' ? [String(row.sourceIndex)] : []),
+            array.value ? String(row.sourceIndex) : row.key,
+          ],
           value: prepareSchemaValue(update.value, row.field),
         }
       : undefined);
@@ -350,6 +367,17 @@ function updateRow(row: Row, update: SchemaFieldUpdate) {
 function remove(row: Row) {
   row = rows.value.find((current) => current.id === row.id)!;
   inputs?.cancel(row.inputKey);
+  if (props.field.preserveIndices) {
+    updateRow(row, { kind: 'set', value: schemaInitialValue(item.value) });
+    return;
+  }
+  const source = filePath.value ? props.runtimeContext!.document!.find(filePath.value) : undefined;
+  const ownLength =
+    source?.content.kind === 'object' || source?.content.kind === 'array' ? source.content.value.length : entries.value.length;
+  if (!props.field.required && props.field.minEntries === 1 && ownLength === 1) {
+    emit('update', { kind: 'remove' });
+    return;
+  }
   const next = entries.value.filter((_, index) => index !== row.index);
   const edit = filePath.value
     ? array.value || format.value === 'array-of-entries'
@@ -375,7 +403,7 @@ function rename(row: Row, update: SchemaFieldUpdate) {
   const previous = filePath.value
     ? props.runtimeContext!.document!.prepared([
         ...filePath.value,
-        ...(format.value === 'array-of-entries' ? [String(row.index)] : []),
+        ...(format.value === 'array-of-entries' ? [String(row.sourceIndex)] : []),
         row.key,
       ])
     : prepareSchemaValue(row.value, row.field);

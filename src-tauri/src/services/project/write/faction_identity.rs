@@ -236,7 +236,7 @@ mod tests {
     content: file_formats::indexed_content(IndexedConfigKind::Faction, &(json!({"file":{
                         "id":"next","displayName":"Saved","displayNameWithArticle":"a Saved",
                         "logo":"logo.png","crest":"crest.png","color":[255,255,255,255],
-                        "knownShips":{},"knownFighters":{},"knownWeapons":{},
+                        "knownShips":{},"knownFighters":{},"knownWeapons":{},"names":{},"portraits":{},
                         "factionDoctrine":{"warships":1,"carriers":1,"phaseShips":1,"officerQuality":1,
                             "shipQuality":1,"numShips":1,"shipSize":1,"aggression":1}
                     }}))),
@@ -280,5 +280,77 @@ mod tests {
         assert_eq!(file_formats::read_csv_table(&index).unwrap().rows.len(), 1);
         release_project_session(&manifest.session_id).unwrap();
         root.close().unwrap();
+    }
+
+    #[test]
+    fn sparse_fallback_saves_validate_merged_content_and_preserve_local_bytes() {
+        for local_identity in [false, true] {
+            let root = project_workspace("faction_sparse_fallback");
+            let relative = "data/world/factions/fixture.faction";
+            let game = root.join("game");
+            let core = game.join("starsector-core").join(relative);
+            fs::create_dir_all(core.parent().unwrap()).unwrap();
+            let base = json!({
+                "id":"fixture","displayName":"Fixture","displayNameWithArticle":"the Fixture",
+                "logo":"logo.png","crest":"crest.png","color":[255,255,255,255],
+                "names":{},"portraits":{},"knownShips":{},"knownFighters":{},"knownWeapons":{},
+                "factionDoctrine":{"warships":1,"carriers":1,"phaseShips":1,"officerQuality":1,
+                    "shipQuality":1,"numShips":1,"shipSize":1,"aggression":1},
+                "shipRoles":{"role":{"fallback":{"target":1}}}
+            });
+            fs::write(core, base.to_string()).unwrap();
+            let path = root.join(relative);
+            fs::create_dir_all(path.parent().unwrap()).unwrap();
+            fs::write(
+                root.join("data/world/factions/factions.csv"),
+                "faction\ndata/world/factions/fixture.faction\n",
+            )
+            .unwrap();
+            let mut patch = json!({"shipRoles":{"role":{"fallback":{}}}});
+            if local_identity {
+                patch["id"] = json!("fixture");
+            }
+            fs::write(&path, patch.to_string()).unwrap();
+            let manifest = project::open_project_session_traced(
+                &root,
+                Some(&game),
+                &mut PerformanceTrace::new("fallback.open"),
+            )
+            .unwrap();
+            for data in [
+                patch,
+                if local_identity {
+                    json!({"id":"fixture"})
+                } else {
+                    json!({})
+                },
+            ] {
+                let current = entity_targets::query_entity_edit_target(
+                    &manifest.session_id,
+                    EntityKind::Faction,
+                    "fixture",
+                )
+                .unwrap();
+                project_save::execute_save_action(SaveAction::SaveIndexedConfigEntity(
+                    IndexedConfigSave {
+                        session_id: manifest.session_id.clone(),
+                        mod_root: manifest.mod_root.clone(),
+                        base_versions: current.base_versions,
+                        previous_id: Some("fixture".into()),
+                        next_id: "fixture".into(),
+                        index_row: Default::default(),
+                        content: file_formats::indexed_content(
+                            IndexedConfigKind::Faction,
+                            &json!({"file":data}),
+                        ),
+                        json_write: Default::default(),
+                    },
+                ))
+                .unwrap();
+                assert_eq!(file_formats::read_json_value(&path).unwrap(), data);
+            }
+            release_project_session(&manifest.session_id).unwrap();
+            root.close().unwrap();
+        }
     }
 }

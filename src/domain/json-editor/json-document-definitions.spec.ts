@@ -1,7 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import type { ResourceRef, RowData } from '@/shared/types';
+import type { ResourceRef, RowData, JsonComposition } from '@/shared/types';
 import { entityTargetFixture } from '@/test/fixtures/entity-target';
-import { JSON_DOCUMENT_DEFINITIONS, jsonDocumentMedia, jsonDocumentRecord, jsonDocumentSummary } from './json-document-definitions';
+import {
+  JSON_DOCUMENT_DEFINITIONS,
+  jsonDocumentMedia,
+  jsonDocumentRecord,
+  jsonDocumentSummary,
+  jsonDocumentIssues,
+  jsonDocumentPartial,
+} from './json-document-definitions';
+import { getSchema } from '@/domain/schema/config-schema-registry';
+import { createDefaultFaction } from './json-config-entities';
 
 const logo: ResourceRef = { source: 'mod', ownerKind: 'faction', ownerId: 'sample', relPath: 'graphics/logo.png', key: 'logo' };
 const crest: ResourceRef = { ...logo, relPath: 'graphics/crest.png', key: 'crest' };
@@ -56,4 +65,40 @@ describe('faction list icon', () => {
       expect((record.value.file as RowData).color).toEqual([85, 190, 220, 255]);
     },
   );
+});
+
+describe('complete and composed deletion validation', () => {
+  function sources(data: RowData, replace = false): JsonComposition {
+    return {
+      layers: [
+        {
+          source: { source: 'core', root: 'M:/base', path: 'M:/base/source.json', relPath: 'source.json' },
+          version: { path: 'M:/base/source.json', fingerprint: 'base' },
+          data,
+          replace: false,
+        },
+      ],
+      excluded: [],
+      replace,
+    };
+  }
+  it.each([false, true])('validates a sparse fallback after composition with local identity=%s', (identity) => {
+    const base = { ...createDefaultFaction('base_faction'), shipRoles: { role: { fallback: { target: 1 } } } };
+    const value = { file: { ...(identity ? { id: 'base_faction' } : {}), shipRoles: { role: { fallback: {} } } } };
+    const composition = sources(base);
+    expect(jsonDocumentPartial(JSON_DOCUMENT_DEFINITIONS.factions, value, composition)).toBe(!identity);
+    expect(jsonDocumentIssues(JSON_DOCUMENT_DEFINITIONS.factions, getSchema('faction')!, value, composition)).toEqual([]);
+    expect(
+      jsonDocumentIssues(JSON_DOCUMENT_DEFINITIONS.factions, getSchema('faction')!, value, { ...composition, layers: [] }).length,
+    ).toBeGreaterThan(0);
+  });
+  it('validates misc supplements against inherited content and enforces replacement completeness', () => {
+    const definition = JSON_DOCUMENT_DEFINITIONS['misc-config'],
+      schema = getSchema('sounds')!;
+    const composition = sources({ music: { inherited: [{ source: 'sounds/music', file: 'base.ogg' }] } });
+    expect(jsonDocumentIssues(definition, schema, { file: { music: {} } }, composition)).toEqual([]);
+    expect(jsonDocumentIssues(definition, schema, { file: {} }, { ...composition, replace: true })).toHaveLength(1);
+    expect(jsonDocumentIssues(definition, schema, { file: {} }, { layers: [], excluded: [], replace: false })).toEqual([]);
+    expect(jsonDocumentIssues(definition, schema, { file: { sample: [{}] } }, composition)).toHaveLength(1);
+  });
 });

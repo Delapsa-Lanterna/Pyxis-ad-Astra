@@ -238,7 +238,11 @@ mod tests {
         let root = project_workspace("commit_projection_once");
         fs::create_dir_all(root.join("data/variants")).unwrap();
         let path = root.join("data/variants/demo.variant");
-        fs::write(&path, r#"{"variantId":"demo","hullId":"hull"}"#).unwrap();
+        fs::write(
+            &path,
+            r#"{"variantId":"demo","hullId":"hull","weaponGroups":[]}"#,
+        )
+        .unwrap();
         let mut trace = PerformanceTrace::new("project.openSession");
         let first = project::open_project_session_traced(&root, None, &mut trace).unwrap();
         let second = project::open_project_session_traced(&root, None, &mut trace).unwrap();
@@ -254,7 +258,7 @@ mod tests {
                 next_id: "next".into(),
                 rel_path: Some(loaded.target.write.rel_path),
                 document: file_formats::json_write(
-                    &(serde_json::json!({"variantId":"next","hullId":"hull"})),
+                    &(serde_json::json!({"variantId":"next","hullId":"hull","weaponGroups":[]})),
                 ),
                 json_write: Default::default(),
             }))
@@ -285,7 +289,11 @@ mod tests {
         let root = project_workspace("commit_projection_pending");
         fs::create_dir_all(root.join("data/variants")).unwrap();
         let path = root.join("data/variants/demo.variant");
-        fs::write(&path, r#"{"variantId":"demo","hullId":"hull"}"#).unwrap();
+        fs::write(
+            &path,
+            r#"{"variantId":"demo","hullId":"hull","weaponGroups":[]}"#,
+        )
+        .unwrap();
         let mut trace = PerformanceTrace::new("project.openSession");
         let manifest = project::open_project_session_traced(&root, None, &mut trace).unwrap();
         let loaded =
@@ -328,7 +336,7 @@ mod tests {
                     next_id: "next".into(),
                     rel_path: Some(loaded.target.write.rel_path),
                     document: file_formats::json_write(
-                        &(serde_json::json!({"variantId":"next","hullId":"hull"})),
+                        &(serde_json::json!({"variantId":"next","hullId":"hull","weaponGroups":[]})),
                     ),
                     json_write: Default::default(),
                 }))
@@ -366,7 +374,11 @@ mod tests {
         let root = fixture.join("starsector-core");
         fs::create_dir_all(root.join("data/variants")).unwrap();
         let path = root.join("data/variants/demo.variant");
-        fs::write(&path, r#"{"variantId":"demo","hullId":"hull"}"#).unwrap();
+        fs::write(
+            &path,
+            r#"{"variantId":"demo","hullId":"hull","weaponGroups":[]}"#,
+        )
+        .unwrap();
         let mut trace = PerformanceTrace::new("project.openSession");
         let manifest = project::open_project_session_traced(&root, None, &mut trace).unwrap();
         assert!(app_settings::ensure_core_editing_allowed(&manifest.mod_root).is_err());
@@ -386,7 +398,7 @@ mod tests {
                     .text_file(
                         "data/variants/demo.variant",
                         Some(
-                            r#"{"variantId":"demo","hullId":"hull","displayName":"Written"}"#
+                            r#"{"variantId":"demo","hullId":"hull","displayName":"Written","weaponGroups":[]}"#
                                 .to_string(),
                         ),
                     )

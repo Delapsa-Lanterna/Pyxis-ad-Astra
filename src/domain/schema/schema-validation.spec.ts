@@ -128,3 +128,32 @@ describe('document schema problems', () => {
     expect(schemaFieldIssues(field, undefined)).toEqual([]);
   });
 });
+
+it('distinguishes a required string key from a nonempty string value', () => {
+  const field = { key: 'file', label: 'File', type: 'path' as const, required: true, allowEmptyString: true };
+  expect(schemaFieldIssues(field, undefined)).toHaveLength(1);
+  expect(schemaFieldIssues(field, '')).toEqual([]);
+  expect(schemaFieldIssues(field, undefined, 'file', true)).toEqual([]);
+  expect(schemaFieldIssues({ ...field, allowEmptyString: false }, '')).toHaveLength(1);
+});
+it.each(['object', 'array'] as const)('checks complete %s cardinality while allowing empty local supplements', (type) => {
+  const root = { key: 'file', label: 'File', type, minEntriesWhenComplete: 1 };
+  const empty = type === 'object' ? {} : [];
+  expect(schemaFieldIssues(root, empty)).toHaveLength(1);
+  expect(schemaFieldIssues(root, empty, 'file', true)).toEqual([]);
+  expect(schemaFieldIssues(root, type === 'object' ? { sample: [] } : [1])).toEqual([]);
+});
+it('checks game-read keys and empty collections in complete bundled definitions', () => {
+  const faction = getSchema('faction')!.sections!.flatMap((section) => section.fields);
+  for (const key of ['file.shipRoles', 'file.fleetCompositions']) {
+    const field = faction.find((field) => field.key === key)!;
+    expect(schemaFieldIssues(field, {})).toHaveLength(1);
+    expect(schemaFieldIssues(field, undefined)).toEqual([]);
+  }
+  const voices = faction.find((field) => field.key === 'file.voices')!;
+  expect(schemaFieldIssues(voices, {})).toHaveLength(3);
+  expect(schemaFieldIssues(voices, { LOW: {}, MEDIUM: {}, HIGH: {} })).toEqual([]);
+  const track = getSchema('sounds')!.root!.nested![0]!.valueSchema!.item!;
+  expect(schemaFieldIssues(track, { source: 'sounds/music', files: [] })).toHaveLength(1);
+  expect(schemaFieldIssues(track, { source: 'sounds/music', files: ['sample.ogg'] })).toEqual([]);
+});

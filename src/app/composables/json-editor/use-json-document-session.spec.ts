@@ -115,6 +115,7 @@ function record(definition: JsonDocumentDefinition, id = 'a', sessionId = 's1', 
       resources: {},
     };
   const entity = jsonEntityFixture(definition.kind, id, 'Saved', modRoot);
+  if (definition.kind === 'variant') (entity.data as RowData).weaponGroups = [];
   if (definition.kind === 'faction')
     entity.data = {
       ...createDefaultFaction(id),
@@ -517,7 +518,7 @@ describe('complete JSON document runtime', () => {
       if (definition.file)
         expect(projectJsonValue(write.document.content)).toEqual(
           initial.target.kind === 'variant'
-            ? { variantId: 'a', hullId: 'hull', displayName: 'Submitted' }
+            ? { variantId: 'a', hullId: 'hull', displayName: 'Submitted', weaponGroups: [] }
             : { skinHullId: 'a', baseHullId: 'hull', hullName: 'Submitted' },
         );
       else if (definition.kind === 'mod-info') expect(projectJsonValue(write.document.content)).toMatchObject({ name: 'Submitted' });
@@ -851,4 +852,54 @@ describe('complete JSON document runtime', () => {
     expect(mocks.read).toHaveBeenCalledTimes(Number(renamed));
     expect(doc.composition.value?.excluded).toEqual(renamed ? [] : ['retained']);
   });
+
+  it.each([JSON_DOCUMENT_DEFINITIONS.factions, JSON_DOCUMENT_DEFINITIONS.variants])(
+    '$kind saves whole-file array replacement without the draft-only marker',
+    async (definition) => {
+      const { composeJson, editComposedJson, REPLACE_BASE_KEY } = await import('@/domain/json-composition');
+      const initial = record(definition),
+        root = definition.kind === 'faction' ? ['file'] : [];
+      const array = definition.kind === 'faction' ? 'illegalCommodities' : 'hullMods';
+      const data = { ...jsonDocumentContent(definition.kind, initial.value), [array]: ['inherited'] };
+      initial.composition = {
+        replace: false,
+        excluded: [],
+        layers: [
+          {
+            source: { source: 'core', root: 'M:/base', path: 'M:/base/source.json', relPath: 'source.json' },
+            version: { path: 'M:/base/source.json', fingerprint: 'base' },
+            data,
+            replace: false,
+          },
+        ],
+      };
+      const doc = useJsonDocumentSession(definition, initial, feedback);
+      const composition =
+        definition.kind === 'faction'
+          ? { ...initial.composition, layers: initial.composition.layers.map((layer) => ({ ...layer, data: { file: layer.data } })) }
+          : initial.composition;
+      const before = composeJson(doc.draftValue.value, composition),
+        after = deepClone(before);
+      jsonDocumentContent(definition.kind, after)[array] = [];
+      doc.draftValue.value = editComposedJson(doc.draftValue.value, before, after, composition, root).value;
+      expect(jsonDocumentContent(definition.kind, doc.draftValue.value)).toHaveProperty(REPLACE_BASE_KEY);
+      const captured = doc.document.capture('preserveStructure');
+      expect((await doc.save()).status).toBe('saved');
+      const call = definition.kind === 'faction' ? mocks.saveIndexed.mock.lastCall! : mocks.saveFile.mock.lastCall!;
+      const write = call[0] as IndexedConfigSave | JsonFileSave;
+      const written = projectJsonValue(write.document.content) as RowData;
+      expect(written).not.toHaveProperty(REPLACE_BASE_KEY);
+      expect(written[array]).toEqual([]);
+      expect(write.jsonWrite?.replacePaths).toEqual([initial.target.entity!.write.relPath]);
+      expect(JSON.stringify(call[1])).not.toContain(REPLACE_BASE_KEY);
+      expect(JSON.stringify(call[3])).not.toContain(REPLACE_BASE_KEY);
+      expect(write.document.content.kind).toBe('object');
+      if (captured.request.content.kind === 'object')
+        expect(write.document.content).toEqual({
+          ...captured.request.content,
+          value: captured.request.content.value.filter(([key]) => key !== REPLACE_BASE_KEY),
+        });
+      expect(doc.dirty.value).toBe(false);
+    },
+  );
 });

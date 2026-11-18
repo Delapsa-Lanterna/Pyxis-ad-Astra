@@ -9,7 +9,7 @@
       :field-path="fieldPath"
       @update="$emit('update', $event)"
     />
-    <template v-if="runtimeContext?.composition" #actions>
+    <template #actions>
       <n-button
         v-if="canRestoreReference"
         class="compact-icon-button ui-control-reset"
@@ -17,10 +17,23 @@
         quaternary
         title="使用引用值"
         aria-label="使用引用值"
-        @click="runtimeContext.composition.apply(path, undefined)"
+        @click="removeField"
       >
         <svg class="compact-icon-button-icon ui-control-icon" viewBox="0 0 24 24" aria-hidden="true">
           <path d="M3 10a9 9 0 1 1 2.3 8M3 4v6h6" />
+        </svg>
+      </n-button>
+      <n-button
+        v-else-if="canRemove"
+        class="compact-icon-button ui-control-reset"
+        size="tiny"
+        quaternary
+        title="移除字段"
+        aria-label="移除字段"
+        @click="removeField"
+      >
+        <svg class="compact-icon-button-icon ui-control-icon" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M4 7h16M9 7V4h6v3m3 0-.8 13H6.8L6 7m3 3v7m6-7v7" />
         </svg>
       </n-button>
     </template>
@@ -33,6 +46,7 @@ import { fieldCompositionOrigin, fieldSchemaForContext, type FieldEditorContext 
 import type { FieldSchema, SchemaFieldUpdate } from '@/domain/schema/schema.types';
 import { computed } from 'vue';
 import { compositionPath, hasRestorableCompositionValue } from '@/domain/json-composition';
+import { useFieldInputs } from '@/shared/runtime/field-inputs';
 
 const props = defineProps<{
   field: FieldSchema;
@@ -49,7 +63,23 @@ const origin = computed(() => {
 const canRestoreReference = computed(() => {
   const context = props.runtimeContext?.composition;
   const sources = context?.sources();
-  return context && sources ? hasRestorableCompositionValue(context.local(), sources, path.value) : false;
+  return active.value.editable !== false && active.value.operations?.remove !== false && context && sources
+    ? hasRestorableCompositionValue(context.local(), sources, path.value)
+    : false;
 });
-defineEmits<{ update: [update: SchemaFieldUpdate] }>();
+const emit = defineEmits<{ update: [update: SchemaFieldUpdate] }>();
+const inputs = useFieldInputs();
+const canRemove = computed(
+  () =>
+    active.value.editable !== false &&
+    active.value.operations?.remove !== false &&
+    !active.value.required &&
+    props.value !== undefined &&
+    origin.value === null,
+);
+function removeField() {
+  inputs?.cancel(props.inputKey ?? props.field.key);
+  if (props.runtimeContext?.composition) props.runtimeContext.composition.apply(path.value, undefined);
+  else emit('update', { kind: 'remove' });
+}
 </script>

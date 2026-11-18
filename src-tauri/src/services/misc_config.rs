@@ -1,7 +1,7 @@
 use crate::domain::misc_config::MISC_CONFIG_FILES;
 use crate::domain::schema::ScalarKind;
 use crate::domain::schema::ScalarRule;
-use crate::domain::{json_composition, misc_config as definition, save_edits, schema};
+use crate::domain::{json_composition, misc_config as definition, save_edits};
 use crate::errors::{AppError, AppResult};
 use crate::io::{self, FileChangeSetBuilder, FsRootBoundary};
 use crate::models::file_content::JsonFileContent;
@@ -33,7 +33,7 @@ fn config_schema(kind: MiscConfigKind) -> &'static Value {
     &parsers::bundled_schema(definition::misc_config_schema_id(kind))["root"]
 }
 pub(crate) fn validate_misc_config(kind: MiscConfigKind, data: &Value) -> AppResult<()> {
-    definition::validate_misc_config(kind, data, config_schema(kind))
+    definition::validate_misc_config(kind, data, config_schema(kind), false)
 }
 pub fn query_misc_config_files(root: &str) -> AppResult<Vec<MiscConfigEntry>> {
     let _lease = io::acquire_root_write_lock(Path::new(root))?;
@@ -84,7 +84,6 @@ pub fn query_misc_config_file(
     }
     let (version, source) = io::read_versioned_json(&path)?;
     let data = source.content.to_json()?;
-    validate_misc_config(kind, &data).map_err(|error| error.at_path(&path))?;
     Ok(Some(MiscConfigFile {
         composition: Default::default(),
         kind,
@@ -99,6 +98,8 @@ pub fn query_project_misc_config(input: &MiscConfigRead) -> AppResult<Option<Mis
     let mut file = query_misc_config_file(&input.mod_root, input.kind)?;
     if let Some(file) = &mut file {
         file.composition = query_json_composition(&input.session_id, &file.rel_path)?;
+        let effective = json_composition::compose_game_json(&file.composition, &file.data)?;
+        validate_misc_config(input.kind, &effective).map_err(|error| error.at_path(&file.path))?;
     }
     Ok(file)
 }
@@ -131,18 +132,18 @@ pub fn save_misc_config(
         None
     };
     let data = input.document.content.to_json()?;
-    validate_misc_config(input.kind, &data).map_err(|error| error.at_path(&path))?;
+    // Composition requires an object root; local member constraints belong to the merged value.
+    if !data.is_object() {
+        validate_misc_config(input.kind, &data).map_err(|error| error.at_path(&path))?;
+    }
     let relative = definition::misc_config_path(input.kind);
     let mut layers = query_json_composition(&input.session_id, relative)?;
     layers.replace |= input.json_write.replaces(relative);
     let effective = json_composition::compose_game_json(&layers, &data)?;
-    schema::validate_field(
-        config_schema(input.kind),
-        &effective,
-        relative,
-        !layers.layers.is_empty() || layers.replace,
-    )?;
-    if input.kind == MiscConfigKind::Sounds {
+    let complete = !layers.layers.is_empty() || layers.replace;
+    definition::validate_misc_config(input.kind, &effective, config_schema(input.kind), complete)
+        .map_err(|error| error.at_path(&path))?;
+    if input.kind == MiscConfigKind::Sounds && complete {
         validate_sound_indices(&effective)?;
     }
     let mut builder = FileChangeSetBuilder::new(Path::new(&input.mod_root))?;

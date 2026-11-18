@@ -195,12 +195,12 @@ fn object_shapes_and_open_content() {
 fn complete_fixture(id: &str, value: &Value) -> Value {
     let mut base = match id {
         "mod-info" => json!({"id":"fixture","name":"Fixture","version":"1","gameVersion":"1"}),
-        "variant" => json!({"variantId":"fixture","hullId":"base"}),
+        "variant" => json!({"variantId":"fixture","hullId":"base","weaponGroups":[]}),
         "skin" => json!({"skinHullId":"fixture","baseHullId":"base"}),
         "faction" => json!({
             "id":"fixture","displayName":"Fixture","displayNameWithArticle":"a Fixture",
             "logo":"graphics/logo.png","crest":"graphics/crest.png","color":[255,255,255,255],
-            "knownShips":{},"knownFighters":{},"knownWeapons":{},
+            "knownShips":{},"knownFighters":{},"knownWeapons":{},"names":{},"portraits":{},
             "factionDoctrine":{"warships":1,"carriers":1,"phaseShips":1,"officerQuality":1,
                 "shipQuality":1,"numShips":1,"shipSize":1,"aggression":1}
         }),

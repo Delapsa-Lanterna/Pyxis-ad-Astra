@@ -281,3 +281,16 @@ describe('schema asset validation', () => {
     expect(() => parseCsvColumnSchemas('ships', asset)).toThrow();
   });
 });
+
+it('preserves string presence, complete collection counts and positional deletion declarations', () => {
+  const root = {
+    key: 'file',
+    label: 'File',
+    type: 'array',
+    minEntriesWhenComplete: 1,
+    preserveIndices: true,
+    item: { key: 'name', label: 'Name', type: 'string', required: true, allowEmptyString: true },
+  };
+  const schema = parseFileSchema('deletion', { $schema: 'pyxis-ad-astra/field-schema/v1', id: 'deletion', root });
+  expect(schema.root).toEqual(root);
+});

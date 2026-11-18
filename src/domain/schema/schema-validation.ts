@@ -32,10 +32,11 @@ export function schemaFieldIssues(
     if (variant.type === 'json' && !field.variants.some((candidate) => candidate.type === 'json')) return fail('内容类型不符合字段定义');
     return schemaFieldIssues(variant, value, path, partial, root);
   }
-  if (field.required && !partial && typeof value === 'string' && !value.trim()) return fail('必填字段不能为空');
+  if (field.required && !field.allowEmptyString && !partial && typeof value === 'string' && !value.trim()) return fail('必填字段不能为空');
   if (field.type === 'json') return [];
   if (value === null) return fail('内容类型不符合字段定义');
   if (!field.required && value === '' && ['string', 'text', 'enum', 'path', 'path-image'].includes(field.type)) return [];
+  const minimum = partial ? field.minEntries : (field.minEntriesWhenComplete ?? field.minEntries);
   if (field.type === 'object') {
     if (typeof value !== 'object' || (Array.isArray(value) && field.format !== 'array-of-entries')) return fail('应为对象');
     const entries = schemaKeyValueEntries(value, field.format),
@@ -47,8 +48,7 @@ export function schemaFieldIssues(
       return fail('每个条目应包含一个键值');
     const complete = !partial;
     const shape = [
-      ...((field.minEntries !== undefined && entries.length < field.minEntries) ||
-      (field.maxEntries !== undefined && entries.length > field.maxEntries)
+      ...((minimum !== undefined && entries.length < minimum) || (field.maxEntries !== undefined && entries.length > field.maxEntries)
         ? fail('条目数量不符合要求', 'entry_count')
         : []),
       ...(complete && field.exclusiveKeys && field.exclusiveKeys.filter((key) => Object.hasOwn(content, key)).length !== 1
@@ -86,10 +86,7 @@ export function schemaFieldIssues(
   }
   if (['array', 'string-array', 'tag-select', 'color-rgb', 'color-rgba'].includes(field.type)) {
     if (!Array.isArray(value)) return fail('应为列表');
-    if (
-      (field.minEntries !== undefined && value.length < field.minEntries) ||
-      (field.maxEntries !== undefined && value.length > field.maxEntries)
-    )
+    if ((minimum !== undefined && value.length < minimum) || (field.maxEntries !== undefined && value.length > field.maxEntries))
       return fail('条目数量不符合要求');
     if (
       field.type.startsWith('color-') &&

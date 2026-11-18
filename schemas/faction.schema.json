@@ -208,7 +208,7 @@
           "type": "object",
           "label": "人名来源",
           "description": "人物姓名生成器来源及其权重",
-          "required": false,
+          "required": true,
           "editable": true,
           "default": {},
           "valueSchema": {
@@ -808,7 +808,8 @@
             },
             "allowExtraFields": true
           },
-          "allowExtraFields": true
+          "allowExtraFields": true,
+          "minEntries": 1
         },
         {
           "key": "file.illegalCommodities",
@@ -898,7 +899,7 @@
           "type": "object",
           "label": "头像",
           "description": "势力人物头像图片路径",
-          "required": false,
+          "required": true,
           "editable": true,
           "nested": [
             {
@@ -963,7 +964,9 @@
                     "key": "name",
                     "type": "string",
                     "label": "显示名称",
-                    "default": ""
+                    "default": "",
+                    "required": true,
+                    "allowEmptyString": true
                   }
                 ]
               },
@@ -989,7 +992,9 @@
                     "key": "name",
                     "type": "string",
                     "label": "显示名称",
-                    "default": ""
+                    "default": "",
+                    "required": true,
+                    "allowEmptyString": true
                   }
                 ]
               },
@@ -1010,7 +1015,7 @@
               "type": "object",
               "label": "低级人物",
               "description": "低重要性人物的对话人格权重",
-              "required": false,
+              "required": true,
               "editable": true,
               "default": {},
               "valueSchema": {
@@ -1026,7 +1031,7 @@
               "type": "object",
               "label": "中级人物",
               "description": "中重要性人物的对话人格权重",
-              "required": false,
+              "required": true,
               "editable": true,
               "default": {},
               "valueSchema": {
@@ -1042,7 +1047,7 @@
               "type": "object",
               "label": "高级人物",
               "description": "高重要性人物的对话人格权重",
-              "required": false,
+              "required": true,
               "editable": true,
               "default": {},
               "valueSchema": {
@@ -1332,6 +1337,20 @@
             }
           ],
           "allowExtraFields": true
+        },
+        {
+          "key": "file.fleetCompositions",
+          "type": "object",
+          "label": "预设舰队",
+          "description": "按名称保存的预设舰队配置。",
+          "minEntries": 1,
+          "allowExtraFields": true,
+          "valueSchema": {
+            "key": "fleet",
+            "type": "object",
+            "label": "舰队配置",
+            "allowExtraFields": true
+          }
         },
         {
           "key": "file.fleetTypeNames",

@@ -122,6 +122,7 @@ if (inputs)
         validate &&
         !inputs.hasCompleteDocumentValidation.value &&
         props.field.required &&
+        !props.field.allowEmptyString &&
         !props.runtimeContext?.partial &&
         raw.value.trim() === ''
       ) {

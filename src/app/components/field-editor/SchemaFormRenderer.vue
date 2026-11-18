@@ -4,7 +4,7 @@
     :field="schema.root"
     :data-field-path="schema.root.key"
     :value="getNestedValue(modelValue, schema.root.key)"
-    :runtime-context="runtimeContext"
+    :runtime-context="fieldRuntimeContext"
     @update="onFieldUpdate(schema.root!.key, $event)"
   />
   <EditorCollapse v-else :expanded-names="expandedNames" @update:expanded-names="updateExpandedNames">
@@ -18,7 +18,7 @@
           :key="field.key"
           :field="field"
           :value="getNestedValue(modelValue, field.key)"
-          :runtime-context="runtimeContext"
+          :runtime-context="fieldRuntimeContext"
           @update="onFieldUpdate(field.key, $event)"
         />
       </n-collapse-item>
@@ -84,6 +84,9 @@ const modelValue = computed({
   },
 });
 
+const fieldRuntimeContext = computed<FieldEditorContext | null>(() =>
+  props.runtimeContext ? { ...props.runtimeContext, readValue: () => modelValue.value } : null,
+);
 const sections = computed<SectionSchema[]>(() => getSchemaSections(props.schema));
 
 const schemaKeys = computed<string[]>(() => getSchemaFieldKeys(props.schema));

@@ -617,7 +617,7 @@ mod tests {
                 entity_data: serde_json::json!({"file":{
                     "displayName":"New","id":"demo","displayNameWithArticle":"a Demo",
                     "logo":"logo.png","crest":"crest.png","color":[255,255,255,255],
-                    "knownShips":{},"knownFighters":{},"knownWeapons":{},
+                    "knownShips":{},"knownFighters":{},"knownWeapons":{},"names":{},"portraits":{},
                     "factionDoctrine":{"warships":1,"carriers":1,"phaseShips":1,"officerQuality":1,
                         "shipQuality":1,"numShips":1,"shipSize":1,"aggression":1}
                 }}),
@@ -662,7 +662,7 @@ mod tests {
             serde_json::json!({"file": {
                 "id":"new","displayName":"New","displayNameWithArticle":"a New",
                 "logo":"logo.png","crest":"crest.png","color":[255,255,255,255],
-                "knownShips":{},"knownFighters":{},"knownWeapons":{},
+                "knownShips":{},"knownFighters":{},"knownWeapons":{},"names":{},"portraits":{},
                 "factionDoctrine":{"warships":1,"carriers":1,"phaseShips":1,"officerQuality":1,
                     "shipQuality":1,"numShips":1,"shipSize":1,"aggression":1}
             }}),
@@ -722,7 +722,7 @@ mod tests {
             serde_json::json!({"file": {
                 "id":"demo","displayName":"Demo","displayNameWithArticle":"a Demo",
                 "logo":"logo.png","crest":"crest.png","color":[255,255,255,255],
-                "knownShips":{},"knownFighters":{},"knownWeapons":{},
+                "knownShips":{},"knownFighters":{},"knownWeapons":{},"names":{},"portraits":{},
                 "factionDoctrine":{"warships":1,"carriers":1,"phaseShips":1,"officerQuality":1,
                     "shipQuality":1,"numShips":1,"shipSize":1,"aggression":1}
             }}),

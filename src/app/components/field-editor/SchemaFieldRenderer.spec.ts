@@ -9,7 +9,7 @@ import { createFieldInputs, provideFieldInputs } from '@/shared/runtime/field-in
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { FieldSchema } from '@/domain/schema/schema.types';
+import type { FieldSchema, FileSchema } from '@/domain/schema/schema.types';
 import { getSchema } from '@/domain/schema/config-schema-registry';
 import { initializeSettingsStore, useSettingsStore } from '@/stores/settings.store';
 import { createSettingsFixture } from '@/test/fixtures/settings';
@@ -20,11 +20,12 @@ import SchemaFieldRenderer from './SchemaFieldRenderer.vue';
 import { editorUiStubs } from '@/test/unit/ui-stubs';
 import { nButton, nSelect, nSwitch } from '@/test/unit/ui-stubs';
 import { h, nextTick, ref, shallowRef, watch } from 'vue';
-import { createJsonDocument } from '@/domain/json-document';
+import { createJsonDocument, projectJsonValue } from '@/domain/json-document';
+import { composeJson, setCompositionValue } from '@/domain/json-composition';
 import { prepareValue } from '@/domain/schema/game-number';
 import { useEditTargetDraftSession } from '@/app/composables/use-edit-target-draft-session';
-import { applySchemaFieldUpdate } from '@/domain/schema/schema-values';
-import type { RowData, JsonValue } from '@/shared/types';
+import { applySchemaFieldUpdate, getNestedValue, prepareSchemaAtPath } from '@/domain/schema/schema-values';
+import type { RowData, JsonValue, JsonComposition } from '@/shared/types';
 
 const mocks = vi.hoisted(() => ({
   queryImages: vi.fn(async () => [
@@ -100,6 +101,7 @@ function mountBoundField(field: FieldSchema, initial: JsonValue | undefined, run
                 owner.apply(update.fileEdit);
                 value.value = (owner.projection as RowData)[field.key];
               } else if (update.kind === 'set') value.value = update.value as JsonValue;
+              else value.value = undefined;
             },
           });
       },
@@ -293,7 +295,11 @@ describe('SchemaFieldRenderer smart mode', () => {
         { global: { stubs: slotUiStubs } },
       );
       await flushPromises();
-      await wrapper.findAll('button').at(-1)!.trigger('click');
+      await wrapper
+        .findAll('button')
+        .filter((button) => button.text().startsWith('+'))
+        .at(-1)!
+        .trigger('click');
       expect(value.value).toEqual(initial);
       await wrapper.get('select.field-map-key-editor').setValue(JSON.stringify('M1'));
       await flushPromises();
@@ -352,7 +358,11 @@ describe('SchemaFieldRenderer smart mode', () => {
     ).toEqual(['A', 'B']);
     await wrapper.get('select.field-map-key-editor').setValue(JSON.stringify('B'));
     expect(value.value).toEqual({ B: 'gun' });
-    await wrapper.findAll('button').at(-1)!.trigger('click');
+    await wrapper
+      .findAll('button')
+      .filter((button) => button.text().startsWith('+'))
+      .at(-1)!
+      .trigger('click');
     expect(value.value).toEqual({ B: 'gun' });
     const pending = () => wrapper!.findAllComponents(slotUiStubs['n-select']).find((select) => select.props('value') === null)!;
     expect(
@@ -362,18 +372,36 @@ describe('SchemaFieldRenderer smart mode', () => {
     ).toEqual(['A']);
     await pending().trigger('keydown', { key: 'Escape' });
     expect(value.value).toEqual({ B: 'gun' });
-    await wrapper.findAll('button').at(-1)!.trigger('click');
+    await wrapper
+      .findAll('button')
+      .filter((button) => button.text().startsWith('+'))
+      .at(-1)!
+      .trigger('click');
     pending().vm.$emit('update:show', false);
     await flushPromises();
     expect(value.value).toEqual({ B: 'gun' });
-    await wrapper.findAll('button').at(-1)!.trigger('click');
+    await wrapper
+      .findAll('button')
+      .filter((button) => button.text().startsWith('+'))
+      .at(-1)!
+      .trigger('click');
     context.value = { ...context.value, sourceContextKey: 'hull-b' };
     await flushPromises();
     expect(pending()).toBeUndefined();
-    await wrapper.findAll('button').at(-1)!.trigger('click');
+    await wrapper
+      .findAll('button')
+      .filter((button) => button.text().startsWith('+'))
+      .at(-1)!
+      .trigger('click');
     await pending().get('select').setValue(JSON.stringify('A'));
     expect(value.value).toEqual({ B: 'gun', A: '' });
-    expect(wrapper.findAll('button').at(-1)!.attributes('disabled')).toBeDefined();
+    expect(
+      wrapper
+        .findAll('button')
+        .filter((button) => button.text().startsWith('+'))
+        .at(-1)!
+        .attributes('disabled'),
+    ).toBeDefined();
     expect(query).toHaveBeenCalledTimes(2);
   });
   it.each([undefined, false, true])('keeps object expansion permission %s independent of its contents', async (allowed) => {
@@ -391,7 +419,11 @@ describe('SchemaFieldRenderer smart mode', () => {
     await nextTick();
     expect(wrapper!.findAll('.schema-section')).toHaveLength(allowed === true ? 1 : 0);
     if (allowed) {
-      await wrapper!.findAll('button').at(-1)!.trigger('click');
+      await wrapper!
+        .findAll('button')
+        .filter((button) => button.text().startsWith('+'))
+        .at(-1)!
+        .trigger('click');
       expect(value.value).toEqual({ known: 'updated', newField: null });
     }
   });
@@ -462,15 +494,27 @@ describe('SchemaFieldRenderer smart mode', () => {
       .sections!.flatMap((section) => section.fields)
       .find((field) => field.key === 'weaponGroups')!;
     const mounted = mountBoundField(group, []);
-    await wrapper!.findAll('button').at(-1)!.trigger('click');
+    await wrapper!
+      .findAll('button')
+      .filter((button) => button.text().startsWith('+'))
+      .at(-1)!
+      .trigger('click');
     expect(mounted.value.value).toEqual([{ mode: 'LINKED', weapons: {}, autofire: false }]);
     wrapper!.unmount();
     const engines = getSchema('skin')!
       .sections!.flatMap((section) => section.fields)
       .find((field) => field.key === 'engineSlotChanges')!;
     const { value, inputs } = mountBoundField(engines, {});
-    await wrapper!.findAll('button').at(-1)!.trigger('click');
-    await wrapper!.findAll('button').at(-1)!.trigger('click');
+    await wrapper!
+      .findAll('button')
+      .filter((button) => button.text().startsWith('+'))
+      .at(-1)!
+      .trigger('click');
+    await wrapper!
+      .findAll('button')
+      .filter((button) => button.text().startsWith('+'))
+      .at(-1)!
+      .trigger('click');
     expect(value.value).toEqual({ '0': {}, '1': {} });
     await wrapper!.findAll('input.field-map-key-editor')[1]!.setValue('-1');
     await expect(inputs.commit()).rejects.toMatchObject({ action: 'commit-field-inputs' });
@@ -503,7 +547,11 @@ describe('SchemaFieldRenderer smart mode', () => {
     const track = schema.root!.nested![0]!.valueSchema!.item!;
     const { value, inputs } = mountBoundField(track, { source: 'sounds/music', file: 'solo.ogg', volume: 1 });
     const files = wrapper!.findAllComponents(SchemaCollectionInput).find((input) => input.props('field').key === 'files')!;
-    await files.findAll('button').at(-1)!.trigger('click');
+    await files
+      .findAll('button')
+      .filter((button) => button.text().startsWith('+'))
+      .at(-1)!
+      .trigger('click');
     expect(value.value).toEqual({ source: 'sounds/music', volume: 1, files: [''] });
     const file = wrapper!.findAllComponents(SchemaScalarInput).find((input) => input.props('field').key === 'file')!;
     await file.get('input').setValue('other.ogg');
@@ -626,7 +674,11 @@ describe('SchemaFieldRenderer smart mode', () => {
     await wrapper!.findAll('button.compact-icon-button')[0]!.trigger('click');
     expect(value.value).toEqual([2]);
     expect(wrapper!.get('input').element).toBe(retained);
-    await wrapper!.findAll('button').at(-1)!.trigger('click');
+    await wrapper!
+      .findAll('button')
+      .filter((button) => button.text().startsWith('+'))
+      .at(-1)!
+      .trigger('click');
     expect(value.value).toEqual([2, 7]);
   });
 
@@ -1139,5 +1191,288 @@ describe('partial composition field completeness', () => {
     await wrapper!.get('input').setValue('5');
     await expect(inputs.commit(undefined, true)).rejects.toMatchObject({ action: 'commit-field-inputs' });
     expect(value.value).toBe(2);
+  });
+});
+
+describe('field deletion and complete document structure', () => {
+  let activeInputs: ReturnType<typeof createFieldInputs> | undefined;
+  beforeEach(() => {
+    setActivePinia(createPinia());
+    initializeSettingsStore(createSettingsFixture());
+  });
+  afterEach(() => {
+    activeInputs?.release();
+    activeInputs = undefined;
+  });
+  function mountDocumentField(field: FieldSchema, initial: RowData, schema: FileSchema, composition?: JsonComposition) {
+    const owner = createJsonDocument(null, { value: prepareValue(initial).value, filePath: ['file'] });
+    const draft = shallowRef(owner.projection as RowData);
+    const inputs = createFieldInputs();
+    activeInputs = inputs;
+    const sources = composition && {
+      ...composition,
+      layers: composition.layers.map((layer) => ({ ...layer, data: { file: layer.data } })),
+    };
+    const sync = () => {
+      draft.value = owner.projection as RowData;
+    };
+    const update = (value: RowData) => {
+      owner.update(value, (value, path) => prepareSchemaAtPath(value, path, schema));
+      sync();
+    };
+    wrapper = mount(
+      {
+        setup() {
+          provideFieldInputs(inputs);
+          const runtimeContext: FieldEditorContext = {
+            readValue: () => (sources ? composeJson(draft.value, sources) : draft.value),
+            sessionId: 'deletion-fixture',
+            modRoot: 'M:/deletion-fixture',
+            document: owner,
+            get partial() {
+              return Boolean(composition && !(draft.value.file as RowData).id);
+            },
+            applyDocumentEdit(edit) {
+              owner.apply(edit);
+              sync();
+            },
+            querySourceOptions: async () => [],
+            ...(sources
+              ? {
+                  composition: {
+                    local: () => draft.value,
+                    sources: () => sources,
+                    root: ['file'],
+                    apply: (path: string[], value: JsonValue | undefined) => update(setCompositionValue(draft.value, path, value)),
+                  },
+                }
+              : {}),
+          };
+          return () =>
+            h(SchemaFieldRenderer, {
+              field,
+              value: getNestedValue(sources ? composeJson(draft.value, sources) : draft.value, field.key),
+              runtimeContext,
+              onUpdate(value) {
+                if (value.fileEdit) {
+                  owner.apply(value.fileEdit);
+                  sync();
+                } else update(applySchemaFieldUpdate(draft.value, field.key, value));
+              },
+            });
+        },
+      },
+      { global: { stubs: editorUiStubs } },
+    );
+    return { owner, draft, sync, inputs };
+  }
+  it.each(['complete', 'complete-composed', 'partial', 'pending'] as const)(
+    'restores an omitted collection after adding and removing its only local role in %s files',
+    async (kind) => {
+      const { createDefaultFaction } = await import('@/domain/json-editor/json-config-entities');
+      const schema = getSchema('faction')!;
+      const field = schema.sections!.flatMap((section) => section.fields).find((field) => field.key === 'file.shipRoles')!;
+      const initial = { file: kind.startsWith('complete') ? createDefaultFaction('fixture_faction') : {} };
+      const composition: JsonComposition | undefined =
+        kind === 'complete'
+          ? undefined
+          : {
+              layers:
+                kind === 'partial'
+                  ? [
+                      {
+                        source: { source: 'core', root: 'M:/base', path: 'M:/base/fixture.faction', relPath: 'fixture.faction' },
+                        version: { path: 'M:/base/fixture.faction', fingerprint: 'base' },
+                        data: { shipRoles: { inherited: { includeDefault: false } } },
+                        replace: false,
+                      },
+                    ]
+                  : [],
+              replace: false,
+              excluded: [],
+            };
+      const { owner, draft, sync } = mountDocumentField(field, initial, schema, composition);
+      const collection = () => wrapper!.findAllComponents(SchemaCollectionInput)[0]!;
+      await collection()
+        .findAll(':scope > .ui-control-row > button')
+        .find((button) => button.text() === '+ 添加项')!
+        .trigger('click');
+      await collection().get('button[aria-label="删除条目"]').trigger('click');
+      expect(draft.value).toEqual(initial);
+      expect(owner.dirty).toBe(false);
+      for (const layout of ['preserveStructure', 'expanded'] as const) {
+        expect(owner.capture(layout).edits).toEqual([]);
+        expect(projectJsonValue(owner.capture(layout).request.content)).toEqual(initial.file);
+      }
+      owner.undo();
+      sync();
+      expect((draft.value.file as RowData).shipRoles).toHaveProperty('newField');
+      owner.redo();
+      sync();
+      expect(draft.value).toEqual(initial);
+    },
+  );
+  it.each(['fallback', 'fallback2'])('removes an exhausted optional %s field in one undoable document edit', async (key) => {
+    const { createDefaultFaction } = await import('@/domain/json-editor/json-config-entities');
+    const schema = getSchema('faction')!;
+    const field = schema.sections!.flatMap((section) => section.fields).find((field) => field.key === 'file.shipRoles')!;
+    const initial = {
+      file: { ...createDefaultFaction('fixture_faction'), shipRoles: { fixture: { includeDefault: false, [key]: { target: 1 } } } },
+    };
+    const { owner, draft, sync } = mountDocumentField(field, initial, schema);
+    const collection = wrapper!.findAllComponents(SchemaCollectionInput).find((input) => input.props('field').key === key)!;
+    await collection.get('button[aria-label="删除条目"]').trigger('click');
+    expect((draft.value.file as RowData).shipRoles).toEqual({ fixture: { includeDefault: false } });
+    expect(owner.history.undoStack).toHaveLength(1);
+    owner.undo();
+    sync();
+    expect(draft.value).toEqual(initial);
+  });
+  it('retains mandatory voice maps and allows removing their optional parent', async () => {
+    const { createDefaultFaction } = await import('@/domain/json-editor/json-config-entities');
+    const schema = getSchema('faction')!;
+    const field = schema.sections!.flatMap((section) => section.fields).find((field) => field.key === 'file.voices')!;
+    const { draft } = mountDocumentField(
+      field,
+      { file: { ...createDefaultFaction('fixture_faction'), voices: { LOW: {}, MEDIUM: {}, HIGH: {} } } },
+      schema,
+    );
+    expect(wrapper!.findAll('button[aria-label="移除字段"]')).toHaveLength(1);
+    await wrapper!.get('button[aria-label="移除字段"]').trigger('click');
+    expect(draft.value.file).not.toHaveProperty('voices');
+  });
+  it.each(['string', 'path'] as const)('retains required %s keys that allow empty strings', async (type) => {
+    const { inputs, value } = mountBoundField(fieldFixture(type, { required: true, allowEmptyString: true }), 'before');
+    activeInputs = inputs;
+    await wrapper!.get('input').setValue('');
+    await inputs.commit(undefined, true);
+    expect(value.value).toBe('');
+    expect(wrapper!.find('button[aria-label="移除字段"]').exists()).toBe(false);
+  });
+  it('clears a wing while preserving the other bay and its input node', async () => {
+    const field = getSchema('variant')!
+      .sections!.flatMap((section) => section.fields)
+      .find((field) => field.key === 'wings')!;
+    const { value, inputs } = mountBoundField(field, ['first_wing', 'second_wing'], {
+      sessionId: 'wings',
+      modRoot: 'M:/wings',
+      querySourceOptions: async () => [],
+    });
+    activeInputs = inputs;
+    const before = wrapper!.findAllComponents(SchemaReferenceInput)[1]!.element;
+    await wrapper!.get('button[aria-label="清空条目"]').trigger('click');
+    expect(value.value).toEqual(['', 'second_wing']);
+    expect(wrapper!.findAllComponents(SchemaReferenceInput)[1]!.element).toBe(before);
+  });
+  it('keeps a complete two-texture array at its declared minimum', async () => {
+    const field = getSchema('spec-weapon')!
+      .sections!.flatMap((section) => section.fields)
+      .find((field) => field.key === 'textureType')!;
+    const { inputs } = mountBoundField(field, ['graphics/first.png', 'graphics/second.png']);
+    activeInputs = inputs;
+    expect(wrapper!.find('button[aria-label="删除条目"]').exists()).toBe(false);
+    expect(wrapper!.find('button[aria-label="移除字段"]').exists()).toBe(false);
+  });
+  it('deletes a local appended array item using its physical index and retains the surviving node', async () => {
+    const field: FieldSchema = {
+      key: 'file.values',
+      label: 'Values',
+      type: 'array',
+      item: { key: 'value', label: 'Value', type: 'string' },
+    };
+    const schema: FileSchema = { id: 'array-deletion', sections: [{ id: 'all', label: 'All', fields: [field] }] };
+    const composition: JsonComposition = {
+      layers: [
+        {
+          source: { source: 'core', root: 'M:/base', path: 'M:/base/a.json', relPath: 'a.json' },
+          version: { path: 'M:/base/a.json', fingerprint: 'base' },
+          data: { values: ['inherited'] },
+          replace: false,
+        },
+      ],
+      excluded: [],
+      replace: false,
+    };
+    const { owner, draft } = mountDocumentField(field, { file: { values: ['local_first', 'local_second'] } }, schema, composition);
+    const retained = wrapper!.findAll('input')[2]!.element;
+    await wrapper!.get('button[aria-label="删除条目"]').trigger('click');
+    expect(draft.value).toEqual({ file: { values: ['local_second'] } });
+    expect(wrapper!.findAll('input')[1]!.element).toBe(retained);
+    expect(projectJsonValue(owner.capture('preserveStructure').request.content)).toEqual({ values: ['local_second'] });
+  });
+  it('keeps plain composed object edits sparse', async () => {
+    useSettingsStore().setEditMode('plain');
+    const field: FieldSchema = {
+      key: 'file.weights',
+      label: 'Weights',
+      type: 'object',
+      allowExtraFields: true,
+      valueSchema: { key: 'weight', label: 'Weight', type: 'float' },
+    };
+    const schema: FileSchema = { id: 'object-deletion', sections: [{ id: 'all', label: 'All', fields: [field] }] };
+    const composition: JsonComposition = {
+      layers: [
+        {
+          source: { source: 'core', root: 'M:/base', path: 'M:/base/a.json', relPath: 'a.json' },
+          version: { path: 'M:/base/a.json', fingerprint: 'base' },
+          data: { weights: { inherited: 1 } },
+          replace: false,
+        },
+      ],
+      excluded: [],
+      replace: false,
+    };
+    const { draft, inputs } = mountDocumentField(field, { file: { weights: { local: 2 } } }, schema, composition);
+    await wrapper!.get('textarea').setValue('{"inherited":1,"local":3}');
+    await inputs.commit();
+    expect(draft.value).toEqual({ file: { weights: { local: 3 } } });
+  });
+  it('removes only local reference-list contributions after closing a tag', async () => {
+    const field: FieldSchema = { key: 'file.values', label: 'Values', type: 'string-array', source: 'csv:ships.id' };
+    const schema: FileSchema = { id: 'reference-deletion', sections: [{ id: 'all', label: 'All', fields: [field] }] };
+    const composition: JsonComposition = {
+      layers: [
+        {
+          source: { source: 'core', root: 'M:/base', path: 'M:/base/a.json', relPath: 'a.json' },
+          version: { path: 'M:/base/a.json', fingerprint: 'base' },
+          data: { values: ['inherited'] },
+          replace: false,
+        },
+      ],
+      excluded: [],
+      replace: false,
+    };
+    const { draft } = mountDocumentField(field, { file: { values: ['local'] } }, schema, composition);
+    wrapper!.getComponent(SchemaReferenceInput).getComponent(nSelect).vm.$emit('update:value', ['inherited']);
+    await nextTick();
+    expect(draft.value).toEqual({ file: {} });
+  });
+
+  it('keeps inherited numeric dictionary entries outside the local deletion scope', async () => {
+    const field: FieldSchema = {
+      key: 'file.changes',
+      label: 'Changes',
+      type: 'object',
+      allowExtraFields: true,
+      valueSchema: { key: 'change', label: 'Change', type: 'object', nested: [{ key: 'angle', label: 'Angle', type: 'float' }] },
+    };
+    const schema: FileSchema = { id: 'dictionary-deletion', sections: [{ id: 'all', label: 'All', fields: [field] }] };
+    const composition: JsonComposition = {
+      layers: [
+        {
+          source: { source: 'core', root: 'M:/base', path: 'M:/base/a.json', relPath: 'a.json' },
+          version: { path: 'M:/base/a.json', fingerprint: 'base' },
+          data: { changes: { '0': { angle: 10 } } },
+          replace: false,
+        },
+      ],
+      excluded: [],
+      replace: false,
+    };
+    const { draft } = mountDocumentField(field, { file: { changes: { '1': { angle: 20 } } } }, schema, composition);
+    const inherited = wrapper!.findAll('[data-field-path]').find((node) => node.attributes('data-field-path') === 'file.changes["0"]')!;
+    expect(inherited.find('button[aria-label="删除条目"]').exists()).toBe(false);
+    await wrapper!.get('button[aria-label="删除条目"]').trigger('click');
+    expect(draft.value).toEqual({ file: { changes: {} } });
   });
 });

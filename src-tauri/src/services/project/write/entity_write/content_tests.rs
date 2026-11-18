@@ -626,7 +626,7 @@ fn inherited_faction_filename_choices_commit_index_and_history_together() {
             fs::create_dir_all(core.parent().unwrap()).unwrap();
             let base = json!({"id":"sample","displayName":"Base","displayNameWithArticle":"Base",
                 "logo":"logo.png","crest":"crest.png","color":[1,2,3,255],
-                "knownShips":{},"knownFighters":{},"knownWeapons":{},
+                "knownShips":{},"knownFighters":{},"knownWeapons":{},"names":{},"portraits":{},
                 "factionDoctrine":{"warships":1,"carriers":1,"phaseShips":1,"officerQuality":1,
                     "shipQuality":1,"numShips":1,"shipSize":1,"aggression":1}});
             fs::write(&core, base.to_string()).unwrap();

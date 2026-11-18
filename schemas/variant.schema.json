@@ -131,7 +131,8 @@
                 "label": "自动开火"
               }
             ]
-          }
+          },
+          "required": true
         }
       ]
     },
@@ -149,7 +150,8 @@
             "label": "战机联队 ID",
             "source": "csv:wings.id",
             "default": ""
-          }
+          },
+          "preserveIndices": true
         }
       ]
     },

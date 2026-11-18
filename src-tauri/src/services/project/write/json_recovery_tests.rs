@@ -341,7 +341,7 @@ fn directory_sources_preserve_registration_and_sparse_identity() {
                         data.as_object_mut().unwrap().extend(json!({
                             "displayName":"Overlay","displayNameWithArticle":"an Overlay",
                             "logo":"logo.png","crest":"crest.png","color":[255,255,255,255],
-                            "knownFighters":{},"knownWeapons":{},
+                            "knownFighters":{},"knownWeapons":{},"names":{},"portraits":{},
                             "factionDoctrine":{"warships":1,"carriers":1,"phaseShips":1,"officerQuality":1,
                                 "shipQuality":1,"numShips":1,"shipSize":1,"aggression":1}
                         }).as_object().unwrap().clone());

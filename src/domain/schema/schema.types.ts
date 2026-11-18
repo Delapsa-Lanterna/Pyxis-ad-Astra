@@ -34,6 +34,7 @@ export interface FieldSchema {
   label: string;
   description?: string;
   required?: boolean;
+  allowEmptyString?: boolean;
   editable?: boolean;
   allowExtraFields?: boolean;
   partial?: boolean;
@@ -46,7 +47,9 @@ export interface FieldSchema {
   min?: number;
   max?: number;
   minEntries?: number;
+  minEntriesWhenComplete?: number;
   maxEntries?: number;
+  preserveIndices?: boolean;
   exclusiveKeys?: string[];
   requiredWhen?: Record<string, string | { min: number } | { missing: true }>;
   step?: number;

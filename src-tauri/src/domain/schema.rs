@@ -465,7 +465,10 @@ fn inspect(
         }
         return;
     };
-    if complete && field["required"] == true && value.as_str().is_some_and(|v| v.trim().is_empty())
+    if complete
+        && field["required"] == true
+        && field["allowEmptyString"] != true
+        && value.as_str().is_some_and(|v| v.trim().is_empty())
     {
         issues.push(problem(field, path, "必填字段未设置"));
         return;
@@ -501,7 +504,7 @@ fn inspect(
                 entries = object;
                 &entries
             };
-            count(field, path, object.len(), issues);
+            count(field, path, object.len(), complete, issues);
             if complete
                 && field["exclusiveKeys"].as_array().is_some_and(|keys| {
                     keys.iter()
@@ -562,7 +565,7 @@ fn inspect(
         }
         "array" | "string-array" | "tag-select" | "color-rgb" | "color-rgba" => {
             let items = value.as_array().expect("array shape");
-            count(field, path, items.len(), issues);
+            count(field, path, items.len(), complete, issues);
             let kind = field["type"].as_str().expect("array type");
             if kind.starts_with("color-")
                 && (items.len() != if kind == "color-rgb" { 3 } else { 4 }
@@ -622,10 +625,15 @@ fn inspect(
         _ => {}
     }
 }
-fn count(field: &Value, path: &str, length: usize, issues: &mut Vec<FieldProblem>) {
-    if field["minEntries"]
-        .as_u64()
-        .is_some_and(|min| (length as u64) < min)
+fn count(field: &Value, path: &str, length: usize, complete: bool, issues: &mut Vec<FieldProblem>) {
+    let minimum = if complete {
+        field
+            .get("minEntriesWhenComplete")
+            .unwrap_or(&field["minEntries"])
+    } else {
+        &field["minEntries"]
+    };
+    if minimum.as_u64().is_some_and(|min| (length as u64) < min)
         || field["maxEntries"]
             .as_u64()
             .is_some_and(|max| (length as u64) > max)
@@ -733,5 +741,24 @@ mod tests {
         ] {
             assert!(validate_field(bounds, &value, "bounds", true).is_err());
         }
+    }
+
+    #[test]
+    fn required_string_presence_and_complete_cardinality_are_independent() {
+        let field = json!({"key":"file","type":"path","required":true,"allowEmptyString":true});
+        validate_field(&field, &json!(""), "file", true).unwrap();
+        let schema = json!({"sections":[{"fields":[field]}]});
+        assert_eq!(document_issues(&schema, &json!({}), true).len(), 1);
+        assert!(document_issues(&schema, &json!({}), false).is_empty());
+        let root = json!({"key":"file","type":"object","minEntriesWhenComplete":1});
+        validate_field(&root, &json!({}), "file", false).unwrap();
+        assert_eq!(
+            validate_field(&root, &json!({}), "file", true)
+                .unwrap_err()
+                .field_problems()
+                .len(),
+            1
+        );
+        validate_field(&root, &json!({"effect":[]}), "file", true).unwrap();
     }
 }

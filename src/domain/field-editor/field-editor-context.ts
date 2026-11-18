@@ -2,7 +2,7 @@ import type { DeepReadonly, JsonComposition, JsonValue, ProjectSessionId, Resour
 import type { FilePath, DocumentEdit } from '@/shared/types';
 import type { JsonDocument } from '@/domain/json-document';
 import type { FieldSchema } from '@/domain/schema/schema.types';
-import { compositionOrigin, compositionPath } from '@/domain/json-composition';
+import { compositionOrigin, compositionPath, compositionValue } from '@/domain/json-composition';
 
 export interface FieldEditorContext {
   partial?: boolean;
@@ -34,7 +34,21 @@ export function fieldCompositionOrigin(context: FieldEditorContext | null | unde
 export function fieldDocumentPath(context: FieldEditorContext, path: string): FilePath | null {
   const parts = compositionPath(path),
     root = context.documentRoot ?? [];
-  return root.every((part, index) => parts[index] === part) ? parts.slice(root.length) : null;
+  if (!root.every((part, index) => parts[index] === part)) return null;
+  const effective = context.readValue?.();
+  const local = context.composition?.local();
+  const mapped: string[] = [];
+  for (const [index, part] of parts.entries()) {
+    const parent = effective && compositionValue(effective, parts.slice(0, index));
+    if (local && Array.isArray(parent)) {
+      const own = compositionValue(local, mapped);
+      if (!Array.isArray(own)) return null;
+      const localIndex = Number(part) - (parent.length - own.length);
+      if (localIndex < 0) return null;
+      mapped.push(String(localIndex));
+    } else mapped.push(part);
+  }
+  return mapped.slice(root.length);
 }
 export function fieldOriginalText(context: FieldEditorContext | null | undefined, path: string): string | null {
   if (!context?.document) return null;

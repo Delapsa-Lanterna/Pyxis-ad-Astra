@@ -98,6 +98,7 @@ function parseField(id: string, path: string, raw: unknown): FieldSchema {
   if (record.visibleWhen !== undefined) field.visibleWhen = parseVisibility(record.visibleWhen);
   if (isString(record.description)) field.description = record.description;
   if (isBoolean(record.required)) field.required = record.required;
+  if (isBoolean(record.allowEmptyString)) field.allowEmptyString = record.allowEmptyString;
   if (isBoolean(record.editable)) field.editable = record.editable;
   if (isBoolean(record.allowExtraFields)) field.allowExtraFields = record.allowExtraFields;
   if (isBoolean(record.partial)) field.partial = record.partial;
@@ -113,6 +114,8 @@ function parseField(id: string, path: string, raw: unknown): FieldSchema {
   if (isNumber(record.min)) field.min = record.min;
   if (isNumber(record.max)) field.max = record.max;
   if (isNumber(record.minEntries)) field.minEntries = record.minEntries;
+  if (isNumber(record.minEntriesWhenComplete)) field.minEntriesWhenComplete = record.minEntriesWhenComplete;
+  if (isBoolean(record.preserveIndices)) field.preserveIndices = record.preserveIndices;
   if (isNumber(record.maxEntries)) field.maxEntries = record.maxEntries;
   if (isStringArray(record.exclusiveKeys)) field.exclusiveKeys = record.exclusiveKeys;
   if (record.requiredWhen !== undefined) {

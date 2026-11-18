@@ -29,6 +29,7 @@ JSON 文档编辑模块提供 Mod 信息、势力、战役、装配、舰船皮�
 
 - `src-tauri/src/domain/entity_definitions.rs`：八种实体的目录、后缀、ID 字段及规格、表格关联登记。
 - `src-tauri/src/domain/entity_identity.rs`：实体 ID、路径及来源边界纯规则。
+- `src-tauri/src/domain/json_composition.rs`：来源重建检查消费的实际有序合并结果。
 - `src-tauri/src/domain/misc_config.rs`：文件种类、固定路径与所属内容校验。
 - `src-tauri/src/domain/save_edits.rs`：当前正式内容的字段修改应用。
 - `src-tauri/src/domain/schema.rs`：保存时消费的字段内容与结构校验。
@@ -197,3 +198,6 @@ JSON 文档编辑模块提供 Mod 信息、势力、战役、装配、舰船皮�
 - 装配武器组新增必须由明确槽位选择触发；主动选择其它组已有槽位携带原武器调组，并在一次草稿历史中交付。
 - 配置保存的传输内容消费 `IndexedConfigEntityRefresh`；编辑数据由所属投影共同接纳回执版本。
 - 重命名必须同时更新索引行、实体文件与文件名，并保持 history 可回放。
+- 字段删除、撤销重做与保存捕获必须保持本地内容和精确结构一致，组合展示按现行来源派生，来源值保持所属来源归属。
+- 局部与完整实体保存必须对实际合并内容执行对应完整性校验；杂项配置的字段问题必须按实际来源与整体替代状态检查有效内容。
+- 整体替代的写入内容、格式对应关系与结构编辑必须共同移除草稿专用标记，保留完整精确值并将替代意图交付所属保存选项。
