@@ -171,6 +171,7 @@ const serviceEdges = new Set([
   'weapon-data -> entity-query',
   'weapon-data -> resource-media',
   'weapon-fire-preview -> weapon-data',
+  'weapon-fire-preview -> resource-reference',
   'spec-editor -> files',
   'spec-editor -> entity-query',
   'spec-ship-editor -> entity-query',

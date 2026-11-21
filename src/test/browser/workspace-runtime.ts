@@ -1,5 +1,6 @@
 import type * as T from '@/shared/types';
 import { reactive } from 'vue';
+import { weaponAnimationFrameCount } from '@/domain/weapon-fire-preview/preview-definition';
 import { createLocationChannel } from './location-channel';
 import { createWorkspaceProject } from './project';
 import { workspaceRoots, coreRoot, gameRoot } from './sample-data';
@@ -479,11 +480,25 @@ export function createBrowserWorkspace(
         const kind = payload.kind as T.EntityKind;
         const id = String(payload.id);
         const draft = payload.draft as T.RowData;
-        return receiver.resources(
+        const resources = receiver.resources(
           kind,
           id,
           kind === 'mission' ? { icon: `data/missions/${id}/${(draft.descriptor as T.RowData).icon}` } : draft,
         );
+        if (kind !== 'weapon' || !payload.weaponAnimationFrames) return resources;
+        const count = weaponAnimationFrameCount(draft);
+        const saved = findEntity(receiver, kind, id)?.resourceRefs;
+        const frames: Record<string, T.ResourceRef> = {};
+        for (const field of ['turretSprite', 'hardpointSprite']) {
+          const current = resources[field];
+          const base = saved?.[field]?.relPath === current?.relPath ? saved?.[field] : current;
+          if (!base?.relPath.endsWith('00.png')) continue;
+          for (let frame = 1; frame < count; frame++) {
+            const key = `${field}[${frame}]`;
+            frames[key] = { ...base, key, relPath: base.relPath.slice(0, -6) + String(frame).padStart(2, '0') + '.png' };
+          }
+        }
+        return frames;
       }
       case 'query_entity_edit_target': {
         const entity = findEntity(receiver, payload.kind as T.EntityKind, String(payload.id));

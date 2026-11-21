@@ -35,7 +35,32 @@ function entity(data: RowData, refs: Record<string, ResourceRef> = {}): EntityDa
 }
 
 describe('weapon fire preview queries', () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.querySessionDraftResources.mockResolvedValue({});
+  });
+  it.each(['saved', 'draft'] as const)('requests numbered frames only for the accepted %s weapon', async (kind) => {
+    const weapon = { id: 'fixture', specClass: 'beam', numFrames: 4, turretSprite: 'graphics/anim00.png' },
+      changed = { ...weapon, turretSprite: 'graphics/new00.png' },
+      sprite = kind === 'saved' ? weapon.turretSprite : changed.turretSprite,
+      base = { source: 'mod', ownerId: 'fixture', ownerKind: 'weapon', key: 'turretSprite', relPath: sprite } as const,
+      frame = { ...base, key: 'turretSprite[1]', relPath: sprite.replace('00.png', '01.png') };
+    mocks.querySessionEntity.mockResolvedValue(entity({ spec: weapon, csvRow: {} }, { turretSprite: base }));
+    mocks.querySessionDraftResources.mockImplementation(async (...args: unknown[]) =>
+      args[5] ? { 'turretSprite[1]': frame } : { turretSprite: base },
+    );
+    const result = await queryWeaponFirePreviewData('s1', 'fixture', kind === 'saved' ? { kind } : { kind, weapon: changed });
+    expect(result.resources.weapon).toEqual({ turretSprite: base, 'turretSprite[1]': frame });
+    expect(mocks.querySessionDraftResources).toHaveBeenLastCalledWith(
+      's1',
+      'weapon',
+      'fixture',
+      { ...weapon, turretSprite: sprite },
+      undefined,
+      { weaponAnimationFrames: true },
+    );
+    expect(mocks.querySessionDraftResources).toHaveBeenCalledTimes(kind === 'saved' ? 1 : 2);
+  });
   it('loads preview dependencies from the current draft weapon reference', async () => {
     mocks.querySessionEntity.mockImplementation(async (_sessionId: string, kind: string, id: string) => {
       if (kind === 'weapon') {

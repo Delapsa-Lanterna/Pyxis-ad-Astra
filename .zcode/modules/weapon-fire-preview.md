@@ -11,7 +11,7 @@
 - `src/app/WeaponFirePreviewContent.vue`：加载状态、稳定预览实例与关闭动作的装配入口。
 - `src/app/components/weapon-fire-preview/`：开火预览控制、画布与行为测试。
 - `src/app/composables/weapon-fire-preview/`：预览来源、读取、播放与模拟生命周期。
-- `src/app/renderers/weapon-fire-preview/`：开火预览静态贴图和模拟阶段绘制。
+- `src/app/renderers/weapon-fire-preview/`：武器贴图与开火模拟画面绘制。
 - `src/domain/weapon-fire-preview/`：开火时序、弹体、光束及模拟参数规则。
 - `src/orchestrators/weapon-fire-preview.orchestrator.ts`：预览原生身份、标题与窗口上下文交接。
 - `src/services/weapon-fire-preview.service.ts`：武器来源及完整弹体只读装配、依赖错误。
@@ -38,6 +38,7 @@
 - `src/orchestrators/project-sync.orchestrator.ts`：窗口内保存消费过程和内容维护者交接。
 - `src/services/entity-query.service.ts`：四类查询定义、正式请求与实体失效选择。
 - `src/services/resource-media.service.ts`：唯一持有媒体读取、合批、租约、响应式结果、闲置预算和失效。
+- `src/services/resource-reference.service.ts`：武器编号帧的授权资源查询。
 - `src/services/weapon-data.service.ts`：消费共享武器规格、CSV 与授权武器资源查询。
 - `src/services/window.service.ts`：窗口 command 的类型化签名与参数装配。
 - `src/shared/types/weapon-fire-preview.types.ts`：来源及只读查询结果交接模型。
@@ -74,9 +75,9 @@
 ### 模拟与绘制
 
 1. 播放控件交付播放、暂停、开火、停火、倍速及挂载动作。
-2. 播放 ViewModel 按运行状态调用帧循环，领域模型推进发射、弹体与光束状态。
-3. 共享图像运行态交付当前可用贴图与着色结果。
-4. 场景消费规格投影、当前模拟、资源、视口及配色，绘制当前画面。
+2. 播放 ViewModel 按运行状态调用帧循环，领域模型推进发射、弹体、光束与武器贴图帧进度。
+3. 共享图像运行态交付授权的编号贴图与着色结果，播放 ViewModel 按挂载视图和当前帧进度选取主体贴图。
+4. 场景消费规格投影、当前模拟、资源、视口及配色，绘制当前画面；编号帧缺失时保留其时间位置，当拍仅省略主体。
 5. 重置动作按当前参数建立新的模拟状态。
 
 ### 更新与释放

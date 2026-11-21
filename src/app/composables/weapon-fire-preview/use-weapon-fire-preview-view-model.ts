@@ -1,7 +1,7 @@
 import { computed, onMounted, onUnmounted, reactive, ref, shallowRef, watch, type ShallowRef } from 'vue';
 import type { DeepReadonly, RowData, WeaponFirePreviewData } from '@/shared/types';
 import { arr, str } from '@/shared/lib/starsector';
-import type { WeaponViewMode } from '@/shared/lib/starsector/weapon-sprite-fields';
+import { WEAPON_SPRITE_DRAW_ORDER, type WeaponViewMode } from '@/shared/lib/starsector/weapon-sprite-fields';
 import { createWeaponFirePreviewDefinition, type WeaponFirePreviewDefinition } from '@/domain/weapon-fire-preview/preview-definition';
 import {
   createWeaponFirePreviewState,
@@ -178,11 +178,17 @@ export function useWeaponFirePreviewViewModel(
         const color = arr(props.weaponSpec.glowColor, [255, 255, 255, 255]),
           weaponImages = new Map<string, HTMLImageElement>();
         color[3] = color[3]! * weaponGlowLevel(state.value, definition.value);
-        for (const [key, resource] of Object.entries(props.resources.weapon)) {
-          const image = images.image(resource);
+        const { mode, weaponFrame } = state.value,
+          { frames, rate } = definition.value.animation,
+          frame = rate > 0 ? Math.floor(weaponFrame % frames) : 0,
+          body = mode === 'turret' ? 'turretSprite' : 'hardpointSprite',
+          glowKey = mode === 'turret' ? 'turretGlowSprite' : 'hardpointGlowSprite',
+          refs = props.resources.weapon;
+        for (const key of WEAPON_SPRITE_DRAW_ORDER[mode]) {
+          const resource = refs[key === body && frame > 0 && refs[`${body}[1]`] ? `${body}[${frame}]` : key];
+          const image = resource && images.image(resource);
           if (image) weaponImages.set(key, image);
         }
-        const glowKey = state.value.mode === 'turret' ? 'turretGlowSprite' : 'hardpointGlowSprite';
         renderWeaponFirePreviewScene(c.getContext('2d')!, {
           base: {
             ...viewport.size(),

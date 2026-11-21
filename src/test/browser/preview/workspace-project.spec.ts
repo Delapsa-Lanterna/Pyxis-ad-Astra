@@ -401,6 +401,24 @@ describe('complete browser workspace fixtures', () => {
     expect(reloaded[0]!.data).toEqual(original[0]!.data);
     expect(reloaded[1]!.data.name).toBe('Independent copy');
   });
+  it('delivers preview-only weapon frame references with stable numbering', async () => {
+    const workspace = createBrowserWorkspace(),
+      project = workspace.projects[0]!,
+      payload = {
+        sessionId: project.manifest.sessionId,
+        kind: 'weapon',
+        id: 'animation_fixture',
+        draft: { specClass: 'beam', numFrames: 4, turretSprite: 'graphics/example00.png', hardpointSprite: 'graphics/single.png' },
+      };
+    const read = (query: T.DraftResourcesPayload) => workspace.invoke('main', 'query_draft_resources', { payload: query });
+    expect(Object.keys((await read({ ...payload, kind: 'weapon' })) as object)).toEqual(['turretSprite', 'hardpointSprite']);
+    const frames = (await read({ ...payload, kind: 'weapon', weaponAnimationFrames: true })) as Record<string, T.ResourceRef>;
+    expect(Object.entries(frames).map(([key, resource]) => [key, resource.relPath, resource.source])).toEqual([
+      ['turretSprite[1]', 'graphics/example01.png', 'core'],
+      ['turretSprite[2]', 'graphics/example02.png', 'core'],
+      ['turretSprite[3]', 'graphics/example03.png', 'core'],
+    ]);
+  });
   it('delivers resource failures per item and withdraws closed reference sources', async () => {
     const workspace = createBrowserWorkspace(),
       owner = workspace.projects[0]!,

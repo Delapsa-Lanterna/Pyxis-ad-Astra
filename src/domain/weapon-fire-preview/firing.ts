@@ -9,6 +9,11 @@ export interface ShotEvent {
   barrel: number;
   angle: number;
 }
+function finishBurst(state: FiringState, chargedown: number) {
+  state.shot = 0;
+  state.phase = 'cooldown';
+  state.remaining = chargedown;
+}
 export function scheduleShots(
   state: FiringState,
   definition: WeaponFirePreviewDefinition,
@@ -17,9 +22,12 @@ export function scheduleShots(
   random: () => number,
 ): ShotEvent[] {
   const events: ShotEvent[] = [];
-  if (!firing && (!state.shot || definition.interruptible) && !(definition.autoCharge && state.phase === 'chargeup')) {
-    state.shot = 0;
-    if (state.phase === 'chargeup') state.phase = 'idle';
+  if (!firing) {
+    if (state.phase === 'burst' && definition.interruptible) finishBurst(state, definition.chargedown);
+    if (state.phase === 'chargeup' && !definition.autoCharge) {
+      state.phase = 'idle';
+      state.remaining = 0;
+    }
   }
   if (state.phase === 'idle') {
     if (!firing) {
@@ -33,10 +41,15 @@ export function scheduleShots(
   while (elapsed + state.remaining <= dt) {
     state.spread = Math.max(definition.minSpread, state.spread - state.remaining * definition.spreadDecay);
     elapsed += state.remaining;
-    if (!firing && !state.shot && !definition.autoCharge) {
-      state.phase = 'idle';
-      state.remaining = 0;
-      break;
+    if (state.phase === 'cooldown') {
+      if (!firing) {
+        state.phase = 'idle';
+        state.remaining = 0;
+        break;
+      }
+      state.phase = 'chargeup';
+      state.remaining = definition.chargeup;
+      continue;
     }
     const count = definition.barrels.length,
       mode = definition.barrelMode;
@@ -54,18 +67,12 @@ export function scheduleShots(
     state.shot++;
     if (mode === 'ALTERNATING' || mode === 'DUAL' || (mode === 'ALTERNATING_BURST' && state.shot === definition.burstSize))
       state.barrel = (state.barrel + barrels.length) % count;
-    if (state.shot >= definition.burstSize) {
-      state.shot = 0;
-      state.phase = 'cooldown';
-      state.remaining = definition.chargedown + definition.chargeup;
-      if (!state.remaining) break;
+    if (state.shot >= definition.burstSize || (!firing && definition.interruptible)) {
+      finishBurst(state, definition.chargedown);
+      if (firing && !state.remaining && !definition.chargeup) break;
     } else {
       state.phase = 'burst';
       state.remaining = definition.burstDelay;
-    }
-    if (!firing && definition.interruptible) {
-      state.shot = 0;
-      break;
     }
   }
   state.spread = Math.max(definition.minSpread, state.spread - (dt - elapsed) * definition.spreadDecay);

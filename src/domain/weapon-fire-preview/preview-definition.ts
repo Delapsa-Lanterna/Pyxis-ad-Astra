@@ -5,6 +5,11 @@ import { projectileAppearance } from '@/domain/editors/projectile-appearance';
 import { weaponAnglesKey, weaponBarrelOffsetsFor, type WeaponViewMode } from '@/shared/lib/starsector/weapon-sprite-fields';
 
 export type PreviewResources = Readonly<Record<string, ResourceRef>>;
+export function weaponAnimationFrameCount(weapon: DeepReadonly<RowData>): number {
+  const value = weapon.numFrames;
+  const count = typeof value === 'number' || typeof value === 'string' ? Number(value) : 1;
+  return (weapon.specClass === 'projectile' || weapon.specClass === 'beam') && count > 1 && Number.isFinite(count) ? Math.trunc(count) : 1;
+}
 export function createWeaponFirePreviewDefinition(
   csv: DeepReadonly<RowData>,
   weapon: DeepReadonly<RowData>,
@@ -24,6 +29,12 @@ export function createWeaponFirePreviewDefinition(
   const spread = mode === 'hardpoint' ? 0.5 : 1;
   return {
     beam,
+    animation: {
+      frames: weaponAnimationFrameCount(weapon),
+      rate: Math.max(0, num(weapon.frameRate, 1)),
+      always: str(weapon.alwaysAnimate).toLowerCase() === 'true',
+      whileFiring: str(weapon.animateWhileFiring).toLowerCase() !== 'false',
+    },
     appearance,
     resources: beam ? resources.weapon : resources.projectile,
     weaponResources: resources.weapon,

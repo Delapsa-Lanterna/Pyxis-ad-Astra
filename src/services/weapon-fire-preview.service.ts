@@ -2,6 +2,8 @@ import { querySessionEntity } from '@/services/entity-query.service';
 import { requireRowData } from '@/shared/lib/row-data';
 import { shallowReadonly } from 'vue';
 import { queryWeaponSpecData } from '@/services/weapon-data.service';
+import { querySessionDraftResources } from '@/services/resource-reference.service';
+import { weaponAnimationFrameCount } from '@/domain/weapon-fire-preview/preview-definition';
 import { cloneQuerySnapshot } from '@/shared/lib/query-snapshot';
 import { AppError } from '@/shared/lib/errors';
 import type { DeepReadonly, RowData, WeaponFirePreviewSource, WeaponFirePreviewData } from '@/shared/types';
@@ -23,6 +25,14 @@ export async function queryWeaponFirePreviewData(
       weapon: Object.fromEntries(data.resourceRefs.map((resource) => [resource.key, resource])),
       projectile: {},
     };
+  if (weaponAnimationFrameCount(data.weapon) > 1) {
+    const weapon = { ...data.weapon };
+    for (const field of ['turretSprite', 'hardpointSprite']) {
+      if (weapon[field] === undefined && resources.weapon[field]) weapon[field] = resources.weapon[field].relPath;
+    }
+    const frames = await querySessionDraftResources(sessionId, 'weapon', id, weapon, signal, { weaponAnimationFrames: true });
+    resources.weapon = { ...resources.weapon, ...frames };
+  }
   if (data.weapon.specClass !== 'beam') {
     const id = typeof data.weapon.projectileSpecId === 'string' ? data.weapon.projectileSpecId : '';
     const projectile = id ? await querySessionEntity(sessionId, 'projectile', id, signal) : null;

@@ -38,7 +38,8 @@ export function querySessionDraftResources(
   id: string,
   draft: RowData,
   signal?: AbortSignal,
+  options?: Pick<DraftResourcesPayload, 'weaponAnimationFrames'>,
 ): Promise<DeepReadonly<Record<string, ResourceRef>>> {
-  const parameters = { kind, id, draft };
+  const parameters = { kind, id, draft, ...options };
   return readLiveSessionQuery(readDraftResources, sessionId, parameters, signal);
 }

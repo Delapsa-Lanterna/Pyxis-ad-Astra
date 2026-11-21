@@ -59,6 +59,7 @@ export interface DraftResourcesPayload {
   sessionId: string;
   id: string;
   draft: RowData;
+  weaponAnimationFrames?: true;
 }
 
 export interface ResourceDataUrlBatchPayload {

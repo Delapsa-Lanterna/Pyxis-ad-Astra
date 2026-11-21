@@ -18,6 +18,7 @@ export function createWeaponFirePreviewState(mode: WeaponViewMode = 'turret', sp
     mode,
     speed,
     time: 0,
+    weaponFrame: 0,
     firingState: createFiringState(),
     projectiles: [] as WeaponFirePreviewProjectileState[],
     effects: [] as PreviewExplosion[],
@@ -72,8 +73,7 @@ export function weaponGlowLevel(state: WeaponFirePreviewState, p: WeaponFirePrev
   if (phase === 'idle') return 0;
   if (phase === 'burst') return 1;
   if (phase === 'chargeup') return p.chargeup ? 1 - remaining / p.chargeup : 1;
-  if (remaining > p.chargeup) return p.chargedown ? (remaining - p.chargeup) / p.chargedown : 0;
-  return state.firing || p.autoCharge ? (p.chargeup ? 1 - remaining / p.chargeup : 1) : 0;
+  return p.chargedown ? remaining / p.chargedown : Number(state.firing);
 }
 
 function advanceBeam(beam: WeaponFirePreviewBeamState, p: WeaponFirePreviewDefinition, dt: number, firing: boolean, random: () => number) {
@@ -242,6 +242,21 @@ function advanceShot(state: WeaponFirePreviewState, o: WeaponFirePreviewProjecti
   advanceProjectile(o, dt);
   return o.alpha > 0 || o.trails.some((trail) => trail.points.length);
 }
+function advanceWeaponAnimation(state: WeaponFirePreviewState, p: WeaponFirePreviewDefinition, dt: number) {
+  const { frames, rate, always, whileFiring } = p.animation;
+  if (frames === 1 || rate === 0) {
+    state.weaponFrame = 0;
+    return;
+  }
+  state.weaponFrame %= frames;
+  const { phase, remaining } = state.firingState;
+  const chargeDown = phase === 'cooldown' ? remaining : 0;
+  const active = p.beam ? state.beam.phase !== 'idle' && state.beam.phase !== 'cooldown' : phase !== 'idle';
+  if (!state.firing && !always && (p.beam || !active) && state.weaponFrame < 1) return;
+  // Starsector nearly freezes the animation during firing when this flag is disabled.
+  const factor = state.firing && !whileFiring && active ? 0.001 : !p.beam && p.burstDelay > 0 && chargeDown > p.burstDelay ? 0 : 1;
+  state.weaponFrame = (state.weaponFrame + dt * rate * factor) % frames;
+}
 export function advanceWeaponFirePreview(
   state: WeaponFirePreviewState,
   definition: WeaponFirePreviewDefinition,
@@ -266,4 +281,5 @@ export function advanceWeaponFirePreview(
       if (advanceShot(state, o, dt - event.time, random)) state.projectiles.push(o);
     }
   }
+  advanceWeaponAnimation(state, definition, dt);
 }

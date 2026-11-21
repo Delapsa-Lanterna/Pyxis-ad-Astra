@@ -55,6 +55,46 @@ pub(in crate::services::project) fn weapon_resource_refs(
     refs
 }
 
+pub(in crate::services::project) fn weapon_animation_resource_refs(
+    id: &str,
+    data: &Value,
+) -> BTreeMap<String, ResourceRef> {
+    let count = data
+        .get("numFrames")
+        .and_then(|value| {
+            value
+                .as_f64()
+                .or_else(|| value.as_str()?.trim().parse().ok())
+        })
+        .filter(|value| value.is_finite())
+        .unwrap_or(1.0) as usize;
+    let mut refs = BTreeMap::new();
+    if matches!(data["specClass"].as_str(), Some("projectile" | "beam")) {
+        for field in ["turretSprite", "hardpointSprite"] {
+            if let Some(prefix) = data[field]
+                .as_str()
+                .and_then(|path| path.strip_suffix("00.png"))
+            {
+                for frame in 1..count {
+                    let key = format!("{field}[{frame}]");
+                    let path = format!("{prefix}{frame:02}.png");
+                    refs.insert(
+                        key.clone(),
+                        resource_ref(
+                            ResourceSource::Mod,
+                            &path,
+                            ResourceOwnerKind::Weapon,
+                            id,
+                            &key,
+                        ),
+                    );
+                }
+            }
+        }
+    }
+    refs
+}
+
 pub(in crate::services::project) fn projectile_resource_refs(
     id: &str,
     data: &Value,

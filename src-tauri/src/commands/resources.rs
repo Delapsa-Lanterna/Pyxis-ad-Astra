@@ -40,5 +40,6 @@ pub fn query_draft_resources(
         payload.kind,
         &payload.id,
         &payload.draft,
+        payload.weapon_animation_frames,
     )
 }

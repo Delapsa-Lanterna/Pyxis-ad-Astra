@@ -1,7 +1,7 @@
 use super::super::resources::SpriteReadBatch;
 use super::super::resources::entity_references::{
     faction_resource_refs, mission_resource_refs, projectile_resource_refs, ship_resource_refs,
-    weapon_resource_refs,
+    weapon_animation_resource_refs, weapon_resource_refs,
 };
 use super::super::session::{lock_ready_session, session_handle};
 use crate::domain::json_composition as domain_json_composition;
@@ -117,11 +117,15 @@ pub fn query_draft_resources(
     kind: DraftResourceEntityKind,
     id: &str,
     draft: &Value,
+    weapon_animation_frames: bool,
 ) -> AppResult<BTreeMap<String, ResourceRef>> {
     let handle = session_handle(session_id)?;
     let session = lock_ready_session(&handle)?;
     let mut resources = match kind {
         DraftResourceEntityKind::Ship => ship_resource_refs(id, draft),
+        DraftResourceEntityKind::Weapon if weapon_animation_frames => {
+            weapon_animation_resource_refs(id, draft)
+        }
         DraftResourceEntityKind::Weapon => weapon_resource_refs(id, draft),
         DraftResourceEntityKind::Faction => faction_resource_refs(id, draft),
         DraftResourceEntityKind::Mission => mission_resource_refs(id, draft),
@@ -148,6 +152,17 @@ pub fn query_draft_resources(
             }
         }
         apply_resource_origins(&mut resources, &local, &sources);
+    } else if weapon_animation_frames
+        && kind == DraftResourceEntityKind::Weapon
+        && let Some(record) = session.reference_spec(EntityKind::Weapon, id)
+    {
+        for (key, resource) in &mut resources {
+            let field = key.split('[').next().expect("weapon sprite field");
+            if record.data[field] == draft[field] {
+                resource.source = record.location.source;
+                resource.reference = record.location.reference.as_deref().cloned();
+            }
+        }
     }
     Ok(resources)
 }
@@ -759,6 +774,7 @@ mod tests {
             DraftResourceEntityKind::Weapon,
             "weapon",
             &draft,
+            false,
         )
         .unwrap();
         assert_eq!(resources["turretSprite"].rel_path, "graphics/draft.png");
@@ -766,9 +782,83 @@ mod tests {
         assert_eq!(resources["turretSprite"].key, "turretSprite");
         release_project_session(&manifest.session_id).unwrap();
         assert!(
-            query_draft_resources("closed", DraftResourceEntityKind::Weapon, "weapon", &draft)
-                .is_err()
+            query_draft_resources(
+                "closed",
+                DraftResourceEntityKind::Weapon,
+                "weapon",
+                &draft,
+                false
+            )
+            .is_err()
         );
+        root.close().unwrap();
+    }
+
+    #[test]
+    fn weapon_animation_resources_keep_mount_numbering_and_source_layers() {
+        let root = project_workspace("weapon_animation_resources");
+        let local = root.join("mod");
+        let game = root.join("game");
+        let core = game.join("starsector-core");
+        for folder in [&local, &core] {
+            fs::create_dir_all(folder.join("data/weapons")).unwrap();
+            fs::create_dir_all(folder.join("graphics")).unwrap();
+        }
+        fs::write(
+            local.join("data/weapons/animation.wpn"),
+            r#"{"id":"animation","specClass":"beam","turretSprite":"graphics/turret00.png","numFrames":4}"#,
+        ).unwrap();
+        fs::write(
+            core.join("data/weapons/animation.wpn"),
+            r#"{"id":"animation","hardpointSprite":"graphics/hardpoint00.png"}"#,
+        )
+        .unwrap();
+        fs::write(local.join("graphics/turret01.png"), [1, 2, 3]).unwrap();
+        fs::write(local.join("graphics/turret03.png"), [4, 5, 6]).unwrap();
+        fs::write(core.join("graphics/hardpoint03.png"), [7, 8, 9]).unwrap();
+        let manifest = open_project_session_traced(
+            &local,
+            Some(&game),
+            &mut PerformanceTrace::new("animation.open"),
+        )
+        .unwrap();
+        let draft = serde_json::json!({
+            "id":"animation", "specClass":"beam", "numFrames":4,
+            "turretSprite":"graphics/turret00.png", "hardpointSprite":"graphics/hardpoint00.png"
+        });
+        let frames = query_draft_resources(
+            &manifest.session_id,
+            DraftResourceEntityKind::Weapon,
+            "animation",
+            &draft,
+            true,
+        )
+        .unwrap();
+        assert_eq!(frames.len(), 6);
+        assert_eq!(frames["turretSprite[2]"].rel_path, "graphics/turret02.png");
+        assert_eq!(frames["turretSprite[1]"].source, ResourceSource::Mod);
+        assert_eq!(frames["hardpointSprite[3]"].source, ResourceSource::Core);
+        let media = query_resource_data_urls(
+            &manifest.session_id,
+            [
+                "turretSprite[1]",
+                "turretSprite[2]",
+                "turretSprite[3]",
+                "hardpointSprite[3]",
+            ]
+            .map(|key| frames[key].clone())
+            .into(),
+        )
+        .unwrap();
+        assert_eq!(
+            media
+                .entries
+                .iter()
+                .map(|entry| entry.data_url.is_some())
+                .collect::<Vec<_>>(),
+            [true, false, true, true]
+        );
+        release_project_session(&manifest.session_id).unwrap();
         root.close().unwrap();
     }
 
@@ -783,6 +873,7 @@ mod tests {
             DraftResourceEntityKind::Projectile,
             "shot",
             &draft,
+            false,
         )
         .unwrap();
         assert_eq!(resources.len(), 5);
@@ -802,6 +893,7 @@ mod tests {
                 DraftResourceEntityKind::Projectile,
                 "shot",
                 &draft,
+                false,
             )
             .is_err()
         );
@@ -818,6 +910,7 @@ mod tests {
             DraftResourceEntityKind::Faction,
             "faction",
             &serde_json::json!({"logo":"graphics/new.png", "crest":"graphics/crest.png"}),
+            false,
         )
         .unwrap();
         assert_eq!(faction["logo"].rel_path, "graphics/new.png");
@@ -827,6 +920,7 @@ mod tests {
             DraftResourceEntityKind::Mission,
             "mission",
             &serde_json::json!({"descriptor":{"icon":"new.png"}}),
+            false,
         )
         .unwrap();
         assert_eq!(mission["icon"].rel_path, "data/missions/mission/new.png");

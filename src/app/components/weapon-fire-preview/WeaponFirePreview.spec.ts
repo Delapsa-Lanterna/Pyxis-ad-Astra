@@ -69,6 +69,90 @@ async function wheel(deltaY: number, clientX = 100, clientY = 100) {
   await wrapper!.vm.$nextTick();
 }
 describe('preview playback and media lifecycle', () => {
+  it.each([false, true])('draws the four-frame body sequence with missing frame: %s', async (missing) => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    vi.stubGlobal(
+      'Image',
+      class {
+        width = 4;
+        height = 4;
+        onload: (() => void) | null = null;
+        url = '';
+        get src() {
+          return this.url;
+        }
+        set src(value: string) {
+          this.url = value;
+          queueMicrotask(() => this.onload?.());
+        }
+      },
+    );
+    const makeRef = (key: string, relPath: string) => ({
+      source: 'mod' as const,
+      ownerKind: 'weapon' as const,
+      ownerId: 'fixture',
+      key,
+      relPath,
+    });
+    const refs = Object.fromEntries(
+      [
+        makeRef('turretUnderSprite', 'under.png'),
+        makeRef('turretSprite', 'body00.png'),
+        ...[1, 2, 3].map((frame) => makeRef(`turretSprite[${frame}]`, `body0${frame}.png`)),
+      ].map((resource) => [resource.key, resource]),
+    );
+    mocks.invoke.mockImplementation(async (command, params) =>
+      command === 'query_resource_data_urls'
+        ? {
+            entries: params.payload.resources.map((resource: { relPath: string }) => ({
+              ...resource,
+              dataUrl: missing && resource.relPath === 'body02.png' ? null : `data:image/png;base64,${resource.relPath}`,
+            })),
+          }
+        : { styles: {}, versions: [], resources: {} },
+    );
+    const editor = open();
+    await editor.setProps({
+      weaponCsvRow: { chargeup: 2 },
+      weaponSpec: { id: 'fixture', specClass: 'projectile', numFrames: 4, frameRate: 20 },
+      resources: { weapon: refs, projectile: {} },
+    });
+    await vi.advanceTimersByTimeAsync(RESOURCE_MEDIA_FLUSH_DELAY_MS);
+    await flushPromises();
+    const ctx = (editor.get('canvas').element as HTMLCanvasElement).getContext('2d')!,
+      draw = vi.spyOn(ctx, 'drawImage');
+    const painted = () => draw.mock.calls.map(([image]) => (image as HTMLImageElement).src.split(',')[1]);
+    const check = (frame: number) => {
+      expect(painted()).toEqual(missing && frame === 2 ? ['under.png'] : ['under.png', `body0${frame}.png`]);
+      draw.mockClear();
+    };
+    const tick = vi.mocked(requestAnimationFrame).mock.calls.at(-1)![0];
+    tick(1000);
+    check(0);
+    tick(1050);
+    check(0);
+    await editor.getComponent(nSwitch).trigger('click');
+    for (const [time, frame] of [
+      [1100, 1],
+      [1150, 2],
+      [1200, 3],
+      [1250, 0],
+    ] as const) {
+      tick(time);
+      check(frame);
+    }
+    await editor.vm.$nextTick();
+    await button('上一帧').trigger('click');
+    check(3);
+    await button('上一帧').trigger('click');
+    check(2);
+    await button('下一帧').trigger('click');
+    check(3);
+    expect(resourceMediaStats().activeEntries).toBe(5);
+    await editor.setProps({ resources: { weapon: {}, projectile: {} } });
+    await flushPromises();
+    expect(resourceMediaStats().activeEntries).toBe(0);
+  });
   it('pauses on either step and restores recorded frames without rerolling shots', async () => {
     const scene = observeScene(),
       editor = open();
@@ -385,6 +469,31 @@ describe('preview playback and media lifecycle', () => {
     expect(windowImageRuntime().stats().decoded.activeEntries).toBe(0);
     expect(windowImageRuntime().stats().thumbnails.activeEntries).toBe(0);
     expect(resourceMediaStats().activeEntries).toBe(0);
+  });
+  it('finishes the current automatic charge burst after the firing switch is released', async () => {
+    const scene = observeScene(),
+      editor = open();
+    await editor.setProps({
+      weaponSpec: { id: 'fixture', specClass: 'projectile', projectileSpecId: 'shot', autocharge: true },
+      weaponCsvRow: { range: 600, 'proj speed': 100, chargeup: 0.125, chargedown: 0.25, 'burst size': 3, 'burst delay': 0.25 },
+    });
+    const firing = editor.getComponent(nSwitch);
+    await firing.trigger('click');
+    const tick = vi.mocked(requestAnimationFrame).mock.calls.at(-1)![0];
+    tick(1000);
+    tick(1187.5);
+    expect(scene().projectiles).toHaveLength(1);
+    const first = scene().projectiles[0]!;
+    await firing.trigger('click');
+    expect(firing.props('value')).toBe(false);
+    tick(1375);
+    expect(scene().projectiles).toHaveLength(2);
+    tick(1625);
+    expect(scene().projectiles).toHaveLength(3);
+    tick(3500);
+    expect(scene().projectiles).toHaveLength(3);
+    expect(scene().projectiles[0]).toBe(first);
+    expect(first.age).toBeCloseTo(2.375);
   });
   it('uses one switch to start, stop and reset firing', async () => {
     open();

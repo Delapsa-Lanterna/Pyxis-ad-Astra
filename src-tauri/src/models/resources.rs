@@ -97,6 +97,8 @@ pub struct DraftResourcesPayload {
     pub session_id: ProjectSessionId,
     pub id: String,
     pub draft: Value,
+    #[serde(default)]
+    pub weapon_animation_frames: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

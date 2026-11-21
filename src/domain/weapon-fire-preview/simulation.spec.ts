@@ -19,6 +19,38 @@ const definition = () =>
   );
 
 describe('preview definition and simulation', () => {
+  it.each(['projectile', 'beam'])('loops %s body frames while firing and finishes its turn after release', (specClass) => {
+    const p = createWeaponFirePreviewDefinition({ range: 1000, chargeup: 1 }, { specClass, numFrames: 4, frameRate: 20 }, {}, 'turret'),
+      state = createWeaponFirePreviewState();
+    advanceWeaponFirePreview(state, p, 0.05, random);
+    expect(state.weaponFrame).toBe(0);
+    startWeaponFirePreview(state);
+    for (const frame of [1, 2, 3, 0, 1]) {
+      advanceWeaponFirePreview(state, p, 0.05, random);
+      expect(state.weaponFrame).toBe(frame);
+    }
+    stopWeaponFirePreview(state);
+    advanceWeaponFirePreview(state, p, 0.15, random);
+    expect(state.weaponFrame).toBe(0);
+    advanceWeaponFirePreview(state, p, 0.1, random);
+    expect(state.weaponFrame).toBe(0);
+  });
+  it.each(['projectile', 'beam'])('supports %s continuous, slowed firing, paused and zero-rate animation', (specClass) => {
+    const weapon = { specClass, numFrames: '4', frameRate: 20, alwaysAnimate: 'true', animateWhileFiring: false },
+      p = createWeaponFirePreviewDefinition({ chargeup: 1 }, weapon, {}, 'turret'),
+      state = createWeaponFirePreviewState();
+    advanceWeaponFirePreview(state, p, 0.05, random);
+    expect(state.weaponFrame).toBe(1);
+    startWeaponFirePreview(state);
+    advanceWeaponFirePreview(state, p, 0.05, random);
+    expect(state.weaponFrame).toBeCloseTo(1.001);
+    state.running = false;
+    advanceWeaponFirePreview(state, p, 0.05, random);
+    expect(state.weaponFrame).toBeCloseTo(1.001);
+    startWeaponFirePreview(state);
+    advanceWeaponFirePreview(state, createWeaponFirePreviewDefinition({}, { ...weapon, frameRate: 0 }, {}, 'turret'), 0.01, random);
+    expect(state.weaponFrame).toBe(0);
+  });
   it.each(['projectile', 'missile', 'beam'])('clones %s state independently while sharing born definitions and styles', (kind) => {
     const p = createWeaponFirePreviewDefinition(
         { range: 2, 'proj speed': 10, 'launch speed': 10, 'flight time': 0.2, 'beam speed': 100, chargedown: 10 },
@@ -226,6 +258,28 @@ describe('preview definition and simulation', () => {
     expect(state.effects[0]!.age).toBeCloseTo(0.05);
     advanceWeaponFirePreview(state, p, 0.2, random);
     expect(state.effects[0]!.x).toBe(x);
+  });
+  it.each([
+    { release: 0.0625, autocharge: true, interruptibleBurst: false, after: [0.0625, 0.3125, 0.5625] },
+    { release: 0.0625, autocharge: false, interruptibleBurst: false, after: [] },
+    { release: 0.0625, autocharge: true, interruptibleBurst: true, after: [0.0625] },
+    { release: 0.1875, autocharge: true, interruptibleBurst: false, after: [0.1875, 0.4375] },
+    { release: 0.1875, autocharge: true, interruptibleBurst: true, after: [] },
+    { release: 0.8125, autocharge: true, interruptibleBurst: false, after: [] },
+    { release: 0.9375, autocharge: true, interruptibleBurst: false, after: [0.0625, 0.3125, 0.5625] },
+  ])('finishes only a committed burst when released at $release ($autocharge, $interruptibleBurst)', (test) => {
+    const p = createWeaponFirePreviewDefinition(
+        { chargeup: 0.125, chargedown: 0.25, 'burst delay': 0.25, 'burst size': 3 },
+        { specClass: 'projectile', autocharge: test.autocharge, interruptibleBurst: test.interruptibleBurst },
+        {},
+        'turret',
+      ),
+      state = createFiringState();
+    scheduleShots(state, p, test.release, true, random);
+    expect(scheduleShots(state, p, 2, false, random).map((event) => event.time)).toEqual(test.after);
+    expect(state).toMatchObject({ phase: 'idle', remaining: 0, shot: 0 });
+    expect(scheduleShots(state, p, 1, false, random)).toEqual([]);
+    expect(scheduleShots(state, p, 0.125, true, random).map((event) => event.time)).toEqual([0.125]);
   });
   it('recovers spread during a burst and after ceasefire', () => {
     const p = definition();
