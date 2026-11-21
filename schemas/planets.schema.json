@@ -1,0 +1,33 @@
+{
+  "$schema": "pyxis-ad-astra/field-schema/v1",
+  "id": "planets",
+  "displayName": "星球规格",
+  "sources": [
+    {
+      "id": "file",
+      "type": "json-file",
+      "path": "data/config/planets.json"
+    }
+  ],
+  "root": {
+    "key": "file",
+    "type": "object",
+    "label": "星球",
+    "presentation": "groups",
+    "allowExtraFields": true,
+    "valueSchema": {
+      "key": "planet",
+      "type": "object",
+      "label": "星球属性",
+      "partial": true,
+      "default": {},
+      "allowExtraFields": true,
+      "valueSchema": {
+        "key": "value",
+        "type": "json",
+        "label": "字段值",
+        "default": null
+      }
+    }
+  }
+}

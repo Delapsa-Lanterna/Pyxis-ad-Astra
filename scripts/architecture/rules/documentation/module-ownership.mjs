@@ -7,6 +7,7 @@ const moduleDirectory = '.zcode/modules/';
 export const moduleOwnershipRule = defineRule('module-ownership', '.zcode/module-map.md#登记与归属', import.meta.url, (context, report) => {
   const { index, shared, owners, ownershipReferences } = context.moduleMap;
   const map = { rel: '.zcode/module-map.md' };
+  const schemaModule = '.zcode/modules/schema.md';
   for (const rel of context.paths) {
     if (!rel.startsWith(moduleDirectory) || rel === moduleDirectory) continue;
     if (!/^[a-z0-9]+(?:-[a-z0-9]+)*\.md$/.test(rel.slice(moduleDirectory.length)))
@@ -28,6 +29,11 @@ export const moduleOwnershipRule = defineRule('module-ownership', '.zcode/module
   const declarations = new Map();
   for (const reference of ownershipReferences) {
     const owner = { file: context.byPath.get(reference.file), line: reference.line, path: reference.path };
+    if (reference.rel.startsWith('schemas/') && reference.file !== schemaModule)
+      report(owner.file ?? map, { line: owner.line, column: 1 }, 'schema paths must be owned by the schema module', {
+        target: reference.rel,
+        expected: schemaModule,
+      });
     if (shared.has(reference.rel)) {
       report(owner.file ?? map, { line: owner.line, column: 1 }, 'public file ' + reference.rel + ' cannot have module ownership', {
         target: reference.rel,
@@ -45,6 +51,12 @@ export const moduleOwnershipRule = defineRule('module-ownership', '.zcode/module
       });
     else declarations.set(reference.rel, { file: reference.file, line: owner.line });
   }
+  for (const rel of context.paths)
+    if (rel.startsWith('schemas/') && !rel.endsWith('/') && !ownershipReferences.some((reference) => reference.rel === rel))
+      report({ rel }, { line: 1, column: 1 }, 'schema paths must be owned by the schema module', {
+        target: rel,
+        expected: schemaModule,
+      });
   for (const rel of context.paths) {
     if (!index.size) break;
     if (rel.endsWith('/') || specFile(rel) || /(?:^|\/)tests?\//.test(rel)) continue;

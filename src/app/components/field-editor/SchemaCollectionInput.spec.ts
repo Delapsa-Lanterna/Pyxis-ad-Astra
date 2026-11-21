@@ -150,6 +150,34 @@ describe('retained collection rows', () => {
     const remove = wrapper.get('button[aria-label="移除字段"]');
     expect(remove.get('svg path').attributes('d')).toContain('M4 7h16');
   });
+  it('renders dynamic keys as filterable custom-input selectors when a key schema is declared', () => {
+    wrapper = mount(
+      {
+        setup() {
+          provideAppFeedback(feedback);
+          return () =>
+            h(SchemaCollectionInput, {
+              field: {
+                key: 'file',
+                label: 'File',
+                type: 'object',
+                allowExtraFields: true,
+                keySchema: { key: 'roleId', label: 'Role ID', type: 'string', options: ['knownRole'] },
+                valueSchema: { key: 'weight', label: 'Weight', type: 'float' },
+              },
+              value: { knownRole: 1 },
+              inputKey: 'file',
+              fieldPath: 'file',
+            });
+        },
+      },
+      { global },
+    );
+    const select = wrapper.getComponent(nSelect);
+    expect(select.props('filterable')).toBe(true);
+    expect(select.props('tag')).toBe(true);
+    expect(select.props('options')).toMatchObject([{ label: 'knownRole', value: 'knownRole' }]);
+  });
   it.each([
     ['core', 'M:/core'],
     ['reference', 'M:/preceding-mod'],

@@ -284,6 +284,18 @@ fn config_formats_replay() {
             MiscConfigKind::Settings,
             json!({"designTypeColors":{"Sample":[20,30,40,255]},"count":12,"enabled":false,"graphics":{"sample":{"icons":["a","b"]}},"extra":null}),
         ),
+        (
+            MiscConfigKind::CustomEntities,
+            json!({"SAMPLE":{"defaultName":"Sample Entity","showInCampaign":true}}),
+        ),
+        (
+            MiscConfigKind::Planets,
+            json!({"SAMPLE":{"name":"Sample Planet","isStar":false,"planetColor":[1,2,3,255]}}),
+        ),
+        (
+            MiscConfigKind::DefaultShipRoles,
+            json!({"SAMPLE":{"sample_variant":1.5,"fallback":{"combatSmall":0.5}}}),
+        ),
     ] {
         let f = Fixture::new();
         let path = f.root.join(domain_misc_config::misc_config_path(kind));

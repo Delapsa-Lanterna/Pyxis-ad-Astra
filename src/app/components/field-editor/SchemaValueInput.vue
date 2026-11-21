@@ -143,7 +143,15 @@ function publish(update: SchemaFieldUpdate) {
   const local = context.local(),
     sources = context.sources(),
     before = composeJson(local, sources);
-  const edit = editComposedJson(local, before, setCompositionValue(before, path, update.value as JsonValue), sources, context.root);
+  const edit = editComposedJson(
+    local,
+    before,
+    setCompositionValue(before, path, update.value as JsonValue),
+    sources,
+    context.root,
+    (value) => value,
+    props.field.replaceInheritedObject ? [path] : [],
+  );
   if (edit.notice) feedback.info(edit.notice);
   if (!edit.rejected) context.apply([], edit.value);
 }

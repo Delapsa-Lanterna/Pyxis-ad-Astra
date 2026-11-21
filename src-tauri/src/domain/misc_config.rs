@@ -9,6 +9,9 @@ pub const MISC_CONFIG_FILES: &[MiscConfigKind] = &[
     MiscConfigKind::HullStyles,
     MiscConfigKind::Sounds,
     MiscConfigKind::Settings,
+    MiscConfigKind::CustomEntities,
+    MiscConfigKind::Planets,
+    MiscConfigKind::DefaultShipRoles,
 ];
 pub fn misc_config_path(kind: MiscConfigKind) -> &'static str {
     match kind {
@@ -17,6 +20,9 @@ pub fn misc_config_path(kind: MiscConfigKind) -> &'static str {
         MiscConfigKind::HullStyles => "data/config/hull_styles.json",
         MiscConfigKind::Sounds => "data/config/sounds.json",
         MiscConfigKind::Settings => "data/config/settings.json",
+        MiscConfigKind::CustomEntities => "data/config/custom_entities.json",
+        MiscConfigKind::Planets => "data/config/planets.json",
+        MiscConfigKind::DefaultShipRoles => "data/world/factions/default_ship_roles.json",
     }
 }
 pub fn misc_config_schema_id(kind: MiscConfigKind) -> &'static str {
@@ -25,6 +31,9 @@ pub fn misc_config_schema_id(kind: MiscConfigKind) -> &'static str {
         MiscConfigKind::HullStyles => "hull-styles",
         MiscConfigKind::Sounds => "sounds",
         MiscConfigKind::Settings => "game-settings",
+        MiscConfigKind::CustomEntities => "custom-entities",
+        MiscConfigKind::Planets => "planets",
+        MiscConfigKind::DefaultShipRoles => "default-ship-roles",
         MiscConfigKind::Strings => "strings",
     }
 }

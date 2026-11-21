@@ -1012,6 +1012,7 @@ mod tests {
         let core = root.join("starsector-core");
         for dir in [&local, &core] {
             fs::create_dir_all(dir.join("data/config")).unwrap();
+            fs::create_dir_all(dir.join("data/world/factions")).unwrap();
         }
         let mut trace = PerformanceTrace::new("catalog.open");
         let manifest = open_project_session_traced(&local, Some(&root), &mut trace).unwrap();

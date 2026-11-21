@@ -294,8 +294,8 @@ mod tests {
     }
 
     #[test]
-    fn twelve_file_kinds_keep_local_contents_through_save_and_reopen() {
-        let work = test_support::project_workspace("composition_twelve_kinds");
+    fn fifteen_file_kinds_keep_local_contents_through_save_and_reopen() {
+        let work = test_support::project_workspace("composition_fifteen_kinds");
         let root = work.join("mods/local");
         fs::create_dir_all(&root).unwrap();
         let specs = [
@@ -348,6 +348,21 @@ mod tests {
                 MiscConfigKind::Settings,
                 "data/config/settings.json",
                 json!({"designTypeColors":{"sample":[1,2,3,4]}}),
+            ),
+            (
+                MiscConfigKind::CustomEntities,
+                "data/config/custom_entities.json",
+                json!({"sample":{"defaultName":"Sample"}}),
+            ),
+            (
+                MiscConfigKind::Planets,
+                "data/config/planets.json",
+                json!({"sample":{"name":"Sample"}}),
+            ),
+            (
+                MiscConfigKind::DefaultShipRoles,
+                "data/world/factions/default_ship_roles.json",
+                json!({"sample":{"sample_variant":10}}),
             ),
         ];
         for (_, relative, field) in specs {

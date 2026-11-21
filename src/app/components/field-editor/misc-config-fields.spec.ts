@@ -125,6 +125,18 @@ describe('misc config fields', () => {
     expect(getSchema('engine-styles')!.root!.valueSchema!.nested).toHaveLength(23);
     expect(getSchema('hull-styles')!.root!.valueSchema!.nested).toHaveLength(38);
   });
+  it('shares explicit ship-role fields between faction and default role schemas', () => {
+    const defaultRole = getSchema('default-ship-roles')!.root!.valueSchema!;
+    const factionRole = getSchema('faction')!
+      .sections!.flatMap((section) => section.fields)
+      .find((field) => field.key === 'file.shipRoles')!.valueSchema!;
+    for (const role of [defaultRole, factionRole]) {
+      expect(role.nested?.map((field) => field.key)).toEqual(['includeDefault', 'fallback', 'fallback2']);
+      expect(role.valueSchema).toMatchObject({ type: 'float', label: '权重' });
+      expect(role.nested?.find((field) => field.key === 'fallback')).toMatchObject({ type: 'object', minEntries: 1, maxEntries: 1 });
+      expect(role.nested?.find((field) => field.key === 'fallback2')).toMatchObject({ type: 'object', minEntries: 1, maxEntries: 1 });
+    }
+  });
   it.each([
     ['0.5f', 0.5],
     ['-1f', -1],

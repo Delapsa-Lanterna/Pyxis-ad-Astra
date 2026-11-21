@@ -753,63 +753,10 @@
           "key": "file.shipRoles",
           "type": "object",
           "label": "舰船角色分配",
-          "description": "按角色分类的舰船装配权重配置。每个角色 (如 combatSmall, combatLarge) 的值是一个对象，包含 includeDefault (boolean) 和若干 装配 ID: 权重 (number) 的键值对",
+          "description": "按角色分类的舰船装配权重配置。每个角色包含默认装配、备用角色和动态装配权重。",
           "required": false,
           "editable": true,
-          "default": {},
-          "valueSchema": {
-            "key": "role",
-            "type": "object",
-            "label": "角色",
-            "default": {
-              "includeDefault": true
-            },
-            "nested": [
-              {
-                "key": "includeDefault",
-                "type": "boolean",
-                "label": "包含默认装配",
-                "default": true
-              },
-              {
-                "key": "fallback",
-                "type": "object",
-                "label": "备用角色",
-                "valueSchema": {
-                  "key": "weight",
-                  "type": "float",
-                  "label": "权重",
-                  "default": 1
-                },
-                "minEntries": 1,
-                "maxEntries": 1,
-                "allowExtraFields": true
-              },
-              {
-                "key": "fallback2",
-                "type": "object",
-                "label": "第二备用角色",
-                "valueSchema": {
-                  "key": "weight",
-                  "type": "float",
-                  "label": "权重",
-                  "default": 1
-                },
-                "minEntries": 1,
-                "maxEntries": 1,
-                "allowExtraFields": true
-              }
-            ],
-            "valueSchema": {
-              "key": "weight",
-              "type": "float",
-              "label": "权重",
-              "default": 1
-            },
-            "allowExtraFields": true
-          },
-          "allowExtraFields": true,
-          "minEntries": 1
+          "ref": "ship-roles#/definitions/roleGroups"
         },
         {
           "key": "file.illegalCommodities",

@@ -2,7 +2,7 @@
 /// Codes are stable wire identifiers (`AppError::message(code, _)` on the
 /// backend); unmapped codes fall back to the backend diagnostic message.
 const ERROR_MESSAGES: Record<string, string> = {
-  'misc_config.shape_invalid': 'strings.json 应按分组组织，每组包含文本键和字符串内容',
+  'misc_config.shape_invalid': '配置文件结构不符合对应文件定义',
   'schema.key_duplicate': '该名称已存在，请使用其它名称',
   'query.invalidated': '读取目标已更新，本次读取已结束',
   'desktop.data_directory_unavailable': '无法解析工具数据目录',

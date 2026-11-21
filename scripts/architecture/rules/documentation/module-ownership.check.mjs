@@ -60,3 +60,25 @@ test('production inventory requires ownership and colocated tests inherit their 
   assert.equal(diagnostics[0]?.file, 'src/domain/unassigned.ts');
   assert.equal(diagnostics[0]?.expected, 'module ownership or public registration');
 });
+
+test('schema files and folders belong exclusively to the schema module', () => {
+  const map = moduleIndexText + '- [字段定义与校验](modules/schema.md)：字段资产。\n' + '- [另一模块](modules/other.md)：其它职责。\n';
+  const schema = '# 字段定义与校验\n\n## 参考\n\n### 拥有\n\n- `schemas/`：字段资产。\n';
+  const other = '# 另一模块\n\n## 参考\n\n### 拥有\n\n- `schemas/custom/`：错误归属。\n';
+  const context = moduleDocumentFixtures(moduleDocumentText, map, {
+    '.zcode/modules/schema.md': schema,
+    '.zcode/modules/other.md': other,
+    'schemas/custom/file.json': '{}',
+  });
+  const diagnostics = moduleOwnershipRule.check(context);
+  assert.ok(diagnostics.some((diagnostic) => diagnostic.message.includes('schema paths must be owned by the schema module')));
+  assert.ok(diagnostics.some((diagnostic) => diagnostic.target === 'schemas/custom/file.json'));
+  assert.equal(diagnostics.find((diagnostic) => diagnostic.target === 'schemas/custom/file.json')?.expected, '.zcode/modules/schema.md');
+});
+
+test('schema files require an explicit schema module owner', () => {
+  const context = moduleDocumentFixtures(moduleDocumentText, moduleIndexText, { 'schemas/unowned.json': '{}' });
+  const diagnostics = moduleOwnershipRule.check(context);
+  assert.ok(diagnostics.some((diagnostic) => diagnostic.message.includes('schema paths must be owned by the schema module')));
+  assert.ok(diagnostics.some((diagnostic) => diagnostic.target === 'schemas/unowned.json'));
+});

@@ -11,4 +11,9 @@ pub const CONFIG_FIELD_SOURCES: &[(&str, &str, Option<&str>)] = &[
         "data/config/engine_styles.json",
         None,
     ),
+    (
+        "config:shipRoleGroups",
+        "data/world/factions/default_ship_roles.json",
+        None,
+    ),
 ];

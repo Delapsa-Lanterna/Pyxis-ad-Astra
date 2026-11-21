@@ -78,6 +78,27 @@ describe('game JSON composition', () => {
     expect(restored.value).toEqual(local);
     expect(takeReplaceBase(restored.value).replace).toBe(false);
   });
+  it('replaces the whole file when a single inherited object entry must replace its merged object', () => {
+    const composition = sources({ combatSmall: { fallback: { combatMedium: 0.5 } } });
+    const local = {},
+      before = composeJson(local, composition),
+      after = { combatSmall: { fallback: { combatMedium: 0.5, combatSmall: 11 } } };
+    const edit = editComposedJson(local, before, after, composition, [], (value) => value, [['combatSmall', 'fallback']]);
+    expect(edit.notice).toContain('replace');
+    expect(edit.rejected).toBe(false);
+    const expected = { combatSmall: { fallback: { combatSmall: 11 } } };
+    expect(composeJson(edit.value, composition)).toEqual(expected);
+    expect(takeReplaceBase(edit.value)).toEqual({ value: expected, replace: true });
+  });
+  it('keeps nested replacement markers under the document source root', () => {
+    const composition = sources({ file: { combatSmall: { fallback: { combatMedium: 0.5 } } } });
+    const local = { file: {} },
+      before = composeJson(local, composition),
+      after = { file: { combatSmall: { fallback: { combatMedium: 0.5, combatSmall: 11 } } } };
+    const edit = editComposedJson(local, before, after, composition, ['file'], (value) => value, [['file', 'combatSmall', 'fallback']]);
+    const expected = { file: { combatSmall: { fallback: { combatSmall: 11 } } } };
+    expect(composeJson(edit.value, composition)).toEqual(expected);
+  });
   it('drops an unchanged inherited prefix and rejects replacement of excluded settings files', () => {
     const composition = sources({ ships: ['A', 'B'] });
     const before = composeJson({}, composition);

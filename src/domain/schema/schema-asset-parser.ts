@@ -116,6 +116,7 @@ function parseField(id: string, path: string, raw: unknown): FieldSchema {
   if (isNumber(record.minEntries)) field.minEntries = record.minEntries;
   if (isNumber(record.minEntriesWhenComplete)) field.minEntriesWhenComplete = record.minEntriesWhenComplete;
   if (isBoolean(record.preserveIndices)) field.preserveIndices = record.preserveIndices;
+  if (isBoolean(record.replaceInheritedObject)) field.replaceInheritedObject = record.replaceInheritedObject;
   if (isNumber(record.maxEntries)) field.maxEntries = record.maxEntries;
   if (isStringArray(record.exclusiveKeys)) field.exclusiveKeys = record.exclusiveKeys;
   if (record.requiredWhen !== undefined) {

@@ -1,0 +1,25 @@
+{
+  "$schema": "pyxis-ad-astra/field-schema/v1",
+  "id": "default-ship-roles",
+  "displayName": "默认舰船角色",
+  "sources": [
+    {
+      "id": "file",
+      "type": "json-file",
+      "path": "data/world/factions/default_ship_roles.json"
+    }
+  ],
+  "root": {
+    "key": "file",
+    "type": "object",
+    "label": "角色组",
+    "valueSchema": {
+      "key": "roleGroup",
+      "type": "object",
+      "label": "装配权重",
+      "ref": "ship-roles#/definitions/role"
+    },
+    "presentation": "groups",
+    "allowExtraFields": true
+  }
+}

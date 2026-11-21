@@ -57,7 +57,7 @@ describe('field source definitions', () => {
   });
   it('uses the same configuration source names and paths in both languages', () => {
     const entries = [...backendSources.matchAll(/\(\s*"(config:[^"]+)"\s*,\s*"([^"]+)"/g)].map((match) => [match[1], match[2]]);
-    expect(entries).toHaveLength(4);
+    expect(entries).toHaveLength(5);
     expect(CONFIG_FIELD_SOURCES).toEqual(Object.fromEntries(entries));
     for (const source of Object.keys(CONFIG_FIELD_SOURCES)) expect(isConfigFieldSource(source)).toBe(true);
     expect(isConfigFieldSource('config:unknown')).toBe(false);

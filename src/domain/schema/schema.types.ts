@@ -50,6 +50,7 @@ export interface FieldSchema {
   minEntriesWhenComplete?: number;
   maxEntries?: number;
   preserveIndices?: boolean;
+  replaceInheritedObject?: boolean;
   exclusiveKeys?: string[];
   requiredWhen?: Record<string, string | { min: number } | { missing: true }>;
   step?: number;

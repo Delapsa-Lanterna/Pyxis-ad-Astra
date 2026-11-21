@@ -21,6 +21,9 @@ export function miscConfigFixture(kind: MiscConfigKind): RowData {
       sampleEnabled: true,
       graphics: { sample: { icons: ['graphics/sample_a.png', 'graphics/sample_b.png'] } },
     };
+  if (kind === 'customEntities') return { sample_entity: { defaultName: 'Sample Entity', showInCampaign: true } };
+  if (kind === 'planets') return { sample_planet: { name: 'Sample Planet', isStar: false, planetColor: [1, 2, 3, 255] } };
+  if (kind === 'defaultShipRoles') return { sample_group: { sample_variant: 1.5, fallback: { combatSmall: 0.5 } } };
   return {
     sample_effect: [{ file: 'sounds/sample.ogg', pitch: 1, volume: 0.5 }],
     sample_group: { sounds: [{ file: 'sounds/sample.ogg' }], FRIGATE: { sounds: [0], pitch: 1, volume: 1 } },

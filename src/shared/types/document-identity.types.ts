@@ -1,6 +1,7 @@
 import type { EntityKind } from './project-identity.types';
 
-export type MiscConfigKind = 'strings' | 'engineStyles' | 'hullStyles' | 'sounds' | 'settings';
+export type MiscConfigKind =
+  'strings' | 'engineStyles' | 'hullStyles' | 'sounds' | 'settings' | 'customEntities' | 'planets' | 'defaultShipRoles';
 export interface JsonSourceIdentity {
   kind: Extract<EntityKind, 'faction' | 'mission' | 'variant' | 'skin'>;
   id: string;

@@ -14,7 +14,7 @@
     >
       <template v-if="row.group || (row.dynamic && !array)" #[row.labelSlot]>
         <SchemaScalarInput
-          v-if="row.dynamic && !array && !keyField.source"
+          v-if="row.dynamic && !array && !keyPicker"
           class="field-map-key-editor"
           :field="keyField"
           :value="row.key"
@@ -30,6 +30,7 @@
           :options="slotOptions.filter((option) => option.value === row.key || !entries.some((entry) => entry.key === option.value))"
           :render-label="renderSelectLabel"
           filterable
+          tag
           size="small"
           @click.stop
           @update:value="rename(row, { kind: 'set', value: $event })"
@@ -64,6 +65,7 @@
         :options="availableSlots"
         :show="true"
         filterable
+        tag
         size="small"
         placeholder="选择槽位"
         :render-label="renderSelectLabel"
@@ -76,8 +78,8 @@
           v-for="choice in choices"
           :key="choice.label"
           size="tiny"
-          :disabled="Boolean(keyField.source) && !availableSlots.length"
-          @click="keyField.source ? (adding = choice) : add(choice)"
+          :disabled="keyPicker && !availableSlots.length"
+          @click="keyPicker ? (adding = choice) : add(choice)"
           >+ {{ choice.label }}</n-button
         >
       </template>
@@ -88,7 +90,7 @@
 import { computed, ref, watch, shallowRef, nextTick } from 'vue';
 import type { SelectInst, SelectRenderLabel } from 'naive-ui/es/select';
 import { useFieldSourceOptions } from '@/app/composables/field-editor/use-field-source-options';
-import { flattenSelectOptions } from '@/domain/field-editor/field-options';
+import { flattenSelectOptions, schemaSelectOptions } from '@/domain/field-editor/field-options';
 import EditorCollapse from '@/app/components/editors/common/EditorCollapse.vue';
 import EditorCollapseItem from '@/app/components/editors/common/EditorCollapseItem.vue';
 import SchemaFieldRow from './SchemaFieldRow.vue';
@@ -140,7 +142,12 @@ const { sourceOptions } = useFieldSourceOptions({
   value: () => undefined,
   runtimeContext: () => props.runtimeContext,
 });
-const slotOptions = computed(() => flattenSelectOptions(sourceOptions.value));
+const slotOptions = computed(() => {
+  const options = flattenSelectOptions(schemaSelectOptions(keyField.value, sourceOptions.value));
+  const known = new Set(options.map((option) => option.value));
+  return [...options, ...entries.value.filter((entry) => !known.has(entry.key)).map((entry) => ({ label: entry.key, value: entry.key }))];
+});
+const keyPicker = computed(() => Boolean(keyField.value.source || keyField.value.options?.length));
 const availableSlots = computed(() => slotOptions.value.filter((option) => !entries.value.some((entry) => entry.key === option.value)));
 const adding = shallowRef<FieldSchema | null>(null),
   slotSelect = ref<SelectInst | null>(null);
@@ -148,7 +155,7 @@ async function closeSlotSelect() {
   await nextTick();
   adding.value = null;
 }
-watch(slotSelect, (select) => select?.focusInput(), { flush: 'post' });
+watch(slotSelect, (select) => select?.focusInput?.(), { flush: 'post' });
 watch(
   () => [props.inputKey, props.fieldPath, props.runtimeContext?.sessionId, props.runtimeContext?.sourceContextKey, sourceOptions.value],
   () => {

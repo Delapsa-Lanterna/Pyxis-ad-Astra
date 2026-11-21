@@ -35,6 +35,33 @@ export const MISC_CONFIG_DEFINITIONS: readonly MiscConfigDefinition[] = [
     path: 'data/config/' + filename,
     initial: {},
   })),
+  {
+    kind: 'customEntities',
+    label: '自定义星图实体',
+    filename: 'custom_entities.json',
+    path: 'data/config/custom_entities.json',
+    schema: 'custom-entities',
+    description: '定义星图中的自定义实体、资源和插件类。',
+    initial: {},
+  },
+  {
+    kind: 'planets',
+    label: '星球规格',
+    filename: 'planets.json',
+    path: 'data/config/planets.json',
+    schema: 'planets',
+    description: '定义星球、恒星和星云中心的显示规格。',
+    initial: {},
+  },
+  {
+    kind: 'defaultShipRoles',
+    label: '默认舰船角色',
+    filename: 'default_ship_roles.json',
+    path: 'data/world/factions/default_ship_roles.json',
+    schema: 'default-ship-roles',
+    description: '定义默认舰船角色组中的装配权重。',
+    initial: {},
+  },
 ];
 
 export function miscConfigDefinition(kind: string) {

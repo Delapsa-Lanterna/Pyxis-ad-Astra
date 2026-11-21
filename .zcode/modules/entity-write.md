@@ -8,7 +8,6 @@
 
 ### 拥有
 
-- `schemas/spec-defaults.json`：实体规格及嵌套对象的初始内容模板。
 - `src-tauri/src/domain/entity_construction.rs`：规格构造与武器内容校验。
 - `src-tauri/src/services/project/write/entity_write.rs`：业务模块登记和正式能力接口。
 - `src-tauri/src/services/project/write/entity_write/`：实体内容、关联规格准备与复核、描述、父引用、单文件和势力索引写入。
@@ -17,6 +16,7 @@
 
 ### 消费
 
+- `schemas/spec-defaults.json`：实体规格及嵌套对象的初始内容模板。
 - `src-tauri/src/domain/csv_column_order.rs`：从唯一 CSV schema 提取标准列并维护补列顺序。
 - `src-tauri/src/domain/document_edit.rs`：精确基线、目标格式与局部结构修改。
 - `src-tauri/src/domain/entity_definitions.rs`：八种实体的目录、后缀、ID 字段及规格、表格关联登记。

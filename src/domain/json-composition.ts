@@ -134,6 +134,7 @@ export function editComposedJson(
   composition: JsonComposition | undefined,
   root: readonly string[] = [],
   normalize: (value: RowData) => RowData = (value) => value,
+  replaceInheritedPaths: readonly (readonly string[])[] = [],
 ): ComposedJsonEdit {
   if (!composition) return { value: after, notice: null, rejected: false };
   const own = compositionValue(local, root);
@@ -148,6 +149,28 @@ export function editComposedJson(
   for (const edit of captureJsonEdits(before, after)) {
     if (!edit.path.length) return { value: after, notice: null, rejected: false };
     let value = edit.kind === 'set' ? edit.value : undefined;
+    if (replaceInheritedPaths.some((path) => path.length < edit.path.length && path.every((part, index) => edit.path[index] === part))) {
+      if (composition.excluded.length) return { value: local, notice: REPLACE_UNSUPPORTED, rejected: true };
+      const target = replaceInheritedPaths.find(
+        (path) =>
+          path.length < edit.path.length &&
+          path.every((part, index) => edit.path[index] === part) &&
+          compositionValue(local, path) === undefined &&
+          compositionValue(composeJson(local, composition), path) !== undefined,
+      );
+      if (!target) continue;
+      const localTarget = isRowData(compositionValue(local, target)) ? deepClone(compositionValue(local, target) as RowData) : {};
+      const key = edit.path[target.length];
+      if (value === undefined) delete localTarget[key!];
+      else localTarget[key!] = value;
+      const replacedRoot = setCompositionValue(
+        compositionValue(after, root) as RowData,
+        edit.path.slice(root.length, target.length),
+        localTarget,
+      );
+      const replaced = { ...replacedRoot, [REPLACE_BASE_KEY]: isRowData(own) ? own : {} };
+      return { value: setCompositionValue(local, root, replaced), notice: REPLACE_NOTICE, rejected: false };
+    }
     if (Array.isArray(value)) {
       const inherited = compositionValue(composeJson(setCompositionValue(local, edit.path, undefined), composition), edit.path);
       if (Array.isArray(inherited) && inherited.length && !arrayReplaces(edit.path.at(-1)!, inherited, value)) {

@@ -1,0 +1,144 @@
+{
+  "$schema": "pyxis-ad-astra/field-schema/v1",
+  "id": "ship-roles",
+  "displayName": "舰船角色分配",
+  "root": {
+    "key": "file",
+    "type": "object",
+    "label": "舰船角色分配",
+    "allowExtraFields": true
+  },
+  "definitions": {
+    "roleGroups": {
+      "key": "shipRoles",
+      "type": "object",
+      "label": "舰船角色分配",
+      "description": "按角色分类的舰船装配权重配置。",
+      "default": {},
+      "valueSchema": {
+        "key": "role",
+        "type": "object",
+        "label": "角色",
+        "default": {
+          "includeDefault": true
+        },
+        "nested": [
+          {
+            "key": "includeDefault",
+            "type": "boolean",
+            "label": "包含默认装配",
+            "default": true
+          },
+          {
+            "key": "fallback",
+            "type": "object",
+            "label": "备用角色",
+            "valueSchema": {
+              "key": "weight",
+              "type": "float",
+              "label": "权重",
+              "default": 1
+            },
+            "minEntries": 1,
+            "maxEntries": 1,
+            "allowExtraFields": true
+          },
+          {
+            "key": "fallback2",
+            "type": "object",
+            "label": "第二备用角色",
+            "valueSchema": {
+              "key": "weight",
+              "type": "float",
+              "label": "权重",
+              "default": 1
+            },
+            "minEntries": 1,
+            "maxEntries": 1,
+            "allowExtraFields": true
+          }
+        ],
+        "valueSchema": {
+          "key": "weight",
+          "type": "float",
+          "label": "权重",
+          "default": 1
+        },
+        "allowExtraFields": true
+      },
+      "allowExtraFields": true,
+      "minEntries": 1
+    },
+    "role": {
+      "key": "role",
+      "type": "object",
+      "label": "角色",
+      "keySchema": {
+        "key": "variantId",
+        "type": "string",
+        "label": "装配 ID",
+        "source": "csv:variants.variantId"
+      },
+      "default": {
+        "includeDefault": true
+      },
+      "nested": [
+        {
+          "key": "includeDefault",
+          "type": "boolean",
+          "label": "包含默认装配",
+          "default": true
+        },
+        {
+          "key": "fallback",
+          "type": "object",
+          "label": "备用角色",
+          "replaceInheritedObject": true,
+          "keySchema": {
+            "key": "roleId",
+            "type": "string",
+            "label": "角色 ID",
+            "source": "config:shipRoleGroups"
+          },
+          "valueSchema": {
+            "key": "weight",
+            "type": "float",
+            "label": "权重",
+            "default": 1
+          },
+          "minEntries": 1,
+          "maxEntries": 1,
+          "allowExtraFields": true
+        },
+        {
+          "key": "fallback2",
+          "type": "object",
+          "label": "第二备用角色",
+          "replaceInheritedObject": true,
+          "keySchema": {
+            "key": "roleId",
+            "type": "string",
+            "label": "角色 ID",
+            "source": "config:shipRoleGroups"
+          },
+          "valueSchema": {
+            "key": "weight",
+            "type": "float",
+            "label": "权重",
+            "default": 1
+          },
+          "minEntries": 1,
+          "maxEntries": 1,
+          "allowExtraFields": true
+        }
+      ],
+      "valueSchema": {
+        "key": "weight",
+        "type": "float",
+        "label": "权重",
+        "default": 1
+      },
+      "allowExtraFields": true
+    }
+  }
+}

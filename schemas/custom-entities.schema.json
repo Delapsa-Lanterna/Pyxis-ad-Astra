@@ -1,0 +1,33 @@
+{
+  "$schema": "pyxis-ad-astra/field-schema/v1",
+  "id": "custom-entities",
+  "displayName": "自定义星图实体",
+  "sources": [
+    {
+      "id": "file",
+      "type": "json-file",
+      "path": "data/config/custom_entities.json"
+    }
+  ],
+  "root": {
+    "key": "file",
+    "type": "object",
+    "label": "实体",
+    "presentation": "groups",
+    "allowExtraFields": true,
+    "valueSchema": {
+      "key": "entity",
+      "type": "object",
+      "label": "实体属性",
+      "partial": true,
+      "default": {},
+      "allowExtraFields": true,
+      "valueSchema": {
+        "key": "value",
+        "type": "json",
+        "label": "字段值",
+        "default": null
+      }
+    }
+  }
+}

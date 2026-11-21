@@ -5,6 +5,7 @@ export const CONFIG_FIELD_SOURCES = {
   'config:designTypes': 'data/config/settings.json',
   'config:hullStyles': 'data/config/hull_styles.json',
   'config:engineStyles': 'data/config/engine_styles.json',
+  'config:shipRoleGroups': 'data/world/factions/default_ship_roles.json',
 } as const;
 
 export const ENTITY_FIELD_SOURCES = ['csv:projectiles.id', 'csv:variants.variantId', 'csv:factions.id'] as const;

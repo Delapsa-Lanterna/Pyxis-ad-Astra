@@ -9,14 +9,20 @@
 ### 拥有
 
 - `schemas/csv/`：CSV 列 schema 资产。
+- `schemas/custom-entities.schema.json`：自定义星图实体字段和动态属性的字段模式资产。
+- `schemas/default-ship-roles.schema.json`：默认舰船角色组及装配权重的字段模式资产。
 - `schemas/engine-styles.schema.json`：引擎样式的固定属性与新建初值。
 - `schemas/faction.schema.json`：势力字段模式资产。
 - `schemas/game-settings.schema.json`：设计类型颜色与按分组编辑的游戏设置。
 - `schemas/hull-styles.schema.json`：船体样式的固定属性与新建初值。
 - `schemas/mission.schema.json`：任务字段模式资产。
 - `schemas/mod-info.schema.json`：Mod 信息字段模式资产。
+- `schemas/planets.schema.json`：星球规格字段和动态属性的字段模式资产。
+- `schemas/ship-roles.schema.json`：舰船角色分配、备用角色及动态装配权重的共享字段模式。
+- `schemas/skin-hull-fields.json`：舰船标量属性与皮肤覆盖字段的映射资产。
 - `schemas/skin.schema.json`：皮肤字段模式资产。
 - `schemas/sounds.schema.json`：音效数组、声音组对象及音乐目录字段。
+- `schemas/spec-defaults.json`：规格及嵌套对象的初始内容模板。
 - `schemas/spec-projectile.schema.json`：弹体、导弹及内部对象的字段与分支声明。
 - `schemas/spec-ship.schema.json`：舰船、槽位及引擎的字段与内部对象声明。
 - `schemas/spec-system.schema.json`：战术系统字段、默认值及条件分组声明。

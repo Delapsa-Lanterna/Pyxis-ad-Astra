@@ -297,6 +297,7 @@ export async function dispatch(command: string, args: Record<string, unknown>, m
           'config:designTypes': ['Low Tech'],
           'config:hullStyles': ['LOW_TECH'],
           'config:engineStyles': ['LOW_TECH'],
+          'config:shipRoleGroups': ['combatSmall'],
         }[source];
         return (
           [

@@ -8,7 +8,6 @@
 
 ### 拥有
 
-- `schemas/skin-hull-fields.json`：基础舰船属性与皮肤覆盖字段的统一映射声明。
 - `src-tauri/src/commands/joint_edit.rs`：联合读取、准备、提交 command。
 - `src-tauri/src/domain/joint_edit.rs`：三方业务值比较与冲突投影。
 - `src-tauri/src/domain/joint_hull.rs`：有效船体字段来源、Skin 继承与有效武器槽的纯投影。
@@ -24,6 +23,7 @@
 
 ### 消费
 
+- `schemas/skin-hull-fields.json`：基础舰船属性与皮肤覆盖字段的统一映射声明。
 - `src-tauri/src/domain/csv_column_order.rs`：从唯一 CSV schema 提取标准列并维护补列顺序。
 - `src-tauri/src/domain/document_edit.rs`：逐文件精确基线与明确结构修改。
 - `src-tauri/src/domain/entity_construction.rs`：缺失规格的正式构造。

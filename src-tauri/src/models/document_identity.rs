@@ -9,6 +9,9 @@ pub enum MiscConfigKind {
     HullStyles,
     Sounds,
     Settings,
+    CustomEntities,
+    Planets,
+    DefaultShipRoles,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -59,6 +62,9 @@ mod tests {
             "hullStyles",
             "sounds",
             "settings",
+            "customEntities",
+            "planets",
+            "defaultShipRoles",
         ] {
             values.push(json!({"kind":"miscConfig","file":file}));
         }
