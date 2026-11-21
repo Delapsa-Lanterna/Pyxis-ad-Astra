@@ -97,7 +97,7 @@ pub struct DraftResourcesPayload {
     pub session_id: ProjectSessionId,
     pub id: String,
     pub draft: Value,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub weapon_animation_frames: bool,
 }
 
