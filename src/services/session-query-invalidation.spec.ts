@@ -276,7 +276,9 @@ describe('business-owned query invalidation', () => {
   });
   it.each(
     Object.entries(CONFIG_FIELD_SOURCES).flatMap(([source, path]) =>
-      (['mod', 'core'] as const).flatMap((origin) => [path, 'data/config'].map((relPath) => ({ source, origin, relPath }))),
+      (['mod', 'core'] as const).flatMap((origin) =>
+        [path, path.slice(0, path.lastIndexOf('/'))].map((relPath) => ({ source, origin, relPath })),
+      ),
     ),
   )('reloads $source for $origin resource scope $relPath', async ({ source, origin, relPath }) => {
     invoke.mockResolvedValue([]);

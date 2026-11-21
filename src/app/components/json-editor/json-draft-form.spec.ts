@@ -1499,7 +1499,9 @@ describe('composed JSON detail adoption', () => {
             ? { inherited_group: structuredClone(getSchema('engine-styles')!.root!.valueSchema!.default as RowData) }
             : definition.kind === 'sounds'
               ? { inherited_group: [{ file: '' }], engine_loop: { sounds: [{ file: '' }] } }
-              : { inherited_group: { line: source } },
+              : definition.kind === 'defaultShipRoles'
+                ? { inherited_group: { fixture_variant: source === 'core' ? 1 : 2 } }
+                : { inherited_group: { line: source } },
         replace: false,
       })),
     };
