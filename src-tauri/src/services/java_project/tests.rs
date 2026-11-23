@@ -274,6 +274,7 @@ fn cached_description_reuses_source_counts_and_invalidates_resource_versions() {
     let mut change = JavaProjectChange::default();
     let root = PathBuf::from(windows_path_key(&first.mod_root));
     let affected = |path: &Path, change: &mut JavaProjectChange| {
+        let path = io::canonical_path(path, "Java project change").unwrap();
         let path = path.to_string_lossy().into_owned();
         let key = PathBuf::from(windows_path_key(&path));
         changed_inputs(

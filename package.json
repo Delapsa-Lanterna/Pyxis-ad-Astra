@@ -44,7 +44,7 @@
     "build:desktop": "node scripts/desktop/build.mjs",
     "version": "node scripts/sync-version.mjs",
     "tauri": "tauri",
-    "ci:full": "npm run format:check && npm run lint:full && npm run lint:checks && npm run typecheck && npm run test:checks && npm run test:resources && npm run test && npm run test:demo-locations -- --production && npm run lint:rust && npm run test:rust && npm run build && npm run tauri -- build --no-bundle && git diff --check"
+    "ci:full": "npm run format:check && npm run lint:full && npm run lint:checks && npm run typecheck && npm run test:checks && npm run test:resources && npm run test && npm run test:demo-locations -- --production && npm run lint:rust && npm run test:rust -- --path-form Long && npm run test:rust -- --path-form Short && npm run test:rust -- --path-form Beyond260 && npm run build && npm run tauri -- build --no-bundle && git diff --check"
   },
   "dependencies": {
     "@codemirror/autocomplete": "6.20.4",
