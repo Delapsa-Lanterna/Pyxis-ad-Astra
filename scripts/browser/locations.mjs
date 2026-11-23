@@ -1,15 +1,22 @@
 import assert from 'node:assert/strict';
 import { parseArgs } from 'node:util';
 import { runBrowser } from './runtime.mjs';
+import { demoBase } from './build.mjs';
+import { serve } from './serve.mjs';
 
 const { values } = parseArgs({
   options: {
     url: { type: 'string', default: 'http://127.0.0.1:1461/' },
     output: { type: 'string' },
+    production: { type: 'boolean' },
     section: { type: 'string', default: 'all' },
   },
 });
-const base = new URL(values.url.endsWith('/') ? values.url : values.url + '/');
+const server = values.production
+  ? await serve({ production: true, directory: 'node_modules/.cache/browser/demo-builds', base: demoBase, demo: true })
+  : null;
+const url = server ? server.url + demoBase : values.url;
+const base = new URL(url.endsWith('/') ? url : url + '/');
 await runBrowser('preview', values, async ({ newPage, artifacts }) => {
   const { page } = await newPage(base.href);
   const checks = /** @type {import('../shared/test-report.mjs').TestCheck[]} */ ([]);
@@ -53,6 +60,10 @@ await runBrowser('preview', values, async ({ newPage, artifacts }) => {
           .getByRole('heading', { name: view === 'settings' ? '设置' : '关于', exact: true })
           .waitFor();
     });
+  const tablePages = await page.evaluate(() => {
+    const entries = /** @type {{id: string}[]} */ (Reflect.get(globalThis, 'browserWorkspaceEntries'));
+    return entries.filter(({ id }) => id.startsWith('navigation-table:')).map(({ id }) => id.slice('navigation-table:'.length));
+  });
   const inventory = await page.evaluate(() => {
     const workspace = Reflect.get(globalThis, 'browserWorkspace');
     return workspace.projects.map(
@@ -73,11 +84,15 @@ await runBrowser('preview', values, async ({ newPage, artifacts }) => {
   const main = page.frameLocator('iframe[data-window="main"]');
   if (values.section === 'all')
     for (const project of inventory) {
+      await check(project.id + ' misc file corvusSpawnpoints', async () => {
+        await open({ view: 'json', mod: project.id, page: 'misc-config', id: 'corvusSpawnpoints' });
+        await main.locator('[data-entity-id="corvusSpawnpoints"].active').waitFor();
+      });
       for (const target of [
         { view: 'mod-overview' },
         { view: 'file-history' },
         { view: 'files' },
-        ...project.tables.map((/** @type {{table:string}} */ table) => ({ view: 'table', table: table.table })),
+        ...tablePages.map((table) => ({ view: 'table', table })),
         ...['mod-info', 'factions', 'mission', 'variants', 'skins', 'misc-config']
           .filter((entry) => entry !== 'mod-info' || project.id !== 'starsector-core')
           .map((entry) => ({ view: 'json', page: entry })),
@@ -266,4 +281,4 @@ await runBrowser('preview', values, async ({ newPage, artifacts }) => {
     assert.match(await page.locator('#browser-location-error').innerText(), /项目不存在/);
   });
   return { checks, runs: [], errors };
-});
+}).finally(() => server?.close());

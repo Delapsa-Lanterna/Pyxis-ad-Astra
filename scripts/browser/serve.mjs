@@ -5,9 +5,9 @@ import { resolve, extname, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { browserTestPlugin, root } from './vite-plugin.mjs';
 import { TestWorkspace } from '../shared/test-workspace.mjs';
-import { buildBrowser } from './build.mjs';
+import { buildBrowser, buildDemo } from './build.mjs';
 
-/** @param {{ mode?: 'preview' | 'testbed', production?: boolean, directory?: string, port?: number, rebuild?: boolean, monitorCode?: boolean, base?: string }} options */
+/** @param {{ mode?: 'preview' | 'testbed', production?: boolean, directory?: string, port?: number, rebuild?: boolean, monitorCode?: boolean, base?: string, demo?: boolean }} options */
 export async function serve({
   mode = 'testbed',
   production = false,
@@ -16,6 +16,7 @@ export async function serve({
   rebuild = true,
   monitorCode = true,
   base = '/',
+  demo = false,
 } = {}) {
   if (!production) {
     const server = await createServer({
@@ -34,7 +35,10 @@ export async function serve({
   const workspace = rebuild ? await TestWorkspace.create(resolve(root, directory), 'build') : null;
   const output = workspace?.root ?? resolve(root, directory);
   try {
-    if (rebuild) await buildBrowser({ mode, directory: output, monitorCode, base });
+    if (rebuild) {
+      if (demo) await buildDemo(output, base);
+      else await buildBrowser({ mode, directory: output, monitorCode, base });
+    }
     /** @param {import('node:http').IncomingMessage} request @param {import('node:http').ServerResponse} response */
     async function respond(request, response) {
       try {

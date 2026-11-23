@@ -4,6 +4,8 @@ import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { browserTestPlugin, root } from './vite-plugin.mjs';
 
+export const demoBase = '/Pyxis-ad-Astra/';
+
 /** @param {{mode?: 'preview' | 'testbed', directory: string, base?: string, demo?: boolean, monitorCode?: boolean}} options */
 export function buildBrowser({ mode = 'preview', directory, base = '/', demo = false, monitorCode = true }) {
   return build({
@@ -31,13 +33,18 @@ export function buildBrowser({ mode = 'preview', directory, base = '/', demo = f
     },
   });
 }
-if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
-  const { values } = parseArgs({ options: { base: { type: 'string', default: '/Pyxis-ad-Astra/' } } });
-  await buildBrowser({ directory: resolve(root, 'dist/browser-demo'), base: values.base, demo: true, monitorCode: false });
+/** @param {string} directory @param {string} base */
+export async function buildDemo(directory, base) {
+  await buildBrowser({ directory, base, demo: true, monitorCode: false });
   await buildBrowser({
     mode: 'testbed',
-    directory: resolve(root, 'dist/browser-demo/testbed'),
-    base: values.base + 'testbed/',
+    directory: resolve(directory, 'testbed'),
+    base: base + 'testbed/',
     demo: true,
   });
+}
+
+if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
+  const { values } = parseArgs({ options: { base: { type: 'string', default: demoBase } } });
+  await buildDemo(resolve(root, 'dist/browser-demo'), values.base);
 }

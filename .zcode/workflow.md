@@ -80,7 +80,7 @@ git diff --check
 
 - 开发运行使用 `npm.cmd run tauri -- dev`。
 - 无安装包构建使用 `npm.cmd run tauri -- build --no-bundle`，产物位于 `src-tauri\target\release\pyxis-ad-astra.exe`。
-- 发布前运行完整 CI `format:check`、`lint:full`、`lint:checks`、`typecheck`、`test:checks`、`test:resources`、`test`、`lint:rust`、`test:rust`、`build`、`tauri -- build --no-bundle` 和 `git diff --check`，日常开发不要求完整运行所有重量级命令。
+- 发布前运行完整 CI `format:check`、`lint:full`、`lint:checks`、`typecheck`、`test:checks`、`test:resources`、`test`、`test:demo-locations -- --production`、`lint:rust`、`test:rust`、`build`、`tauri -- build --no-bundle` 和 `git diff --check`，日常开发不要求完整运行所有重量级命令。
 - 验证失败时必须报告完整命令、退出码、失败位置和阻塞条件。
 
 ## 事后要求

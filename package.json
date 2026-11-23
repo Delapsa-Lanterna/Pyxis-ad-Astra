@@ -36,6 +36,7 @@
     "test:checks": "node --test \"scripts/**/*.check.mjs\"",
     "test:resources": "node --test scripts/browser/run-resources.test.mjs scripts/desktop/run-resources.test.mjs",
     "test:browser-preview": "node scripts/browser/preview.mjs",
+    "test:demo-locations": "node scripts/browser/locations.mjs",
     "test:browser-testbed": "node scripts/browser/testbed.mjs",
     "test:desktop": "node scripts/desktop/run.mjs",
     "build": "npm run version && npm run typecheck:app && vite build",
@@ -43,7 +44,7 @@
     "build:desktop": "node scripts/desktop/build.mjs",
     "version": "node scripts/sync-version.mjs",
     "tauri": "tauri",
-    "ci:full": "npm run format:check && npm run lint:full && npm run lint:checks && npm run typecheck && npm run test:checks && npm run test:resources && npm run test && npm run lint:rust && npm run test:rust && npm run build && npm run tauri -- build --no-bundle && git diff --check"
+    "ci:full": "npm run format:check && npm run lint:full && npm run lint:checks && npm run typecheck && npm run test:checks && npm run test:resources && npm run test && npm run test:demo-locations -- --production && npm run lint:rust && npm run test:rust && npm run build && npm run tauri -- build --no-bundle && git diff --check"
   },
   "dependencies": {
     "@codemirror/autocomplete": "6.20.4",
