@@ -1,4 +1,5 @@
-import { computed, onScopeDispose, shallowRef, watch, type Ref } from 'vue';
+import type { EditorView } from '@codemirror/view';
+import { nextTick, shallowReactive, computed, onScopeDispose, shallowRef, watch, type Ref } from 'vue';
 import { ChangeSet } from '@codemirror/state';
 import { javaEditorExtensions } from './java-editor-extensions';
 import { startJavaEditor, closeJavaEditor, syncJavaEditor, inspectJavaEditor, configureJavaEditor } from '@/services/java-analysis.service';
@@ -17,12 +18,18 @@ import type { JavaInspection, JavaLocation, JavaQueryPurpose, JavaAssistPurpose 
 import type { JavaEditorFile, JavaEditorFiles } from './java-editor-files';
 import { debugLog, recordQueuedLog } from '@/shared/runtime/app-log-queue';
 
-export function useJavaEditor(host: JavaEditorFiles, modRoot: string, roots?: Readonly<Ref<string[]>>) {
+export function useJavaEditor(
+  host: JavaEditorFiles,
+  modRoot: string,
+  roots?: Readonly<Ref<string[]>>,
+  view?: () => EditorView | undefined,
+) {
   const status = shallowRef('打开 Java 文件后启动分析'),
     problem = shallowRef(''),
     results = shallowRef(new Map<JavaEditorFile, JavaInspection>());
   const locations = shallowRef<JavaLocation[]>([]),
     detail = shallowRef('');
+  const archives = shallowReactive(new WeakMap<JavaEditorFile, { label: string; origin: string }>());
   const versions = new Map<string, number>();
   const tracked = new Map<JavaEditorFile, { source: TextContent; changes: ChangeSet; path: string; full: boolean; stop: () => void }>();
   let queue = Promise.resolve(),
@@ -53,7 +60,8 @@ export function useJavaEditor(host: JavaEditorFiles, modRoot: string, roots?: Re
     }
   }
   const java = (document: JavaEditorFile) =>
-    document.path.value.endsWith('.java') && (!roots || roots.value.some((root) => pathBelongsToRoot(document.path.value, root)));
+    document.path.value.endsWith('.java') &&
+    (document.path.value.startsWith('jar:') || !roots || roots.value.some((root) => pathBelongsToRoot(document.path.value, root)));
   function schedule() {
     clearTimeout(timer);
     if (available && !disposed)
@@ -245,7 +253,7 @@ export function useJavaEditor(host: JavaEditorFiles, modRoot: string, roots?: Re
       return null;
     });
   }
-  async function locate(location: JavaLocation) {
+  async function openLocation(location: JavaLocation) {
     if (disposed) return;
     let document = host.documents.find((file) => normalizeFsPath(file.path.value) === normalizeFsPath(location.file));
     if (!document) {
@@ -260,6 +268,8 @@ export function useJavaEditor(host: JavaEditorFiles, modRoot: string, roots?: Re
         if (disposed) return;
         document = (await host.openSnapshot(location.file, result.source!)) ?? undefined;
         if (!document) return;
+        if (result.archiveKind && result.origin)
+          archives.set(document, { label: result.archiveKind === 'decompiled' ? '反编译，只读' : '附带源码，只读', origin: result.origin });
         const projection = await serialize(() => inspectJavaEditor(location.file, 0, 'document'));
         if (!disposed && host.documents.includes(document)) results.value = new Map(results.value).set(document, projection);
       }
@@ -269,14 +279,58 @@ export function useJavaEditor(host: JavaEditorFiles, modRoot: string, roots?: Re
       const offset = displayOffset(document.document.content.value, location.range.start),
         line = document.document.state.value.doc.lineAt(offset);
       document.document.locate(line.number, offset - line.from + 1);
+      return document;
     }
+    return undefined;
+  }
+  function capture(position?: number) {
+    const document = host.active.value;
+    if (!document) return null;
+    const offset = sourceOffset(document.document.content.value, position ?? document.document.state.value.selection.main.head);
+    return {
+      location: { file: document.path.value, version: 1, range: { start: offset, end: offset } },
+      scroll: view?.()?.scrollSnapshot(),
+    };
+  }
+  type Place = NonNullable<ReturnType<typeof capture>>;
+  const back = shallowRef<Place[]>([]),
+    forward = shallowRef<Place[]>([]);
+  let navigation = Promise.resolve();
+  function queueNavigation(action: () => Promise<void>) {
+    const pending = navigation.then(action);
+    navigation = pending.then(
+      () => undefined,
+      () => undefined,
+    );
+    return pending;
+  }
+  function locate(location: JavaLocation, position?: number) {
+    const from = capture(position);
+    return queueNavigation(async () => {
+      if (await openLocation(location)) {
+        if (from) back.value = [...back.value, from];
+        forward.value = [];
+      }
+    });
+  }
+  function travel(direction: 'back' | 'forward') {
+    return queueNavigation(async () => {
+      const [previous, next] = direction === 'back' ? [back, forward] : [forward, back];
+      const target = previous.value.at(-1);
+      const from = capture();
+      if (!target || !from || !(await openLocation(target.location))) return;
+      previous.value = previous.value.slice(0, -1);
+      next.value = [...next.value, from];
+      await nextTick();
+      if (target.scroll && host.active.value?.path.value === target.location.file) view?.()?.dispatch({ effects: target.scroll });
+    });
   }
   function navigate(purpose: 'declaration' | 'references', position?: number) {
     return inspect(purpose, position).then(async (result) => {
       if (!result) return;
       locations.value = result.locations;
       detail.value = signature(result);
-      if (purpose === 'declaration' && result.locations[0]) await locate(result.locations[0]);
+      if (purpose === 'declaration' && result.locations[0]) await locate(result.locations[0], position);
     });
   }
   function signature(result: JavaInspection) {
@@ -333,7 +387,7 @@ export function useJavaEditor(host: JavaEditorFiles, modRoot: string, roots?: Re
   }
   const diagnostics = computed(() => [...results.value.values()].flatMap((result) => result.diagnostics));
   const extensions = computed(() =>
-    javaEditorExtensions({ document: host.active.value, result: current.value, inspect, navigate, signature, fail }),
+    javaEditorExtensions({ document: host.active.value, result: current.value, inspect, navigate, travel, signature, fail }),
   );
   onScopeDispose(() => {
     disposed = true;
@@ -349,11 +403,15 @@ export function useJavaEditor(host: JavaEditorFiles, modRoot: string, roots?: Re
     problem,
     current,
     diagnostics,
+    archives,
     locations,
     detail,
     extensions,
     start,
     navigate,
+    back,
+    forward,
+    travel,
     locate,
     assist,
     supports: java,
@@ -371,6 +429,9 @@ export function useJavaEditor(host: JavaEditorFiles, modRoot: string, roots?: Re
       detail.value = '';
       return serialize(refresh);
     },
-    settle: () => queue,
+    settle: async () => {
+      await navigation;
+      await queue;
+    },
   };
 }

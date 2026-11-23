@@ -152,6 +152,10 @@ vi.mock('@/services/json-file.service', () => ({
   deleteVariantEntity: mocks.remove,
   deleteSkinEntity: mocks.remove,
   readJsonDocument: async (_session: string, path: string) => {
+    if (path.startsWith('data/config/exerelinFactionConfig/')) {
+      const document = factionConfigs.get(path);
+      return document ? { document, baseVersions: [{ path, fingerprint: 'config' }] } : null;
+    }
     const manifest = useProjectStore().getManifest('M:/one')!;
     return { document: jsonFileFixture(path === 'mod_info.json' ? manifest.modInfo! : {}), baseVersions: manifest.baseVersions };
   },
@@ -186,6 +190,7 @@ vi.mock('@/app/composables/use-visible-resource-media', () => ({
 }));
 let wrapper: VueWrapper | null;
 let entities: Map<string, EntityData>;
+const factionConfigs = new Map<string, ReturnType<typeof jsonFileFixture>>();
 const stringsFile = {
   kind: 'strings' as const,
   path: 'M:/one/data/strings/strings.json',
@@ -285,7 +290,13 @@ beforeEach(() => {
   );
   mocks.read.mockImplementation(async (session: string, kind: string, id: string) => entities.get(key(session, kind, id)) ?? null);
   mocks.saveFile.mockImplementation(async (...args: Parameters<typeof savedFile>) => savedFile(...args));
+  factionConfigs.clear();
   mocks.saveIndexed.mockImplementation(async (write: IndexedConfigSave) => {
+    const nexerelin =
+      write.kind === 'faction' && write.nexerelin?.document
+        ? jsonFileFixture(projectJsonValue(write.nexerelin.document.content))
+        : undefined;
+    if (nexerelin) factionConfigs.set('data/config/exerelinFactionConfig/' + write.nextId + '.json', nexerelin);
     const before = entities.get(key(write.sessionId, write.kind, write.previousId!))!,
       after = jsonEntityFixture(write.kind, write.nextId, 'Written', write.modRoot);
     const file = projectJsonValue(write.document.content) as RowData;
@@ -306,6 +317,7 @@ beforeEach(() => {
         },
         value: {
           entityId: write.nextId,
+          nexerelin,
           indexPath: write.modRoot + (write.kind === 'faction' ? '/data/world/factions/factions.csv' : '/data/missions/mission_list.csv'),
           indexHeader: [],
           entityData,
@@ -1555,6 +1567,35 @@ describe('composed JSON detail adoption', () => {
     expect(useJsonEditorStore().active).toBe(doc);
     assertLocal(updated);
     expect(mocks.feedback.error).not.toHaveBeenCalled();
+  });
+
+  it('adds a faction companion, replays the draft and accepts the separate saved document', async () => {
+    const other = 'data/config/exerelinFactionConfig/b.json';
+    factionConfigs.set(other, jsonFileFixture({ playableFaction: false }));
+    await mountPage('factions');
+    const editor = wrapper!.getComponent(JsonDocumentEditor).props('document');
+    await wrapper!
+      .findAll('button')
+      .find((button) => button.text() === '添加势力争霸配置')!
+      .trigger('click');
+    expect(editor.draftValue.value.nexerelin).toEqual({});
+    await editor.undo();
+    expect(editor.draftValue.value.nexerelin).toBeUndefined();
+    await editor.redo();
+    const value = { marketSpawnWeight: 0.25, startRelationships: { b: -0.3 }, extra: ['kept'] };
+    const form = wrapper!.findAllComponents(SchemaFormRenderer).at(-1)!;
+    expect(form.props('schema').root!.key).toBe('nexerelin');
+    form.vm.$emit('update:modelValue', { ...editor.draftValue.value, nexerelin: value });
+    await flushPromises();
+    expect((await editor.save()).status).toBe('saved');
+    expect(editor.dirty.value).toBe(false);
+    const payload = mocks.saveIndexed.mock.lastCall![0];
+    expect(projectJsonValue(payload.document.content)).not.toHaveProperty('nexerelin');
+    if (payload.kind !== 'faction') throw new Error('Expected faction save');
+    expect(payload.nexerelin!.original).toBeNull();
+    expect(projectJsonValue(payload.nexerelin!.document!.content)).toEqual(value);
+    expect(editor.draftValue.value.nexerelin).toEqual(value);
+    expect(projectJsonValue(factionConfigs.get(other)!.content)).toEqual({ playableFaction: false });
   });
 
   it('loads one faction detail with sparse local content and saves it through the form', async () => {

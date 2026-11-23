@@ -63,7 +63,7 @@ function bind() {
     keymap.of(defaultKeymap),
     EditorState.readOnly.of(Boolean(props.disabled)),
     EditorView.editable.of(!props.disabled),
-    EditorView.contentAttributes.of({ 'aria-label': '文件内容', spellcheck: 'false' }),
+    EditorView.contentAttributes.of({ 'aria-label': '文件内容', spellcheck: 'false', tabindex: '0' }),
     EditorView.decorations.compute(['doc'], (state) => {
       const from = marker(state);
       return from === null ? Decoration.none : Decoration.set([Decoration.line({ class: 'text-editor-error-line' }).range(from)]);
@@ -122,6 +122,7 @@ onBeforeUnmount(() => {
   view?.destroy();
 });
 defineExpose({
+  editorView: () => view ?? undefined,
   search: () => view && openSearchPanel(view),
   focus: () => view?.focus(),
   locate: (line: number, column = 1) => {

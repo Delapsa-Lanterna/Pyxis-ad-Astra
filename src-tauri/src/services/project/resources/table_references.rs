@@ -83,6 +83,7 @@ pub(in crate::services::project) fn csv_icon_resource_ref(
         | CsvTableKey::Weapons
         | CsvTableKey::Wings
         | CsvTableKey::SimOpponents
+        | CsvTableKey::CorvusSpawnpoints
         | CsvTableKey::Descriptions => return None,
     };
     let id = string_from_row(row, csv_table_spec(table).entity_id_field)?;

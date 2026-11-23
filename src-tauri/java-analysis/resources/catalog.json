@@ -1,9 +1,9 @@
 {
-  "version": "jdt-3.47.0-91d5d1aa09042b56",
+  "version": "jdt-3.47.0-d4c70ffdbdb26fc8",
   "protocol": 4,
   "java": 17,
-  "bytes": 15334234,
-  "sha256": "d8f21d3d211594e6f4e2ca8c2522cd38d35a963e0cde612815a421bc51def873",
+  "bytes": 16894226,
+  "sha256": "1a77d605407748d3929fb2f9225c05df8740c380f105636b21041a1f5971ac7c",
   "artifacts": [
     {
       "path": "lib/animal-sniffer-annotations-1.9.jar",
@@ -166,6 +166,12 @@
       "url": "https://repo.maven.apache.org/maven2/org/osgi/osgi.annotation/8.1.0/osgi.annotation-8.1.0.jar",
       "bytes": 35779,
       "sha256": "68afeb86a5322675d4dfe3df5863c7d8a37b34c18e3a8e41553f1ab3ac15d78f"
+    },
+    {
+      "path": "lib/vineflower-1.12.0.jar",
+      "url": "https://repo.maven.apache.org/maven2/org/vineflower/vineflower/1.12.0/vineflower-1.12.0.jar",
+      "bytes": 1633863,
+      "sha256": "1dfcfe974395734fa467ce620661c7623d05ba83670de0529b1fbd63ff548b9d"
     }
   ],
   "bundles": [

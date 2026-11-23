@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { mkdir, writeFile, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { summarize } from '../shared/sample-statistics.mjs';
-import { sha256 } from './runtime.mjs';
+import { javaTool, run, sha256 } from './runtime.mjs';
 
 /** @param {import('./session.mjs').Session} session @param {string} directory @param {string} javaHome */
 export async function editorQueries(session, directory, javaHome) {
@@ -129,6 +129,68 @@ export async function editorQueries(session, directory, javaHome) {
       parseBatchesAfter: after.parseBatches,
       rawSamples: { updates: samples, hover: repeated, documents: documentSamples, reparsed },
     };
+  } finally {
+    await session.request('close', { project });
+  }
+}
+
+/** @param {import('./session.mjs').Session} session @param {string} directory @param {string} javaHome */
+export async function binaryNavigation(session, directory, javaHome) {
+  const project = 'archive-navigation';
+  const source = join(directory, 'src'),
+    library = join(directory, 'library'),
+    classes = join(directory, 'classes');
+  for (const folder of [source, library, classes]) await mkdir(folder, { recursive: true });
+  const entry = join(source, 'Entry.java');
+  const caller = 'class Entry { int run(){return sample.Library.value(42);} }';
+  const implementation =
+    'package sample; public class Library { public static int value(String text){return 0;} public static int value(int number){return Helper.resolve(number);} }';
+  await writeFile(entry, caller);
+  await writeFile(join(library, 'Library.java'), implementation);
+  await writeFile(join(library, 'Helper.java'), 'package sample; public class Helper {public static int resolve(int n){return n+1;}}');
+  await run('archive-navigation-compile', javaTool('javac'), [
+    '--release',
+    '17',
+    '-d',
+    classes,
+    join(library, 'Library.java'),
+    join(library, 'Helper.java'),
+  ]);
+  const archive = join(directory, 'library.jar');
+  await run('archive-navigation-package', javaTool('jar'), ['cf', archive, '-C', classes, '.']);
+  await session.request('open', { project, sources: [source], classpath: [archive], javaHome });
+  /** @param {string} file @param {string} purpose @param {number} [offset] */
+  const inspect = async (file, purpose, offset = 0) =>
+    (await session.request('inspect', { project, revision: 1, file, purpose, offset })).value;
+  try {
+    const first = await inspect(entry, 'declaration', caller.indexOf('value'));
+    assert.equal(first.locations.length, 1, JSON.stringify(first));
+    const target = first.locations[0],
+      text = (await inspect(target.file, 'source')).source;
+    assert.match(text.slice(target.range.start), /^value\(int /);
+    const second = await inspect(target.file, 'declaration', text.indexOf('resolve'));
+    assert.equal(second.locations.length, 1, JSON.stringify(second));
+    const helper = second.locations[0],
+      nested = await inspect(helper.file, 'source');
+    assert.match(nested.source.slice(helper.range.start), /^resolve\(int /);
+    assert.deepEqual((await inspect(entry, 'declaration', caller.indexOf('value'))).locations, [target]);
+    await mkdir(join(library, 'sample'));
+    await writeFile(join(library, 'sample/Library.java'), implementation);
+    await run('archive-navigation-attachment', javaTool('jar'), [
+      'cf',
+      join(directory, 'library-sources.jar'),
+      '-C',
+      library,
+      'sample/Library.java',
+    ]);
+    const attachment = (await inspect(entry, 'declaration', caller.indexOf('value'))).locations[0];
+    const attached = await inspect(attachment.file, 'source');
+    assert.equal(attached.source, implementation);
+    assert.equal(attached.source.slice(attachment.range.start, attachment.range.end), 'value');
+    assert.equal(attached.archiveKind, 'attached');
+    assert.equal(nested.archiveKind, 'decompiled');
+    assert.match(attached.origin, /library-sources\.jar$/);
+    return { decompiled: [target.file, helper.file], attached: attached.origin };
   } finally {
     await session.request('close', { project });
   }

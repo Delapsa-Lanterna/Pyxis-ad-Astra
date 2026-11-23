@@ -1,5 +1,6 @@
 <template><span hidden /></template>
 <script setup lang="ts">
+import { csvIdentityColumn } from '@/shared/lib/starsector';
 import { onMounted, onScopeDispose, watch, nextTick } from 'vue';
 import { EditorView } from '@codemirror/view';
 import { normalizeFsPath } from '@/shared/lib/paths';
@@ -99,7 +100,7 @@ function read(): BrowserLocation | null {
     row = rowKey ? state.documents[state.currentTab].rows[rowKey] : null;
   const source = props.runtime.projects.find((entry) => entry.manifest.sessionId === manifest.sessionId)!;
   const index = source.tables.get(state.currentTab)!.rows.findIndex((entry) => entry.rowKey === rowKey);
-  const id = row?.data[state.currentTab === 'simOpponents' ? 'variant id' : 'id'];
+  const id = row?.data[csvIdentityColumn(state.currentTab)];
   const column = document.querySelector<HTMLElement>('.csv-cell-selected')?.dataset.columnKey ?? lastColumn;
   return {
     view: 'table',
@@ -283,12 +284,9 @@ async function open(location: BrowserLocation) {
       'CSV 页面',
     );
     if (location.id || location.row) {
-      const index = location.row
-        ? location.row - 1
-        : rows.findIndex((row) => row.data[table === 'simOpponents' ? 'variant id' : 'id'] === location.id);
+      const index = location.row ? location.row - 1 : rows.findIndex((row) => row.data[csvIdentityColumn(table)] === location.id);
       const row = rows[index];
-      if (!row || (location.id && row.data[table === 'simOpponents' ? 'variant id' : 'id'] !== location.id))
-        throw Error('链接中的 CSV 行不存在');
+      if (!row || (location.id && row.data[csvIdentityColumn(table)] !== location.id)) throw Error('链接中的 CSV 行不存在');
       if (location.column && !project.tables.get(table)!.header.includes(location.column))
         throw Error('链接中的 CSV 列不存在：' + location.column);
       const state = csv.getCsvModState(modRoot)!,

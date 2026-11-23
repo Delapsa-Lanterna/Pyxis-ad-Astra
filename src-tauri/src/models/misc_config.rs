@@ -7,6 +7,8 @@ use crate::models::file_content::{JsonFileContent, JsonWrite};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+pub const CORVUS_SPAWNPOINTS: &str = "data/config/exerelin/corvus_spawnpoints.csv";
+
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MiscConfigScope {
@@ -27,10 +29,18 @@ pub enum MiscConfigState {
     Missing,
     Error,
 }
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum MiscConfigFileKind {
+    CorvusSpawnpoints,
+    #[serde(untagged)]
+    Json(MiscConfigKind),
+}
+
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MiscConfigEntry {
-    pub kind: MiscConfigKind,
+    pub kind: MiscConfigFileKind,
     pub path: String,
     pub rel_path: String,
     pub state: MiscConfigState,
@@ -60,7 +70,7 @@ pub struct MiscConfigWrite {
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MiscConfigDelete {
-    pub kind: MiscConfigKind,
+    pub kind: MiscConfigFileKind,
     pub session_id: ProjectSessionId,
     pub mod_root: String,
     pub base_versions: Vec<FileVersion>,

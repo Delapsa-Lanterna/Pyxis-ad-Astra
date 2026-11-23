@@ -1,5 +1,6 @@
 import { defineComponent } from 'vue';
 import type * as JsonSaveOrchestratorModule from '@/orchestrators/json-save.orchestrator';
+import type * as JsonFileServiceModule from '@/services/json-file.service';
 import type * as JsonRecoveryServiceModule from '@/services/json-recovery.service';
 import type * as JsonEntityServiceModule from '@/services/json-entity.service';
 import { projectChangeFixture, savedContentWorks } from '@/test/unit/project-changes';
@@ -67,6 +68,10 @@ vi.mock('@/services/entity-query.service', async (original) => ({
   querySessionEntity: mocks.read,
 }));
 vi.mock('@/app/composables/use-core-schema', () => ({ useCoreSchema: () => ({ getMergedSchema: getSchema }) }));
+vi.mock('@/services/json-file.service', async (original) => ({
+  ...(await original<typeof JsonFileServiceModule>()),
+  readJsonDocument: async () => null,
+}));
 vi.mock('@/services/json-recovery.service', () => ({ prepareJsonSourceRecovery: mocks.prepare, recreateJsonSources: mocks.recreate }));
 vi.mock('@/services/json-entity.service', async (original) => ({
   ...(await original<typeof JsonEntityServiceModule>()),

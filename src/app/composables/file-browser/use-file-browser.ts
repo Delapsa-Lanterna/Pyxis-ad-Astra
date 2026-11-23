@@ -1,5 +1,5 @@
 import { useContextMenuScope } from '@/app/composables/use-context-menu';
-import { computed, nextTick, onScopeDispose, reactive, ref, watch } from 'vue';
+import { computed, nextTick, onScopeDispose, reactive, ref, shallowRef, watch } from 'vue';
 import { useFileBrowserStore } from '@/stores/file-browser.store';
 import { queryFileDirectory, queryFileSearch } from '@/services/file-browser.service';
 import { createReadOwner } from '@/shared/runtime/read-request';
@@ -33,20 +33,24 @@ export function useFileBrowser(
   const base = options.directory ?? null;
   const state = computed(() => (target.value ? store.sessions.get(target.value.sessionId)! : null));
   const searching = computed(() => Boolean(state.value?.search.text.trim()));
-  const branch = computed(() => (searching.value ? state.value!.search : state.value));
+  const searchResult = computed(() => (searching.value ? state.value?.search.result : null));
+  const branch = computed(() => (searchResult.value ? state.value!.search : state.value));
   const nodes = computed(() => {
     const current = state.value;
     if (!current) return [];
-    return searching.value
-      ? current.search.result
-        ? fileSearchTree(current.search.result, current.sort)
-        : []
+    return searchResult.value
+      ? fileSearchTree(searchResult.value, current.sort)
       : tree.project(
           base === null ? current.directories : new Map(current.directories).set(null, current.directories.get(base)!),
           current.expanded,
           current.sort,
         );
   });
+  const navigation = computed(() => {
+    const items = visibleFiles(nodes.value, branch.value?.expanded ?? []).filter((node) => !node.disabled);
+    return { items, positions: new Map(items.map((node, index) => [node.key, index])) };
+  });
+  const opening = shallowRef<{ path: string } | null>(null);
   const root = computed(() => state.value?.directories.get(base)),
     refreshing = ref(false);
   let disposed = false,
@@ -166,6 +170,7 @@ export function useFileBrowser(
     cancelSearchTimer();
     reads.revoke('consumer', 'search');
     reads.revoke('consumer', 'open');
+    opening.value = null;
     cancelPrefetch();
     directoryReads.revoke();
     refreshVersion++;
@@ -217,7 +222,7 @@ export function useFileBrowser(
     const current = branch.value!,
       added = keys.filter((key): key is string => typeof key === 'string' && !current.expanded.includes(key));
     current.expanded = keys.map(String);
-    if (searching.value) return;
+    if (searchResult.value) return;
     for (const path of added) {
       const sample = {
         startedAt: startPerformance(),
@@ -243,23 +248,31 @@ export function useFileBrowser(
   function select(keys: Array<string | number>) {
     branch.value!.selected = keys.length ? String(keys[0]) : null;
   }
-  async function activate(path: string) {
-    const current = branch.value!,
-      node = visibleFiles(nodes.value, current.expanded).find((node) => node.key === path);
-    if (!node || node.disabled) return;
+  async function activate(path: string, kind?: 'file' | 'directory') {
+    const current = branch.value!;
+    if (!kind) {
+      const index = navigation.value.positions.get(path);
+      if (index === undefined) return;
+      kind = navigation.value.items[index]!.isLeaf ? 'file' : 'directory';
+    }
     current.selected = path;
-    if (node.kind === 'directory') {
+    if (kind === 'directory') {
       setExpanded(current.expanded.includes(path) ? current.expanded.filter((key) => key !== path) : [...current.expanded, path]);
       return;
     }
-    const captured = target.value!;
-    await openFile(captured, path, reads);
+    const request = { path };
+    opening.value = request;
+    try {
+      await openFile(target.value!, path, reads);
+    } finally {
+      if (opening.value === request) opening.value = null;
+    }
   }
   function navigate(key: string) {
     const current = branch.value!,
-      items = visibleFiles(nodes.value, current.expanded).filter((node) => !node.disabled);
+      { items, positions } = navigation.value;
     if (!items.length) return;
-    const index = items.findIndex((node) => node.key === current.selected),
+    const index = positions.get(current.selected ?? '') ?? -1,
       node = items[index];
     if (key === 'ArrowDown' || key === 'ArrowUp')
       current.selected = items[Math.max(0, Math.min(items.length - 1, index + (key === 'ArrowDown' ? 1 : -1)))]!.key;
@@ -269,9 +282,10 @@ export function useFileBrowser(
     } else if (key === 'ArrowLeft' && node) {
       if (current.expanded.includes(node.key)) setExpanded(current.expanded.filter((path) => path !== node.key));
       else if (node.key.includes('/')) current.selected = node.key.slice(0, node.key.lastIndexOf('/'));
-    } else if (key === 'Enter' && node) void activate(node.key);
+    } else if (key === 'Enter' && node) void activate(node.key, node.isLeaf ? 'file' : 'directory');
   }
   function resetPending(sessionId: string | undefined) {
+    opening.value = null;
     if (!sessionId) return;
     const previous = store.sessions.get(sessionId);
     if (previous) {
@@ -351,6 +365,8 @@ export function useFileBrowser(
     view: reactive({
       nodes,
       searching,
+      showingSearch: computed(() => Boolean(searchResult.value)),
+      opening: computed(() => opening.value?.path),
       searchText: computed(() => state.value?.search.text ?? ''),
       sort: computed(() => state.value?.sort ?? { key: 'name' as const, ascending: true }),
       refreshing: computed(() => refreshing.value || Boolean(searching.value && state.value?.search.loading)),
@@ -359,9 +375,7 @@ export function useFileBrowser(
       scrollTop: computed(() => branch.value?.scrollTop ?? 0),
       title: computed(() => target.value?.modRoot ?? ''),
       loading: computed(() => (searching.value ? Boolean(state.value?.search.loading) : Boolean(root.value?.loading))),
-      ready: computed(() =>
-        searching.value ? state.value?.search.result !== null : root.value?.entries !== null && root.value?.entries !== undefined,
-      ),
+      ready: computed(() => Boolean(searchResult.value || root.value?.entries)),
       error: computed(() => (searching.value ? (state.value?.search.error ?? '') : (root.value?.error ?? ''))),
       directories: computed(() => state.value?.directories ?? new Map<string | null, FileDirectoryState>()),
     }),

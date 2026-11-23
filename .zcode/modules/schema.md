@@ -17,6 +17,7 @@
 - `schemas/hull-styles.schema.json`：船体样式的固定属性与新建初值。
 - `schemas/mission.schema.json`：任务字段模式资产。
 - `schemas/mod-info.schema.json`：Mod 信息字段模式资产。
+- `schemas/nexerelin-faction.schema.json`：势力争霸的可玩性、市场权重、外交关系与扩展字段。
 - `schemas/planets.schema.json`：星球规格字段和动态属性的字段模式资产。
 - `schemas/ship-roles.schema.json`：舰船角色分配、备用角色及动态装配权重的共享字段模式。
 - `schemas/skin-hull-fields.json`：舰船标量属性与皮肤覆盖字段的映射资产。

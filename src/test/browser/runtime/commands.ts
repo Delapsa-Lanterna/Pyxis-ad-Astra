@@ -29,7 +29,7 @@ import { windowsPathCaseFixture } from '../../fixtures/windows-path-case';
 import { sessionUpdateFixture, savedWriteFixture } from '../../fixtures/write-result';
 import { createBrowserModel, type BrowserModel } from '../model';
 import { emit } from './events';
-import { MISC_CONFIG_DEFINITIONS, miscConfigDefinition } from '@/domain/misc-config';
+import { MISC_CONFIG_FILES, miscConfigDefinition } from '@/domain/misc-config';
 import { CONFIG_FIELD_SOURCES, isConfigFieldSource } from '@/domain/schema/schema-source-definitions';
 import type { RowData } from '@/shared/types';
 
@@ -220,11 +220,15 @@ export async function dispatch(command: string, args: Record<string, unknown>, m
     case 'save_csv_patch':
       return model.saveCsv(args.payload as CsvSave);
     case 'query_misc_config_files':
-      return MISC_CONFIG_DEFINITIONS.map(({ kind, path }) => ({
+      return MISC_CONFIG_FILES.map(({ kind, path }) => ({
         kind,
         path: model.manifest.modRoot + '/' + path,
         relPath: path,
-        state: model.miscFiles.some((file) => file.kind === kind) ? 'present' : 'missing',
+        state: (
+          kind === 'corvusSpawnpoints' ? model.manifest.tableSummaries[kind].available : model.miscFiles.some((file) => file.kind === kind)
+        )
+          ? 'present'
+          : 'missing',
         error: null,
       }));
     case 'query_misc_config_file':

@@ -58,6 +58,7 @@ export const TABLE_KEYS = [
   'specialItems',
   'submarkets',
   'marketConditions',
+  'corvusSpawnpoints',
   'simOpponents',
   'descriptions',
 ] as const;

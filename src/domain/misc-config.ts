@@ -67,3 +67,17 @@ export const MISC_CONFIG_DEFINITIONS: readonly MiscConfigDefinition[] = [
 export function miscConfigDefinition(kind: string) {
   return MISC_CONFIG_DEFINITIONS.find((file) => file.kind === kind)!;
 }
+
+const CSV_CONFIG_FILES = [
+  {
+    kind: 'corvusSpawnpoints',
+    label: '固定星域出生点',
+    filename: 'corvus_spawnpoints.csv',
+    path: 'data/config/exerelin/corvus_spawnpoints.csv',
+    description: '设置势力争霸固定星域开局时各势力的星系及出生点实体。',
+  },
+] as const;
+export const MISC_CONFIG_FILES = [...MISC_CONFIG_DEFINITIONS, ...CSV_CONFIG_FILES];
+export function miscCsvFile(id: string | null) {
+  return CSV_CONFIG_FILES.find((file) => file.kind === id);
+}

@@ -9,6 +9,7 @@
     <dependency><groupId>org.osgi</groupId><artifactId>org.osgi.util.function</artifactId><version>1.2.0</version></dependency>
     <dependency><groupId>org.osgi</groupId><artifactId>org.osgi.service.component</artifactId><version>1.5.1</version></dependency>
     <dependency><groupId>com.google.code.gson</groupId><artifactId>gson</artifactId><version>2.15.0</version></dependency>
+    <dependency><groupId>org.vineflower</groupId><artifactId>vineflower</artifactId><version>1.12.0</version></dependency>
     <dependency><groupId>org.junit.jupiter</groupId><artifactId>junit-jupiter</artifactId><version>5.11.4</version><scope>test</scope></dependency>
   </dependencies>
   <build><directory>${build.output}</directory><resources>

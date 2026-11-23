@@ -78,7 +78,7 @@
 - 公开请求必须按文件种类选择后端登记路径，严禁接收任意文件路径。
 - 创建必须取得目标不存在的版本凭据，初始内容消费所属文件定义；创建和主动删除保留文件条目及选择。
 - 已访问来源删除时必须保留草稿，并消费 JSON 来源缺失提示与重建动作。
-- 当前登记按 `strings`、`engineStyles`、`hullStyles`、`sounds`、`settings`、`customEntities`、`planets`、`defaultShipRoles` 排序，路径与表单消费所属定义。
+- 当前登记按 `strings`、`engineStyles`、`hullStyles`、`sounds`、`settings`、`customEntities`、`planets`、`defaultShipRoles` 排序，路径与表单消费所属定义。出生点表 corvus_spawnpoints.csv 排在 JSON 文件之后，表格操作使用 CSV 文档会话。
 - 文件身份由独立目标表达，JSON 内容保留文件自身字段。
 - 杂项配置表单直接展示当前 Mod 文件及草稿，文档状态由所属保存状态与来源完整性表达。
 - 新增文件种类分别登记用途、文件名、路径、表单、初始内容与内容校验，模块请求保持文件种类身份。

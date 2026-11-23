@@ -1,7 +1,7 @@
 import type { CsvDraftRow, CsvTableKey, CsvValidationRequest, EntityKind, ProjectInvalidation } from '@/shared/types';
 import { pathBelongsToRoot } from '@/shared/lib/paths';
 import { getCsvColumnSchemas } from '@/domain/schema/csv-schema-registry';
-import { cell } from '@/shared/lib/starsector';
+import { csvIdentityColumn, cell } from '@/shared/lib/starsector';
 
 export const CSV_SPEC_KINDS: Partial<Record<CsvTableKey, EntityKind>> = {
   ships: 'ship',
@@ -16,7 +16,7 @@ export const DESCRIPTION_KINDS: Partial<Record<string, readonly EntityKind[]>> =
   FACTION: ['faction'],
 };
 export function isCsvBusinessRow(row: CsvDraftRow, table: CsvTableKey): boolean {
-  const id = cell(row.data[table === 'simOpponents' ? 'variant id' : 'id']);
+  const id = cell(row.data[csvIdentityColumn(table)]);
   return !row.isComment && id !== '' && (table !== 'skills' || !id.startsWith('#'));
 }
 export function hasCsvValidationInvalidation(

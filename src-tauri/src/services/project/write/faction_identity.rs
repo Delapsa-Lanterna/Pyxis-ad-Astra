@@ -1,5 +1,6 @@
 use super::entity_write::content;
 use super::entity_write::faction_index;
+use super::nexerelin;
 use crate::domain::entity_identity;
 use crate::errors::{AppError, AppResult};
 use crate::io::{self, FileChangeSetBuilder};
@@ -19,7 +20,11 @@ use serde_json::{Value, json};
 use std::path::Path;
 
 pub fn save_faction_entity(input: IndexedConfigSave) -> AppResult<WriteResult<Value>> {
-    let IndexedConfigContent::Faction { document } = input.content else {
+    let IndexedConfigContent::Faction {
+        document,
+        nexerelin,
+    } = input.content
+    else {
         unreachable!("faction content")
     };
     let next = entity_identity::validate_entity_id(&input.next_id, "无效势力 ID")?;
@@ -54,7 +59,15 @@ pub fn save_faction_entity(input: IndexedConfigSave) -> AppResult<WriteResult<Va
     } else {
         None
     };
+    let companion_only = nexerelin.is_some()
+        && before.id == next
+        && before.write.rel_path == after.write.rel_path
+        && !input.json_write.replaces(&before.write.rel_path)
+        && source
+            .as_ref()
+            .is_some_and(|source| source.content == document.content);
     let actual = match source {
+        Some(source) if companion_only => source,
         Some(source) => source.write(&document)?,
         None => JsonSource::create(&document)?,
     };
@@ -62,15 +75,17 @@ pub fn save_faction_entity(input: IndexedConfigSave) -> AppResult<WriteResult<Va
     let handle = session_handle(&input.session_id)?;
     let index = {
         let mut session = lock_session(&handle)?;
-        let composition = json_layers::json_composition(&session, &after.write.rel_path)?;
-        content::validate_entity_content_in(
-            &session,
-            EntityKind::Faction,
-            &before.write.rel_path,
-            &value,
-            input.json_write.replaces(&before.write.rel_path),
-            Some(&composition),
-        )?;
+        if !companion_only {
+            let composition = json_layers::json_composition(&session, &after.write.rel_path)?;
+            content::validate_entity_content_in(
+                &session,
+                EntityKind::Faction,
+                &before.write.rel_path,
+                &value,
+                input.json_write.replaces(&before.write.rel_path),
+                Some(&composition),
+            )?;
+        }
         faction_index::prepare(
             &mut session,
             &before,
@@ -95,13 +110,20 @@ pub fn save_faction_entity(input: IndexedConfigSave) -> AppResult<WriteResult<Va
     } else {
         index.table.source.clone()
     };
+    let companion = nexerelin::stage(
+        &mut builder,
+        &input.session_id,
+        &before.id,
+        next,
+        nexerelin.as_ref(),
+    )?;
     replace_paths::stage_replace_paths(&mut builder, &input.json_write)?;
     after.source = Some(after.write.clone());
     after.linked_record = index.row_index.map(|row_index| EntityLinkedRecord::Index {
         path: "data/world/factions/factions.csv".into(),
         row_index,
     });
-    let content = serde_json::to_value(IndexedConfigEntityRefresh {
+    let mut content = serde_json::to_value(IndexedConfigEntityRefresh {
         entity_id: next.into(),
         index_path: "data/world/factions/factions.csv".into(),
         index_header: index.table.header.clone(),
@@ -109,6 +131,9 @@ pub fn save_faction_entity(input: IndexedConfigSave) -> AppResult<WriteResult<Va
         entity_data: json!({"file":value}),
         document: Some(JsonFileContent::from(&actual)),
     })?;
+    if let Some(companion) = companion {
+        content["nexerelin"] = serde_json::to_value(companion)?;
+    }
     let mut result = WriteResult::from_content(
         builder.apply()?,
         WriteContentTarget::Json {
@@ -154,6 +179,7 @@ pub fn delete_faction(input: &IndexedConfigDelete) -> AppResult<WriteResult<Valu
     };
     if input.delete_target || actual.is_none() {
         builder.text_file(&target.write.rel_path, None)?;
+        nexerelin::remove(&mut builder, &input.session_id, &target.id)?;
     }
     let result = WriteResult::from_changes(builder.apply()?).with_content(
         WriteContentTarget::Json {

@@ -12,6 +12,10 @@
     <p>
       <code class="ui-code">{{ indexPath }}</code>
     </p>
+    <p v-if="checked && companionPath">同时删除势力争霸配置并移除该势力的本地争霸登记。</p>
+    <p v-if="checked && companionPath">
+      <code class="ui-code">{{ companionPath }}</code>
+    </p>
     <p v-if="!checked">{{ label === '战役' ? '战役目录保留：' : '势力文件保留：' }}</p>
     <p>
       <code class="ui-code">{{ path }}</code>
@@ -20,7 +24,7 @@
 </template>
 <script setup lang="ts">
 import { computed } from 'vue';
-const props = defineProps<{ id: string; label: string; path: string; indexPath: string }>();
+const props = defineProps<{ id: string; label: string; path: string; indexPath: string; companionPath?: string }>();
 const options = computed(() => [
   { label: '仅移除登记', value: 'keep' },
   { label: '移除登记并删除' + (props.label === '战役' ? '战役目录' : '势力文件'), value: 'delete' },

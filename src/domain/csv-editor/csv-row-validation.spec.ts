@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { csvIdentityColumn } from '@/shared/lib/starsector';
 import { TABLE_KEYS, type CsvTableKey, type RowData, type CsvValidationContext, type CsvDraftRow } from '@/shared/types';
 import { getCsvColumnSchemas } from '@/domain/schema/csv-schema-registry';
 import { csvRowProblems } from './csv-row-validation';
@@ -74,7 +75,7 @@ describe('CSV declared types and complete row rules', () => {
     const columns = getCsvColumnSchemas(table),
       row = sample(table, Object.fromEntries(columns.map((column) => [column.key, 'Section']))),
       header = columns.map((column) => column.key);
-    row.data[table === 'simOpponents' ? 'variant id' : 'id'] = '';
+    row.data[csvIdentityColumn(table)] = '';
     expect(csvRowProblems(table, [row], header, null)).toEqual([]);
     expect(csvValidationRequest(table, [row])).toEqual({ entities: [], sources: [], files: [], classes: [] });
   });

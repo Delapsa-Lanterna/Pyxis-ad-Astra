@@ -11,6 +11,7 @@ import { isReadInvalidated } from '@/shared/runtime/read-request';
 
 export function useJsonListSelection(options: {
   selectedId: Ref<string | null>;
+  commitInputs?: () => void | Promise<boolean> | boolean;
   modRoot: Readonly<Ref<string | null>>;
   sessionId: Readonly<Ref<string | null>>;
   label: string;
@@ -56,7 +57,7 @@ export function useJsonListSelection(options: {
     const saving = commands.waitForSaves();
     if (saving && !(await saving)) return false;
     if (disposed || captured !== key.value || !commands.isTransitionCurrent(sequence)) return false;
-    const committed = jsonEditors.active?.inputs.commit();
+    const committed = options.commitInputs ? options.commitInputs() : jsonEditors.active?.inputs.commit();
     if (committed && !(await committed)) return false;
     const capturedId = selectedId.value;
     const current = () => !disposed && captured === key.value && capturedId === selectedId.value && commands.isTransitionCurrent(sequence);

@@ -2,6 +2,8 @@ import type * as T from '@/shared/types';
 import type { WorkspaceProject, GameSource } from './project';
 import { coreRoot, gameImages, gameTablePaths } from './sample-data';
 import { renderGameCsv, readGameCsv } from './format';
+import { getCsvColumnSchemas } from '@/domain/schema/csv-schema-registry';
+import { csvIdentityColumn } from '@/shared/lib/starsector';
 import { CONFIG_FIELD_SOURCES, isConfigFieldSource, parseCsvFieldSource } from '@/domain/schema/schema-source-definitions';
 import { createShipSpec, createSystemSpec, createSkillSpec } from '@/domain/entity-write/spec-construction';
 import { createWeaponSpec } from '@/domain/entity-write/spec-construction';
@@ -26,6 +28,7 @@ export const gameCommands = new Set([
   'query_csv_table_index',
   'query_csv_validation',
   'query_csv_table_rows',
+  'create_csv_table',
   'save_csv_patch',
   'prepare_csv_associated_specs',
   'query_hull_references',
@@ -140,6 +143,11 @@ export function gameQuery(project: WorkspaceProject, command: string, payload: R
           baseVersions: [project.version(path)],
         } satisfies T.JsonDocumentFile);
   }
+  if (command === 'delete_misc_config' && payload.kind === 'corvusSpawnpoints') {
+    const path = project.manifest.modRoot + '/' + gameTablePaths.corvusSpawnpoints;
+    project.textFiles.delete(path);
+    return project.write(null, { kind: 'csv', table: 'corvusSpawnpoints' }, [path]);
+  }
   if (command === 'save_misc_config' || command === 'delete_misc_config') {
     const file = project.model.miscFiles.find((file) => file.kind === payload.kind);
     const path = file?.path ?? project.manifest.modRoot + '/' + miscConfigDefinition(String(payload.kind)).path;
@@ -225,7 +233,7 @@ export function gameQuery(project: WorkspaceProject, command: string, payload: R
             (row) =>
               !search ||
               (input.searchField === 'id'
-                ? [row.data.id ?? row.data['variant id']]
+                ? [row.data[csvIdentityColumn(input.table)]]
                 : input.searchField === 'name'
                   ? [row.data.name]
                   : Object.values(row.data)
@@ -324,6 +332,19 @@ export function gameQuery(project: WorkspaceProject, command: string, payload: R
         ],
       };
     });
+  }
+  if (command === 'create_csv_table') {
+    const table = payload.table as T.CsvTableKey,
+      path = project.manifest.modRoot + '/' + gameTablePaths[table];
+    if (project.textFiles.has(path)) throw new Error('配置文件已存在');
+    project.textFiles.set(
+      path,
+      renderGameCsv(
+        getCsvColumnSchemas(table).map((column) => column.key),
+        [],
+      ),
+    );
+    return project.write(null, { kind: 'csv', table }, [path]);
   }
   if (command === 'save_csv_patch') {
     const input = payload as unknown as T.CsvSave,

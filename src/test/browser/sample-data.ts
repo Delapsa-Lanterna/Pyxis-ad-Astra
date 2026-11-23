@@ -18,6 +18,7 @@ export const gameTablePaths: Record<CsvTableKey, string> = {
   specialItems: 'data/campaign/special_items.csv',
   submarkets: 'data/campaign/submarkets.csv',
   marketConditions: 'data/campaign/market_conditions.csv',
+  corvusSpawnpoints: 'data/config/exerelin/corvus_spawnpoints.csv',
   simOpponents: 'data/campaign/sim_opponents.csv',
   descriptions: 'data/strings/descriptions.csv',
 };

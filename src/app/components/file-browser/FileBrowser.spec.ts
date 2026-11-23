@@ -40,6 +40,7 @@ function open() {
   ]);
   const view = reactive({
     nodes: fileTree(directories),
+    showingSearch: false,
     searching: false,
     searchText: '',
     sort: { key: 'name' as const, ascending: true },
@@ -126,7 +127,7 @@ describe('mod file browser controls', () => {
     const { view, actions, wrapper } = open();
     await flushPromises();
     view.scrollTop = 120;
-    view.searching = true;
+    view.showingSearch = true;
     const stage = wrapper.get('[aria-label="文件树"]');
     stage.element.scrollTop = 0;
     await stage.trigger('scroll');
@@ -144,7 +145,7 @@ describe('mod file browser controls', () => {
     expect(actions.select).toHaveBeenCalledWith(['README'], expect.anything(), expect.anything());
     expect(actions.activate).not.toHaveBeenCalled();
     await file.trigger('dblclick');
-    expect(actions.activate).toHaveBeenCalledWith('README');
+    expect(actions.activate).toHaveBeenCalledWith('README', 'file');
     await wrapper.get('[title="拒绝读取目录"]').trigger('click');
     expect(actions.load).toHaveBeenCalledWith('data');
     await wrapper

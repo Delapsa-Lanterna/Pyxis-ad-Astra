@@ -1,3 +1,4 @@
+import { csvIdentityColumn } from '@/shared/lib/starsector';
 import type { CsvSearchField, CsvTableKey, CsvDraftRow } from '@/shared/types';
 
 export const DEFAULT_CSV_SEARCH_FIELD: CsvSearchField = 'id-name';
@@ -10,7 +11,7 @@ const SEARCH_LABELS: Record<CsvSearchField, string> = {
 };
 
 export function csvSearchOptions(table: CsvTableKey, header: readonly string[]): Array<{ label: string; value: CsvSearchField }> {
-  const idField = table === 'simOpponents' ? 'variant id' : 'id';
+  const idField = csvIdentityColumn(table);
   const fields: CsvSearchField[] = [];
   if (header.includes(idField) || header.includes('name')) fields.push('id-name');
   if (header.includes(idField)) fields.push('id');
@@ -33,7 +34,7 @@ export function csvDraftSearchKeys(
 ) {
   const selected = new Set(matches),
     query = search.trim().toLowerCase();
-  const id = table === 'simOpponents' ? 'variant id' : 'id';
+  const id = csvIdentityColumn(table);
   const fields = field === 'id-name' ? [id, 'name'] : [field === 'id' ? id : field];
   for (const row of drafts) {
     if (fields.some((key) => typeof row.data[key] === 'string' && row.data[key].toLowerCase().includes(query))) selected.add(row.rowKey);

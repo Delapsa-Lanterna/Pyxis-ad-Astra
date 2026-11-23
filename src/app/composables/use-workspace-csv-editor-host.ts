@@ -1,7 +1,7 @@
 import { computed, onScopeDispose } from 'vue';
 import { useWorkspaceStore } from '@/stores/workspace.store';
 import { useCsvEditorStore } from '@/stores/csv-editor.store';
-import { navigateToModTable, navigateToModJson } from '@/orchestrators/workspace-navigation.orchestrator';
+import { activeWorkspaceCsvTable, navigateToModTable, navigateToModJson } from '@/orchestrators/workspace-navigation.orchestrator';
 import { dispatchWorkspaceHistoryCommand } from '@/orchestrators/workspace-history.orchestrator';
 import type { CsvEditorHost } from './csv-editor/csv-editor-context';
 import type { CsvTableTarget } from '@/shared/types';
@@ -12,12 +12,13 @@ export function useWorkspaceCsvEditorHost(getConfiguredGameRoot: () => string | 
   onScopeDispose(() => {
     disposed = true;
   });
-  const manifest = computed(() => (workspace.currentView === 'table' ? workspace.activeManifest : null));
+  const table = computed(activeWorkspaceCsvTable);
+  const manifest = computed(() => (table.value ? workspace.activeManifest : null));
   const target = computed<CsvTableTarget | null>(() => {
     const current = manifest.value;
     const state = current ? tables.getCsvModState(current.modRoot) : undefined;
     return current && state?.sessionId === current.sessionId
-      ? { sessionId: current.sessionId, modRoot: current.modRoot, table: state.currentTab }
+      ? { sessionId: current.sessionId, modRoot: current.modRoot, table: table.value! }
       : null;
   });
   const starsectorRoot = computed(

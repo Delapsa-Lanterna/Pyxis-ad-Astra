@@ -54,7 +54,11 @@ export function buildGameJoint(
         resourceRefs: Object.fromEntries(
           Object.entries(
             source.resources(
-              table === 'ships' || table === 'wings' || table === 'descriptions' || table === 'simOpponents'
+              table === 'ships' ||
+                table === 'wings' ||
+                table === 'descriptions' ||
+                table === 'corvusSpawnpoints' ||
+                table === 'simOpponents'
                 ? 'ship'
                 : table === 'weapons'
                   ? 'weapon'

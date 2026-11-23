@@ -1,8 +1,26 @@
+import { miscCsvFile } from '@/domain/misc-config';
+import { useJsonEditorStore } from '@/stores/json-editor.store';
 import type { JsonEditorPageId, CsvTableKey } from '@/shared/types';
 import { useFileHistoryStore } from '@/stores/file-history.store';
 import { useProjectStore } from '@/stores/project.store';
 import { useCsvEditorStore } from '@/stores/csv-editor.store';
 import { useWorkspaceStore } from '@/stores/workspace.store';
+
+export function activeWorkspaceCsvTable() {
+  const workspace = useWorkspaceStore(),
+    modRoot = workspace.activeModRoot,
+    session = workspace.activeSessionId;
+  if (!modRoot || !session) return null;
+  const tables = useCsvEditorStore();
+  if (workspace.currentView === 'table') return tables.getCsvModState(modRoot)?.currentTab ?? null;
+  if (workspace.currentView !== 'json-editor' || workspace.jsonPage !== 'misc-config') return null;
+  const file = miscCsvFile(useJsonEditorStore().selection(session, 'misc-config').value);
+  return file &&
+    (workspace.activeManifest?.tableSummaries[file.kind]?.available ||
+      tables.hasTableDirtyChanges({ sessionId: session, modRoot, table: file.kind }))
+    ? file.kind
+    : null;
+}
 
 function syncActiveModRuntime(modRoot: string) {
   const project = useProjectStore();

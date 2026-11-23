@@ -141,10 +141,16 @@ export function createFileTreeCache() {
   return { project, forget, clear };
 }
 export function visibleFiles(nodes: readonly FileNode[], expanded: readonly string[]): FileNode[] {
-  return nodes.flatMap((node) => [
-    ...(node.kind === 'status' ? [] : [node]),
-    ...(expanded.includes(node.key) ? visibleFiles(node.children ?? [], expanded) : []),
-  ]);
+  const open = new Set(expanded),
+    items: FileNode[] = [];
+  function visit(children: readonly FileNode[]) {
+    for (const node of children) {
+      if (node.kind !== 'status') items.push(node);
+      if (node.children && open.has(node.key)) visit(node.children);
+    }
+  }
+  visit(nodes);
+  return items;
 }
 export function affectedFileDirectories(
   directories: ReadonlyMap<string | null, FileDirectoryState>,

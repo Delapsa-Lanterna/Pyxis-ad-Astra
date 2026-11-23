@@ -42,6 +42,7 @@ export const csvValidationDefinitions: Record<CsvTableKey, CsvValidationDefiniti
   submarkets: uniqueId,
   marketConditions: uniqueId,
   descriptions: { columns: ['id', 'type'], validate: (rows) => uniqueIdentities(rows, ['id', 'type']) },
+  corvusSpawnpoints: { columns: ['faction'], validate: (rows) => uniqueIdentities(rows, ['faction'], 'corvusSpawnpoints') },
   simOpponents: { columns: [], validate: () => [] },
   wings: {
     columns: ['id'],

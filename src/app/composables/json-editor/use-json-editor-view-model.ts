@@ -1,8 +1,10 @@
 import { computed, onScopeDispose, ref, shallowReactive, shallowRef, watch } from 'vue';
 import { cloneQuerySnapshot } from '@/shared/lib/query-snapshot';
 import { stableDeepEqual } from '@/shared/lib/stable-compare';
-import { queryMiscConfigFiles, queryMiscConfigFile, hasMiscConfigInvalidation } from '@/services/misc-config.service';
-import { MISC_CONFIG_DEFINITIONS, miscConfigDefinition } from '@/domain/misc-config';
+import { useCsvEditorStore } from '@/stores/csv-editor.store';
+import { createCsvTableFile } from '@/orchestrators/csv-save.orchestrator';
+import { deleteMiscConfig, queryMiscConfigFiles, queryMiscConfigFile, hasMiscConfigInvalidation } from '@/services/misc-config.service';
+import { MISC_CONFIG_FILES, miscConfigDefinition, miscCsvFile } from '@/domain/misc-config';
 import { miscConfigDocumentValue } from '@/domain/json-editor/json-document-definitions';
 import type { JsonEditorContext } from './json-editor-context';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
@@ -37,6 +39,7 @@ export function useJsonEditorViewModel(definition: JsonDocumentDefinition, conte
   const feedback = useAppFeedback(() => ({
     paths: [context.modRoot.value!, ...(current.value?.record.value.baseVersions.map((version) => version.path) ?? [])],
   }));
+  const tables = useCsvEditorStore();
   const editors = useJsonEditorStore();
   const settings = useSettingsStore();
   const reads = useQueryReadOwner();
@@ -63,7 +66,22 @@ export function useJsonEditorViewModel(definition: JsonDocumentDefinition, conte
   const fileError = shallowRef<unknown>(null);
   const fileLoading = ref(false);
   const selectedId = editors.selection(sessionId.value!, kind);
+  const csvTarget = computed(() => {
+    const csv = kind === 'misc-config' && miscCsvFile(selectedId.value);
+    return csv ? { sessionId: sessionId.value!, modRoot: modRoot.value!, table: csv.kind } : null;
+  });
+  watch(
+    csvTarget,
+    (target) => {
+      if (target && tables.getCsvModState(target.modRoot)) tables.switchTab(target.modRoot, target.table);
+    },
+    { immediate: true },
+  );
   const selection = useJsonListSelection({
+    commitInputs: () =>
+      csvTarget.value && tables.getCsvModState(csvTarget.value.modRoot)
+        ? tables.getTableInputs(csvTarget.value.modRoot, csvTarget.value.table).commit()
+        : editors.active?.inputs.commit(),
     selectedId,
     modRoot,
     sessionId,
@@ -129,7 +147,7 @@ export function useJsonEditorViewModel(definition: JsonDocumentDefinition, conte
       });
     });
     if (kind === 'misc-config')
-      return MISC_CONFIG_DEFINITIONS.map((file) => {
+      return MISC_CONFIG_FILES.map((file) => {
         const row = rows.find((row) => row.key === file.kind);
         const entry = directory.value.find((entry) => entry.kind === file.kind);
         return retain({
@@ -139,7 +157,10 @@ export function useJsonEditorViewModel(definition: JsonDocumentDefinition, conte
           filename: file.filename,
           color: '',
           resource: null,
-          dirty: row?.dirty ?? false,
+          dirty:
+            file.kind === 'corvusSpawnpoints'
+              ? tables.hasTableDirtyChanges({ sessionId: sessionId.value!, modRoot: modRoot.value!, table: file.kind })
+              : (row?.dirty ?? false),
           missing: row?.missing ?? false,
           state: fileError.value && selectedId.value === file.kind ? 'error' : (entry?.state ?? ''),
           companion: '',
@@ -258,6 +279,7 @@ export function useJsonEditorViewModel(definition: JsonDocumentDefinition, conte
       fileError.value = entry.error;
       return;
     }
+    if (miscCsvFile(id)) return;
     const scope = { sessionId: sessionId.value!, modRoot: modRoot.value!, kind: miscConfigDefinition(id).kind };
     fileLoading.value = true;
     await reads.consume('file', scope, (signal) => queryMiscConfigFile(scope.sessionId, scope.modRoot, scope.kind, signal), {
@@ -310,11 +332,38 @@ export function useJsonEditorViewModel(definition: JsonDocumentDefinition, conte
       modRoot: target.modRoot,
       changesTarget: true,
       label: definition.label + ' "' + id + '" 已创建',
-      write: (request) => createJsonDocument(definition, target, id, companion, request),
+      write: async (request) => {
+        const csv = kind === 'misc-config' && miscCsvFile(id);
+        if (!csv) return createJsonDocument(definition, target, id, companion, request);
+        return createCsvTableFile(target.sessionId, target.modRoot, csv.kind, csv.path, request);
+      },
       accept: async () => {
         if (!(await load())) return false;
         selectedId.value = id;
         return true;
+      },
+    });
+  }
+  async function deleteCsvFile() {
+    const target = csvTarget.value!;
+    const file = miscCsvFile(target.table)!;
+    const versions = [...tables.getCsvModState(target.modRoot)!.documents[target.table].baseVersions];
+    const choice = await feedback.choose({
+      title: '删除配置文件？',
+      content: file.path + ' 将被删除，当前表格草稿也将丢弃。',
+      choices: [{ label: '删除文件', value: 'delete', type: 'warning' }],
+      cancelText: '取消',
+    });
+    if (choice !== 'delete' || csvTarget.value !== target) return;
+    await selection.mutate({
+      ...target,
+      changesTarget: true,
+      label: file.filename + ' 已删除',
+      write: (request) =>
+        deleteMiscConfig({ sessionId: target.sessionId, modRoot: target.modRoot, kind: file.kind, baseVersions: versions }, request),
+      accept: async () => {
+        tables.discardTableDraftForReload(target);
+        return load();
       },
     });
   }
@@ -383,6 +432,7 @@ export function useJsonEditorViewModel(definition: JsonDocumentDefinition, conte
                 target: snapshot.target,
                 value: snapshot.value,
                 document: snapshot.meta.document,
+                nexerelin: snapshot.meta.nexerelin,
                 baseVersions: snapshot.baseVersions,
                 resources: snapshot.meta.resources ?? {},
                 composition: snapshot.meta.composition,
@@ -446,7 +496,18 @@ export function useJsonEditorViewModel(definition: JsonDocumentDefinition, conte
     search,
     setSearch,
     current,
-    selectedFile: computed(() => (kind === 'misc-config' && selectedId.value ? miscConfigDefinition(selectedId.value) : null)),
+    csvTarget,
+    deleteCsvFile,
+    showCsv: computed(
+      () =>
+        csvTarget.value &&
+        !fileError.value &&
+        (directory.value.some((entry) => entry.kind === csvTarget.value!.table && entry.state === 'present') ||
+          tables.hasTableDirtyChanges(csvTarget.value)),
+    ),
+    selectedFile: computed(() =>
+      kind === 'misc-config' && selectedId.value ? (miscCsvFile(selectedId.value) ?? miscConfigDefinition(selectedId.value)) : null,
+    ),
     fileError,
     fileLoading: computed(() => fileLoading.value || (!directory.value.length && !listFailed.value)),
     retryFile: load,

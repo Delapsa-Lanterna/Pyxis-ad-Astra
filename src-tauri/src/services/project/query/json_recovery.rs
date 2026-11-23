@@ -1,5 +1,5 @@
 use super::super::session::{lock_session, session_handle};
-use crate::domain::{json_composition, misc_config};
+use crate::domain::{entity_identity, json_composition, misc_config};
 use crate::errors::{AppError, AppResult};
 use crate::io::{
     FsRootBoundary, acquire_root_write_lock, decode_text, file_version, read_versioned_bytes,
@@ -49,6 +49,11 @@ pub fn prepare_json_source_recovery(request: JsonRecoveryRequest) -> AppResult<J
             EntityKind::Faction => vec![
                 ("file", target.write.rel_path.clone(), true),
                 ("index", "data/world/factions/factions.csv".into(), false),
+                (
+                    "nexerelin",
+                    entity_identity::nexerelin_faction_path(&target.id)?,
+                    true,
+                ),
             ],
             EntityKind::Mission => vec![
                 (
@@ -82,7 +87,7 @@ pub fn prepare_json_source_recovery(request: JsonRecoveryRequest) -> AppResult<J
             .try_exists()
             .map_err(|error| AppError::from(error).at_path(&path))?
         {
-            if key != "index" || owns_index {
+            if key != "nexerelin" && (key != "index" || owns_index) {
                 missing.push(relative.clone());
             }
             file_version(&path)?

@@ -20,23 +20,24 @@
       @import-mod="actions.openDirectory"
       @refresh-workspace="actions.refreshWorkspace"
       @close-workspace="actions.confirmCloseWorkspace"
-      @load-mod="actions.loadOverviewMod" /><SettingsPage
-      v-else-if="workspace.currentView === 'settings'"
-      :change-source="actions.switchCoreSource"
+      @load-mod="actions.loadOverviewMod"
+    /><SettingsPage v-else-if="workspace.currentView === 'settings'" :change-source="actions.switchCoreSource"
       ><template #java-analysis
         ><JavaAnalysisCard
           :session-id="workspace.activeSessionId"
           :game-root="workspace.gameOverview?.starsectorRoot ?? null" /></template></SettingsPage
     ><AboutPage v-else-if="workspace.currentView === 'about'" /><FileBrowser
       :target="workspace.activeManifest"
-      v-else-if="workspace.currentView === 'file-browser' && workspace.activeManifest" /><CsvEditorPage
-      v-else-if="csvHost.target.value"
+      v-else-if="workspace.currentView === 'file-browser' && workspace.activeManifest"
+    /><CsvEditorPage
+      v-else-if="workspace.currentView === 'table' && csvHost.target.value"
       :key="JSON.stringify(csvHost.target.value)"
       :target="csvHost.target.value"
       :host="csvHost"
-      v-model:detail-pane-expanded="detailPaneExpanded" /><WorkspaceModOverview
-      v-else-if="workspace.currentView === 'mod-overview' && workspace.activeManifest" /><WorkspaceFileHistory
-      v-else-if="workspace.currentView === 'file-history' && workspace.activeManifest" />
+      v-model:detail-pane-expanded="detailPaneExpanded"
+    /><WorkspaceModOverview v-else-if="workspace.currentView === 'mod-overview' && workspace.activeManifest" /><WorkspaceFileHistory
+      v-else-if="workspace.currentView === 'file-history' && workspace.activeManifest"
+    />
     <section
       v-else-if="workspace.currentView !== 'json-editor' || !workspace.activeManifest"
       class="empty-state ui-content-scroll ui-text-normal ui-layout-grid"
@@ -50,7 +51,19 @@
       :key="JSON.stringify(jsonHost.pageTarget.value)"
       :target="jsonHost.pageTarget.value"
       :host="jsonHost"
-  /></MainWindowFrame>
+      ><template #csv="{ deleteFile }">
+        <CsvEditorPage
+          v-if="csvHost.target.value"
+          :key="JSON.stringify(csvHost.target.value)"
+          :target="csvHost.target.value"
+          :host="csvHost"
+          v-model:detail-pane-expanded="detailPaneExpanded"
+        >
+          <template #file-actions><n-button type="error" secondary @click="deleteFile">删除文件</n-button></template>
+        </CsvEditorPage>
+      </template></JsonEditorPage
+    ></MainWindowFrame
+  >
 </template>
 
 <script setup lang="ts">
@@ -134,10 +147,8 @@ const closeParticipant = useWindowCloseParticipant({
   title: '放弃未保存修改并关闭？',
 });
 const activeDocument = computed(() =>
-  workspace.currentView === 'table'
-    ? csvHost.target.value
-      ? tables.getTableEditor(csvHost.target.value)
-      : null
+  csvHost.target.value
+    ? tables.getTableEditor(csvHost.target.value)
     : workspace.currentView === 'json-editor'
       ? useJsonEditorStore().active
       : null,

@@ -198,6 +198,7 @@ fn pins_builtin_host_and_dependencies_before_starting_java() {
         launcher: "host.jar".into(),
         bundle: "host.jar".into(),
         framework: "dependency.jar".into(),
+        decompiler: "dependency.jar".into(),
         dependencies: inspect(&directory).unwrap(),
         files: vec![PackageFile {
             path: "host.jar".into(),

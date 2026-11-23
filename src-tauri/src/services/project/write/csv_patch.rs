@@ -1,12 +1,12 @@
 use super::entity_write::{associated_specs, descriptions, replace_paths};
 use crate::domain::csv_column_order;
 use crate::errors::{AppError, AppResult};
-use crate::io::{self, FileChangeSetBuilder};
+use crate::io::{self, FileChangeSetBuilder, FsRootBoundary};
 use crate::models::file_content::SaveLayout;
 use crate::models::{
     AssociatedSpecWrite, CsvRowKeyMapping, CsvRowOrderEntry, CsvRowPatch, CsvRowPatchAction,
-    CsvRowRecord, CsvSave, CsvTableKey, CsvTableRowsRead, EntityLinkedRecord, FileVersion,
-    JsonWriteOptions, SaveEdit, WriteContentTarget, WriteResult, windows_path_key,
+    CsvRowRecord, CsvSave, CsvTableCreate, CsvTableKey, CsvTableRowsRead, EntityLinkedRecord,
+    FileVersion, JsonWriteOptions, SaveEdit, WriteContentTarget, WriteResult, windows_path_key,
 };
 #[cfg(test)]
 use crate::parsers;
@@ -251,6 +251,29 @@ pub fn save_csv_patch_snapshot(
     }
     Ok(result)
 }
+pub fn create_table_file(input: &CsvTableCreate) -> AppResult<WriteResult> {
+    let relative = model::csv_table_spec(input.table).rel_path;
+    let root = Path::new(&input.mod_root);
+    let mut builder = FileChangeSetBuilder::new(root)?;
+    let path =
+        FsRootBoundary::new(root, "CSV root")?.resolve_relative_target(relative, "CSV file")?;
+    if path.try_exists()? {
+        return Err(AppError::message("config.entity_exists", "配置文件已存在").at_path(path));
+    }
+    if !input.base_versions.iter().any(|version| {
+        version.fingerprint.is_none() && io::same_physical_path(Path::new(&version.path), &path)
+    }) {
+        return Err(
+            AppError::message("write.version_scope_missing", "创建表格缺少文件版本凭据")
+                .at_path(path),
+        );
+    }
+    let source =
+        csv_tables::empty_csv_source(&csv_column_order::standard_csv_columns(input.table))?;
+    builder.text_file(relative, Some(source.document.source.to_string()))?;
+    Ok(WriteResult::from_changes(builder.apply()?))
+}
+
 pub fn prepare_csv_save(input: &mut CsvSave, _edits: &[SaveEdit]) -> AppResult<()> {
     let handle = session_handle(&input.session_id)?;
     let mut session = lock_session(&handle)?;

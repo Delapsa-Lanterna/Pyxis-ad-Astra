@@ -1,3 +1,4 @@
+import { csvIdentityColumn } from '@/shared/lib/starsector';
 import { useProjectStore } from '@/stores/project.store';
 import { useProjectSyncStore } from '@/stores/project-sync.store';
 import type { DocumentEditorActions } from '@/shared/runtime/document-editor';
@@ -316,7 +317,7 @@ export const useCsvEditorStore = defineStore('csv-editor', () => {
         ...target,
         rowKey,
         nextKey: copied[index]!,
-        id: String(document.rows[rowKey]!.data[target.table === 'simOpponents' ? 'variant id' : 'id'] ?? ''),
+        id: String(document.rows[rowKey]!.data[csvIdentityColumn(target.table)] ?? ''),
       })),
     );
     return copied;
@@ -393,7 +394,7 @@ export const useCsvEditorStore = defineStore('csv-editor', () => {
       const level = direction === 'edit' && (edit.type === 'cell-value-set' || edit.type === 'row-moved') ? 'debug' : 'info';
       if (!shouldQueueLog(level)) continue;
       const row = 'row' in edit ? edit.row : (document.rows[edit.rowKey] ?? document.baselineRows[edit.rowKey]);
-      const idField = table === 'simOpponents' ? 'variant id' : 'id';
+      const idField = csvIdentityColumn(table);
       const id = row?.data[idField];
       const ids = edit.type === 'cell-value-set' && edit.col === idField ? [edit.previousValue, edit.newValue] : [null, null];
       if (direction === 'undo') ids.reverse();

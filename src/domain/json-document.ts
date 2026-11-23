@@ -76,6 +76,7 @@ export interface JsonDocumentOptions {
   value?: FileValue;
   filePath?: FilePath;
   historyLimit?: number;
+  companions?: Record<string, JsonFileContent>;
 }
 
 function replaceValue(root: FileValue, path: FilePath, value: FileValue): FileValue {
@@ -228,7 +229,13 @@ export function createJsonDocument(initial: JsonFileContent | null, options: Jso
   let sequence = 0,
     source = initial;
   const filePath = options.filePath ?? [];
-  let sourceBytes: Uint8Array | null = null;
+  let companions = options.companions ?? {};
+  const bytes = new WeakMap<JsonFileContent, Uint8Array>();
+  function withSources(projection: FileValue, main: JsonFileContent) {
+    let value = replaceValue(projection, filePath, main.content);
+    for (const [key, companion] of Object.entries(companions)) value = replaceValue(value, [key], companion.content);
+    return value;
+  }
   const decoder = new TextDecoder();
   function build(value: FileValue, path: FilePath | null, previous?: DocumentNode, output: OutputFormat = 'value'): DocumentNode {
     const id = previous?.id ?? ++sequence;
@@ -251,13 +258,16 @@ export function createJsonDocument(initial: JsonFileContent | null, options: Jso
               ),
             }
           : value;
+    const companionKey = path?.[0];
     const original =
-      path && filePath.every((part, index) => path[index] !== undefined && sameText(part, path[index]!))
-        ? path.slice(filePath.length)
-        : null;
+      typeof companionKey === 'string' && Object.hasOwn(companions, companionKey)
+        ? path!.slice(1)
+        : path && filePath.every((part, index) => path[index] !== undefined && sameText(part, path[index]!))
+          ? path.slice(filePath.length)
+          : null;
     return { id, source: original, output, content: data };
   }
-  const initialValue = initial ? replaceValue(options.value ?? initial.content, filePath, initial.content) : options.value!;
+  const initialValue = initial ? withSources(options.value ?? initial.content, initial) : options.value!;
   const state = createEditSessionValue(build(initialValue, initial ? [] : null), { clone: (value) => value, equals: (a, b) => a === b });
   const history = createUndoStackState<HistoryEntry>(options.historyLimit ?? 100);
   let batching = false;
@@ -325,16 +335,19 @@ export function createJsonDocument(initial: JsonFileContent | null, options: Jso
   }
   function raw(path: FilePath): string | null {
     const node = findNode(path);
-    if (!node?.source || !source) return null;
-    let id = source.original.root;
+    const key = path[0];
+    const file = typeof key === 'string' && Object.hasOwn(companions, key) ? companions[key] : source;
+    if (!node?.source || !file) return null;
+    let id = file.original.root;
     for (const part of node.source) {
-      const kind = source.original.nodes[id]!.kind;
+      const kind = file.original.nodes[id]!.kind;
       if (kind.kind === 'object') id = kind.value.find((field) => sameText(field.key, part))!.value;
       else if (kind.kind === 'array') id = kind.value.elements[Number(part)]!;
       else throw new Error('Source path traverses a scalar');
     }
-    const span = source.original.nodes[id]!.span;
-    sourceBytes ??= new TextEncoder().encode(source.source);
+    const span = file.original.nodes[id]!.span;
+    const sourceBytes = bytes.get(file) ?? new TextEncoder().encode(file.source);
+    bytes.set(file, sourceBytes);
     return decoder.decode(sourceBytes.subarray(span.start, span.end));
   }
   return {
@@ -486,8 +499,9 @@ export function createJsonDocument(initial: JsonFileContent | null, options: Jso
         edits: documentEdits(baseline, draft, baselineNodes),
       };
     },
-    accept(capture: DocumentSaveCapture, actual: JsonFileContent, projection?: FileValue) {
-      const accepted = replaceValue(projection ?? content(capture.root), filePath, actual.content);
+    accept(capture: DocumentSaveCapture, actual: JsonFileContent, projection?: FileValue, files: Record<string, JsonFileContent> = {}) {
+      companions = files;
+      const accepted = withSources(projection ?? content(capture.root), actual);
       const saved = build(accepted, [], capture.root),
         savedNodes = indexNodes(saved),
         captured = indexNodes(capture.root);
@@ -510,14 +524,13 @@ export function createJsonDocument(initial: JsonFileContent | null, options: Jso
         edit.after = rebase(edit.after);
       }
       source = actual;
-      sourceBytes = null;
       baselineNodes = savedNodes;
       state.commitSaved(saved, draft);
     },
-    reload(actual: JsonFileContent, projection?: FileValue) {
+    reload(actual: JsonFileContent, projection?: FileValue, files: Record<string, JsonFileContent> = {}) {
+      companions = files;
       source = actual;
-      sourceBytes = null;
-      state.loadBaseline(build(replaceValue(projection ?? actual.content, filePath, actual.content), []));
+      state.loadBaseline(build(withSources(projection ?? actual.content, actual), []));
       baselineNodes = indexNodes(state.baseline);
       history.undoStack.length = 0;
       history.redoStack.length = 0;

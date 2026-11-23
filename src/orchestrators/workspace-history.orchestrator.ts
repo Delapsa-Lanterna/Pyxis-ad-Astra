@@ -1,3 +1,4 @@
+import { activeWorkspaceCsvTable } from './workspace-navigation.orchestrator';
 import { dialogBody, dialogFiles } from '@/shared/ui/dialog-content';
 import type { AppFeedback, FileHistoryEntrySummary } from '@/shared/types';
 import {
@@ -20,23 +21,22 @@ export async function dispatchWorkspaceHistoryCommand(direction: 'undo' | 'redo'
   const modRoot = workspace.activeModRoot;
   const sessionId = workspace.activeSessionId;
   const view = workspace.currentView;
-  const table = modRoot ? (tables.getCsvModState(modRoot)?.currentTab ?? 'ships') : 'ships';
+  const table = activeWorkspaceCsvTable();
   const page = workspace.jsonPage;
   const isCurrent = () =>
     workspace.activeModRoot === modRoot &&
     workspace.activeSessionId === sessionId &&
     workspace.currentView === view &&
-    (view !== 'table' || tables.getCsvModState(modRoot!)?.currentTab === table) &&
+    activeWorkspaceCsvTable() === table &&
     (view !== 'json-editor' || workspace.jsonPage === page);
-  const label = `${direction === 'undo' ? '撤销' : '重做'} ${view === 'json-editor' ? 'JSON' : 'CSV'} 编辑失败`;
+  const label = `${direction === 'undo' ? '撤销' : '重做'} ${table ? 'CSV' : 'JSON'} 编辑失败`;
   try {
-    const editor =
-      view === 'json-editor'
+    const editor = table
+      ? tables.getTableEditor({ sessionId: sessionId!, modRoot: modRoot!, table })
+      : view === 'json-editor'
         ? useJsonEditorStore().active
-        : view === 'table'
-          ? tables.getTableEditor({ sessionId: sessionId!, modRoot: modRoot!, table })
-          : null;
-    if (view === 'table' && tables.isTableLocked(modRoot!, table)) return;
+        : null;
+    if (table && tables.isTableLocked(modRoot!, table)) return;
     if (editor) {
       const result = await editor[direction]();
       if (!isCurrent()) return;

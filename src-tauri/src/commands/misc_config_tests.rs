@@ -11,6 +11,7 @@ use crate::domain::misc_config as domain_misc_config;
 use crate::domain::misc_config::MISC_CONFIG_FILES;
 use crate::errors::AppError;
 use crate::io::file_version;
+use crate::models::MiscConfigFileKind;
 #[cfg(test)]
 use crate::models::{CommittedSessionUpdate, JsonRecoveryPlan};
 use crate::models::{
@@ -46,7 +47,7 @@ fn reject_linked_source() {
     let (root, outside, link) = TestWorkspace::junction("misc_config_boundary", "data/strings");
     let mod_root = root.to_string_lossy().into_owned();
     let entries = misc_config::query_misc_config_files(&mod_root).unwrap();
-    assert_eq!(entries.len(), MISC_CONFIG_FILES.len());
+    assert_eq!(entries.len(), MISC_CONFIG_FILES.len() + 1);
     assert!(matches!(entries[0].state, MiscConfigState::Error));
     assert_eq!(
         entries[0].error.as_ref().unwrap().code,
@@ -121,7 +122,7 @@ impl Fixture {
 fn create_edit_delete_history() {
     let f = Fixture::new();
     let directory = query_misc_config_files(f.scope.clone()).unwrap();
-    assert_eq!(directory.len(), MISC_CONFIG_FILES.len());
+    assert_eq!(directory.len(), MISC_CONFIG_FILES.len() + 1);
     assert!(matches!(directory[0].state, MiscConfigState::Missing));
     assert!(f.read().unwrap().is_none());
     let missing = file_version(&f.path()).unwrap();
@@ -154,7 +155,7 @@ fn create_edit_delete_history() {
         project_save::execute_save_action(SaveAction::DeleteMiscConfig(MiscConfigDelete {
             session_id: f.scope.session_id.clone(),
             mod_root: f.scope.mod_root.clone(),
-            kind: MiscConfigKind::Strings,
+            kind: MiscConfigFileKind::Json(MiscConfigKind::Strings),
             base_versions: saved.base_versions,
         }))
         .unwrap();
@@ -345,7 +346,7 @@ fn config_formats_replay() {
         let bytes = fs::read(&path).unwrap();
         let deleted =
             project_save::execute_save_action(SaveAction::DeleteMiscConfig(MiscConfigDelete {
-                kind,
+                kind: MiscConfigFileKind::Json(kind),
                 session_id: f.scope.session_id.clone(),
                 mod_root: f.scope.mod_root.clone(),
                 base_versions: saved.base_versions,

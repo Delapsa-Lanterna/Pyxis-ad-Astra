@@ -26,7 +26,7 @@
           @click="emit('activate', document)"
         >
           <span class="mod-tab-name ui-text-truncate">{{ label(document) }}</span>
-          <span v-if="document.readOnly" class="code-readonly">引用，只读</span>
+          <span v-if="document.readOnly" class="code-readonly"><slot name="readonly" :file="document">引用，只读</slot></span>
           <span :class="status(document).className" :title="status(document).label" aria-hidden="true" />
         </button>
         <button

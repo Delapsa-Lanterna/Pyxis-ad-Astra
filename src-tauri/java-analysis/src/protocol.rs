@@ -201,6 +201,7 @@ pub struct Inspection {
     pub source: Option<String>,
     pub binding: Option<Binding>,
     pub origin: Option<String>,
+    pub archive_kind: Option<String>,
     #[serde(default)]
     pub diagnostics: Vec<Diagnostic>,
     #[serde(default)]

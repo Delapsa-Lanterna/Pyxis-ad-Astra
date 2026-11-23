@@ -29,6 +29,7 @@ for (const [command, backend] of [
   ['save_variant_entity', 'project'],
   ['save_text_file', 'text_file_editing'],
   ['apply_file_change_set', 'write_transactions'],
+  ['create_csv_table', 'project'],
   ['save_csv_patch', 'project'],
   ['save_joint_edit', 'project'],
   ['synchronize_committed_write', 'write_transactions'],

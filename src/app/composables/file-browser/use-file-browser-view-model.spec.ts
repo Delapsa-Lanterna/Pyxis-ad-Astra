@@ -187,10 +187,12 @@ describe('mod file browser actions and read lifetime', () => {
           fail = reject;
         }),
     );
-    await vm.actions.activate('README');
+    const opening = vm.actions.activate('README');
+    await flushPromises();
+    expect(vm.view.opening).toBe('README');
     wrapper.unmount();
     fail(new Error('window startup failed'));
-    await flushPromises();
+    await opening;
     expect(mocks.error).toHaveBeenCalledExactlyOnceWith(expect.any(Error), '打开文本编辑器失败');
   });
   it('keeps accepted content through failure and recovers via refresh', async () => {
@@ -453,7 +455,12 @@ describe('full Mod search state and input boundary', () => {
     vm.actions.select(['data/spec.wpn']);
     vm.actions.setScroll(75);
     mocks.search.mockResolvedValue(searchResult('find'));
+    const ordinaryNodes = vm.view.nodes;
     vm.actions.setSearch('find');
+    expect(vm.view.ready).toBe(true);
+    expect(vm.view.nodes).toBe(ordinaryNodes);
+    expect(vm.view.selected).toEqual(['data/spec.wpn']);
+    expect(vm.view.scrollTop).toBe(75);
     await vm.actions.submitSearch();
     expect(vm.view.expanded).toEqual(['data']);
     expect(vm.view.nodes[0]!.children![0]!.key).toBe('data/find.txt');

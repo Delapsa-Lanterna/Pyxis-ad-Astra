@@ -18,6 +18,7 @@ export interface IndexedConfigEntityRefresh {
   indexHeader: string[];
   indexRows: CsvRow[];
   entityData: RowData | null;
+  nexerelin?: JsonFileContent;
   document: JsonFileContent | null;
 }
 export interface ModInfoSave {
@@ -37,7 +38,10 @@ interface IndexedConfigSaveScope {
   jsonWrite: JsonWriteOptions;
 }
 export type IndexedConfigSave = IndexedConfigSaveScope &
-  ({ kind: 'faction'; document: JsonFileWrite } | { kind: 'mission'; document: JsonFileWrite; text: string });
+  (
+    | { kind: 'faction'; document: JsonFileWrite; nexerelin?: { original: string | null; document: JsonFileWrite | null } }
+    | { kind: 'mission'; document: JsonFileWrite; text: string }
+  );
 export interface IndexedConfigDelete {
   sessionId: string;
   modRoot: string;

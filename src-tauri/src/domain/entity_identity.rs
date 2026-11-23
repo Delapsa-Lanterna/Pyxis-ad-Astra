@@ -9,6 +9,11 @@ pub fn validate_entity_id<'a>(id: &'a str, message: &str) -> AppResult<&'a str> 
     Ok(clean)
 }
 
+pub fn nexerelin_faction_path(id: &str) -> AppResult<String> {
+    let id = validate_entity_id(id, "无效势力 ID")?;
+    Ok(format!("data/config/exerelinFactionConfig/{id}.json"))
+}
+
 pub fn validate_entity_file_rel_path(
     rel_path: &str,
     root_dir: &str,

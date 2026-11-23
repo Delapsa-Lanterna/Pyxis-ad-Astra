@@ -7,8 +7,9 @@ use crate::io::{self, FileChangeSetBuilder, FsRootBoundary};
 use crate::models::file_content::JsonFileContent;
 use crate::models::file_value::Value as FileValue;
 use crate::models::{
-    FileVersion, JsonDocumentOrigin, MiscConfigEntry, MiscConfigFile, MiscConfigKind,
-    MiscConfigRead, MiscConfigState, MiscConfigWrite, SaveEdit, WriteContentTarget, WriteResult,
+    FileVersion, JsonDocumentOrigin, MiscConfigEntry, MiscConfigFile, MiscConfigFileKind,
+    MiscConfigKind, MiscConfigRead, MiscConfigState, MiscConfigWrite, SaveEdit, WriteContentTarget,
+    WriteResult,
 };
 use crate::parsers;
 use crate::services::{query_json_composition, stage_replace_paths};
@@ -40,8 +41,11 @@ pub fn query_misc_config_files(root: &str) -> AppResult<Vec<MiscConfigEntry>> {
     let boundary = FsRootBoundary::new(Path::new(root), "config root")?;
     MISC_CONFIG_FILES
         .iter()
+        .copied()
+        .map(MiscConfigFileKind::Json)
+        .chain([MiscConfigFileKind::CorvusSpawnpoints])
         .map(|kind| {
-            let relative = definition::misc_config_path(*kind);
+            let relative = definition::config_file_path(kind);
             let requested = boundary.root().join(relative);
             let resolved = boundary.resolve_relative_target(relative, "config file");
             let path = resolved.as_ref().unwrap_or(&requested).clone();
@@ -64,9 +68,9 @@ pub fn query_misc_config_files(root: &str) -> AppResult<Vec<MiscConfigEntry>> {
                 ),
             };
             Ok(MiscConfigEntry {
-                kind: *kind,
+                kind,
                 path: path.to_string_lossy().into_owned(),
-                rel_path: definition::misc_config_path(*kind).into(),
+                rel_path: relative.into(),
                 state,
                 error,
             })
@@ -160,12 +164,15 @@ pub fn save_misc_config(
 }
 pub fn delete_misc_config(
     root: &str,
-    kind: MiscConfigKind,
+    kind: MiscConfigFileKind,
     versions: &[FileVersion],
 ) -> AppResult<WriteResult> {
-    require_version(&target(root, kind)?, versions)?;
+    let relative = definition::config_file_path(kind);
+    let path = FsRootBoundary::new(Path::new(root), "config root")?
+        .resolve_relative_target(relative, "config file")?;
+    require_version(&path, versions)?;
     let mut builder = FileChangeSetBuilder::new(Path::new(root))?;
-    builder.text_file(definition::misc_config_path(kind), None)?;
+    builder.text_file(relative, None)?;
     Ok(WriteResult::from_changes(builder.apply()?))
 }
 fn validate_sound_indices(data: &Value) -> AppResult<()> {

@@ -72,6 +72,7 @@ final class Protocol {
       String source,
       Binding binding,
       String origin,
+      String archiveKind,
       List<Diagnostic> diagnostics,
       List<OutlineEntry> outline,
       List<SourceLocation> locations) {}

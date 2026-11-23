@@ -1,7 +1,7 @@
 import { useCsvEditorStore } from '@/stores/csv-editor.store';
 import { useProjectStore } from '@/stores/project.store';
 import { useSettingsStore } from '@/stores/settings.store';
-import { saveCsvPatch, prepareCsvAssociatedSpecs, queryTableIndex, queryCsvValidation } from '@/services/csv-table.service';
+import { createCsvTable, saveCsvPatch, prepareCsvAssociatedSpecs, queryTableIndex, queryCsvValidation } from '@/services/csv-table.service';
 import { reserveNativeWindowTargets, releaseNativeWindowTargets } from '@/services/window.service';
 import { getAssociatedSpecCandidates, type AssociatedSpecCandidate } from '@/domain/csv-editor/associated-spec-candidates';
 import { hasCsvTableDraftChanges, hasCsvRowOrderChanges, commitCsvTableSaveDraft } from '@/domain/csv-editor/csv-table-draft';
@@ -24,7 +24,13 @@ import type {
   ProjectManifest,
   WindowIdentity,
 } from '@/shared/types';
+import type { SaveCommandRequest } from '@/shared/runtime/command.runtime';
 import type { DocumentSaveResult } from '@/shared/runtime/document-editor';
+
+export function createCsvTableFile(sessionId: string, modRoot: string, table: CsvTableKey, relative: string, request: SaveCommandRequest) {
+  const path = joinRootRelativePath(modRoot, relative);
+  return createCsvTable({ sessionId, modRoot, table, baseVersions: [{ path, fingerprint: null }] }, request);
+}
 
 export type CsvSaveResult = DocumentSaveResult;
 interface TableSaveOptions {

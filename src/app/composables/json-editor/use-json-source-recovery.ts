@@ -66,6 +66,7 @@ export function useJsonSourceRecovery(options: {
               meta: {
                 ...baseline.meta,
                 document: actual.documents[key]!,
+                nexerelin: actual.documents.nexerelin,
                 receipt: result,
                 resources: actual.resourceRefs,
                 recovery: actual,

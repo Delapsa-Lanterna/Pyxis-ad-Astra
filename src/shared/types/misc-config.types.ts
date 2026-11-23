@@ -15,7 +15,7 @@ export interface MiscConfigRead extends MiscConfigScope {
   kind: MiscConfigKind;
 }
 export interface MiscConfigEntry {
-  kind: MiscConfigKind;
+  kind: MiscConfigKind | 'corvusSpawnpoints';
   path: string;
   relPath: string;
   state: 'present' | 'missing' | 'error';
@@ -37,6 +37,6 @@ export interface MiscConfigWrite extends MiscConfigScope {
   jsonWrite: JsonWriteOptions;
 }
 export interface MiscConfigDelete extends MiscConfigScope {
-  kind: MiscConfigKind;
+  kind: MiscConfigKind | 'corvusSpawnpoints';
   baseVersions: FileVersion[];
 }

@@ -30,6 +30,7 @@ final class AnalysisProject implements AutoCloseable {
   final Map<String, CompilationUnit> asts = new LinkedHashMap<>();
   final Map<String, Map<ASTNode, Protocol.SemanticNode>> semanticNodes = new HashMap<>();
   final Map<String, JsonObject> summaries = new HashMap<>();
+  final BinarySources binaries = new BinarySources();
   final ImpactIndex impact = new ImpactIndex();
   String language;
   Path javaHome;
@@ -450,6 +451,7 @@ final class AnalysisProject implements AutoCloseable {
     language = nextLanguage;
     javaHome = nextJavaHome;
     impact.classpath(input.classpath());
+    binaries.configure(impact.archives);
     if (impact.fallback != null) impact.dirty.addAll(copies.keySet());
     revision++;
     analyzedRevision = 0;

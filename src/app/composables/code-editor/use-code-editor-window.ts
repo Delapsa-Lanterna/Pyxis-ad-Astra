@@ -1,3 +1,4 @@
+import type { EditorView } from '@codemirror/view';
 import { useTextFileBatch } from '@/app/composables/text-file-editing/use-text-file-batch';
 import { onMounted, watch } from 'vue';
 import { useCodeFileRequests } from './use-code-file-requests';
@@ -17,14 +18,14 @@ import { beginSavedWrite, settleSavedContent } from '@/orchestrators/project-syn
 import { deployJavaArtifact } from '@/services/java-project.service';
 import { AppError } from '@/shared/lib/errors';
 
-export function useCodeEditorWindow() {
+export function useCodeEditorWindow(view?: () => EditorView | undefined) {
   const context = useWindowContext('code-editor').value;
   const host = useTextFiles(context.identity);
   const project = useCodeProject(async (path, readOnly) => {
     if (readOnly) return analysis.locate({ file: path, version: 1, range: { start: 0, end: 0 } });
     for (const result of await host.openFiles([{ path }])) if (result.diagnostic) feedback.error(result.diagnostic, '打开文件失败');
   });
-  const analysis = useJavaEditor(host, context.identity.modRoot, project.analysisRoots);
+  const analysis = useJavaEditor(host, context.identity.modRoot, project.analysisRoots, view);
   const engineering = useJavaProject({
     changed: async () => {
       await project.refreshSources();

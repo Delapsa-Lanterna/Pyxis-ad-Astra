@@ -80,6 +80,7 @@ function mountMain(requestClose: (scope: CloseScope) => Promise<CloseResult>) {
           ProjectSyncNotice: true,
           ModNavigation: true,
           ModTabsBar: true,
+          NButton: true,
           NSpin: true,
         },
       },

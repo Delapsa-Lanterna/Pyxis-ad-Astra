@@ -47,6 +47,7 @@
 - `src/app/composables/use-window-close-state.ts`：窗口操作锁、具名关闭请求、内容参与登记和卸载释放。
 - `src/app/composables/use-window-shortcuts.ts`：窗口键盘监听、命中路由及关闭屏蔽。
 - `src/domain/csv-editor/associated-spec-candidates.ts`：表格草稿、操作历史、关联规格及展示投影。
+- `src/domain/misc-config.ts`：按杂项配置选择解析活动 CSV 目标。
 - `src/domain/mod-creation/new-mod-template.ts`：模板与校验，拥有 ID/名称/版本规则与 mod-info 默认值。
 - `src/domain/project/load-diagnostics.ts`：加载警告与打开失败的诊断投影。
 - `src/orchestrators/core-assets.orchestrator.ts`：显式响应式根输入、根代次、共享 Promise、接纳与失败日志。

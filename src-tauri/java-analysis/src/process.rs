@@ -96,6 +96,10 @@ impl Engine {
             .arg("-Xms32m")
             .arg("-Xmx512m")
             .arg("-Dfile.encoding=UTF-8")
+            .arg(format!(
+                "-Dpyxis.vineflower={}",
+                java_path(&package.join(relative(&host.decompiler)?)).display()
+            ))
             .arg("-cp")
             .arg(
                 join_paths([

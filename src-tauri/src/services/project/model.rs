@@ -1,4 +1,5 @@
 use super::sources::{SourceScope, core::CoreSourceRequirements, documents::LoadedSpecRecord};
+use crate::models::CORVUS_SPAWNPOINTS;
 use crate::models::file_content::{CsvSource, JsonSource};
 use crate::models::{
     CsvTableKey, EntityEditTarget, EntityKind, EntitySummaries, FileVersion, GameScanWarning,
@@ -58,7 +59,7 @@ const fn table(
         },
     }
 }
-const CSV_TABLES: [CsvTableSpec; 14] = [
+const CSV_TABLES: [CsvTableSpec; 15] = [
     table(
         CsvTableKey::Ships,
         "data/hulls/ship_data.csv",
@@ -140,6 +141,13 @@ const CSV_TABLES: [CsvTableSpec; 14] = [
         CsvTableKey::MarketConditions,
         "data/campaign/market_conditions.csv",
         "id",
+        None,
+        (false, false, false),
+    ),
+    table(
+        CsvTableKey::CorvusSpawnpoints,
+        CORVUS_SPAWNPOINTS,
+        "faction",
         None,
         (false, false, false),
     ),
@@ -300,6 +308,8 @@ mod tests {
                 spec.entity_id_field,
                 if spec.key == CsvTableKey::SimOpponents {
                     "variant id"
+                } else if spec.key == CsvTableKey::CorvusSpawnpoints {
+                    "faction"
                 } else {
                     "id"
                 }

@@ -53,7 +53,7 @@
     </section>
 
     <section class="text-editor-body ui-content-contained ui-layout-grid ui-control-border ui-content-surface" :aria-busy="loading">
-      <TextEditorSurface ref="surface" :document="document" :disabled="loading" :line="targetLine" line-numbers />
+      <TextEditorSurface ref="surface" :document="document" :disabled="!contentReady" :line="targetLine" line-numbers />
     </section>
   </main>
 </template>
@@ -136,7 +136,7 @@ const closeParticipant = useWindowCloseParticipant({
   title: '放弃未保存文件修改？',
 });
 const fileStatusText = computed(() => {
-  if (loading.value) return '正在读取文件…';
+  if (loading.value || (!contentReady.value && !contextMessage.value)) return '正在读取文件…';
   if (saving.value) return '保存中';
   if (isErrorContext.value && !contentReady.value) return '读取失败';
   if (hasPendingExternalText.value) return '外部文本已更新';

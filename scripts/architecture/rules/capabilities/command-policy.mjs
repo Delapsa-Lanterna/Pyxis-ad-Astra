@@ -93,7 +93,7 @@ export const saveActionOwners = {
   'src/services/misc-config.service.ts': ['save_misc_config', 'delete_misc_config'],
   'src/services/project-sync.service.ts': ['refresh_project_sources'],
   'src/services/joint-edit.service.ts': ['save_joint_edit'],
-  'src/services/csv-table.service.ts': ['save_csv_patch'],
+  'src/services/csv-table.service.ts': ['create_csv_table', 'save_csv_patch'],
   'src/services/text-editor.service.ts': ['transcode_file_to_utf8'],
   'src/services/text-file-editing.service.ts': ['save_text_file', 'save_text_batch'],
   'src/services/spec-editor.service.ts': ['save_editor_spec'],

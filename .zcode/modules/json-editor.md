@@ -15,6 +15,7 @@ JSON 文档编辑模块提供 Mod 信息、势力、战役、装配、舰船皮�
 - `src-tauri/src/services/project/write/config_entity.rs`：Mod 信息、势力和战役的完整保存准备及实际内容交付。
 - `src-tauri/src/services/project/write/faction_identity.rs`：势力索引、实际规格目标及保存删除。
 - `src-tauri/src/services/project/write/json_recovery.rs`：缺失基线渲染、必要索引修复和实际 changeset。
+- `src-tauri/src/services/project/write/nexerelin.rs`：势力争霸的逐势力 JSON、势力登记及改名联动。
 - `src/app/components/json-editor/`：六类 JSON 编辑页面、列表、表单与主窗口生命周期验证。
 - `src/app/composables/json-editor/`：页面身份、目标会话、列表选择、输入、资源和保存装配。
 - `src/domain/json-editor/`：独立文件与索引配置的内容规则、默认值、记录投影和装配模块转换。
@@ -40,6 +41,7 @@ JSON 文档编辑模块提供 Mod 信息、势力、战役、装配、舰船皮�
 - `src-tauri/src/models/file_value.rs`：64 位整数、浮点与 UTF-16 文字的精确值。
 - `src-tauri/src/models/json_file.rs`：JSON 文件写入与删除请求协议。
 - `src-tauri/src/models/json_recovery.rs`：来源重建请求、计划和版本协议。
+- `src-tauri/src/parsers/field_schema.rs`：逐势力争霸配置保存使用的内嵌字段定义。
 - `src-tauri/src/parsers/game/`：游戏 JSON/CSV 的正式读取入口、文档方法、数值及文本格式能力。
 - `src-tauri/src/services/project/model.rs`：会话持有的完整内容、来源和版本。
 - `src-tauri/src/services/project/query/csv_window.rs`：CSV 窗口行、搜索与单行预览查询。
@@ -71,6 +73,7 @@ JSON 文档编辑模块提供 Mod 信息、势力、战役、装配、舰船皮�
 - `src/domain/project/entity-definitions.ts`：实体内容 ID、通用 ID 规则与重命名身份投影。
 - `src/domain/project/entity-versions.ts`：目标版本凭据与改名目标凭据交接。
 - `src/domain/schema/`：字段与列资产加载、游戏数字解释、来源声明、校验及目标格式准备。
+- `src/orchestrators/csv-save.orchestrator.ts`：杂项 CSV 创建时读取缺失版本并提交标准表头。
 - `src/orchestrators/entity-write.orchestrator.ts`：实体保存的文件名选择。
 - `src/orchestrators/immersive-editor.orchestrator.ts`：装配沉浸式编辑器打开动作。
 - `src/orchestrators/project-sync.orchestrator.ts`：提交 receipt 接纳、来源刷新及跨窗口通知。
@@ -91,6 +94,7 @@ JSON 文档编辑模块提供 Mod 信息、势力、战役、装配、舰船皮�
 - `src/shared/types/json-recovery.types.ts`：前后端对应的来源重建协议。
 - `src/shared/types/project-identity.types.ts`：实体目标与版本凭据协议。
 - `src/shared/types/write-commit.types.ts`：公共保存回执、提交同步、行键映射与正式内容交付。
+- `src/stores/csv-editor.store.ts`：杂项 CSV 的草稿、输入与表格选择。
 - `src/stores/draft-sessions.store.ts`：按 Mod 根登记未保存草稿。
 - `src/stores/project-sync.store.ts`：当前待办、错误和项目等待状态。
 - `src/stores/project.store.ts`：指定 Mod 的正式清单与 session 查询，异步动作消费捕获目标。
@@ -151,6 +155,7 @@ JSON 文档编辑模块提供 Mod 信息、势力、战役、装配、舰船皮�
 
 ## 规范
 
+- 势力页按势力 ID 展示本地势力争霸 JSON。配置和本地登记在同一变更集中保存、改名与回放，已有本地登记、已接入引用来源的登记及内置势力身份用于判定是否需要补行。
 - 文档问题必须复用所属输入集合与共同字段规则，按有效内容汇总全部字段，保存确认检查独立提交快照；问题定位展开所属分组并聚焦当前文档的既有控件，草稿与历史沿原会话交接。
 - 列表读取等待必须绑定所属加载任务并保留已有条目，失败在列表区域交付同一读取动作的重试；列表选择交接呈现实际等待目标并消费现有导航顺序与页面寿命。
 - 删除确认必须按正式索引关联区分移除登记与删除文件，删除来源通过下拉选择并同步更新正文和单个确认按钮；来源重建说明采用最后保存内容并保留草稿与输入。

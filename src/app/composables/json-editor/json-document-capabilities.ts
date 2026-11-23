@@ -15,6 +15,7 @@ import {
   buildFactionIndexRow,
   buildMissionIndexRow,
   createDefaultFaction,
+  nexerelinFactionPath,
   configMissionSaveDraft,
 } from '@/domain/json-editor/json-config-entities';
 import { isEntityId, entityIdInvalidMessage } from '@/domain/schema/schema-identity';
@@ -60,6 +61,7 @@ export type JsonDocumentWriter = (
 
 export interface JsonDocumentMeta {
   document: JsonFileContent;
+  nexerelin?: JsonFileContent;
   composition?: JsonComposition;
   resources?: Record<string, ResourceRef>;
   receipt: WriteResult<unknown> | null;
@@ -93,11 +95,18 @@ export async function loadJsonDocument(target: ConfigDocumentTarget, signal?: Ab
   const entity = await querySessionEntity(sessionId, kind, target.id, signal);
   if (!entity) throw new AppError('JSON 文档来源已删除', { code: 'json.source_missing' });
   const record = jsonDocumentRecord(sessionId, target.modRoot, entity);
+  const companion = kind === 'faction' ? await readJsonDocument(sessionId, nexerelinFactionPath(target.id)) : null;
   return {
     target: record.target,
-    value: record.value,
-    baseVersions: record.baseVersions,
-    meta: { document: record.document!, resources: record.resources, composition: record.composition, receipt: null },
+    value: companion ? { ...record.value, nexerelin: projectJsonValue(companion.document.content) } : record.value,
+    baseVersions: [...record.baseVersions, ...(companion?.baseVersions ?? [])],
+    meta: {
+      nexerelin: companion?.document,
+      document: record.document!,
+      resources: record.resources,
+      composition: record.composition,
+      receipt: null,
+    },
   };
 }
 
@@ -112,6 +121,7 @@ export async function saveJsonDocument(
   capture: DocumentSaveCapture,
   request?: SaveCommandRequest,
   composition?: JsonComposition,
+  companion?: Extract<IndexedConfigSave, { kind: 'faction' }>['nexerelin'],
 ): Promise<JsonDocumentSnapshot | void> {
   const { kind } = definition,
     { sessionId, modRoot, id } = target;
@@ -136,6 +146,7 @@ export async function saveJsonDocument(
   const nextId = jsonDocumentId(definition, data) || id;
   if (kind !== 'mod-info' && kind !== 'misc-config' && !isEntityId(nextId))
     throw new AppError(entityIdInvalidMessage(definition.idField, nextId), { code: 'config.id_invalid' });
+  let nexerelin: JsonFileContent | undefined;
   let receipt: WriteResult<unknown>, actual: JsonFileContent, value: RowData;
   if (kind === 'mod-info' || kind === 'misc-config') {
     const result =
@@ -175,7 +186,7 @@ export async function saveJsonDocument(
           text: mission.text,
           indexRow: buildMissionIndexRow([mission.list], Object.keys(mission.list), nextId),
         }
-      : { ...common, kind: 'faction', indexRow: buildFactionIndexRow(nextId) };
+      : { ...common, kind: 'faction', nexerelin: companion, indexRow: buildFactionIndexRow(nextId) };
     const result = await saveIndexedEntityAction(
       payload,
       edits,
@@ -193,6 +204,8 @@ export async function saveJsonDocument(
             ...result.content!.value.entityData!,
             list: result.content!.value.indexRows.find((row) => !row.isComment && row.data.mission === nextId)!.data,
           });
+    nexerelin = result.content!.value.nexerelin;
+    if (nexerelin) value.nexerelin = projectJsonValue(nexerelin.content);
   }
   const entity =
     kind === 'mod-info' || kind === 'misc-config'
@@ -207,7 +220,7 @@ export async function saveJsonDocument(
     value,
     baseVersions: receipt.baseVersions,
     requestId: receipt.requestId,
-    meta: { document: actual, composition, receipt },
+    meta: { document: actual, nexerelin, composition, receipt },
   };
 }
 

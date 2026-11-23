@@ -49,9 +49,16 @@ final class EditorQueries {
     if (input.revision() != project.revision)
       throw new Protocol.Failure(
           "engine.stale_project", "Project revision is stale", input.file(), input.offset());
-    String file = project.key(input.file());
+    var binary = project.binaries.documents.get(input.file());
+    if (binary == null && input.file().startsWith("jar:"))
+      throw new Protocol.Failure(
+          "engine.source_unavailable",
+          "Archive source is outside the current project snapshot",
+          input.file(),
+          null);
+    String file = binary == null ? project.key(input.file()) : binary.file();
     var copy = project.copies.get(file);
-    if (copy == null)
+    if (copy == null && binary == null)
       throw new Protocol.Failure(
           "engine.source_unavailable", "File is outside active sources", file, input.offset());
     JsonObject result =
@@ -63,13 +70,22 @@ final class EditorQueries {
             "file",
             file,
             "version",
-            project.versions.get(file));
+            binary == null ? project.versions.get(file) : 1L);
+    if (binary != null) {
+      result.addProperty("origin", binary.origin());
+      result.addProperty("archiveKind", binary.kind());
+    }
     if (input.purpose().equals("source")) {
-      result.addProperty("source", copy.getSource());
+      result.addProperty("source", binary == null ? copy.getSource() : binary.text());
       return result;
     }
     project.analyze();
-    CompilationUnit unit = project.asts.get(file);
+    CompilationUnit unit =
+        binary == null ? project.asts.get(file) : project.binaries.unit(project, binary);
+    if (binary != null && input.purpose().equals("document")) {
+      result.add("outline", outline(unit));
+      return result;
+    }
     if (input.purpose().equals("document")) {
       JsonObject summary = project.summaries.get(file);
       JsonArray diagnostics = summary.getAsJsonArray("diagnostics");
@@ -83,13 +99,16 @@ final class EditorQueries {
     }
     if (!List.of("hover", "declaration", "references").contains(input.purpose()))
       throw new IllegalArgumentException("Unknown editor query purpose");
-    int length = copy.getBuffer().getLength();
+    int length = binary == null ? copy.getBuffer().getLength() : binary.text().length();
     if (length == 0) return result;
     if (input.offset() < 0 || input.offset() > length)
       throw new IllegalArgumentException("Offset is outside source");
     ASTNode selected = NodeFinder.perform(unit, Math.min(input.offset(), length - 1), 0);
-    Protocol.SemanticNode facts = project.semanticNodes.get(file).get(selected);
-    if (facts == null) facts = new SemanticSnapshot().node(selected, copy.getSource());
+    Protocol.SemanticNode facts =
+        binary == null ? project.semanticNodes.get(file).get(selected) : null;
+    if (facts == null)
+      facts =
+          new SemanticSnapshot().node(selected, binary == null ? copy.getSource() : binary.text());
     var binding = facts.binding() == null ? facts.type() : facts.binding();
     if (binding == null) return result;
     result.add("binding", Protocol.JSON.toJsonTree(binding));
@@ -101,6 +120,12 @@ final class EditorQueries {
       for (JsonObject location : project.impact.locations(binding.key()))
         if (location.get("declaration").getAsBoolean() == input.purpose().equals("declaration"))
           locations.add(location);
+      if (locations.isEmpty() && input.purpose().equals("declaration")) {
+        JsonObject target =
+            binary == null ? null : BinarySources.location(binary, unit, binding.key());
+        if (target == null) target = project.binaries.declaration(project, resolved);
+        if (target != null) locations.add(target);
+      }
       result.add("locations", locations);
     }
     return result;

@@ -84,7 +84,7 @@ export const editorsCapabilities = [
       names: ['prepareCsvAssociatedSpecs'],
       owners: [{ layer: 'orchestrators', domain: 'csv-save' }],
     },
-    { capability: 'table-write', names: ['saveCsvPatch'], owners: [{ layer: 'orchestrators', domain: 'csv-save' }] },
+    { capability: 'table-write', names: ['createCsvTable', 'saveCsvPatch'], owners: [{ layer: 'orchestrators', domain: 'csv-save' }] },
   ]),
   ...capabilities({ role: 'service', domain: 'json-entity' }, [
     {

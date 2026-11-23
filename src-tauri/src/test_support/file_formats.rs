@@ -215,6 +215,7 @@ pub(crate) fn prepared_spec_write(
 pub(crate) fn indexed_content(kind: IndexedConfigKind, value: &Value) -> IndexedConfigContent {
     match kind {
         IndexedConfigKind::Faction => IndexedConfigContent::Faction {
+            nexerelin: None,
             document: json_write(&value["file"]),
         },
         IndexedConfigKind::Mission => IndexedConfigContent::Mission {

@@ -1,3 +1,4 @@
+import { nexerelinFactionPath } from '@/domain/json-editor/json-config-entities';
 import { associatedSpecKind } from '@/domain/csv-editor/associated-specs';
 import type * as T from '@/shared/types';
 import { TABLE_KEYS } from '@/shared/types';
@@ -361,6 +362,37 @@ export function createWorkspaceProject(root: string, index: number, files = game
       next.write.path = path;
       next.write.relPath = path.slice(root.length + 1);
     }
+    let nexerelin: T.JsonFileContent | undefined;
+    if (input.kind === 'faction') {
+      const source = root + '/' + nexerelinFactionPath(previous);
+      const destination = root + '/' + nexerelinFactionPath(id);
+      const edit = input.nexerelin;
+      const remove = (deleting && input.deleteTarget) || edit?.document === null;
+      const prior = textFiles.get(source);
+      if (edit || (prior !== undefined && (previous !== id || remove))) {
+        const index = root + '/data/config/exerelinFactionConfig/mod_factions.csv';
+        const csv = readGameCsv(textFiles.get(index) ?? 'faction\n');
+        const row = csv.rows.find((row) => row.faction === previous);
+        if (remove || previous !== id) {
+          textFiles.delete(source);
+          touched.push(source);
+        }
+        if (remove) csv.rows = csv.rows.filter((entry) => entry !== row);
+        else {
+          const value = edit?.document ? projectJsonValue(edit.document.content) : (JSON.parse(prior!) as T.JsonValue);
+          nexerelin = jsonFileFixture(value);
+          textFiles.set(destination, nexerelin.source);
+          touched.push(destination);
+          if (row) row.faction = id;
+          else csv.rows.push({ faction: id });
+        }
+        const text = renderGameCsv(csv.header, csv.rows);
+        if (text !== textFiles.get(index)) {
+          textFiles.set(index, text);
+          touched.push(index);
+        }
+      }
+    }
     const indexPath = root + (kind === 'faction' ? '/data/world/factions/factions.csv' : '/data/missions/mission_list.csv');
     const index = indexed ? readGameCsv(textFiles.get(indexPath) ?? (kind === 'faction' ? 'faction\n' : 'mission\n')) : null;
     if (index) {
@@ -382,6 +414,7 @@ export function createWorkspaceProject(root: string, index: number, files = game
           entityId: id,
           indexPath,
           indexHeader: index!.header,
+          nexerelin,
           indexRows: index!.rows.map((data) => ({ data, isComment: false })),
           entityData: deleting ? null : kind === 'faction' ? { file: data } : data,
           document: deleting ? null : jsonFileFixture(kind === 'mission' ? data.descriptor! : data),

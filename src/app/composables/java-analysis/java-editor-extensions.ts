@@ -8,6 +8,7 @@ export function javaEditorExtensions({
   result,
   inspect,
   navigate,
+  travel,
   signature,
   fail,
 }: {
@@ -15,6 +16,7 @@ export function javaEditorExtensions({
   result: JavaInspection | undefined;
   inspect: (purpose: JavaQueryPurpose, position?: number) => Promise<JavaInspection | null>;
   navigate: (purpose: 'declaration' | 'references', position?: number) => Promise<void>;
+  travel: (direction: 'back' | 'forward') => Promise<void>;
   signature: (result: JavaInspection) => string;
   fail: (error: unknown) => void;
 }) {
@@ -29,6 +31,13 @@ export function javaEditorExtensions({
       },
     }),
     keymap.of([
+      ...(['back', 'forward'] as const).map((direction) => ({
+        key: direction === 'back' ? 'Alt-ArrowLeft' : 'Alt-ArrowRight',
+        run: () => {
+          void travel(direction).catch(fail);
+          return true;
+        },
+      })),
       {
         key: 'F12',
         run: () => {

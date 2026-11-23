@@ -34,7 +34,7 @@ import { csvValidationDefinitions } from '@/domain/csv-editor/csv-validation';
 import { hasCsvValidationInvalidation } from '@/domain/csv-editor/csv-rule-context';
 import { infoLog } from '@/shared/runtime/app-log-queue';
 import { logIdentity } from '@/shared/lib/log-fields';
-import { cell } from '@/shared/lib/starsector';
+import { csvIdentityColumn, cell } from '@/shared/lib/starsector';
 import { prepareCsvValue } from '@/domain/schema/csv-value-validation';
 import { getCsvColumnSchemas } from '@/domain/schema/csv-schema-registry';
 
@@ -83,6 +83,10 @@ const readRowPreview = new CachedSessionQuery<Omit<CsvRowPreviewPayload, 'sessio
     invalidation.queryScopes.some((scope) => scope.kind === 'csv-row-preview' && (!scope.table || scope.table === parameters.table)),
 });
 
+export function createCsvTable(payload: Pick<CsvSave, 'sessionId' | 'modRoot' | 'table' | 'baseVersions'>, request: SaveCommandRequest) {
+  return invokeSaveCommand<WriteResult>('create_csv_table', { payload }, [], request);
+}
+
 export function saveCsvPatch(
   sessionId: string,
   modRoot: string,
@@ -106,7 +110,7 @@ export function saveCsvPatch(
     }
     return { ...patch, row };
   });
-  const idField = table === 'simOpponents' ? 'variant id' : 'id';
+  const idField = csvIdentityColumn(table);
   for (const [index, patch] of patches.entries())
     infoLog('tables.row_submitted', () => ({
       requestId,

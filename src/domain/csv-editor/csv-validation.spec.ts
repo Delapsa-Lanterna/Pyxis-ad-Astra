@@ -33,19 +33,33 @@ describe('CSV table-specific validation', () => {
     expect(csvValidationDefinitions.skills.validate(rows)).toEqual([]);
     expect(csvValidationDefinitions.weapons.validate(rows)).toHaveLength(1);
   });
-  it.each(TABLE_KEYS.filter((table) => !['descriptions', 'simOpponents'].includes(table)))('checks exact IDs for %s', (table) => {
-    const issues = csvValidationDefinitions[table].validate([
-      row('sample_wing', 0),
-      row('', 1),
-      row('sample_wing', 2, true),
-      row('Sample_wing', 3),
-      row('sample_wing', 4),
-      row('', 5),
+  it('requires one spawn point per faction and preserves annotations and empty records', () => {
+    const rows = [
+      csvDraftRow({ faction: '# note', system: '', entityID: '' }, 'note', true),
+      csvDraftRow({ faction: '', system: '', entityID: '' }, 'empty'),
+      csvDraftRow({ faction: 'sample', system: 'First', entityID: 'a' }, 'a'),
+      csvDraftRow({ faction: 'sample', system: 'Second', entityID: 'b' }, 'b'),
+    ];
+    expect(csvValidationDefinitions.corvusSpawnpoints.validate(rows)).toMatchObject([
+      { code: 'csv.identity_duplicate', path: 'a/faction' },
     ]);
-    expect(issues).toHaveLength(1);
-    expect(issues[0]).toMatchObject({ severity: 'error', code: 'csv.identity_duplicate', path: 'row-0/id' });
-    expect(issues[0]!.message).toContain('2 行，行号：1、5');
   });
+  it.each(TABLE_KEYS.filter((table) => !['descriptions', 'simOpponents', 'corvusSpawnpoints'].includes(table)))(
+    'checks exact IDs for %s',
+    (table) => {
+      const issues = csvValidationDefinitions[table].validate([
+        row('sample_wing', 0),
+        row('', 1),
+        row('sample_wing', 2, true),
+        row('Sample_wing', 3),
+        row('sample_wing', 4),
+        row('', 5),
+      ]);
+      expect(issues).toHaveLength(1);
+      expect(issues[0]).toMatchObject({ severity: 'error', code: 'csv.identity_duplicate', path: 'row-0/id' });
+      expect(issues[0]!.message).toContain('2 行，行号：1、5');
+    },
+  );
   it('uses both description keys and preserves simulator repetitions', () => {
     const rows = [row('sample', 0, false, 'SHIP'), row('sample', 1, false, 'WEAPON'), row('sample', 2, false, 'SHIP')];
     expect(csvValidationDefinitions.descriptions.validate(rows)).toMatchObject([{ path: 'row-0/id' }]);

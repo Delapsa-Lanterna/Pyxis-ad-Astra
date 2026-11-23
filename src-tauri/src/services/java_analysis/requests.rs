@@ -67,6 +67,7 @@ fn normalize_request(request: &mut AnalysisRequest) -> AppResult<()> {
                 }
             }
         }
+        AnalysisRequest::Inspect { file, .. } if file.starts_with("jar:") => {}
         AnalysisRequest::Query { file, .. }
         | AnalysisRequest::Inspect { file, .. }
         | AnalysisRequest::Assist { file, .. } => normalize_path(file, "Java source file")?,

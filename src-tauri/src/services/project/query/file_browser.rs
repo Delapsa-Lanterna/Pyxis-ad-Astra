@@ -134,7 +134,7 @@ pub fn query_file_search(
     search_files(&boundary(session)?, query, directory)
 }
 fn is_text_file(path: &Path) -> AppResult<bool> {
-    let (_, bytes) = io::read_versioned_bytes(path)?;
+    let bytes = fs::read(path).map_err(|error| AppError::from(error).at_path(path))?;
     if text_file::binary(&bytes) {
         return Ok(false);
     }

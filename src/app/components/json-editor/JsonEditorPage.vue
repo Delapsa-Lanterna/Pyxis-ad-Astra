@@ -20,8 +20,9 @@
       @select="select"
       @retry="retryList()"
     />
+    <slot v-if="showCsv" name="csv" :delete-file="deleteCsvFile" />
     <JsonDocumentEditor
-      v-if="current"
+      v-else-if="current"
       :key="current.viewId"
       :definition="definition"
       :document="current"
@@ -75,6 +76,8 @@ void useCoreSchema().loadCoreFields();
 const {
   current,
   selectedFile,
+  showCsv,
+  deleteCsvFile,
   fileError,
   fileLoading,
   retryFile,

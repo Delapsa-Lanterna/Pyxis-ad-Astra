@@ -161,7 +161,15 @@ pub struct CsvSave {
     pub json_write: JsonWriteOptions,
 }
 
-project_identity::impl_session_mod_scope_required!(CsvSave);
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CsvTableCreate {
+    pub session_id: ProjectSessionId,
+    pub mod_root: String,
+    pub table: CsvTableKey,
+    pub base_versions: Vec<FileVersion>,
+}
+project_identity::impl_session_mod_scope_required!(CsvSave, CsvTableCreate);
 
 #[cfg(test)]
 mod tests {

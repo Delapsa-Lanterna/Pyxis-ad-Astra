@@ -14,6 +14,7 @@
     <div class="file-browser-toolbar ui-layout-row ui-layout-center">
       <n-input
         :value="view.searchText"
+        :loading="view.searching && view.loading"
         clearable
         placeholder="搜索文件名"
         :input-props="{ 'aria-label': '搜索文件名' }"
@@ -26,9 +27,6 @@
         ><n-button :loading="view.refreshing" @click="actions.refresh">刷新</n-button>
       </div>
     </div>
-    <p v-if="view.loading" class="file-browser-status ui-text-muted ui-text-small ui-text-reset" role="status">
-      {{ view.searching ? '正在搜索…' : '正在读取目录…' }}
-    </p>
     <div v-if="view.error" class="file-browser-error ui-control-between ui-text-small">
       <span class="file-browser-error-label ui-layout-shrink ui-text-wrap">{{ view.error }}</span
       ><n-button size="small" @click="actions.refresh">重试</n-button>
@@ -74,13 +72,24 @@
             @update:selected-keys="actions.select"
           />
           <p v-else-if="view.ready && !view.loading" class="file-browser-empty ui-text-muted ui-text-small ui-text-reset">
-            {{ view.searching ? '未找到匹配项' : '空文件夹' }}
+            {{ view.showingSearch ? '未找到匹配项' : '空文件夹' }}
           </p>
         </div>
       </div>
     </div>
-    <footer class="file-browser-footer ui-footer ui-text-description ui-text-muted ui-text-small ui-text-reset">
-      双击文件夹展开或收起，双击文本文件打开编辑器。
+    <footer
+      class="file-browser-footer ui-footer ui-text-description ui-text-muted ui-text-small ui-text-reset ui-text-truncate"
+      role="status"
+    >
+      {{
+        view.opening
+          ? '正在打开 ' + view.opening
+          : view.loading
+            ? view.searching
+              ? '正在搜索…'
+              : '正在读取目录…'
+            : '双击文件夹展开或收起，双击文本文件打开编辑器。'
+      }}
     </footer>
   </section>
 </template>
@@ -105,11 +114,11 @@ const nodeProps: NonNullable<TreeProps['nodeProps']> = ({ option }) => ({
   title: String(option.key),
   onDblclick: (event: MouseEvent) => {
     if (event.target instanceof Element && event.target.closest('[data-switcher]')) return;
-    void actions.activate(String(option.key));
+    if (option.kind === 'file' || option.kind === 'directory') void actions.activate(String(option.key), option.kind);
   },
 });
 const renderLabel: NonNullable<TreeProps['renderLabel']> = ({ option }) => {
-  const status = view.searching ? undefined : view.directories.get(String(option.key));
+  const status = view.showingSearch ? undefined : view.directories.get(String(option.key));
   return fileTreeLabel(option, status, () => void actions.load(String(option.key)));
 };
 const renderSuffix: NonNullable<TreeProps['renderSuffix']> = ({ option }) =>
@@ -138,7 +147,7 @@ async function restoreScroll() {
     });
   });
 }
-watch(() => [view.title, view.searching, view.ready], restoreScroll, { flush: 'sync' });
+watch(() => [view.title, view.showingSearch, view.ready], restoreScroll, { flush: 'sync' });
 watch(() => [view.nodes, tree.value], restoreScroll, { flush: 'post' });
 watch(
   () => view.refreshing,

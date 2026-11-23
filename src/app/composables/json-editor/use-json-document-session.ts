@@ -21,6 +21,8 @@ import { stableDeepEqual } from '@/shared/lib/stable-compare';
 import { AppError } from '@/shared/lib/errors';
 import { beginSavedWrite, observeSavedContent, sessionContentUpdate } from '@/orchestrators/project-sync.orchestrator';
 import { releaseNativeWindowTargets } from '@/services/window.service';
+import { schemaDocumentIssues } from '@/domain/schema/schema-validation';
+import { getSchema } from '@/domain/schema/config-schema-registry';
 import { useCoreSchema } from '@/app/composables/use-core-schema';
 import { useFieldInputActions } from '@/app/composables/use-field-input-actions';
 import { useQueryReadOwner } from '@/app/composables/use-query-read-owner';
@@ -33,7 +35,7 @@ import { useSaveCommandStore, type SaveParticipant } from '@/stores/save-command
 import { useDraftSessionsStore } from '@/stores/draft-sessions.store';
 import type { DocumentEditorActions, DocumentSaveResult } from '@/shared/runtime/document-editor';
 import type { AppFeedback, EditContext, RowData } from '@/shared/types';
-import type { DocumentEdit } from '@/shared/types';
+import type { JsonFileContent, DocumentEdit } from '@/shared/types';
 
 export function useJsonDocumentSession(definition: JsonDocumentDefinition, record: JsonDocumentRecord, feedback: AppFeedback) {
   const editors = useJsonEditorStore(),
@@ -64,13 +66,27 @@ function createSession(definition: JsonDocumentDefinition, record: JsonDocumentR
     commands = useSaveCommandStore();
   const { getMergedSchema } = useCoreSchema(),
     reads = useQueryReadOwner();
-  const schema = computed(() =>
+  const companionFiles = (file?: JsonFileContent): Record<string, JsonFileContent> => (file ? { nexerelin: file } : {});
+  const formSchema = computed(() =>
     getMergedSchema(definition.kind === 'misc-config' ? miscConfigDefinition(record.target.id).schema : definition.kind)!,
+  );
+  const companionSchema = definition.kind === 'faction' ? getSchema('nexerelin-faction')! : null;
+  const schema = computed(() =>
+    companionSchema
+      ? {
+          ...formSchema.value,
+          sections: [
+            ...formSchema.value.sections!,
+            { id: 'nexerelin', label: companionSchema.root!.label, fields: [companionSchema.root!] },
+          ],
+        }
+      : formSchema.value,
   );
   const filePath = definition.kind === 'mission' ? ['descriptor'] : ['variant', 'skin'].includes(definition.kind) ? [] : ['file'];
   const document = createJsonDocument(record.document!, {
     value: prepareValue(record.value).value,
     filePath,
+    companions: companionFiles(record.nexerelin),
     historyLimit: settings.editHistoryLimit,
   });
   const revision = ref(0),
@@ -84,7 +100,13 @@ function createSession(definition: JsonDocumentDefinition, record: JsonDocumentR
     target: record.target,
     value: record.value,
     baseVersions: record.baseVersions,
-    meta: { document: record.document!, resources: record.resources, composition: record.composition, receipt: null },
+    meta: {
+      document: record.document!,
+      nexerelin: record.nexerelin,
+      resources: record.resources,
+      composition: record.composition,
+      receipt: null,
+    },
   });
   const pendingSnapshot = shallowRef<JsonDocumentSnapshot | null>(null);
   const context = shallowRef<EditContext>({ targetKey: currentTargetKey.value!, baselineGeneration: 1, handoff: 'load' });
@@ -123,7 +145,7 @@ function createSession(definition: JsonDocumentDefinition, record: JsonDocumentR
   function loadBaseForTarget(snapshot: JsonDocumentSnapshot) {
     reads.revoke();
     inputs.cancel();
-    document.reload(snapshot.meta.document, prepareValue(snapshot.value).value);
+    document.reload(snapshot.meta.document, prepareValue(snapshot.value).value, companionFiles(snapshot.meta.nexerelin));
     publish(snapshot, 'load');
   }
   function acceptsSaveDelivery(target: ConfigDocumentTarget, id?: string) {
@@ -151,7 +173,7 @@ function createSession(definition: JsonDocumentDefinition, record: JsonDocumentR
     if (disposed || configDocumentKey(expected) !== currentTargetKey.value) return false;
     const mapped = map(projection.value);
     const captured = { ...document.capture('preserveStructure'), root: document.state.baseline };
-    document.accept(captured, snapshot.meta.document, prepareValue(snapshot.value).value);
+    document.accept(captured, snapshot.meta.document, prepareValue(snapshot.value).value, companionFiles(snapshot.meta.nexerelin));
     document.update(mapped, (value, path) => prepareSchemaAtPath(value, path, schema.value));
     publish(snapshot, 'identity');
     return true;
@@ -172,7 +194,7 @@ function createSession(definition: JsonDocumentDefinition, record: JsonDocumentR
       target,
       value: jsonRecoveryValue(target, plan, baseline.value),
       baseVersions: plan.baseVersions,
-      meta: { ...baseline.meta, document, resources: plan.resourceRefs, receipt: null },
+      meta: { ...baseline.meta, document, nexerelin: plan.documents.nexerelin, resources: plan.resourceRefs, receipt: null },
     });
   }
   const session = {
@@ -218,12 +240,40 @@ function createSession(definition: JsonDocumentDefinition, record: JsonDocumentR
   );
   const problems = createEditorProblems(
     inputs,
-    () => jsonDocumentIssues(definition, schema.value, projection.value, composition.value),
+    () => {
+      const value = projection.value;
+      const baseline = baselineSnapshot.value.value;
+      if (companionSchema && !stableDeepEqual(value.nexerelin, baseline.nexerelin) && stableDeepEqual(value.file, baseline.file))
+        return schemaDocumentIssues(companionSchema, value);
+      return jsonDocumentIssues(definition, schema.value, value, composition.value);
+    },
     true,
   );
   watch([revision, composition], problems.clearFailure);
-  const write: JsonDocumentWriter = (target, draft, versions, original, captured, request) =>
-    saveJsonDocument(definition, schema.value, feedback, target, draft, versions, original, captured, request, composition.value);
+  const write: JsonDocumentWriter = (target, draft, versions, original, captured, request) => {
+    const baseline = baselineSnapshot.value.meta.nexerelin;
+    const field = draft.nexerelin !== undefined ? document.prepared(['nexerelin']) : null;
+    const companion =
+      definition.kind === 'faction' && (field || baseline)
+        ? {
+            original: baseline?.source ?? null,
+            document: field ? { content: field.value, target: field.target, layout: captured.request.layout } : null,
+          }
+        : undefined;
+    return saveJsonDocument(
+      definition,
+      schema.value,
+      feedback,
+      target,
+      draft,
+      versions,
+      original,
+      captured,
+      request,
+      composition.value,
+      companion,
+    );
+  };
   function saveDraft(writer: JsonDocumentWriter = write, preserveDraft = false): Promise<JsonDocumentSnapshot | null> {
     if (pendingSave) return pendingSave;
     saving.value = true;
@@ -246,6 +296,7 @@ function createSession(definition: JsonDocumentDefinition, record: JsonDocumentR
               preserveDraft ? { ...captured, root: document.state.baseline } : captured,
               snapshot.meta.document,
               prepareValue(snapshot.value).value,
+              companionFiles(snapshot.meta.nexerelin),
             );
             publish(snapshot, 'save');
             sourceMissing.value = false;
@@ -400,7 +451,8 @@ function createSession(definition: JsonDocumentDefinition, record: JsonDocumentR
     revision,
     active,
     setActive,
-    schema,
+    schema: formSchema,
+    companionSchema,
     composition,
     problems,
     draftValue,
@@ -419,6 +471,7 @@ function createSession(definition: JsonDocumentDefinition, record: JsonDocumentR
       target: currentTarget.value!,
       value: baselineSnapshot.value.value,
       document: baselineSnapshot.value.meta.document,
+      nexerelin: baselineSnapshot.value.meta.nexerelin,
       baseVersions: baselineSnapshot.value.baseVersions,
       resources: baselineSnapshot.value.meta.resources ?? record.resources,
       composition: composition.value,

@@ -97,6 +97,7 @@ if (values['dry-run']) {
     java: versions.java,
     launcher: 'launcher.jar',
     bundle: 'engine.jar',
+    decompiler: artifacts.find((item) => item.path.startsWith('lib/vineflower-'))?.path,
     framework: 'lib/org.eclipse.osgi-3.24.300.jar',
     dependencies,
     files: ownFiles,

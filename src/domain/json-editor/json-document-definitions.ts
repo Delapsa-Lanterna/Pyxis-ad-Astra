@@ -37,6 +37,7 @@ export interface JsonDocumentRecord {
   target: ConfigDocumentTarget;
   value: RowData;
   document: JsonFileContent | null;
+  nexerelin?: JsonFileContent;
   baseVersions: FileVersion[];
   resources: Record<string, ResourceRef>;
   composition?: JsonComposition;
@@ -152,6 +153,9 @@ export function jsonRecoveryValue(target: ConfigDocumentTarget, plan: JsonRecove
         text: plan.currentSources.text ?? '',
       }),
     };
+  }
+  if (target.kind === 'faction' && plan.documents.nexerelin) {
+    return { file: projectJsonValue(plan.documents.file!.content), nexerelin: projectJsonValue(plan.documents.nexerelin.content) };
   }
   const value = plan.documents.file ? projectJsonValue(plan.documents.file.content) : plan.currentSources.file!;
   return target.kind === 'misc-config'

@@ -1,4 +1,7 @@
 import assert from 'node:assert/strict';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
+import { javaTool } from '../../java-analysis/runtime.mjs';
 import { mkdir, writeFile, rename } from 'node:fs/promises';
 import { join } from 'node:path';
 import { until } from '../runtime.mjs';
@@ -13,14 +16,24 @@ export async function javaQueries(
 ) {
   const { fixture, check, options, artifacts } = context;
   if (!options.game) throw Error('Java queries require --game for the real Java 17 runtime');
-  const source = '// 星🪐\r\nimport pkg.Imported;\r\nclass Orbit { Object run(){return Library.value();} }\r';
+  const source =
+    '// 星🪐\r\nimport pkg.Imported;\r\nclass Orbit { Object run(){return Library.value();} int binary(){return catalog.Archive.choose(42);} }\r';
   const file = join(fixture.mod, 'src/Orbit.java'),
     libraryRoot = join(fixture.game, 'mods/library'),
     library = join(libraryRoot, 'src/Library.java');
   await mkdir(join(fixture.mod, 'src'), { recursive: true });
   await mkdir(join(libraryRoot, 'src'), { recursive: true });
   await writeFile(file, source);
-  await writeFile(join(libraryRoot, 'mod_info.json'), '{"id":"library","name":"Library","version":"1"}');
+  await writeFile(join(libraryRoot, 'mod_info.json'), '{"id":"library","name":"Library","version":"1","jars":["catalog.jar"]}');
+  const fixtureClasses = join(fixture.game, 'binary-classes');
+  const fixtureSource = join(fixture.game, 'Archive.java');
+  await mkdir(fixtureClasses);
+  await writeFile(
+    fixtureSource,
+    'package catalog; public class Archive { public static int choose(String n){return 0;} public static int choose(int n){return Helper.resolve(n);} } class Helper {static int resolve(int n){return n+1;}}',
+  );
+  await promisify(execFile)(javaTool('javac'), ['--release', '17', '-d', fixtureClasses, fixtureSource]);
+  await promisify(execFile)(javaTool('jar'), ['cf', join(libraryRoot, 'catalog.jar'), '-C', fixtureClasses, '.']);
   await writeFile(library, 'public class Library { public static String value(){return "fixture";} }');
   await mkdir(join(libraryRoot, 'src/pkg'), { recursive: true });
   await writeFile(join(libraryRoot, 'src/pkg/Imported.java'), 'package pkg; public class Imported {}');
@@ -175,6 +188,32 @@ export async function javaQueries(
     await references([reference.sessionId]);
     const restored = await action(page, { kind: 'inspect', file, offset: source.indexOf('value'), purpose: 'hover' });
     assert.equal(restored.result.binding.type, 'java.lang.String');
+  });
+  await check('F12 opens the selected archive overload and continues through read-only navigation history', async () => {
+    /** @param {string} name */
+    const jump = async (name) => {
+      await surface.press('Control+f');
+      const search = page.getByRole('textbox', { name: '查找', exact: true });
+      await search.fill(name);
+      await search.press('Enter');
+      await search.press('Escape');
+      await surface.press('F12');
+    };
+    const selected = page.getByRole('navigation', { name: '已打开文件' }).getByRole('tab', { selected: true });
+    await jump('choose');
+    await until(async () => (await selected.innerText()).includes('Archive.java'), 'archive declaration');
+    assert.match(await selected.innerText(), /反编译，只读/);
+    assert.match(await page.locator('.code-editor-header .code-readonly').innerText(), /catalog\.jar/);
+    await jump('resolve');
+    await until(async () => (await selected.innerText()).includes('Helper.java'), 'chained archive declaration');
+    await page.screenshot({ path: join(artifacts, 'archive-navigation.png') });
+    await surface.press('Alt+ArrowLeft');
+    await until(async () => (await selected.innerText()).includes('Archive.java'), 'first back');
+    await surface.press('Alt+ArrowLeft');
+    await until(async () => (await selected.innerText()).includes('Orbit.java'), 'second back');
+    await surface.press('Alt+ArrowRight');
+    await until(async () => (await selected.innerText()).includes('Archive.java'), 'forward');
+    await page.getByRole('tab').filter({ hasText: 'Orbit.java' }).click();
   });
   const editing = actions ? await actions({ app, page, file, manifest }) : {};
   const samples = /** @type {number[]} */ ([]),

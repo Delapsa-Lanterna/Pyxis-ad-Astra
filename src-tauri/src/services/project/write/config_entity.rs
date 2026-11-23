@@ -61,11 +61,18 @@ pub fn prepare_indexed_request(
     } else {
         Path::new(&snapshot.target.write.path).to_path_buf()
     };
-    if !edits.is_empty() && path.is_file() {
+    let has_companion = matches!(
+        &input.content,
+        IndexedConfigContent::Faction {
+            nexerelin: Some(_),
+            ..
+        }
+    );
+    if (!edits.is_empty() || has_companion) && path.is_file() {
         let source = Arc::new(io::read_json_file(&path)?);
         let next = save_edits::prepare_json_write(source, edits, input.content.document().layout)?;
         match &mut input.content {
-            IndexedConfigContent::Faction { document }
+            IndexedConfigContent::Faction { document, .. }
             | IndexedConfigContent::Mission { document, .. } => *document = next,
         }
     }
@@ -432,7 +439,9 @@ mod tests {
                 SaveLayout::Expanded
             };
             match &mut content {
-                IndexedConfigContent::Faction { document: target }
+                IndexedConfigContent::Faction {
+                    document: target, ..
+                }
                 | IndexedConfigContent::Mission {
                     document: target, ..
                 } => *target = document,

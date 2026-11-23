@@ -18,6 +18,7 @@ import { initializeWindowsPathCase } from '@/shared/lib/paths';
 import { windowsPathCaseFixture } from '../fixtures/windows-path-case';
 import { cell, formatModVersion } from '@/shared/lib/starsector';
 import { stableDeepEqual } from '@/shared/lib/stable-compare';
+import { nexerelinFactionPath } from '@/domain/json-editor/json-config-entities';
 import { miscConfigDefinition } from '@/domain/misc-config';
 import { composeJson } from '@/domain/json-composition';
 import { isRowData } from '@/shared/lib/row-data';
@@ -555,6 +556,7 @@ export function createBrowserWorkspace(
       case 'query_csv_validation':
       case 'query_csv_table_rows':
       case 'prepare_csv_associated_specs':
+      case 'create_csv_table':
       case 'save_csv_patch':
         result = gameQuery(receiver, command, payload);
         break;
@@ -571,6 +573,10 @@ export function createBrowserWorkspace(
         const path = receiver.manifest.modRoot + '/' + relPath;
         const file = gameQuery(receiver, 'read_json_document', { relPath }) as T.JsonDocumentFile | null;
         const entity = origin.kind === 'entity' ? findEntity(receiver, origin.target.kind, origin.target.id) : null;
+        const companion =
+          origin.kind === 'entity' && origin.target.kind === 'faction'
+            ? (gameQuery(receiver, 'read_json_document', { relPath: nexerelinFactionPath(origin.target.id) }) as T.JsonDocumentFile | null)
+            : null;
         const currentSources: T.JsonRecoveryPlan['currentSources'] = file
           ? { [mission ? 'descriptor' : 'file']: projectJsonValue(file.document.content) }
           : {};
@@ -583,10 +589,13 @@ export function createBrowserWorkspace(
         }
         return {
           request: input,
-          documents: file ? { [mission ? 'descriptor' : 'file']: file.document } : {},
+          documents: {
+            ...(file ? { [mission ? 'descriptor' : 'file']: file.document } : {}),
+            ...(companion ? { nexerelin: companion.document } : {}),
+          },
           missingPaths: file ? [] : [path],
           currentSources,
-          baseVersions: file?.baseVersions ?? [receiver.version(path)],
+          baseVersions: [...(file?.baseVersions ?? [receiver.version(path)]), ...(companion?.baseVersions ?? [])],
           resourceRefs: entity?.resourceRefs ?? {},
         } satisfies T.JsonRecoveryPlan;
       }

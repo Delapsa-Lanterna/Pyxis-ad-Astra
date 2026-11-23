@@ -1,6 +1,7 @@
 pub(in crate::services) mod csv_patch;
 pub(in crate::services) mod entity_write;
 pub(in crate::services) mod faction_identity;
+pub(in crate::services::project) mod nexerelin;
 
 pub(in crate::services) mod joint_edit;
 

@@ -18,6 +18,7 @@ export type SaveAction =
   | { kind: 'save_text_batch'; input: TextBatchSave }
   | { kind: 'deploy_java_artifact'; input: JavaDeploy }
   | { kind: 'transcode_file_to_utf8'; input: TextTranscode }
+  | { kind: 'create_csv_table'; input: Pick<CsvSave, 'sessionId' | 'modRoot' | 'table' | 'baseVersions'> }
   | { kind: 'save_csv_patch'; input: CsvSave }
   | { kind: 'save_joint_edit'; input: SaveJointEditPayload }
   | { kind: 'save_mod_info'; input: ModInfoSave }

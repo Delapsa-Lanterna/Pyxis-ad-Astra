@@ -25,6 +25,7 @@ pub enum CsvTableKey {
     SpecialItems,
     Submarkets,
     MarketConditions,
+    CorvusSpawnpoints,
     SimOpponents,
     Descriptions,
 }
@@ -44,6 +45,7 @@ impl CsvTableKey {
             Self::SpecialItems => "specialItems",
             Self::Submarkets => "submarkets",
             Self::MarketConditions => "marketConditions",
+            Self::CorvusSpawnpoints => "corvusSpawnpoints",
             Self::SimOpponents => "simOpponents",
             Self::Descriptions => "descriptions",
         }
@@ -63,6 +65,7 @@ impl CsvTableKey {
             "specialItems" => Some(Self::SpecialItems),
             "submarkets" => Some(Self::Submarkets),
             "marketConditions" => Some(Self::MarketConditions),
+            "corvusSpawnpoints" => Some(Self::CorvusSpawnpoints),
             "simOpponents" => Some(Self::SimOpponents),
             "descriptions" => Some(Self::Descriptions),
             _ => None,

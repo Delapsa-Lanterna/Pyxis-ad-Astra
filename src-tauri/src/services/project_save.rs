@@ -164,6 +164,10 @@ pub(crate) fn execute_save_action(mut action: SaveAction) -> AppResult<WriteResu
             )?)?,
             "转换文本编码",
         ),
+        SaveAction::CreateCsvTable(input) => (
+            json_result(csv_patch::create_table_file(&input)?)?,
+            "创建 CSV 配置文件",
+        ),
         SaveAction::SaveCsvPatch(input) => (
             json_result(csv_patch::write_csv_request(input)?)?,
             "保存 CSV",

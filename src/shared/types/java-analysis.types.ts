@@ -32,6 +32,7 @@ export interface JavaInspection {
   version: number;
   source: string | null;
   origin: string | null;
+  archiveKind?: 'attached' | 'decompiled' | null;
   binding: { name: string; owner: string | null; type: string | null; parameters: string[] | null; binary: boolean | null } | null;
   diagnostics: { file: string; version: number; start: number; end: number; line: number; message: string; severity: string }[];
   outline: { name: string; kind: string; depth: number; range: { start: number; end: number } }[];

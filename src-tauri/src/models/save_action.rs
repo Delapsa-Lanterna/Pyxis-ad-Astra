@@ -1,8 +1,8 @@
 use super::{
-    CsvSave, FileReplay, FileVersion, IndexedConfigDelete, IndexedConfigSave, JointEditSubmission,
-    JsonFileDelete, JsonFileSave, JsonSourceRestore, MiscConfigDelete, MiscConfigWrite,
-    ModInfoSave, SaveEdit, SessionModScope, SourceRefresh, SpecSave, TextBatchSave, TextSave,
-    TextTranscode,
+    CsvSave, CsvTableCreate, FileReplay, FileVersion, IndexedConfigDelete, IndexedConfigSave,
+    JointEditSubmission, JsonFileDelete, JsonFileSave, JsonSourceRestore, MiscConfigDelete,
+    MiscConfigWrite, ModInfoSave, SaveEdit, SessionModScope, SourceRefresh, SpecSave,
+    TextBatchSave, TextSave, TextTranscode,
 };
 use crate::models::java_project::JavaDeploy;
 use serde::Deserialize;
@@ -24,6 +24,7 @@ pub enum SaveAction {
     DeployJavaArtifact(JavaDeploy),
     TranscodeFileToUtf8(TextTranscode),
     SaveCsvPatch(CsvSave),
+    CreateCsvTable(CsvTableCreate),
     SaveJointEdit(Box<JointEditSubmission>),
     SaveModInfo(ModInfoSave),
     SaveIndexedConfigEntity(IndexedConfigSave),
@@ -50,6 +51,7 @@ impl SaveAction {
             Self::SaveTextBatch(input) => input,
             Self::DeployJavaArtifact(input) => input,
             Self::TranscodeFileToUtf8(input) => input,
+            Self::CreateCsvTable(input) => input,
             Self::SaveCsvPatch(input) => input,
             Self::SaveJointEdit(input) => input.as_ref(),
             Self::SaveModInfo(input) => input,
@@ -75,6 +77,7 @@ impl SaveAction {
             Self::SaveTextBatch(input) => &mut input.base_versions,
             Self::DeployJavaArtifact(input) => &mut input.base_versions,
             Self::TranscodeFileToUtf8(input) => &mut input.base_versions,
+            Self::CreateCsvTable(input) => &mut input.base_versions,
             Self::SaveCsvPatch(input) => &mut input.base_versions,
             Self::SaveJointEdit(input) => &mut input.base_versions,
             Self::SaveModInfo(input) => &mut input.base_versions,

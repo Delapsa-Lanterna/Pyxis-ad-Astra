@@ -6,6 +6,7 @@ const commandServices = new Map([
   ['delete_misc_config', 'misc_config'],
   ['load_imported_editor_spec_file', 'spec_editor'],
   ['save_editor_spec', 'project'],
+  ['create_csv_table', 'project'],
   ['save_csv_patch', 'project'],
   ['recreate_json_sources', 'project'],
   ['save_joint_edit', 'project'],

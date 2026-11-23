@@ -1,0 +1,89 @@
+{
+  "$schema": "pyxis-ad-astra/field-schema/v1",
+  "id": "nexerelin-faction",
+  "displayName": "势力争霸",
+  "sources": [
+    {
+      "id": "nexerelin",
+      "type": "json-file",
+      "path": "data/config/exerelinFactionConfig/{file.id}.json"
+    }
+  ],
+  "root": {
+    "key": "nexerelin",
+    "type": "object",
+    "label": "势力争霸",
+    "allowExtraFields": true,
+    "nested": [
+      {
+        "key": "playableFaction",
+        "type": "boolean",
+        "label": "可玩势力",
+        "default": true
+      },
+      {
+        "key": "corvusCompatible",
+        "type": "boolean",
+        "label": "支持固定星域",
+        "default": false
+      },
+      {
+        "key": "marketSpawnWeight",
+        "type": "float",
+        "label": "随机星域市场权重",
+        "default": 1
+      },
+      {
+        "key": "startRelationships",
+        "type": "object",
+        "label": "初始外交关系",
+        "keySchema": {
+          "key": "faction",
+          "type": "string",
+          "label": "势力 ID",
+          "default": "faction"
+        },
+        "valueSchema": {
+          "key": "relationship",
+          "type": "float",
+          "label": "关系值"
+        },
+        "allowExtraFields": true
+      },
+      {
+        "key": "minRelationships",
+        "type": "object",
+        "label": "最低外交关系",
+        "keySchema": {
+          "key": "faction",
+          "type": "string",
+          "label": "势力 ID",
+          "default": "faction"
+        },
+        "valueSchema": {
+          "key": "relationship",
+          "type": "float",
+          "label": "关系值"
+        },
+        "allowExtraFields": true
+      },
+      {
+        "key": "maxRelationships",
+        "type": "object",
+        "label": "最高外交关系",
+        "keySchema": {
+          "key": "faction",
+          "type": "string",
+          "label": "势力 ID",
+          "default": "faction"
+        },
+        "valueSchema": {
+          "key": "relationship",
+          "type": "float",
+          "label": "关系值"
+        },
+        "allowExtraFields": true
+      }
+    ]
+  }
+}

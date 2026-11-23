@@ -676,6 +676,7 @@ fn inherited_faction_filename_choices_commit_index_and_history_together() {
                         next_id: "next".into(),
                         index_row: Default::default(),
                         content: IndexedConfigContent::Faction {
+                            nexerelin: None,
                             document: file_formats::json_write(&(json!({"file":data}))["file"]),
                         },
                         json_write: JsonWriteOptions {

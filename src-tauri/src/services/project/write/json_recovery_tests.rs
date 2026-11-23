@@ -441,6 +441,7 @@ fn directory_sources_preserve_registration_and_sparse_identity() {
                             next_id: "sample".into(),
                             index_row: Default::default(),
                             content: IndexedConfigContent::Faction {
+                                nexerelin: None,
                                 document: file_formats::json_write(&(json!({"file":data}))["file"]),
                             },
                             json_write: Default::default(),

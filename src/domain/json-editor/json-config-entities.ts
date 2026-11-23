@@ -208,3 +208,7 @@ function requireConfigTextSource(value: unknown, errorMessage: string): string {
   if (typeof value === 'string') return value;
   throw new AppError(errorMessage, { action: 'config-entity-source' });
 }
+
+export function nexerelinFactionPath(id: string) {
+  return 'data/config/exerelinFactionConfig/' + id + '.json';
+}

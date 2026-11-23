@@ -10,7 +10,7 @@ import { TestWorkspace, reserveTestOutput } from '../shared/test-workspace.mjs';
 import { lifecycle, dependencies } from './lifecycle.mjs';
 import { performanceComparison } from './performance.mjs';
 import { incremental } from './incremental.mjs';
-import { editorQueries } from './editor-queries.mjs';
+import { binaryNavigation, editorQueries } from './editor-queries.mjs';
 import { sourceActions } from './source-actions.mjs';
 
 const { values } = parseArgs({
@@ -123,7 +123,10 @@ else {
       report.workcopies = await lifecycle(session, work.path('fixture'), javaHome);
       report.dependencies = await dependencies(session, work.path('dependency-fixture'), javaHome);
       report.incremental = await incremental(session, work.path('incremental'), javaHome);
-      report.editorQueries = await editorQueries(session, work.path('editor-queries'), javaHome);
+      report.editorQueries = {
+        ...(await editorQueries(session, work.path('editor-queries'), javaHome)),
+        binaryNavigation: await binaryNavigation(session, work.path('binary-navigation'), javaHome),
+      };
       report.sourceActions = await sourceActions(session, work.path('source-actions'), javaHome);
       for (const newline of ['\n', '\r\n']) {
         const source = '// 🪐' + newline + 'record Orbit(int radius) {}';

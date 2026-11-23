@@ -7,11 +7,13 @@ export type { FileBrowserTarget } from './use-file-browser';
 export function useFileBrowserViewModel(getTarget: () => FileBrowserTarget | null) {
   const feedback = useAppFeedback();
   return useFileBrowser(getTarget, async (target, path, reads) => {
+    let windowRequest: Promise<unknown> | undefined;
     await reads.consume('open', { ...target, path }, () => queryFileTextTarget(target.sessionId, path), {
       ready: (file) => {
-        if (file) void openTextEditorWindow(file).catch((error) => feedback.error(error, '打开文本编辑器失败'));
+        if (file) windowRequest = openTextEditorWindow(file).catch((error) => feedback.error(error, '打开文本编辑器失败'));
       },
       error: (error) => feedback.error(error, '打开文件失败'),
     });
+    await windowRequest;
   });
 }

@@ -71,8 +71,19 @@ pub struct IndexedConfigSave {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum IndexedConfigContent {
-    Faction { document: JsonWrite },
-    Mission { document: JsonWrite, text: String },
+    Faction {
+        document: JsonWrite,
+        nexerelin: Option<NexerelinWrite>,
+    },
+    Mission {
+        document: JsonWrite,
+        text: String,
+    },
+}
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct NexerelinWrite {
+    pub original: Option<String>,
+    pub document: Option<JsonWrite>,
 }
 impl IndexedConfigContent {
     pub fn kind(&self) -> IndexedConfigKind {
@@ -83,7 +94,7 @@ impl IndexedConfigContent {
     }
     pub fn document(&self) -> &JsonWrite {
         match self {
-            Self::Faction { document } | Self::Mission { document, .. } => document,
+            Self::Faction { document, .. } | Self::Mission { document, .. } => document,
         }
     }
 }

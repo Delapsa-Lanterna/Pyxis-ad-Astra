@@ -13,6 +13,18 @@ export const MODULE_LABELS: Record<CsvTableKey, string> = {
   specialItems: '特殊物品',
   submarkets: '市场类型',
   marketConditions: '市场条件',
+  corvusSpawnpoints: '固定星域出生点',
   simOpponents: '模拟对手',
   descriptions: '描述文本',
 };
+
+export function csvIdentityColumn(table: CsvTableKey) {
+  switch (table) {
+    case 'simOpponents':
+      return 'variant id';
+    case 'corvusSpawnpoints':
+      return 'faction';
+    default:
+      return 'id';
+  }
+}

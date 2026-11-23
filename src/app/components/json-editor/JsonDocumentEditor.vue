@@ -57,15 +57,28 @@
         </div>
       </div>
       <SchemaFormRenderer ref="form" :schema="document.schema.value" v-model="draft" :runtime-context="schemaRuntimeContext" />
+      <EditorCollapse v-if="document.companionSchema" v-model:expanded-names="companionExpanded">
+        <EditorCollapseItem name="nexerelin" title="势力争霸" class="schema-section">
+          <n-button v-if="draft.nexerelin === undefined" @click="draft = { ...draft, nexerelin: {} }">添加势力争霸配置</n-button>
+          <SchemaFormRenderer
+            v-else
+            ref="companionForm"
+            :schema="document.companionSchema"
+            v-model="draft"
+            :runtime-context="companionContext"
+          />
+        </EditorCollapseItem>
+      </EditorCollapse>
     </div>
   </section>
 </template>
 <script setup lang="ts">
 import { dialogBody, dialogFiles } from '@/shared/ui/dialog-content';
-import { computed, h, ref, useTemplateRef } from 'vue';
+import { computed, h, nextTick, ref, useTemplateRef } from 'vue';
 import EditorProblems from '@/shared/ui/EditorProblems.vue';
 import { useSettingsStore } from '@/stores/settings.store';
 import type { FieldProblem } from '@/shared/types';
+import { nexerelinFactionPath } from '@/domain/json-editor/json-config-entities';
 import { miscConfigDefinition } from '@/domain/misc-config';
 import { provideFieldInputs } from '@/shared/runtime/field-inputs';
 import { useProjectSyncStore } from '@/stores/project-sync.store';
@@ -75,6 +88,8 @@ import { useJsonDocumentView } from '@/app/composables/json-editor/use-json-docu
 import type { JsonDocumentSession } from '@/app/composables/json-editor/use-json-document-session';
 import type { JsonEditorHost } from '@/app/composables/json-editor/json-editor-context';
 import { jsonDocumentContent, type JsonDocumentDefinition, type JsonDocumentRecord } from '@/domain/json-editor/json-document-definitions';
+import EditorCollapse from '@/app/components/editors/common/EditorCollapse.vue';
+import EditorCollapseItem from '@/app/components/editors/common/EditorCollapseItem.vue';
 import EditorHeader from '@/app/components/editors/common/EditorHeader.vue';
 import SchemaFormRenderer from '@/app/components/field-editor/SchemaFormRenderer.vue';
 import JsonTargetNotice from './JsonTargetNotice.vue';
@@ -99,17 +114,27 @@ const { canNavigateBaseHull, navigateToBaseHull, previews, schemaRuntimeContext,
 );
 const draft = props.document.draftValue;
 const form = useTemplateRef('form');
+const companionForm = useTemplateRef('companionForm');
+const companionExpanded = ref<(string | number)[]>(['nexerelin']);
+const companionContext = computed(() => ({ ...schemaRuntimeContext.value, composition: undefined, partial: true }));
 async function locateProblem(issue: FieldProblem) {
-  const view = form.value!;
+  const companion = issue.path.startsWith('nexerelin');
+  if (companion) {
+    companionExpanded.value = ['nexerelin'];
+    await nextTick();
+  }
+  const selectedForm = companion ? companionForm : form;
+  const view = selectedForm.value!;
   const target = props.document.targetKey.value,
     admitted = props.document.inputs.captureContext();
-  const current = () => form.value === view && admitted() && target === props.document.targetKey.value;
+  const current = () => selectedForm.value === view && admitted() && target === props.document.targetKey.value;
   try {
     if (issue.code === 'field.input_invalid') return await props.document.inputs.focus(issue.path);
     if ((await props.document.inputs.commit()) === false) return;
     if (!current()) return;
     const path = issue.location?.field;
-    const wrapped = !props.document.schema.value.root && ['faction', 'mod-info', 'misc-config'].includes(props.definition.kind);
+    const wrapped =
+      !companion && !props.document.schema.value.root && ['faction', 'mod-info', 'misc-config'].includes(props.definition.kind);
     await view.locate(path ? { ...issue, path: wrapped ? `file.${path}` : path } : issue, view.$el.parentElement, current);
   } catch (error) {
     feedback.error(error, '定位 JSON 字段失败');
@@ -135,6 +160,7 @@ async function confirmDelete() {
   const missing = Boolean(props.definition.file && props.document.sourceMissing.value);
   const indexed = !missing && (target.kind === 'mission' || (target.kind === 'faction' && target.entity!.linkedRecord?.kind === 'index'));
   const path = target.entity?.write.path ?? target.modRoot + '/' + miscConfigDefinition(target.id).path;
+  const companionPath = record.nexerelin ? target.modRoot + '/' + nexerelinFactionPath(target.id) : undefined;
   const label = props.definition.label,
     item = target.kind === 'misc-config' ? '配置文件' : target.kind === 'skin' ? '皮肤' : label + (target.kind === 'faction' ? '文件' : '');
   const removeAction = indexed ? (target.kind === 'mission' ? '目录' : '文件') : item;
@@ -150,6 +176,7 @@ async function confirmDelete() {
               target.entity?.linkedRecord?.kind === 'index'
                 ? target.modRoot + '/' + target.entity.linkedRecord.path
                 : target.modRoot + '/data/missions/mission_list.csv',
+            companionPath,
             checked: removeSource.value,
             'onUpdate:checked': (value: boolean) => {
               removeSource.value = value;
@@ -159,7 +186,7 @@ async function confirmDelete() {
             missing
               ? '这份文档的源文件已缺失。继续后放弃保留的草稿与历史，并移除当前编辑目标。'
               : `删除 ${label} ${target.id} 的文件，并放弃当前草稿和草稿历史。`,
-            dialogFiles([path]),
+            dialogFiles(companionPath ? [path, companionPath] : [path]),
             ...(!missing && props.document.composition.value?.layers.length
               ? [
                   '删除后，这个路径继续采用基础来源提供的内容。',

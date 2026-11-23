@@ -102,7 +102,9 @@ Rust 结果通过 `protocol::AnalysisResult` 区分握手、语法、项目、�
 
 `versions.json` 集中维护协议、自有宿主、Java 运行要求、默认语言和 JDT 版本。Rust 构建生成同模块常量，Java 构建将这些值交付 Maven、宿主配置及包清单。
 
-27 个第三方 JAR 从固定 Maven Central HTTPS 地址直接下载，逐文件校验大小和 SHA-256。`dependencies.lock.json` 保留 Maven 坐标、许可证条目和 Java 字节码信息；其中 JDT 版本占位符由构建入口消费 `versions.json` 解析；原始 JAR 保留发布许可证。
+28 个第三方 JAR 从固定 Maven Central HTTPS 地址直接下载，逐文件校验大小和 SHA-256。`dependencies.lock.json` 保留 Maven 坐标、许可证条目和 Java 字节码信息；其中 JDT 版本占位符由构建入口消费 `versions.json` 解析；原始 JAR 保留发布许可证。
+
+Vineflower 1.12.0 与分析依赖共同安装。声明跳转优先读取工程源码及对应的同目录 `-sources.jar`，再按需反编译当前类及其内部类。归档正文为只读快照，连续声明跳转使用同一工程的 JDT 绑定。
 
 自有宿主与第三方依赖保持独立交付，Rust 启动前核对完整匹配关系。依赖安装采用文件锁、暂存目录和最后写入的完成清单，支持中断后的重新安装；独立构建同时生成离线依赖 ZIP。
 

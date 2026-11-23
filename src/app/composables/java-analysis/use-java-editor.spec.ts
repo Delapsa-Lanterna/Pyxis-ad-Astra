@@ -395,6 +395,38 @@ it('preserves the current location and delivers the original failed declaration 
   expect(document.document.state.value.selection).toBe(selection);
 });
 
+it('returns through chained archive declarations and reuses the read-only tabs on forward navigation', async () => {
+  const { analysis, document, host } = await open();
+  const library = 'jar:file:/library.jar!/version/classes/sample/Library.java';
+  const helper = 'jar:file:/library.jar!/version/classes/sample/Helper.java';
+  const initial = mocks.inspect.getMockImplementation()!;
+  mocks.inspect.mockImplementation(async (file, offset, purpose) => ({
+    ...(await initial(file, offset, purpose)),
+    source: 'class Library { int resolve() {return 1;} }',
+    origin: 'M:/library.jar',
+    archiveKind: 'decompiled',
+    locations:
+      purpose === 'declaration'
+        ? [{ file: file === document.path.value ? library : helper, version: 1, range: { start: 6, end: 13 } }]
+        : [],
+  }));
+  await analysis.start();
+  await analysis.navigate('declaration', 4);
+  expect(host.active.value?.path.value).toBe(library);
+  expect(host.active.value?.readOnly).toBe(true);
+  await analysis.navigate('declaration', 21);
+  expect(host.active.value?.path.value).toBe(helper);
+  await analysis.travel('back');
+  expect(host.active.value?.document.state.value.selection.main.head).toBe(21);
+  await analysis.travel('back');
+  expect(host.active.value).toBe(document);
+  expect(document.document.state.value.selection.main.head).toBe(4);
+  await analysis.travel('forward');
+  await analysis.travel('forward');
+  expect(host.active.value?.path.value).toBe(helper);
+  expect(host.documents).toHaveLength(3);
+});
+
 it('releases a closed read-only reference projection and its diagnostics', async () => {
   const { host, analysis } = await open();
   await analysis.start();

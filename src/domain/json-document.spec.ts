@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { jsonFileFixture } from '@/test/fixtures/json-file';
 import { createJsonDocument } from './json-document';
 import { generatedTarget, prepareValue } from '@/domain/schema/game-number';
 import type { JsonFileContent, FileValue } from '@/shared/types';
@@ -30,6 +31,32 @@ const sample = (): FileValue => ({
   ],
 });
 describe('exact file document ownership', () => {
+  it('reads original fields from each file and keeps a later companion edit through save acceptance', () => {
+    const primary = jsonFileFixture({ amount: 1 });
+    const companion = jsonFileFixture({ amount: 2, exact: 0 });
+    companion.content = {
+      kind: 'object',
+      value: [
+        ['amount', prepareValue(2).value],
+        ['exact', { kind: 'integer', value: '9007199254740993' }],
+      ],
+    };
+    const values = { file: { amount: 1 }, nexerelin: { amount: 2, exact: 9007199254740992 } };
+    const owner = createJsonDocument(primary, {
+      filePath: ['file'],
+      value: prepareValue(values).value,
+      companions: { nexerelin: companion },
+    });
+    expect(owner.raw(['file', 'amount'])).toBe('1');
+    expect(owner.raw(['nexerelin', 'amount'])).toBe('2');
+    const captured = owner.capture('preserveStructure');
+    owner.replace(['nexerelin', 'amount'], prepareValue(3));
+    owner.accept(captured, primary, prepareValue(values).value, { nexerelin: companion });
+    expect(owner.prepared(['nexerelin', 'exact']).value).toEqual({ kind: 'integer', value: '9007199254740993' });
+    expect(owner.projection).toMatchObject({ nexerelin: { amount: 3 } });
+    owner.undo();
+    expect(owner.dirty).toBe(false);
+  });
   it('retains a long UTF-16 key and its source through an unrelated edit and history acceptance', () => {
     const key = [...Array<number>(140000).fill(97), 0xd800];
     const content: FileValue = {

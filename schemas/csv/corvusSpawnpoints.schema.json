@@ -1,0 +1,37 @@
+{
+  "$schema": "pyxis-ad-astra/csv-columns/v1",
+  "table": "corvusSpawnpoints",
+  "columns": [
+    {
+      "key": "faction",
+      "label": "势力",
+      "control": "reference",
+      "source": "csv:factions.id",
+      "summary": true
+    },
+    {
+      "key": "system",
+      "label": "星系名称",
+      "control": "text",
+      "summary": true
+    },
+    {
+      "key": "entityID",
+      "label": "出生点实体 ID",
+      "control": "text",
+      "summary": true
+    }
+  ],
+  "validation": {
+    "required": [
+      "faction",
+      "system",
+      "entityID"
+    ],
+    "requiredColumn": [
+      "faction",
+      "system",
+      "entityID"
+    ]
+  }
+}

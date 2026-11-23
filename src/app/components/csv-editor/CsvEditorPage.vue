@@ -6,6 +6,7 @@
         <div class="view-meta page-description">{{ view.tableInfo }}</div>
       </div>
       <div class="top-actions action-group">
+        <slot name="file-actions" />
         <div class="top-action-group action-group">
           <n-input
             :value="view.searchText"

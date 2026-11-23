@@ -47,6 +47,7 @@ pub struct Builtin {
     pub launcher: String,
     pub bundle: String,
     pub framework: String,
+    pub decompiler: String,
     pub dependencies: Manifest,
     pub files: Vec<PackageFile>,
 }

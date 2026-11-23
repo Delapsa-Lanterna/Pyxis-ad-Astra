@@ -8,6 +8,7 @@
       @close="(file) => run(() => close(file))"
       @move="host.move"
     >
+      <template #readonly="{ file }">{{ analysis.archives.get(file)?.label ?? '引用，只读' }}</template>
       <template #leading>
         <button
           class="mod-tabs-overview ui-button ui-control-button ui-text-muted ui-layout-grid ui-control-reset"
@@ -27,7 +28,23 @@
       <span class="code-editor-path ui-text-path ui-text-truncate" :title="showOverview ? undefined : active?.path.value">{{
         showOverview ? '代码总览' : active ? label(active) : '请选择要打开的文件'
       }}</span>
-      <span v-if="!showOverview && active?.readOnly" class="code-readonly">引用，只读</span>
+      <span v-if="!showOverview && active?.readOnly" class="code-readonly" :title="archive?.origin">{{
+        archive ? archive.label + ' · ' + pathBasename(archive.origin) : '引用，只读'
+      }}</span>
+      <CodeToolButton
+        v-if="!showOverview"
+        label="后退 (Alt+←)"
+        path="m10 3-5 5 5 5"
+        :disabled="!analysis.back.value.length"
+        @click="run(() => analysis.travel('back'))"
+      />
+      <CodeToolButton
+        v-if="!showOverview"
+        label="前进 (Alt+→)"
+        path="m6 3 5 5-5 5"
+        :disabled="!analysis.forward.value.length"
+        @click="run(() => analysis.travel('forward'))"
+      />
       <div class="code-editor-regions ui-control-row ui-content-fill">
         <CodeToolButton
           :label="treeShown ? '收起项目树' : '展开项目树'"
@@ -169,6 +186,7 @@
 </template>
 <script setup lang="ts">
 import { computed, nextTick, ref, useTemplateRef, watch } from 'vue';
+import { pathBasename } from '@/shared/lib/paths';
 import { sourceOffset } from '@/shared/runtime/text-document';
 import { useCodeEditorWindow } from '@/app/composables/code-editor/use-code-editor-window';
 import type { TextFile } from '@/app/composables/text-file-editing/use-text-file';
@@ -185,8 +203,10 @@ import { useAppFeedback } from '@/app/composables/use-app-feedback';
 import { closeCurrentWindow } from '@/windows/current.window';
 import { useContextMenuScope } from '@/app/composables/use-context-menu';
 
-const host = useCodeEditorWindow();
+const surface = useTemplateRef<InstanceType<typeof TextEditorSurface>>('surface');
+const host = useCodeEditorWindow(() => surface.value?.editorView());
 const { documents, active, location, dirty, label, close, save, saveAll, loadExternal, closing, analysis, actions, project } = host;
+const archive = computed(() => active.value && analysis.archives.get(active.value));
 const panel = ref(false);
 const overview = ref(false);
 const showOverview = computed(() => overview.value || !active.value);
@@ -200,7 +220,6 @@ const extensions = computed(() => [analysis.extensions.value, actions.extensions
 
 const feedback = useAppFeedback();
 const editor = useTemplateRef<HTMLElement>('editor');
-const surface = useTemplateRef<InstanceType<typeof TextEditorSurface>>('surface');
 useContextMenuScope({
   identity: () => active.value?.path.value ?? '',
   canRefresh: (target) => Boolean(!showOverview.value && active.value && !active.value.readOnly && target.closest('.code-text-area')),

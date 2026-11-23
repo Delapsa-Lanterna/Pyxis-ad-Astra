@@ -1,6 +1,6 @@
 use crate::domain::schema;
 use crate::errors::{AppError, AppResult};
-use crate::models::MiscConfigKind;
+use crate::models::{CORVUS_SPAWNPOINTS, MiscConfigFileKind, MiscConfigKind};
 use serde_json::Value;
 
 pub const MISC_CONFIG_FILES: &[MiscConfigKind] = &[
@@ -23,6 +23,12 @@ pub fn misc_config_path(kind: MiscConfigKind) -> &'static str {
         MiscConfigKind::CustomEntities => "data/config/custom_entities.json",
         MiscConfigKind::Planets => "data/config/planets.json",
         MiscConfigKind::DefaultShipRoles => "data/world/factions/default_ship_roles.json",
+    }
+}
+pub fn config_file_path(kind: MiscConfigFileKind) -> &'static str {
+    match kind {
+        MiscConfigFileKind::Json(kind) => misc_config_path(kind),
+        MiscConfigFileKind::CorvusSpawnpoints => CORVUS_SPAWNPOINTS,
     }
 }
 pub fn misc_config_schema_id(kind: MiscConfigKind) -> &'static str {

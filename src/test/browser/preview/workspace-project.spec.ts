@@ -529,7 +529,7 @@ describe('complete browser workspace fixtures', () => {
       expect(project.tables.get('ships')!.header).toContain('flux dissipation');
       expect(project.tables.get('weapons')!.header).toContain('damage/shot');
       expect(project.tables.get('ships')!.header).not.toEqual(project.tables.get('weapons')!.header);
-      expect(project.tables.size).toBe(14);
+      expect(project.tables.size).toBe(15);
     }
     expect(workspace.navigation).toHaveLength(24);
     expect(workspace.navigation.at(-1)!.id).toBe('code-editor');
