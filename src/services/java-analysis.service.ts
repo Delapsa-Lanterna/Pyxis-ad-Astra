@@ -30,6 +30,9 @@ export function closeJavaEditor() {
 export function configureJavaEditor() {
   return invokeCommand<void>('java_editor', { action: { kind: 'configure' } });
 }
+export function refreshJavaSources(paths: string[], retained: string[]) {
+  return invokeCommand<void>('java_editor', { action: { kind: 'refreshSources', paths, retained } });
+}
 export function syncJavaEditor(documents: JavaDocumentEdit[]) {
   return invokeCommand<void>('java_editor', { action: { kind: 'sync', documents } });
 }

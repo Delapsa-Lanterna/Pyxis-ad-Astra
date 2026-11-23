@@ -43,7 +43,7 @@ function mergeJson(target: RowData, source: RowData, excluded: string[]) {
     if (Array.isArray(value)) {
       const current = target[key] ?? [];
       if (!Array.isArray(current)) throw new AppError(`合并字段 ${key} 需要数组`, { code: 'json.merge_type' });
-      target[key] = [...(arrayReplaces(key, current, value) ? [] : current), ...deepClone(value)];
+      target[key] = [...(arrayReplaces(key, current.length, value) ? [] : current), ...deepClone(value)];
     } else if (isRowData(value)) {
       const current = target[key] ?? {};
       if (!isRowData(current)) throw new AppError(`合并字段 ${key} 需要对象`, { code: 'json.merge_type' });
@@ -56,9 +56,9 @@ function mergeJson(target: RowData, source: RowData, excluded: string[]) {
   }
 }
 
-function arrayReplaces(key: string, current: readonly JsonValue[], value: readonly JsonValue[]) {
+function arrayReplaces(key: string, currentLength: number, value: readonly JsonValue[]) {
   const name = key.toLowerCase();
-  return value[0] === 'core_clearArray' || (current.length === 4 && /color|button/.test(name)) || name.startsWith('music_');
+  return value[0] === 'core_clearArray' || (currentLength === 4 && /color|button/.test(name)) || name.startsWith('music_');
 }
 
 export function compositionValue(value: RowData, path: readonly string[]): JsonValue | undefined {
@@ -103,14 +103,19 @@ export function compositionOrigin(local: RowData, composition: JsonComposition, 
       })),
       { data: local, label: null },
     ];
-    let labels: Array<string | null> = [];
+    let length = 0,
+      label: string | null = null;
     for (const input of inputs) {
       const value = compositionValue(input.data, parent);
       if (!Array.isArray(value)) continue;
-      if (arrayReplaces(parent.at(-1)!, labels as JsonValue[], value)) labels = [];
-      labels.push(...value.map(() => input.label));
+      if (arrayReplaces(parent.at(-1)!, length, value)) {
+        length = 0;
+        label = null;
+      }
+      if (index >= length && index < length + value.length) label = input.label;
+      length += value.length;
     }
-    return labels[index] ?? null;
+    return label;
   }
   if (composition.replace || compositionValue(local, path) !== undefined) return null;
   const source = composition.layers.findLast((layer) => compositionValue(layer.data, path) !== undefined);
@@ -173,7 +178,7 @@ export function editComposedJson(
     }
     if (Array.isArray(value)) {
       const inherited = compositionValue(composeJson(setCompositionValue(local, edit.path, undefined), composition), edit.path);
-      if (Array.isArray(inherited) && inherited.length && !arrayReplaces(edit.path.at(-1)!, inherited, value)) {
+      if (Array.isArray(inherited) && inherited.length && !arrayReplaces(edit.path.at(-1)!, inherited.length, value)) {
         if (!stableDeepEqual(value.slice(0, inherited.length), inherited)) {
           if (composition.excluded.length) return { value: local, notice: REPLACE_UNSUPPORTED, rejected: true };
           const replaced = { ...(compositionValue(after, root) as RowData), [REPLACE_BASE_KEY]: isRowData(own) ? own : {} };

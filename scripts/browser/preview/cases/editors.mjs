@@ -28,7 +28,17 @@ export async function closeEditorDocuments(editor) {
 export async function verifyEditors(page, output) {
   const editor = await openEditorSample(page);
   const controls = editor.locator('.code-editor-header button');
-  assert.equal(await controls.count(), 7);
+  assert.deepEqual(await controls.evaluateAll((buttons) => buttons.map((button) => button.getAttribute('aria-label'))), [
+    '后退 (Alt+←)',
+    '前进 (Alt+→)',
+    '收起项目树',
+    '展开大纲',
+    '诊断与引用',
+    '查找与替换',
+    '保存',
+    '保存全部',
+    'Java 操作',
+  ]);
   for (const control of await controls.all()) {
     assert.equal((await control.innerText()).trim(), '');
     assert.equal(await control.locator('svg').count(), 1);

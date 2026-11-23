@@ -125,6 +125,89 @@ describe('complete browser workspace fixtures', () => {
     expect(projectJsonValue(file.document.content)).toEqual(data);
     expect(file.baseVersions).toEqual(result.baseVersions);
   });
+  it('routes saved Java sources, retained drafts and reference removal to their code windows', async () => {
+    const workspace = createBrowserWorkspace();
+    const [owner, reference] = workspace.projects.slice(1, 3).map((project) => project.manifest);
+    const open = async (manifest: T.ProjectManifest) => {
+      const result = (await workspace.invoke('main', 'request_window', {
+        payload: {
+          identity: { type: 'code-editor', sessionId: manifest.sessionId, modRoot: manifest.modRoot },
+          input: { kind: 'code-editor' },
+          title: 'Code',
+          width: 1120,
+          height: 780,
+          minWidth: 800,
+          minHeight: 520,
+        },
+      })) as T.WindowRequestReceipt;
+      const deliveries: T.ProjectSyncDelivery[] = [];
+      await workspace.invoke(result.label, 'register_save_window', {
+        channel: { onmessage: (value: T.ProjectSyncDelivery) => deliveries.push(value) },
+      });
+      return { deliveries, java: (action: Record<string, unknown>) => workspace.invoke(result.label, 'java_editor', { action }) };
+    };
+    const source = reference!.modRoot + '/src/pkg/Sample.java',
+      note = reference!.modRoot + '/README.md';
+    workspace.projects[2]!.textFiles.set(source, 'class Sample {}');
+    await workspace.invoke('main', 'set_reference_sources', { sessionIds: [reference!.sessionId] });
+    const first = await open(owner!),
+      second = await open(reference!);
+    await first.java({ kind: 'start' });
+    await second.java({ kind: 'start' });
+    const inspect = { kind: 'inspect', file: source, offset: 0, purpose: 'source' };
+    const save = (path: string, text: string) =>
+      workspace.invoke('main', 'save_project', {
+        request: {
+          id: 'save-fixture',
+          edits: [],
+          action: {
+            kind: 'save_text_file',
+            input: {
+              sessionId: reference!.sessionId,
+              modRoot: reference!.modRoot,
+              path,
+              text,
+              baseVersions: [workspace.projects[2]!.version(path)],
+            },
+          },
+        },
+      });
+    await expect(first.java(inspect)).resolves.toMatchObject({ result: { source: 'class Sample {}' } });
+    await second.java({ kind: 'sync', documents: [{ file: source, source: 'class Draft {}', version: 2, edits: [] }] });
+    first.deliveries.length = second.deliveries.length = 0;
+    await save(source, 'class Updated {}');
+    const change = { modRoot: reference!.modRoot, sessions: [reference!.sessionId], sourcePaths: [source], configuration: false };
+    expect(first.deliveries).toMatchObject([{ kind: 'references', event: { modRoot: '', result: { javaProjectChange: change } } }]);
+    expect(second.deliveries).toMatchObject([{ kind: 'saved', event: { result: { javaProjectChange: change } } }, { kind: 'references' }]);
+    await first.java({ kind: 'refreshSources', paths: [source], retained: [] });
+    await second.java({ kind: 'refreshSources', paths: [source], retained: [source] });
+    await expect(first.java(inspect)).resolves.toMatchObject({ result: { source: 'class Updated {}' } });
+    await expect(second.java(inspect)).resolves.toMatchObject({ result: { source: 'class Draft {}' } });
+    first.deliveries.length = second.deliveries.length = 0;
+    await save(note, 'ordinary text');
+    expect(first.deliveries).toMatchObject([{ kind: 'references' }]);
+    for (const delivery of [...first.deliveries, ...second.deliveries])
+      if (delivery.kind === 'saved' || delivery.kind === 'references') expect(delivery.event?.result.javaProjectChange).toBeUndefined();
+    await workspace.invoke('main', 'set_reference_sources', { sessionIds: [] });
+    expect(first.deliveries.at(-1)).toMatchObject({
+      kind: 'references',
+      event: { modRoot: '', result: { javaProjectChange: { configuration: true, sourcePaths: [], sessions: [], modRoot: null } } },
+    });
+    await first.java({ kind: 'configure' });
+    await expect(first.java(inspect)).rejects.toMatchObject({ code: 'engine.source_unavailable' });
+    await workspace.invoke('main', 'set_reference_sources', { sessionIds: [reference!.sessionId] });
+    await first.java({ kind: 'configure' });
+    await expect(first.java(inspect)).resolves.toMatchObject({ result: { source: 'class Updated {}' } });
+    await workspace.invoke('main', 'close_project_session', { payload: { sessionId: reference!.sessionId } });
+    expect(workspace.references).toEqual([]);
+    expect(first.deliveries.at(-1)).toMatchObject({
+      kind: 'references',
+      snapshot: { sources: [] },
+      event: { result: { javaProjectChange: { configuration: true } } },
+    });
+    await first.java({ kind: 'configure' });
+    await expect(first.java(inspect)).rejects.toMatchObject({ code: 'engine.source_unavailable' });
+  });
   it('delivers a text write with its own path, version and reusable receipt', async () => {
     const workspace = createBrowserWorkspace(),
       project = workspace.projects[1]!;

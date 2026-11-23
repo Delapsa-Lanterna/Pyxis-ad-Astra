@@ -61,7 +61,10 @@ export function projectProjectileGeometry(spec: RowData) {
     engines,
     spriteField: kind === 'missile' ? 'sprite' : 'bulletSprite',
     spritePath: str(spec[kind === 'missile' ? 'sprite' : 'bulletSprite']),
-    extent: { x: Math.max(...points.map((p) => Math.abs(p.x))), y: Math.max(...points.map((p) => Math.abs(p.y))) },
+    extent: {
+      x: points.reduce((largest, p) => Math.max(largest, Math.abs(p.x)), 0),
+      y: points.reduce((largest, p) => Math.max(largest, Math.abs(p.y)), 0),
+    },
   };
 }
 export type ProjectileGeometry = ReturnType<typeof projectProjectileGeometry>;

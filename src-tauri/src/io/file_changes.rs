@@ -7,6 +7,7 @@ use crate::models::file_content::{CsvSource, JsonSource};
 use crate::models::{
     FileChangeKind, FileChangeRecord, FileChangeReplayDirection, FileSnapshot, FileVersion,
 };
+use crate::parsers::game::text;
 use crate::{io, models};
 use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD;
@@ -749,9 +750,11 @@ fn validate_change_boundary(root: &str, change: &FileChangeRecord) -> AppResult<
 pub fn same_physical_path(left: &Path, right: &Path) -> bool {
     #[cfg(windows)]
     {
-        left.to_string_lossy()
-            .replace('/', "\\")
-            .eq_ignore_ascii_case(&right.to_string_lossy().replace('/', "\\"))
+        left == right
+            || io::canonical_path(left, "source path")
+                .ok()
+                .zip(io::canonical_path(right, "target path").ok())
+                .is_some_and(|(left, right)| left == right)
     }
     #[cfg(not(windows))]
     {
@@ -906,7 +909,7 @@ fn snapshot_directory(path: &Path) -> AppResult<Vec<FileSnapshot>> {
             )
         })?;
         validate_walk_entry(entry.path(), "directory snapshot")?;
-        if !entry.file_type().is_file() {
+        if entry.depth() == 0 {
             continue;
         }
         let rel_path = entry
@@ -915,7 +918,15 @@ fn snapshot_directory(path: &Path) -> AppResult<Vec<FileSnapshot>> {
             .map_err(|error| AppError::message("path.relative_failed", error.to_string()))?
             .to_string_lossy()
             .replace('\\', "/");
-        files.push(snapshot_file(entry.path(), rel_path)?);
+        if entry.file_type().is_dir() {
+            files.push(FileSnapshot {
+                rel_path,
+                text: None,
+                data_base64: None,
+            });
+        } else {
+            files.push(snapshot_file(entry.path(), rel_path)?);
+        }
     }
     files.sort_by(|a, b| a.rel_path.cmp(&b.rel_path));
     Ok(files)
@@ -932,6 +943,9 @@ fn snapshot_file(path: &Path, rel_path: String) -> AppResult<FileSnapshot> {
 
 fn snapshot_file_content(path: &Path) -> AppResult<(Option<String>, Option<String>)> {
     let (_, bytes) = io::read_authorized_bytes(path)?;
+    if text::binary(&bytes) {
+        return Ok((None, Some(STANDARD.encode(bytes))));
+    }
     match String::from_utf8(bytes) {
         Ok(text) => Ok((Some(text), None)),
         Err(error) => Ok((None, Some(STANDARD.encode(error.into_bytes())))),
@@ -939,6 +953,10 @@ fn snapshot_file_content(path: &Path) -> AppResult<(Option<String>, Option<Strin
 }
 
 fn restore_snapshot_file(path: &Path, file: &FileSnapshot) -> AppResult<()> {
+    if file.is_directory() {
+        fs::create_dir_all(path)?;
+        return Ok(());
+    }
     if let Some(text) = &file.text {
         write_utf8_no_bom(path, text)?;
         return Ok(());
@@ -1558,6 +1576,7 @@ mod tests {
         let root = project_workspace("directory_delete_roundtrip");
         let dir = root.join("data/missions/demo");
         fs::create_dir_all(dir.join("nested")).unwrap();
+        fs::create_dir_all(dir.join("empty/nested")).unwrap();
         write_utf8_no_bom(&dir.join("descriptor.json"), "{\"title\":\"Demo\"}").unwrap();
         write_utf8_no_bom(&dir.join("nested/readme.txt"), "details").unwrap();
         fs::write(dir.join("icon.bin"), [0, 159, 146, 150]).unwrap();
@@ -1584,6 +1603,7 @@ mod tests {
         assert_eq!(descriptor, "{\"title\":\"Demo\"}");
         assert_eq!(nested, "details");
         assert_eq!(icon, vec![0, 159, 146, 150]);
+        assert!(dir.join("empty/nested").is_dir());
         root.close().unwrap();
     }
 

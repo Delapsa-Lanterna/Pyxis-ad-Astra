@@ -90,6 +90,34 @@ it('loads only the current root and merges repeated expansions while preserving 
   expect(branch.browser.view.nodes).toBe(nodes);
   expect(mocks.directory).toHaveBeenCalledTimes(2);
 });
+it('refreshes expanded packages under a nested reference source root', async () => {
+  const directory = 'src/main/java',
+    child = directory + '/pkg';
+  mocks.sources.mockResolvedValue({ revision: 1, analysisRoots: [], sources: [{ ...source, directory, readOnly: true }] });
+  let name = 'Before.java';
+  mocks.directory.mockImplementation(async (_session, path) => ({
+    directory: path,
+    entries: [
+      path === directory
+        ? { name: 'pkg', relPath: child, kind: 'directory', sizeBytes: null, modifiedAt: null }
+        : { name, relPath: child + '/' + name, kind: 'file', sizeBytes: 4, modifiedAt: null },
+    ],
+  }));
+  const { project } = await setup();
+  const branch = project.branches[0]!;
+  await project.toggle(branch);
+  branch.browser.actions.setExpanded([child]);
+  await flushPromises();
+  expect(branch.browser.view.nodes[0]?.children?.[0]?.label).toBe('Before.java');
+  name = 'After.java';
+  mocks.directory.mockClear();
+  await project.refresh();
+  expect(mocks.directory.mock.calls).toEqual([
+    ['sample', directory],
+    ['sample', child],
+  ]);
+  expect(branch.browser.view.nodes[0]?.children?.[0]?.label).toBe('After.java');
+});
 it('opens owned text through the file queue and references through the snapshot reader', async () => {
   const { project, host } = await setup();
   project.branches[0]!.browser.actions.setExpanded(['src']);

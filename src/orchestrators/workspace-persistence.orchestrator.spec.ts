@@ -289,6 +289,41 @@ describe('watchWorkspacePersistence', () => {
     expect(mocks.savePersistedWorkspace).toHaveBeenCalledTimes(1);
   });
 
+  it('flushes the latest pending snapshot and waits for an older write before close', async () => {
+    const workspace = useWorkspaceStore(),
+      watcher = watchWorkspacePersistence();
+    onTestFinished(watcher.stop);
+    let release!: () => void;
+    mocks.savePersistedWorkspace.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          release = resolve;
+        }),
+    );
+    workspace.setColumnWidths('M:/sample', 'ships', { id: 120 });
+    await vi.advanceTimersByTimeAsync(500);
+    workspace.setColumnWidths('M:/sample', 'ships', { id: 240 });
+    const closing = watcher.flush();
+    expect(mocks.savePersistedWorkspace).toHaveBeenCalledTimes(1);
+    release();
+    await closing;
+    expect(mocks.savePersistedWorkspace).toHaveBeenCalledTimes(2);
+    expect(mocks.savePersistedWorkspace).toHaveBeenLastCalledWith(
+      expect.objectContaining({ columnWidths: { 'M:/sample': { ships: { id: 240 } } } }),
+    );
+    await vi.advanceTimersByTimeAsync(500);
+    expect(mocks.savePersistedWorkspace).toHaveBeenCalledTimes(2);
+  });
+  it('retains the latest snapshot for a close retry after a failed write', async () => {
+    const workspace = useWorkspaceStore(),
+      watcher = watchWorkspacePersistence();
+    onTestFinished(watcher.stop);
+    mocks.savePersistedWorkspace.mockRejectedValueOnce(new Error('disk unavailable'));
+    workspace.setColumnWidths('M:/sample', 'ships', { id: 240 });
+    await expect(watcher.flush()).rejects.toThrow('disk unavailable');
+    await watcher.flush();
+    expect(mocks.savePersistedWorkspace).toHaveBeenCalledTimes(2);
+  });
   it('suppresses saves while a restore is in progress', async () => {
     const workspace = useWorkspaceStore();
     const watcher = watchWorkspacePersistence();

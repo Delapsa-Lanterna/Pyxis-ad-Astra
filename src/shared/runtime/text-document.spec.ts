@@ -174,6 +174,24 @@ describe('immutable text documents', () => {
     expect(doc.canUndo.value).toBe(false);
     expect(doc.state.value.doc.length).toBe(0);
   });
+  it('enforces one retained group across native history pruning and grouped typing', () => {
+    const { doc, limit, raw } = open('');
+    limit.value = 1;
+    for (let i = 0; i < 60; i++) doc.replaceSource(String(i));
+    for (const char of ['a', 'b'])
+      doc.dispatch(
+        doc.state.value.update({
+          changes: { from: doc.state.value.doc.length, insert: char },
+          annotations: Transaction.userEvent.of('input.type'),
+        }),
+      );
+    expect(raw()).toBe('59ab');
+    expect(doc.undo()).toBe(true);
+    expect(raw()).toBe('59');
+    expect(doc.undo()).toBe(false);
+    expect(doc.redo()).toBe(true);
+    expect(raw()).toBe('59ab');
+  });
   it('updates native history retention target while preserving redo and immutable capture', () => {
     const { doc, limit, value, raw } = open('base');
     doc.replaceSource('one');
@@ -183,6 +201,8 @@ describe('immutable text documents', () => {
     limit.value = 1;
     doc.undo();
     expect(raw()).toBe('two');
+    expect(doc.canUndo.value).toBe(false);
+    expect(doc.undo()).toBe(false);
     doc.redo();
     expect(sameTextContent(value.value, captured)).toBe(true);
     expect(writeTextContent(captured)).toBe('three');

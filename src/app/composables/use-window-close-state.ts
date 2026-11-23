@@ -3,6 +3,7 @@ import type { CloseScope, CloseResult } from '@/shared/types';
 
 export interface WindowCloseParticipantOptions {
   settle?: () => Promise<void>;
+  flush?: () => Promise<void>;
   dirty: Readonly<Ref<boolean>>;
   dirtyForScope?: (scope: CloseScope) => boolean;
   title: string;

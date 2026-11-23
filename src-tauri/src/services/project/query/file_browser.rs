@@ -1,5 +1,4 @@
 use super::super::session::{lock_ready_session, session_handle};
-use crate::domain::text_file;
 use crate::errors::{AppError, AppResult};
 use crate::io::{self, FsRootBoundary};
 use crate::models::{FileDirectory, FileEntry, FileKind, FileSearch, FileTextTarget};
@@ -135,7 +134,7 @@ pub fn query_file_search(
 }
 fn is_text_file(path: &Path) -> AppResult<bool> {
     let bytes = fs::read(path).map_err(|error| AppError::from(error).at_path(path))?;
-    if text_file::binary(&bytes) {
+    if text::binary(&bytes) {
         return Ok(false);
     }
     text::decode_plain(&bytes, "utf-8").map_err(|error| AppError::from(error).at_path(path))?;
@@ -159,8 +158,8 @@ mod tests {
     use crate::services::project_sync::release_project_session;
 
     use super::*;
-    use crate::domain::text_file::binary as binary_content;
     use crate::io::forward_slash_path;
+    use crate::parsers::game::text::binary as binary_content;
     #[cfg(test)]
     use crate::services::project::performance::PerformanceTrace;
     #[cfg(test)]
@@ -227,6 +226,8 @@ mod tests {
         for (name, bytes) in [
             ("README", b"hello".as_slice()),
             ("empty", b"".as_slice()),
+            ("bitmap-notes", b"BMP conversion notes".as_slice()),
+            ("music-notes", b"ID3 tags and metadata".as_slice()),
             ("custom.ext", "中文\n\t".as_bytes()),
             ("bom", b"\xef\xbb\xbftext".as_slice()),
         ] {
@@ -235,9 +236,9 @@ mod tests {
             assert!(is_text_file(&path).unwrap());
         }
         for bytes in [
-            b"ID3example".as_slice(),
+            b"ID3\x04\0\0\0\0\0\0".as_slice(),
             b"PK\x03\x04archive".as_slice(),
-            b"MZexample".as_slice(),
+            b"MZ\x90\0".as_slice(),
             b"abc\0def".as_slice(),
             b"abc\x1bdef".as_slice(),
             b"abc\x7fdef".as_slice(),
@@ -282,18 +283,18 @@ mod tests {
         for bytes in [
             b"\x89PNG\r\n\x1a\n".as_slice(),
             b"\xff\xd8\xff",
-            b"GIF89a",
-            b"BM",
-            b"DDS ",
-            b"RIFF",
-            b"OggS",
-            b"fLaC",
-            b"ID3",
+            b"GIF89a\0",
+            b"BM\0",
+            b"DDS \0",
+            b"RIFF\0",
+            b"OggS\0",
+            b"fLaC\0",
+            b"ID3\0",
             b"PK\x03\x04",
             b"\x1f\x8b",
             b"7z\xbc\xaf\x27\x1c",
             b"Rar!\x1a\x07",
-            b"MZ",
+            b"MZ\0",
             b"\xca\xfe\xba\xbe",
             b"\xff\xfb",
         ] {

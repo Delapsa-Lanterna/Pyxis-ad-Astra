@@ -1,11 +1,12 @@
 import type { CsvTableKey, EntityEditTarget, EntityIdentityChange, FileVersion } from './project-identity.types';
-import type { FileChangeRecord } from './file-changes.types';
+import type { CommittedFileChange } from './file-changes.types';
 import type { FileHistorySnapshot } from './file-history.types';
 import type { ProjectInvalidation, SessionContentUpdate } from './project-session.types';
 import type { JsonDocumentOrigin } from './document-identity.types';
 import type { JointEditRoot } from './joint-target.types';
 import type { DocumentEdit } from './file-content.types';
 import type { RowData } from './json.types';
+import type { JavaProjectChange } from './java-project.types';
 
 export type SaveEdit = DocumentEdit;
 export type SaveAcceptanceTask = () => void | boolean | SaveAcceptanceTask[] | Promise<void | boolean | SaveAcceptanceTask[]>;
@@ -26,10 +27,11 @@ export interface WriteContent<T> {
   value: T;
 }
 export interface WriteResult<T = RowData> {
+  javaProjectChange?: JavaProjectChange;
   requestId?: string;
   sessionUpdates: CommittedSessionUpdate[];
   identityChanges: EntityIdentityChange[];
-  changes: FileChangeRecord[];
+  changes: CommittedFileChange[];
   invalidation: ProjectInvalidation;
   keyMap: CsvRowKeyMapping[];
   content: WriteContent<T> | null;

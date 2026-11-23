@@ -1,4 +1,3 @@
-use crate::domain::text_file;
 use crate::errors::{AppError, AppResult};
 use crate::io::{self, FileChangeSetBuilder, FsRootBoundary};
 use crate::models::{
@@ -35,7 +34,7 @@ pub fn load_text_file(root: &str, path: &str) -> AppResult<TextFileData> {
     let path = FsRootBoundary::new(Path::new(root), "text root")?
         .resolve_absolute(Path::new(&path), "text source")?;
     let (version, bytes) = io::read_versioned_bytes(&path)?;
-    if text_file::binary(&bytes) {
+    if text::binary(&bytes) {
         return Err(AppError::message("text.binary", "该文件为二进制内容").at_path(&path));
     }
     let decoded = text::decode_plain(&bytes, "utf-8")
@@ -95,9 +94,10 @@ pub fn save_text_batch(input: TextBatchSave) -> AppResult<WriteResult> {
             Path::new(file.target.as_deref().unwrap_or(&file.path)),
             "text batch target",
         )?;
-        if !occupied.insert(windows_path_key(&source.to_string_lossy()))
-            || (source != target && !occupied.insert(windows_path_key(&target.to_string_lossy())))
-        {
+        let source_key = windows_path_key(&source.to_string_lossy());
+        let target_key = windows_path_key(&target.to_string_lossy());
+        let same_file = source_key == target_key;
+        if !occupied.insert(source_key) || (!same_file && !occupied.insert(target_key)) {
             return Err(
                 AppError::message("text.batch_overlap", "文本批次包含重叠目标").at_path(&source),
             );
@@ -194,6 +194,36 @@ mod tests {
         assert_eq!(fs::read_to_string(&moved).unwrap(), "class Beacon {}");
         assert_eq!(fs::read_to_string(&second).unwrap(), "class B {Beacon a;}");
         project_sync::release_project_session(&manifest.session_id).unwrap();
+        root.close().unwrap();
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn batch_renames_file_case_and_rejects_shared_source_targets() {
+        let root = project_workspace("text_batch_spelling");
+        let path = root.join("Sample.java");
+        let target = root.join("SAMPLE.java");
+        fs::write(&path, "class Sample {}").unwrap();
+        let file = TextFileWrite {
+            path: path.to_string_lossy().into(),
+            target: Some(target.to_string_lossy().into()),
+            text: "class SAMPLE {}".into(),
+        };
+        let mut input = TextBatchSave {
+            session_id: String::new(),
+            mod_root: root.to_string_lossy().into(),
+            base_versions: vec![io::file_version(&path).unwrap()],
+            files: vec![file.clone(), file],
+        };
+        assert_eq!(
+            save_text_batch(input.clone()).unwrap_err().code(),
+            "text.batch_overlap"
+        );
+        input.files.pop();
+        let saved = save_text_batch(input).unwrap();
+        assert_eq!(saved.changes.len(), 1);
+        assert!(target.canonicalize().unwrap().ends_with("SAMPLE.java"));
+        assert_eq!(fs::read_to_string(target).unwrap(), "class SAMPLE {}");
         root.close().unwrap();
     }
 

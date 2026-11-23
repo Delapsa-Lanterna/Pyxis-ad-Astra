@@ -27,7 +27,9 @@ final class EditorQueries {
               previous,
               file,
               source,
-              document.version()));
+              document.version() == 0
+                  ? project.versions.getOrDefault(previous, 0L) + 1
+                  : document.version()));
     }
     return project.update(input.expectedRevision(), files);
   }

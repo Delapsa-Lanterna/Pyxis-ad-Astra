@@ -8,7 +8,7 @@ export function mirrorLateral(value: number): number {
   return -value;
 }
 
-export function mirrorOffsetPoint(point: number[]): number[] {
+export function mirrorOffsetPoint(point: number[]): [number, number] {
   return [point[0] || 0, mirrorLateral(point[1] || 0)];
 }
 

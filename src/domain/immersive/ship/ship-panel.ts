@@ -184,7 +184,7 @@ export function projectShipPanel(
   const recovery = numeric('supplies/rec', '战备恢复成本 (补给)', 0);
   const peak = numeric('peak CR sec', '峰值时间', 9999999, ' 秒');
   if (number('CR loss/sec', 0) <= 0) peak.display = '无限';
-  peak.fields.push(...csvFields('CR loss/sec', '每秒战备值衰减'));
+  for (const field of csvFields('CR loss/sec', '每秒战备值衰减')) peak.fields.push(field);
   peak.formula = '原版在每秒战备值衰减小于等于零时显示无限峰值时间。';
   const crew: ImmersiveStat = {
     id: 'crew',

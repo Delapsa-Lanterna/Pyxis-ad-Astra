@@ -74,7 +74,7 @@ fn apply_session_changes(
             ),
         ] {
             if matches!(change.kind, FileChangeKind::Directory) {
-                for file in snapshots {
+                for file in snapshots.iter().filter(|file| !file.is_directory()) {
                     if let Some(relative) = boundary.resolve_changed_path_to_relative(
                         &Path::new(path).join(&file.rel_path).to_string_lossy(),
                         "changed file",

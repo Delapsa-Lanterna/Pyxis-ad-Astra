@@ -6,6 +6,7 @@ type SourceSnapshot = { target: { path: string }; value: TextContent };
 export interface JavaEditorFile {
   path: Readonly<Ref<string>>;
   readOnly: boolean;
+  acceptSnapshot: (source: string) => void;
   document: Pick<TextDocument, 'content' | 'state' | 'transaction' | 'waitForInput' | 'locate' | 'lightweight'>;
   session: { baselineSnapshot: Readonly<Ref<SourceSnapshot | null>>; pendingSnapshot: Readonly<Ref<SourceSnapshot | null>> };
 }
@@ -16,4 +17,5 @@ export interface JavaEditorFiles {
   activate: (path: string) => void;
   openFiles: (files: TextFileOpen[]) => Promise<TextFileOpenResult[]>;
   openSnapshot: (path: string, source: string) => Promise<JavaEditorFile | null>;
+  closeSnapshot: (path: string) => Promise<void>;
 }

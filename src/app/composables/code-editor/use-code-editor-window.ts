@@ -29,7 +29,7 @@ export function useCodeEditorWindow(view?: () => EditorView | undefined) {
   const engineering = useJavaProject({
     changed: async () => {
       await project.refreshSources();
-      if (analysis.isStarted()) await analysis.reconfigure();
+      if (analysis.isStarted()) await analysis.refreshSources([], 'configure');
     },
     open: async (path, line) => host.openFiles([{ path, line }]),
     prepare: async (operation) => {
@@ -59,10 +59,13 @@ export function useCodeEditorWindow(view?: () => EditorView | undefined) {
         await settleSavedContent(input.modRoot);
       }),
   });
-  useCodeAnalysisSync(async () => {
-    await engineering.read();
-    await analysis.refresh();
-  });
+  useCodeAnalysisSync(
+    context.identity,
+    () => project.analysisRoots.value,
+    engineering.read,
+    project.refreshSources,
+    analysis.refreshSources,
+  );
   const actions = useJavaActions(host, analysis, useTextFileBatch(host, context.identity).apply);
   const feedback = useAppFeedback();
   const closing = useWindowCloseState();

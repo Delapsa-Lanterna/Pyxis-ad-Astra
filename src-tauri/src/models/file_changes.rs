@@ -1,5 +1,5 @@
 use super::serde_fields::deserialize_nullable;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize, Serializer};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -19,6 +19,63 @@ pub struct FileChangeRecord {
     #[serde(deserialize_with = "deserialize_nullable")]
     pub after_data_base64: Option<String>,
     pub after_files: Vec<FileSnapshot>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct CommittedSnapshot<'a> {
+    rel_path: &'a str,
+    text: Option<&'a str>,
+    binary: bool,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct CommittedFileChange<'a> {
+    kind: FileChangeKind,
+    before_path: &'a str,
+    after_path: &'a str,
+    before_exists: bool,
+    after_exists: bool,
+    before_binary: bool,
+    after_binary: bool,
+    after_text: Option<&'a str>,
+    before_files: Vec<&'a str>,
+    after_files: Vec<CommittedSnapshot<'a>>,
+}
+
+pub(super) fn serialize_committed_changes<S: Serializer>(
+    changes: &[FileChangeRecord],
+    serializer: S,
+) -> Result<S::Ok, S::Error> {
+    serializer.collect_seq(changes.iter().map(|change| {
+        CommittedFileChange {
+            kind: change.kind,
+            before_path: &change.before_path,
+            after_path: &change.after_path,
+            before_exists: change.before_exists,
+            after_exists: change.after_exists,
+            before_binary: change.before_data_base64.is_some(),
+            after_binary: change.after_data_base64.is_some(),
+            after_text: change.after_text.as_deref(),
+            before_files: change
+                .before_files
+                .iter()
+                .filter(|file| !file.is_directory())
+                .map(|file| file.rel_path.as_str())
+                .collect(),
+            after_files: change
+                .after_files
+                .iter()
+                .filter(|file| !file.is_directory())
+                .map(|file| CommittedSnapshot {
+                    rel_path: &file.rel_path,
+                    text: file.text.as_deref(),
+                    binary: file.data_base64.is_some(),
+                })
+                .collect(),
+        }
+    }))
 }
 
 impl FileChangeRecord {
@@ -54,6 +111,12 @@ pub struct FileSnapshot {
     pub text: Option<String>,
     #[serde(deserialize_with = "deserialize_nullable")]
     pub data_base64: Option<String>,
+}
+
+impl FileSnapshot {
+    pub fn is_directory(&self) -> bool {
+        self.text.is_none() && self.data_base64.is_none()
+    }
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]

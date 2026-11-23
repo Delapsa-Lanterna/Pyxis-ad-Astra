@@ -73,11 +73,32 @@ export function sourceSlice(value: TextContent, from: number, to: number): strin
   });
 }
 const restoreContent = StateEffect.define<TextContent>();
+const restorePosition = StateEffect.define<object>();
+const capturedPositions = new WeakSet<object>();
+const historyPosition = StateField.define<object>({
+  create: () => ({}),
+  update(position, transaction) {
+    // Group inverses are ordered from the latest edit back to the earliest.
+    for (let i = transaction.effects.length - 1; i >= 0; i--) {
+      const effect = transaction.effects[i]!;
+      if (effect.is(restorePosition)) return effect.value;
+    }
+    return transaction.docChanged || transaction.isUserEvent('input.refactor') ? {} : position;
+  },
+});
+export function textHistoryPosition(state: EditorState) {
+  const position = state.field(historyPosition);
+  capturedPositions.add(position);
+  return position;
+}
 // The newline map follows the same immutable transaction and undo event as the displayed text.
 const contentField = StateField.define<TextContent>({
   create: (state) => ({ ...readTextContent(''), text: state.doc }),
   update(value, transaction) {
-    for (const effect of transaction.effects) if (effect.is(restoreContent)) return { ...effect.value, text: transaction.newDoc };
+    for (let i = transaction.effects.length - 1; i >= 0; i--) {
+      const effect = transaction.effects[i]!;
+      if (effect.is(restoreContent)) return { ...effect.value, text: transaction.newDoc };
+    }
     if (!transaction.docChanged) return value;
     let endings = value.endings,
       offset = 0;
@@ -104,6 +125,26 @@ export function createTextDocument(
   const capacity = new Compartment(),
     surface = new Compartment(),
     language = new Compartment();
+  // CodeMirror retains extra groups beyond minDepth. Count the groups it actually forms,
+  // including IME composition, and expose only the steps inside the configured limit.
+  const retained = StateField.define<{ undo: number; redo: number }>({
+    create: () => ({ undo: 0, redo: 0 }),
+    update(previous, transaction) {
+      const nativeUndo = undoDepth(transaction.state),
+        nativeRedo = redoDepth(transaction.state);
+      let { undo, redo } = previous;
+      if (transaction.isUserEvent('undo')) {
+        undo--;
+        redo++;
+      } else if (transaction.isUserEvent('redo')) {
+        undo++;
+        redo--;
+      } else if (transaction.annotation(Transaction.addToHistory) !== false && nativeUndo !== undoDepth(transaction.startState)) {
+        undo++;
+      }
+      return { undo: Math.max(0, Math.min(undo, nativeUndo, limit.value)), redo: Math.max(0, Math.min(redo, nativeRedo, limit.value)) };
+    },
+  });
   let extensions: Extension = [];
   let languageAttached = false;
   const createState = () =>
@@ -111,6 +152,8 @@ export function createTextDocument(
       doc: value.value.text,
       extensions: [
         contentField.init(() => value.value),
+        historyPosition,
+        retained,
         textSearchFeatures,
         language.of(languageAttached ? javaTextFeatures(path?.value, value.value.text) : []),
         EditorState.transactionExtender.of((transaction) => {
@@ -128,7 +171,12 @@ export function createTextDocument(
         invertedEffects.of((transaction) => {
           const before = transaction.startState.field(contentField),
             after = transaction.state.field(contentField);
-          return before.endings === after.endings && before.newline === after.newline ? [] : [restoreContent.of(before)];
+          const effects: StateEffect<unknown>[] = [];
+          const position = transaction.startState.field(historyPosition);
+          if (capturedPositions.has(position) && position !== transaction.state.field(historyPosition))
+            effects.push(restorePosition.of(position));
+          if (before.endings !== after.endings || before.newline !== after.newline) effects.push(restoreContent.of(before));
+          return effects;
         }),
       ],
     });
@@ -194,11 +242,6 @@ export function createTextDocument(
     );
   return {
     state,
-    restoreState(saved: EditorState) {
-      transaction = null;
-      state.value = saved;
-      value.value = saved.field(contentField);
-    },
     content: computed(() => value.value),
     lightweight: computed(() => isJavaText(path?.value) && hasLongTextLine(state.value.doc)),
     dispatch,
@@ -225,10 +268,10 @@ export function createTextDocument(
     set scroll(value: ReturnType<EditorView['scrollSnapshot']> | undefined) {
       scroll = value;
     },
-    canUndo: computed(() => undoDepth(state.value) > 0),
-    canRedo: computed(() => redoDepth(state.value) > 0),
-    undo: () => undo({ state: state.value, dispatch }),
-    redo: () => redo({ state: state.value, dispatch }),
+    canUndo: computed(() => (state.value.field(retained, false)?.undo ?? 0) > 0),
+    canRedo: computed(() => (state.value.field(retained, false)?.redo ?? 0) > 0),
+    undo: () => !!state.value.field(retained, false)?.undo && undo({ state: state.value, dispatch }),
+    redo: () => !!state.value.field(retained, false)?.redo && redo({ state: state.value, dispatch }),
     separateHistory() {
       dispatch(state.value.update({ annotations: isolateHistory.of('full') }));
     },

@@ -10,7 +10,10 @@ import { rustCommandFunctionsRule } from './rules/capabilities/rust-command-func
 import { saveBackendBoundaryRule } from './rules/capabilities/save-backend-boundary.mjs';
 import { namingBoundaryRule } from './rules/conventions/naming-boundary.mjs';
 import { pathBoundaryRule } from './rules/conventions/path-boundary.mjs';
+import { subscriptionRegistrationRule } from './rules/conventions/subscription-registration.mjs';
 import { writableStateCopyCycleRule } from './rules/conventions/writable-state-copy-cycle.mjs';
+import { repeatedKeyProjectionRule } from './rules/conventions/repeated-key-projection.mjs';
+import { unboundedArgumentsRule } from './rules/conventions/unbounded-arguments.mjs';
 import { errorBoundaryRule } from './rules/modules/app-feedback/error-boundary.mjs';
 import { feedbackBoundaryRule } from './rules/modules/app-feedback/feedback-boundary.mjs';
 import { csvDraftBoundaryRule } from './rules/modules/csv-editor/csv-draft-boundary.mjs';
@@ -28,6 +31,7 @@ import { projectResourcesBoundaryRule } from './rules/modules/resources/project-
 import { resourceBoundaryRule } from './rules/modules/resources/resource-boundary.mjs';
 import { parserBoundaryRule } from './rules/modules/schema/parser-boundary.mjs';
 import { schemaModuleBoundaryRule } from './rules/modules/schema/schema-module-boundary.mjs';
+import { csvValidationColumnsRule } from './rules/modules/schema/csv-validation-columns.mjs';
 import { fieldEditorModuleBoundaryRule } from './rules/modules/field-editor/field-editor-module-boundary.mjs';
 import { workspaceModuleBoundaryRule } from './rules/modules/workspace/workspace-module-boundary.mjs';
 import { workspacePersistenceBoundaryRule } from './rules/modules/workspace/workspace-persistence-boundary.mjs';
@@ -46,7 +50,10 @@ export const rules = [
   sharedTypesBoundaryRule,
   namingBoundaryRule,
   pathBoundaryRule,
+  subscriptionRegistrationRule,
   writableStateCopyCycleRule,
+  unboundedArgumentsRule,
+  repeatedKeyProjectionRule,
   errorBoundaryRule,
   feedbackBoundaryRule,
   csvDraftBoundaryRule,
@@ -64,6 +71,7 @@ export const rules = [
   resourceBoundaryRule,
   parserBoundaryRule,
   schemaModuleBoundaryRule,
+  csvValidationColumnsRule,
   fieldEditorModuleBoundaryRule,
   workspaceModuleBoundaryRule,
   workspacePersistenceBoundaryRule,

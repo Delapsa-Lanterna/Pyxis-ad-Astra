@@ -181,7 +181,7 @@ describe('retained collection rows', () => {
   it.each([
     ['core', 'M:/core'],
     ['reference', 'M:/preceding-mod'],
-  ] as const)('does not offer removal for a field inherited from %s', (source, root) => {
+  ] as const)('preserves fixed and dynamic fields inherited from %s', (source, root) => {
     wrapper = mount(
       {
         setup() {
@@ -194,9 +194,12 @@ describe('retained collection rows', () => {
                   key: 'file',
                   label: 'File',
                   type: 'object',
+                  allowExtraFields: true,
                   nested: [{ key: 'shipNamePrefix', label: 'Prefix', type: 'string' }],
+                  valueSchema: { key: 'group', label: 'Group', type: 'object' },
+                  presentation: 'groups',
                 },
-                value: { shipNamePrefix: 'ISS' },
+                value: { shipNamePrefix: 'ISS', group: { label: 'Group' } },
                 inputKey: 'file',
                 fieldPath: 'file',
                 runtimeContext: {
@@ -209,7 +212,7 @@ describe('retained collection rows', () => {
                         {
                           source: { source, root, path: root + '/file.json', relPath: 'file.json' },
                           version: { path: root + '/file.json', fingerprint: source },
-                          data: { file: { shipNamePrefix: 'ISS' } },
+                          data: { file: { shipNamePrefix: 'ISS', group: { label: 'Group' } } },
                           replace: false,
                         },
                       ],
@@ -226,7 +229,10 @@ describe('retained collection rows', () => {
       },
       { global },
     );
+    expect(wrapper.text()).toContain('group');
     expect(wrapper.find('button[aria-label="移除字段"]').exists()).toBe(false);
+    expect(wrapper.find('.field-map-key-editor').exists()).toBe(false);
+    expect(wrapper.find('button[aria-label="删除条目"]').exists()).toBe(false);
     expect(wrapper.get('.row-origin').text()).toBe(source === 'core' ? '原版' : 'preceding-mod');
   });
 });

@@ -59,6 +59,13 @@ fn normalize_request(request: &mut AnalysisRequest) -> AppResult<()> {
             }
             normalize_classpath(classpath, java_home)?;
         }
+        AnalysisRequest::RefreshSources {
+            paths, retained, ..
+        } => {
+            for path in paths.iter_mut().chain(retained) {
+                normalize_path(path, "Java source path")?;
+            }
+        }
         AnalysisRequest::Update { files, .. } => {
             for file in files {
                 normalize_path(&mut file.file, "Java source file")?;
@@ -94,10 +101,12 @@ pub fn request<R: Runtime>(
 
 pub(super) fn checked_response(response: AnalysisResponse) -> AppResult<AnalysisResponse> {
     if let Some(error) = &response.error {
-        let failure = AppError::message(
-            "java_analysis.operation_failed",
-            serde_json::to_string(error)?,
-        );
+        let code = if error.code == "engine.source_unavailable" {
+            "engine.source_unavailable"
+        } else {
+            "java_analysis.operation_failed"
+        };
+        let failure = AppError::message(code, serde_json::to_string(error)?);
         return Err(if let Some(path) = &error.file {
             failure.at_path(Path::new(path))
         } else {
@@ -109,10 +118,32 @@ pub(super) fn checked_response(response: AnalysisResponse) -> AppResult<Analysis
 
 #[cfg(test)]
 mod tests {
-    use super::normalize_request;
+    use super::{checked_response, normalize_request};
     use crate::test_support::TestWorkspace;
     use pyxis_java_analysis::{AnalysisRequest, FileChange, FileChangeAction};
     use serde_json::json;
+
+    #[test]
+    fn source_availability_preserves_the_editor_error_code() {
+        for (engine, expected) in [
+            ("engine.source_unavailable", "engine.source_unavailable"),
+            ("engine.stale_project", "java_analysis.operation_failed"),
+        ] {
+            let response = serde_json::from_value(json!({
+                "id": "editor", "error": {
+                    "code": engine, "type": "Failure", "message": "Source query failed",
+                    "project": "sample", "file": "Source.java"
+                }
+            }))
+            .unwrap();
+            let error = checked_response(response).unwrap_err();
+            assert_eq!(error.code(), expected);
+            assert_eq!(
+                error.location().unwrap().path.as_deref(),
+                Some("Source.java")
+            );
+        }
+    }
 
     #[test]
     fn path_normalization_retains_the_owned_source_allocation() {

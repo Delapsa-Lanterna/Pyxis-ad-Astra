@@ -184,8 +184,8 @@
   "files": [
     {
       "path": "engine.jar",
-      "bytes": 137080,
-      "sha256": "dbfef1bbe1a485f0c4da7761efc24269bed39fe58181d959b9e89b5abb9cb922"
+      "bytes": 138649,
+      "sha256": "d2b38306c32df90ba193e0b05d66dd23b795a242257f9b631a3b1cea1f38b9af"
     },
     {
       "path": "launcher.jar",

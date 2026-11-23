@@ -218,3 +218,11 @@ pub struct JavaTaskResult {
     pub log_path: Option<String>,
     pub milliseconds: f64,
 }
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct JavaProjectChange {
+    pub mod_root: Option<String>,
+    pub sessions: Vec<String>,
+    pub source_paths: Vec<String>,
+    pub configuration: bool,
+}

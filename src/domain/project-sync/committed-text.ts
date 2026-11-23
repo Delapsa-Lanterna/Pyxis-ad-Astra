@@ -15,13 +15,13 @@ export function committedFileText(result: WriteResult<unknown>, path: string): s
       const matches = (file: { relPath: string }) =>
         normalizeFsPath(joinRootRelativePath(change.afterPath, file.relPath)) === normalizeFsPath(path);
       const after = change.afterFiles.find(matches);
-      if (after?.dataBase64) return undefined;
+      if (after?.binary) return undefined;
       if (after) return after.text ?? '';
-      if (change.beforeFiles.some(matches)) return '';
+      if (change.beforeFiles.some((relPath) => matches({ relPath }))) return '';
     } else if (
       normalizeFsPath(change.afterPath) === normalizeFsPath(path) &&
-      !change.afterDataBase64 &&
-      (!change.beforeDataBase64 || change.afterText !== null)
+      !change.afterBinary &&
+      (!change.beforeBinary || change.afterText !== null)
     )
       return change.afterText ?? '';
   }

@@ -4,7 +4,7 @@ import { sourcePositions } from '../../shared/source-position.mjs';
 import { rustServicePaths } from './rust-crate-paths.mjs';
 import { splitTopLevel } from '../../shared/rust-source.mjs';
 
-/** @typedef {{name: string, commandName: string, public: boolean, attributes: string[], attributeArguments: ReadonlyMap<string,string>, start: number, end: number, body: string, signature: string, line: number, column: number}} RustFunction */
+/** @typedef {{name: string, commandName: string, public: boolean, attributes: string[], attributeArguments: ReadonlyMap<string,string>, start: number, end: number, body: string, signature: string, parameters: string, line: number, column: number}} RustFunction */
 /** @typedef {{name: string, target: string, arguments: string[], literals: Array<string | null>, offset: number, line: number, column: number}} RustCall */
 /** @typedef {{macro: string, expression: string, path: string | null, offset: number, line: number, column: number}} RustEmbeddedAsset */
 /** @typedef {{embeddedAssets: RustEmbeddedAsset[], code: string, references: import('./rust-crate-paths.mjs').RustReference[], functions: RustFunction[], calls: RustCall[]}} RustFacts */
@@ -43,11 +43,13 @@ export function rustFacts(file, code, exports) {
       else if (!groups && character === '>' && code[opening - 1] !== '-') angles--;
     }
     opening++;
+    const parameterStart = opening;
     let depth = 1;
     for (; opening < code.length && depth; opening++) {
       if (code[opening] === '(') depth++;
       if (code[opening] === ')') depth--;
     }
+    const parameters = code.slice(parameterStart, opening - 1);
     for (; opening < code.length && code[opening] !== '{' && code[opening] !== ';'; opening++);
     let end = opening;
     if (code[opening] === '{') {
@@ -72,6 +74,7 @@ export function rustFacts(file, code, exports) {
     functions.push({
       name,
       commandName: rename?.[1] ?? name,
+      parameters,
       public: /^\s*pub(?:\s*\([^)]*\))?\s/.test(/** @type {string} */ (match[0])),
       attributes: attached.map((attribute) => attribute.path),
       attributeArguments,

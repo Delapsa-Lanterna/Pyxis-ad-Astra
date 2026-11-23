@@ -3,7 +3,7 @@ import { nextTick, shallowReactive, computed, onScopeDispose, shallowRef, watch,
 import { ChangeSet } from '@codemirror/state';
 import { javaEditorExtensions } from './java-editor-extensions';
 import { startJavaEditor, closeJavaEditor, syncJavaEditor, inspectJavaEditor, configureJavaEditor } from '@/services/java-analysis.service';
-import { assistJavaEditor } from '@/services/java-analysis.service';
+import { assistJavaEditor, refreshJavaSources } from '@/services/java-analysis.service';
 import {
   displayOffset,
   sourceOffset,
@@ -12,7 +12,7 @@ import {
   sameTextContent,
   type TextContent,
 } from '@/shared/runtime/text-document';
-import { AppError, errorDiagnosticOf } from '@/shared/lib/errors';
+import { AppError, errorCodeOf, errorDiagnosticOf } from '@/shared/lib/errors';
 import { normalizeFsPath, pathBelongsToRoot } from '@/shared/lib/paths';
 import type { JavaInspection, JavaLocation, JavaQueryPurpose, JavaAssistPurpose } from '@/shared/types';
 import type { JavaEditorFile, JavaEditorFiles } from './java-editor-files';
@@ -30,7 +30,6 @@ export function useJavaEditor(
   const locations = shallowRef<JavaLocation[]>([]),
     detail = shallowRef('');
   const archives = shallowReactive(new WeakMap<JavaEditorFile, { label: string; origin: string }>());
-  const versions = new Map<string, number>();
   const tracked = new Map<JavaEditorFile, { source: TextContent; changes: ChangeSet; path: string; full: boolean; stop: () => void }>();
   let queue = Promise.resolve(),
     available = false,
@@ -111,17 +110,15 @@ export function useJavaEditor(
             (!sameTextContent(entry.source, baseline.value) || entry.path !== baseline.target.path)
           )
             void serialize(async () => {
-              const version = (versions.get(entry.path) ?? 1) + 1;
               await syncJavaEditor([
                 {
                   file: baseline.target.path,
                   previousFile: entry.path === baseline.target.path ? undefined : entry.path,
-                  version,
+                  version: 0,
                   source: writeTextContent(baseline.value),
                   edits: [],
                 },
               ]);
-              versions.set(baseline.target.path, version);
             }).catch(fail);
         }
       schedule();
@@ -146,7 +143,6 @@ export function useJavaEditor(
             text: sourceSlice(source, nextFrom, nextTo),
           }),
         );
-      const version = Math.max(versions.get(entry.path) ?? 1, versions.get(document.path.value) ?? 1) + 1;
       batch.push({
         document,
         entry,
@@ -154,7 +150,7 @@ export function useJavaEditor(
         request: {
           file: document.path.value,
           previousFile: entry.path !== document.path.value ? entry.path : undefined,
-          version,
+          version: 0,
           source: full ? writeTextContent(source) : null,
           edits,
         },
@@ -168,7 +164,6 @@ export function useJavaEditor(
     if (!batch.length) return;
     try {
       await syncJavaEditor(batch.map(({ request }) => request));
-      for (const { request } of batch) versions.set(request.file, request.version);
     } catch (error) {
       for (const { entry } of batch) entry.full = true;
       throw error;
@@ -179,21 +174,34 @@ export function useJavaEditor(
     status.value = '分析中';
     await flush();
     let revision: number | undefined;
-    const entries = [...tracked].sort(([left], [right]) => Number(right === host.active.value) - Number(left === host.active.value));
-    for (const [document, entry] of entries) {
-      if (entry.full || !entry.changes.empty || entry.path !== document.path.value || !versions.has(entry.path)) continue;
+    const documents = host.documents
+      .filter(java)
+      .sort((left, right) => Number(right === host.active.value) - Number(left === host.active.value));
+    for (const document of documents) {
+      const entry = tracked.get(document);
+      if (entry && (entry.full || !entry.changes.empty || entry.path !== document.path.value)) continue;
       if (revision !== undefined && results.value.get(document)?.revision === revision) continue;
-      const source = document.document.content.value;
-      const result = await inspectJavaEditor(entry.path, 0, 'document');
+      const path = document.path.value,
+        source = document.document.content.value;
+      let result: JavaInspection;
+      try {
+        result = await inspectJavaEditor(path, 0, 'document');
+      } catch (error) {
+        if (!document.readOnly || errorCodeOf(error) !== 'engine.source_unavailable') throw error;
+        if (!disposed && host.documents.includes(document)) await host.closeSnapshot(path);
+        continue;
+      }
       revision = result.revision;
       if (
         !disposed &&
         source === document.document.content.value &&
-        tracked.has(document) &&
+        host.documents.includes(document) &&
+        java(document) &&
+        document.path.value === path &&
         [...tracked.values()].every((pending) => !pending.full && pending.changes.empty)
       )
         results.value = new Map(results.value).set(document, result);
-      else debugLog('java_analysis.projection_discarded', () => ({ path: entry.path, revision: String(result.revision) }));
+      else debugLog('java_analysis.projection_discarded', () => ({ path, revision: String(result.revision) }));
     }
     status.value = 'Java 分析就绪';
     problem.value = '';
@@ -207,7 +215,6 @@ export function useJavaEditor(
       problem.value = '';
       await startJavaEditor();
       available = true;
-      versions.clear();
       results.value = new Map();
       for (const entry of tracked.values()) {
         entry.full = true;
@@ -417,18 +424,50 @@ export function useJavaEditor(
     supports: java,
     isStarted: () => available || !!preparing,
     isReady: () => available && !disposed,
-    reconfigure: () =>
-      serialize(async () => {
-        if (!available || disposed) return;
-        await configureJavaEditor();
-        results.value = new Map();
-        await refresh();
-      }),
     refresh: () => {
       locations.value = [];
       detail.value = '';
       return serialize(refresh);
     },
+    refreshSources: (paths: string[], mode: 'files' | 'configure' | 'references') =>
+      serialize(async () => {
+        if (!available || disposed) return;
+        if (mode === 'configure') await configureJavaEditor();
+        if (paths.length) {
+          const retained = new Set<string>();
+          for (const [file, entry] of tracked) {
+            retained.add(file.path.value);
+            retained.add(entry.path);
+            const baseline = file.session.baselineSnapshot.value;
+            if (baseline) retained.add(baseline.target.path);
+          }
+          await refreshJavaSources(paths, [...retained]);
+        }
+        for (const file of host.documents.filter((file) => file.readOnly)) {
+          if (disposed) return;
+          if (!java(file)) {
+            await host.closeSnapshot(file.path.value);
+            continue;
+          }
+          if (mode === 'files' && !paths.some((path) => pathBelongsToRoot(file.path.value, path))) continue;
+          try {
+            const value = await inspectJavaEditor(file.path.value, 0, 'source');
+            if (
+              !disposed &&
+              host.documents.includes(file) &&
+              value.source !== null &&
+              value.source !== writeTextContent(file.document.content.value)
+            )
+              file.acceptSnapshot(value.source);
+          } catch (error) {
+            if (errorCodeOf(error) !== 'engine.source_unavailable') throw error;
+            if (!disposed && host.documents.includes(file)) await host.closeSnapshot(file.path.value);
+          }
+        }
+        locations.value = [];
+        detail.value = '';
+        await refresh();
+      }),
     settle: async () => {
       await navigation;
       await queue;

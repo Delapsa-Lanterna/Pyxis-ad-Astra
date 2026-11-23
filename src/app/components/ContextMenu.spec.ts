@@ -445,6 +445,34 @@ describe('window context menu', () => {
     await select('全选');
     expect([input.selectionStart, input.selectionEnd]).toEqual([0, 5]);
   });
+  it('keeps the active menu when another panel changes identity or unmounts', async () => {
+    const panelId = ref('one'),
+      visible = ref(true);
+    const panel = defineComponent({
+      setup() {
+        useContextMenuScope({ identity: () => panelId.value });
+        return () => h('aside');
+      },
+    });
+    const editor = defineComponent({
+      setup() {
+        useContextMenuScope({ identity: () => 'editor' });
+        return () => h('textarea');
+      },
+    });
+    wrapper = mount(ContextMenu, {
+      props: { host: createMenuHost() },
+      attachTo: document.body,
+      slots: { default: () => [h(editor), visible.value ? h(panel) : null] },
+    });
+    await open(wrapper.get('textarea').element);
+    panelId.value = 'two';
+    await flushPromises();
+    expect(dropdown().exists()).toBe(true);
+    visible.value = false;
+    await flushPromises();
+    expect(dropdown().exists()).toBe(true);
+  });
   it('closes on identity handoff and Escape while keeping the editor open', async () => {
     const own = setup();
     await open(wrapper.get('main').element);

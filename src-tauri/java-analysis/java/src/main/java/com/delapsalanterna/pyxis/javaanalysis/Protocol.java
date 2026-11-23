@@ -27,6 +27,8 @@ final class Protocol {
       String javaHome,
       Long expectedRevision,
       List<FileChange> files,
+      List<String> paths,
+      List<String> retained,
       Long revision,
       String file,
       Integer offset,

@@ -92,6 +92,26 @@ beforeEach(() => {
 });
 
 describe('ordered save consumption', () => {
+  it('releases both subscriptions when native registration fails after local registration', async () => {
+    const failure = new Error('registration failed');
+    mocks.register.mockImplementationOnce(async (receive) => {
+      mocks.receive = receive;
+      throw failure;
+    });
+    const content = vi.fn(),
+      identity = vi.fn(),
+      release = vi.fn();
+    await Promise.all([
+      expect(listenSavedContent(content, release)).rejects.toBe(failure),
+      expect(listenSavedIdentity(identity)).rejects.toBe(failure),
+    ]);
+    releaseProjectContentConsumers('s1');
+    deliver(event());
+    await flushPromises();
+    expect(release).not.toHaveBeenCalled();
+    expect(content).not.toHaveBeenCalled();
+    expect(identity).not.toHaveBeenCalled();
+  });
   it('retries only the failed Core product while retaining the ordered event', async () => {
     const release = await startProjectSync();
     const fields = vi.fn().mockRejectedValueOnce(new Error('fields')).mockResolvedValue(undefined);
@@ -287,7 +307,10 @@ describe('ordered save consumption', () => {
     await listenSavedContent(receive);
     deliver(event(1));
     await flushPromises();
+    mocks.receive!({ kind: 'waiting', modRoot: root, waiting: true });
+    expect(useProjectSyncStore().blocked.map((work) => work.requestId)).toEqual(['request-1']);
     deliver(event(2));
+    mocks.receive!({ kind: 'waiting', modRoot: root, waiting: false });
     await flushPromises();
     expect(observed).toEqual([1, 2]);
     expect(useFileHistoryStore().getHistoryStacks(root).revision).toBe(2);
@@ -391,6 +414,9 @@ describe('ordered save consumption', () => {
     expect(first).toHaveBeenCalledOnce();
     expect(last).not.toHaveBeenCalled();
     expect(useProjectSyncStore().pending[0]?.error?.message).toBe('content');
+    mocks.receive!({ kind: 'waiting', modRoot: root, waiting: true });
+    mocks.receive!({ kind: 'waiting', modRoot: root, waiting: false });
+    expect(useProjectSyncStore().blocked.map((work) => work.requestId)).toEqual(['request-1']);
     await retryPendingSessionSyncs('s1');
     await flushPromises();
     expect(first).toHaveBeenCalledOnce();

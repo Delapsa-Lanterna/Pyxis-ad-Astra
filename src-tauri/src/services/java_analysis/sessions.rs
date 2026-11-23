@@ -235,6 +235,9 @@ pub fn request_for_session<R: Runtime>(
     match &mut request {
         AnalysisRequest::EditorUpdate {
             expected_revision, ..
+        }
+        | AnalysisRequest::RefreshSources {
+            expected_revision, ..
         } => *expected_revision = owner.revision,
         AnalysisRequest::Inspect { revision, .. } => *revision = owner.revision,
         AnalysisRequest::Assist {

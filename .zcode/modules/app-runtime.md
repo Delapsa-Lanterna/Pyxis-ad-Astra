@@ -244,7 +244,7 @@
 ### 关闭与恢复
 
 1. 窗口内容向窗口登记能力交付 dirty、范围、等待和反馈文字，应用装配提供完整参与者工厂。
-2. 参与者按 hold、settle、prepare、confirm、flush、resume 执行，等待保存、复核内容并交付所属尾批。
+2. 参与者按 hold、settle、prepare、confirm、flush、resume 执行，等待保存、复核内容，并在销毁主窗口前交付工作区快照、设置、日志和性能尾批。
 3. Rust 销毁获准窗口并调用项目同步释放，存活窗口先接纳 releasedSessions 再恢复读取及焦点。
 4. 内容卸载通过窗口登记释放参与句柄，应用装配释放所属同步订阅。
 

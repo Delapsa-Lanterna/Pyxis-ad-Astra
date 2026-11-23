@@ -33,6 +33,7 @@ fn fixture(root: &Path) -> Arc<JavaProject> {
                 ..Default::default()
             },
             owner: "sample".into(),
+            source_directories: BTreeSet::new(),
             input_generation: 0,
             receipt: None,
         }),
@@ -151,10 +152,7 @@ fn deployment_versions_binary_history_noop_and_artifact_changes() {
         inputs_changed: false,
         milliseconds: 1.,
     });
-    let key = io::canonical_path(&work, "Project")
-        .unwrap()
-        .to_string_lossy()
-        .into_owned();
+    let key = project_key(&work).unwrap();
     PROJECTS.lock().unwrap().insert(key, entry);
     let identity = WindowIdentity::CodeEditor {
         session_id: manifest.session_id.clone(),
@@ -243,7 +241,8 @@ fn cached_description_reuses_source_counts_and_invalidates_resource_versions() {
     let work = project_workspace("java_project_cached_inputs");
     fs::create_dir(work.join("src")).unwrap();
     fs::create_dir(work.join("assets")).unwrap();
-    fs::write(work.join("src/Entry.java"), "class Entry {}").unwrap();
+    fs::create_dir(work.join("src/old.package")).unwrap();
+    fs::write(work.join("src/old.package/Entry.java"), "class Entry {}").unwrap();
     let resource = work.join("assets/value.txt");
     fs::write(&resource, "first").unwrap();
     let manifest =
@@ -272,6 +271,41 @@ fn cached_description_reuses_source_counts_and_invalidates_resource_versions() {
     }
     fs::write(&resource, "other").unwrap();
     fs::write(work.join("src/Other.java"), "class Other {}").unwrap();
+    let mut change = JavaProjectChange::default();
+    let root = PathBuf::from(windows_path_key(&first.mod_root));
+    let affected = |path: &Path, change: &mut JavaProjectChange| {
+        let path = path.to_string_lossy().into_owned();
+        let key = PathBuf::from(windows_path_key(&path));
+        changed_inputs(
+            &root,
+            &entry.state.lock().unwrap(),
+            &[(&path, key, Path::new(&path).is_dir())],
+            change,
+        )
+    };
+    assert!(!affected(&work.join("README.txt"), &mut change));
+    assert!(!affected(&work.join("src/removed.README"), &mut change));
+    assert!(!affected(&work.join("jars/unrelated.jar"), &mut change));
+    assert!(!affected(&work.join("data/ignored.gradle"), &mut change));
+    assert!(affected(&resource, &mut change));
+    assert!(affected(&work.join("src/Other.java"), &mut change));
+    assert_eq!(change.source_paths.len(), 1);
+    assert!(!change.configuration);
+    assert!(affected(&work.join("build.gradle.kts"), &mut change));
+    assert!(change.configuration);
+    fs::rename(work.join("src/old.package"), work.join("src/new.package")).unwrap();
+    let mut folders = JavaProjectChange::default();
+    for directory in ["src/old.package", "src/new.package"] {
+        assert!(affected(&work.join(directory), &mut folders));
+    }
+    assert_eq!(folders.source_paths.len(), 2);
+    assert!(!folders.configuration);
+    fs::create_dir(work.join("subproject")).unwrap();
+    fs::write(work.join("subproject/build.gradle"), "").unwrap();
+    assert!(affected(&work.join("subproject"), &mut folders));
+    assert!(folders.configuration);
+    fs::remove_file(work.join("subproject/build.gradle")).unwrap();
+    fs::remove_dir(work.join("subproject")).unwrap();
     entry.input_generation.fetch_add(1, Ordering::AcqRel);
     let changed = describe(&entry, false).unwrap();
     assert_eq!(changed.source_count, 2);
@@ -413,7 +447,7 @@ fn session_release_leaves_input_registry_available_until_task_finishes() {
     let work = TestWorkspace::new("java_project_release");
     let entry = fixture(work.as_path());
     entry.state.lock().unwrap().snapshot.active = true;
-    let key = work.to_string_lossy().into_owned();
+    let key = project_key(&work).unwrap();
     PROJECTS
         .lock()
         .unwrap()

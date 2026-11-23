@@ -296,6 +296,10 @@ mod windows_path_tests {
     }
     #[test]
     fn windows_unicode_keys_preserve_samples_and_identity() {
+        assert_eq!(
+            windows_path_case(r"\\?\C:\Mods\Sample"),
+            r"\\?\c:\mods\sample"
+        );
         let samples: Vec<Value> = serde_json::from_str(include_str!(
             "../../../src/test/fixtures/windows-path-cases.json"
         ))
@@ -305,6 +309,7 @@ mod windows_path_tests {
             let b = sample["second"].as_str().unwrap();
             let same = sample["same"].as_bool().unwrap();
             if a.ends_with(".variant") {
+                assert_eq!(windows_path_case(a) == windows_path_case(b), same);
                 assert_eq!(
                     windows_compare(
                         &a.encode_utf16().collect::<Vec<_>>(),

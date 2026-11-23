@@ -171,7 +171,7 @@ export async function verifyBrowserUI(browser, url, output) {
   const checks = /** @type {Record<string, unknown>[]} */ ([]);
   await mkdir(output, { recursive: true });
   try {
-    await page.goto(url);
+    await page.goto(url, { waitUntil: 'commit' });
     const main = page.frameLocator('iframe[data-window="main"]');
     await main.getByRole('button', { name: '进入编辑' }).first().click();
     await main.getByRole('button', { name: '打开原版' }).click();
@@ -244,7 +244,7 @@ export async function verifyBrowserUI(browser, url, output) {
       }
       throw Error('No source variant has a free compatible hull slot');
     });
-    await page.goto(new URL('?navigation=json%3Avariants', url.endsWith('/') ? url : url + '/').href);
+    await page.goto(new URL('?navigation=json%3Avariants', url.endsWith('/') ? url : url + '/').href, { waitUntil: 'commit' });
     await main.locator(`.json-entity-list-item[data-entity-id="${variantPlan.variantId}"]`).click();
     /** @param {string} name */
     const group = (name) =>
@@ -295,18 +295,27 @@ export async function verifyBrowserUI(browser, url, output) {
       await page.evaluate(() => Reflect.get(globalThis, 'browserWorkspaceEntries'))
     );
     for (const route of routes) {
-      await page.goto(new URL(route.href, url).href);
-      if (route.id === 'navigation-code-editor')
-        await page.frameLocator('iframe[data-window^="window-"]').locator('.code-editor').waitFor();
-      else if (route.id.startsWith('navigation-'))
-        await main.locator('.mod-navigation-button.active').filter({ hasText: route.label }).waitFor();
-      else if (route.id.startsWith('global-'))
-        await main.getByRole('heading', { name: route.id === 'global-settings' ? '设置' : '关于', exact: true }).waitFor();
-      else if (route.id.endsWith('-window')) await page.frameLocator('iframe[data-window^="window-"]').locator('.titlebar').waitFor();
-      else await main.getByRole('button', { name: '进入编辑' }).first().waitFor();
-      checks.push({ route: route.id, pass: true });
+      const routePage = await context.newPage();
+      const routeErrors = diagnostics(routePage);
+      try {
+        await routePage.goto(new URL(route.href, url).href, { waitUntil: 'commit' });
+        const routeMain = routePage.frameLocator('iframe[data-window="main"]');
+        if (route.id === 'navigation-code-editor')
+          await routePage.frameLocator('iframe[data-window^="window-"]').locator('.code-editor').waitFor();
+        else if (route.id.startsWith('navigation-'))
+          await routeMain.locator('.mod-navigation-button.active').filter({ hasText: route.label }).waitFor();
+        else if (route.id.startsWith('global-'))
+          await routeMain.getByRole('heading', { name: route.id === 'global-settings' ? '设置' : '关于', exact: true }).waitFor();
+        else if (route.id.endsWith('-window'))
+          await routePage.frameLocator('iframe[data-window^="window-"]').locator('.titlebar').waitFor();
+        else await routeMain.getByRole('button', { name: '进入编辑' }).first().waitFor();
+        checks.push({ route: route.id, pass: true });
+      } finally {
+        await routePage.close();
+        errors.push(...routeErrors);
+      }
     }
-    await page.goto(url);
+    await page.goto(url, { waitUntil: 'commit' });
     await main.getByRole('button', { name: '进入编辑' }).first().waitFor();
     await page.locator('.workbench-menu').first().locator('summary').click();
     for (const { selector, buttonName } of [
@@ -335,7 +344,7 @@ export async function verifyBrowserUI(browser, url, output) {
       await page.evaluate(() => Reflect.get(globalThis, 'browserScenarios'))
     );
     for (const scene of scenes.filter((item) => item.id !== 'workspace')) {
-      await page.goto(new URL(scene.href, url).href);
+      await page.goto(new URL(scene.href, url).href, { waitUntil: 'commit' });
       await page.locator('#status[data-ready="true"]').waitFor();
       for (const sample of scene.samples) {
         if (scene.samples.length > 1) {

@@ -5,6 +5,7 @@ import com.google.gson.JsonObject;
 import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -12,6 +13,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
 import org.eclipse.core.resources.*;
 import org.eclipse.jdt.core.*;
 import org.eclipse.jdt.core.dom.*;
@@ -117,9 +119,74 @@ final class AnalysisProject implements AutoCloseable {
     return existing.toRealPath().resolve(existing.relativize(path)).toString();
   }
 
-  JsonObject update(long expectedRevision, List<Protocol.FileChange> files) throws Exception {
+  private void requireRevision(long expectedRevision) {
     if (expectedRevision != revision)
       throw new Protocol.Failure("engine.stale_project", "Project revision is stale", null, null);
+  }
+
+  JsonObject refreshSources(Protocol.Request input) throws Exception {
+    requireRevision(input.expectedRevision());
+    Set<Path> scopes = new TreeSet<>();
+    for (String raw : input.paths()) {
+      Path changed = Path.of(raw).toAbsolutePath().normalize();
+      for (int index : activeRoots) {
+        Path root = roots.get(index);
+        if (root.startsWith(changed)) scopes.add(root);
+        else if (changed.startsWith(root)) scopes.add(changed);
+      }
+    }
+    Set<Path> candidates = new TreeSet<>();
+    Path previous = null;
+    for (Path scope : scopes) {
+      if (previous != null && scope.startsWith(previous)) continue;
+      previous = scope;
+      for (String known : resources.keySet()) {
+        Path file = Path.of(known);
+        if (file.startsWith(scope)) candidates.add(file);
+      }
+      if (Files.notExists(scope)) continue;
+      // Directory notifications may cover a source root's parent. Traverse only registered roots.
+      rootIndex(scope.toRealPath().toString());
+      try (var entries = Files.walk(scope)) {
+        entries
+            .filter(
+                file ->
+                    file.toString().endsWith(".java")
+                        && Files.isRegularFile(file, LinkOption.NOFOLLOW_LINKS))
+            .forEach(candidates::add);
+      }
+    }
+    for (String held : input.retained())
+      candidates.remove(Path.of(held).toAbsolutePath().normalize());
+    List<Protocol.FileChange> changes = new ArrayList<>();
+    for (Path file : candidates) {
+      String name = file.toString();
+      Long version = versions.get(name);
+      if (Files.notExists(file) || Files.isDirectory(file, LinkOption.NOFOLLOW_LINKS)) {
+        if (version != null)
+          changes.add(new Protocol.FileChange("delete", name, null, null, version + 1));
+        continue;
+      }
+      rootIndex(file.toRealPath().toString());
+      String source = Files.readString(file, StandardCharsets.UTF_8);
+      String current =
+          shadowedSources.containsKey(name)
+              ? shadowedSources.get(name)
+              : version == null ? null : copies.get(name).getSource();
+      if (!source.equals(current))
+        changes.add(
+            new Protocol.FileChange(
+                version == null ? "add" : "replace",
+                name,
+                null,
+                source,
+                version == null ? 1L : version + 1));
+    }
+    return changes.isEmpty() ? identity() : update(input.expectedRevision(), changes);
+  }
+
+  JsonObject update(long expectedRevision, List<Protocol.FileChange> files) throws Exception {
+    requireRevision(expectedRevision);
     record Change(String action, String file, String target, String source, long version) {}
     List<Change> changes = new ArrayList<>();
     Map<String, Long> nextVersions = new HashMap<>();

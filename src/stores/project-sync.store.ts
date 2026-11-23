@@ -63,7 +63,7 @@ export const useProjectSyncStore = defineStore('project-sync', () => {
       waitingRoots.add(root);
       for (const work of requests.values()) {
         const modRoot = work.event ? work.event.modRoot : work.modRoot;
-        if (normalizeFsPath(modRoot) === root) work.error = null;
+        if (!('tasks' in work) && normalizeFsPath(modRoot) === root) work.error = null;
       }
     } else {
       waitingRoots.delete(root);

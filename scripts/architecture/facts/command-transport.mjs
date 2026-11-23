@@ -1,8 +1,8 @@
 import ts from 'typescript';
 import { constantString, sourceChecker } from '../../shared/frontend-source.mjs';
 
-/** @param {import('./context.mjs').ArchitectureContext} context @param {string} rel @returns {Map<string,'command'|'save'>} */
-export function commandTransportRoles(context, rel) {
+/** @param {import('./context.mjs').ArchitectureContext} context @param {string} rel @param {(node:ts.CallExpression, command:string)=>void} [onCommand] @returns {Map<string,'command'|'save'>} */
+export function commandTransportRoles(context, rel, onCommand) {
   const file = context.byPath.get(rel);
   if (!file) return new Map();
   /** @type {Map<string,{node:ts.FunctionLikeDeclaration,kinds:Set<'command'|'save'>}>} */
@@ -51,7 +51,10 @@ export function commandTransportRoles(context, rel) {
             : local && ts.isVariableDeclaration(local) && ts.isIdentifier(local.name)
               ? functions.get(local.name.text)
               : undefined;
-        if (target?.kinds.has('command')) entry.kinds.add(command === 'save_project' ? 'save' : 'command');
+        if (target?.kinds.has('command')) {
+          entry.kinds.add(command === 'save_project' ? 'save' : 'command');
+          if (command && pass === functions.size - 1) onCommand?.(node, command);
+        }
         ts.forEachChild(node, inspect);
       }
       inspect(entry.node.body ?? entry.node);

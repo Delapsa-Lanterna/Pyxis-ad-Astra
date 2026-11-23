@@ -196,7 +196,7 @@ export async function submitJointEdit(
       owner.update(next.value, (value, path) => (schema ? prepareSchemaAtPath(value, path, schema) : prepareValue(value)));
       const captured = owner.capture(layout);
       documents[record.key] = captured.request;
-      edits.push(...captured.edits.map((edit) => ({ ...edit, path: [record.key, 'value', ...edit.path] })));
+      for (const edit of captured.edits) edits.push({ ...edit, path: [record.key, 'value', ...edit.path] });
     } else if (record.target.kind === 'csv') {
       const before = jointObject(record.value),
         after = jointObject(next),

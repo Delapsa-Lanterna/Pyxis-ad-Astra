@@ -28,7 +28,6 @@ if (timings)
       rules: ruleTimings,
     }),
   );
-if (diagnostics.length) {
-  console.error(diagnostics.map(formatDiagnostic).join('\n'));
-  process.exitCode = 1;
-} else console.log('Architecture check passed.');
+if (diagnostics.length) console.error(diagnostics.map(formatDiagnostic).join('\n'));
+if (diagnostics.some((diagnostic) => diagnostic.severity !== 'warning')) process.exitCode = 1;
+else console.log('Architecture check passed.');

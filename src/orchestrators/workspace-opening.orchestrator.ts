@@ -1,6 +1,6 @@
 import type { CreatedMod, ModEntry, ProjectManifest, FeedbackNotice, GameScanWarning } from '@/shared/types';
 import { cell, formatModVersion } from '@/shared/lib/starsector';
-import { pathBasename } from '@/shared/lib/paths';
+import { normalizeFsPath, pathBasename } from '@/shared/lib/paths';
 import { useFileHistoryStore } from '@/stores/file-history.store';
 import { useProjectStore } from '@/stores/project.store';
 import { useCsvEditorStore } from '@/stores/csv-editor.store';
@@ -171,7 +171,7 @@ export function loadWorkspaceModManifest(
   const workspace = useWorkspaceStore();
   const registry = workspaceOpenings.get(workspace) ?? new Map<string, Promise<ProjectManifest | null>>();
   workspaceOpenings.set(workspace, registry);
-  const key = `${modRoot.toLowerCase()}|${starsectorRoot?.toLowerCase() ?? ''}|${workspace.getWorkspaceGeneration()}|${modGeneration}`;
+  const key = `${normalizeFsPath(modRoot)}|${normalizeFsPath(starsectorRoot ?? '')}|${workspace.getWorkspaceGeneration()}|${modGeneration}`;
   const existing = registry.get(key);
   if (existing) return existing;
   const operation = openManifest(modRoot, starsectorRoot, modGeneration, accepts);

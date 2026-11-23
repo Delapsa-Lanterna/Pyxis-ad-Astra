@@ -152,7 +152,7 @@ function indexNodes(root: DocumentNode): Map<number, DocumentNode> {
   while (pending.length) {
     const node = pending.pop()!;
     result.set(node.id, node);
-    pending.push(...children(node));
+    for (const child of children(node)) pending.push(child);
   }
   return result;
 }
@@ -197,7 +197,7 @@ function documentEdits(
     const origin = previous.get(entry.node.id);
     if (origin && object && !sameText(origin.key, entry.key))
       edits.push({ kind: 'objectSplice', path, index: origin.index, delete: 1, insert: [[entry.key, prepared(entry.node)]] });
-    else if (origin) edits.push(...documentEdits(origin.node, entry.node, originals, [...path, origin.key]));
+    else if (origin) for (const edit of documentEdits(origin.node, entry.node, originals, [...path, origin.key])) edits.push(edit);
   }
   const current = [...old];
   for (let index = current.length - 1; index >= 0; index--) {
@@ -440,17 +440,27 @@ export function createJsonDocument(initial: JsonFileContent | null, options: Jso
       change(path, (node) => {
         if (node.content.kind !== 'array') throw new Error('Array editing requires an array');
         const items = [...node.content.value];
-        items.splice(index, remove, ...insert.map((item) => buildPrepared(item)));
-        return { ...node, content: { kind: 'array', value: items } };
+        const tail = items.splice(index);
+        tail.splice(0, remove);
+        const updated = items.concat(
+          insert.map((item) => buildPrepared(item)),
+          tail,
+        );
+        return { ...node, content: { kind: 'array', value: updated } };
       });
     },
     spliceObject(path: FilePath, index: number, remove: number, insert: [FileText, PreparedFileValue][]) {
       change(path, (node) => {
         if (node.content.kind !== 'object') throw new Error('Object editing requires an object');
         const fields = [...node.content.value];
-        const previous = remove === 1 && insert.length === 1 ? fields[index]?.[1] : undefined;
-        fields.splice(index, remove, ...insert.map(([key, item]): [FileText, DocumentNode] => [key, buildPrepared(item, previous)]));
-        return { ...node, content: { kind: 'object', value: fields } };
+        const previous = remove === 1 && insert.length === 1 ? node.content.value[index]?.[1] : undefined;
+        const tail = fields.splice(index);
+        tail.splice(0, remove);
+        const updated = fields.concat(
+          insert.map(([key, item]): [FileText, DocumentNode] => [key, buildPrepared(item, previous)]),
+          tail,
+        );
+        return { ...node, content: { kind: 'object', value: updated } };
       });
     },
     reorder(path: FilePath, order: number[]) {

@@ -210,13 +210,13 @@ export function useFileBrowser(
     }
   }
   function ancestorsExpanded(path: string) {
-    const parts = path.split('/');
-    return parts
-      .slice(0, -1)
-      .every(
-        (_part, index) =>
-          parts.slice(0, index + 1).join('/') === base || state.value!.expanded.includes(parts.slice(0, index + 1).join('/')),
-      );
+    let parent = path;
+    while (parent.includes('/')) {
+      parent = parent.slice(0, parent.lastIndexOf('/'));
+      if (parent === base) break;
+      if (!state.value!.expanded.includes(parent)) return false;
+    }
+    return true;
   }
   function setExpanded(keys: Array<string | number>) {
     const current = branch.value!,

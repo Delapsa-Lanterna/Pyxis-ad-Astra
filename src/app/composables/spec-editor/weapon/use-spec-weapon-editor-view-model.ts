@@ -304,12 +304,10 @@ export function useSpecWeaponEditorViewModel(
           draw();
         }),
       fitView: () => {
-        const dimensions = viewport.size(),
-          extent = Math.max(
-            1,
-            ...[...images.images.values()].flatMap((image) => [image.width, image.height]),
-            ...barrels.value.offsets.map((value) => Math.abs(value) * 2),
-          );
+        const dimensions = viewport.size();
+        let extent = 1;
+        for (const image of images.images.values()) extent = Math.max(extent, image.width, image.height);
+        for (const offset of barrels.value.offsets) extent = Math.max(extent, Math.abs(offset) * 2);
         viewport.fit(Math.min(20, Math.max(0.1, Math.min(dimensions.width, dimensions.height) / (extent + 80))));
         draw();
       },

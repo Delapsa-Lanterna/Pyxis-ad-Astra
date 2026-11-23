@@ -15,5 +15,3 @@ pub mod schema;
 pub mod schema_sources;
 pub mod value_catalogs;
 pub mod variant_modules;
-
-pub mod text_file;

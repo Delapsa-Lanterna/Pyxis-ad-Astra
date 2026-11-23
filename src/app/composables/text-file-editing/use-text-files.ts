@@ -9,7 +9,7 @@ import { loadTextFile } from '@/services/text-file-editing.service';
 import { errorDiagnosticOf } from '@/shared/lib/errors';
 import { isAbsoluteFsPath, joinRootRelativePath, normalizeFsPath, pathBelongsToRoot, relativePathFromRoot } from '@/shared/lib/paths';
 import { readTextContent } from '@/shared/runtime/text-document';
-import { tabLabel } from '@/domain/text-file-editing/file-tabs';
+import { fileTabLabels } from '@/domain/text-file-editing/file-tabs';
 import type { TextFileOpen, TextFileOpenResult, FileTextTarget, CommittedWriteEvent } from '@/shared/types';
 
 export function useTextFiles(owner: Pick<FileTextTarget, 'sessionId' | 'modRoot'>) {
@@ -18,6 +18,12 @@ export function useTextFiles(owner: Pick<FileTextTarget, 'sessionId' | 'modRoot'
   const documents = shallowReactive<TextFile[]>([]);
   const active = shallowRef<TextFile | null>(null);
   const location = shallowRef<TextFileOpen | null>(null);
+  const labels = computed(() =>
+    fileTabLabels(
+      documents.map((entry) => entry.path.value),
+      owner.modRoot,
+    ),
+  );
   let disposed = false;
   let queue: Promise<void> = Promise.resolve();
   const opening = new Set<TextFile>();
@@ -233,6 +239,10 @@ export function useTextFiles(owner: Pick<FileTextTarget, 'sessionId' | 'modRoot'
         active.value = document;
         return document;
       }),
+    async closeSnapshot(path: string) {
+      const file = documents.find((file) => file.readOnly && file.path.value === path);
+      if (file) await close(file);
+    },
     save,
     async refresh(current: () => boolean) {
       const document = active.value!;
@@ -246,12 +256,7 @@ export function useTextFiles(owner: Pick<FileTextTarget, 'sessionId' | 'modRoot'
     close,
     move,
     dirty: computed(() => documents.some((document) => document.dirty.value)),
-    label: (document: TextFile) =>
-      tabLabel(
-        document.path.value,
-        documents.map((entry) => entry.path.value),
-        owner.modRoot,
-      ),
+    label: (document: TextFile) => labels.value.get(document.path.value)!,
     loadExternal(document: TextFile) {
       useFieldInputActions(document.session.inputs, feedback).confirmDiscard(
         () => document.session.loadPendingExternal(),

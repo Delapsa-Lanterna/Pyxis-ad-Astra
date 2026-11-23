@@ -61,6 +61,23 @@ beforeEach(() => {
   mocks.complete.mockResolvedValue(undefined);
 });
 describe('joint snapshot session acceptance', () => {
+  it('projects editable keys once for a complete snapshot', () => {
+    const editableRecords = vi.fn((input: JointEditSnapshot) => input.records.map((record) => record.key));
+    let session!: ReturnType<typeof useJointEditSession>;
+    const wrapper = mount({
+      setup() {
+        session = useJointEditSession({ editableRecords });
+        return () => null;
+      },
+    });
+    try {
+      const records = Array.from({ length: 1000 }, (_, index) => ({ ...snapshot.records[0]!, key: String(index) }));
+      expect(Object.keys(session.valuesOf({ ...snapshot, records }))).toHaveLength(1000);
+      expect(editableRecords).toHaveBeenCalledOnce();
+    } finally {
+      wrapper.unmount();
+    }
+  });
   it('retains the final validation while the saved content is accepted', async () => {
     const validate = vi.fn(async () => [] as FieldProblem[]);
     let session!: ReturnType<typeof useJointEditSession>;

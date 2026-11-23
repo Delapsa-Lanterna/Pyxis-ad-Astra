@@ -1,5 +1,6 @@
 import type { DeepReadonly, RowData, ResourceRef } from '@/shared/types';
 import { num, str } from '@/shared/lib/starsector';
+import { readGameNumber } from '@/domain/schema/game-number';
 import { isRowData } from '@/shared/lib/row-data';
 import { projectileAppearance } from '@/domain/editors/projectile-appearance';
 import { weaponAnglesKey, weaponBarrelOffsetsFor, type WeaponViewMode } from '@/shared/lib/starsector/weapon-sprite-fields';
@@ -23,8 +24,9 @@ export function createWeaponFirePreviewDefinition(
     engine = isRowData(spec.engineSpec) ? spec.engineSpec : {};
   const offsets = weaponBarrelOffsetsFor(weapon, mode),
     angles = weapon[weaponAnglesKey(mode)];
-  const speed = num(csv[beam ? 'beam speed' : 'proj speed'], beam ? 1400 : 0),
-    range = num(csv.range, 250),
+  const csvNumber = (key: string, fallback = 0) => readGameNumber(str(csv[key])) ?? fallback;
+  const speed = csvNumber(beam ? 'beam speed' : 'proj speed', beam ? 1400 : 0),
+    range = csvNumber('range', 250),
     missile = appearance.kind === 'missile';
   const spread = mode === 'hardpoint' ? 0.5 : 1;
   return {
@@ -46,22 +48,22 @@ export function createWeaponFirePreviewDefinition(
     barrelMode: str(weapon.barrelMode, 'ALTERNATING'),
     range,
     speed,
-    launchSpeed: num(csv['launch speed']),
+    launchSpeed: csvNumber('launch speed'),
     flightTime: missile
       ? spec.useProjectileRangeCalculation === true
         ? range / Math.max(1, speed)
-        : num(csv['flight time'], 1)
+        : csvNumber('flight time', 1)
       : speed > 0
         ? range / speed
-        : Infinity,
-    chargeup: num(csv.chargeup),
-    chargedown: num(csv.chargedown),
-    burstSize: beam ? num(csv['burst size']) : Math.max(1, Math.trunc(num(csv['burst size'], 1))),
-    burstDelay: num(csv['burst delay']),
-    minSpread: num(csv['min spread']) * spread,
-    maxSpread: num(csv['max spread']) * spread,
-    spreadPerShot: num(csv['spread/shot']) * spread,
-    spreadDecay: num(csv['spread decay/sec']),
+        : 0,
+    chargeup: csvNumber('chargeup'),
+    chargedown: csvNumber('chargedown'),
+    burstSize: beam ? csvNumber('burst size') : Math.max(1, Math.trunc(csvNumber('burst size', 1))),
+    burstDelay: csvNumber('burst delay'),
+    minSpread: csvNumber('min spread') * spread,
+    maxSpread: csvNumber('max spread') * spread,
+    spreadPerShot: csvNumber('spread/shot') * spread,
+    spreadDecay: csvNumber('spread decay/sec'),
     interruptible: weapon.interruptibleBurst === true,
     autoCharge: weapon.autocharge === true,
     fullChargeOnly: weapon.beamFireOnlyOnFullCharge === true,

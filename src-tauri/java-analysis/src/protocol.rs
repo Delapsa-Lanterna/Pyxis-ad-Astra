@@ -58,6 +58,13 @@ pub enum AnalysisRequest {
         id: Value,
         project: String,
     },
+    RefreshSources {
+        id: Value,
+        project: String,
+        expected_revision: u64,
+        paths: Vec<String>,
+        retained: Vec<String>,
+    },
     EditorUpdate {
         id: Value,
         project: String,
@@ -99,6 +106,7 @@ impl AnalysisRequest {
             Self::Analyze { .. } => "analyze",
             Self::Query { .. } => "query",
             Self::Close { .. } => "close",
+            Self::RefreshSources { .. } => "refreshSources",
             Self::EditorUpdate { .. } => "editorUpdate",
             Self::Inspect { .. } => "inspect",
             Self::Shutdown { .. } => "shutdown",
@@ -116,6 +124,7 @@ impl AnalysisRequest {
             | Self::Analyze { id, .. }
             | Self::Query { id, .. }
             | Self::Close { id, .. }
+            | Self::RefreshSources { id, .. }
             | Self::EditorUpdate { id, .. }
             | Self::Inspect { id, .. }
             | Self::Shutdown { id }
@@ -131,6 +140,7 @@ impl AnalysisRequest {
             | Self::Analyze { project, .. }
             | Self::Query { project, .. }
             | Self::Close { project, .. }
+            | Self::RefreshSources { project, .. }
             | Self::EditorUpdate { project, .. }
             | Self::Inspect { project, .. }
             | Self::Assist { project, .. } => Some(project),
@@ -294,7 +304,7 @@ impl AnalysisResult {
                 | (Self::Shutdown(_), "shutdown")
                 | (Self::Inspection(_), "inspect")
                 | (Self::Assistance(_), "assist")
-                | (Self::Project(_), "editorUpdate")
+                | (Self::Project(_), "editorUpdate" | "refreshSources")
         )
     }
 }
@@ -549,6 +559,7 @@ mod protocol_tests {
             json!({"op":"inspect","id":7,"project":"sample","revision":1,"file":"Sample.java","offset":0,"purpose":"document"}),
             json!({"op":"assist","id":7,"project":"sample","revision":1,"file":"Sample.java","offset":0,"purpose":"complete"}),
             json!({"op":"editorUpdate","id":7,"project":"sample","expectedRevision":1,"documents":[{"file":"Sample.java","version":2,"source":"private source","edits":[]}]}),
+            json!({"op":"refreshSources","id":7,"project":"sample","expectedRevision":1,"paths":[],"retained":[]}),
             json!({"op":"close","id":7,"project":"sample"}),
             json!({"op":"shutdown","id":7}),
         ] {

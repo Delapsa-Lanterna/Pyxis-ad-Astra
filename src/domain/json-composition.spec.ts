@@ -27,6 +27,12 @@ function sources(base: RowData): JsonComposition {
   };
 }
 describe('game JSON composition', () => {
+  it('locates a wide inherited array and its first local addition', () => {
+    const composition = sources({ items: Array<string>(150000).fill('inherited') });
+    const local = { items: ['local'] };
+    expect(compositionOrigin(local, composition, ['items', '149999'])).toBe('base');
+    expect(compositionOrigin(local, composition, ['items', '150000'])).toBe(null);
+  });
   it.each(cases)('$name matches the game result', (sample) => {
     const composition = { ...sources(requireRowData(sample.base, 'base')), excluded: sample.excluded ?? [] };
     if (sample.error) expect(() => composeJson(requireRowData(sample.local, 'local'), composition)).toThrow();

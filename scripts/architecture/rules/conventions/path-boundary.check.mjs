@@ -18,6 +18,37 @@ test('Windows path owners consume native case rules in both languages', () => {
     assert.equal(check('fn windows_path_key(path: &str) { ' + expression + '; }', 'src-tauri/src/models/window.rs').length, 1);
 });
 
+test('path identity follows Windows scopes and distinguishes display and search operations', () => {
+  const rel = 'src/services/sample.service.ts';
+  const file = [
+    "import {normalizeRelPath as slashes} from '@/shared/lib/paths';",
+    'export function sample(modRoot: string, name: string, other: {relPath: string}) {',
+    '  const alias = other.relPath;',
+    '  const keys = [modRoot.toLowerCase(), slashes(modRoot).toUpperCase(), alias.toLocaleLowerCase()];',
+    "  const display = name.toLowerCase(), found = modRoot.toLowerCase().includes('demo');",
+    '  return {keys, display, found};',
+    '}',
+  ].join('\n');
+  const diagnostics = pathBoundaryRule.check(
+    architectureFixtures({
+      [rel]: file,
+      'src/shared/lib/paths.ts': 'export const normalizeRelPath = (path:string) => path;',
+    }),
+  );
+  assert.deepEqual(
+    diagnostics.map((item) => [item.ruleId, item.file, item.line, item.symbol]),
+    [
+      ['path-boundary', rel, 4, 'toLowerCase'],
+      ['path-boundary', rel, 4, 'toUpperCase'],
+      ['path-boundary', rel, 4, 'toLocaleLowerCase'],
+    ],
+  );
+  assert.equal(
+    check(String.raw`function key(path:string){return path.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase()}`, rel).length,
+    1,
+  );
+});
+
 test('path expansion belongs to the formal IO boundary across invocation forms', () => {
   for (const text of [
     'use std::path::Path; fn run(path: &Path) { path.canonicalize(); }',
@@ -38,6 +69,14 @@ test('path expansion belongs to the formal IO boundary across invocation forms',
     }
     assert.deepEqual(check(text, 'src-tauri/src/io/paths.rs'), []);
   }
+});
+
+test('canonical project keys and target names use Windows ordinal case', () => {
+  assert.equal(check('fn same(a:&str,b:&str){a.to_lowercase() == b.to_lowercase()}', 'src-tauri/src/io/paths.rs').length, 2);
+  const imports = 'use crate::io; use crate::models::windows_path_case; ';
+  const fromPath = 'fn name(p:&Path){let key = io::canonical_path(p, "project")?.to_string_lossy().into_owned(); ';
+  assert.equal(check(imports + fromPath + 'let digest = hash(key.to_lowercase());}').length, 1);
+  assert.deepEqual(check(imports + fromPath + 'let digest = hash(windows_path_case(&key));}'), []);
 });
 
 test('local functions named canonicalize are not filesystem path operations', () => {

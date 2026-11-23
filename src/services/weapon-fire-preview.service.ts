@@ -37,7 +37,7 @@ export async function queryWeaponFirePreviewData(
     const id = typeof data.weapon.projectileSpecId === 'string' ? data.weapon.projectileSpecId : '';
     const projectile = id ? await querySessionEntity(sessionId, 'projectile', id, signal) : null;
     if (!projectile) throw new AppError('找不到预览弹体 ' + id + '。', { action: 'query-weapon-fire-preview' });
-    baseVersions.push(...projectile.baseVersions);
+    for (const version of projectile.baseVersions) baseVersions.push(version);
     resources.projectile = projectile.resourceRefs;
     projectileSpec = cloneQuerySnapshot(requireRowData(projectile.data, '弹体 ' + id + ' 数据无效'));
   }

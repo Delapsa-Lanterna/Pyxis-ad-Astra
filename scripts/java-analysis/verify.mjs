@@ -10,7 +10,7 @@ import { TestWorkspace, reserveTestOutput } from '../shared/test-workspace.mjs';
 import { lifecycle, dependencies } from './lifecycle.mjs';
 import { performanceComparison } from './performance.mjs';
 import { incremental } from './incremental.mjs';
-import { binaryNavigation, editorQueries } from './editor-queries.mjs';
+import { binaryNavigation, editorQueries, sourceRefresh } from './editor-queries.mjs';
 import { sourceActions } from './source-actions.mjs';
 
 const { values } = parseArgs({
@@ -125,6 +125,7 @@ else {
       report.incremental = await incremental(session, work.path('incremental'), javaHome);
       report.editorQueries = {
         ...(await editorQueries(session, work.path('editor-queries'), javaHome)),
+        sourceRefresh: await sourceRefresh(session, work.path('source-refresh'), javaHome),
         binaryNavigation: await binaryNavigation(session, work.path('binary-navigation'), javaHome),
       };
       report.sourceActions = await sourceActions(session, work.path('source-actions'), javaHome);

@@ -80,18 +80,21 @@ export function provideContextMenu(closing: ContextMenuHost['closing']) {
   );
   function register(scope: RegisteredMenuScope) {
     scopes.add(scope);
+    function closeCaptured() {
+      if (menu.value?.scope === scope || menu.value?.refreshes.includes(scope)) close();
+    }
     const stop = watch(
       scope.identity,
       () => {
         scope.revision++;
-        close();
+        closeCaptured();
       },
       { flush: 'sync' },
     );
     return () => {
       stop();
       scopes.delete(scope);
-      close();
+      closeCaptured();
     };
   }
   function open(event: MouseEvent) {

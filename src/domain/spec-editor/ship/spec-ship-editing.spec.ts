@@ -250,6 +250,26 @@ describe('ship edit operations', () => {
     expect(removeShipPort(source, 2, 0)).toBeNull();
     expect((source.weaponSlots as RowData[]).map((x) => x.id)).toEqual(['WS0001', 'WS0002']);
   });
+  it('moves mirrored ports together across decks and inside a single deck', () => {
+    const source = ship(),
+      at = (point: number[]) => shipRelativeToAbsolute(point, [10, 20]);
+    const created = beginShipOperation(source, 'launchBayAdd', null, at([8, 9]), true)!;
+    updateShipOperation(source, created, at([12, 15]));
+    const slots = source.weaponSlots as RowData[];
+    expect(slots.slice(-2).map((slot) => slot.locations)).toEqual([
+      [12, 15],
+      [12, -15],
+    ]);
+    const moved = beginShipOperation(source, 'launchBayPort', created.target, at([12, 15]), true)!;
+    updateShipOperation(source, moved, at([6, 2]));
+    expect(slots.slice(-2).map((slot) => slot.locations)).toEqual([
+      [6, 2],
+      [6, -2],
+    ]);
+    const added = beginShipOperation(source, 'launchBayPortAdd', { kind: 'launchBayPort', i: 2, port: 0 }, at([8, 9]), true)!;
+    updateShipOperation(source, added, at([12, 15]));
+    expect(slots[2]!.locations).toEqual([0, 0, 2, 3, 12, 15, 12, -15]);
+  });
   it('captures paired engines for size changes and keeps centerline additions single', () => {
     const source = ship(),
       target = { kind: 'engine', i: 0 },

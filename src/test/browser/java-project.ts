@@ -1,5 +1,7 @@
-import type { JavaProjectAction, JavaProjectSnapshot, JavaDeployPreview } from '@/shared/types/java-project.types';
+import type { JavaProjectAction, JavaProjectSnapshot, JavaDeployPreview, JavaProjectChange } from '@/shared/types/java-project.types';
 import type { createWorkspaceProject } from './project';
+
+import { normalizeFsPath, pathBelongsToRoot, relativePathFromRoot } from '@/shared/lib/paths';
 
 export function createJavaProjectPreview() {
   const entries = new Map<string, JavaProjectSnapshot>();
@@ -101,6 +103,32 @@ export function createJavaProjectPreview() {
   }
   return {
     run,
+    changed(project: ReturnType<typeof createWorkspaceProject>, paths: string[]): JavaProjectChange | undefined {
+      const { modRoot, sessionId } = project.manifest,
+        snapshot = entries.get(modRoot);
+      if (!snapshot) return;
+      const sourcePaths = paths.filter((path) =>
+        snapshot.sources.some(
+          (root) =>
+            pathBelongsToRoot(root, path) || (pathBelongsToRoot(path, root) && (/\.java$/i.test(path) || !project.textFiles.has(path))),
+        ),
+      );
+      const configuration = paths.some((path) => {
+        const relative = normalizeFsPath(relativePathFromRoot(modRoot, path));
+        return (
+          normalizeFsPath(path) === normalizeFsPath(modRoot) ||
+          relative === 'mod_info.json' ||
+          relative.endsWith('.jar') ||
+          (!relative
+            .split('/')
+            .slice(0, -1)
+            .some((part) => ['build', '.gradle', '.git', 'src', 'data', 'graphics', 'sounds', 'jars'].includes(part)) &&
+            /(?:\.gradle(?:\.kts)?|\.properties|\.toml|(?:^|\/)gradlew\.bat)$/.test(relative)) ||
+          [...snapshot.sources, ...snapshot.libraries, ...snapshot.buildFiles].some((input) => pathBelongsToRoot(input, path))
+        );
+      });
+      return configuration || sourcePaths.length ? { modRoot, sessions: [sessionId], sourcePaths, configuration } : undefined;
+    },
     preview(project: ReturnType<typeof createWorkspaceProject>, artifact: string, target: string): JavaDeployPreview {
       const source = entries.get(project.manifest.modRoot)!.build!.artifacts.find((entry) => entry.id === artifact)!;
       return {

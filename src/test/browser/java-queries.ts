@@ -1,8 +1,11 @@
 import type { JavaDocumentEdit, JavaInspection, JavaQueryPurpose } from '@/shared/types';
 import type { JavaAssistance, JavaAssistPurpose } from '@/shared/types';
 
+import { pathBelongsToRoot, normalizeFsPath } from '@/shared/lib/paths';
+import { AppError } from '@/shared/lib/errors';
+
 /** Browser fixtures supply explicit projections; native tests own JDT correctness. */
-export function createJavaQueryPreview() {
+export function createJavaQueryPreview(readSources: (label: string) => Map<string, string>) {
   const projects = new Map<string, { revision: number; files: Map<string, { source: string; version: number }> }>();
   const facts = new Map<string, JavaInspection>();
   const assists = new Map<string, JavaAssistance>();
@@ -16,6 +19,8 @@ export function createJavaQueryPreview() {
       action: {
         kind: string;
         documents?: JavaDocumentEdit[];
+        paths?: string[];
+        retained?: string[];
         file?: string;
         offset?: number;
         purpose?: JavaQueryPurpose | JavaAssistPurpose;
@@ -27,10 +32,26 @@ export function createJavaQueryPreview() {
         return;
       }
       if (action.kind === 'start') {
-        projects.set(label, { revision: 1, files: new Map() });
+        const files = new Map([...readSources(label)].map(([file, source]) => [file, { source, version: 1 }]));
+        projects.set(label, { revision: 1, files });
         return;
       }
       const project = projects.get(label)!;
+      if (action.kind === 'refreshSources' || action.kind === 'configure') {
+        const sources = readSources(label),
+          retained = new Set(action.retained?.map(normalizeFsPath));
+        for (const path of new Set([...project.files.keys(), ...sources.keys()])) {
+          if (action.paths && !action.paths.some((root) => pathBelongsToRoot(path, root))) continue;
+          if (retained.has(normalizeFsPath(path))) continue;
+          const source = sources.get(path),
+            previous = project.files.get(path);
+          if (source === undefined) project.files.delete(path);
+          else if (!previous || (action.kind === 'refreshSources' && source !== previous.source))
+            project.files.set(path, { source, version: (previous?.version ?? 0) + 1 });
+        }
+        project.revision++;
+        return;
+      }
       if (action.kind === 'assist') {
         if (action.purpose === 'validate' && action.revision !== project.revision) throw Error('Project revision is stale');
         return {
@@ -90,7 +111,8 @@ export function createJavaQueryPreview() {
       result.source = null;
       result.revision = project.revision;
       result.version = document?.version ?? 1;
-      if (action.purpose === 'source') result.source = fixture?.source ?? document!.source;
+      if (!document && !fixture) throw new AppError('Source unavailable', { code: 'engine.source_unavailable' });
+      if (action.purpose === 'source') result.source = document?.source ?? fixture?.source ?? null;
       if (action.purpose === 'hover') result.locations = [];
       return { result };
     },

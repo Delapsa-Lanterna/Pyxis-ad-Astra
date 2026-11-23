@@ -14,7 +14,7 @@
     >
       <template v-if="row.group || (row.dynamic && !array)" #[row.labelSlot]>
         <SchemaScalarInput
-          v-if="row.dynamic && !array && !keyPicker"
+          v-if="row.dynamic && !array && row.origin === null && !keyPicker"
           class="field-map-key-editor"
           :field="keyField"
           :value="row.key"
@@ -24,7 +24,7 @@
           @click.stop
         />
         <n-select
-          v-else-if="row.dynamic && !array"
+          v-else-if="row.dynamic && !array && row.origin === null"
           class="field-map-key-editor"
           :value="row.key"
           :options="slotOptions.filter((option) => option.value === row.key || !entries.some((entry) => entry.key === option.value))"
@@ -35,7 +35,7 @@
           @click.stop
           @update:value="rename(row, { kind: 'set', value: $event })"
         />
-        <span v-else>{{ row.field.label }}</span>
+        <span v-else>{{ row.dynamic && !array ? row.key : row.field.label }}</span>
       </template>
       <template #[row.actionSlot]>
         <div class="ui-control-row" @click.stop>

@@ -2,7 +2,7 @@ import { beforeEach, afterEach, expect, it, vi } from 'vitest';
 import { enableAutoUnmount, flushPromises } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 import { mountSetup } from '@/test/unit/mount-setup';
-import { initializeSettingsStore } from '@/stores/settings.store';
+import { initializeSettingsStore, useSettingsStore } from '@/stores/settings.store';
 import { createSettingsFixture } from '@/test/fixtures/settings';
 import { savedWriteFixture } from '@/test/fixtures/write-result';
 import { useTextFiles } from '@/app/composables/text-file-editing/use-text-files';
@@ -52,10 +52,9 @@ beforeEach(() => {
       afterPath: file.target ?? file.path,
       beforeExists: true,
       afterExists: true,
-      beforeText: sources.get(file.path)!,
       afterText: file.text,
-      beforeDataBase64: null,
-      afterDataBase64: null,
+      beforeBinary: false,
+      afterBinary: false,
       beforeFiles: [],
       afterFiles: [],
     }));
@@ -263,13 +262,29 @@ it('retains all drafts after a failed batch save and releases only the closed hi
   await expect(host.documents[0]!.save()).rejects.toThrow('sample write failure');
   expect(host.documents.every((file) => file.dirty.value && !file.session.saving.value)).toBe(true);
   await host.documents[0]!.save();
-  await host.close(host.documents[0]!);
-  const remaining = host.documents[0]!;
+  const remaining = host.documents[1]!;
   remaining.setText('independent edit');
-  remaining.undo();
+  await host.close(host.documents[0]!);
+  expect(remaining.undo()).toBe(true);
+  expect(writeTextContent(remaining.document.content.value)).toBe('class B {Beacon a;}\r\n');
   expect(() => remaining.undo()).toThrow('关联文件已关闭');
 });
 
+it('counts a batch as one native undo step without reviving older history', async () => {
+  const { host, batch } = await setup();
+  const first = host.documents[0]!;
+  useSettingsStore().setEditHistoryLimit(1);
+  first.setText('// draft\n' + sources.get(first.path.value));
+  const change = plan();
+  change.files[0]!.source = writeTextContent(first.document.content.value);
+  change.files[0]!.edits = [{ from: 15, to: 16, text: 'Beacon' }];
+  await batch.apply(change, async () => {});
+  expect(first.undo()).toBe(true);
+  expect(writeTextContent(first.document.content.value)).toBe(change.files[0]!.source);
+  expect(first.undo()).toBe(false);
+  expect(first.redo()).toBe(true);
+  expect(host.documents.every((member) => writeTextContent(member.document.content.value).includes('Beacon'))).toBe(true);
+});
 it('opens a missing member once and refuses a read-only member before changing other files', async () => {
   const mounted = mountSetup(() => {
     const host = useTextFiles(owner);

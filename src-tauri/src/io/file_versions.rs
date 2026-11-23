@@ -6,27 +6,32 @@ use crate::io::{FsRootBoundary, canonical_path};
 use crate::models::{FileChangeKind, FileChangeRecord, FileVersion};
 use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD;
+use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use walkdir::WalkDir;
 
 pub fn file_version(path: &Path) -> AppResult<FileVersion> {
     let canonical = canonical_path(path, "versioned file")?;
-    version_from_path(&canonical, &[], &[])
+    version_from_path(&canonical, &[], &BTreeMap::new())
 }
 
-pub(crate) fn directory_version_from_files(
+pub(crate) fn directory_version_from_files<'a>(
     path: &Path,
-    versions: &[FileVersion],
+    versions: impl IntoIterator<Item = &'a FileVersion>,
 ) -> AppResult<FileVersion> {
     let canonical = canonical_path(path, "versioned directory")?;
-    version_from_path(&canonical, &[], versions)
+    let known = versions
+        .into_iter()
+        .filter_map(|version| Some((Path::new(&version.path), version.fingerprint.as_deref()?)))
+        .collect();
+    version_from_path(&canonical, &[], &known)
 }
 
 fn version_from_path(
     path: &Path,
     recreated: &[(PathBuf, String)],
-    known: &[FileVersion],
+    known: &BTreeMap<&Path, &str>,
 ) -> AppResult<FileVersion> {
     let fingerprint = if path.is_file() {
         read_authorized_bytes(path)?.0.fingerprint
@@ -36,7 +41,13 @@ fn version_from_path(
             let entry =
                 entry.map_err(|error| AppError::message("io.walk_failed", error.to_string()))?;
             io::validate_walk_entry(entry.path(), "versioned directory")?;
-            if entry.file_type().is_file() {
+            if entry.file_type().is_dir() && entry.depth() > 0 {
+                let relative = entry
+                    .path()
+                    .strip_prefix(path)
+                    .expect("walk entry belongs to root");
+                files.push((io::forward_slash_path(relative), String::new()));
+            } else if entry.file_type().is_file() {
                 files.push((
                     io::forward_slash_path(
                         entry
@@ -45,14 +56,8 @@ fn version_from_path(
                             .expect("walk entry belongs to root"),
                     ),
                     {
-                        if let Some(version) = known
-                            .iter()
-                            .find(|version| Path::new(&version.path) == entry.path())
-                        {
-                            version
-                                .fingerprint
-                                .clone()
-                                .expect("existing source has a fingerprint")
+                        if let Some(fingerprint) = known.get(entry.path()) {
+                            (*fingerprint).to_owned()
                         } else {
                             let bytes = fs::read(entry.path())
                                 .map_err(|error| AppError::from(error).at_path(entry.path()))?;
@@ -95,10 +100,14 @@ pub fn version_after_change(change: &FileChangeRecord) -> AppResult<FileVersion>
                     .map(|file| {
                         Ok((
                             file.rel_path.replace('\\', "/"),
-                            fingerprint(&snapshot_bytes(
-                                file.text.as_deref(),
-                                file.data_base64.as_deref(),
-                            )?),
+                            if file.is_directory() {
+                                String::new()
+                            } else {
+                                fingerprint(&snapshot_bytes(
+                                    file.text.as_deref(),
+                                    file.data_base64.as_deref(),
+                                )?)
+                            },
                         ))
                     })
                     .collect::<AppResult<Vec<_>>>()?;
@@ -178,7 +187,7 @@ pub fn verify_versions(root: &str, versions: &[FileVersion]) -> AppResult<()> {
     }
     for expected in versions {
         let path = boundary.resolve_absolute(Path::new(&expected.path), "versioned file")?;
-        let current = version_from_path(&path, &recreated, &[])?;
+        let current = version_from_path(&path, &recreated, &BTreeMap::new())?;
         if current.fingerprint.is_none() && io::source_recreation_allowed(root, &expected.path) {
             continue;
         }

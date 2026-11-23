@@ -290,10 +290,11 @@ describe('useTextEditorViewModel editing', () => {
     useSettingsStore().setEditHistoryLimit(1);
     vm.undoEdit();
     expect(vm.text.value).toBe('one');
+    expect(vm.canUndo.value).toBe(false);
     vm.undoEdit();
-    expect(vm.text.value).toBe('base');
-    vm.redoEdit();
     expect(vm.text.value).toBe('one');
+    vm.redoEdit();
+    expect(vm.text.value).toBe('two');
     vm.dispose();
     expect(vm.canUndo.value).toBe(false);
     useSettingsStore().setEditHistoryLimit(2);

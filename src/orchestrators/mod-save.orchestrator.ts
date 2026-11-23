@@ -133,11 +133,8 @@ export function createModSaveCoordinator(feedback: AppFeedback, closing: () => b
           const request: WindowSaveRequest = { target, action: { kind: 'finish', paths: preparation!.paths } };
           const reply = receiver === label ? await handleLocalSaveRequest(request) : await requestWindowSave(receiver, request);
           if (check && reply.kind === 'participants')
-            items.push(
-              ...reply.participants.map((entry) =>
-                failed(entry, new AppError('保存期间出现未保存修改，请重新确认操作', { action: 'save-mod' })),
-              ),
-            );
+            for (const entry of reply.participants)
+              items.push(failed(entry, new AppError('保存期间出现未保存修改，请重新确认操作', { action: 'save-mod' })));
         } catch (error) {
           items.push(failed({ label: receiver, paths: [target.modRoot] }, error));
         }
@@ -151,7 +148,7 @@ export function createModSaveCoordinator(feedback: AppFeedback, closing: () => b
           action: preparation ? { kind: 'capture', paths: preparation.paths } : { kind: 'list' },
         };
         const reply = receiver === label ? await handleLocalSaveRequest(request) : await requestWindowSave(receiver, request);
-        if (reply.kind === 'participants') captured.push(...reply.participants.map((participant) => ({ receiver, participant })));
+        if (reply.kind === 'participants') for (const participant of reply.participants) captured.push({ receiver, participant });
       } catch (error) {
         items.push(failed({ label: receiver, paths: [target.modRoot] }, error));
       }
@@ -178,7 +175,7 @@ export function createModSaveCoordinator(feedback: AppFeedback, closing: () => b
           throw new AppError('保存项目已关闭或重新打开', { action: 'save-mod' });
         const request: WindowSaveRequest = { target, action: { kind: 'save', participant } };
         const reply = receiver === label ? await handleLocalSaveRequest(request) : await requestWindowSave(receiver, request);
-        if (reply.kind === 'results') items.push(...reply.items);
+        if (reply.kind === 'results') for (const item of reply.items) items.push(item);
       } catch (error) {
         items.push(failed(participant, error));
       }

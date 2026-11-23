@@ -234,10 +234,9 @@ export function createWorkspaceProject(root: string, index: number, files = game
       afterPath: path,
       beforeExists: committed.has(path),
       afterExists: textFiles.has(path),
-      beforeText: committed.get(path) ?? null,
       afterText: textFiles.get(path) ?? null,
-      beforeDataBase64: null,
-      afterDataBase64: null,
+      beforeBinary: false,
+      afterBinary: false,
       beforeFiles: [],
       afterFiles: [],
     }));

@@ -30,6 +30,14 @@ const sample = (): FileValue => ({
     ],
   ],
 });
+it('indexes a wide JSON array and inserts it without using a variadic call', () => {
+  const values = Array.from({ length: 150000 }, () => prepareValue(null));
+  const owner = createJsonDocument(null, { value: { kind: 'array', value: values.map((item) => item.value) } });
+  expect(owner.prepared(['149999']).value).toEqual({ kind: 'null' });
+  const empty = createJsonDocument(null, { value: { kind: 'array', value: [] } });
+  empty.spliceArray([], 0, 0, values);
+  expect(empty.prepared(['149999']).value).toEqual({ kind: 'null' });
+});
 describe('exact file document ownership', () => {
   it('reads original fields from each file and keeps a later companion edit through save acceptance', () => {
     const primary = jsonFileFixture({ amount: 1 });

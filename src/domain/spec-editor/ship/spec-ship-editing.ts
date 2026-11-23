@@ -155,7 +155,7 @@ export function addShipBound(bounds: number[], point: number[], mirror: boolean,
     other = inserting && paired ? mirrorShipBoundSegment(bounds, coord, at - 1) + 1 : 0;
   const i = at + (paired && (other < at || !inserting) ? 1 : 0),
     pair = paired ? { kind: 'bound', i: other + (inserting && at <= other ? 1 : 0) } : null;
-  bounds.splice(at * 2, 0, ...coord);
+  bounds.splice(at * 2, 0, coord[0]!, coord[1]!);
   if (pair) bounds.splice(pair.i * 2, 0, ...mirrorOffsetPoint(coord));
   const target = { kind: 'bound', i };
   return reflected ? { target: pair!, pair: target } : { target, pair };
@@ -183,7 +183,7 @@ export function addShipElement(
   if (paired) items.push(engine ? mirrorEngineForAdd(created) : { ...mirrorWeaponSlotForAdd(created), id: nextShipSlotId(ship, bay) });
   return {
     target: { kind: engine ? 'engine' : bay ? 'launchBayPort' : 'weapon', i, ...(bay ? { port: 0 } : {}) },
-    pair: paired ? { kind: engine ? 'engine' : 'weapon', i: i + 1 } : null,
+    pair: paired ? { kind: engine ? 'engine' : bay ? 'launchBayPort' : 'weapon', i: i + 1, ...(bay ? { port: 0 } : {}) } : null,
   };
 }
 export function shipMirrorTarget(ship: RowData, target: EditorTarget, mirror: boolean): EditorTarget | null {
@@ -224,11 +224,27 @@ export function beginShipOperation(
     const slot = g.slots[target.i]!,
       port = bayPorts(slot.locations).length;
     slot.locations = appendBayPort(slot.locations, relative);
-    if (mirror && Math.abs(relative[1] || 0) > MIRROR_EPSILON) slot.locations = appendBayPort(slot.locations, mirrorBayPort(relative));
-    return { kind: 'launchBayPort', target: { kind: 'launchBayPort', i: target.i, port }, pair: null };
+    const paired = mirror && Math.abs(relative[1] || 0) > MIRROR_EPSILON;
+    if (paired) slot.locations = appendBayPort(slot.locations, mirrorBayPort(relative));
+    return {
+      kind: 'launchBayPort',
+      target: { kind: 'launchBayPort', i: target.i, port },
+      pair: paired ? { kind: 'launchBayPort', i: target.i, port: port + 1 } : null,
+    };
   }
   if (!target) return null;
-  return { kind, target, pair: shipMirrorTarget(ship, target, mirror) };
+  const pair = shipMirrorTarget(ship, target, mirror);
+  if (kind === 'launchBayPort' && mirror) {
+    const point = bayPorts(g.slots[target.i]!.locations)[target.port!]!;
+    if (Math.abs(point[1]!) > MIRROR_EPSILON) {
+      for (const i of pair ? [target.i, pair.i] : [target.i]) {
+        const port = bayPorts(g.slots[i]!.locations).findIndex((candidate) => isMirrorPointPair(point, candidate));
+        if (port >= 0) return { kind, target, pair: { kind: 'launchBayPort', i, port } };
+      }
+    }
+    return { kind, target, pair: null };
+  }
+  return { kind, target, pair };
 }
 export function moveShipCenter(ship: RowData, center: number[]) {
   const g = shipCollections(ship),
@@ -256,10 +272,15 @@ export function updateShipOperation(ship: RowData, gesture: ShipGesture, absolut
   else if (kind === 'shieldRadius')
     ship.shieldRadius = Math.max(0, Math.round(distance(absolute, shipRelativeToAbsolute(g.shieldCenter, g.center))));
   else if (kind === 'bound') {
-    g.bounds.splice(target.i * 2, 2, ...relative);
+    g.bounds.splice(target.i * 2, 2, relative[0]!, relative[1]!);
     if (pair) g.bounds.splice(pair.i * 2, 2, ...mirrorOffsetPoint(relative));
-  } else if (kind === 'launchBayPort') slot!.locations = updateBayPort(slot!.locations, target.port!, relative);
-  else if (kind === 'weapon' || kind === 'engine') {
+  } else if (kind === 'launchBayPort') {
+    slot!.locations = updateBayPort(slot!.locations, target.port!, relative);
+    if (pair) {
+      const other = g.slots[pair.i]!;
+      other.locations = updateBayPort(other.locations, pair.port!, mirrorBayPort(relative));
+    }
+  } else if (kind === 'weapon' || kind === 'engine') {
     const source = kind === 'weapon' ? slot! : engine!,
       key = kind === 'weapon' ? 'locations' : 'location';
     source[key] = relative;

@@ -148,14 +148,12 @@ export function useImmersiveEditorRuntime<TPanel extends ImmersivePanel>(
     }
     return definition.project(snapshot.value, values, displaySnapshot.value);
   });
-  const notices = computed(() =>
-    snapshot.value
-      ? snapshot.value.records.filter(
-          (record) =>
-            definition.editableRecords(snapshot.value!).includes(record.key) &&
-            (isExternalSource(record.source?.source) || record.value.state === 'missing'),
-        )
-      : [],
+  const editableKeys = computed(() => new Set(snapshot.value ? definition.editableRecords(snapshot.value) : []));
+  const notices = computed(
+    () =>
+      snapshot.value?.records.filter(
+        (record) => editableKeys.value.has(record.key) && (isExternalSource(record.source?.source) || record.value.state === 'missing'),
+      ) ?? [],
   );
   const runtimeContext = computed<FieldEditorContext>(() => ({
     sessionId: joint.currentTarget.value?.sessionId ?? root.sessionId,
@@ -482,7 +480,7 @@ export function useImmersiveEditorRuntime<TPanel extends ImmersivePanel>(
                   record.target.kind === 'spec' &&
                   record.target.target.kind === 'variant' &&
                   record.target.target.id === change.before.id &&
-                  definition.editableRecords(snapshot.value!).includes(record.key),
+                  editableKeys.value.has(record.key),
               ))),
       );
       const change = changes[0];
@@ -523,9 +521,7 @@ export function useImmersiveEditorRuntime<TPanel extends ImmersivePanel>(
       const next: JointEditSnapshot = captured;
       await retargetImmersiveWindow(next);
       const previous = snapshot.value;
-      const nextValues = Object.fromEntries(
-        next.records.filter((record) => definition.editableRecords(next).includes(record.key)).map((record) => [record.key, record.value]),
-      );
+      const nextValues = joint.valuesOf(next);
       const map = previous
         ? (values: Record<string, JointValue>) =>
             rebaseJointDraft(values, previous, next, event.result.identityChanges, event.result.keyMap)

@@ -4,7 +4,6 @@ import { createFileBrowserState } from '@/stores/file-browser.store';
 import { queryCodeEditorSources } from '@/services/code-editor.service';
 import { useQueryReadOwner } from '@/app/composables/use-query-read-owner';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
-import { listenSavedContent } from '@/orchestrators/project-sync.orchestrator';
 import { errorDiagnosticOf } from '@/shared/lib/errors';
 import { joinRootRelativePath } from '@/shared/lib/paths';
 import type { CodeEditorSource, CodeEditorSources } from '@/shared/types';
@@ -19,7 +18,6 @@ export function useCodeProject(openFile: (path: string, readOnly: boolean) => Pr
   const browseScroll = shallowRef(0),
     searchScroll = shallowRef(0);
   let disposed = false,
-    stop: (() => void) | undefined,
     opening = Promise.resolve();
   function branch(source: CodeEditorSource) {
     const state = shallowReactive({ source, opened: !source.readOnly });
@@ -81,15 +79,8 @@ export function useCodeProject(openFile: (path: string, readOnly: boolean) => Pr
     await Promise.all(branches.filter((entry) => entry.opened).map((entry) => entry.browser.actions.submitSearch()));
   }
   const ready = refreshSources();
-  void listenSavedContent(() => [refreshSources])
-    .then((release) => {
-      if (disposed) release();
-      else stop = release;
-    })
-    .catch((error) => feedback.error(error, '监听项目来源失败'));
   onScopeDispose(() => {
     disposed = true;
-    stop?.();
     for (const entry of branches.splice(0)) entry.release();
   });
   return {

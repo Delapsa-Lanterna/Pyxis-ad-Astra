@@ -1,4 +1,4 @@
-import { watch } from 'vue';
+import { nextTick, watch } from 'vue';
 import { errorContextOf, errorDiagnosticOf } from '@/shared/lib/errors';
 import { logFields } from '@/shared/lib/log-fields';
 import { cell, formatModVersion } from '@/shared/lib/starsector';
@@ -19,13 +19,42 @@ interface RestoreWorkspaceOptions {
 
 let saveTimer: number | null = null;
 let restoring = false;
+let pending: PersistedWorkspace | null = null;
+let saving: Promise<void> | null = null;
+function clearTimer() {
+  if (saveTimer !== null) window.clearTimeout(saveTimer);
+  saveTimer = null;
+}
+async function flushWorkspace() {
+  await nextTick();
+  clearTimer();
+  while (pending || saving) {
+    if (!saving && pending) {
+      const snapshot = pending;
+      pending = null;
+      saving = savePersistedWorkspace(snapshot)
+        .catch((error: unknown) => {
+          pending ??= snapshot;
+          throw error;
+        })
+        .finally(() => {
+          saving = null;
+        });
+    }
+    await saving;
+  }
+}
 export function beginWorkspaceRestore() {
   restoring = true;
-  if (saveTimer !== null) window.clearTimeout(saveTimer);
+  clearTimer();
+  pending = null;
 }
 export async function finishWorkspaceRestore(persist = true) {
   restoring = false;
-  if (persist) await savePersistedWorkspace(useWorkspaceStore().toPersistedState());
+  if (persist) {
+    pending = useWorkspaceStore().toPersistedState();
+    await flushWorkspace();
+  }
 }
 
 export function watchWorkspacePersistence() {
@@ -35,9 +64,10 @@ export function watchWorkspacePersistence() {
     () => workspace.toPersistedState(),
     (state) => {
       if (restoring) return;
-      if (saveTimer !== null) window.clearTimeout(saveTimer);
+      pending = state;
+      clearTimer();
       saveTimer = window.setTimeout(() => {
-        savePersistedWorkspace(state).catch((error) => {
+        flushWorkspace().catch((error) => {
           const diagnostic = errorDiagnosticOf(error);
           recordLogBestEffort({
             level: 'error',
@@ -56,8 +86,10 @@ export function watchWorkspacePersistence() {
   return {
     beginRestore: beginWorkspaceRestore,
     finishRestore: finishWorkspaceRestore,
+    flush: flushWorkspace,
     stop() {
-      if (saveTimer !== null) window.clearTimeout(saveTimer);
+      clearTimer();
+      pending = null;
       stop();
     },
   };

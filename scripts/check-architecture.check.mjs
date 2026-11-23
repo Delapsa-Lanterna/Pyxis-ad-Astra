@@ -44,6 +44,15 @@ test('the architecture command completes with the public success result', async 
     assert.equal(result.status, 0, result.stderr);
     assert.equal(result.stdout.trim(), 'Architecture check passed.');
     assert.equal(result.stderr, '');
+    await writeFile(
+      root.path('src/domain/sample.ts'),
+      'export function keys(rows:{key:string}[]){return rows.map(row=>row.key)}\nexport function select(rows:{key:string}[]){return rows.filter(row=>keys(rows).includes(row.key))}',
+      'utf8',
+    );
+    const advisory = spawnSync(process.execPath, [command], { cwd: root.root, encoding: 'utf8' });
+    assert.equal(advisory.status, 0, advisory.stderr);
+    assert.equal(advisory.stdout.trim(), 'Architecture check passed.');
+    assert.match(advisory.stderr, /warning \[repeated-key-projection\]/);
   } finally {
     await root.close();
   }

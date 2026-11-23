@@ -25,10 +25,8 @@ export function useCsvRangeSelection(options: {
   const rowSelection = shallowRef<RangeCell[] | null>(null),
     rowAnchor = shallowRef<RangeCell | null>(null);
   const rowsMode = computed(() => rowSelection.value !== null);
-  const selectedRows = computed(() => {
-    const chosen = new Set(rowSelection.value?.map((point) => point.row?.rowKey ?? point.key));
-    return options.model().rowKeys.filter((key) => chosen.has(key));
-  });
+  const selectedKeys = computed(() => new Set(rowSelection.value?.map((point) => point.row?.rowKey ?? point.key)));
+  const selectedRows = computed(() => options.model().rowKeys.filter((key) => selectedKeys.value.has(key)));
   let pointer: {
     id: number;
     x: number;
@@ -51,10 +49,10 @@ export function useCsvRangeSelection(options: {
     const active = options.current();
     if (!active) return null;
     if (rowsMode.value) {
-      const positions = selectedRows.value.map((key) => options.model().rowKeys.indexOf(key));
-      return positions.length
-        ? { top: positions[0]!, bottom: positions.at(-1)!, left: 0, right: options.model().columns.length - 1 }
-        : null;
+      const rows = selectedRows.value;
+      if (!rows.length) return null;
+      const { rowKeys, columns } = options.model();
+      return { top: rowKeys.indexOf(rows[0]!), bottom: rowKeys.lastIndexOf(rows.at(-1)!), left: 0, right: columns.length - 1 };
     }
     const a = first.value ? position(first.value) : position({ key: active.rowKey, column: active.column });
     const b = last.value ? position(last.value) : a;
@@ -106,8 +104,7 @@ export function useCsvRangeSelection(options: {
   }
   function rowRange(index: number) {
     const b = bounds.value;
-    if (rowsMode.value)
-      return selectedRows.value.includes(options.model().rowKeys[index]!) ? `0:${options.model().columns.length - 1}` : '';
+    if (rowsMode.value) return selectedKeys.value.has(options.model().rowKeys[index]!) ? `0:${options.model().columns.length - 1}` : '';
     return b && index >= b.top && index <= b.bottom ? `${b.left}:${b.right}` : '';
   }
   function setRows(keys: string[], preserveAnchor = false) {
@@ -126,16 +123,15 @@ export function useCsvRangeSelection(options: {
       keys = order.slice(Math.min(from, to), Math.max(from, to) + 1);
     } else if (ctrl) {
       const current = selectedRows.value;
-      keys = current.includes(key) ? current.filter((entry) => entry !== key) : [...current, key];
+      keys = selectedKeys.value.has(key)
+        ? current.filter((entry) => entry !== key)
+        : order.filter((entry) => entry === key || selectedKeys.value.has(entry));
     }
-    setRows(
-      order.filter((entry) => keys.includes(entry)),
-      true,
-    );
+    setRows(keys, true);
     if (!shift) rowAnchor.value = point(key, options.model().columns[0]!.key);
   }
   function dragRows(key: string) {
-    if (!selectedRows.value.includes(key)) selectRow(key);
+    if (!selectedKeys.value.has(key)) selectRow(key);
     return [...selectedRows.value];
   }
   function locate() {

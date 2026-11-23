@@ -1,8 +1,87 @@
 import assert from 'node:assert/strict';
-import { mkdir, writeFile, readFile } from 'node:fs/promises';
+import { mkdir, writeFile, readFile, rename, unlink } from 'node:fs/promises';
 import { join } from 'node:path';
 import { summarize } from '../shared/sample-statistics.mjs';
 import { javaTool, run, sha256 } from './runtime.mjs';
+
+/** @param {import('./session.mjs').Session} session @param {string} directory @param {string} javaHome */
+export async function sourceRefresh(session, directory, javaHome) {
+  const source = join(directory, 'src'),
+    project = 'source-refresh';
+  const file = join(source, 'Use.java'),
+    lib = join(source, 'Value.java'),
+    added = join(source, 'Extra.java');
+  const moved = join(source, 'Moved.java'),
+    outside = join(directory, 'Outside.java');
+  const caller = 'class Use { Object run(){return Value.item();} }';
+  await mkdir(source, { recursive: true });
+  await writeFile(file, caller);
+  await writeFile(lib, 'class Value { static int item(){return 1;} }');
+  await writeFile(outside, 'class Outside {}');
+  let revision = (await session.request('open', { project, sources: [source], classpath: [], javaHome })).value.revision;
+  /** @param {string[]} paths @param {string[]} [retained] */
+  const refresh = async (paths, retained = []) => {
+    revision = (await session.request('refreshSources', { project, expectedRevision: revision, paths, retained })).value.revision;
+  };
+  /** @param {string} path @param {string} purpose @param {number} [offset] */
+  const inspect = async (path, purpose, offset = 0) =>
+    (await session.request('inspect', { project, revision, file: path, purpose, offset })).value;
+  try {
+    const offset = caller.indexOf('item');
+    assert.equal((await inspect(file, 'hover', offset)).binding.type, 'int');
+    const draft = caller.replace('class Use', '/* draft */ class Use');
+    revision = (
+      await session.request('editorUpdate', { project, expectedRevision: revision, documents: [{ file, source: draft, version: 0 }] })
+    ).value.revision;
+    await writeFile(file, 'class Use {}');
+    await writeFile(lib, 'class Value { static String item(){return "";} }');
+    await writeFile(added, 'class Extra {}');
+    await refresh([directory, source, lib], [file]);
+    assert.equal(revision, 3);
+    assert.equal((await inspect(file, 'source')).source, draft);
+    assert.equal((await inspect(file, 'hover', draft.indexOf('item'))).binding.type, 'java.lang.String');
+    assert.equal((await inspect(added, 'document')).outline[0].name, 'Extra');
+    assert.equal(
+      (await session.request('inspect', { project, revision, file: outside, purpose: 'source', offset: 0 }, true)).value.code,
+      'engine.source_unavailable',
+    );
+    await refresh([source, outside], [file]);
+    assert.equal(revision, 3);
+    await rename(added, moved);
+    await writeFile(moved, 'class Moved {}');
+    await unlink(lib);
+    await refresh([added, moved, lib], [file]);
+    assert.equal(revision, 4);
+    assert.equal((await inspect(moved, 'document')).outline[0].name, 'Moved');
+    for (const path of [lib, added]) {
+      /** @type {{ code: string, file: string }} */
+      const error = (await session.request('inspect', { project, revision, file: path, purpose: 'source', offset: 0 }, true)).value;
+      assert.equal(error.code, 'engine.source_unavailable');
+      assert.equal(error.file, path);
+    }
+    const errors = (await inspect(file, 'document')).diagnostics.filter(
+      /** @param {{severity:string}} diagnostic */ (diagnostic) => diagnostic.severity === 'error',
+    );
+    assert.ok(errors.length);
+    await refresh([file]);
+    assert.equal((await inspect(file, 'source')).source, 'class Use {}');
+    revision = (
+      await session.request('editorUpdate', { project, expectedRevision: revision, documents: [{ file, source: draft, version: 0 }] })
+    ).value.revision;
+    const latest = await inspect(file, 'source');
+    assert.equal(latest.version, 4);
+    assert.equal(latest.source, draft);
+    const stale = await session.request(
+      'editorUpdate',
+      { project, expectedRevision: revision, documents: [{ file, source: caller, version: 3 }] },
+      true,
+    );
+    assert.equal(stale.value.code, 'engine.stale_document');
+    return { revision, documentVersion: latest.version, removedFiles: 2, retainedFiles: 1 };
+  } finally {
+    await session.request('close', { project });
+  }
+}
 
 /** @param {import('./session.mjs').Session} session @param {string} directory @param {string} javaHome */
 export async function editorQueries(session, directory, javaHome) {

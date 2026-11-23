@@ -35,6 +35,7 @@
 - `src/domain/editors/editor-types.ts`：编辑坐标、模式与悬停预览的纯数据类型。
 - `src/domain/editors/lib/geometry.ts`：舰船与武器坐标、角度、距离及边界线段纯规则。
 - `src/domain/editors/projectile-appearance.ts`：投影共享弹体外观、原点、纹理参数及引擎几何。
+- `src/domain/schema/game-number.ts`：CSV 飞行及开火参数使用的游戏数值解释。
 - `src/orchestrators/project-sync.orchestrator.ts`：窗口内保存消费过程和内容维护者交接。
 - `src/services/entity-query.service.ts`：四类查询定义、正式请求与实体失效选择。
 - `src/services/resource-media.service.ts`：唯一持有媒体读取、合批、租约、响应式结果、闲置预算和失效。
@@ -91,9 +92,9 @@
 
 - draft 来源必须由再次打开请求更新规格；CSV、弹体和资源经正式查询及统一失效管线更新。
 - saved 与 draft 必须作为互斥来源完整交付，每次复用明确交接来源。
-- 发射调度必须按事件时刻消费充能、连射、炮管及散布；光束 burst size 表达秒数，弹体表达次数。
+- 发射调度按游戏数值语法解释 CSV 参数并按事件时刻消费充能、连射、炮管及散布；光束 burst size 表达秒数，弹体表达次数。
 - 回看必须保留最近 120 幅完整模拟状态并计入当前画面，最早画面的上一帧禁用；继续播放从当前位置重新推进并替换后续记录。
-- 存活弹体必须持有出生时的定义，后续发射消费最新定义；视口变化只允许变换世界坐标。
+- 存活弹体必须持有出生时的定义，后续发射消费最新定义；静止实弹在出生位置进入渐隐，透明度与尾迹耗尽后释放，视口变化只变换世界坐标。
 - 导弹沿出生方向消费 CSV launch speed、proj speed、flight time 及所属熄火、尾迹和渐隐配置。
 - 开火状态、挂载及规格改变必须以当前画面重新记录并保留弹体与进度；重置及目标交接建立新起点，卸载释放记录，历史出生定义沿现有媒体登记持有并随记录淘汰释放。
 - 开火预览通过独立快照与只读查询运行，规格草稿、保存及编辑历史由编辑器维护。

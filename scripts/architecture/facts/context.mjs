@@ -6,9 +6,10 @@ import { frontendFile, specFile } from './classify.mjs';
 import { productionRustSource, rustFacts } from './rust.mjs';
 import { serviceExportsFromSource } from './rust-crate-paths.mjs';
 import { moduleFacts, moduleMapFacts } from './modules.mjs';
+import { csvSchemaFacts, isCsvSchema } from './csv-schema.mjs';
 import { performance } from 'node:perf_hooks';
 
-/** @typedef {import('./imports.mjs').ResolvedFile & {rust: import('./rust.mjs').RustFacts, document: import('./modules.mjs').ModuleFacts}} ArchitectureFile */
+/** @typedef {import('./imports.mjs').ResolvedFile & {rust: import('./rust.mjs').RustFacts, document: import('./modules.mjs').ModuleFacts, csvSchema?: import('./csv-schema.mjs').CsvSchemaFacts}} ArchitectureFile */
 /** @typedef {{files: readonly ArchitectureFile[], byPath: ReadonlyMap<string, ArchitectureFile>, paths: ReadonlySet<string>, frontend: readonly ArchitectureFile[], rust: readonly ArchitectureFile[], documents: readonly ArchitectureFile[], testFiles: ReadonlySet<string>, failures: import('../diagnostics.mjs').Diagnostic[], moduleMap: ReturnType<typeof moduleMapFacts>, registeredRules: readonly import('../diagnostics.mjs').ArchitectureRule[], counts: {frontend: number, rust: number, documents: number}}} ArchitectureContext */
 
 /** @typedef {{stage:string,durationMs:number,units?:number}} ContextTiming */
@@ -49,6 +50,7 @@ export function architectureContext(sources, available = sources.map((file) => f
   recordStage(options, 'moduleDocumentFactsMs', started);
   const files = prepared.map((file) => ({
     ...file,
+    ...(isCsvSchema(file.rel) ? { csvSchema: csvSchemaFacts(file) } : {}),
     rust: rustFactsByPath.get(file.rel) ?? { code: '', references: [], functions: [], calls: [], embeddedAssets: [] },
     document: documentsByPath.get(file.rel) ?? { lines: [], headings: [], references: [], styleLines: [] },
   }));
@@ -107,6 +109,7 @@ export async function collectArchitectureContext(root, options = {}) {
       !specFile(file.rel) &&
       ((SOURCE_EXTENSIONS.has(extension) &&
         (file.rel.startsWith('src/') || file.rel.startsWith('src-tauri/') || file.rel.startsWith('scripts/architecture/rules/'))) ||
+        isCsvSchema(file.rel) ||
         file.rel === 'tsconfig.json' ||
         file.rel === '.zcode/module-map.md' ||
         (file.rel.startsWith('.zcode/') && extension === '.md') ||

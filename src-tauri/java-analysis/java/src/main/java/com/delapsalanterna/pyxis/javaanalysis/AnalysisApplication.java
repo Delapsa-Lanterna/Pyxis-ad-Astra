@@ -108,6 +108,7 @@ public final class AnalysisApplication implements IApplication {
             yield project.summary();
           }
           case "update" -> project.update(typed.expectedRevision(), typed.files());
+          case "refreshSources" -> project.refreshSources(typed);
           case "editorUpdate" -> EditorQueries.update(project, typed);
           case "inspect" -> EditorQueries.inspect(project, typed);
           case "assist" -> SourceAssistance.query(project, typed);

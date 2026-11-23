@@ -1,4 +1,6 @@
 use super::collections::push_unique_all;
+use super::file_changes::serialize_committed_changes;
+use super::java_project::JavaProjectChange;
 use super::{
     CsvTableKey, EntityEditTarget, EntityIdentityChange, FileChangeRecord, FileHistorySnapshot,
     FileVersion, JointEditRoot, JsonDocumentOrigin, ProjectInvalidation, SessionContentUpdate,
@@ -32,11 +34,14 @@ pub struct WriteContent<T> {
     pub target: WriteContentTarget,
     pub value: T,
 }
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WriteResult<T = ()> {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub java_project_change: Option<JavaProjectChange>,
     pub session_updates: Vec<CommittedSessionUpdate>,
     pub identity_changes: Vec<EntityIdentityChange>,
+    #[serde(serialize_with = "serialize_committed_changes")]
     pub changes: Vec<FileChangeRecord>,
     pub invalidation: ProjectInvalidation,
     pub key_map: Vec<CsvRowKeyMapping>,
@@ -91,6 +96,7 @@ impl<T> WriteResult<T> {
             }
         }
         Self {
+            java_project_change: None,
             session_updates: Vec::new(),
             identity_changes: Vec::new(),
             changes,
@@ -113,6 +119,7 @@ impl<T> WriteResult<T> {
     }
     pub fn with_content<U>(self, target: WriteContentTarget, value: U) -> WriteResult<U> {
         WriteResult {
+            java_project_change: self.java_project_change,
             session_updates: self.session_updates,
             identity_changes: self.identity_changes,
             changes: self.changes,
@@ -224,6 +231,29 @@ mod tests {
             .unwrap_or_else(|_| path.as_ref().to_path_buf())
             .to_string_lossy()
             .to_string()
+    }
+
+    #[test]
+    fn binary_receipt_size_is_independent_of_jar_size() {
+        let root = TestWorkspace::new("binary_receipt_size");
+        let file = root.join("artifact.jar");
+        let mut sizes = Vec::new();
+        for length in [12, 12 * 1024 * 1024] {
+            fs::write(&file, vec![0; length]).unwrap();
+            let change =
+                io::build_file_change(&file, None, Some("A".repeat(length / 3 * 4))).unwrap();
+            let result = WriteResult::from_changes(vec![change]);
+            let receipt = serde_json::to_value(&result).unwrap();
+            let change = &receipt["changes"][0];
+            assert_eq!(change["beforeBinary"], true);
+            assert_eq!(change["afterBinary"], true);
+            assert!(
+                change.get("beforeDataBase64").is_none() && change.get("afterDataBase64").is_none()
+            );
+            sizes.push(serde_json::to_vec(&receipt).unwrap().len());
+        }
+        assert_eq!(sizes[0], sizes[1]);
+        root.close().unwrap();
     }
 
     #[test]

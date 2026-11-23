@@ -5,7 +5,6 @@ import type { ImmersiveEditorRuntime } from '../use-immersive-editor-runtime';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
 import { queryJointEditRow } from '@/services/joint-edit.service';
 import { cloneQuerySnapshot } from '@/shared/lib/query-snapshot';
-import { immersiveEditableRecords } from '@/domain/immersive/source-records';
 import { jointObject, rebaseJointDraft } from '@/domain/joint-edit';
 import { schemaStringValue } from '@/domain/schema/schema-values';
 import { openImmersiveEditorWindow } from '@/windows/immersive-editor.window';
@@ -47,9 +46,7 @@ export function useImmersiveWingEditor(runtime: ImmersiveEditorRuntime) {
     });
     if (!captured || !runtime.isActive() || !joint.isTargetCurrent(target)) return;
     const next: JointEditSnapshot = captured;
-    const values = Object.fromEntries(
-      next.records.filter((record) => immersiveEditableRecords(next).includes(record.key)).map((record) => [record.key, record.value]),
-    );
+    const values = joint.valuesOf(next);
     const actual = {
       target: next.root,
       value: values,
@@ -148,9 +145,7 @@ export function useImmersiveWingEditor(runtime: ImmersiveEditorRuntime) {
       const next: JointEditSnapshot = captured;
       joint.applyExternalForTarget({
         target: next.root,
-        value: Object.fromEntries(
-          next.records.filter((entry) => immersiveEditableRecords(next).includes(entry.key)).map((entry) => [entry.key, entry.value]),
-        ),
+        value: joint.valuesOf(next),
         baseVersions: next.baseVersions,
         meta: { snapshot: next, receipt: null, previous: null },
       });

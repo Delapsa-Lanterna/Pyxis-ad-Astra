@@ -20,4 +20,14 @@ export interface FileChangeRecord {
   afterFiles: FileSnapshot[];
 }
 
+export interface CommittedFileChange extends Pick<
+  FileChangeRecord,
+  'kind' | 'beforePath' | 'afterPath' | 'beforeExists' | 'afterExists' | 'afterText'
+> {
+  beforeBinary: boolean;
+  afterBinary: boolean;
+  beforeFiles: string[];
+  afterFiles: { relPath: string; text: string | null; binary: boolean }[];
+}
+
 export type FileChangeReplayDirection = 'undo' | 'redo';

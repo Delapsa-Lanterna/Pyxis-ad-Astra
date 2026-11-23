@@ -14,7 +14,15 @@ import { defaultKeymap } from '@codemirror/commands';
 import { openSearchPanel } from '@codemirror/search';
 import type { TextDocument } from '@/shared/runtime/text-document';
 import { registerTextEditorMenu } from '@/shared/runtime/text-editor-menu';
-const props = defineProps<{ document: TextDocument; disabled?: boolean; lineNumbers?: boolean; line?: number; extensions?: Extension }>();
+const props = defineProps<{
+  document: TextDocument;
+  disabled?: boolean;
+  lineNumbers?: boolean;
+  line?: number;
+  extensions?: Extension;
+  undo?: () => void;
+  redo?: () => void;
+}>();
 const emit = defineEmits<{ position: [value: { line: number; column: number }] }>();
 const host = useTemplateRef<HTMLElement>('host');
 const errorGutter = new (class extends GutterMarker {
@@ -52,6 +60,15 @@ function bind() {
     props.extensions ?? [],
     // Native composition mutations settle before the application's input finalizer captures text.
     EditorView.domEventHandlers({
+      beforeinput(event) {
+        if (event.inputType !== 'historyUndo' && event.inputType !== 'historyRedo') return false;
+        event.preventDefault();
+        if (!props.disabled) {
+          if (event.inputType === 'historyUndo') (props.undo ?? bound!.undo)();
+          else (props.redo ?? bound!.redo)();
+        }
+        return true;
+      },
       compositionstart() {
         bound!.startComposition();
       },

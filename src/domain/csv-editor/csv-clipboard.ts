@@ -43,6 +43,6 @@ export function parseCsvClipboard(text: string): string[][] {
   }
   if (quoted) throw new AppError('粘贴内容的引号未闭合');
   if (row.length || value || closed || !rows.length || !/[\r\n]$/.test(text)) rows.push([...row, value]);
-  const width = Math.max(...rows.map((entry) => entry.length));
+  const width = rows.reduce((widest, entry) => Math.max(widest, entry.length), 0);
   return rows.map((entry) => Array.from({ length: width }, (_, index) => entry[index] ?? ''));
 }

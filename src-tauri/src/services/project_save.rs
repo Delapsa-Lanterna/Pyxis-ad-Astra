@@ -16,7 +16,7 @@ use crate::services::{
 use serde::Serialize;
 #[cfg(test)]
 use serde::de::DeserializeOwned;
-use serde_json::{Value, json};
+use serde_json::{Result as JsonResult, Value, json};
 use tauri::async_runtime;
 
 pub async fn submit_project_save(
@@ -69,14 +69,7 @@ pub async fn submit_project_save(
                 execute_save_action(action)
             },
         )?;
-        if let Err(error) =
-            project::reference_sources_changed(session.as_deref()).and_then(|sources| {
-                if let Some(sources) = sources {
-                    project_sync::publish_references(sources, project::reference_updates()?)?;
-                }
-                Ok(())
-            })
-        {
+        if let Err(error) = project_sync::publish_reference_changes(session.as_deref(), &result) {
             diagnostics::failure(
                 "save.reference_delivery_failed",
                 error,
@@ -234,7 +227,14 @@ pub(crate) fn execute_save_action(mut action: SaveAction) -> AppResult<WriteResu
     transaction.commit(result, label)
 }
 fn json_result<T: Serialize>(result: WriteResult<T>) -> AppResult<WriteResult<Value>> {
+    map_result_content(result, serde_json::to_value)
+}
+fn map_result_content<T, U>(
+    result: WriteResult<T>,
+    convert: impl FnOnce(T) -> JsonResult<U>,
+) -> AppResult<WriteResult<U>> {
     Ok(WriteResult {
+        java_project_change: result.java_project_change,
         session_updates: result.session_updates,
         identity_changes: result.identity_changes,
         changes: result.changes,
@@ -243,7 +243,7 @@ fn json_result<T: Serialize>(result: WriteResult<T>) -> AppResult<WriteResult<Va
         content: result
             .content
             .map(|content| {
-                serde_json::to_value(content.value).map(|value| WriteContent {
+                convert(content.value).map(|value| WriteContent {
                     target: content.target,
                     value,
                 })
@@ -255,9 +255,7 @@ fn json_result<T: Serialize>(result: WriteResult<T>) -> AppResult<WriteResult<Va
 }
 #[cfg(test)]
 pub fn execute_typed_save<T: DeserializeOwned>(action: SaveAction) -> AppResult<WriteResult<T>> {
-    Ok(serde_json::from_value(serde_json::to_value(
-        execute_save_action(action)?,
-    )?)?)
+    map_result_content(execute_save_action(action)?, serde_json::from_value)
 }
 
 #[cfg(test)]

@@ -1,14 +1,14 @@
 import { fileURLToPath } from 'node:url';
 import { relative } from 'node:path';
 
-/** @typedef {{ruleId: string, file: string, line: number, column: number, message: string, reference: string, source: string, target?: string, symbol?: string, expected?: string}} Diagnostic */
+/** @typedef {{ruleId: string, file: string, line: number, column: number, message: string, reference: string, source: string, target?: string, symbol?: string, expected?: string, severity?: 'warning'}} Diagnostic */
 /** @typedef {{line: number, column: number}} Position */
 /** @typedef {Position & {bindings?: import('./facts/imports.mjs').ImportBinding[], target?: string | string[]}} EvidencePosition */
 /** @typedef {(file: {rel: string}, position: EvidencePosition, message: string, relation?: {target?: string, symbol?: string, expected?: string}) => void} Report */
 /** @typedef {{name: string, reference: string, source: string, check: (context: import('./facts/context.mjs').ArchitectureContext) => Diagnostic[]}} ArchitectureRule */
 
-/** @param {string} name @param {string} reference @param {string} source @param {(context: import('./facts/context.mjs').ArchitectureContext, report: Report) => void} check @returns {ArchitectureRule} */
-export function defineRule(name, reference, source, check) {
+/** @param {string} name @param {string} reference @param {string} source @param {(context: import('./facts/context.mjs').ArchitectureContext, report: Report) => void} check @param {'warning'} [severity] @returns {ArchitectureRule} */
+export function defineRule(name, reference, source, check, severity) {
   const ruleSource = relative(process.cwd(), fileURLToPath(source)).replaceAll('\\', '/');
   return {
     name,
@@ -23,6 +23,7 @@ export function defineRule(name, reference, source, check) {
           (Array.isArray(position.target) ? position.target.at(-1) : undefined);
         diagnostics.push({
           ruleId: name,
+          ...(severity ? { severity } : {}),
           file: file.rel,
           line: position.line,
           column: position.column,
@@ -41,7 +42,7 @@ export function defineRule(name, reference, source, check) {
 /** @param {Diagnostic} diagnostic @returns {string} */
 export function formatDiagnostic(diagnostic) {
   const { file, line, column, ruleId, message, target, reference, source } = diagnostic;
-  return `${file}:${line}:${column}: [${ruleId}] ${target ? target + ': ' : ''}${message} (${reference}; ${source})`;
+  return `${file}:${line}:${column}: ${diagnostic.severity === 'warning' ? 'warning ' : ''}[${ruleId}] ${target ? target + ': ' : ''}${message} (${reference}; ${source})`;
 }
 
 /** @param {readonly Diagnostic[]} diagnostics @returns {Diagnostic[]} */

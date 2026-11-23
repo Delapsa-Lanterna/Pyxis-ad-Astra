@@ -12,16 +12,17 @@ function windowsPathCase(path: string): string {
     .join('');
 }
 
-export function normalizeFsPath(path: string): string {
-  const normalized = windowsPathCase(
-    path
-      .replace(/\\/g, '/')
-      .replace(/^\/\/\?\/UNC\//i, '//')
-      .replace(/^\/\/\?\//, '')
-      .replace(/\/+$/, ''),
-  );
+function fsPathSpelling(path: string): string {
+  const normalized = normalizeRelPath(path)
+    .replace(/^\/\/\?\/UNC\//i, '//')
+    .replace(/^\/\/\?\//, '')
+    .replace(/\/+$/, '');
   const prefix = normalized.startsWith('//') ? '//' : normalized.startsWith('/') ? '/' : '';
   return prefix + normalized.split('/').filter(Boolean).join('/');
+}
+
+export function normalizeFsPath(path: string): string {
+  return windowsPathCase(fsPathSpelling(path));
 }
 
 export function normalizeRelPath(path: string): string {
@@ -75,9 +76,5 @@ export function closestRootForPath(roots: Iterable<string>, path: string): strin
 }
 
 export function relativePathFromRoot(root: string, path: string): string {
-  const normalizedPath = normalizeRelPath(path).replace(/^\/\/\?\//, '');
-  const comparablePath = normalizeFsPath(path);
-  const comparableRoot = normalizeFsPath(root);
-  if (comparablePath === comparableRoot) return '';
-  return normalizedPath.slice(comparableRoot.length + 1);
+  return fsPathSpelling(path).slice(fsPathSpelling(root).length + 1);
 }

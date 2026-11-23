@@ -13,13 +13,13 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
-      - name: Read Java runtime requirement
-        id: java-runtime
-        run: node -e "const fs=require('node:fs');const versions=require('./src-tauri/java-analysis/versions.json');fs.appendFileSync(process.env.GITHUB_OUTPUT,'version='+versions.java+'\n')"
+      - name: Read Java build toolchain
+        id: java-build
+        run: node -e "const fs=require('node:fs');const versions=require('./src-tauri/java-analysis/versions.json');fs.appendFileSync(process.env.GITHUB_OUTPUT,'version='+versions.buildJdk+'\n')"
       - uses: actions/setup-java@v4
         with:
-          distribution: temurin
-          java-version: ${{ steps.java-runtime.outputs.version }}
+          distribution: zulu
+          java-version: ${{ steps.java-build.outputs.version }}
       - name: Read Rust toolchain
         id: rust-toolchain
         shell: pwsh
@@ -32,6 +32,8 @@ jobs:
           components: rustfmt, clippy
       - run: npm ci
       - run: npm run build:java-analysis
+      - name: Verify checked-in Java analysis resources
+        run: git diff --exit-code HEAD -- src-tauri/java-analysis/resources/engine.jar src-tauri/java-analysis/resources/launcher.jar src-tauri/java-analysis/resources/builtin.json src-tauri/java-analysis/resources/catalog.json
       - run: npm run check:java-analysis
       - name: Test live Java runtime lifecycle
         shell: pwsh

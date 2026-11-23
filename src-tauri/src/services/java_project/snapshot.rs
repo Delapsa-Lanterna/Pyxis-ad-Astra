@@ -3,9 +3,11 @@ use super::{JavaProject, artifacts, environment, gradle, inputs, process, unavai
 use crate::errors::{AppError, AppResult};
 use crate::io;
 use crate::models::java_project::{JavaBuildMode, JavaProjectSnapshot};
+use crate::models::windows_path_key;
 use crate::services::project;
 use pyxis_java_analysis::versions::DEFAULT_LANGUAGE;
-use std::path::Path;
+use std::collections::BTreeSet;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::Ordering;
 
 pub(super) fn describe(entry: &JavaProject, refresh: bool) -> AppResult<JavaProjectSnapshot> {
@@ -96,7 +98,17 @@ fn read_description(
     } else {
         primary.clone().into_iter().collect()
     };
-    let source_count = inputs::source_files(&sources)?.len();
+    let source_files = inputs::source_files(&sources)?;
+    let mut source_directories = BTreeSet::new();
+    for file in &source_files {
+        let key = PathBuf::from(windows_path_key(&file.to_string_lossy()));
+        for directory in key.ancestors().skip(1) {
+            if !source_directories.insert(directory.to_owned()) {
+                break;
+            }
+        }
+    }
+    let source_count = source_files.len();
     let missing = sources
         .iter()
         .chain(libraries.iter())
@@ -186,6 +198,9 @@ fn read_description(
     if state.snapshot.revision != previous.revision {
         drop(state);
         return describe(entry, false);
+    }
+    if snapshot.configuration_error.is_none() {
+        state.source_directories = source_directories;
     }
     state.snapshot = snapshot.clone();
     state.input_generation = generation;

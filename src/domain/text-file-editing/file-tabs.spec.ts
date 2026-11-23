@@ -1,9 +1,10 @@
 import { expect, it } from 'vitest';
-import { fileTabStatus, tabLabel } from './file-tabs';
+import { fileTabStatus, fileTabLabels } from './file-tabs';
 
 it('distinguishes same-name file tabs', () => {
-  expect(tabLabel('M:/src/a/Entry.java', ['M:/src/a/Entry.java', 'M:/src/b/Entry.java'], 'M:/src')).toBe('a/Entry.java');
-  expect(tabLabel('M:/src/a/Entry.java', ['M:/src/a/Entry.java'], 'M:/src')).toBe('Entry.java');
+  const paths = ['M:/src/a/Entry.java', 'E:/b/Entry.java', 'jar:/dep!/Entry.java', 'M:/src/Other.java'];
+  expect([...fileTabLabels(paths, 'M:/src').values()]).toEqual(['a/Entry.java', 'E:/b/Entry.java', 'jar:/dep!/Entry.java', 'Other.java']);
+  expect([...fileTabLabels(paths.slice(0, 1), 'M:/src').values()]).toEqual(['Entry.java']);
 });
 it.each([
   [true, true, true, false, 'mod-tab-dirty', '有未保存修改'],

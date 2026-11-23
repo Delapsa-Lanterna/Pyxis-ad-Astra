@@ -1,5 +1,6 @@
 use crate::errors::{AppError, AppResult};
 use crate::io::file_changes;
+use crate::models::windows_path_case;
 use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
@@ -111,7 +112,8 @@ impl FsRootBoundary {
         if path.exists() {
             let requested = path.file_name().expect("write target has a name");
             let actual = resolved.file_name().expect("resolved target has a name");
-            if requested.to_string_lossy().to_lowercase() == actual.to_string_lossy().to_lowercase()
+            if windows_path_case(&requested.to_string_lossy())
+                == windows_path_case(&actual.to_string_lossy())
             {
                 return Ok(resolved.with_file_name(requested));
             }

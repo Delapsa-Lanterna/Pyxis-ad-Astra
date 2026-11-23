@@ -1,4 +1,5 @@
 import { useCodeAnalysisSync } from '@/app/composables/code-editor/use-code-analysis-sync';
+import { AppError } from '@/shared/lib/errors';
 import { useTextFileBatch } from '@/app/composables/text-file-editing/use-text-file-batch';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { enableAutoUnmount, flushPromises } from '@vue/test-utils';
@@ -11,18 +12,28 @@ import { initializeSettingsStore } from '@/stores/settings.store';
 import { useTextFiles } from '@/app/composables/text-file-editing/use-text-files';
 import { useJavaEditor } from '@/app/composables/java-analysis/use-java-editor';
 import { useJavaActions } from '@/app/composables/java-analysis/use-java-actions';
-import type { startJavaEditor, syncJavaEditor, inspectJavaEditor, assistJavaEditor } from '@/services/java-analysis.service';
+import type {
+  startJavaEditor,
+  syncJavaEditor,
+  inspectJavaEditor,
+  assistJavaEditor,
+  refreshJavaSources,
+} from '@/services/java-analysis.service';
 import type { JavaInspection, JavaAssistance } from '@/shared/types';
 import { showTooltip } from '@codemirror/view';
 import { startCompletion } from '@codemirror/autocomplete';
 import { EditorView } from '@codemirror/view';
 import { onTestFinished } from 'vitest';
 import type * as AppLogQueueModule from '@/shared/runtime/app-log-queue';
-import { projectChangeFixture } from '@/test/unit/project-changes';
+import { dispatchProjectChangeFixture, committedChangeFixture } from '@/test/unit/project-changes';
+import { savedWriteFixture } from '@/test/fixtures/write-result';
 
 const mocks = vi.hoisted(() => ({
   start: vi.fn<typeof startJavaEditor>(),
   sync: vi.fn<typeof syncJavaEditor>(),
+  refreshSources: vi.fn<typeof refreshJavaSources>(),
+  readProject: vi.fn(async () => {}),
+  sources: vi.fn(async () => {}),
   inspect: vi.fn<typeof inspectJavaEditor>(),
   assist: vi.fn<typeof assistJavaEditor>(),
   close: vi.fn(async () => {}),
@@ -35,6 +46,7 @@ vi.mock('@/shared/runtime/app-log-queue', async (importOriginal) => ({
 vi.mock('@/services/java-analysis.service', () => ({
   startJavaEditor: mocks.start,
   syncJavaEditor: mocks.sync,
+  refreshJavaSources: mocks.refreshSources,
   inspectJavaEditor: mocks.inspect,
   assistJavaEditor: mocks.assist,
   closeJavaEditor: mocks.close,
@@ -81,7 +93,13 @@ async function open() {
   const mounted = mountSetup(() => {
     const host = useTextFiles({ sessionId: 'sample', modRoot: 'M:/sample' });
     const analysis = useJavaEditor(host, 'M:/sample');
-    useCodeAnalysisSync(analysis.refresh);
+    useCodeAnalysisSync(
+      { sessionId: 'sample', modRoot: 'M:/sample' },
+      () => ['M:/sample/src'],
+      mocks.readProject,
+      mocks.sources,
+      analysis.refreshSources,
+    );
     return {
       host,
       analysis,
@@ -195,12 +213,24 @@ it('reuses same-revision background projections and refreshes all files after a 
   await analysis.start();
   expect(mocks.inspect).toHaveBeenCalledTimes(50);
   mocks.inspect.mockClear();
-  const invalidation = { paths: [], tables: [], entities: [], resources: [], queryScopes: [], session: false };
-  await projectChangeFixture('sample', invalidation, 'M:/sample');
+  const receipt = savedWriteFixture();
+  receipt.invalidation.paths = ['M:/sample/README.txt'];
+  await dispatchProjectChangeFixture(committedChangeFixture(receipt, 'sample', 'M:/sample'));
+  expect(mocks.inspect).not.toHaveBeenCalled();
+  expect(mocks.readProject).not.toHaveBeenCalled();
+  expect(mocks.sources).not.toHaveBeenCalled();
+  const changed = 'M:/sample/src/NotOpen.java';
+  receipt.javaProjectChange = { modRoot: 'M:/sample', sessions: ['sample'], sourcePaths: [changed], configuration: false };
+  await dispatchProjectChangeFixture(committedChangeFixture(receipt, 'sample', 'M:/sample'));
+  expect(mocks.refreshSources).toHaveBeenCalledOnce();
+  expect(mocks.refreshSources.mock.calls[0]![0]).toEqual([changed]);
+  expect(mocks.refreshSources.mock.calls[0]![1]).toHaveLength(50);
+  expect(mocks.readProject).toHaveBeenCalledOnce();
+  expect(mocks.sources).not.toHaveBeenCalled();
   expect(mocks.inspect).toHaveBeenCalledTimes(1);
   document.setText('class Orbit { int field; }');
   mocks.inspect.mockClear();
-  await projectChangeFixture('sample', invalidation, 'M:/sample');
+  await analysis.refresh();
   expect(mocks.inspect).toHaveBeenCalledTimes(50);
 });
 it('keeps signature extensions stable across view configuration transactions', async () => {
@@ -272,7 +302,7 @@ it('hands off the latest startup draft, then combines edits into raw UTF-16 rang
   document.setText('// 星🪐\r\nclass Orbit { int n=1; }');
   release();
   await start;
-  expect(mocks.sync.mock.calls[0]![0][0]).toMatchObject({ version: 2, source: '// 星🪐\r\nclass Orbit { int n=1; }' });
+  expect(mocks.sync.mock.calls[0]![0][0]).toMatchObject({ version: 0, source: '// 星🪐\r\nclass Orbit { int n=1; }' });
   vi.useFakeTimers();
   const offset = document.document.state.value.doc.toString().indexOf('1');
   document.document.dispatch(
@@ -288,7 +318,7 @@ it('hands off the latest startup draft, then combines edits into raw UTF-16 rang
   await analysis.navigate('references');
   expect(mocks.sync.mock.calls[1]![0][0]).toMatchObject({
     source: null,
-    version: 3,
+    version: 0,
     edits: [{ from: offset + 1, to: offset + 2, text: '23' }],
   });
   expect(mocks.inspect.mock.calls.at(-1)![2]).toBe('references');
@@ -333,17 +363,17 @@ it('waits for composition, preserves edits during IPC, and rejects an out-of-dat
   await analysis.navigate('references');
   expect(mocks.sync.mock.calls.at(-1)![0][0]!.source).toBeNull();
 });
-it('restores discarded text on close and preserves increasing versions when reopened', async () => {
+it('restores discarded text on close and requests the current engine version on reopen', async () => {
   const { analysis, document, host } = await open();
   await analysis.start();
   document.setText('class Changed {}');
   await analysis.navigate('references');
   await host.close(document);
   await analysis.settle();
-  expect(mocks.sync.mock.calls.at(-1)![0][0]).toMatchObject({ version: 4, source: '// 星🪐\r\nclass Orbit {}' });
+  expect(mocks.sync.mock.calls.at(-1)![0][0]).toMatchObject({ version: 0, source: '// 星🪐\r\nclass Orbit {}' });
   await host.openFiles([{ path: 'M:/sample/src/Orbit.java' }]);
   await analysis.navigate('references');
-  expect(mocks.sync.mock.calls.at(-1)![0][0]!.version).toBe(5);
+  expect(mocks.sync.mock.calls.at(-1)![0][0]!.version).toBe(0);
   const referenced = await host.openSnapshot('M:/reference/src/Library.java', 'class Library {}');
   expect(referenced).not.toBeNull();
   if (!referenced) throw Error('snapshot document required');
@@ -427,7 +457,7 @@ it('returns through chained archive declarations and reuses the read-only tabs o
   expect(host.documents).toHaveLength(3);
 });
 
-it('releases a closed read-only reference projection and its diagnostics', async () => {
+it('refreshes an open reference and releases its tab and diagnostics when the source disappears', async () => {
   const { host, analysis } = await open();
   await analysis.start();
   const inspect = mocks.inspect.getMockImplementation()!;
@@ -440,7 +470,21 @@ it('releases a closed read-only reference projection and its diagnostics', async
   }));
   await analysis.locate({ file: 'M:/reference/src/Reference.java', version: 2, range: { start: 6, end: 15 } });
   expect(analysis.diagnostics.value).toHaveLength(1);
-  await host.close(host.active.value!);
+  host.documents[0]!.setText('class Orbit { int changed; }');
+  await analysis.refresh();
+  expect(analysis.current.value?.file).toBe('M:/reference/src/Reference.java');
+  expect(analysis.diagnostics.value).toHaveLength(1);
+  const reference = host.active.value!;
+  const project = mocks.inspect.getMockImplementation()!;
+  mocks.inspect.mockImplementation(async (file, offset, purpose) => ({
+    ...(await project(file, offset, purpose)),
+    source: purpose === 'source' ? 'class Updated {}' : null,
+  }));
+  await analysis.refreshSources([reference.path.value], 'files');
+  expect(reference.document.content.value.text.toString()).toBe('class Updated {}');
+  expect(reference.dirty.value).toBe(false);
+  mocks.inspect.mockRejectedValueOnce(new AppError('missing', { code: 'engine.source_unavailable' }));
+  await analysis.refreshSources([reference.path.value], 'files');
   expect(host.documents).toHaveLength(1);
   expect(analysis.diagnostics.value).toEqual([]);
 });

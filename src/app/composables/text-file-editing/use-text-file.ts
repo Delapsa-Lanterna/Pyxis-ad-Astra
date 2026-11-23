@@ -34,6 +34,14 @@ export function createTextFile(owner: Pick<FileTextTarget, 'sessionId' | 'modRoo
       (target) => target?.path ?? path,
     );
     const { session, document } = fileState;
+    function acceptSnapshot(text: string) {
+      session.loadBaseForTarget({
+        target: { ...owner, path },
+        value: readTextContent(text),
+        baseVersions: [],
+        meta: { entity: null, receipt: null },
+      });
+    }
     const participant = {
       targetKey: session.currentTargetKey,
       modRoot: computed(() => owner.modRoot),
@@ -71,14 +79,9 @@ export function createTextFile(owner: Pick<FileTextTarget, 'sessionId' | 'modRoo
       dirty: participant.editing.dirty,
       problem: shallowRef<ErrorDiagnostic | null>(null),
       path: computed(() => pendingPath.value ?? session.currentTarget.value?.path ?? path),
+      acceptSnapshot,
       load: async () => {
-        if (readOnly)
-          session.loadBaseForTarget({
-            target: { ...owner, path },
-            value: readTextContent(source),
-            baseVersions: [],
-            meta: { entity: null, receipt: null },
-          });
+        if (source !== undefined) acceptSnapshot(source);
         else await session.loadTarget({ ...owner, path });
       },
       save: () => (readOnly ? Promise.resolve({ status: 'noop' as const }) : commands.requestSave(participant)),

@@ -141,12 +141,10 @@ export function useFontMeasurement(id: FontId) {
   return (runs: readonly TextRun[]): number => {
     if (font.value) return layoutText(font.value.definition, runs).width;
     context.font = `${style.weight} ${style.size}px ${settings.interfaceFontFamily}`;
-    return Math.max(
-      ...runs
-        .map((run) => run.text)
-        .join('')
-        .split(/\r\n|\r|\n/)
-        .map((line) => context.measureText(line).width),
-    );
+    return runs
+      .map((run) => run.text)
+      .join('')
+      .split(/\r\n|\r|\n/)
+      .reduce((width, line) => Math.max(width, context.measureText(line).width), 0);
   };
 }

@@ -37,32 +37,55 @@ pub(super) fn paths(root: &str, values: &[String]) -> AppResult<Vec<String>> {
         .collect()
 }
 pub(super) fn build_files(root: &str) -> AppResult<Vec<String>> {
-    let files = WalkDir::new(root)
+    WalkDir::new(root)
         .follow_links(false)
         .into_iter()
         .filter_entry(|entry| {
-            !entry.file_type().is_dir()
-                || ![
-                    "build", ".gradle", ".git", "src", "data", "graphics", "sounds", "jars",
-                ]
-                .contains(&entry.file_name().to_string_lossy().as_ref())
+            entry.depth() == 0
+                || !entry.file_type().is_dir()
+                || !excluded_directory(&entry.file_name().to_string_lossy())
         })
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(|error| AppError::message("java_project.directory", error.to_string()))?;
-    Ok(files
-        .into_iter()
-        .filter(|entry| entry.file_type().is_file())
-        .filter(|entry| {
-            let name = entry.file_name().to_string_lossy();
-            name.ends_with(".gradle")
-                || name.ends_with(".gradle.kts")
-                || name.ends_with(".properties")
-                || name.ends_with(".toml")
-                || name == "gradlew.bat"
-                || name == "gradle-wrapper.jar"
+        .filter_map(|entry| match entry {
+            Ok(entry)
+                if entry.file_type().is_file()
+                    && is_build_file(&entry.file_name().to_string_lossy()) =>
+            {
+                Some(Ok(io::forward_slash_path(entry.path())))
+            }
+            Ok(_) => None,
+            Err(error) => Some(Err(AppError::message(
+                "java_project.directory",
+                error.to_string(),
+            ))),
         })
-        .map(|entry| io::forward_slash_path(entry.path()))
-        .collect())
+        .collect()
+}
+fn excluded_directory(name: &str) -> bool {
+    [
+        "build", ".gradle", ".git", "src", "data", "graphics", "sounds", "jars",
+    ]
+    .contains(&name.to_ascii_lowercase().as_str())
+}
+fn is_build_file(name: &str) -> bool {
+    let lower = name.to_ascii_lowercase();
+    let name = lower.as_str();
+    name.ends_with(".gradle")
+        || name.ends_with(".gradle.kts")
+        || name.ends_with(".properties")
+        || name.ends_with(".toml")
+        || name == "gradlew.bat"
+        || name == "gradle-wrapper.jar"
+}
+pub(super) fn build_directory(relative: &Path) -> bool {
+    !relative
+        .iter()
+        .any(|part| excluded_directory(&part.to_string_lossy()))
+}
+pub(super) fn build_path(relative: &Path) -> bool {
+    relative
+        .file_name()
+        .is_some_and(|name| is_build_file(&name.to_string_lossy()))
+        && relative.parent().is_none_or(build_directory)
 }
 pub(super) fn fingerprint(
     manifest: &ProjectManifest,

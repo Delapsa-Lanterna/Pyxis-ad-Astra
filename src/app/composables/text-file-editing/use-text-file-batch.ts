@@ -1,12 +1,12 @@
-import { onScopeDispose } from 'vue';
-import { EditorState, Transaction } from '@codemirror/state';
+import { onScopeDispose, watch } from 'vue';
+import { Transaction } from '@codemirror/state';
 import type { TextFile } from './use-text-file';
 import type { TextFiles } from './text-files';
 import type { TextFileEdits, FileVersion } from '@/shared/types';
 import { beginSavedWrite, settleSavedContent } from '@/orchestrators/project-sync.orchestrator';
 import { saveTextBatch } from '@/services/text-file-editing.service';
 import { withFileTargets } from '@/orchestrators/window-identity.orchestrator';
-import { displayOffset, readTextContent, sameTextContent, writeTextContent } from '@/shared/runtime/text-document';
+import { displayOffset, readTextContent, sameTextContent, textHistoryPosition, writeTextContent } from '@/shared/runtime/text-document';
 import { normalizeFsPath, pathBelongsToRoot } from '@/shared/lib/paths';
 import { AppError } from '@/shared/lib/errors';
 import { stableDeepEqual } from '@/shared/lib/stable-compare';
@@ -15,8 +15,9 @@ import { useSettingsStore } from '@/stores/settings.store';
 
 export function useTextFileBatch(host: TextFiles, owner: { sessionId: string; modRoot: string }) {
   const settings = useSettingsStore();
-  const closedBoundary = new Map<TextFile, EditorState['doc']>();
-  type Snapshot = Map<TextFile, { state: EditorState; path: string }>;
+  const closedUndo = new WeakSet<object>(),
+    closedRedo = new WeakSet<object>();
+  type Snapshot = Map<TextFile, { position: object; path: string }>;
   const undoStack: { before: Snapshot; after: Snapshot }[] = [],
     redoStack: typeof undoStack = [];
   const groups = new Map<TextFile, Set<TextFile>>();
@@ -24,7 +25,7 @@ export function useTextFileBatch(host: TextFiles, owner: { sessionId: string; mo
   let saving = new Set<TextFile>();
   const error = (message: string) => new AppError(message, { action: 'text-file-batch' });
   const capture = (files: Iterable<TextFile>): Snapshot =>
-    new Map([...files].map((file) => [file, { state: file.document.state.value, path: file.path.value }]));
+    new Map([...files].map((file) => [file, { position: textHistoryPosition(file.document.state.value), path: file.path.value }]));
   function related(file: TextFile) {
     return new Set([file, ...(groups.get(file) ?? [])]);
   }
@@ -36,28 +37,33 @@ export function useTextFileBatch(host: TextFiles, owner: { sessionId: string; mo
   function separate(files: Iterable<TextFile>) {
     for (const file of files) groups.delete(file);
   }
-  function restore(snapshot: Snapshot) {
-    for (const [file, saved] of snapshot) {
-      file.document.restoreState(saved.state);
-      file.pendingPath.value = saved.path === file.session.currentTarget.value?.path ? null : saved.path;
-    }
-    associate(snapshot.keys());
-  }
   function history(file: TextFile, backwards: boolean) {
-    if (closedBoundary.get(file)?.eq(file.document.state.value.doc)) throw error('整批操作的关联文件已关闭，请重新打开文件后生成修改');
+    const available = (member: TextFile) => (backwards ? member.document.canUndo.value : member.document.canRedo.value);
+    if (!available(file)) return false;
+    if ((backwards ? closedUndo : closedRedo).has(textHistoryPosition(file.document.state.value)))
+      throw error('整批操作的关联文件已关闭，请重新打开文件后生成修改');
     const stack = backwards ? undoStack : redoStack;
     const index = stack.findLastIndex((entry) => entry.before.has(file)),
       entry = stack[index];
     if (!entry) return false;
     const expected = backwards ? entry.after : entry.before;
-    if (!expected.get(file)!.state.doc.eq(file.document.state.value.doc)) return false;
+    if (expected.get(file)!.position !== textHistoryPosition(file.document.state.value)) return false;
     if (
       pending ||
-      [...expected].some(([member, saved]) => !host.documents.includes(member) || !saved.state.doc.eq(member.document.state.value.doc))
+      [...expected].some(
+        ([member, saved]) =>
+          !host.documents.includes(member) || !available(member) || saved.position !== textHistoryPosition(member.document.state.value),
+      )
     )
       throw error('关联文件已继续编辑，请先撤销后续修改再撤销整批操作');
     stack.splice(index, 1);
-    restore(backwards ? entry.before : entry.after);
+    const destination = backwards ? entry.before : entry.after;
+    for (const [member, saved] of destination) {
+      if (backwards) member.document.undo();
+      else member.document.redo();
+      member.pendingPath.value = saved.path === member.session.currentTarget.value?.path ? null : saved.path;
+    }
+    associate(destination.keys());
     (backwards ? redoStack : undoStack).push(entry);
     return true;
   }
@@ -72,7 +78,6 @@ export function useTextFileBatch(host: TextFiles, owner: { sessionId: string; mo
       member.session.resetDraft();
       member.pendingPath.value = null;
       member.group.value = null;
-      closedBoundary.delete(member);
     }
     separate(files);
     removeHistory(files);
@@ -229,13 +234,14 @@ export function useTextFileBatch(host: TextFiles, owner: { sessionId: string; mo
             member.pendingPath.value ? member.session.currentTarget.value!.path + ' → ' + member.pendingPath.value : member.path.value,
           ),
         release() {
-          for (const stack of [undoStack, redoStack])
+          for (const [stack, positions, boundary] of [
+            [undoStack, 'after', closedUndo],
+            [redoStack, 'before', closedRedo],
+          ] as const)
             for (const entry of stack)
-              if (entry.before.has(file))
-                for (const member of entry.before.keys()) if (member !== file) closedBoundary.set(member, member.document.state.value.doc);
+              if (entry.before.has(file)) for (const [member, saved] of entry[positions]) if (member !== file) boundary.add(saved.position);
           removeHistory(new Set([file]));
           separate(related(file));
-          closedBoundary.delete(file);
           file.group.value = null;
         },
         capture() {
@@ -243,7 +249,9 @@ export function useTextFileBatch(host: TextFiles, owner: { sessionId: string; mo
           return () =>
             [...snapshot].every(
               ([member, saved]) =>
-                host.documents.includes(member) && saved.path === member.path.value && saved.state.doc.eq(member.document.state.value.doc),
+                host.documents.includes(member) &&
+                saved.path === member.path.value &&
+                saved.position === textHistoryPosition(member.document.state.value),
             );
         },
         save: () => save(file),
@@ -259,8 +267,14 @@ export function useTextFileBatch(host: TextFiles, owner: { sessionId: string; mo
         discard: () => discard(file),
       };
   }
+  watch(
+    () => settings.editHistoryLimit,
+    (limit) => {
+      for (const stack of [undoStack, redoStack]) stack.splice(0, Math.max(0, stack.length - limit));
+    },
+    { flush: 'sync' },
+  );
   onScopeDispose(() => {
-    closedBoundary.clear();
     groups.clear();
     undoStack.length = 0;
     redoStack.length = 0;

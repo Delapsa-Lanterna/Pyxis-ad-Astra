@@ -112,4 +112,7 @@ export function useWorkspaceShellLifecycle(
     workspacePersistence?.stop();
     workspacePersistence = null;
   });
+  return async () => {
+    await workspacePersistence?.flush();
+  };
 }

@@ -63,7 +63,7 @@ cargo test --manifest-path src-tauri/Cargo.toml -p pyxis-ad-astra live_correct_m
 
 构建输出位于 `src-tauri/target/java-analysis/`。Java 源码使用 google-java-format 1.24.0，Rust 和 Node.js 代码沿用主项目格式及检查入口。Java 构建重新核对第三方 JAR 哈希，依赖集合由锁文件决定。
 
-专用 CI 任务在 JDK 17 下重建和测试宿主；真实 Mod 校验接受外部游戏目录。Polaris_Prime、Kratogen_TA 和 Templars 用作合法 Java 正确性基准，同次源码交给 JDT 与 javac 比较四组绑定，并记录前后指纹。
+专用 CI 任务使用 `versions.json` 的 `buildJdk` 指定的 Zulu JDK 重建宿主，核对两个 JAR 和两个资源清单的提交内容，并运行宿主测试。真实 Mod 校验接受外部游戏目录。Polaris_Prime、Kratogen_TA 和 Templars 用作合法 Java 正确性基准，同次源码交给 JDT 与 javac 比较四组绑定，并记录前后指纹。
 
 ## Rust 和开发检查接口
 
@@ -76,11 +76,11 @@ src-tauri/target/debug/examples/java-analysis <status|install|import|remove|run>
 
 输入包含 `configRoot`；`run` 追加 `java`，`import` 追加 `archive`。`run` 按行读取 JSON 请求并返回相同请求编号，标准输入 EOF 触发实例关闭。诊断原文保存在配置目录的所属实例日志。
 
-协议版本为 4，操作包括 `hello`、`parse`、`open`、`analyze`、`update`、`editorUpdate`、`inspect`、`assist`、`configure`、`query`、`close` 和 `shutdown`。Rust `AnalysisRequest`、`AnalysisResponse`、`FileChange` 与 Java `Protocol.Request`、`Protocol.Response` 提供两端类型化接口。源码位置采用 UTF-16 半开区间，项目更新须匹配 `expectedRevision`，文档版本须递增。
+协议版本为 4，操作包括 `hello`、`parse`、`open`、`analyze`、`update`、`editorUpdate`、`refreshSources`、`inspect`、`assist`、`configure`、`query`、`close` 和 `shutdown`。Rust `AnalysisRequest`、`AnalysisResponse`、`FileChange` 与 Java `Protocol.Request`、`Protocol.Response` 提供两端类型化接口。源码位置采用 UTF-16 半开区间，项目更新须匹配 `expectedRevision`，文档版本须递增。
 
 `assist` 接纳 `complete`、`signature`、`imports`、`rename` 和 `validate`。候选与签名来自当前 WorkingCopy，导入歧义返回候选类型，重命名返回冲突或带文档版本的范围修改及文件目标。代码编辑器预览后共同接纳草稿，整批保存经正式项目队列提交，整批撤销恢复文本与文件身份。
 
-代码编辑器首次打开正式源码根内的 Java 文件后后台建立所属项目，`java_editor` 从调用窗口取得 Mod 身份并交付启动、同步、查询与关闭。`editorUpdate` 首次提交全文，后续提交有序且不重叠的 UTF-16 范围修改；`previousFile` 交付改名前身份。`inspect` 按 `document`、`hover`、`declaration`、`references` 和 `source` 分别交付大纲与诊断、签名、声明位置、引用位置和当前快照源码。悬停与源码读取复用缓存，原始全文只在明确交接边界生成。
+代码编辑器首次打开正式源码根内的 Java 文件后后台建立所属项目，`java_editor` 从调用窗口取得 Mod 身份并交付启动、同步、查询与关闭。`editorUpdate` 首次提交全文，后续提交有序且不重叠的 UTF-16 范围修改；`previousFile` 交付改名前身份，版本 0 由引擎按现存文档版本递增分配。`refreshSources` 将变更路径与已登记源码根取交集，按磁盘实际内容增量更新工作副本，`retained` 列出的编辑中路径继续持有窗口文本。`inspect` 按 `document`、`hover`、`declaration`、`references` 和 `source` 分别交付大纲与诊断、签名、声明位置、引用位置和当前快照源码。悬停与源码读取复用缓存，原始全文只在明确交接边界生成。
 
 `open` 建立私有源码快照及 WorkingCopy。`update` 支持 `add`、`replace`、`delete` 和 `move`，单批多个文件先核验后共同接纳；来源目录保持不变。`configure` 接纳完整依赖 JAR 列表、Java 路径和语言级别，并推进项目版本。每个分析版本的 AST 与声明引用索引由查询复用。
 

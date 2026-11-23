@@ -13,7 +13,7 @@ import { buildModNavigationSections } from '@/domain/workspace/mod-navigation';
 import { gameQuery, gameCatalog } from './queries';
 import { gameImages, gameAudio } from './sample-data';
 import { gameCommands } from './queries';
-import { normalizeFsPath } from '@/shared/lib/paths';
+import { normalizeFsPath, pathBelongsToRoot, relativePathFromRoot } from '@/shared/lib/paths';
 import { initializeWindowsPathCase } from '@/shared/lib/paths';
 import { windowsPathCaseFixture } from '../fixtures/windows-path-case';
 import { cell, formatModVersion } from '@/shared/lib/starsector';
@@ -38,7 +38,16 @@ export function createBrowserWorkspace(
 ) {
   const javaAnalysis = createJavaComponentPreview();
   const locations = createLocationChannel();
-  const javaQueries = createJavaQueryPreview();
+  const javaQueries = createJavaQueryPreview((label) => {
+    const identity = windows.get(label)!.context!.identity;
+    if (identity.type !== 'code-editor') throw new Error('Java queries require a code editor');
+    const receiver = project(identity.sessionId);
+    const files = new Map<string, string>();
+    for (const source of javaSources(receiver))
+      for (const [file, text] of source.project.textFiles)
+        if (file.endsWith('.java') && source.roots.some((root) => pathBelongsToRoot(file, root))) files.set(file, text);
+    return files;
+  });
   const javaProject = createJavaProjectPreview();
   const codeEditor = createCodeEditorPreview(
     (owner, request) => invoke(owner, 'request_window', { payload: request }) as Promise<T.WindowRequestReceipt>,
@@ -173,18 +182,58 @@ export function createBrowserWorkspace(
     }
     return null;
   }
+  function javaSources(receiver: ReturnType<typeof project>) {
+    return [
+      receiver,
+      ...references.filter(({ sessionId }) => sessionId !== receiver.manifest.sessionId).map(({ sessionId }) => project(sessionId)),
+    ].map((source) => ({
+      project: source,
+      roots: javaProject
+        .run(source, { kind: 'read' })
+        .sources.filter((root) => [...source.textFiles.keys()].some((path) => pathBelongsToRoot(path, root))),
+    }));
+  }
+  function publishReferences(change?: T.JavaProjectChange) {
+    const result = savedWriteFixture();
+    if (change) result.javaProjectChange = change;
+    result.sessionUpdates = projects.map((entry) => ({
+      ...sessionUpdateFixture(entry.manifest.sessionId, entry.manifest.modRoot),
+      content: { manifest: structuredClone(entry.manifest), invalidation: { ...result.invalidation, session: true } },
+    }));
+    revision++;
+    for (const channel of channels.values())
+      channel.onmessage({
+        kind: 'references',
+        snapshot: { revision, sources: references },
+        event: { originWindowLabel: 'main', sessionId: null, modRoot: '', reason: 'refresh', result: structuredClone(result) },
+      });
+  }
+  function removeReferenceSessions(ids: string[]) {
+    const next = references.filter(({ sessionId }) => !ids.includes(sessionId));
+    if (next.length === references.length) return;
+    references = next;
+    publishReferences({ modRoot: null, sessions: [], sourcePaths: [], configuration: true });
+  }
   function notify(
     label: string,
     receiver: ReturnType<typeof project>,
-    result: T.WriteResult<T.RowData>,
+    result: T.WriteResult,
     reason: 'save' | 'refresh' = 'save',
+    requestId = 'external-' + ++revision,
   ) {
-    for (const channel of channels.values())
+    const { sessionId, modRoot } = receiver.manifest;
+    const change = javaProject.changed(receiver, result.invalidation.paths);
+    if (change) result.javaProjectChange = change;
+    for (const [window, channel] of channels) {
+      const scope = windows.get(window)?.context?.identity.modRoot;
+      if (scope && normalizeFsPath(scope) !== normalizeFsPath(modRoot)) continue;
       channel.onmessage({
         kind: 'saved',
-        requestId: 'external-' + ++revision,
-        event: { originWindowLabel: label, sessionId: receiver.manifest.sessionId, modRoot: receiver.manifest.modRoot, reason, result },
+        requestId,
+        event: { originWindowLabel: label, sessionId, modRoot, reason, result: structuredClone(result) },
       });
+    }
+    if (references.some((source) => source.sessionId === sessionId)) publishReferences(change);
   }
   async function close(label: string, scope: T.CloseScope) {
     const targets = [...windows]
@@ -215,6 +264,7 @@ export function createBrowserWorkspace(
     }
     const releasedSessions =
       scope.kind === 'sessions' ? scope.sessionIds : scope.kind === 'application' ? projects.map((entry) => entry.manifest.sessionId) : [];
+    removeReferenceSessions(releasedSessions);
     setTimeout(() => {
       targets.forEach((key) => {
         codeEditor.release(key);
@@ -233,7 +283,6 @@ export function createBrowserWorkspace(
   async function invoke(label: string, command: string, args: Record<string, unknown> = {}): Promise<unknown> {
     calls.push({ window: label, command });
     if (command === 'java_editor') {
-      if ((args.action as { kind: string }).kind === 'configure') return;
       return javaQueries.invoke(label, args.action as Parameters<typeof javaQueries.invoke>[1]);
     }
     if (javaAnalysis.commands.has(command)) return javaAnalysis.invoke(command, args);
@@ -277,25 +326,19 @@ export function createBrowserWorkspace(
     let result: unknown;
     switch (command) {
       case 'code_editor_sources': {
-        const selected = [
-          receiver,
-          ...references.filter((source) => source.sessionId !== sessionId).map((source) => project(source.sessionId)),
-        ];
-        const analysisRoots = selected
-          .filter((item) => [...item.textFiles.keys()].some((path) => path.startsWith(item.manifest.modRoot + '/src/')))
-          .map((item) => item.manifest.modRoot + '/src');
+        const selected = javaSources(receiver);
         return {
           revision,
-          analysisRoots,
-          sources: selected
-            .filter((item, index) => index === 0 || analysisRoots.includes(item.manifest.modRoot + '/src'))
-            .map((item, index) => ({
-              sessionId: item.manifest.sessionId,
-              modRoot: item.manifest.modRoot,
-              label: String(item.manifest.modInfo?.name ?? 'Core'),
-              directory: index ? 'src' : null,
+          analysisRoots: selected.flatMap((source) => source.roots),
+          sources: selected.flatMap(({ project: { manifest }, roots }, index) =>
+            (index ? roots.map((root) => relativePathFromRoot(manifest.modRoot, root)) : [null]).map((directory) => ({
+              sessionId: manifest.sessionId,
+              modRoot: manifest.modRoot,
+              label: String(manifest.modInfo?.name ?? 'Core') + (index && roots.length > 1 ? ' / ' + directory : ''),
+              directory,
               readOnly: index > 0,
             })),
+          ),
         };
       }
       case 'java_project':
@@ -410,19 +453,7 @@ export function createBrowserWorkspace(
           const { sessionId, modRoot } = project(id).manifest;
           return { sessionId, modRoot };
         });
-        revision++;
-        for (const channel of channels.values()) {
-          const result = savedWriteFixture();
-          result.sessionUpdates = projects.map((entry) => ({
-            ...sessionUpdateFixture(entry.manifest.sessionId, entry.manifest.modRoot),
-            content: { manifest: structuredClone(entry.manifest), invalidation: { ...result.invalidation, session: true } },
-          }));
-          channel.onmessage({
-            kind: 'references',
-            snapshot: { revision, sources: references },
-            event: { originWindowLabel: label, sessionId: null, modRoot: receiver.manifest.modRoot, reason: 'refresh', result },
-          });
-        }
+        publishReferences({ modRoot: null, sessions: [], sourcePaths: [], configuration: true });
         return;
       case 'read_settings':
         return { revision, value: settings, performanceMonitorActive: false };
@@ -446,6 +477,7 @@ export function createBrowserWorkspace(
         };
       }
       case 'close_project_session':
+        removeReferenceSessions([sessionId]);
         return;
       case 'scan_game_overview':
         return {
@@ -678,7 +710,13 @@ export function createBrowserWorkspace(
         result = receiver.undo(payload.direction as 'undo' | 'redo');
         break;
       case 'refresh_project_sources':
-        result = receiver.write(null, { kind: 'json', origin: { kind: 'modInfo' } }, (payload.paths as string[]) ?? []);
+        result = receiver.write(
+          null,
+          { kind: 'json', origin: { kind: 'modInfo' } },
+          (payload.sources as T.InvalidatedResourceScope[]).map(
+            (source) => (source.source === 'core' ? coreRoot : receiver.manifest.modRoot) + '/' + source.relPath,
+          ),
+        );
         break;
       case 'query_file_search': {
         const query = String(payload.query).trim();
@@ -767,16 +805,15 @@ export function createBrowserWorkspace(
       }
       case 'save_text_batch': {
         const input = payload as unknown as T.TextBatchSave;
-        const changes: T.FileChangeRecord[] = input.files.map((file) => ({
+        const changes: T.CommittedFileChange[] = input.files.map((file) => ({
           kind: 'file',
           beforePath: file.path,
           afterPath: file.target ?? file.path,
           beforeExists: true,
           afterExists: true,
-          beforeText: receiver.textFiles.get(file.path)!,
           afterText: file.text,
-          beforeDataBase64: null,
-          afterDataBase64: null,
+          beforeBinary: false,
+          afterBinary: false,
           beforeFiles: [],
           afterFiles: [],
         }));
@@ -846,18 +883,7 @@ export function createBrowserWorkspace(
         update.modRoot = roots.get(sessionId) ?? receiver.manifest.modRoot;
         update.content.manifest = { ...receiver.manifest, modRoot: update.modRoot };
       });
-      for (const channel of channels.values())
-        channel.onmessage({
-          kind: 'saved',
-          requestId: request.id,
-          event: {
-            originWindowLabel: label,
-            sessionId,
-            modRoot: roots.get(sessionId) ?? receiver.manifest.modRoot,
-            reason: command === 'refresh_project_sources' ? 'refresh' : 'save',
-            result: saved,
-          },
-        });
+      notify(label, receiver, saved, command === 'refresh_project_sources' ? 'refresh' : 'save', request.id);
     }
     return result;
   }

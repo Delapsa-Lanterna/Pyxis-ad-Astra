@@ -87,3 +87,9 @@ export type JavaProjectAction =
   | { kind: 'sync'; online: boolean }
   | { kind: 'build'; tasks: string[]; arguments: string[]; online: boolean; configuration: string }
   | { kind: 'locate'; artifact: string };
+export interface JavaProjectChange {
+  modRoot: string | null;
+  sessions: string[];
+  sourcePaths: string[];
+  configuration: boolean;
+}

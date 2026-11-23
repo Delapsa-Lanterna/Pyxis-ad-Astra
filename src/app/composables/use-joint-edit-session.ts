@@ -63,10 +63,10 @@ export function useJointEditSession(
   let overrideIntent: string[] = [];
   let overrideValues: Record<string, JointValue> | undefined;
   const editableKeys = (snapshot: JointEditSnapshot) => options.editableRecords?.(snapshot) ?? snapshot.records.map((record) => record.key);
-  const valuesOf = (snapshot: JointEditSnapshot) =>
-    Object.fromEntries(
-      snapshot.records.filter((record) => editableKeys(snapshot).includes(record.key)).map((record) => [record.key, record.value]),
-    );
+  function valuesOf(snapshot: JointEditSnapshot) {
+    const keys = new Set(editableKeys(snapshot));
+    return Object.fromEntries(snapshot.records.filter((record) => keys.has(record.key)).map((record) => [record.key, record.value]));
+  }
   type Meta = { snapshot: JointEditSnapshot; receipt: JointEditWriteResult | null; previous: JointIdentitySnapshot | null };
   const session: EditTargetDraftSession<Record<string, JointValue>, JointEditRoot, Meta> = useEditTargetDraftSession<
     Record<string, JointValue>,
@@ -311,6 +311,7 @@ export function useJointEditSession(
   }
   return {
     ...session,
+    valuesOf,
     problems,
     saveProblems,
     dismissSaveProblems,

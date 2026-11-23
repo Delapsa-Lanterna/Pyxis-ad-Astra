@@ -12,10 +12,10 @@ afterEach(() => {
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
 });
-function fixture() {
+function fixture(count = 8) {
   const panel = shallowRef<HTMLElement | null>(null),
     identity = ref('one');
-  const rows = Array.from({ length: 8 }, (_, index) => csvDraftRow({ a: String(index), b: '' }, 'row-' + index));
+  const rows = Array.from({ length: count }, (_, index) => csvDraftRow({ a: String(index), b: '' }, 'row-' + index));
   const model = {
     rowKeys: rows.map((row) => row.rowKey),
     rowsByKey: Object.fromEntries(rows.map((row) => [row.rowKey, row])),
@@ -85,9 +85,18 @@ function fixture() {
       target: wrapper.get('[data-column-key]').element,
       preventDefault: vi.fn(),
     }) as unknown as PointerEvent;
-  return { range, event, activate, release, frames, inputs, identity, scrolled };
+  return { range, event, activate, release, frames, inputs, identity, scrolled, model };
 }
 describe('CSV range pointer lifecycle', () => {
+  it('finds both ends of an all-row selection with a bounded number of row lookups', () => {
+    const { range, model } = fixture(2_000);
+    range.selectRow('row-0');
+    const lookup = vi.spyOn(model.rowKeys, 'indexOf');
+    range.all();
+    expect(range.bounds.value).toEqual({ top: 0, bottom: 1999, left: 0, right: 1 });
+    expect(lookup.mock.calls.length).toBeLessThanOrEqual(2);
+    expect(range.rowRange(1000)).toBe('0:1');
+  });
   it('leaves short clicks without capture, input submission or activation', async () => {
     const { range, event, inputs, activate, release, frames } = fixture();
     const commit = vi.spyOn(inputs, 'commit');

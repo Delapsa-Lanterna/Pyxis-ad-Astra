@@ -96,6 +96,31 @@ describe('preview definition and simulation', () => {
     advanceWeaponFirePreview(restored, p, 0.4, random);
     expect(JSON.stringify(snapshot)).toBe(serialized);
   });
+  it('uses game numeric literals for CSV flight and firing parameters', () => {
+    const preview = createWeaponFirePreviewDefinition(
+      { 'proj speed': '0x1p8', range: '0x1p9', chargeup: '0x1p-1', 'burst size': '0x1p1' },
+      { specClass: 'projectile' },
+      {},
+      'turret',
+    );
+    expect([preview.speed, preview.flightTime, preview.chargeup, preview.burstSize]).toEqual([256, 2, 0.5, 2]);
+  });
+  it('releases stationary ballistic shots after their fade time', () => {
+    const preview = createWeaponFirePreviewDefinition(
+      { 'proj speed': '0', chargedown: '0.25' },
+      { specClass: 'projectile' },
+      { fadeTime: 0.5 },
+      'turret',
+    );
+    const state = createWeaponFirePreviewState();
+    startWeaponFirePreview(state);
+    for (let frame = 0; frame < 3600; frame++) advanceWeaponFirePreview(state, preview, 1 / 60, random);
+    expect(state.projectiles.length).toBeGreaterThan(0);
+    expect(state.projectiles.length).toBeLessThanOrEqual(3);
+    stopWeaponFirePreview(state);
+    advanceWeaponFirePreview(state, preview, 1, random);
+    expect(state.projectiles).toHaveLength(0);
+  });
   it('uses CSV missile launch speed, maximum speed and flight time', () => {
     const p = createWeaponFirePreviewDefinition(
       { 'launch speed': 10, 'proj speed': 100, 'flight time': 2 },

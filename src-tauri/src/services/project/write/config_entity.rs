@@ -208,6 +208,15 @@ fn save_mission(input: IndexedConfigSave) -> AppResult<WriteResult<Value>> {
     )?;
     if before_relative != after_relative {
         let mut files = builder.directory_files(&before_relative)?;
+        for file in &mut files {
+            if Path::new(&file.rel_path)
+                .extension()
+                .is_some_and(|ext| ext.eq_ignore_ascii_case("java"))
+                && let Some(source) = &mut file.text
+            {
+                rename_mission_package(source, previous, next)?;
+            }
+        }
         for (relative, content) in [
             ("descriptor.json", actual.text.to_string()),
             ("mission_text.txt", text.clone()),
@@ -265,6 +274,80 @@ fn save_mission(input: IndexedConfigSave) -> AppResult<WriteResult<Value>> {
         .push(EntityIdentityChange { before, after });
     Ok(result)
 }
+fn rename_mission_package(source: &mut String, previous: &str, next: &str) -> AppResult<()> {
+    let tokens = ["data", ".", "missions", ".", previous];
+    let mut matched = 0;
+    let mut offset = 0;
+    let mut previous_dot = false;
+    let mut replacements = Vec::new();
+    while offset < source.len() {
+        let rest = &source[offset..];
+        let first = rest.chars().next().expect("remaining Java source");
+        let length = if first.is_whitespace() {
+            offset += first.len_utf8();
+            continue;
+        } else if rest.starts_with("//") {
+            offset += rest.find(['\r', '\n']).unwrap_or(rest.len());
+            continue;
+        } else if let Some(comment) = rest.strip_prefix("/*") {
+            offset += comment.find("*/").map_or(rest.len(), |end| end + 4);
+            continue;
+        } else if matches!(first, '"' | '\'') {
+            let delimiter = if rest.starts_with("\"\"\"") {
+                "\"\"\""
+            } else {
+                &rest[..1]
+            };
+            let mut chars = rest[delimiter.len()..].char_indices();
+            let mut end = rest.len();
+            while let Some((index, ch)) = chars.next() {
+                let index = delimiter.len() + index;
+                if ch == '\\' {
+                    chars.next();
+                } else if rest[index..].starts_with(delimiter) {
+                    end = index + delimiter.len();
+                    break;
+                }
+            }
+            end
+        } else if first.is_alphanumeric() || matches!(first, '_' | '$') {
+            rest.find(|ch: char| !(ch.is_alphanumeric() || matches!(ch, '_' | '$')))
+                .unwrap_or(rest.len())
+        } else {
+            first.len_utf8()
+        };
+        let token = &rest[..length];
+        if token == tokens[matched] && (matched > 0 || !previous_dot) {
+            matched += 1;
+            if matched == tokens.len() {
+                replacements.push(offset..offset + length);
+                matched = 0;
+            }
+        } else {
+            matched = usize::from(token == tokens[0] && !previous_dot);
+        }
+        previous_dot = token == ".";
+        offset += length;
+    }
+    if !replacements.is_empty() {
+        // A mission owns one directory and therefore one Java package segment.
+        let java_keywords = " abstract assert boolean break byte case catch char class const continue default do double else enum extends final finally float for goto if implements import instanceof int interface long native new package private protected public return short static strictfp super switch synchronized this throw throws transient try void volatile while true false null _ ";
+        if next.starts_with(|c: char| c.is_ascii_digit())
+            || next.contains(['.', '-'])
+            || java_keywords.split_whitespace().any(|word| word == next)
+        {
+            return Err(AppError::message(
+                "config.id_invalid",
+                format!("含 Java 脚本的战役 ID 必须是有效包名：{next}"),
+            ));
+        }
+        for range in replacements.into_iter().rev() {
+            source.replace_range(range, next);
+        }
+    }
+    Ok(())
+}
+
 pub fn delete_indexed_request(input: IndexedConfigDelete) -> AppResult<WriteResult<Value>> {
     entity_targets::require_entity_version_scope(
         &input.session_id,
@@ -525,6 +608,13 @@ mod tests {
         )
         .unwrap();
         write_utf8_no_bom(&root.join("data/missions/old/mission_text.txt"), "Old").unwrap();
+        let script = "// data.missions.old\npackage data /* origin */ . missions.old;\nclass MissionDefinition { String hint = \"data.missions.old\"; }\n";
+        write_utf8_no_bom(
+            &root.join("data/missions/old/MissionDefinition.java"),
+            script,
+        )
+        .unwrap();
+        fs::create_dir_all(root.join("data/missions/old/nested/empty")).unwrap();
         let mut trace = PerformanceTrace::new("project.openSession");
         let manifest = project::open_project_session_traced(&root, None, &mut trace).unwrap();
         let info =
@@ -551,6 +641,11 @@ mod tests {
         ))
         .unwrap();
         let rows = read_csv_data(&index).unwrap().rows;
+        assert!(root.join("data/missions/next/nested/empty").is_dir());
+        assert_eq!(
+            read_utf8_no_bom(&root.join("data/missions/next/MissionDefinition.java")).unwrap(),
+            script.replace("missions.old;", "missions.next;")
+        );
         assert_eq!(rows[0].data["mission"], "old");
         assert_eq!(rows[1].data["mission"], "next");
         assert_eq!(rows[2].data["mission"], "next");
@@ -596,6 +691,11 @@ mod tests {
         assert_eq!(
             read_csv_data(&index).unwrap().rows[2].data["mission"],
             "old"
+        );
+        assert!(root.join("data/missions/old/nested/empty").is_dir());
+        assert_eq!(
+            read_utf8_no_bom(&root.join("data/missions/old/MissionDefinition.java")).unwrap(),
+            script
         );
         release_project_session(&manifest.session_id).unwrap();
         root.close().unwrap();

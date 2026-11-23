@@ -662,24 +662,7 @@ impl SourceReader {
         Ok(changed)
     }
     pub fn directory_version(&self, directory: &Path) -> AppResult<FileVersion> {
-        let files = self
-            .versions
-            .values()
-            .filter_map(|version| {
-                let relative = Path::new(&version.path).strip_prefix(directory).ok()?;
-                if relative.as_os_str().is_empty() {
-                    return None;
-                }
-                Some((
-                    io::forward_slash_path(relative),
-                    version.fingerprint.clone()?,
-                ))
-            })
-            .collect();
-        Ok(FileVersion {
-            path: directory.to_string_lossy().into_owned(),
-            fingerprint: Some(io::directory_fingerprint(files)?),
-        })
+        io::directory_version_from_files(directory, self.versions.values())
     }
     pub fn capture_changed_versions(&mut self, paths: &[&str]) -> AppResult<()> {
         for relative in paths {
@@ -768,7 +751,11 @@ impl SourceReader {
                     }
                     self.changed.insert(relative);
                 }
-                for file in &change.after_files {
+                for file in change
+                    .after_files
+                    .iter()
+                    .filter(|file| !file.is_directory())
+                {
                     let path = Path::new(&change.after_path).join(&file.rel_path);
                     let nested = FileChangeRecord {
                         kind: FileChangeKind::File,

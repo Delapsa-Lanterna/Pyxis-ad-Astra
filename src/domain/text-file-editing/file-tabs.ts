@@ -1,9 +1,16 @@
-import { pathBasename } from '@/shared/lib/paths';
+import { pathBasename, pathBelongsToRoot, relativePathFromRoot } from '@/shared/lib/paths';
 
-export function tabLabel(path: string, paths: string[], root: string): string {
-  const name = pathBasename(path);
-  if (paths.filter((other) => pathBasename(other) === name).length < 2) return name;
-  return path.slice(root.length).replace(/^[\\/]/, '');
+export function fileTabLabels(paths: string[], root: string): Map<string, string> {
+  const labels = new Map(paths.map((path) => [path, pathBasename(path)]));
+  const names = new Set<string>(),
+    duplicates = new Set<string>();
+  for (const name of labels.values()) {
+    if (names.has(name)) duplicates.add(name);
+    names.add(name);
+  }
+  for (const [path, name] of labels)
+    if (duplicates.has(name)) labels.set(path, pathBelongsToRoot(path, root) ? relativePathFromRoot(root, path) : path);
+  return labels;
 }
 
 export function fileTabStatus(dirty: boolean, error: boolean, saving: boolean, readOnly: boolean) {

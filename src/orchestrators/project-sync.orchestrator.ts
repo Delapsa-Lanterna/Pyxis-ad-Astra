@@ -21,7 +21,7 @@ import {
 } from '@/services/project-sync.service';
 import { managedWindowContext } from '@/windows/window-context.window';
 import type { CloseScope } from '@/shared/types';
-import { pathBelongsToRoot, relativePathFromRoot, normalizeRelPath } from '@/shared/lib/paths';
+import { pathBelongsToRoot, relativePathFromRoot, normalizeFsPath, normalizeRelPath } from '@/shared/lib/paths';
 import { invalidateQueryCacheByProject } from '@/services/query-cache.service';
 import { invalidateResourceMediaByProject } from '@/services/resource-media.service';
 import type { SaveTask, SaveCommandRequest } from '@/shared/runtime/command.runtime';
@@ -155,7 +155,7 @@ function consumers() {
     for (const previous of sync.pending) {
       if (!previous.event) continue;
       if (!previous.error) continue;
-      if (normalizeRelPath(previous.event.modRoot).toLowerCase() !== normalizeRelPath(event.modRoot).toLowerCase()) continue;
+      if (normalizeFsPath(previous.event.modRoot) !== normalizeFsPath(event.modRoot)) continue;
       const earlier = previous.event.result;
       event.result = {
         ...event.result,
@@ -193,7 +193,7 @@ function consumers() {
         acceptContentUpdate(update.content);
       });
     const source = registration.sources.get(delivery.requestId);
-    if (source) tasks.push(...source.receive());
+    if (source) for (const task of source.receive()) tasks.push(task);
     for (const handler of identity)
       tasks.push(async () => {
         if (identity.has(handler)) return handler(event);
@@ -356,7 +356,7 @@ export async function settleProjectSaves(scope: CloseScope, feedback?: AppFeedba
   } catch (error) {
     if (!feedback) throw error;
     const pending = useProjectSyncStore().blocked.filter((task) =>
-      roots.some((root) => normalizeRelPath(root).toLowerCase() === normalizeRelPath(task.modRoot).toLowerCase()),
+      roots.some((root) => normalizeFsPath(root) === normalizeFsPath(task.modRoot)),
     );
     const choice = await feedback.choose({
       title: '结束保存恢复并关闭？',
@@ -399,8 +399,13 @@ export function observeSavedContent(handler: SaveHandler, release?: SavedContent
 
 export async function listenSavedContent(handler: SaveHandler, release?: SavedContentHandler['release']) {
   const stop = observeSavedContent(handler, release);
-  await consumers().ready;
-  return stop;
+  try {
+    await consumers().ready;
+    return stop;
+  } catch (error) {
+    stop();
+    throw error;
+  }
 }
 export function observeCoreContent(handler: CoreHandler) {
   const window = consumers();
@@ -425,10 +430,16 @@ export async function listenSavedIdentity(handler: SaveHandler) {
       return handler(event);
   };
   window.identity.add(receive);
-  await window.ready;
-  return () => {
+  const stop = () => {
     window.identity.delete(receive);
   };
+  try {
+    await window.ready;
+    return stop;
+  } catch (error) {
+    stop();
+    throw error;
+  }
 }
 
 export function releaseProjectContentConsumers(sessionId: string) {

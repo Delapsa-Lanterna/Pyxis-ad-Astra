@@ -115,7 +115,7 @@ const project = useProjectStore();
 const draftSessions = useDraftSessionsStore();
 const feedback = useAppFeedback();
 const actions = useWorkspaceShellActions(feedback);
-useWorkspaceShellLifecycle(feedback, (candidates) => selectCsvAssociatedSpecs(feedback, candidates));
+const flushWorkspace = useWorkspaceShellLifecycle(feedback, (candidates) => selectCsvAssociatedSpecs(feedback, candidates));
 const saveCommand = useSaveCommandStore();
 useMainWindowShortcuts(feedback);
 const hasUnsavedMainWindowChanges = computed(() => workspace.loadedModList.some((mod) => draftSessions.hasUnsavedWorkForMod(mod.modRoot)));
@@ -136,6 +136,7 @@ useContextMenuScope({
 });
 const closeParticipant = useWindowCloseParticipant({
   settle: actions.settleWorkspaceOpenings,
+  flush: flushWorkspace,
   dirtyForScope: (scope) =>
     scope.kind === 'sessions'
       ? [...project.manifests.values()].some(

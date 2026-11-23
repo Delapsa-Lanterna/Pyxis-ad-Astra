@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { FileChangeRecord } from '@/shared/types';
+import type { CommittedFileChange } from '@/shared/types';
 import { savedWriteFixture, sessionUpdateFixture } from '@/test/fixtures/write-result';
 import { committedFileText } from './committed-text';
 
@@ -7,20 +7,19 @@ describe('saved text results', () => {
   it('projects directory replay text using the actual after paths and contents', async () => {
     const receipt = savedWriteFixture();
     receipt.sessionUpdates = [sessionUpdateFixture('s1', 'M:/mod')];
-    const directory: FileChangeRecord = {
+    const directory: CommittedFileChange = {
       kind: 'directory',
       beforePath: 'M:/mod/old',
       afterPath: 'M:/mod/next',
       beforeExists: true,
-      beforeText: null,
-      beforeDataBase64: null,
-      beforeFiles: [{ relPath: 'gone.txt', text: 'before', dataBase64: null }],
+      beforeBinary: false,
+      beforeFiles: ['gone.txt'],
       afterExists: true,
       afterText: null,
-      afterDataBase64: null,
+      afterBinary: false,
       afterFiles: [
-        { relPath: 'new.txt', text: 'after', dataBase64: null },
-        { relPath: 'image.png', text: null, dataBase64: 'AA==' },
+        { relPath: 'new.txt', text: 'after', binary: false },
+        { relPath: 'image.png', text: null, binary: true },
       ],
     };
     receipt.changes = [directory];
@@ -38,10 +37,9 @@ describe('saved text results', () => {
         afterPath: 'M:/mod/notes.txt',
         beforeExists: true,
         afterExists: true,
-        beforeText: 'old',
         afterText: 'recovered',
-        beforeDataBase64: null,
-        afterDataBase64: null,
+        beforeBinary: false,
+        afterBinary: false,
         beforeFiles: [],
         afterFiles: [],
       },

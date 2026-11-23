@@ -112,6 +112,7 @@ export function useAppCloseParticipant(options: WindowCloseParticipantOptions) {
           accepted = accepted && acceptsPreparedContent();
           break;
         case 'flush':
+          await options.flush?.();
           if (currentWindowLabel() === 'main') await actions.flushSettings();
           else await actions.flushPerformance();
           break;

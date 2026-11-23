@@ -144,6 +144,8 @@
             ref="surface"
             :document="active.document"
             :disabled="active.readOnly"
+            :undo="() => run(async () => active?.undo())"
+            :redo="() => run(async () => active?.redo())"
             :extensions="extensions"
             line-numbers
             @position="position = $event"

@@ -1,5 +1,6 @@
 use crate::errors::{AppError, AppResult, ErrorDiagnostic};
 use crate::io::RootWriteLock;
+use crate::models::java_project::JavaProjectChange;
 use crate::models::{
     CommittedSessionUpdate, CommittedWriteEvent, EntityIdentityChange, FileVersion,
     ProjectSyncDelivery, ReferenceSources, SourceSyncState, WriteResult, windows_path_key,
@@ -310,7 +311,7 @@ pub fn execute_queued<T: Serialize>(
     };
     let started = Instant::now();
     let recovery = task.clone();
-    let result = io::with_write_retry(
+    let mut result = io::with_write_retry(
         Path::new(event_root),
         move |error| wait_retry(&recovery, error),
         || loop {
@@ -331,6 +332,16 @@ pub fn execute_queued<T: Serialize>(
             started.elapsed().as_millis()
         )
     });
+    if let Ok(written) = &mut result {
+        match java_project::invalidate(event_root, &written.invalidation.paths) {
+            Ok(change) => written.java_project_change = change,
+            Err(error) => diagnostics::failure(
+                "java_project.invalidation_failed",
+                error,
+                json!({"modRoot": event_root}),
+            ),
+        }
+    }
     let mut saves = saves()?;
     let result = match result {
         Ok(result) => result,
@@ -363,7 +374,6 @@ pub fn execute_queued<T: Serialize>(
         reason,
         result: &result,
     })?;
-    java_project::invalidate(&task.root)?;
     for window in saves.windows.values().filter(|window| {
         window.belongs_to(&task.root) && (reason != "refresh" || !result.session_updates.is_empty())
     }) {
@@ -386,7 +396,42 @@ pub fn publish_references(
     snapshot: ReferenceSources,
     updates: Vec<CommittedSessionUpdate>,
 ) -> AppResult<()> {
+    deliver_references(
+        snapshot,
+        updates,
+        Some(JavaProjectChange {
+            configuration: true,
+            ..Default::default()
+        }),
+    )
+}
+
+pub(crate) fn publish_reference_changes<T>(
+    session: Option<&str>,
+    result: &WriteResult<T>,
+) -> AppResult<()> {
+    if let Some(snapshot) = project::reference_sources_changed(session)? {
+        deliver_references(
+            snapshot,
+            project::reference_updates()?,
+            result.java_project_change.clone(),
+        )?;
+    }
+    Ok(())
+}
+
+fn deliver_references(
+    snapshot: ReferenceSources,
+    updates: Vec<CommittedSessionUpdate>,
+    change: Option<JavaProjectChange>,
+) -> AppResult<()> {
+    let analysis = if change.as_ref().is_some_and(|change| change.configuration) {
+        java_analysis::refresh_registered_references()
+    } else {
+        Ok(())
+    };
     let mut result = WriteResult::<()>::from_changes(Vec::new());
+    result.java_project_change = change;
     result.session_updates = updates;
     let event = serde_json::to_value(CommittedWriteEvent {
         origin_window_label: "main",
@@ -412,9 +457,7 @@ pub fn publish_references(
         }
     }
     saves.references = snapshot;
-    drop(saves);
-    java_analysis::refresh_registered_references()?;
-    Ok(())
+    analysis
 }
 
 fn wait_retry(task: &SaveTask, error: &AppError) -> AppResult<()> {

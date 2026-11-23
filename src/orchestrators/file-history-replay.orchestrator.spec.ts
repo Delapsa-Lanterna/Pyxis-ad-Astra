@@ -2,7 +2,7 @@ import type * as FileHistoryServiceModule from '@/services/file-history.service'
 import { savedWriteFixture } from '@/test/fixtures/write-result';
 import { createPinia, setActivePinia } from 'pinia';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { AppFeedback, FileChangeRecord, FileHistoryEntrySummary, WriteResult, FileHistorySnapshot } from '@/shared/types';
+import type { AppFeedback, CommittedFileChange, FileHistoryEntrySummary, WriteResult, FileHistorySnapshot } from '@/shared/types';
 
 const mocks = vi.hoisted(() => ({
   replayFileChangeSet: vi.fn(),
@@ -50,18 +50,17 @@ function feedback(): AppFeedback {
 function entry(id = 1): FileHistoryEntrySummary {
   return { id, timestamp: id, label: 'saved file', paths: ['C:/mods/alpha/notes.txt'] };
 }
-function change(): FileChangeRecord {
+function change(): CommittedFileChange {
   return {
     kind: 'file',
     beforePath: entry().paths[0]!,
     afterPath: entry().paths[0]!,
     beforeExists: true,
-    beforeText: 'B',
-    beforeDataBase64: null,
+    beforeBinary: false,
     beforeFiles: [],
     afterExists: true,
     afterText: 'A',
-    afterDataBase64: null,
+    afterBinary: false,
     afterFiles: [],
   };
 }
@@ -254,8 +253,8 @@ describe('authoritative file history replay', () => {
         kind: 'directory',
         beforePath: root + '/mission',
         afterPath: root + '/mission',
-        beforeFiles: [{ relPath: 'old.txt', text: 'old', dataBase64: null }],
-        afterFiles: [{ relPath: 'new.txt', text: 'restored', dataBase64: null }],
+        beforeFiles: ['old.txt'],
+        afterFiles: [{ relPath: 'new.txt', text: 'restored', binary: false }],
       },
     ];
     mocks.replayFileChangeSet.mockResolvedValue(result);

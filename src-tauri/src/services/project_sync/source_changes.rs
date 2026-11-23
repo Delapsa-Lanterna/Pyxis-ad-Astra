@@ -1,4 +1,4 @@
-use super::{SaveTask, enqueue, execute_queued, publish_references, saves};
+use super::{SaveTask, enqueue, execute_queued, publish_reference_changes, saves};
 use crate::errors::{AppError, AppResult, ErrorDiagnostic};
 use crate::io::FsRootBoundary;
 use crate::models::{
@@ -517,9 +517,7 @@ fn consume_queued_source_batch(batch: &SourceChangeBatch, queued: Option<Arc<Sav
             Ok(result)
         })?;
         for update in &result.session_updates {
-            if let Some(snapshot) = project::reference_sources_changed(Some(&update.session_id))? {
-                publish_references(snapshot, project::reference_updates()?)?;
-            }
+            publish_reference_changes(Some(&update.session_id), &result)?;
         }
         core_result?;
         publish_source_status(

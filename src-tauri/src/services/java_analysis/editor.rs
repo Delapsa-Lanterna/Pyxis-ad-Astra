@@ -30,6 +30,10 @@ pub enum EditorAction {
     Start,
     Configure,
     Close,
+    RefreshSources {
+        paths: Vec<String>,
+        retained: Vec<String>,
+    },
     Sync {
         documents: Vec<DocumentEdit>,
     },
@@ -116,6 +120,15 @@ pub fn execute<R: Runtime>(
         }
         action => {
             let request = match action {
+                EditorAction::RefreshSources { paths, retained } => {
+                    AnalysisRequest::RefreshSources {
+                        id: json!(label),
+                        project: format!("session:{session_id}"),
+                        expected_revision: 0,
+                        paths,
+                        retained,
+                    }
+                }
                 EditorAction::Sync { documents } => {
                     let root = FsRootBoundary::new(Path::new(&mod_root), "Java editor Mod")?;
                     for document in &documents {

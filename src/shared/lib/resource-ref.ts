@@ -1,4 +1,5 @@
 import { RESOURCE_OWNER_KINDS, RESOURCE_SOURCES, type ResourceRef } from '@/shared/types';
+import { normalizeFsPath } from './paths';
 
 const resourceSources = new Set<string>(RESOURCE_SOURCES);
 const resourceOwnerKinds = new Set<string>(RESOURCE_OWNER_KINDS);
@@ -24,14 +25,10 @@ export function sameResourceRef(left: ResourceRef, right: ResourceRef): boolean 
   return (
     left.source === right.source &&
     left.reference?.sessionId === right.reference?.sessionId &&
-    left.reference?.modRoot === right.reference?.modRoot &&
-    normalizeResourceRelPath(left.relPath) === normalizeResourceRelPath(right.relPath) &&
+    normalizeFsPath(left.reference?.modRoot ?? '') === normalizeFsPath(right.reference?.modRoot ?? '') &&
+    normalizeFsPath(left.relPath) === normalizeFsPath(right.relPath) &&
     left.ownerKind === right.ownerKind &&
     left.ownerId === right.ownerId &&
     left.key === right.key
   );
-}
-
-function normalizeResourceRelPath(path: string): string {
-  return path.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
 }

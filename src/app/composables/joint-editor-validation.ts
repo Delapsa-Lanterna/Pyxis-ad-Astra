@@ -130,18 +130,17 @@ export async function validateJointFiles(
     const schema = getSchema(kind === 'faction' || kind === 'skin' || kind === 'variant' ? kind : `spec-${kind}`);
     const content = kind === 'faction' ? { file: checked } : checked;
     const problems = specChecks[kind]?.(checked, partial) ?? (schema ? schemaDocumentIssues(schema, content, partial) : []);
-    issues.push(...locate(record, problems));
+    for (const issue of locate(record, problems)) issues.push(issue);
     for (const layer of record.composition?.layers ?? []) {
       const layerContent = kind === 'faction' ? { file: layer.data } : layer.data;
       const layerPartial = !layer.data[entityContentIdField(kind)];
       const layerIssues =
         specChecks[kind]?.(layer.data, layerPartial) ?? (schema ? schemaDocumentIssues(schema, layerContent, layerPartial) : []);
-      issues.push(
-        ...locate(record, layerIssues).map((issue) => ({
+      for (const issue of locate(record, layerIssues))
+        issues.push({
           ...issue,
           location: { ...issue.location, path: layer.source.path },
-        })),
-      );
+        });
     }
     const references = kind === 'variant' ? ['hullId'] : kind === 'skin' ? ['baseHullId'] : kind === 'weapon' ? ['projectileSpecId'] : [];
     for (const key of references) {
@@ -154,9 +153,10 @@ export async function validateJointFiles(
           (key === 'projectileSpecId' ? entry.target.target.kind === 'projectile' : ['ship', 'skin'].includes(entry.target.target.kind)),
       );
       if (targets.length && targets.every((entry) => current[entry.key]?.state === 'missing'))
-        issues.push(
-          ...locate(record, [{ severity: 'error', code: 'config.reference_missing', path: key, message: `引用 ${id} 的文件缺失` }]),
-        );
+        for (const issue of locate(record, [
+          { severity: 'error', code: 'config.reference_missing', path: key, message: `引用 ${id} 的文件缺失` },
+        ]))
+          issues.push(issue);
     }
   }
   const groups = new Map<string, JointEditRecord[]>();
@@ -309,15 +309,14 @@ export async function validateJointFiles(
             },
           };
         });
-      issues.push(...mapProblems(csvTableProblems(table, rows, header, candidate), path, rows));
+      for (const issue of mapProblems(csvTableProblems(table, rows, header, candidate), path, rows)) issues.push(issue);
       for (const external of externalTables) {
-        issues.push(
-          ...mapProblems(
-            csvTableProblems(table, external.index.validationRows, external.index.header, context),
-            external.path,
-            external.index.validationRows,
-          ),
-        );
+        for (const issue of mapProblems(
+          csvTableProblems(table, external.index.validationRows, external.index.header, context),
+          external.path,
+          external.index.validationRows,
+        ))
+          issues.push(issue);
       }
     } catch (error) {
       if (signal?.aborted) throw error;
@@ -328,7 +327,7 @@ export async function validateJointFiles(
     const panel = projectVariantPanel(snapshot, current);
     for (const variant of panel.variants) {
       const record = snapshot.records.find((record) => record.key === variant.key)!;
-      issues.push(...locate(record, variant.diagnostics));
+      for (const issue of locate(record, variant.diagnostics)) issues.push(issue);
     }
   }
   return [...new Map(issues.map((issue) => [fieldProblemKey(issue), issue])).values()];
